@@ -1,6 +1,6 @@
 {
-    "name": "index-coop-contracts",
-    "version": "0.0.1",
+    "name": "@setprotocol/index-coop-contracts",
+    "version": "0.0.2",
     "description": "",
     "main": "dist",
     "types": "dist/types",
@@ -29,6 +29,7 @@
       "lint-ts": "tslint -c tslint.json -p tsconfig.json --fix",
       "precommit": "lint-staged",
       "prepare": "yarn build",
+      "prepack": "if [[ \"$(basename \"$PWD\")\" == \"index-coop-contracts\" ]]; then echo \"CANNOT PUBLISH FROM THIS REPO\"; exit 1; fi;",
       "rename-extensions": "for f in typechain/*.d.ts; do mv -- \"$f\" \"${f%.d.ts}.ts\"; done",
       "test": "npx buidler test --network localhost",
       "test:clean": "yarn clean && yarn build && yarn test",
@@ -38,7 +39,7 @@
     },
     "repository": {
       "type": "git",
-      "url": "git+https://github.com/SetProtocol/set-protocol-v2.git"
+      "url": "git+https://github.com/SetProtocol/index-coop-contracts.git"
     },
     "author": "felix2feng",
     "license": "MIT",
