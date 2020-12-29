@@ -19,7 +19,7 @@ import { SetFixture } from "@utils/fixtures";
 
 const expect = getWaffleExpect();
 
-describe.only("IcManagerV2", () => {
+describe("IcManagerV2", () => {
   let owner: Account;
   let methodologist: Account;
   let otherAccount: Account;
