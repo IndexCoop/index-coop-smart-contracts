@@ -1,7 +1,7 @@
 import "module-alias/register";
 import { BigNumber, solidityKeccak256 } from "ethers/utils";
 
-import { Address, Account } from "@utils/types";
+import { Address, Account, Bytes } from "@utils/types";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
 import { IcManagerV2 } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
@@ -342,57 +342,46 @@ describe("IcManagerV2", () => {
     });
   });
 
-  // describe("#interactModule", async () => {
-  //   let subjectModule: Address;
-  //   let subjectCallData: Bytes;
-  //   let subjectCaller: Account;
+  describe("#interactModule", async () => {
+    let subjectModule: Address;
+    let subjectCallData: Bytes;
+    let subjectCaller: Account;
 
-  //   beforeEach(async () => {
-  //     subjectModule = indexModule.address;
+    beforeEach(async () => {
+      await icManagerV2.connect(owner.wallet).addAdapter(owner.address);
+      await icManagerV2.connect(methodologist.wallet).addAdapter(owner.address);
 
-  //     // Invoke start rebalance
-  //     subjectCallData = indexModule.interface.functions.startRebalance.encode([
-  //       [setV2Setup.usdc.address],
-  //       [new BigNumber(500000)],
-  //       [ether(.5)],
-  //       ether(1),
-  //     ]);
-  //     subjectCaller = owner;
-  //   });
+      subjectModule = setV2Setup.streamingFeeModule.address;
 
-  //   async function subject(): Promise<any> {
-  //     icManagerV2 = icManagerV2.connect(subjectCaller.wallet);
-  //     return icManagerV2.interactModule(subjectModule, subjectCallData);
-  //   }
+      // Invoke start rebalance
+      subjectCallData = setV2Setup.streamingFeeModule.interface.functions.updateFeeRecipient.encode([
+        setToken.address,
+        otherAccount.address,
+      ]);
+      subjectCaller = owner;
+    });
 
-  //   it("should call startRebalance on the index module from the SetToken", async () => {
-  //     await subject();
-  //     const assetInfo = await indexModule.assetInfo(setV2Setup.dai.address);
-  //     const positionMultiplier = await indexModule.positionMultiplier();
-  //     expect(assetInfo.targetUnit).to.eq(ether(.5));
-  //     expect(positionMultiplier).to.eq(ether(1));
-  //   });
+    async function subject(): Promise<any> {
+      icManagerV2 = icManagerV2.connect(subjectCaller.wallet);
+      return icManagerV2.interactModule(subjectModule, subjectCallData);
+    }
 
-  //   describe("when interacting with the fee module", async () => {
-  //     beforeEach(async () => {
-  //       subjectModule = setV2Setup.streamingFeeModule.address;
-  //     });
+    it("should call updateFeeRecipient on the streaming fee module from the SetToken", async () => {
+      await subject();
+      const feeStates = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
+      expect(feeStates.feeRecipient).to.eq(otherAccount.address);
+    });
 
-  //     it("should revert", async () => {
-  //       await expect(subject()).to.be.revertedWith("Must not be fee module");
-  //     });
-  //   });
+    describe("when the caller is not an adapter", async () => {
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
 
-  //   describe("when the caller is not the operator", async () => {
-  //     beforeEach(async () => {
-  //       subjectCaller = await getRandomAccount();
-  //     });
-
-  //     it("should revert", async () => {
-  //       await expect(subject()).to.be.revertedWith("Must be operator");
-  //     });
-  //   });
-  // });
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be adapter");
+      });
+    });
+  });
 
   describe("#removeModule", async () => {
     let subjectModule: Address;
