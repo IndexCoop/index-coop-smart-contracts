@@ -1,4 +1,5 @@
 export { ICManager } from "../../typechain/ICManager";
+export { ICManagerV2 } from "../../typechain/ICManagerV2";
 export { IndexToken } from "../../typechain/IndexToken";
 export { MerkleDistributor } from "../../typechain/MerkleDistributor";
 export { MutualUpgradeMock } from "../../typechain/MutualUpgradeMock";
