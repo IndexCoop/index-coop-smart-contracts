@@ -77,6 +77,7 @@ describe("BaseAdapter", () => {
     await setToken.setManager(icManagerV2.address);
 
     await baseAdapterMock.updateManager(icManagerV2.address);
+    await baseAdapterMock.updateCallerStatus([owner.address], [true]);
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -133,7 +134,7 @@ describe("BaseAdapter", () => {
     });
   });
 
-  describe("#testOnlyMethodologist", async () => {
+  describe("#testOnlyEOA", async () => {
     let subjectCaller: Account;
 
     beforeEach(async () => {
@@ -141,7 +142,7 @@ describe("BaseAdapter", () => {
     });
 
     async function subject(): Promise<ContractTransaction> {
-      return baseAdapterMock.connect(subjectCaller.wallet).testOnlyMethodologist();
+      return baseAdapterMock.connect(subjectCaller.wallet).testOnlyEOA();
     }
 
     it("should succeed without revert", async () => {
@@ -177,6 +178,42 @@ describe("BaseAdapter", () => {
     });
   });
 
+  describe("#testOnlyAllowedCaller", async () => {
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      subjectCaller = owner;
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return baseAdapterMock.connect(subjectCaller.wallet).testOnlyAllowedCaller(subjectCaller.address);
+    }
+
+    it("should succeed without revert", async () => {
+      await subject();
+    });
+
+    describe("when the caller is not on allowlist", async () => {
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Address not permitted to call");
+      });
+
+      describe("when anyoneCallable is flipped to true", async () => {
+        beforeEach(async () => {
+          await baseAdapterMock.updateAnyoneCallable(true);
+        });
+
+        it("should succeed without revert", async () => {
+          await subject();
+        });
+      });
+    });
+  });
+
   describe("#testInvokeManager", async () => {
     let subjectModule: Address;
     let subjectCallData: Bytes;
@@ -199,6 +236,81 @@ describe("BaseAdapter", () => {
       await subject();
       const feeStates = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
       expect(feeStates.feeRecipient).to.eq(otherAccount.address);
+    });
+  });
+
+  describe("#updateCallerStatus", async () => {
+    let subjectFunctionCallers: Address[];
+    let subjectStatuses: boolean[];
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      subjectFunctionCallers = [otherAccount.address];
+      subjectStatuses = [true];
+      subjectCaller = owner;
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return baseAdapterMock.connect(subjectCaller.wallet).updateCallerStatus(subjectFunctionCallers, subjectStatuses);
+    }
+
+    it("should update the callAllowList", async () => {
+      await subject();
+      const callerStatus = await baseAdapterMock.callAllowList(subjectFunctionCallers[0]);
+      expect(callerStatus).to.be.true;
+    });
+
+    it("should emit CallerStatusUpdated event", async () => {
+      await expect(subject()).to.emit(baseAdapterMock, "CallerStatusUpdated").withArgs(
+        subjectFunctionCallers[0],
+        subjectStatuses[0]
+      );
+    });
+
+    describe("when the sender is not operator", async () => {
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be operator");
+      });
+    });
+  });
+
+  describe("#updateAnyoneCallable", async () => {
+    let subjectStatus: boolean;
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      subjectStatus = true;
+      subjectCaller = owner;
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return baseAdapterMock.connect(subjectCaller.wallet).updateAnyoneCallable(subjectStatus);
+    }
+
+    it("should update the anyoneCallable boolean", async () => {
+      await subject();
+      const callerStatus = await baseAdapterMock.anyoneCallable();
+      expect(callerStatus).to.be.true;
+    });
+
+    it("should emit AnyoneCallableUpdated event", async () => {
+      await expect(subject()).to.emit(baseAdapterMock, "AnyoneCallableUpdated").withArgs(
+        subjectStatus
+      );
+    });
+
+    describe("when the sender is not operator", async () => {
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be operator");
+      });
     });
   });
 });
