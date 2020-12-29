@@ -1,0 +1,161 @@
+import "module-alias/register";
+
+import { Account, Address, Bytes } from "@utils/types";
+import { ZERO, ADDRESS_ZERO } from "@utils/constants";
+import { BaseAdapterMock, IcManagerV2 } from "@utils/contracts/index";
+import { SetToken } from "@utils/contracts/setV2";
+
+import DeployHelper from "@utils/deploys";
+import {
+  addSnapshotBeforeRestoreAfterEach,
+  getAccounts,
+  getWaffleExpect,
+  getRandomAccount,
+  getSetFixture,
+  ether,
+} from "@utils/index";
+import { SetFixture } from "@utils/fixtures";
+import { ContractTransaction } from "ethers";
+
+const expect = getWaffleExpect();
+
+describe("BaseAdapter", () => {
+  let owner: Account;
+  let methodologist: Account;
+  let otherAccount: Account;
+  let deployer: DeployHelper;
+  let setToken: SetToken;
+  let setV2Setup: SetFixture;
+
+  let icManagerV2: IcManagerV2;
+  let baseAdapterMock: BaseAdapterMock;
+
+  before(async () => {
+    [
+      owner,
+      methodologist,
+      otherAccount,
+    ] = await getAccounts();
+
+    deployer = new DeployHelper(owner.wallet);
+
+    setV2Setup = getSetFixture(owner.address);
+    await setV2Setup.initialize();
+
+    setToken = await setV2Setup.createSetToken(
+      [setV2Setup.dai.address],
+      [ether(1)],
+      [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address]
+    );
+
+    // Initialize modules
+    await setV2Setup.issuanceModule.initialize(setToken.address, ADDRESS_ZERO);
+    const feeRecipient = owner.address;
+    const maxStreamingFeePercentage = ether(.1);
+    const streamingFeePercentage = ether(.02);
+    const streamingFeeSettings = {
+      feeRecipient,
+      maxStreamingFeePercentage,
+      streamingFeePercentage,
+      lastStreamingFeeTimestamp: ZERO,
+    };
+    await setV2Setup.streamingFeeModule.initialize(setToken.address, streamingFeeSettings);
+
+    // Deploy ICManagerV2
+    icManagerV2 = await deployer.manager.deployICManagerV2(
+      setToken.address,
+      owner.address,
+      methodologist.address
+    );
+
+    icManagerV2 = await deployer.manager.deployICManagerV2(setToken.address, owner.address, methodologist.address);
+
+    // Transfer ownership to IcManagerV2
+    await setToken.setManager(icManagerV2.address);
+
+    baseAdapterMock = await deployer.mocks.deployBaseAdapterMock();
+    await baseAdapterMock.updateManager(icManagerV2.address);
+
+    await icManagerV2.connect(owner.wallet).addAdapter(baseAdapterMock.address);
+    await icManagerV2.connect(methodologist.wallet).addAdapter(baseAdapterMock.address);
+  });
+
+  addSnapshotBeforeRestoreAfterEach();
+
+  describe("#testOnlyOperator", async () => {
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      subjectCaller = owner;
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return baseAdapterMock.connect(subjectCaller.wallet).testOnlyOperator();
+    }
+
+    it("should succeed without revert", async () => {
+      await subject();
+    });
+
+    describe("when the sender is not operator", async () => {
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be operator");
+      });
+    });
+  });
+
+  describe("#testOnlyMethodologist", async () => {
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      subjectCaller = methodologist;
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return baseAdapterMock.connect(subjectCaller.wallet).testOnlyMethodologist();
+    }
+
+    it("should succeed without revert", async () => {
+      await subject();
+    });
+
+    describe("when the sender is not methodologist", async () => {
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be methodologist");
+      });
+    });
+  });
+
+  describe("#testInvokeManager", async () => {
+    let subjectModule: Address;
+    let subjectCallData: Bytes;
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      subjectModule = setV2Setup.streamingFeeModule.address;
+      subjectCallData = setV2Setup.streamingFeeModule.interface.functions.updateFeeRecipient.encode([
+        setToken.address,
+        otherAccount.address,
+      ]);
+      subjectCaller = owner;
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return baseAdapterMock.connect(subjectCaller.wallet).testInvokeManager(subjectModule, subjectCallData);
+    }
+
+    it("should call updateFeeRecipient on the streaming fee module from the SetToken", async () => {
+      await subject();
+      const feeStates = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
+      expect(feeStates.feeRecipient).to.eq(otherAccount.address);
+    });
+  });
+});

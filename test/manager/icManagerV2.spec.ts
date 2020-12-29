@@ -353,7 +353,7 @@ describe("IcManagerV2", () => {
 
       subjectModule = setV2Setup.streamingFeeModule.address;
 
-      // Invoke start rebalance
+      // Invoke update fee recipient
       subjectCallData = setV2Setup.streamingFeeModule.interface.functions.updateFeeRecipient.encode([
         setToken.address,
         otherAccount.address,
