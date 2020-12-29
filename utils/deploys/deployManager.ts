@@ -4,7 +4,7 @@ import { Address } from "../types";
 import { ICManager, ICManagerV2 } from "../contracts/index";
 
 import { ICManager__factory } from "../../typechain/factories/ICManager__factory";
-import { ICManagerV2__factory } from "../../typechain/ICManagerV2__factory";
+import { ICManagerV2__factory } from "../../typechain/factories/ICManagerV2__factory";
 
 export default class DeployToken {
   private _deployerSigner: Signer;
