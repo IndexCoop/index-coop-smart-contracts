@@ -2,18 +2,11 @@ pragma solidity ^0.6.10;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
-import { IIndexModule } from "../interfaces/IIndexModule.sol";
-import { IStreamingFeeModule } from "../interfaces/IStreamingFeeModule.sol";
 import { AddressArrayUtils } from "../lib/AddressArrayUtils.sol";
 import { MutualUpgrade } from "../lib/MutualUpgrade.sol";
-import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
-import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 contract ICManagerV2 is MutualUpgrade {
     using Address for address;
-    using SafeMath for uint256;
-    using PreciseUnitMath for uint256;
     using AddressArrayUtils for address[];
 
     /* ============ Modifiers ============ */
