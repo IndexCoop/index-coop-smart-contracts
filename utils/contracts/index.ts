@@ -1,3 +1,4 @@
+export { BaseAdapterMock } from "../../typechain/BaseAdapterMock";
 export { ICManager } from "../../typechain/ICManager";
 export { ICManagerV2 } from "../../typechain/ICManagerV2";
 export { IndexToken } from "../../typechain/IndexToken";
