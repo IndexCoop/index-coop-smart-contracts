@@ -1,5 +1,5 @@
-import { ethers } from "@nomiclabs/buidler";
-import { BigNumber } from "ethers/utils";
+import { ethers } from "hardhat";
+import { BigNumber } from "@ethersproject/bignumber";
 import { Account, Address, Wallet } from "../types";
 
 const provider = ethers.provider;

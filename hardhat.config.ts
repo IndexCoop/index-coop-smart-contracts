@@ -1,29 +1,31 @@
 require("dotenv").config();
 
-import { BuidlerConfig, usePlugin, internalTask } from "@nomiclabs/buidler/config";
-import { TASK_COMPILE_RUN_COMPILER } from "@nomiclabs/buidler/builtin-tasks/task-names";
+import { HardhatUserConfig, internalTask } from "hardhat/config";
+import { TASK_COMPILE_SOLIDITY_COMPILE } from "hardhat/builtin-tasks/task-names";
 import { execSync } from "child_process";
 import { privateKeys } from "./utils/wallets";
 
-usePlugin("@nomiclabs/buidler-waffle");
-usePlugin("buidler-typechain");
-usePlugin("solidity-coverage");
-usePlugin("buidler-deploy");
+import "@nomiclabs/hardhat-waffle";
+import "hardhat-typechain";
+import "solidity-coverage";
+import "hardhat-deploy";
 
-internalTask(TASK_COMPILE_RUN_COMPILER).setAction(setupNativeSolc);
+// internalTask(TASK_COMPILE_SOLIDITY_COMPILE).setAction(setupNativeSolc);
 
-const config: BuidlerConfig = {
-  solc: {
+const config: HardhatUserConfig = {
+  solidity: {
     version: "0.6.10",
-    optimizer: { enabled: true, runs: 200 },
+    settings: {
+      optimizer: { enabled: true, runs: 200 },
+    },
   },
   namedAccounts: {
     deployer: 0,
   },
   networks: {
-    buidlerevm: {
+    hardhat: {
       hardfork: "istanbul",
-      accounts: getBuidlerPrivateKeys(),
+      accounts: getHardhatPrivateKeys(),
     },
     localhost: {
       url: "http://127.0.0.1:8545",
@@ -45,11 +47,11 @@ const config: BuidlerConfig = {
   },
   typechain: {
     outDir: "typechain",
-    target: "ethers-v4",
+    target: "ethers-v5",
   },
 };
 
-function getBuidlerPrivateKeys() {
+function getHardhatPrivateKeys() {
   return privateKeys.map(key => {
     const HUNDRED_THOUSAND_ETH = "100000000000000000000000";
     return {

@@ -1,6 +1,6 @@
-import { JsonRpcProvider, Web3Provider } from "ethers/providers";
+import { JsonRpcProvider, Web3Provider } from "@ethersproject/providers";
 
-import { BigNumber } from "ethers/utils";
+import { BigNumber } from "@ethersproject/bignumber";
 import { ethers, constants } from "ethers";
 
 import { EMPTY_BYTES } from "../constants";
@@ -31,6 +31,6 @@ export class ProtocolUtils {
     });
 
     const parsed = iface.parseLog(logs[logs.length - 1]);
-    return parsed.values._setToken;
+    return parsed.args._setToken;
   }
 }

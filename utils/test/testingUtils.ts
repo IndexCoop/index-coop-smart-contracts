@@ -2,9 +2,9 @@
 import chai from "chai";
 
 // Use BUIDLER version of providers
-import { ethers } from "@nomiclabs/buidler";
-import { BigNumber } from "ethers/utils";
-import { JsonRpcProvider } from "ethers/providers";
+import { ethers } from "hardhat";
+import { BigNumber } from "@ethersproject/bignumber";
+import { JsonRpcProvider } from "@ethersproject/providers";
 import { Blockchain } from "../common";
 
 const provider = ethers.provider;
@@ -37,11 +37,11 @@ export const addSnapshotBeforeRestoreAfterEach = () => {
 
 export async function getTransactionTimestamp(asyncTxn: any): Promise<BigNumber> {
   const txData = await asyncTxn;
-  return new BigNumber((await provider.getBlock(txData.block)).timestamp);
+  return BigNumber.from((await provider.getBlock(txData.block)).timestamp);
 }
 
 export async function getLastBlockTimestamp(): Promise<BigNumber> {
-  return new BigNumber((await provider.getBlock("latest")).timestamp);
+  return BigNumber.from((await provider.getBlock("latest")).timestamp);
 }
 
 export async function mineBlockAsync(): Promise<any> {

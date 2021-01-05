@@ -1,5 +1,5 @@
 import "module-alias/register";
-import { BigNumber } from "ethers/utils";
+import { BigNumber } from "@ethersproject/bignumber";
 
 import { Address, Account, DistributionFormat, MerkleDistributorInfo } from "@utils/types";
 import { ZERO } from "@utils/constants";
@@ -108,7 +108,7 @@ describe("MerkleDistributor", () => {
 
     describe("when tokens haven't been claimed", async () => {
       beforeEach(async () => {
-        subjectIndex = new BigNumber(1);
+        subjectIndex = BigNumber.from(1);
       });
 
       it("should revert", async () => {
