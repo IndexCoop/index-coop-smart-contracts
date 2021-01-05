@@ -1,4 +1,4 @@
-import { BigNumber } from "ethers/utils";
+import { BigNumber } from "@ethersproject/bignumber";
 import BalanceTree from "./balanceTree";
 import { ZERO } from "../constants";
 import { DistributionFormat, MerkleDistributorInfo } from "../types";

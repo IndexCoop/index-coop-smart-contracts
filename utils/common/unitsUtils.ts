@@ -1,12 +1,12 @@
 import { ethers } from "ethers";
-import { BigNumber } from "ethers/utils";
+import { BigNumber } from "ethers/lib/ethers";
 
 export const ether = (amount: number): BigNumber => {
   const weiString = ethers.utils.parseEther(amount.toString());
-  return new BigNumber(weiString);
+  return BigNumber.from(weiString);
 };
 
 export const gWei = (amount: number): BigNumber => {
-  const weiString = new BigNumber("1000000000").mul(amount);
-  return new BigNumber(weiString);
+  const weiString = BigNumber.from("1000000000").mul(amount);
+  return BigNumber.from(weiString);
 };

@@ -1,4 +1,4 @@
-import { ethers } from "@nomiclabs/buidler";
+import { ethers } from "hardhat";
 import { Blockchain } from "./common";
 import { Address } from "./types";
 
@@ -21,7 +21,7 @@ export {
   getRandomAddress,
   increaseTimeAsync,
   mineBlockAsync,
-} from "./buidler";
+} from "./test";
 
 export {
   divDown,

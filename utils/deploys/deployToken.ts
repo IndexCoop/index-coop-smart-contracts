@@ -1,5 +1,5 @@
 import { Signer } from "ethers";
-import { BigNumber } from "ethers/utils";
+import { BigNumber } from "@ethersproject/bignumber";
 import { Address } from "../types";
 import { IndexToken, MerkleDistributor, Vesting } from "../contracts";
 

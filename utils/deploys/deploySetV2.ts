@@ -1,5 +1,5 @@
 import { Signer } from "ethers";
-import { BigNumberish } from "ethers/utils";
+import { BigNumberish } from "@ethersproject/bignumber";
 import { Address } from "../types";
 import {
   Controller,

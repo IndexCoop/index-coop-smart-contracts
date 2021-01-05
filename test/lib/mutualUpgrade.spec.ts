@@ -1,5 +1,6 @@
 import "module-alias/register";
-import { BigNumber, solidityKeccak256 } from "ethers/utils";
+import { solidityKeccak256 } from "ethers/lib/utils";
+import { BigNumber } from "@ethersproject/bignumber";
 
 import { Account } from "@utils/types";
 import { ONE, ZERO } from "@utils/constants";

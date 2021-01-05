@@ -1,5 +1,6 @@
 import "module-alias/register";
-import { BigNumber, solidityKeccak256 } from "ethers/utils";
+import { solidityKeccak256 } from "ethers/lib/utils";
+import { BigNumber } from "@ethersproject/bignumber";
 
 import { Address, Account, Bytes } from "@utils/types";
 import { ADDRESS_ZERO, ONE_DAY_IN_SECONDS, ONE_YEAR_IN_SECONDS, ZERO } from "@utils/constants";
@@ -198,7 +199,7 @@ describe("IcManager", () => {
 
     beforeEach(async () => {
       subjectNewComponents = [setV2Setup.usdc.address];
-      subjectNewComponentsTargetUnits = [new BigNumber(500000)];
+      subjectNewComponentsTargetUnits = [BigNumber.from(500000)];
       subjectOldComponentsTargetUnits = [ether(.5)];
       subjectPositionMultiplier = ether(1);
       subjectCaller = owner;
@@ -246,7 +247,7 @@ describe("IcManager", () => {
 
     beforeEach(async () => {
       subjectComponents = [setV2Setup.usdc.address];
-      subjectTradeMaximums = [new BigNumber(1000000)];
+      subjectTradeMaximums = [BigNumber.from(1000000)];
       subjectCaller = owner;
     });
 
@@ -279,7 +280,7 @@ describe("IcManager", () => {
 
     beforeEach(async () => {
       subjectComponents = [setV2Setup.usdc.address];
-      subjectAssetExchanges = [new BigNumber(1)];
+      subjectAssetExchanges = [BigNumber.from(1)];
       subjectCaller = owner;
     });
 
@@ -312,7 +313,7 @@ describe("IcManager", () => {
 
     beforeEach(async () => {
       subjectComponents = [setV2Setup.usdc.address];
-      subjectCoolOffPeriods = [new BigNumber(100)];
+      subjectCoolOffPeriods = [BigNumber.from(100)];
       subjectCaller = owner;
     });
 
@@ -538,7 +539,7 @@ describe("IcManager", () => {
       // Invoke start rebalance
       subjectCallData = indexModule.interface.functions.startRebalance.encode([
         [setV2Setup.usdc.address],
-        [new BigNumber(500000)],
+        [BigNumber.from(500000)],
         [ether(.5)],
         ether(1),
       ]);
