@@ -10,16 +10,16 @@ import {
   SingleIndexModule,
   StandardTokenMock
 } from "../contracts/setV2";
-import { Weth9 } from "../contracts/index";
+import { WETH9 } from "../contracts/index";
 import { ether } from "../common";
-import { ControllerFactory } from "../../typechain/ControllerFactory";
-import { BasicIssuanceModuleFactory } from "../../typechain/BasicIssuanceModuleFactory";
-import { SingleIndexModuleFactory } from "../../typechain/SingleIndexModuleFactory";
-import { StreamingFeeModuleFactory } from "../../typechain/StreamingFeeModuleFactory";
-import { SetTokenFactory } from "../../typechain/SetTokenFactory";
-import { SetTokenCreatorFactory } from "../../typechain/SetTokenCreatorFactory";
-import { StandardTokenMockFactory } from "../../typechain/StandardTokenMockFactory";
-import { Weth9Factory } from "../../typechain/Weth9Factory";
+import { Controller__factory } from "../../typechain/factories/Controller__factory";
+import { BasicIssuanceModule__factory } from "../../typechain/factories/BasicIssuanceModule__factory";
+import { SingleIndexModule__factory } from "../../typechain/factories/SingleIndexModule__factory";
+import { StreamingFeeModule__factory } from "../../typechain/factories/StreamingFeeModule__factory";
+import { SetToken__factory } from "../../typechain/factories/SetToken__factory";
+import { SetTokenCreator__factory } from "../../typechain/factories/SetTokenCreator__factory";
+import { StandardTokenMock__factory } from "../../typechain/factories/StandardTokenMock__factory";
+import { WETH9__factory } from "../../typechain/factories/WETH9__factory";
 
 export default class DeploySetV2 {
   private _deployerSigner: Signer;
@@ -29,11 +29,11 @@ export default class DeploySetV2 {
   }
 
   public async deployController(feeRecipient: Address): Promise<Controller> {
-    return await new ControllerFactory(this._deployerSigner).deploy(feeRecipient);
+    return await new Controller__factory(this._deployerSigner).deploy(feeRecipient);
   }
 
   public async deploySetTokenCreator(controller: Address): Promise<SetTokenCreator> {
-    return await new SetTokenCreatorFactory(this._deployerSigner).deploy(controller);
+    return await new SetTokenCreator__factory(this._deployerSigner).deploy(controller);
   }
 
   public async deploySetToken(
@@ -45,7 +45,7 @@ export default class DeploySetV2 {
     _name: string,
     _symbol: string,
   ): Promise<SetToken> {
-    return await new SetTokenFactory(this._deployerSigner).deploy(
+    return await new SetToken__factory(this._deployerSigner).deploy(
       _components,
       _units,
       _modules,
@@ -57,11 +57,11 @@ export default class DeploySetV2 {
   }
 
   public async deployBasicIssuanceModule(controller: Address): Promise<BasicIssuanceModule> {
-    return await new BasicIssuanceModuleFactory(this._deployerSigner).deploy(controller);
+    return await new BasicIssuanceModule__factory(this._deployerSigner).deploy(controller);
   }
 
   public async deployStreamingFeeModule(controller: Address): Promise<StreamingFeeModule> {
-    return await new StreamingFeeModuleFactory(this._deployerSigner).deploy(controller);
+    return await new StreamingFeeModule__factory(this._deployerSigner).deploy(controller);
   }
 
   public async deploySingleIndexModule(
@@ -71,7 +71,7 @@ export default class DeploySetV2 {
     sushiswapRouter: Address,
     balancerProxy: Address
   ): Promise<SingleIndexModule> {
-    return await new SingleIndexModuleFactory(this._deployerSigner).deploy(
+    return await new SingleIndexModule__factory(this._deployerSigner).deploy(
       controller,
       weth,
       uniswapRouter,
@@ -80,8 +80,8 @@ export default class DeploySetV2 {
     );
   }
 
-  public async deployWETH(): Promise<Weth9> {
-    return await new Weth9Factory(this._deployerSigner).deploy();
+  public async deployWETH(): Promise<WETH9> {
+    return await new WETH9__factory(this._deployerSigner).deploy();
   }
 
   public async deployTokenMock(
@@ -91,11 +91,11 @@ export default class DeploySetV2 {
     name: string = "Token",
     symbol: string = "Symbol"
   ): Promise<StandardTokenMock> {
-    return await new StandardTokenMockFactory(this._deployerSigner)
+    return await new StandardTokenMock__factory(this._deployerSigner)
       .deploy(initialAccount, initialBalance, name, symbol, decimals);
   }
 
   public async getTokenMock(token: Address): Promise<StandardTokenMock> {
-    return await new StandardTokenMockFactory(this._deployerSigner).attach(token);
+    return await new StandardTokenMock__factory(this._deployerSigner).attach(token);
   }
 }

@@ -2,7 +2,7 @@ import { Signer } from "ethers";
 import { Address } from "../types";
 import { MutualUpgradeMock } from "../contracts/index";
 
-import { MutualUpgradeMockFactory } from "../../typechain/MutualUpgradeMockFactory";
+import { MutualUpgradeMock__factory } from "../../typechain/factories/MutualUpgradeMock__factory";
 
 export default class DeployMocks {
   private _deployerSigner: Signer;
@@ -12,6 +12,6 @@ export default class DeployMocks {
   }
 
   public async deployMutualUpgradeMock(owner: Address, methodologist: string): Promise<MutualUpgradeMock> {
-    return await new MutualUpgradeMockFactory(this._deployerSigner).deploy(owner, methodologist);
+    return await new MutualUpgradeMock__factory(this._deployerSigner).deploy(owner, methodologist);
   }
 }

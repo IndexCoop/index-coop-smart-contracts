@@ -16,6 +16,7 @@
 /transpiled
 /types/generated/*
 /typechain
+/contracts/external
 coverage.json
 coverage/
 .env

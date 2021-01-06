@@ -10,7 +10,7 @@ import "hardhat-typechain";
 import "solidity-coverage";
 import "hardhat-deploy";
 
-// internalTask(TASK_COMPILE_SOLIDITY_COMPILE).setAction(setupNativeSolc);
+internalTask(TASK_COMPILE_SOLIDITY_COMPILE).setAction(setupNativeSolc);
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -72,7 +72,7 @@ async function setupNativeSolc({ input }, { config }, runSuper) {
 
   console.log("Output", solcVersionOutput);
 
-  if (!solcVersionOutput.includes(config.solc.version)) {
+  if (!solcVersionOutput.includes(config.solidity.version)) {
     console.log(`Using solcjs`);
     return runSuper();
   }

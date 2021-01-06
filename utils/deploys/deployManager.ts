@@ -1,7 +1,7 @@
 import { Signer } from "ethers";
 import { BigNumber } from "@ethersproject/bignumber";
 import { Address } from "../types";
-import { IcManager } from "../contracts/index";
+import { ICManager } from "../contracts/index";
 
 import { ICManager__factory } from "../../typechain/factories/ICManager__factory";
 
@@ -19,7 +19,7 @@ export default class DeployToken {
     operator: Address,
     methodologist: Address,
     coopFeeSplit: BigNumber
-  ): Promise<IcManager> {
+  ): Promise<ICManager> {
     return await new ICManager__factory(this._deployerSigner).deploy(
       set,
       indexModule,

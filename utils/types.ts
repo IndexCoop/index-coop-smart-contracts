@@ -3,10 +3,11 @@ import {
   Wallet as WalletType
 } from "ethers";
 import { BigNumber } from "@ethersproject/bignumber";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
 
 export type Account = {
   address: Address;
-  wallet: Wallet;
+  wallet: SignerWithAddress;
 };
 
 export type Address = string;
