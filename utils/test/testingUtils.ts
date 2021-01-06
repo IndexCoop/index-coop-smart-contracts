@@ -1,7 +1,9 @@
-// Buidler automatically injects the waffle version into chai
 import chai from "chai";
+import { solidity } from "ethereum-waffle";
 
-// Use BUIDLER version of providers
+chai.use(solidity);
+
+// Use HARDHAT version of providers
 import { ethers } from "hardhat";
 import { BigNumber } from "@ethersproject/bignumber";
 import { JsonRpcProvider } from "@ethersproject/providers";
@@ -10,12 +12,12 @@ import { Blockchain } from "../common";
 const provider = ethers.provider;
 // const blockchain = new Blockchain(provider);
 
-// BUIDLER-SPECIFIC Provider
+// HARDHAT-SPECIFIC Provider
 export const getProvider = (): JsonRpcProvider => {
   return ethers.provider;
 };
 
-// BUIDLER / WAFFLE
+// HARDHAT / WAFFLE
 export const getWaffleExpect = (): Chai.ExpectStatic => {
   return chai.expect;
 };

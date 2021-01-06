@@ -1,6 +1,7 @@
 import { ethers } from "hardhat";
 import { BigNumber } from "@ethersproject/bignumber";
-import { Account, Address, Wallet } from "../types";
+import { Account, Address } from "../types";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
 
 const provider = ethers.provider;
 
@@ -34,6 +35,6 @@ export const getEthBalance = async (account: Address): Promise<BigNumber> => {
 };
 
 // NOTE ethers.signers may be a buidler specific function
-export const getWallets = async (): Promise<Wallet[]> => {
-  return (await ethers.signers() as Wallet[]);
+export const getWallets = async (): Promise<SignerWithAddress[]> => {
+  return (await ethers.getSigners() as SignerWithAddress[]);
 };

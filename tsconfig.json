@@ -6,6 +6,7 @@
     "esModuleInterop": true,
     "strictPropertyInitialization": false,
     "outDir": "dist",
+    "resolveJsonModule": true,
     "declaration": true,
     "declarationDir": "./dist/types",
     "baseUrl": ".",

@@ -10,7 +10,7 @@ import {
   StreamingFeeModule,
   StandardTokenMock
 } from "../contracts/setV2";
-import { Weth9 } from "../contracts/index";
+import { WETH9 } from "../contracts/index";
 import DeployHelper from "../deploys";
 import {
   ether,
@@ -23,7 +23,7 @@ import {
   MAX_UINT_256,
 } from "../constants";
 
-import { SetTokenFactory } from "../../typechain/SetTokenFactory";
+import { SetToken__factory } from "../../typechain/factories/SetToken__factory";
 
 export class SetFixture {
   private _provider: Web3Provider | JsonRpcProvider;
@@ -39,7 +39,7 @@ export class SetFixture {
   public issuanceModule: BasicIssuanceModule;
   public streamingFeeModule: StreamingFeeModule;
 
-  public weth: Weth9;
+  public weth: WETH9;
   public usdc: StandardTokenMock;
   public wbtc: StandardTokenMock;
   public dai: StandardTokenMock;
@@ -104,7 +104,7 @@ export class SetFixture {
 
     const retrievedSetAddress = await new ProtocolUtils(this._provider).getCreatedSetTokenAddress(txHash.hash);
 
-    return new SetTokenFactory(this._ownerSigner).attach(retrievedSetAddress);
+    return new SetToken__factory(this._ownerSigner).attach(retrievedSetAddress);
   }
 
   public async approveAndIssueSetToken(

@@ -4,7 +4,7 @@ import { BigNumber } from "@ethersproject/bignumber";
 
 import { Address, Account, Bytes } from "@utils/types";
 import { ADDRESS_ZERO, ONE_DAY_IN_SECONDS, ONE_YEAR_IN_SECONDS, ZERO } from "@utils/constants";
-import { IcManager } from "@utils/contracts/index";
+import { ICManager } from "@utils/contracts/index";
 import { SingleIndexModule, SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -26,7 +26,7 @@ import { SetFixture } from "@utils/fixtures";
 
 const expect = getWaffleExpect();
 
-describe("IcManager", () => {
+describe("ICManager", () => {
   let owner: Account;
   let methodologist: Account;
   let otherAccount: Account;
@@ -39,7 +39,7 @@ describe("IcManager", () => {
   let setTokensIssued: BigNumber;
   let indexModule: SingleIndexModule;
 
-  let icManager: IcManager;
+  let icManager: ICManager;
   let operatorFeeSplit: BigNumber;
 
   before(async () => {
@@ -126,7 +126,7 @@ describe("IcManager", () => {
       subjectOperatorFeeSplit = ether(0.7);
     });
 
-    async function subject(): Promise<IcManager> {
+    async function subject(): Promise<ICManager> {
       return await deployer.manager.deployICManager(
         subjectSetToken,
         subjectIndexModule,
@@ -537,7 +537,7 @@ describe("IcManager", () => {
       subjectModule = indexModule.address;
 
       // Invoke start rebalance
-      subjectCallData = indexModule.interface.functions.startRebalance.encode([
+      subjectCallData = indexModule.interface.encodeFunctionData("startRebalance", [
         [setV2Setup.usdc.address],
         [BigNumber.from(500000)],
         [ether(.5)],
@@ -657,7 +657,7 @@ describe("IcManager", () => {
       it("sets the upgradeHash", async () => {
         await subject();
         const timestamp = await getLastBlockTimestamp();
-        const calldata = icManager.interface.functions.updateStreamingFee.encode([subjectStreamingFeePercentage]);
+        const calldata = icManager.interface.encodeFunctionData("updateStreamingFee", [subjectStreamingFeePercentage]);
         const upgradeHash = solidityKeccak256(["bytes"], [calldata]);
         const actualTimestamp = await icManager.timeLockedUpgrades(upgradeHash);
         expect(actualTimestamp).to.eq(timestamp);
@@ -679,7 +679,7 @@ describe("IcManager", () => {
 
         it("sets the upgradeHash to 0", async () => {
           await subject();
-          const calldata = icManager.interface.functions.updateStreamingFee.encode([subjectStreamingFeePercentage]);
+          const calldata = icManager.interface.encodeFunctionData("updateStreamingFee", [subjectStreamingFeePercentage]);
           const upgradeHash = solidityKeccak256(["bytes"], [calldata]);
           const actualTimestamp = await icManager.timeLockedUpgrades(upgradeHash);
           expect(actualTimestamp).to.eq(ZERO);

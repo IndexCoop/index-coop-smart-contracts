@@ -1,4 +1,4 @@
-export { IcManager } from "../../typechain/IcManager";
+export { ICManager } from "../../typechain/ICManager";
 export { IndexToken } from "../../typechain/IndexToken";
 export { MerkleDistributor } from "../../typechain/MerkleDistributor";
 export { MutualUpgradeMock } from "../../typechain/MutualUpgradeMock";
@@ -6,4 +6,4 @@ export { RewardsDistributionRecipient } from "../../typechain/RewardsDistributio
 export { StakingRewards } from "../../typechain/StakingRewards";
 export { StakingRewardsV2 } from "../../typechain/StakingRewardsV2";
 export { Vesting } from "../../typechain/Vesting";
-export { Weth9 } from "../../typechain/Weth9";
+export { WETH9 } from "../../typechain/Weth9";
