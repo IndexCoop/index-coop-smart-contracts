@@ -9,6 +9,9 @@ jobs:
       - checkout
       - setup_remote_docker:
           docker_layer_caching: false
+      - run:
+          name: Set Up Environment Variables
+          command: cp .env.default .env
       - restore_cache:
           key: module-cache-{{ checksum "yarn.lock" }}
       - run:
