@@ -3,7 +3,7 @@ version: 2
 jobs:
   checkout_and_compile:
     docker:
-      - image: circleci/node:10.11.0
+      - image: circleci/node:10.16.0
     working_directory: ~/index-coop-private
     steps:
       - checkout
@@ -51,7 +51,7 @@ jobs:
 
   coverage:
     docker:
-      - image: circleci/node:10.11.0
+      - image: circleci/node:10.16.0
     working_directory: ~/index-coop-private
     steps:
       - setup_remote_docker:
