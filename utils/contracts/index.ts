@@ -6,4 +6,4 @@ export { RewardsDistributionRecipient } from "../../typechain/RewardsDistributio
 export { StakingRewards } from "../../typechain/StakingRewards";
 export { StakingRewardsV2 } from "../../typechain/StakingRewardsV2";
 export { Vesting } from "../../typechain/Vesting";
-export { WETH9 } from "../../typechain/Weth9";
+export { WETH9 } from "../../typechain/WETH9";
