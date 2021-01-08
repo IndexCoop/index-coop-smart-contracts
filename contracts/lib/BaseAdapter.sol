@@ -58,7 +58,7 @@ abstract contract BaseAdapter {
      * @param _module           Module to interact with
      * @param _encoded          Encoded byte data
      */
-    function invokeManager(address _module, bytes calldata _encoded) internal {
+    function invokeManager(address _module, bytes memory _encoded) internal {
         manager.interactModule(_module, _encoded);
     }
 }
