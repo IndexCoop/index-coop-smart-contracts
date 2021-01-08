@@ -1,9 +1,9 @@
 import "module-alias/register";
-import { BigNumber, solidityKeccak256 } from "ethers/utils";
+import { solidityKeccak256 } from "ethers/lib/utils";
 
 import { Address, Account, Bytes } from "@utils/types";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
-import { IcManagerV2 } from "@utils/contracts/index";
+import { ICManagerV2 } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -19,7 +19,7 @@ import { SetFixture } from "@utils/fixtures";
 
 const expect = getWaffleExpect();
 
-describe("IcManagerV2", () => {
+describe("ICManagerV2", () => {
   let owner: Account;
   let methodologist: Account;
   let otherAccount: Account;
@@ -30,7 +30,7 @@ describe("IcManagerV2", () => {
   let deployer: DeployHelper;
   let setToken: SetToken;
 
-  let icManagerV2: IcManagerV2;
+  let icManagerV2: ICManagerV2;
 
   before(async () => {
     [
@@ -72,7 +72,7 @@ describe("IcManagerV2", () => {
       methodologist.address
     );
 
-    // Transfer ownership to IcManagerV2
+    // Transfer ownership to ICManagerV2
     await setToken.setManager(icManagerV2.address);
   });
 
@@ -89,7 +89,7 @@ describe("IcManagerV2", () => {
       subjectMethodologist = methodologist.address;
     });
 
-    async function subject(): Promise<IcManagerV2> {
+    async function subject(): Promise<ICManagerV2> {
       return await deployer.manager.deployICManagerV2(
         subjectSetToken,
         subjectOperator,
@@ -354,7 +354,7 @@ describe("IcManagerV2", () => {
       subjectModule = setV2Setup.streamingFeeModule.address;
 
       // Invoke update fee recipient
-      subjectCallData = setV2Setup.streamingFeeModule.interface.functions.updateFeeRecipient.encode([
+      subjectCallData = setV2Setup.streamingFeeModule.interface.encodeFunctionData("updateFeeRecipient", [
         setToken.address,
         otherAccount.address,
       ]);
