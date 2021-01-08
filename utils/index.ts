@@ -6,8 +6,10 @@ const provider = ethers.provider;
 export const getBlockchainUtils = () => new Blockchain(provider);
 
 import { SetFixture } from "./fixtures";
+import { CompoundFixture } from "./fixtures";
 
 export const getSetFixture = (ownerAddress: Address) => new SetFixture(provider, ownerAddress);
+export const getCompoundFixture = (ownerAddress: Address) => new CompoundFixture(provider, ownerAddress);
 
 export {
   getAccounts,
@@ -44,3 +46,5 @@ export {
   MerkleTree,
   parseBalanceMap,
 } from "./merkleUtils";
+
+export { calculateNewLeverageRatio } from "./flexibleLeverageUtils";
