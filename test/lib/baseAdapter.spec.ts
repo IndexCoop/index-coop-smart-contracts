@@ -2,7 +2,7 @@ import "module-alias/register";
 
 import { Account, Address, Bytes } from "@utils/types";
 import { ZERO, ADDRESS_ZERO } from "@utils/constants";
-import { BaseAdapterMock, IcManagerV2 } from "@utils/contracts/index";
+import { BaseAdapterMock, ICManagerV2 } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 
 import DeployHelper from "@utils/deploys";
@@ -27,7 +27,7 @@ describe("BaseAdapter", () => {
   let setToken: SetToken;
   let setV2Setup: SetFixture;
 
-  let icManagerV2: IcManagerV2;
+  let icManagerV2: ICManagerV2;
   let baseAdapterMock: BaseAdapterMock;
 
   before(async () => {
@@ -70,7 +70,7 @@ describe("BaseAdapter", () => {
 
     icManagerV2 = await deployer.manager.deployICManagerV2(setToken.address, owner.address, methodologist.address);
 
-    // Transfer ownership to IcManagerV2
+    // Transfer ownership to ICManagerV2
     await setToken.setManager(icManagerV2.address);
 
     baseAdapterMock = await deployer.mocks.deployBaseAdapterMock();
@@ -141,7 +141,7 @@ describe("BaseAdapter", () => {
 
     beforeEach(async () => {
       subjectModule = setV2Setup.streamingFeeModule.address;
-      subjectCallData = setV2Setup.streamingFeeModule.interface.functions.updateFeeRecipient.encode([
+      subjectCallData = setV2Setup.streamingFeeModule.interface.encodeFunctionData("updateFeeRecipient", [
         setToken.address,
         otherAccount.address,
       ]);
