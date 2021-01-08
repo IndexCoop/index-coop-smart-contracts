@@ -35,7 +35,7 @@ export default class DeployToken {
     set: Address,
     operator: Address,
     methodologist: Address
-  ): Promise<IcManagerV2> {
+  ): Promise<ICManagerV2> {
     return await new ICManagerV2__factory(this._deployerSigner).deploy(
       set,
       operator,
