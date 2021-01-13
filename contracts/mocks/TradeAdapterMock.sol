@@ -8,6 +8,15 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
  */
 contract TradeAdapterMock {
 
+    /* ============ Helper Functions ============ */
+
+    function withdraw(address _token)
+        external
+    {
+        uint256 balance = ERC20(_token).balanceOf(address(this));
+        require(ERC20(_token).transfer(msg.sender, balance), "ERC20 transfer failed");
+    }
+    
     /* ============ Trade Functions ============ */
 
     function trade(
