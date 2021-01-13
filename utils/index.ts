@@ -47,4 +47,8 @@ export {
   parseBalanceMap,
 } from "./merkleUtils";
 
-export { calculateNewLeverageRatio } from "./flexibleLeverageUtils";
+export {
+  calculateNewLeverageRatio,
+  calculateCollateralRebalanceUnits,
+  calculateMaxBorrowForDelever
+} from "./flexibleLeverageUtils";

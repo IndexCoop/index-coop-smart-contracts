@@ -1,8 +1,8 @@
 import { Signer } from "ethers";
-import { Address, Bytes } from "../types";
+import { Bytes } from "../types";
 import { FlexibleLeverageStrategyAdapter } from "../contracts/index";
 
-import { FlexibleLeverageStrategyAdapterFactory } from "../../typechain/FlexibleLeverageStrategyAdapterFactory";
+import { FlexibleLeverageStrategyAdapter__factory } from "../../typechain/factories/FlexibleLeverageStrategyAdapter__factory";
 
 export default class DeployAdapters {
   private _deployerSigner: Signer;
@@ -12,14 +12,14 @@ export default class DeployAdapters {
   }
 
   public async deployFlexibleLeverageStrategyAdapter(
-    instances: Address[],
-    assetDecimals: string[],
-    methodologyParams: Address[],
-    executionParams: Address[],
+    instances: any,
+    assetDecimals: any,
+    methodologyParams: any,
+    executionParams: any,
     initialExchangeName: string,
     initialExchangeData: Bytes
   ): Promise<FlexibleLeverageStrategyAdapter> {
-    return await new FlexibleLeverageStrategyAdapterFactory(this._deployerSigner).deploy(
+    return await new FlexibleLeverageStrategyAdapter__factory(this._deployerSigner).deploy(
       instances,
       assetDecimals,
       methodologyParams,
