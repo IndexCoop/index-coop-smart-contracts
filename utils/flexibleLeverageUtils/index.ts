@@ -1,1 +1,5 @@
-export { calculateNewLeverageRatio } from "./flexibleLeverage";
+export {
+  calculateNewLeverageRatio,
+  calculateCollateralRebalanceUnits,
+  calculateMaxBorrowForDelever
+} from "./flexibleLeverage";
