@@ -18,18 +18,17 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     using SafeMath for uint256;
     using PreciseUnitMath for uint256;
     using Address for address;
-    using AddressArrayUtils for address[];
 
     /* ============ Structs ============ */
 
     struct ActionInfo {
-        uint256 collateralPrice;
-        uint256 borrowPrice;
-        uint256 collateralBalance;
-        uint256 borrowBalance;
-        uint256 collateralValue;
-        uint256 borrowValue;
-        uint256 setTotalSupply;
+        uint256 collateralPrice;                   // Price of collateral asset in precise units (10e18)
+        uint256 borrowPrice;                       // Price of borrow asset in precise units (10e18)
+        uint256 collateralBalance;                 // Balance of collateral assets held in Compound
+        uint256 borrowBalance;                     // Balance of borrow asset borrowed from Compound
+        uint256 collateralValue;                   // Valuation of collateral asset in USD
+        uint256 borrowValue;                       // Valuation of borrow asset in USD
+        uint256 setTotalSupply;                    // Total supply of SetToken
     }
 
     struct TwapState {
@@ -47,6 +46,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         _;
     }
 
+    /**
+     * Throws if caller is a contract
+     */
     modifier onlyEOA() {
         require(msg.sender == tx.origin, "Caller must be EOA Address");
         _;
@@ -54,41 +56,51 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
     /* ============ State Variables ============ */
 
-    ISetToken public setToken; // Instance of levered SetToken
-    ICompoundLeverageModule public compoundLeverageModule; // Instance of Compound leverage module
+    ISetToken public setToken;                              // Instance of levered SetToken
+    ICompoundLeverageModule public compoundLeverageModule;  // Instance of Compound leverage module
 
-    IComptroller public comptroller; // Instance of Comptroller
-    ICompoundPriceOracle public compoundPriceOracle; // Compound oracle feed
+    IComptroller public comptroller;                        // Instance of Comptroller
+    ICompoundPriceOracle public compoundPriceOracle;        // Compound oracle feed
 
-    ICErc20 public targetCollateralCToken; // Instance of target collateral cToken asset
-    ICErc20 public targetBorrowCToken; // Instance of target borrow cToken asset
-    address public collateralAsset; // Address of underlying collateral
-    address public borrowAsset; // Address of underlying borrow asset
-    uint256 public collateralAssetDecimals; // Decimals of collateral asset
-    uint256 public borrowAssetDecimals; // Decimals of borrow asset
+    ICErc20 public targetCollateralCToken;                  // Instance of target collateral cToken asset
+    ICErc20 public targetBorrowCToken;                      // Instance of target borrow cToken asset
+    address public collateralAsset;                         // Address of underlying collateral
+    address public borrowAsset;                             // Address of underlying borrow asset
+    uint256 public collateralAssetDecimals;                 // Decimals of collateral asset
+    uint256 public borrowAssetDecimals;                     // Decimals of borrow asset
     
-    uint256 public targetLeverageRatio; // Target leverage ratio
-    uint256 public minLeverageRatio; // Min leverage ratio
-    uint256 public maxLeverageRatio; // Max leverage ratio
-    uint256 public recenteringSpeed; // Speed at which to rebalance back to target leverage
-    uint256 public rebalanceInterval; // Rebalance interval in seconds
+    uint256 public targetLeverageRatio;                     // Target leverage ratio
+    uint256 public minLeverageRatio;                        // Min leverage ratio
+    uint256 public maxLeverageRatio;                        // Max leverage ratio
+    uint256 public recenteringSpeed;                        // Speed at which to rebalance back to target leverage
+    uint256 public rebalanceInterval;                       // Rebalance interval in seconds
 
-    uint256 public bufferPercentage; // Percent of max borrow left unutilized leverage
-    uint256 public maxTradeSize; // Max trade size for TWAP in base units
-    uint256 public twapCooldown; // Cooldown period for TWAP
-    uint256 public slippageTolerance; // Slippage tolerance % in precise units to price min receive quantities
+    uint256 public bufferPercentage;                        // Percent of max borrow left unutilized leverage
+    uint256 public maxTradeSize;                            // Max trade size for TWAP in base units
+    uint256 public twapCooldown;                            // Cooldown period for TWAP
+    uint256 public slippageTolerance;                       // Slippage tolerance % in precise units to price min receive quantities
 
-    string public exchangeName; // Name of exchange that is being used for leverage
-    bytes public exchangeData; // Arbitrary exchange data passed into rebalance function
+    string public exchangeName;                             // Name of exchange that is being used for leverage
+    bytes public exchangeData;                              // Arbitrary exchange data passed into rebalance function
 
-    bool public isTWAP; // Check if it currently is rebalancing
-    TwapState public twapState; // TWAP state struct
-    uint256 public lastRebalanceTimestamp; // Last rebalance timestamp. Must be past rebalance interval to rebalance
+    bool public isTWAP;                                     // Check if it currently is rebalancing
+    TwapState public twapState;                             // TWAP state struct
+    uint256 public lastRebalanceTimestamp;                  // Last rebalance timestamp. Must be past rebalance interval to rebalance
 
-    bool public isEngaged;
+    bool public isEngaged;                                  // Check if engaged
 
     /* ============ Constructor ============ */
 
+    /**
+     * Instantiate addresses, asset decmials, methodology parameters, execution parameters, and initial exchange name and data
+     * 
+     * @param _instances               Array of contract addresses
+     * @param _assetDecimals           Decimals for collateral and borrow assets
+     * @param _methodologyParams       Parameters of flexible leverage methodology
+     * @param _executionParams         Trade execution parameters
+     * @param _initialExchangeName     Initial exchange name for execution
+     * @param _initialExchangeData     Arbitrary bytes used by exchange
+     */
     constructor(
         address[9] memory _instances,
         uint256[2] memory _assetDecimals,
@@ -130,8 +142,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     /* ============ External Functions ============ */
 
     /**
-     * OPERATOR ONLY: Engage to target leverage
-     *
+     * OPERATOR ONLY: Engage to target leverage. 
      */
     function engage() external onlyOperator {
         require(!isEngaged, "Must not be engaged");
@@ -142,20 +153,10 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         require(engageInfo.borrowBalance == 0, "Debt must be 0");
         require(engageInfo.collateralBalance > 0, "Collateral balance must be > 0");
 
-        ( , uint256 accountLiquidity, ) = comptroller.getAccountLiquidity(address(setToken));
-
-        uint256 maxBorrowInCollateral = accountLiquidity
-            .preciseMul(PreciseUnitMath.preciseUnit().sub(bufferPercentage))
-            .preciseDiv(engageInfo.collateralPrice)
-            .preciseMul(10 ** collateralAssetDecimals); // Normalize decimals
-
         _lever(
             PreciseUnitMath.preciseUnit(), // 1x leverage in precise units
             targetLeverageRatio,
-            engageInfo.collateralBalance,
-            maxBorrowInCollateral,
-            engageInfo.collateralPrice.preciseDiv(engageInfo.borrowPrice),
-            engageInfo.setTotalSupply
+            engageInfo
         );
 
         isEngaged = true;
@@ -164,7 +165,6 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
     /**
      * ONLY EOA: Rebalance according to flexible leverage methodology. Anyone callable.
-     *
      */
     function rebalance() external onlyEOA {
         require(isEngaged, "Must be engaged");
@@ -177,45 +177,26 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             rebalanceInfo.borrowValue
         );
 
+        // Validate rebalance and calculate new leverage ratio
         uint256 newLeverageRatio = _validateAndCalculateNewLeverageRatio(currentLeverageRatio);
-
-
-        ( , uint256 accountLiquidity, ) = comptroller.getAccountLiquidity(address(setToken));
+        
         if (newLeverageRatio < currentLeverageRatio) {
-            uint256 maxBorrowInCollateral = rebalanceInfo.collateralBalance
-                .mul(rebalanceInfo.borrowValue)
-                .preciseMul(PreciseUnitMath.preciseUnit().sub(bufferPercentage))
-                .div(accountLiquidity.add(rebalanceInfo.borrowValue))
-                .preciseMul(10 ** collateralAssetDecimals); // Normalize decimals
-
             _delever(
                 currentLeverageRatio,
                 newLeverageRatio,
-                rebalanceInfo.collateralBalance,
-                maxBorrowInCollateral,
-                rebalanceInfo.collateralPrice.preciseDiv(rebalanceInfo.borrowPrice),
-                rebalanceInfo.setTotalSupply
+                rebalanceInfo
             );
         } else {
-            uint256 maxBorrowInCollateral = accountLiquidity
-                .preciseMul(PreciseUnitMath.preciseUnit().sub(bufferPercentage))
-                .preciseDiv(rebalanceInfo.collateralPrice)
-                .preciseMul(10 ** collateralAssetDecimals); // Normalize decimals
-
             _lever(
                 currentLeverageRatio,
                 newLeverageRatio,
-                rebalanceInfo.collateralBalance,
-                maxBorrowInCollateral,
-                rebalanceInfo.collateralPrice.preciseDiv(rebalanceInfo.borrowPrice),
-                rebalanceInfo.setTotalSupply
+                rebalanceInfo
             );
         }
     }
 
     /**
-     * OPERATOR ONLY: Disengage and repay loan
-     *
+     * OPERATOR ONLY: Disengage strategy. Return leverage ratio to 1x and repay loan. Note: due to rounding on trades, loan value may not be entirely repaid
      */
     function disengage() external onlyOperator {
         require(isEngaged, "Must be engaged");
@@ -228,19 +209,10 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             disengageInfo.borrowValue
         );
 
-        ( , uint256 accountLiquidity, ) = comptroller.getAccountLiquidity(address(setToken));
-        uint256 maxBorrowInCollateral = disengageInfo.collateralBalance
-            .mul(disengageInfo.borrowValue)
-            .preciseMul(PreciseUnitMath.preciseUnit().sub(bufferPercentage))
-            .div(accountLiquidity.add(disengageInfo.borrowValue))
-            .preciseMul(10 ** collateralAssetDecimals); // Normalize decimals
         _delever(
             currentLeverageRatio,
             PreciseUnitMath.preciseUnit(),
-            disengageInfo.collateralBalance,
-            maxBorrowInCollateral,
-            disengageInfo.collateralPrice.preciseDiv(disengageInfo.borrowPrice),
-            disengageInfo.setTotalSupply
+            disengageInfo
         );
 
         isEngaged = false;
@@ -248,8 +220,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     /**
-     * ONLY EOA: Gulp COMP. Rebalance must not be in progress
-     *
+     * ONLY EOA: Gulp COMP and sell for more collateral. Rebalance must not be in progress. Anyone callable
      */
     function gulp() external noRebalanceInProgress onlyEOA {
         bytes memory gulpCallData = abi.encodeWithSignature(
@@ -265,72 +236,81 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     /**
-     * OPERATOR ONLY: Set max trade size
+     * OPERATOR ONLY: Set max trade size in collateral units. Rebalance must not be in progress
      *
+     * @param _maxTradeSize           Max trade size in collateral units
      */
     function setMaxTradeSize(uint256 _maxTradeSize) external onlyOperator noRebalanceInProgress {
         maxTradeSize = _maxTradeSize;
     }
 
     /**
-     * OPERATOR ONLY: Set exchange name
+     * OPERATOR ONLY: Set exchange name. Rebalance must not be in progress
      *
+     * @param _exchangeName           Name of new exchange to set
      */
     function setExchange(string memory _exchangeName) external onlyOperator noRebalanceInProgress {
         exchangeName = _exchangeName;
     }
 
     /**
-     * OPERATOR ONLY: Set exchange data
+     * OPERATOR ONLY: Set exchange data. Rebalance must not be in progress
      *
+     * @param _exchangeData           Arbitrary exchange data
      */
     function setExchangeData(bytes memory _exchangeData) external onlyOperator noRebalanceInProgress {
         exchangeData = _exchangeData;
     }
 
     /**
-     * OPERATOR ONLY: Set TWAP cooldown period
+     * OPERATOR ONLY: Set TWAP cooldown period. Rebalance must not be in progress
      *
+     * @param _twapCooldown           New TWAP cooldown period for trade execution
      */
     function setCooldownPeriod(uint256 _twapCooldown) external onlyOperator noRebalanceInProgress {
         twapCooldown = _twapCooldown;
     }
 
     /**
-     * OPERATOR ONLY: Set rebalance interval
+     * OPERATOR ONLY: Set rebalance interval. Rebalance must not be in progress
      *
+     * @param _rebalanceInterval      New rebalance interval
      */
     function setRebalanceInterval(uint256 _rebalanceInterval) external onlyOperator noRebalanceInProgress {
         rebalanceInterval = _rebalanceInterval;
     }
 
     /**
-     * OPERATOR ONLY: Set buffer percentage
+     * OPERATOR ONLY: Set buffer percentage. Rebalance must not be in progress
      *
+     * @param _bufferPercentage       New buffer percentage
      */
     function setBufferPercentage(uint256 _bufferPercentage) external onlyOperator noRebalanceInProgress {
         bufferPercentage = _bufferPercentage;
     }
 
     /**
-     * OPERATOR ONLY: Set recentering speed
+     * OPERATOR ONLY: Set recentering speed. Rebalance must not be in progress
      *
+     * @param _recenteringSpeed       New recentering speed for methodology
      */
     function setRecenteringSpeed(uint256 _recenteringSpeed) external onlyOperator noRebalanceInProgress {
         recenteringSpeed = _recenteringSpeed;
     }
 
     /**
-     * OPERATOR ONLY: Set min leverage ratio
+     * OPERATOR ONLY: Set min leverage ratio. Rebalance must not be in progress
      *
+     * @param _minLeverageRatio       New min leverage ratio for methodology
      */
     function setMinLeverageRatio(uint256 _minLeverageRatio) external onlyOperator noRebalanceInProgress {
         minLeverageRatio = _minLeverageRatio;
     }
 
     /**
-     * OPERATOR ONLY: Set max leverage ratio
+     * OPERATOR ONLY: Set max leverage ratio. Rebalance must not be in progress
      *
+     * @param _maxLeverageRatio       New max leverage ratio for methodology
      */
     function setMaxLeverageRatio(uint256 _maxLeverageRatio) external onlyOperator noRebalanceInProgress {
         maxLeverageRatio = _maxLeverageRatio;
@@ -339,8 +319,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     /* ============ External Getter Functions ============ */
 
     /**
-     * Get current leverage ratio
-     *
+     * Get current leverage ratio. Note: uses borrow balance and exchange rate that is stored versus current.
      */
     function getCurrentLeverageRatio() external view returns(uint256) {
         uint256 collateralPrice = compoundPriceOracle.getUnderlyingPrice(address(targetCollateralCToken));
@@ -360,42 +339,46 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
     /* ============ Internal Functions ============ */
 
+    /**
+     * Calculate notional rebalance quantity, whether to use TWAP and max borrow. Invoke lever on CompoundLeverageModule.
+     */
     function _lever(
         uint256 _currentLeverageRatio,
         uint256 _newLeverageRatio,
-        uint256 _collateralBalance,
-        uint256 _maxBorrow,
-        uint256 _pairPrice,
-        uint256 _setTotalSupply
+        ActionInfo memory _actionInfo
     )
         internal
     {
         uint256 totalRebalanceNotional = _newLeverageRatio
             .sub(_currentLeverageRatio)
             .preciseDiv(_currentLeverageRatio)
-            .preciseMul(_collateralBalance);
+            .preciseMul(_actionInfo.collateralBalance);
 
-        uint256 chunkRebalanceNotional = Math.min(_maxBorrow, totalRebalanceNotional);
+        uint256 maxBorrow = _calculateMaxBorrowInCollateral(_actionInfo, true);
+
+        uint256 chunkRebalanceNotional = Math.min(maxBorrow, totalRebalanceNotional);
+        
         // If the chunk notional rebalance size is greater than max trade size
         if (chunkRebalanceNotional > maxTradeSize) {
             chunkRebalanceNotional = maxTradeSize;
 
             _setTWAPState(_newLeverageRatio);
-        } else if (chunkRebalanceNotional <= maxTradeSize && _maxBorrow < totalRebalanceNotional) {
+        } else if (chunkRebalanceNotional <= maxTradeSize && maxBorrow < totalRebalanceNotional) {
             // Check if below TWAP threshold and max borrow amount is less than total rebalance notional
             _setTWAPState(_newLeverageRatio);
-        } else if (chunkRebalanceNotional <= maxTradeSize && _maxBorrow >= totalRebalanceNotional) {
+        } else if (chunkRebalanceNotional <= maxTradeSize && maxBorrow >= totalRebalanceNotional) {
             _removeTWAPState();
         }
 
-        uint256 collateralRebalanceUnits = chunkRebalanceNotional.preciseDiv(_setTotalSupply);
+        uint256 collateralRebalanceUnits = chunkRebalanceNotional.preciseDiv(_actionInfo.setTotalSupply);
 
+        uint256 pairPrice = _actionInfo.collateralPrice.preciseDiv(_actionInfo.borrowPrice);
         uint256 borrowUnits = collateralRebalanceUnits
             .preciseDiv(10 ** collateralAssetDecimals)
-            .preciseMul(_pairPrice)
+            .preciseMul(pairPrice)
             .preciseMul(10 ** borrowAssetDecimals);
-
         uint256 minReceiveUnits = collateralRebalanceUnits.preciseMul(PreciseUnitMath.preciseUnit().sub(slippageTolerance));
+
         bytes memory leverCallData = abi.encodeWithSignature(
             "lever(address,address,address,uint256,uint256,string,bytes)",
             address(setToken),
@@ -410,39 +393,42 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         invokeManager(address(compoundLeverageModule), leverCallData);
     }
 
+    /**
+     * Calculate notional rebalance quantity, whether to use TWAP and max borrow. Invoke delever on CompoundLeverageModule.
+     */
     function _delever(
         uint256 _currentLeverageRatio,
         uint256 _newLeverageRatio,
-        uint256 _collateralBalance,
-        uint256 _maxBorrow,
-        uint256 _pairPrice,
-        uint256 _setTotalSupply
+        ActionInfo memory _actionInfo
     )
         internal
     {
         uint256 totalRebalanceNotional = _currentLeverageRatio
             .sub(_newLeverageRatio)
             .preciseDiv(_currentLeverageRatio)
-            .preciseMul(_collateralBalance);
+            .preciseMul(_actionInfo.collateralBalance);
 
-        uint256 chunkRebalanceNotional = Math.min(_maxBorrow, totalRebalanceNotional);
+        uint256 maxBorrow = _calculateMaxBorrowInCollateral(_actionInfo, false);
+        uint256 chunkRebalanceNotional = Math.min(maxBorrow, totalRebalanceNotional);
+        
         // If the chunk notional rebalance size is greater than max trade size
         if (chunkRebalanceNotional > maxTradeSize) {
             chunkRebalanceNotional = maxTradeSize;
 
             _setTWAPState(_newLeverageRatio);
-        } else if (chunkRebalanceNotional <= maxTradeSize && _maxBorrow < totalRebalanceNotional) {
+        } else if (chunkRebalanceNotional <= maxTradeSize && maxBorrow < totalRebalanceNotional) {
             // Check if below TWAP threshold and max borrow amount is less than total rebalance notional
             _setTWAPState(_newLeverageRatio);
-        } else if (chunkRebalanceNotional <= maxTradeSize && _maxBorrow >= totalRebalanceNotional) {
+        } else if (chunkRebalanceNotional <= maxTradeSize && maxBorrow >= totalRebalanceNotional) {
             _removeTWAPState();
         }
 
-        uint256 collateralRebalanceUnits = chunkRebalanceNotional.preciseDiv(_setTotalSupply);
+        uint256 collateralRebalanceUnits = chunkRebalanceNotional.preciseDiv(_actionInfo.setTotalSupply);
 
+        uint256 pairPrice = _actionInfo.collateralPrice.preciseDiv(_actionInfo.borrowPrice);
         uint256 minRepayUnits = collateralRebalanceUnits
             .preciseDiv(10 ** collateralAssetDecimals)
-            .preciseMul(_pairPrice)
+            .preciseMul(pairPrice)
             .preciseMul(10 ** borrowAssetDecimals)
             .preciseMul(PreciseUnitMath.preciseUnit().sub(slippageTolerance));
 
@@ -458,6 +444,20 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         );
 
         invokeManager(address(compoundLeverageModule), leverCallData);
+    }
+
+    function _createActionInfo() internal returns(ActionInfo memory) {
+        ActionInfo memory rebalanceInfo;
+
+        rebalanceInfo.collateralPrice = compoundPriceOracle.getUnderlyingPrice(address(targetCollateralCToken));
+        rebalanceInfo.borrowPrice = compoundPriceOracle.getUnderlyingPrice(address(targetBorrowCToken));
+        rebalanceInfo.collateralBalance = targetCollateralCToken.balanceOfUnderlying(address(setToken));
+        rebalanceInfo.borrowBalance = targetBorrowCToken.borrowBalanceStored(address(setToken));
+        rebalanceInfo.collateralValue = rebalanceInfo.collateralPrice.preciseMul(rebalanceInfo.collateralBalance).preciseDiv(10 ** collateralAssetDecimals);
+        rebalanceInfo.borrowValue = rebalanceInfo.borrowPrice.preciseMul(rebalanceInfo.borrowBalance).preciseDiv(10 ** borrowAssetDecimals);
+        rebalanceInfo.setTotalSupply = setToken.totalSupply();
+
+        return rebalanceInfo;
     }
 
     function _calculateCurrentLeverageRatio(
@@ -498,18 +498,21 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         return newLeverageRatio;
     }
 
-    function _createActionInfo() internal returns(ActionInfo memory) {
-        ActionInfo memory rebalanceInfo;
+    function _calculateMaxBorrowInCollateral(ActionInfo memory _actionInfo, bool _isLever) internal view returns(uint256) {
+        ( , uint256 accountLiquidity, ) = comptroller.getAccountLiquidity(address(setToken));
 
-        rebalanceInfo.collateralPrice = compoundPriceOracle.getUnderlyingPrice(address(targetCollateralCToken));
-        rebalanceInfo.borrowPrice = compoundPriceOracle.getUnderlyingPrice(address(targetBorrowCToken));
-        rebalanceInfo.collateralBalance = targetCollateralCToken.balanceOfUnderlying(address(setToken));
-        rebalanceInfo.borrowBalance = targetBorrowCToken.borrowBalanceStored(address(setToken));
-        rebalanceInfo.collateralValue = rebalanceInfo.collateralPrice.preciseMul(rebalanceInfo.collateralBalance).preciseDiv(10 ** collateralAssetDecimals);
-        rebalanceInfo.borrowValue = rebalanceInfo.borrowPrice.preciseMul(rebalanceInfo.borrowBalance).preciseDiv(10 ** borrowAssetDecimals);
-        rebalanceInfo.setTotalSupply = setToken.totalSupply();
-
-        return rebalanceInfo;
+        if (_isLever) {
+            return accountLiquidity
+                .preciseMul(PreciseUnitMath.preciseUnit().sub(bufferPercentage))
+                .preciseDiv(_actionInfo.collateralPrice)
+                .preciseMul(10 ** collateralAssetDecimals); // Normalize decimals
+        } else {
+            uint256 limitAdjust = accountLiquidity.add(_actionInfo.borrowValue).preciseMul(bufferPercentage);
+            return _actionInfo.collateralBalance
+                .mul(accountLiquidity.sub(limitAdjust))
+                .preciseMul(PreciseUnitMath.preciseUnit().sub(bufferPercentage))
+                .div(accountLiquidity.add(_actionInfo.borrowValue).sub(limitAdjust));
+        }
     }
 
     function _setTWAPState(uint256 _newLeverageRatio) internal {
