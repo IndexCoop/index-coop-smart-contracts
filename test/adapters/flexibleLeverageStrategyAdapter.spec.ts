@@ -1446,8 +1446,11 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
         // Withdraw balance of USDC from exchange contract from engage
         await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
-        await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(800000000)); // 800 USDC
+        await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(1000000000)); // 800 USDC
         await flexibleLeverageStrategyAdapter.setMaxTradeSize(ether(2));
+        // Reduce account liquidity
+        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(750));
+
         subjectCaller = owner;
       });
 
@@ -1511,7 +1514,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         // cEther position is increased
         const currentPositions = await setToken.getPositions();
         const newSecondPosition = (await setToken.getPositions())[1];
-
         const expectedSecondPositionUnit = (await cUSDC.borrowBalanceStored(setToken.address)).mul(-1);
         expect(initialPositions.length).to.eq(2);
         expect(currentPositions.length).to.eq(2);
