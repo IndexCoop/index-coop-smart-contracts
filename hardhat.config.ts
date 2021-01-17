@@ -19,12 +19,15 @@ const config: HardhatUserConfig = {
       optimizer: { enabled: true, runs: 200 },
     },
   },
-  namedAccounts: {
+  namedAccounts: {  
     deployer: 0,
   },
   networks: {
     hardhat: {
-      hardfork: "istanbul",
+      forking: {
+          url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
+          blockNumber: 11649166,
+      },
       accounts: getHardhatPrivateKeys(),
     },
     localhost: {
@@ -44,6 +47,9 @@ const config: HardhatUserConfig = {
     coverage: {
       url: "http://127.0.0.1:8555", // Coverage launches its own ganache-cli client
     },
+  },
+  mocha: {
+    timeout: 20000
   },
   typechain: {
     outDir: "typechain",
