@@ -10,10 +10,21 @@ import "../interfaces/ISetToken.sol";
 import "../interfaces/IBasicIssuanceModule.sol";
 import "../interfaces/IWETH.sol";
 
+/**
+ * @title IssueRedeem
+ * @author Noah Citron
+ *
+ * Contract that allows for the minting and redeeming any Set token using
+ * ETH as the paying/receiving currency. All swaps are done using the best price
+ * found on Uniswap or Sushiswap.
+ *
+ */
 contract IssueRedeem {
 
     using SafeMath for uint256;
     
+    /* ============ State Variables ============ */
+
     IUniswapV2Router02 private uniRouter;
     address private uniFactory;
     IUniswapV2Router02 private sushiRouter;
@@ -22,6 +33,8 @@ contract IssueRedeem {
     IBasicIssuanceModule private basicIssuanceModule;
     address constant private WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     uint256 constant private MAX_INT = 2**256 - 1;
+
+    /* ============ Constructor ============ */
 
     constructor() public {
         uniFactory = address(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f);
@@ -35,10 +48,21 @@ contract IssueRedeem {
         IERC20(WETH).approve(address(sushiRouter), MAX_INT);
     }
 
-    //must be run before the contract issues/redeems an index for the first time
-    function initApprovals(address _index) public {
+    /* ============ External Functions ============ */
+
+    receive() external payable {}
+
+    /**
+     * Runs all the necessary approval functions required before issuing
+     * or redeeming an index. This function must only be called before the first time
+     * this smart contract is used on any particular index, or when a new token is added
+     * to the index.
+     *
+     * @param _index    Address of the index being initialized
+     */
+    function initApprovals(address _index) external {
         ISetToken.Position[] memory positions = ISetToken(_index).getPositions();
-        for(uint256 i=0; i<positions.length; i++) {
+        for (uint256 i=0; i<positions.length; i++) {
             IERC20 token = IERC20(positions[i].component);
             token.approve(address(uniRouter), MAX_INT);
             token.approve(address(sushiRouter), MAX_INT);
@@ -46,66 +70,57 @@ contract IssueRedeem {
         }
     }
 
-    function redeem(address _index, uint256 _amount) public {
+    /**
+     * Redeems an Index and sells the underlying tokens for ETH using Uniswap
+     * or Sushiswap.
+     *
+     * @param _index    Address of the index being redeemed
+     * @param _amount   The amount of the index to redeem
+     */
+    function redeem(address _index, uint256 _amount) external {
         ISetToken setToken = ISetToken(_index);
         setToken.transferFrom(msg.sender, address(this), _amount);
         basicIssuanceModule.redeem(ISetToken(_index), _amount, address(this));
         liquidateSetPositions(_index);
     }
 
+    /**
+     * Issues an Index by using swapping for the underlying tokens using ETH on Uniswap
+     * or Sushiswap. msg.value must be equal to the maximum price in ETH that you are
+     * willing to pay. Excess ETH is refunded.
+     *
+     * @param _index    Address of the index being issued
+     * @param _amount   Amount of the index to issue
+     */
+    function issue(address _index, uint256 _amount) external payable {
+        ISetToken.Position[] memory positions = ISetToken(_index).getPositions();
+        uint256[] memory tokenAmounts = new uint256[](positions.length);
+        address[] memory tokens = new address[](positions.length);
+        for (uint256 i=0; i<positions.length; i++) {
+            uint256 tokensNeeded =  preciseMulCeil(uint256(positions[i].unit), _amount);
+            tokenAmounts[i] = tokensNeeded;
+            tokens[i] = positions[i].component;
+        }
+        acquireTokensOfSet(tokens, tokenAmounts);
+        basicIssuanceModule.issue(ISetToken(_index), _amount, msg.sender);
+        msg.sender.transfer(address(this).balance);
+    }
+
+    /* ============ Private Functions ============ */
+
     function liquidateSetPositions(address _index) private {
         ISetToken.Position[] memory positions = ISetToken(_index).getPositions();
-        for(uint256 i=0; i<positions.length; i++) {
+        for (uint256 i=0; i<positions.length; i++) {
             sellTokenBestPrice(positions[i].component);
         }
     }
 
-    function issue(address _index, uint256 _amount) public payable {
-        ISetToken.Position[] memory positions = ISetToken(_index).getPositions();
-        uint256[] memory tokenAmounts = new uint256[](positions.length);
-        address[] memory tokens = new address[](positions.length);
-        {
-            for(uint256 i=0; i<positions.length; i++) {
-                uint256 tokensNeeded =  preciseMulCeil(uint256(positions[i].unit), _amount);
-                tokenAmounts[i] = tokensNeeded;
-                tokens[i] = positions[i].component;
-            }
-        }
-        acquireTokensOfSet(tokens, tokenAmounts);
-        basicIssuanceModule.issue(ISetToken(_index), _amount, msg.sender);
-        msg.sender.send(address(this).balance);
-    }
-
     function acquireTokensOfSet(address[] memory tokens, uint256[] memory tokenAmounts) private {
         IWETH(WETH).deposit{value: address(this).balance}();
-        for(uint256 i=0; i<tokens.length; i++) {
+        for (uint256 i=0; i<tokens.length; i++) {
             purchaseTokenBestPrice(tokens[i], tokenAmounts[i]);
         }
         IWETH(WETH).withdraw(IERC20(WETH).balanceOf(address(this)));
-    }
-
-    function getBuyPrice(bool isUni, address _token, uint256 _amount) private returns (uint256) {
-        if(isUni) {
-            (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, WETH, _token);
-            return uniRouter.getAmountIn(_amount, tokenReserveA, tokenReserveB);
-        } else {
-            (uint256 tokenReserveA, uint256 tokenReserveB) = SushiswapV2Library.getReserves(sushiFactory, WETH, _token);
-            return sushiRouter.getAmountIn(_amount, tokenReserveA, tokenReserveB);
-        }
-    }
-
-    function getSellPrice(bool isUni, address _token, uint256 _amount) private returns (uint256) {
-        if(isUni) {
-            (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, WETH, _token);
-            return uniRouter.getAmountOut(_amount, tokenReserveB, tokenReserveA);
-        } else {
-            (uint256 tokenReserveA, uint256 tokenReserveB) = SushiswapV2Library.getReserves(sushiFactory, WETH, _token);
-            return sushiRouter.getAmountOut(_amount, tokenReserveB, tokenReserveA);
-        }
-    }
-
-    function tokenAvailable(address _factory, address _token) private returns (bool) {
-        return IUniswapV2Factory(_factory).getPair(WETH, _token) != address(0);
     }
 
     function purchaseToken(IUniswapV2Router02 _router, address _token, uint256 _amount) private {
@@ -118,7 +133,7 @@ contract IssueRedeem {
     function purchaseTokenBestPrice(address _token, uint256 _amount) private {
         uint256 uniPrice = tokenAvailable(uniFactory, _token) ? getBuyPrice(true, _token, _amount) : MAX_INT;
         uint256 sushiPrice = tokenAvailable(sushiFactory, _token) ? getBuyPrice(false, _token, _amount) : MAX_INT;
-        if(uniPrice <= sushiPrice) {
+        if (uniPrice <= sushiPrice) {
             purchaseToken(uniRouter, _token, _amount);
         } else {
             purchaseToken(sushiRouter, _token, _amount);
@@ -137,11 +152,35 @@ contract IssueRedeem {
         uint256 tokenBalance = IERC20(_token).balanceOf(address(this));
         uint256 uniPrice = tokenAvailable(uniFactory, _token) ? getSellPrice(true, _token, tokenBalance) : 0;
         uint256 sushiPrice = tokenAvailable(sushiFactory, _token) ? getSellPrice(false, _token, tokenBalance) : 0;
-        if(uniPrice >= sushiPrice) {
+        if (uniPrice >= sushiPrice) {
             sellToken(uniRouter, _token);
         } else {
             sellToken(sushiRouter, _token);
         }
+    }
+
+    function getBuyPrice(bool isUni, address _token, uint256 _amount) private view returns (uint256) {
+        if (isUni) {
+            (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, WETH, _token);
+            return uniRouter.getAmountIn(_amount, tokenReserveA, tokenReserveB);
+        } else {
+            (uint256 tokenReserveA, uint256 tokenReserveB) = SushiswapV2Library.getReserves(sushiFactory, WETH, _token);
+            return sushiRouter.getAmountIn(_amount, tokenReserveA, tokenReserveB);
+        }
+    }
+
+    function getSellPrice(bool isUni, address _token, uint256 _amount) private view returns (uint256) {
+        if (isUni) {
+            (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, WETH, _token);
+            return uniRouter.getAmountOut(_amount, tokenReserveB, tokenReserveA);
+        } else {
+            (uint256 tokenReserveA, uint256 tokenReserveB) = SushiswapV2Library.getReserves(sushiFactory, WETH, _token);
+            return sushiRouter.getAmountOut(_amount, tokenReserveB, tokenReserveA);
+        }
+    }
+
+    function tokenAvailable(address _factory, address _token) private view returns (bool) {
+        return IUniswapV2Factory(_factory).getPair(WETH, _token) != address(0);
     }
 
     function preciseMulCeil(uint256 a, uint256 b) internal pure returns (uint256) {
@@ -150,6 +189,4 @@ contract IssueRedeem {
         }
         return a.mul(b).sub(1).div(10 ** 18).add(1);
     }
-
-    receive() external payable {}
 }

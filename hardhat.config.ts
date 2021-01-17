@@ -16,14 +16,14 @@ const config: HardhatUserConfig = {
   solidity: {
     compilers: [
       {
-          version: "0.6.12"
+          version: "0.6.12",
       },
       {
-          version: "0.6.6"
+          version: "0.6.6",
       },
       {
-        version: "0.6.10"
-    }
+        version: "0.6.10",
+    },
   ],
     settings: {
       optimizer: { enabled: true, runs: 200 },
@@ -36,7 +36,7 @@ const config: HardhatUserConfig = {
     hardhat: {
       forking: {
           url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
-          blockNumber: 11649166
+          blockNumber: 11649166,
       },
       accounts: getHardhatPrivateKeys(),
     },
