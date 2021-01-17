@@ -14,17 +14,7 @@ internalTask(TASK_COMPILE_SOLIDITY_COMPILE).setAction(setupNativeSolc);
 
 const config: HardhatUserConfig = {
   solidity: {
-    compilers: [
-      {
-          version: "0.6.12",
-      },
-      {
-          version: "0.6.6",
-      },
-      {
-        version: "0.6.10",
-    },
-  ],
+    version: "0.6.10",
     settings: {
       optimizer: { enabled: true, runs: 200 },
     },
