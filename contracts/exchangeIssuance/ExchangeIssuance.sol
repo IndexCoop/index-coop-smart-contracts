@@ -11,8 +11,6 @@ import "../interfaces/ISetToken.sol";
 import "../interfaces/IBasicIssuanceModule.sol";
 import "../interfaces/IWETH.sol";
 
-import "hardhat/console.sol";
-
 /**
  * @title ExchangeIssuance
  * @author Noah Citron
