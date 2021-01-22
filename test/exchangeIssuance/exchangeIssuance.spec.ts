@@ -66,7 +66,11 @@ describe("ExchangeIssuance", function() {
     // redeem dpi for ETH
     await dpi.approve(exchangeIssuance.address, ethers.utils.parseEther("10"));
     await exchangeIssuance.initApprovals(dpiAddress);
-    await exchangeIssuance.exchangeRedeem(dpiAddress, ethers.utils.parseEther("10"), true, "0x0000000000000000000000000000000000000000");
+    await exchangeIssuance.exchangeRedeem(dpiAddress,
+      ethers.utils.parseEther("10"),
+      true, "0x0000000000000000000000000000000000000000",
+      ethers.utils.parseEther("1")
+    );
 
     // get final ETH and DPI balances
     const finalDPIBalance = await dpi.balanceOf(account.wallet.address);
@@ -90,7 +94,7 @@ describe("ExchangeIssuance", function() {
     // redeem DPI for DAI
     await dpi.approve(exchangeIssuance.address, ethers.utils.parseEther("10"));
     await exchangeIssuance.initApprovals(dpiAddress);
-    await exchangeIssuance.exchangeRedeem(dpiAddress, ethers.utils.parseEther("10"), false, daiAddress);
+    await exchangeIssuance.exchangeRedeem(dpiAddress, ethers.utils.parseEther("10"), false, daiAddress, ethers.utils.parseEther("1000"));
 
     // get final DPI and DAI balances
     const finalDPIBalance = await dpi.balanceOf(account.wallet.address);
