@@ -38,16 +38,18 @@ describe("ExchangeIssuance", function() {
     // deploy ExchangeIssuance.sol
     const exchangeIssuance = await deploy(account);
 
-    // issue 10 DPI using ETH
+    // issue 10 ETH worth of DPI
     await exchangeIssuance.initApprovals(dpiAddress);
     const overrides = {
-        value: ethers.utils.parseEther("10"),
+        value: ethers.utils.parseEther("20"),
     };
     await exchangeIssuance.exchangeIssue(dpiAddress, ethers.utils.parseEther("20"), true, "0x0000000000000000000000000000000000000000", 0, overrides);
 
     // get final ETH and DPI balances
     const finalDPIBalance = await dpi.balanceOf(account.wallet.address);
     const finalETHBalance = await account.wallet.getBalance();
+
+    console.log(ethers.utils.formatEther(finalDPIBalance));
 
     // check if final DPI is greater than init, and if final ETH is less than init (accounting for gas fees)
     expect(finalDPIBalance.gt(initDPIBalance)).to.equal(true);
@@ -118,7 +120,7 @@ describe("ExchangeIssuance", function() {
     // issue DPI with DAI
     await dai.approve(exchangeIssuance.address, ethers.utils.parseEther("10000"));
     await exchangeIssuance.initApprovals(dpiAddress);
-    await exchangeIssuance.exchangeIssue(dpiAddress, ethers.utils.parseEther("5"), false, daiAddress, ethers.utils.parseEther("1900"));
+    await exchangeIssuance.exchangeIssue(dpiAddress, ethers.utils.parseEther("1900"), false, daiAddress, ethers.utils.parseEther("4"));
 
     // get final DPI and DAI balances
     const finalDPIBalance = await dpi.balanceOf(account.wallet.address);
