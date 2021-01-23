@@ -150,4 +150,26 @@ describe("ExchangeIssuance", function() {
     // check if output is correct (this may break if you change the block number of the hardhat fork)
     expect(amountOut.gt(ethers.utils.parseEther("180"))).to.equal(true);
   });
+
+  it("Should be able to get approx issue amount given an input Ether amount", async function() {
+    // deploy ExchangeIssuance.sol
+    const exchangeIssuance = await deploy(account);
+
+    // get approx issue amount in DPI
+    const amountOut = await exchangeIssuance.getExchangeIssue(dpiAddress, ethers.utils.parseEther("1"), true, "0x0000000000000000000000000000000000000000");
+
+    // check if output is correct (this may break if you change the block number of the hardhat fork)
+    expect(amountOut.gt(ethers.utils.parseEther("4"))).to.equal(true);
+  });
+
+  it("Should be able to get approx issue amount given an input ERC20 amount (dai)", async function() {
+    // deploy ExchangeIssuance.sol
+    const exchangeIssuance = await deploy(account);
+
+    // get approx issue amount in DPI
+    const amountOut = await exchangeIssuance.getExchangeIssue(dpiAddress, ethers.utils.parseEther("200"), false, daiAddress);
+
+    // check if output is correct (this may break if you change the block number of the hardhat fork)
+    expect(amountOut.gt(ethers.utils.parseEther("1"))).to.equal(true);
+  });
 });
