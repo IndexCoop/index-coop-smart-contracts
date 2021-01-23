@@ -118,6 +118,33 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
 
     /**
+     * Gets the approximate amount of ETH or ERC20 gained when redeeming using
+     * the exchangeRedeem function.
+     *
+     * @param _setToken             Set token redeemed
+     * @param _amountSetToRedeem    Amount of set token
+     * @param _isOutputEth          Set to true if the output token is Ether
+     * @param _outPutToken          Address of output token. Ignored if _isOutputETH is true
+     */
+    function getExchangeRedeem(ISetToken _setToken, uint256 _amountSetToRedeem, bool _isOutputETH, address _outputToken) external view returns (uint256) {
+        ISetToken.Position[] memory positions = _setToken.getPositions();
+        uint256 totalEth = 0;
+        for (uint256 i = 0; i < positions.length; i++) {
+            address token = positions[i].component;
+            uint256 amount = uint256(positions[i].unit) * _amountSetToRedeem /  1 ether;
+            uint256 uniAmount = tokenAvailable(uniFactory, token) ? getSellPrice(true, positions[i].component, amount) : 0;
+            uint256 sushiAmount = tokenAvailable(sushiFactory, token) ? getSellPrice(false, positions[i].component, amount) : 0;
+            totalEth += Math.max(uniAmount, sushiAmount);
+        }
+        if(_isOutputETH || _outputToken == WETH) {
+            return totalEth;
+        }
+        uint256 uniAmount = tokenAvailable(uniFactory, _outputToken) ? getBuyPriceExactETH(true, _outputToken, totalEth) : 0;
+        uint256 sushiAmount = tokenAvailable(sushiFactory, _outputToken) ? getBuyPriceExactETH(false, _outputToken, totalEth) : 0;
+        return Math.max(uniAmount, sushiAmount);
+    }
+
+    /**
      * Issues an set token by using swapping for the underlying tokens on Uniswap
      * or Sushiswap.
      *
@@ -269,6 +296,20 @@ contract ExchangeIssuance is ReentrancyGuard {
 
         uint256 amountEth = router.getAmountIn({   // returns the minEth required to get (minSetTokenAmountOut * unit) tokens
             amountOut : _amountOut,
+            reserveIn : tokenReserveA,
+            reserveOut : tokenReserveB   
+        });
+        return amountEth;
+    }
+
+    function getBuyPriceExactETH(bool isUni, address _token, uint256 _amountETHIn) internal view returns (uint256) {
+        address factory = isUni ? uniFactory : sushiFactory;
+        IUniswapV2Router02 router = isUni ? uniRouter : sushiRouter;
+        (uint256 tokenReserveA, uint256 tokenReserveB) = isUni ? 
+             UniswapV2Library.getReserves(factory, WETH, _token) : SushiswapV2Library.getReserves(sushiFactory, WETH, _token);
+
+        uint256 amountEth = router.getAmountOut({   // returns the minEth required to get (minSetTokenAmountOut * unit) tokens
+            amountIn : _amountETHIn,
             reserveIn : tokenReserveA,
             reserveOut : tokenReserveB   
         });

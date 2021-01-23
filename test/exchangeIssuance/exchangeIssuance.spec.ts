@@ -49,8 +49,6 @@ describe("ExchangeIssuance", function() {
     const finalDPIBalance = await dpi.balanceOf(account.wallet.address);
     const finalETHBalance = await account.wallet.getBalance();
 
-    console.log(ethers.utils.formatEther(finalDPIBalance));
-
     // check if final DPI is greater than init, and if final ETH is less than init (accounting for gas fees)
     expect(finalDPIBalance.gt(initDPIBalance)).to.equal(true);
     expect(finalETHBalance.add(ethers.utils.parseEther("0.2")).lt(initETHBalance)).to.equal(true);
@@ -129,5 +127,27 @@ describe("ExchangeIssuance", function() {
     // check if final DPI is less than init, and if final DAI is more than init
     expect(finalDPIBalance.gt(initDPIBalance)).to.equal(true);
     expect(finalDAIBalance.lt(initDAIBalance)).to.equal(true);
+  });
+
+  it("Should be able to get approx redeem amount in ETH", async function() {
+    // deploy ExchangeIssuance.sol
+    const exchangeIssuance = await deploy(account);
+
+    // get approx redeem amount in ETH
+    const amountOut = await exchangeIssuance.getExchangeRedeem(dpiAddress, ethers.utils.parseEther("1"), true, "0x0000000000000000000000000000000000000000");
+
+    // check if output is correct (this may break if you change the block number of the hardhat fork)
+    expect(amountOut.gt(ethers.utils.parseEther("0.15"))).to.equal(true);
+  });
+
+  it("Should be able to get approx redeem amount in an ERC20 (dai)", async function() {
+    // deploy ExchangeIssuance.sol
+    const exchangeIssuance = await deploy(account);
+
+    // get approx redeem amount in ETH
+    const amountOut = await exchangeIssuance.getExchangeRedeem(dpiAddress, ethers.utils.parseEther("1"), false, daiAddress);
+
+    // check if output is correct (this may break if you change the block number of the hardhat fork)
+    expect(amountOut.gt(ethers.utils.parseEther("180"))).to.equal(true);
   });
 });
