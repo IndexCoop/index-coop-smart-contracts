@@ -155,17 +155,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             amountEthIn[i] = amountEth;
         }
 
-        uint256 maxIndexAmount;
-        if(sumEth >= wethBalance) {
-            // better to buy the index directly from exchange
-            address[] memory path = new address[](2);
-            path[0] = WETH;
-            path[1] = address(_setToken);
-            uniRouter.swapExactTokensForTokens(wethBalance, _minSetReceive, path, msg.sender, block.timestamp);
-        } else {
-            // better to buy tokens and then issue them
-            maxIndexAmount = acquireComponents(positions, amountEthIn, wethBalance, sumEth);
-        }
+        uint256 maxIndexAmount = acquireComponents(positions, amountEthIn, wethBalance, sumEth);
         require(maxIndexAmount > _minSetReceive, "INSUFFICIENT_OUTPUT_AMOUNT");
         basicIssuanceModule.issue(_setToken, maxIndexAmount, msg.sender);
     }
