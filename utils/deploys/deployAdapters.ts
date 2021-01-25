@@ -16,6 +16,7 @@ export default class DeployAdapters {
     assetDecimals: any,
     methodologyParams: any,
     executionParams: any,
+    incentiveParams: any,
     initialExchangeName: string,
     initialExchangeData: Bytes
   ): Promise<FlexibleLeverageStrategyAdapter> {
@@ -24,6 +25,7 @@ export default class DeployAdapters {
       assetDecimals,
       methodologyParams,
       executionParams,
+      incentiveParams,
       initialExchangeName,
       initialExchangeData
     );
