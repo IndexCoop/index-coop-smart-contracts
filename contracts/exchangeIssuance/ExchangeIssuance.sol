@@ -128,7 +128,7 @@ contract ExchangeIssuance is ReentrancyGuard {
 
         //get approximate costs
         ISetToken.Position[] memory positions = _setToken.getPositions();
-        (uint256[] memory amountEthIn, uint256 sumEth) = _getApproximateCosts(positions, minSetTokenAmountOut);
+        (uint256[] memory amountEthIn, uint256 sumEth) = _getApproximateIssueCosts(positions, minSetTokenAmountOut);
 
         uint256 maxIndexAmount = _acquireComponents(positions, amountEthIn, wethBalance, sumEth);
         require(maxIndexAmount > _minSetReceive, "INSUFFICIENT_OUTPUT_AMOUNT");
@@ -279,19 +279,19 @@ contract ExchangeIssuance is ReentrancyGuard {
     /**
      * Gets the approximate costs for issuing a token.
      * 
-     * @param positions             An array of the SetToken's components
-     * @param minSetTokenAmountOut  The minimum (but close to the actual value) amount of set tokens
+     * @param _positions             An array of the SetToken's components
+     * @param _minSetTokenAmountOut  The minimum (but close to the actual value) amount of set tokens
      * 
      * @return                      An array representing the approximate Ether cost to purchase each component of the set
      * @return                      The approximate total ETH cost to issue the set
      */
-    function _getApproximateCosts(ISetToken.Position[] memory positions, uint256 minSetTokenAmountOut) internal returns (uint256[] memory, uint256) {
+    function _getApproximateIssueCosts(ISetToken.Position[] memory _positions, uint256 _minSetTokenAmountOut) internal returns (uint256[] memory, uint256) {
         uint256 sumEth = 0;
-        uint256[] memory amountEthIn = new uint256[](positions.length);
-        for(uint256 i = 0; i < positions.length; i++) {
-            uint256 unit = uint256(positions[i].unit);
-            address token = positions[i].component;
-            uint256 amountOut = minSetTokenAmountOut.mul(unit).div(1 ether);
+        uint256[] memory amountEthIn = new uint256[](_positions.length);
+        for(uint256 i = 0; i < _positions.length; i++) {
+            uint256 unit = uint256(_positions[i].unit);
+            address token = _positions[i].component;
+            uint256 amountOut = _minSetTokenAmountOut.mul(unit).div(1 ether);
             uint256 uniPrice = _tokenAvailable(uniFactory, token) ? _getBuyPrice(true, token, amountOut) : PreciseUnitMath.maxUint256();
             uint256 sushiPrice = _tokenAvailable(sushiFactory, token) ? _getBuyPrice(false, token, amountOut) : PreciseUnitMath.maxUint256();
             uint256 amountEth = Math.min(uniPrice, sushiPrice);
