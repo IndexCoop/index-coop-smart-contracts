@@ -25,6 +25,10 @@ import "../interfaces/IWETH.sol";
 contract ExchangeIssuance is ReentrancyGuard {
 
     using SafeMath for uint256;
+
+    /* ============ constants ============ */
+    
+    uint256 constant private MAX_UINT96 = 2 ** 96 - 1;
     
     /* ============ State Variables ============ */
 
@@ -38,8 +42,8 @@ contract ExchangeIssuance is ReentrancyGuard {
 
     /* ============ Events ============ */
 
-    event ExchangeIssue(address indexed recipient, address indexed setToken, address indexed inputToken, uint256 amount);
-    event ExchangeRedeem(address indexed recipient, address indexed setToken, address indexed outputToken, uint256 amount);
+    event ExchangeIssue(address indexed recipient, address indexed setToken, address indexed inputToken, uint256 amountSetToken);
+    event ExchangeRedeem(address indexed recipient, address indexed setToken, address indexed outputToken, uint256 amountSetToken);
 
     /* ============ Constructor ============ */
 
@@ -70,9 +74,9 @@ contract ExchangeIssuance is ReentrancyGuard {
 
     /**
      * Runs all the necessary approval functions required before issuing
-     * or redeeming a set token. This function must only be called before the first time
+     * or redeeming a set token. This function only need to be called before the first time
      * this smart contract is used on any particular set token, or when a new token is added
-     * to the set token.
+     * to the set token during a rebalance.
      *
      * @param _setToken    Address of the set token being initialized
      */
@@ -80,9 +84,9 @@ contract ExchangeIssuance is ReentrancyGuard {
         ISetToken.Position[] memory positions = _setToken.getPositions();
         for (uint256 i=0; i<positions.length; i++) {
             IERC20 token = IERC20(positions[i].component);
-            token.approve(address(uniRouter), PreciseUnitMath.maxUint256());
-            token.approve(address(sushiRouter), PreciseUnitMath.maxUint256());
-            token.approve(address(basicIssuanceModule), PreciseUnitMath.maxUint256());
+            token.approve(address(uniRouter), MAX_UINT96);
+            token.approve(address(sushiRouter), MAX_UINT96);
+            token.approve(address(basicIssuanceModule), MAX_UINT96);
         }
     }
 
@@ -99,106 +103,82 @@ contract ExchangeIssuance is ReentrancyGuard {
     function exchangeRedeem(ISetToken _setToken, uint256 _amountSetToRedeem, bool _isOutputETH, address _outputToken, uint256 _minOutputReceive) external nonReentrant {
         _setToken.transferFrom(msg.sender, address(this), _amountSetToRedeem);
         basicIssuanceModule.redeem(_setToken, _amountSetToRedeem, address(this));
-        liquidateComponents(_setToken);
-        if(_isOutputETH) {
-            IWETH(WETH).withdraw(IERC20(WETH).balanceOf(address(this)));
-            require(address(this).balance > _minOutputReceive, "INSUFFICIENT_OUTPUT_AMOUNT");
-            msg.sender.transfer(address(this).balance);
-        } else if (_outputToken == WETH) {
-            require(IERC20(WETH).balanceOf(address(this)) > _minOutputReceive, "INSUFFICIENT_OUTPUT_AMOUNT");
-            IERC20(WETH).transfer(msg.sender, IERC20(WETH).balanceOf(address(this)));
-        } else {
-            uint256 outputAmount = purchaseTokenBestPrice(_outputToken, IERC20(WETH).balanceOf(address(this)));
-            require(outputAmount > _minOutputReceive, "INSUFFICIENT_OUTPUT_AMOUNT");
-            IERC20(_outputToken).transfer(msg.sender, outputAmount);
-        }
+        _liquidateComponents(_setToken);
+        _handleRedeemOutput(_isOutputETH, _outputToken, _minOutputReceive);
         emit ExchangeRedeem(msg.sender, address(_setToken), _isOutputETH ? address(0) : _outputToken, _amountSetToRedeem);
     }
 
     /**
-     * Gets the approximate amount of ETH or ERC20 gained when redeeming using
-     * the exchangeRedeem function.
-     *
-     * @param _setToken             Set token redeemed
-     * @param _amountSetToRedeem    Amount of set token
-     * @param _isOutputETH          Set to true if the output token is Ether
-     * @param _outputToken          Address of output token. Ignored if _isOutputETH is true
-     */
-    function getExchangeRedeem(ISetToken _setToken, uint256 _amountSetToRedeem, bool _isOutputETH, address _outputToken) external view returns (uint256) {
-        ISetToken.Position[] memory positions = _setToken.getPositions();
-        uint256 totalEth = 0;
-        for (uint256 i = 0; i < positions.length; i++) {
-            address token = positions[i].component;
-            uint256 amount = uint256(positions[i].unit) * _amountSetToRedeem /  1 ether;
-            uint256 uniAmount = tokenAvailable(uniFactory, token) ? getSellPrice(true, positions[i].component, amount) : 0;
-            uint256 sushiAmount = tokenAvailable(sushiFactory, token) ? getSellPrice(false, positions[i].component, amount) : 0;
-            totalEth += Math.max(uniAmount, sushiAmount);
-        }
-        if(_isOutputETH || _outputToken == WETH) {
-            return totalEth;
-        }
-        uint256 uniAmount = tokenAvailable(uniFactory, _outputToken) ? getBuyPriceExactETH(true, _outputToken, totalEth) : 0;
-        uint256 sushiAmount = tokenAvailable(sushiFactory, _outputToken) ? getBuyPriceExactETH(false, _outputToken, totalEth) : 0;
-        return Math.max(uniAmount, sushiAmount);
-    }
-
-    /**
-     * Issues an set token by using swapping for the underlying tokens on Uniswap
+     * Issues an set token by swapping for the underlying tokens on Uniswap
      * or Sushiswap.
      *
      * @param _setToken         Address of the set token being issued
-     * @param _amountInput      Amount of the input token to spend
+     * @param _amountInput      Amount of the input token / ether to spend
      * @param _isInputETH       Set to true if the input token is Ether
      * @param _inputToken       Address of input token. Ignored if _isInputETH is true
      * @param _minSetReceive    Minimum amount of index to receive
      */
     function exchangeIssue(ISetToken _setToken, uint256 _amountInput, bool _isInputETH, IERC20 _inputToken, uint256 _minSetReceive) external payable nonReentrant {
-        if(_isInputETH) {
-            require(msg.value == _amountInput, "INCORRECT_INPUT_AMOUNT");
-            IWETH(WETH).deposit{value: msg.value}();    // ETH -> WETH
-        } else if(address(_inputToken) != WETH) {
-            _inputToken.transferFrom(msg.sender, address(this), _amountInput);
-            purchaseWETHExactTokens(address(_inputToken), _amountInput);    // _inputToken -> WETH
-        }
+        _handleIssueInput(_isInputETH, _inputToken, _amountInput);
 
         // get price of set token on uniswap
         uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
         (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, WETH, address(_setToken));
         uint256 minSetTokenAmountOut = uniRouter.getAmountOut(wethBalance, tokenReserveA, tokenReserveB);
 
-        uint256 sumEth = 0;
+        //get approximate costs
         ISetToken.Position[] memory positions = _setToken.getPositions();
-        uint256[] memory amountEthIn = new uint256[](positions.length);
-        for(uint256 i = 0; i < positions.length; i++) {
-            uint256 unit = uint256(positions[i].unit);       // amount of token per 1 index token
-            address token = positions[i].component;
-            uint256 amountOut = minSetTokenAmountOut * unit / 1 ether;
-            uint256 uniPrice = tokenAvailable(uniFactory, token) ? getBuyPrice(true, token, amountOut) : PreciseUnitMath.maxUint256();
-            uint256 sushiPrice = tokenAvailable(sushiFactory, token) ? getBuyPrice(false, token, amountOut) : PreciseUnitMath.maxUint256();
-            uint256 amountEth = Math.min(uniPrice, sushiPrice);
-            sumEth += amountEth;
-            amountEthIn[i] = amountEth;
-        }
+        (uint256[] memory amountEthIn, uint256 sumEth) = _getApproximateCosts(positions, minSetTokenAmountOut);
 
-        uint256 maxIndexAmount = acquireComponents(positions, amountEthIn, wethBalance, sumEth);
+        uint256 maxIndexAmount = _acquireComponents(positions, amountEthIn, wethBalance, sumEth);
         require(maxIndexAmount > _minSetReceive, "INSUFFICIENT_OUTPUT_AMOUNT");
         basicIssuanceModule.issue(_setToken, maxIndexAmount, msg.sender);
+        emit ExchangeIssue(msg.sender, address(_setToken), _isInputETH ? address(0) : address(_inputToken), maxIndexAmount);
     }
 
     /**
-     * Get approx output amount when issuing using the
-     * exchangeIssue function.
+     * Returns an estimated quantity of ETH or specified ERC20 received for a given SetToken and SetToken quantity. 
+     * Estimation pulls the best price of each component from Uniswap or Sushiswap.
+     *
+     * @param _setToken             Set token redeemed
+     * @param _amountSetToRedeem    Amount of set token
+     * @param _isOutputETH          Set to true if the output token is Ether
+     * @param _outputToken          Address of output token. Ignored if _isOutputETH is true
+     * @return                      Estimated amount of ether/erc20 that will be received
+     */
+    function getEstimatedRedeemSetQuantity(ISetToken _setToken, uint256 _amountSetToRedeem, bool _isOutputETH, address _outputToken) external view returns (uint256) {
+        ISetToken.Position[] memory positions = _setToken.getPositions();
+        uint256 totalEth = 0;
+        for (uint256 i = 0; i < positions.length; i++) {
+            address token = positions[i].component;
+            uint256 amount = uint256(positions[i].unit).mul(_amountSetToRedeem).div(1 ether);
+            uint256 uniAmount = _tokenAvailable(uniFactory, token) ? _getSellPrice(true, positions[i].component, amount) : 0;
+            uint256 sushiAmount = _tokenAvailable(sushiFactory, token) ? _getSellPrice(false, positions[i].component, amount) : 0;
+            totalEth = totalEth.add(Math.max(uniAmount, sushiAmount));
+        }
+        if(_isOutputETH || _outputToken == WETH) {
+            return totalEth;
+        }
+        uint256 uniAmount = _tokenAvailable(uniFactory, _outputToken) ? _getBuyPriceExactETH(true, _outputToken, totalEth) : 0;
+        uint256 sushiAmount = _tokenAvailable(sushiFactory, _outputToken) ? _getBuyPriceExactETH(false, _outputToken, totalEth) : 0;
+        return Math.max(uniAmount, sushiAmount);
+    }
+
+    /**
+     * Returns an estimated quantity of the specified SetToken given an input amount of ETH or a specified ERC20 receieved when issuing.
+     * Estimating pulls the best price of each component using Uniswap or Sushiswap
      *
      * @param _setToken         Address of the set token being issued
      * @param _amountInput      Amount of the input token to spend
      * @param _isInputETH       Set to true if the input token is Ether
      * @param _inputToken       Address of input token. Ignored if _isInputETH is true
+     * @return                  Estimated amount of Set tokens that will be received
      */
-    function getExchangeIssue(ISetToken _setToken, uint256 _amountInput, bool _isInputETH, IERC20 _inputToken) external view returns (uint256) {
+    function getEstimatedIssueSetQuantity(ISetToken _setToken, uint256 _amountInput, bool _isInputETH, IERC20 _inputToken) external view returns (uint256) {
         uint256 amountEth;
         if(!_isInputETH && address(_inputToken) != WETH) {
-            uint256 uniAmount = tokenAvailable(uniFactory, address(_inputToken)) ? getSellPrice(true, address(_inputToken), _amountInput) : 0;
-            uint256 sushiAmount = tokenAvailable(sushiFactory, address(_inputToken)) ? getSellPrice(false, address(_inputToken), _amountInput) : 0; 
+            uint256 uniAmount = _tokenAvailable(uniFactory, address(_inputToken)) ? _getSellPrice(true, address(_inputToken), _amountInput) : 0;
+            uint256 sushiAmount = _tokenAvailable(sushiFactory, address(_inputToken)) ? _getSellPrice(false, address(_inputToken), _amountInput) : 0; 
             amountEth = Math.max(uniAmount, sushiAmount);
         } else {
             amountEth = _amountInput;
@@ -213,13 +193,13 @@ contract ExchangeIssuance is ReentrancyGuard {
         ISetToken.Position[] memory positions = _setToken.getPositions();
         uint256[] memory amountEthIn = new uint256[](positions.length);
         for(uint256 i = 0; i < positions.length; i++) {
-            uint256 unit = uint256(positions[i].unit);       // amount of token per 1 index token
+            uint256 unit = uint256(positions[i].unit);
             address token = positions[i].component;
-            uint256 amountOut = minSetTokenAmountOut * unit / 1 ether;
-            uint256 uniPrice = tokenAvailable(uniFactory, token) ? getBuyPrice(true, token, amountOut) : PreciseUnitMath.maxUint256();
-            uint256 sushiPrice = tokenAvailable(sushiFactory, token) ? getBuyPrice(false, token, amountOut) : PreciseUnitMath.maxUint256();
+            uint256 amountOut = minSetTokenAmountOut.mul(unit).div(1 ether);
+            uint256 uniPrice = _tokenAvailable(uniFactory, token) ? _getBuyPrice(true, token, amountOut) : PreciseUnitMath.maxUint256();
+            uint256 sushiPrice = _tokenAvailable(sushiFactory, token) ? _getBuyPrice(false, token, amountOut) : PreciseUnitMath.maxUint256();
             uint256 amountEth = Math.min(uniPrice, sushiPrice);
-            sumEth += amountEth;
+            sumEth = sumEth.add(amountEth);
             amountEthIn[i] = amountEth;
         }
 
@@ -228,27 +208,111 @@ contract ExchangeIssuance is ReentrancyGuard {
             address token = positions[i].component;
             uint256 unit = uint256(positions[i].unit);
 
-            uint256 scaledAmountEth = (amountEthIn[i] * wethBalance) / sumEth;  // scale the amountEthIn
-            uint256 uniTokenOut = tokenAvailable(uniFactory, token) ? getBuyPriceExactETH(true, token, scaledAmountEth) : 0;
-            uint256 sushiTokenOut = tokenAvailable(sushiFactory, token) ? getBuyPriceExactETH(false, token, scaledAmountEth) : 0;
+            uint256 scaledAmountEth = amountEthIn[i].mul(wethBalance).div(sumEth);  // scale the amountEthIn
+            uint256 uniTokenOut = _tokenAvailable(uniFactory, token) ? _getBuyPriceExactETH(true, token, scaledAmountEth) : 0;
+            uint256 sushiTokenOut = _tokenAvailable(sushiFactory, token) ? _getBuyPriceExactETH(false, token, scaledAmountEth) : 0;
 
             uint256 amountTokenOut = Math.max(uniTokenOut, sushiTokenOut);
             // update the maxIndexAmount
-            maxIndexAmount = Math.min(amountTokenOut * 1 ether / unit, maxIndexAmount);
+            maxIndexAmount = Math.min(amountTokenOut.mul(1 ether).div(unit), maxIndexAmount);
         }
         return maxIndexAmount;
     }
 
     /* ============ Internal Functions ============ */
 
-    function liquidateComponents(ISetToken _setToken) internal {
+    /**
+     * Sells the total balance that the contract holds of each component of the set
+     * using the best quoted price from either Uniswap or Sushiswap
+     * 
+     * @param _setToken     The set token that is being liquidated
+     */
+    function _liquidateComponents(ISetToken _setToken) internal {
         ISetToken.Position[] memory positions = _setToken.getPositions();
         for (uint256 i=0; i<positions.length; i++) {
-            sellTokenBestPrice(positions[i].component);
+            _sellTokenBestPrice(positions[i].component);
         }
     }
 
-    function acquireComponents(ISetToken.Position[] memory positions, uint256[] memory amountEthIn, uint256 wethBalance, uint256 sumEth) internal returns (uint256) {
+    /**
+     * Handles converting the contract's full WETH balance to the output
+     * token or ether and transfers it to the msg sender.
+     *
+     * @param _isOutputETH      Converts the contract's WETH balance to ETH if set to true
+     * @param _outputToken      The token to swap the contract's WETH balance to. 
+     *                          Ignored if _isOutputETH is set to true.
+     * @param _minOutputReceive Minimum amount of output token or ether to receive. This 
+     *                          function reverts if the output is less than this.
+     */
+    function _handleRedeemOutput(bool _isOutputETH, address _outputToken, uint256 _minOutputReceive) internal {
+        if(_isOutputETH) {
+            IWETH(WETH).withdraw(IERC20(WETH).balanceOf(address(this)));
+            require(address(this).balance > _minOutputReceive, "INSUFFICIENT_OUTPUT_AMOUNT");
+            msg.sender.transfer(address(this).balance);
+        } else if (_outputToken == WETH) {
+            require(IERC20(WETH).balanceOf(address(this)) > _minOutputReceive, "INSUFFICIENT_OUTPUT_AMOUNT");
+            IERC20(WETH).transfer(msg.sender, IERC20(WETH).balanceOf(address(this)));
+        } else {
+            uint256 outputAmount = _purchaseTokenBestPrice(_outputToken, IERC20(WETH).balanceOf(address(this)));
+            require(outputAmount > _minOutputReceive, "INSUFFICIENT_OUTPUT_AMOUNT");
+            IERC20(_outputToken).transfer(msg.sender, outputAmount);
+        }
+    }
+
+    /**
+     * Handles converting the input token or ether into WETH.
+     *
+     * @param _isInputETH   Set to true if the input is ETH
+     * @param _inputToken   The input token. Ignored if _isInputETH is true
+     * @param _amountInput  The amount of the input to convert to WETH
+     */
+    function _handleIssueInput(bool _isInputETH, IERC20 _inputToken, uint256 _amountInput) internal {
+        if(_isInputETH) {
+            require(msg.value == _amountInput, "INCORRECT_INPUT_AMOUNT");
+            IWETH(WETH).deposit{value: msg.value}();    // ETH -> WETH
+        } else if(address(_inputToken) != WETH) {
+            _inputToken.transferFrom(msg.sender, address(this), _amountInput);
+            _purchaseWETHExactTokens(address(_inputToken), _amountInput);    // _inputToken -> WETH
+        }
+    }
+
+    /**
+     * Gets the approximate costs for issuing a token.
+     * 
+     * @param positions             An array of the SetToken's components
+     * @param minSetTokenAmountOut  The minimum (but close to the actual value) amount of set tokens
+     * 
+     * @return                      An array representing the approximate Ether cost to purchase each component of the set
+     * @return                      The approximate total ETH cost to issue the set
+     */
+    function _getApproximateCosts(ISetToken.Position[] memory positions, uint256 minSetTokenAmountOut) internal returns (uint256[] memory, uint256) {
+        uint256 sumEth = 0;
+        uint256[] memory amountEthIn = new uint256[](positions.length);
+        for(uint256 i = 0; i < positions.length; i++) {
+            uint256 unit = uint256(positions[i].unit);
+            address token = positions[i].component;
+            uint256 amountOut = minSetTokenAmountOut.mul(unit).div(1 ether);
+            uint256 uniPrice = _tokenAvailable(uniFactory, token) ? _getBuyPrice(true, token, amountOut) : PreciseUnitMath.maxUint256();
+            uint256 sushiPrice = _tokenAvailable(sushiFactory, token) ? _getBuyPrice(false, token, amountOut) : PreciseUnitMath.maxUint256();
+            uint256 amountEth = Math.min(uniPrice, sushiPrice);
+            sumEth = sumEth.add(amountEth);
+            amountEthIn[i] = amountEth;
+        }
+        return (amountEthIn, sumEth);
+    }
+
+    /**
+     * Aquires all the components neccesary to issue a set, purchasing tokens
+     * from either Uniswap or Sushiswap to get the best price.
+     *
+     * @param positions     An array containing positions of the SetToken.
+     * @param amountEthIn   An array containint the approximate ETH cost of each component.
+     * @param wethBalance   The amount of WETH that the contract has to spend on aquiring the total components
+     * @param sumEth        The approximate amount of ETH required to purchase the necessary tokens
+     *
+     * @return              The maximum amount of the SetToken that can be issued with the aquired components
+     */
+    function _acquireComponents(ISetToken.Position[] memory positions, uint256[] memory amountEthIn, uint256 wethBalance, uint256 sumEth) internal returns (uint256) {
         uint256 maxIndexAmount = PreciseUnitMath.maxUint256();
         for (uint i = 0; i < positions.length; i++) {
             address token = positions[i].component;
@@ -257,15 +321,24 @@ contract ExchangeIssuance is ReentrancyGuard {
             address[] memory path = new address[](2);
             path[0] = WETH;
             path[1] = token;
-            uint256 scaledAmountEth = (amountEthIn[i] * wethBalance) / sumEth;  // scale the amountEthIn
-            uint256 amountTokenOut = purchaseTokenBestPrice(token, scaledAmountEth);
+            uint256 scaledAmountEth = amountEthIn[i].mul(wethBalance).div(sumEth);  // scale the amountEthIn
+            uint256 amountTokenOut = _purchaseTokenBestPrice(token, scaledAmountEth);
             // update the maxIndexAmount
-            maxIndexAmount = Math.min(amountTokenOut/unit * 1 ether, maxIndexAmount);
+            maxIndexAmount = Math.min(amountTokenOut.mul(1 ether).div(unit), maxIndexAmount);
         }
         return maxIndexAmount;
     }
 
-    function purchaseToken(IUniswapV2Router02 _router, address _token, uint256 _amount) internal returns (uint256) {
+    /**
+     * Purchases a token using an exact WETH amount
+     *
+     * @param _router   The router to use when purchasing (can be either uniRouter or sushiRouter)
+     * @param _token    The address of the token to purchase
+     * @param _amount   The amount of WETH to spend on the purchase
+     * 
+     * @return          The amount of the token purchased
+     */
+    function _purchaseToken(IUniswapV2Router02 _router, address _token, uint256 _amount) internal returns (uint256) {
         address[] memory path = new address[](2);
         path[0] = WETH;
         path[1] = _token;
@@ -273,17 +346,31 @@ contract ExchangeIssuance is ReentrancyGuard {
         return amountOut;
     }
  
-    function purchaseTokenBestPrice(address _token, uint256 _amount) internal returns (uint256) {
-        uint256 uniPrice = tokenAvailable(uniFactory, _token) ? getBuyPrice(true, _token, _amount) : PreciseUnitMath.maxUint256();
-        uint256 sushiPrice = tokenAvailable(sushiFactory, _token) ? getBuyPrice(false, _token, _amount) : PreciseUnitMath.maxUint256();
+    /**
+     * Purchases a token with a given amount of WETH using the DEX with the best price
+     *
+     * @param _token    The address of the token to purchase
+     * @param _amount   The amount of WETH to spend on the purchase
+     *
+     * @return          The amount of the token purchased
+     */
+    function _purchaseTokenBestPrice(address _token, uint256 _amount) internal returns (uint256) {
+        uint256 uniPrice = _tokenAvailable(uniFactory, _token) ? _getBuyPrice(true, _token, _amount) : PreciseUnitMath.maxUint256();
+        uint256 sushiPrice = _tokenAvailable(sushiFactory, _token) ? _getBuyPrice(false, _token, _amount) : PreciseUnitMath.maxUint256();
         if (uniPrice <= sushiPrice) {
-            return purchaseToken(uniRouter, _token, _amount);
+            return _purchaseToken(uniRouter, _token, _amount);
         } else {
-            return purchaseToken(sushiRouter, _token, _amount);
+            return _purchaseToken(sushiRouter, _token, _amount);
         }
     }
 
-    function sellToken(IUniswapV2Router02 _router, address _token) internal {
+    /**
+     * Sells the contracts entire balance of the specified token
+     *
+     * @param _router   The router to use when purchasing (can be either uniRouter or sushiRouter)
+     * @param _token    The address of the token to sell
+     */
+    function _sellToken(IUniswapV2Router02 _router, address _token) internal {
         uint256 tokenBalance = IERC20(_token).balanceOf(address(this));
         address[] memory path = new address[](2);
         path[0] = _token;
@@ -291,30 +378,36 @@ contract ExchangeIssuance is ReentrancyGuard {
         _router.swapExactTokensForTokens(tokenBalance, 0, path, address(this), block.timestamp);
     }
 
-    function sellTokenBestPrice(address _token) internal {
+    /**
+     * Sells a contracts full balance of a token using the DEX with the best price
+     *
+     * @param _token    The address of the token to sell
+     *
+     */
+    function _sellTokenBestPrice(address _token) internal {
         uint256 tokenBalance = IERC20(_token).balanceOf(address(this));
-        uint256 uniPrice = tokenAvailable(uniFactory, _token) ? getSellPrice(true, _token, tokenBalance) : 0;
-        uint256 sushiPrice = tokenAvailable(sushiFactory, _token) ? getSellPrice(false, _token, tokenBalance) : 0;
+        uint256 uniPrice = _tokenAvailable(uniFactory, _token) ? _getSellPrice(true, _token, tokenBalance) : 0;
+        uint256 sushiPrice = _tokenAvailable(sushiFactory, _token) ? _getSellPrice(false, _token, tokenBalance) : 0;
         if (uniPrice >= sushiPrice) {
-            sellToken(uniRouter, _token);
+            _sellToken(uniRouter, _token);
         } else {
-            sellToken(sushiRouter, _token);
+            _sellToken(sushiRouter, _token);
         }
     }
 
     /**
-     * Purchases an Ether given an exact amount of a token to spend
+     * Purchases Ether given an exact amount of a token to spend
      *
-     * @param _token    token to spend
-     * @param _amount   amount of token to spend
+     * @param _token    Token to spend
+     * @param _amount   Amount of token to spend
      */
-    function purchaseWETHExactTokens(address _token, uint256 _amount) internal {
+    function _purchaseWETHExactTokens(address _token, uint256 _amount) internal {
         address[] memory path = new address[](2);
         path[0] = _token;
         path[1] = WETH;
 
-        uint256 uniAmountOut = tokenAvailable(uniFactory, _token) ? uniRouter.getAmountsOut(_amount, path)[1] : 0;
-        uint256 sushiAmountOut = tokenAvailable(sushiFactory, _token) ? sushiRouter.getAmountsOut(_amount, path)[1] : 0;
+        uint256 uniAmountOut = _tokenAvailable(uniFactory, _token) ? uniRouter.getAmountsOut(_amount, path)[1] : 0;
+        uint256 sushiAmountOut = _tokenAvailable(sushiFactory, _token) ? sushiRouter.getAmountsOut(_amount, path)[1] : 0;
         IUniswapV2Router02 router = uniAmountOut >= sushiAmountOut ? uniRouter : sushiRouter;
 
         IERC20(_token).approve(address(router), PreciseUnitMath.maxUint256());
@@ -322,31 +415,20 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
 
     /**
-     * Gets the components of a set and the corresponding amount needed
+     * Gets the pruchase price in WETH of a token given the requested output amount
      *
-     * @param _setToken     set token
-     * @param _amount       amount of the set token
-     * @return              a tuple containing arrays of component token addresses and amounts of tokens needed
+     * @param _isUni    Specifies whether to fetch the Uniswap or Sushiswap price
+     * @param _token    The address of the token to get the buy price of
+     *
+     * @return          The purchase price in WETH
      */
-    function getTokensNeeded(ISetToken _setToken, uint256 _amount) internal view returns (address[] memory, uint256[] memory) {
-        ISetToken.Position[] memory positions = _setToken.getPositions();
-        uint256[] memory tokenAmounts = new uint256[](positions.length);
-        address[] memory tokens = new address[](positions.length);
-        for (uint256 i=0; i<positions.length; i++) {
-            uint256 tokensNeeded =  PreciseUnitMath.preciseMulCeil(uint256(positions[i].unit), _amount);
-            tokenAmounts[i] = tokensNeeded;
-            tokens[i] = positions[i].component;
-        }
-        return (tokens, tokenAmounts);
-    }
-
-    function getBuyPrice(bool isUni, address _token, uint256 _amountOut) internal view returns (uint256) {
-        address factory = isUni ? uniFactory : sushiFactory;
-        IUniswapV2Router02 router = isUni ? uniRouter : sushiRouter;
-        (uint256 tokenReserveA, uint256 tokenReserveB) = isUni ? 
+    function _getBuyPrice(bool _isUni, address _token, uint256 _amountOut) internal view returns (uint256) {
+        address factory = _isUni ? uniFactory : sushiFactory;
+        IUniswapV2Router02 router = _isUni ? uniRouter : sushiRouter;
+        (uint256 tokenReserveA, uint256 tokenReserveB) = _isUni ? 
              UniswapV2Library.getReserves(factory, WETH, _token) : SushiswapV2Library.getReserves(sushiFactory, WETH, _token);
 
-        uint256 amountEth = router.getAmountIn({   // returns the minEth required to get (minSetTokenAmountOut * unit) tokens
+        uint256 amountEth = router.getAmountIn({
             amountOut : _amountOut,
             reserveIn : tokenReserveA,
             reserveOut : tokenReserveB   
@@ -354,13 +436,22 @@ contract ExchangeIssuance is ReentrancyGuard {
         return amountEth;
     }
 
-    function getBuyPriceExactETH(bool isUni, address _token, uint256 _amountETHIn) internal view returns (uint256) {
-        address factory = isUni ? uniFactory : sushiFactory;
-        IUniswapV2Router02 router = isUni ? uniRouter : sushiRouter;
-        (uint256 tokenReserveA, uint256 tokenReserveB) = isUni ? 
+    /**
+     * Gets the amount of _token that will be received given an exact _amountETHIn
+     *
+     * @param _isUni        Specifies whether to fetch the Uniswap or Sushiswap price
+     * @param _token        The address of the token to get the buy price of
+     * @param _amountETHIn  The exact input ETH balance for the swap
+     * 
+     * @return              The amount of tokens that can be received
+     */
+    function _getBuyPriceExactETH(bool _isUni, address _token, uint256 _amountETHIn) internal view returns (uint256) {
+        address factory = _isUni ? uniFactory : sushiFactory;
+        IUniswapV2Router02 router = _isUni ? uniRouter : sushiRouter;
+        (uint256 tokenReserveA, uint256 tokenReserveB) = _isUni ? 
              UniswapV2Library.getReserves(factory, WETH, _token) : SushiswapV2Library.getReserves(sushiFactory, WETH, _token);
 
-        uint256 amountEth = router.getAmountOut({   // returns the minEth required to get (minSetTokenAmountOut * unit) tokens
+        uint256 amountEth = router.getAmountOut({
             amountIn : _amountETHIn,
             reserveIn : tokenReserveA,
             reserveOut : tokenReserveB   
@@ -368,8 +459,17 @@ contract ExchangeIssuance is ReentrancyGuard {
         return amountEth;
     }
 
-    function getSellPrice(bool isUni, address _token, uint256 _amount) internal view returns (uint256) {
-        if (isUni) {
+    /**
+     * Gets the sell price of a token given an exact amount of tokens to spend
+     *
+     * @param _isUni    Specifies whether to fetch the Uniswap or Sushiswap price
+     * @param _token    The address of the input token
+     * @param _amount   The input amount of _token
+     *
+     * @return          The amount of WETH that would be received for this swap
+     */
+    function _getSellPrice(bool _isUni, address _token, uint256 _amount) internal view returns (uint256) {
+        if (_isUni) {
             (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, WETH, _token);
             return uniRouter.getAmountOut(_amount, tokenReserveB, tokenReserveA);
         } else {
@@ -378,7 +478,15 @@ contract ExchangeIssuance is ReentrancyGuard {
         }
     }
 
-    function tokenAvailable(address _factory, address _token) internal view returns (bool) {
+    /**
+     * Checks if a token is available on the given DEX
+     *
+     * @param _factory  The factory to use (can be either uniFactory or sushiFactory)
+     * @param _token    The address of the token
+     *
+     * @return          A boolean representing if the token is available
+     */
+    function _tokenAvailable(address _factory, address _token) internal view returns (bool) {
         return IUniswapV2Factory(_factory).getPair(WETH, _token) != address(0);
     }
 }
