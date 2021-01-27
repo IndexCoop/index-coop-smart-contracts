@@ -1,3 +1,19 @@
+/*
+    Copyright 2021 Set Labs Inc.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+*/
+
 pragma solidity ^0.6.10;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
@@ -5,9 +21,35 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { AddressArrayUtils } from "../lib/AddressArrayUtils.sol";
 import { MutualUpgrade } from "../lib/MutualUpgrade.sol";
 
+/**
+ * @title ICManagerV2
+ * @author Set Protocol
+ *
+ * Smart contract manager that contains permissions and admin functionality
+ */
 contract ICManagerV2 is MutualUpgrade {
     using Address for address;
     using AddressArrayUtils for address[];
+
+    /* ============ Events ============ */
+
+    event AdapterAdded(
+        address _adapter
+    );
+
+    event AdapterRemoved(
+        address _adapter
+    );
+
+    event MethodologistChanged(
+        address _oldMethodologist,
+        address _newMethodologist
+    );
+
+    event OperatorChanged(
+        address _oldOperator,
+        address _newOperator
+    );
 
     /* ============ Modifiers ============ */
 
@@ -43,7 +85,7 @@ contract ICManagerV2 is MutualUpgrade {
     // Array of listed adapters
     address[] adapters;
 
-    // Mapping to check if adapter
+    // Mapping to check if adapter is added
     mapping(address => bool) public isAdapter;
 
     // Address of operator
@@ -69,7 +111,7 @@ contract ICManagerV2 is MutualUpgrade {
     /* ============ External Functions ============ */
 
     /**
-     * OPERATOR OR METHODOLOGIST ONLY: Update the SetToken manager address. Operator and Methodologist must each call
+     * MUTUAL UPGRADE: Update the SetToken manager address. Operator and Methodologist must each call
      * this function to execute the update.
      *
      * @param _newManager           New manager address
@@ -79,7 +121,7 @@ contract ICManagerV2 is MutualUpgrade {
     }
 
     /**
-     * OPERATOR OR METHODOLOGIST ONLY: Add a new adapter that the ICManagerV2 can call.
+     * MUTUAL UPGRADE: Add a new adapter that the ICManagerV2 can call.
      *
      * @param _adapter           New adapter to add
      */
@@ -89,12 +131,14 @@ contract ICManagerV2 is MutualUpgrade {
         adapters.push(_adapter);
 
         isAdapter[_adapter] = true;
+
+        emit AdapterAdded(_adapter);
     }
 
     /**
-     * OPERATOR OR METHODOLOGIST ONLY: Remove an existing adapter tracked by the ICManagerV2.
+     * MUTUAL UPGRADE: Remove an existing adapter tracked by the ICManagerV2.
      *
-     * @param _adapter           New adapter to add
+     * @param _adapter           Old adapter to remove
      */
     function removeAdapter(address _adapter) external mutualUpgrade(operator, methodologist) {
         require(isAdapter[_adapter], "Adapter does not exist");
@@ -102,6 +146,8 @@ contract ICManagerV2 is MutualUpgrade {
         adapters = adapters.remove(_adapter);
 
         isAdapter[_adapter] = false;
+
+        emit AdapterRemoved(_adapter);
     }
 
     /**
@@ -139,6 +185,8 @@ contract ICManagerV2 is MutualUpgrade {
      * @param _newMethodologist           New methodologist address
      */
     function setMethodologist(address _newMethodologist) external onlyMethodologist {
+        emit MethodologistChanged(methodologist, _newMethodologist);
+
         methodologist = _newMethodologist;
     }
 
@@ -148,6 +196,8 @@ contract ICManagerV2 is MutualUpgrade {
      * @param _newOperator           New operator address
      */
     function setOperator(address _newOperator) external onlyOperator {
+        emit OperatorChanged(operator, _newOperator);
+
         operator = _newOperator;
     }
 
