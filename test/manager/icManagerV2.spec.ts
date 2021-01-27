@@ -211,6 +211,10 @@ describe("ICManagerV2", () => {
 
         expect(isAdapter).to.be.true;
       });
+
+      it("should emit the correct AdapterAdded event", async () => {
+        await expect(subject()).to.emit(icManagerV2, "AdapterAdded").withArgs(mockAdapter.address);
+      });
     });
 
     describe("when the adapter already exists", async () => {
@@ -282,6 +286,10 @@ describe("ICManagerV2", () => {
         const isAdapter = await icManagerV2.isAdapter(subjectAdapter);
 
         expect(isAdapter).to.be.false;
+      });
+
+      it("should emit the correct AdapterRemoved event", async () => {
+        await expect(subject()).to.emit(icManagerV2, "AdapterRemoved").withArgs(mockAdapter.address);
       });
     });
 
@@ -434,6 +442,10 @@ describe("ICManagerV2", () => {
       expect(actualIndexModule).to.eq(subjectNewMethodologist);
     });
 
+    it("should emit the correct MethodologistChanged event", async () => {
+      await expect(subject()).to.emit(icManagerV2, "MethodologistChanged").withArgs(methodologist.address, subjectNewMethodologist);
+    });
+
     describe("when the caller is not the methodologist", async () => {
       beforeEach(async () => {
         subjectCaller = await getRandomAccount();
@@ -463,6 +475,10 @@ describe("ICManagerV2", () => {
       await subject();
       const actualIndexModule = await icManagerV2.operator();
       expect(actualIndexModule).to.eq(subjectNewOperator);
+    });
+
+    it("should emit the correct OperatorChanged event", async () => {
+      await expect(subject()).to.emit(icManagerV2, "OperatorChanged").withArgs(owner.address, subjectNewOperator);
     });
 
     describe("when the caller is not the operator", async () => {
