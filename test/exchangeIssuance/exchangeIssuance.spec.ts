@@ -9,6 +9,7 @@ const erc20abi = require("./erc20abi");
 
 const dpiAddress = "0x1494ca1f11d487c2bbe4543e90080aeba4ba3c2b";
 const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
+const wethAddress = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
 
 const uniFactory = "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f";
 const uniRouter = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D";
@@ -21,6 +22,52 @@ const deploy = async (account: any) => {
   return (await ExchangeIssuance.deploy(uniFactory, uniRouter, sushiFactory, sushiRouter, basicIssuanceModule)).connect(account);
 };
 
+const issueERC20 = async (ERC20Address: string, account: Signer, amount: Number) => {
+  // get initial DPI and ERC20 balances
+  const dpi = new ethers.Contract(dpiAddress, erc20abi, account);
+  const initDPIBalance = await dpi.balanceOf(account.getAddress());
+  const ERC20 = new ethers.Contract(ERC20Address, erc20abi, account);
+  const initERC20Balance = await ERC20.balanceOf(account.getAddress());
+
+  // deploy ExchangeIssuance.sol
+  const exchangeIssuance = await deploy(account);
+
+  // issue DPI with ERC20
+  await ERC20.approve(exchangeIssuance.address, ethers.utils.parseEther(amount.toString()));
+  await exchangeIssuance.initApprovals(dpiAddress);
+  await exchangeIssuance.exchangeIssue(dpiAddress, ethers.utils.parseEther(amount.toString()), false, ERC20Address, ethers.utils.parseEther("0"));
+
+  // get final DPI and ERC20 balances
+  const finalDPIBalance = await dpi.balanceOf(account.getAddress());
+  const finalERC20Balance = await ERC20.balanceOf(account.getAddress());
+
+  // check if final DPI is less than init, and if final DAI is more than init
+  return finalDPIBalance.gt(initDPIBalance) && finalERC20Balance.lt(initERC20Balance);
+};
+
+const redeemERC20 = async (ERC20Address: string, account: Signer, amount: Number) => {
+  // get initial DPI and ERC20 balances
+  const dpi = new ethers.Contract(dpiAddress, erc20abi, account);
+  const initDPIBalance = await dpi.balanceOf(account.getAddress());
+  const ERC20 = new ethers.Contract(ERC20Address, erc20abi, account);
+  const initERC20Balance = await ERC20.balanceOf(account.getAddress());
+
+  // deploy ExchangeIssuance.sol
+  const exchangeIssuance = await deploy(account);
+
+  // redeem DPI for ERC20
+  await dpi.approve(exchangeIssuance.address, ethers.utils.parseEther(amount.toString()));
+  await exchangeIssuance.initApprovals(dpiAddress);
+  await exchangeIssuance.exchangeRedeem(dpiAddress, ethers.utils.parseEther(amount.toString()), false, ERC20Address, ethers.utils.parseEther("0"));
+
+  // get final DPI and ERC20 balances
+  const finalDPIBalance = await dpi.balanceOf(account.getAddress());
+  const finalERC20Balance = await ERC20.balanceOf(account.getAddress());
+
+  // check if final DPI is less than init, and if final ERC20 is more than init
+  return finalDPIBalance.lt(initDPIBalance) && finalERC20Balance.gt(initERC20Balance);
+};
+
 describe("ExchangeIssuance", function() {
 
   let account: Signer;
@@ -28,9 +75,9 @@ describe("ExchangeIssuance", function() {
   before(async () => {
     await hre.network.provider.request({
       method: "hardhat_impersonateAccount",
-      params: ["0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8"]}
+      params: ["0x56178a0d5F301bAf6CF3e1Cd53d9863437345Bf9"]}
     );
-    account = await ethers.provider.getSigner("0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8");
+    account = await ethers.provider.getSigner("0x56178a0d5F301bAf6CF3e1Cd53d9863437345Bf9");
   });
 
   describe("Issue", () => {
@@ -47,10 +94,10 @@ describe("ExchangeIssuance", function() {
       // issue 10 ETH worth of DPI
       await exchangeIssuance.initApprovals(dpiAddress);
       const overrides = {
-          value: ethers.utils.parseEther("20"),
+          value: ethers.utils.parseEther("5"),
       };
       await exchangeIssuance.exchangeIssue(
-        dpiAddress, ethers.utils.parseEther("20"),
+        dpiAddress, ethers.utils.parseEther("5"),
         true, "0x0000000000000000000000000000000000000000",
         0, overrides
       );
@@ -65,27 +112,13 @@ describe("ExchangeIssuance", function() {
     });
 
     it("Should issue DPI with an ERC20 (DAI)", async function() {
-      // get initial DPI and DAI balances
-      const dpi = new ethers.Contract(dpiAddress, erc20abi, account);
-      const initDPIBalance = await dpi.balanceOf(account.getAddress());
-      const dai = new ethers.Contract(daiAddress, erc20abi, account);
-      const initDAIBalance = await dai.balanceOf(account.getAddress());
+      const passed = await issueERC20(daiAddress, account, 2000);
+      expect(passed).to.equal(true);
+    });
 
-      // deploy ExchangeIssuance.sol
-      const exchangeIssuance = await deploy(account);
-
-      // issue DPI with DAI
-      await dai.approve(exchangeIssuance.address, ethers.utils.parseEther("10000"));
-      await exchangeIssuance.initApprovals(dpiAddress);
-      await exchangeIssuance.exchangeIssue(dpiAddress, ethers.utils.parseEther("1900"), false, daiAddress, ethers.utils.parseEther("4"));
-
-      // get final DPI and DAI balances
-      const finalDPIBalance = await dpi.balanceOf(account.getAddress());
-      const finalDAIBalance = await dai.balanceOf(account.getAddress());
-
-      // check if final DPI is less than init, and if final DAI is more than init
-      expect(finalDPIBalance.gt(initDPIBalance)).to.equal(true);
-      expect(finalDAIBalance.lt(initDAIBalance)).to.equal(true);
+    it("Should issue DPI with an ERC20 (WETH)", async function() {
+      const passed = await issueERC20(wethAddress, account, 200);
+      expect(passed).to.equal(true);
     });
   });
 
@@ -118,27 +151,13 @@ describe("ExchangeIssuance", function() {
     });
 
     it("Should redeem DPI for an ERC20 (DAI)", async function() {
-      // get initial DPI and DAI balances
-      const dpi = new ethers.Contract(dpiAddress, erc20abi, account);
-      const initDPIBalance = await dpi.balanceOf(account.getAddress());
-      const dai = new ethers.Contract(daiAddress, erc20abi, account);
-      const initDAIBalance = await dai.balanceOf(account.getAddress());
+      const passed = await redeemERC20(daiAddress, account, 10);
+      expect(passed).to.equal(true);
+    });
 
-      // deploy ExchangeIssuance.sol
-      const exchangeIssuance = await deploy(account);
-
-      // redeem DPI for DAI
-      await dpi.approve(exchangeIssuance.address, ethers.utils.parseEther("10"));
-      await exchangeIssuance.initApprovals(dpiAddress);
-      await exchangeIssuance.exchangeRedeem(dpiAddress, ethers.utils.parseEther("10"), false, daiAddress, ethers.utils.parseEther("1000"));
-
-      // get final DPI and DAI balances
-      const finalDPIBalance = await dpi.balanceOf(account.getAddress());
-      const finalDAIBalance = await dai.balanceOf(account.getAddress());
-
-      // check if final DPI is less than init, and if final DAI is more than init
-      expect(finalDPIBalance.lt(initDPIBalance)).to.equal(true);
-      expect(finalDAIBalance.gt(initDAIBalance)).to.equal(true);
+    it("Should redeem DPI for an ERC20 (WETH)", async function() {
+      const passed = await redeemERC20(wethAddress, account, 10);
+      expect(passed).to.equal(true);
     });
   });
 

@@ -79,7 +79,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         address _sushiFactory, 
         IUniswapV2Router02 _sushiRouter, 
         IBasicIssuanceModule _basicIssuanceModule
-    ) 
+    )
         public
     {
         uniFactory = _uniFactory;
@@ -130,17 +130,18 @@ contract ExchangeIssuance is ReentrancyGuard {
         bool _isInputETH,
         IERC20 _inputToken,
         uint256 _minSetReceive
-    ) 
+    )
         external
         payable
         nonReentrant
     {
         _handleIssueInput(_isInputETH, _inputToken, _amountInput);
 
-        // get price of set token on uniswap
+        // get best price of set token
         uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
-        (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, WETH, address(_setToken));
-        uint256 minSetTokenAmountOut = uniRouter.getAmountOut(wethBalance, tokenReserveA, tokenReserveB);
+        uint256 uniAmount = _tokenAvailable(uniFactory, address(_setToken)) ? _getBuyPriceExactETH(true, address(_setToken), wethBalance) : 0;
+        uint256 sushiAmount = _tokenAvailable(sushiFactory, address(_setToken)) ? _getBuyPriceExactETH(false, address(_setToken), wethBalance) : 0;
+        uint256 minSetTokenAmountOut = Math.max(uniAmount, sushiAmount);
 
         //get approximate costs
         ISetToken.Position[] memory positions = _setToken.getPositions();
@@ -168,7 +169,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         bool _isOutputETH,
         address _outputToken,
         uint256 _minOutputReceive
-    ) 
+    )
         external
         nonReentrant
     {
@@ -210,10 +211,10 @@ contract ExchangeIssuance is ReentrancyGuard {
             amountEth = _amountInput;
         }
 
-        // get price of set token on uniswap
-        uint256 wethBalance = amountEth;
-        (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, WETH, address(_setToken));
-        uint256 minSetTokenAmountOut = uniRouter.getAmountOut(wethBalance, tokenReserveA, tokenReserveB);
+        // get best price of set token
+        uint256 uniAmount = _tokenAvailable(uniFactory, address(_setToken)) ? _getBuyPriceExactETH(true, address(_setToken), amountEth) : 0;
+        uint256 sushiAmount = _tokenAvailable(sushiFactory, address(_setToken)) ? _getBuyPriceExactETH(false, address(_setToken), amountEth) : 0;
+        uint256 minSetTokenAmountOut = Math.max(uniAmount, sushiAmount);
 
         uint256 sumEth = 0;
         ISetToken.Position[] memory positions = _setToken.getPositions();
@@ -234,7 +235,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             address token = positions[i].component;
             uint256 unit = uint256(positions[i].unit);
 
-            uint256 scaledAmountEth = amountEthIn[i].mul(wethBalance).div(sumEth);  // scale the amountEthIn
+            uint256 scaledAmountEth = amountEthIn[i].mul(amountEth).div(sumEth);  // scale the amountEthIn
             uint256 uniTokenOut = _tokenAvailable(uniFactory, token) ? _getBuyPriceExactETH(true, token, scaledAmountEth) : 0;
             uint256 sushiTokenOut = _tokenAvailable(sushiFactory, token) ? _getBuyPriceExactETH(false, token, scaledAmountEth) : 0;
 
@@ -349,6 +350,8 @@ contract ExchangeIssuance is ReentrancyGuard {
         } else if(address(_inputToken) != WETH) {
             _inputToken.transferFrom(msg.sender, address(this), _amountInput);
             _purchaseWETHExactTokens(address(_inputToken), _amountInput);    // _inputToken -> WETH
+        } else {
+            _inputToken.transferFrom(msg.sender, address(this), _amountInput);  // already WETH
         }
     }
 
@@ -508,8 +511,9 @@ contract ExchangeIssuance is ReentrancyGuard {
     /**
      * Gets the pruchase price in WETH of a token given the requested output amount
      *
-     * @param _isUni    Specifies whether to fetch the Uniswap or Sushiswap price
-     * @param _token    The address of the token to get the buy price of
+     * @param _isUni        Specifies whether to fetch the Uniswap or Sushiswap price
+     * @param _token        The address of the token to get the buy price of
+     * @param _amountOut    Output token amount
      *
      * @return          The purchase price in WETH
      */
