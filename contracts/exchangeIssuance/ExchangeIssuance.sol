@@ -96,8 +96,6 @@ contract ExchangeIssuance is ReentrancyGuard {
 
     /* ============ External Functions ============ */
 
-    receive() external payable {}
-
     /**
      * Runs all the necessary approval functions required before issuing
      * or redeeming a set token. This function only need to be called before the first time
@@ -180,6 +178,8 @@ contract ExchangeIssuance is ReentrancyGuard {
         uint256 outputAmount = _handleRedeemOutput(_isOutputETH, _outputToken, _minOutputReceive);
         emit ExchangeRedeem(msg.sender, address(_setToken), _isOutputETH ? address(0) : _outputToken, _amountSetToRedeem, outputAmount);
     }
+
+    receive() external payable {}
 
     /**
      * Returns an estimated quantity of the specified SetToken given an input amount of ETH or a specified ERC20 receieved when issuing.
