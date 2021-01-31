@@ -1,5 +1,6 @@
 import * as _ from "lodash";
 import * as fs from "fs";
+const handlebars = require("handlebars");
 
 import { task } from 'hardhat/config';
 import { SetToken } from "../typechain/SetToken";
@@ -73,12 +74,13 @@ interface RebalanceReport {
   tradeOrder: string;
 }
 
-let rebalanceData: RebalanceSummary[] = [];
 let tradeOrder: string = "";
 
 task("calculate-new-position", "Calculates new rebalance details for an index")
   .addParam('rebalance', "Rebalance number")
   .setAction(async ({rebalance}, hre) => {
+    let rebalanceData: RebalanceSummary[] = [];
+
     const [owner] = await hre.ethers.getSigners();
     const dpi: SetToken = await new SetToken__factory(owner).attach(DPI_ADDRESS);
     const indexModule: SingleIndexModule = await new SingleIndexModule__factory(owner).attach(SINGLE_INDEX_MODULE_ADDRESS);
@@ -116,7 +118,9 @@ task("calculate-new-position", "Calculates new rebalance details for an index")
 
     const report = await generateReports(rebalanceData, dpi, indexModule);
 
-    fs.writeFileSync(`index-rebalances/dpi/rebalances/rebalance-${rebalance}.json`, JSON.stringify(report));
+    const content = getNamedContent('index-rebalances/dpi/rebalances/report.mustache');
+    var templateScript = handlebars.compile(content);
+    fs.writeFileSync(`index-rebalances/dpi/rebalances/rebalance-${rebalance}.txt`, templateScript(report));
   });
 
 function createStrategyObject(
@@ -142,7 +146,6 @@ function createRebalanceSchedule(rebalanceData: RebalanceSummary[]) {
     [buyAssets, ethBalance] = doBuyTrades(buyAssets, ethBalance);
   }
   cleanupTrades(buyAssets);
-
 }
 
 function doSellTrades(sellAssets: RebalanceSummary[], ethBalance: BigNumber): [RebalanceSummary[], BigNumber] {
@@ -235,6 +238,16 @@ async function generateReports(
       coolOffValue.push(obj.coolOffPeriod.toString());
     }
   }));
+
+  // Refill fields in rebalanceData altered during trade scheduling
+  const totalSupply = await dpi.totalSupply();
+  for (let k = 0; k < rebalanceData.length; k++) {
+    rebalanceData[k].notionalInToken = rebalanceData[k].newUnit.sub(rebalanceData[k].currentUnit).mul(totalSupply).div(PRECISE_UNIT);
+    rebalanceData[k].tradeNumber = rebalanceData[k].notionalInToken.div(
+      strategyInfo[rebalanceData[k].asset].maxTradeSize
+    ).abs().add(1);
+  }
+
   return {
     summary: rebalanceData,
     maxTradeSizeParams: {
@@ -255,27 +268,16 @@ async function generateReports(
       oldComponentUnits: oldComponentsTargetUnits
     },
     tradeOrder
-  } as RebalanceReport
-  // console.log("rebalance() parameters:");
-  // console.log(" newComponents: ", newComponents);
-  // console.log(" newComponentsTargetUnits: ", newComponentsTargetUnits);
-  // console.log(" oldComponentsTargetUnits: ", oldComponentsTargetUnits);
-  // console.log(" positionMultiplier: ", (await dpi.positionMultiplier()).toString());
+  } as RebalanceReport;
+}
 
-  // console.log("setTradeMaximums() parameters:");
-  // console.log(" New Trade Maximum Components: ", tradeSizeComponents);
-  // console.log(" New Trade Maximums: ", tradeSizeValue);
-
-  // console.log("setCoolOffPeriod() parameters:");
-  // console.log(" New Cool Off Period Components: ", coolOffComponents);
-  // console.log(" New Cool Off Periods: ", coolOffValue);
-
-  // console.log("setExchanges() parameters:");
-  // console.log(" New Exchange Components: ", exchangeComponents);
-  // console.log(" New Exchanges: ", exchangeValue);
-
-  // console.log("Trade Order:");
-  // console.log(tradeOrder);
+function getNamedContent(filename: string) {
+  try {
+      const content = fs.readFileSync(filename).toString();
+      return content;
+  } catch (err) {
+      throw new Error(`Failed to read ${filename}: ${err}`);
+  }
 }
 
 module.exports = {};
