@@ -113,7 +113,7 @@ task("calculate-new-position", "Calculates new rebalance details for an index")
       } as RebalanceSummary;
       rebalanceData.push(tokenSummary);
     }
-
+    
     createRebalanceSchedule(rebalanceData);
 
     const report = await generateReports(rebalanceData, dpi, indexModule);
