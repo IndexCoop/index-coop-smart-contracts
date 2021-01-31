@@ -3,6 +3,7 @@ require("dotenv").config();
 import { HardhatUserConfig } from "hardhat/config";
 import { privateKeys } from "./utils/wallets";
 
+import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-waffle";
 import "hardhat-typechain";
 import "solidity-coverage";
@@ -19,6 +20,7 @@ const mochaConfig = {
   invert: (process.env.FORK) ? false : true,
   timeout: (process.env.FORK) ? 50000 : 40000,
 } as Mocha.MochaOptions;
+require('./tasks/calculate-new-position');
 
 const config: HardhatUserConfig = {
   solidity: {
