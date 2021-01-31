@@ -4,11 +4,11 @@ The parameters for updating exchanges are:
 
 The parameters for updating maxTradeSizes are:
     components: [0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e,0xa3BeD4E1c75D00fa6f4E5E6922DB7261B5E9AcD2]
-    exchanges: [5400000000000000000,4200000000000000000000]
+    maxTradeSizes: [5400000000000000000,4200000000000000000000]
 
 The parameters for updating coolOffPeriods are:
     components: [0xa3BeD4E1c75D00fa6f4E5E6922DB7261B5E9AcD2]
-    exchanges: [600]
+    coolOffPeriods: [600]
 
 The parameters for startRebalance are as follows:
     newComponents: [0xa3BeD4E1c75D00fa6f4E5E6922DB7261B5E9AcD2]
