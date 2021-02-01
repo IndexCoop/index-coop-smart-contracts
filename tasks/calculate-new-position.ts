@@ -63,6 +63,7 @@ interface RebalanceParams {
   newComponents: Address[];
   newComponentUnits: string[];
   oldComponentUnits: string[];
+  positionMultiplier: string;
 }
 
 interface RebalanceReport {
@@ -248,6 +249,8 @@ async function generateReports(
     ).abs().add(1);
   }
 
+  const positionMultiplier = (await dpi.positionMultiplier()).toString();
+
   return {
     summary: rebalanceData,
     maxTradeSizeParams: {
@@ -265,7 +268,8 @@ async function generateReports(
     rebalanceParams: {
       newComponents,
       newComponentUnits: newComponentsTargetUnits,
-      oldComponentUnits: oldComponentsTargetUnits
+      oldComponentUnits: oldComponentsTargetUnits,
+      positionMultiplier: positionMultiplier,
     },
     tradeOrder
   } as RebalanceReport;
