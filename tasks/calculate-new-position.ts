@@ -122,6 +122,7 @@ task("calculate-new-position", "Calculates new rebalance details for an index")
     const content = getNamedContent('index-rebalances/dpi/rebalances/report.mustache');
     var templateScript = handlebars.compile(content);
     fs.writeFileSync(`index-rebalances/dpi/rebalances/rebalance-${rebalance}.txt`, templateScript(report));
+    fs.writeFileSync(`index-rebalances/dpi/rebalances/rebalance-${rebalance}.json`, JSON.stringify(report));
   });
 
 function createStrategyObject(
