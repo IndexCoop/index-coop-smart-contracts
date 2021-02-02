@@ -1,19 +1,19 @@
 The parameters for updating exchanges are:
-    components: [{{exchangeParams.components}}]
-    exchanges: [{{exchangeParams.values}}]
+    components: [{{#each exchangeParams.components}}"{{this}}",{{/each}}]
+    exchanges: [{{#each exchangeParams.values}}"{{this}}",{{/each}}]
 
 The parameters for updating maxTradeSizes are:
-    components: [{{maxTradeSizeParams.components}}]
-    maxTradeSizes: [{{maxTradeSizeParams.values}}]
+    components: [{{#each maxTradeSizeParams.components}}"{{this}}",{{/each}}]
+    maxTradeSizes: [{{#each maxTradeSizeParams.values}}"{{this}}",{{/each}}]
 
 The parameters for updating coolOffPeriods are:
-    components: [{{coolOffPeriodParams.components}}]
-    coolOffPeriods: [{{coolOffPeriodParams.values}}]
+    components: [{{#each coolOffPeriodParams.components}}"{{this}}",{{/each}}]
+    coolOffPeriods: [{{#each coolOffPeriodParams.values}}"{{this}}",{{/each}}]
 
 The parameters for startRebalance are as follows:
-    newComponents: [{{rebalanceParams.newComponents}}]
-    newComponentsTargetUnits: [{{rebalanceParams.newComponentUnits}}]
-    oldComponentsTargetUnits: [{{rebalanceParams.oldComponentUnits}}]
+    newComponents: [{{#each rebalanceParams.newComponents}}"{{this}}",{{/each}}]
+    newComponentsTargetUnits: [{{#each rebalanceParams.newComponentUnits}}"{{this}}",{{/each}}]
+    oldComponentsTargetUnits: [{{#each rebalanceParams.oldComponentUnits}}"{{this}}",{{/each}}]
     positionMultiplier: {{rebalanceParams.positionMultiplier}}
 
 Trade Order is: {{tradeOrder}}
