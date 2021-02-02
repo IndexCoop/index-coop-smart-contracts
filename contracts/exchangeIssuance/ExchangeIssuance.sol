@@ -93,25 +93,45 @@ contract ExchangeIssuance is ReentrancyGuard {
         IERC20(WETH).approve(address(uniRouter), PreciseUnitMath.maxUint256());
         IERC20(WETH).approve(address(sushiRouter), PreciseUnitMath.maxUint256());
     }
+    
+    /* ============ Public Functions ============ */
+    
+    /**
+     * Runs all the necessary approval functions required for a given ERC20 token.
+     * This function can be called when a new token is added to a set token during a 
+     * rebalance.
+     *
+     * @param _token    Address of the token which needs approval
+     */
+    function approveToken(IERC20 _token) public {
+        _token.approve(address(uniRouter), MAX_UINT96);
+        _token.approve(address(sushiRouter), MAX_UINT96);
+        _token.approve(address(basicIssuanceModule), MAX_UINT96);
+    }
 
     /* ============ External Functions ============ */
+    
+    /**
+     * Runs all the necessary approval functions required for a list of ERC20 tokens.
+     *
+     * @param _tokens    Addresses of the tokens which need approval
+     */
+    function approveTokens(IERC20[] calldata _tokens) external {
+        for(uint256 i = 0; i < _tokens.length; i++)
+            approveToken(_tokens[i]);
+    }
 
     /**
      * Runs all the necessary approval functions required before issuing
-     * or redeeming a set token. This function only need to be called before the first time
-     * this smart contract is used on any particular set token, or when a new token is added
-     * to the set token during a rebalance.
+     * or redeeming a set token. This function need to be called only once before the first time
+     * this smart contract is used on any particular set token.
      *
      * @param _setToken    Address of the set token being initialized
      */
-    function initApprovals(ISetToken _setToken) external {
+    function approveSetToken(ISetToken _setToken) external {
         ISetToken.Position[] memory positions = _setToken.getPositions();
-        for (uint256 i = 0; i < positions.length; i++) {
-            IERC20 token = IERC20(positions[i].component);
-            token.approve(address(uniRouter), MAX_UINT96);
-            token.approve(address(sushiRouter), MAX_UINT96);
-            token.approve(address(basicIssuanceModule), MAX_UINT96);
-        }
+        for (uint256 i = 0; i < positions.length; i++)
+            approveToken(IERC20(positions[i].component));
     }
 
     /**

@@ -34,7 +34,7 @@ const issueERC20 = async (ERC20Address: string, account: Signer, amount: Number)
 
   // issue DPI with ERC20
   await ERC20.approve(exchangeIssuance.address, ethers.utils.parseEther(amount.toString()));
-  await exchangeIssuance.initApprovals(dpiAddress);
+  await exchangeIssuance.approveSetToken(dpiAddress);
   await exchangeIssuance.exchangeIssue(dpiAddress, ethers.utils.parseEther(amount.toString()), false, ERC20Address, ethers.utils.parseEther("0"));
 
   // get final DPI and ERC20 balances
@@ -57,7 +57,7 @@ const redeemERC20 = async (ERC20Address: string, account: Signer, amount: Number
 
   // redeem DPI for ERC20
   await dpi.approve(exchangeIssuance.address, ethers.utils.parseEther(amount.toString()));
-  await exchangeIssuance.initApprovals(dpiAddress);
+  await exchangeIssuance.approveSetToken(dpiAddress);
   await exchangeIssuance.exchangeRedeem(dpiAddress, ethers.utils.parseEther(amount.toString()), false, ERC20Address, ethers.utils.parseEther("0"));
 
   // get final DPI and ERC20 balances
@@ -92,7 +92,7 @@ describe("ExchangeIssuance", function() {
       const exchangeIssuance = await deploy(account);
 
       // issue 10 ETH worth of DPI
-      await exchangeIssuance.initApprovals(dpiAddress);
+      await exchangeIssuance.approveSetToken(dpiAddress);
       const overrides = {
           value: ethers.utils.parseEther("5"),
       };
@@ -134,7 +134,7 @@ describe("ExchangeIssuance", function() {
 
       // redeem dpi for ETH
       await dpi.approve(exchangeIssuance.address, ethers.utils.parseEther("10"));
-      await exchangeIssuance.initApprovals(dpiAddress);
+      await exchangeIssuance.approveSetToken(dpiAddress);
       await exchangeIssuance.exchangeRedeem(dpiAddress,
         ethers.utils.parseEther("10"),
         true, "0x0000000000000000000000000000000000000000",

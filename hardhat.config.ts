@@ -19,7 +19,7 @@ const config: HardhatUserConfig = {
       optimizer: { enabled: true, runs: 200 },
     },
   },
-  namedAccounts: {
+  namedAccounts: {  
     deployer: 0,
   },
   networks: {
@@ -47,6 +47,9 @@ const config: HardhatUserConfig = {
     coverage: {
       url: "http://127.0.0.1:8555", // Coverage launches its own ganache-cli client
     },
+  },
+  mocha: {
+    timeout: 200000
   },
   typechain: {
     outDir: "typechain",
