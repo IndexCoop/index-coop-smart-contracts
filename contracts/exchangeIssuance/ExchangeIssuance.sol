@@ -390,8 +390,12 @@ contract ExchangeIssuance is ReentrancyGuard {
             IERC20(WETH).transfer(msg.sender, outputAmount);
             return outputAmount;
         } else {
-            uint256 outputAmount = _purchaseTokenBestPrice(_outputToken, IERC20(WETH).balanceOf(address(this)));
-            require(outputAmount > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
+            uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
+            (uint amountTokenOut, Exchange exchange) = _getMaxTokenForExactETH(_outputToken, wethBalance);
+            
+            require(amountTokenOut > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
+            
+            uint256 outputAmount = _purchaseToken(exchange, _outputToken, wethBalance);
             IERC20(_outputToken).transfer(msg.sender, outputAmount);
             return outputAmount;
         }
@@ -424,14 +428,9 @@ contract ExchangeIssuance is ReentrancyGuard {
             address token = positions[i].component;
             uint256 unit = uint256(positions[i].unit);
 
-            address[] memory path = new address[](2);
-            path[0] = WETH;
-            path[1] = token;
             uint256 scaledAmountEth = amountEthIn[i].mul(wethBalance).div(sumEth);  // scale the amountEthIn
             
-            uint256 amountTokenOut = (exchanges[i] == Exchange.Uniswap)
-                ? _purchaseToken(uniRouter, token, scaledAmountEth)
-                : _purchaseToken(sushiRouter, token, scaledAmountEth);
+            uint256 amountTokenOut = _purchaseToken(exchanges[i], token, scaledAmountEth);
 
             maxIndexAmount = Math.min(amountTokenOut.mul(1 ether).div(unit), maxIndexAmount);   // update the maxIndexAmount
         }
@@ -441,38 +440,23 @@ contract ExchangeIssuance is ReentrancyGuard {
     /**
      * Purchases a token using an exact WETH amount
      *
-     * @param _router   The router to use when purchasing (can be either uniRouter or sushiRouter)
-     * @param _token    The address of the token to purchase
-     * @param _amount   The amount of WETH to spend on the purchase
+     * @param _exchange     The exchange on which to purchase the token.
+     * @param _token        The address of the token to purchase
+     * @param _amount       The amount of WETH to spend on the purchase
      * 
-     * @return          The amount of the token purchased
+     * @return              The amount of the token purchased
      */
-    function _purchaseToken(IUniswapV2Router02 _router, address _token, uint256 _amount) internal returns (uint256) {
+    function _purchaseToken(Exchange _exchange, address _token, uint256 _amount) internal returns (uint256) {
         address[] memory path = new address[](2);
         path[0] = WETH;
         path[1] = _token;
-        uint256 amountOut = _router.swapExactTokensForTokens(_amount, 0, path, address(this), block.timestamp)[1];
+
+        uint256 amountOut = (_exchange == Exchange.Uniswap)
+            ? uniRouter.swapExactTokensForTokens(_amount, 0, path, address(this), block.timestamp)[1]
+            : sushiRouter.swapExactTokensForTokens(_amount, 0, path, address(this), block.timestamp)[1];
         return amountOut;
     }
  
-    /**
-     * Purchases a token with a given amount of WETH using the DEX with the best price
-     *
-     * @param _token    The address of the token to purchase
-     * @param _amount   The amount of WETH to spend on the purchase
-     *
-     * @return          The amount of the token purchased
-     */
-    function _purchaseTokenBestPrice(address _token, uint256 _amount) internal returns (uint256) {
-        uint256 uniPrice = _tokenAvailable(uniFactory, _token) ? _getBuyPrice(true, _token, _amount) : PreciseUnitMath.maxUint256();
-        uint256 sushiPrice = _tokenAvailable(sushiFactory, _token) ? _getBuyPrice(false, _token, _amount) : PreciseUnitMath.maxUint256();
-        if (uniPrice <= sushiPrice) {
-            return _purchaseToken(uniRouter, _token, _amount);
-        } else {
-            return _purchaseToken(sushiRouter, _token, _amount);
-        }
-    }
-
     /**
      * Sells the contracts entire balance of the specified token
      *
@@ -553,29 +537,6 @@ contract ExchangeIssuance is ReentrancyGuard {
             sumEth = sumEth.add(amountEth);     // increment sum
         }
         return (amountEthIn, exchanges, sumEth);
-    }
-
-    /**
-     * Gets the pruchase price in WETH of a token given the requested output amount
-     *
-     * @param _isUni        Specifies whether to fetch the Uniswap or Sushiswap price
-     * @param _token        The address of the token to get the buy price of
-     * @param _amountOut    Output token amount
-     *
-     * @return          The purchase price in WETH
-     */
-    function _getBuyPrice(bool _isUni, address _token, uint256 _amountOut) internal view returns (uint256) {
-        address factory = _isUni ? uniFactory : sushiFactory;
-        IUniswapV2Router02 router = _isUni ? uniRouter : sushiRouter;
-        (uint256 tokenReserveA, uint256 tokenReserveB) = _isUni ? 
-             UniswapV2Library.getReserves(factory, WETH, _token) : SushiswapV2Library.getReserves(sushiFactory, WETH, _token);
-
-        uint256 amountEth = router.getAmountIn({
-            amountOut : _amountOut,
-            reserveIn : tokenReserveA,
-            reserveOut : tokenReserveB   
-        });
-        return amountEth;
     }
     
     /**
