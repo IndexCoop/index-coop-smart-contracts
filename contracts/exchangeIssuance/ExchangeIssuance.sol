@@ -245,9 +245,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     {
         uint256 amountEth;
         if(!_isInputETH && address(_inputToken) != WETH) {
-            uint256 uniAmount = _tokenAvailable(uniFactory, address(_inputToken)) ? _getSellPrice(true, address(_inputToken), _amountInput) : 0;
-            uint256 sushiAmount = _tokenAvailable(sushiFactory, address(_inputToken)) ? _getSellPrice(false, address(_inputToken), _amountInput) : 0; 
-            amountEth = Math.max(uniAmount, sushiAmount);
+            (amountEth, ) = _getMaxTokenForExactToken(_amountInput, address(WETH),  address(_inputToken));
         } else {
             amountEth = _amountInput;
         }
@@ -303,11 +301,9 @@ contract ExchangeIssuance is ReentrancyGuard {
         ISetToken.Position[] memory positions = _setToken.getPositions();
         uint256 totalEth = 0;
         for (uint256 i = 0; i < positions.length; i++) {
-            address token = positions[i].component;
             uint256 amount = uint256(positions[i].unit).mul(_amountSetToRedeem).div(1 ether);
-            uint256 uniAmount = _tokenAvailable(uniFactory, token) ? _getSellPrice(true, positions[i].component, amount) : 0;
-            uint256 sushiAmount = _tokenAvailable(sushiFactory, token) ? _getSellPrice(false, positions[i].component, amount) : 0;
-            totalEth = totalEth.add(Math.max(uniAmount, sushiAmount));
+            (uint256 amountEth, ) = _getMaxTokenForExactToken(amount, positions[i].component, WETH);
+            totalEth = totalEth.add(amountEth);
         }
         if(_isOutputETH || _outputToken == WETH) {
             return totalEth;
@@ -328,7 +324,10 @@ contract ExchangeIssuance is ReentrancyGuard {
     function _liquidateComponents(ISetToken _setToken) internal {
         ISetToken.Position[] memory positions = _setToken.getPositions();
         for (uint256 i = 0; i < positions.length; i++) {
-            _sellTokenBestPrice(positions[i].component);
+            address token = positions[i].component;
+            uint256 tokenBalance = IERC20(token).balanceOf(address(this));
+            (, Exchange exchange) = _getMaxTokenForExactToken(tokenBalance, token, WETH);
+            _sellToken(exchange, token, tokenBalance);
         }
     }
     
@@ -459,32 +458,21 @@ contract ExchangeIssuance is ReentrancyGuard {
     /**
      * Sells the contracts entire balance of the specified token
      *
-     * @param _router   The router to use when purchasing (can be either uniRouter or sushiRouter)
-     * @param _token    The address of the token to sell
+     * @param _exchange     The exchange on which to sell the token.
+     * @param _token        The address of the token to sell
+     * @param _amount       The amount of token to sell
+     * 
+     * @return              The amount of the WETH received
      */
-    function _sellToken(IUniswapV2Router02 _router, address _token) internal {
-        uint256 tokenBalance = IERC20(_token).balanceOf(address(this));
+    function _sellToken(Exchange _exchange, address _token, uint256 _amount) internal returns (uint256) {
         address[] memory path = new address[](2);
         path[0] = _token;
         path[1] = WETH;
-        _router.swapExactTokensForTokens(tokenBalance, 0, path, address(this), block.timestamp);
-    }
-
-    /**
-     * Sells a contracts full balance of a token using the DEX with the best price
-     *
-     * @param _token    The address of the token to sell
-     *
-     */
-    function _sellTokenBestPrice(address _token) internal {
-        uint256 tokenBalance = IERC20(_token).balanceOf(address(this));
-        uint256 uniPrice = _tokenAvailable(uniFactory, _token) ? _getSellPrice(true, _token, tokenBalance) : 0;
-        uint256 sushiPrice = _tokenAvailable(sushiFactory, _token) ? _getSellPrice(false, _token, tokenBalance) : 0;
-        if (uniPrice >= sushiPrice) {
-            _sellToken(uniRouter, _token);
-        } else {
-            _sellToken(sushiRouter, _token);
-        }
+        
+        uint256 amountOut = (_exchange == Exchange.Uniswap)
+            ? uniRouter.swapExactTokensForTokens(_amount, 0, path, address(this), block.timestamp)[1]
+            : sushiRouter.swapExactTokensForTokens(_amount, 0, path, address(this), block.timestamp)[1];
+        return amountOut;
     }
 
     /**
