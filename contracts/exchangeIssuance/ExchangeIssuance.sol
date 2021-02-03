@@ -250,21 +250,11 @@ contract ExchangeIssuance is ReentrancyGuard {
 
         uint256 minSetTokenAmountOut = _getMaxAmountOutForExactETH(address(_setToken), amountEth);  // get best price of set token
 
-        uint256 sumEth = 0;
-        ISetToken.Position[] memory positions = _setToken.getPositions();
-        uint256[] memory amountEthIn = new uint256[](positions.length);
-        for(uint256 i = 0; i < positions.length; i++) {
-            uint256 unit = uint256(positions[i].unit);
-            address token = positions[i].component;
-            uint256 amountOut = minSetTokenAmountOut.mul(unit).div(1 ether);
-            uint256 uniPrice = _tokenAvailable(uniFactory, token) ? _getBuyPrice(true, token, amountOut) : PreciseUnitMath.maxUint256();
-            uint256 sushiPrice = _tokenAvailable(sushiFactory, token) ? _getBuyPrice(false, token, amountOut) : PreciseUnitMath.maxUint256();
-            uint256 amountEth = Math.min(uniPrice, sushiPrice);
-            sumEth = sumEth.add(amountEth);
-            amountEthIn[i] = amountEth;
-        }
-
+        (uint256[] memory amountEthIn, uint256 sumEth) = _getAmountETHForIssuance(_setToken);
+        
         uint256 maxIndexAmount = PreciseUnitMath.maxUint256();
+        ISetToken.Position[] memory positions = _setToken.getPositions();
+        
         for (uint i = 0; i < positions.length; i++) {
             address token = positions[i].component;
             uint256 unit = uint256(positions[i].unit);
@@ -339,22 +329,19 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @param _minSetReceive    Minimum amount of index to receive
      * @return setTokenAmount   Amount of set tokens issued
      */
-    function _issueSetTokenForExactWETH(ISetToken _setToken, uint256 _minSetReceive) internal returns(uint256) {
+    function _issueSetTokenForExactWETH(ISetToken _setToken, uint256 _minSetReceive) internal returns(uint256 setTokenAmount) {
         uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
-        
-        uint256 maxSetTokenAmount = _getMaxAmountOutForExactETH(address(_setToken), wethBalance);         // get best price of set token
         
         ISetToken.Position[] memory positions = _setToken.getPositions();
         
-        (uint256[] memory amountEthIn, uint256 sumEth) = _getApproximateIssueCosts(positions, maxSetTokenAmount);
+        (uint256[] memory amountEthIn, uint256 sumEth) = _getAmountETHForIssuance(_setToken);
 
-        uint256 setTokenAmount = _acquireComponents(positions, amountEthIn, wethBalance, sumEth);   // acquire set token components
+        setTokenAmount = _acquireComponents(positions, amountEthIn, wethBalance, sumEth);   // acquire set token components
         
-        require(maxSetTokenAmount > _minSetReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
+        require(setTokenAmount > _minSetReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
         
-        basicIssuanceModule.issue(_setToken, maxSetTokenAmount, msg.sender);                            // issue token
+        basicIssuanceModule.issue(_setToken, setTokenAmount, msg.sender);                            // issue token
         
-        return setTokenAmount;
     }
     
     
@@ -519,30 +506,26 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
 
     /**
-     * Gets the approximate costs for issuing a token.
+     * Gets the amount of ether required for issuing each component in a set set token.
+     * The amount of ether is calculated based on prices across both uniswap and sushiswap.
      * 
-     * @param _positions            An array of the SetToken's components
-     * @param _setTokenAmount       Amount of set tokens
-     * 
-     * @return                      An array representing the approximate Ether cost to purchase each component of the set
-     * @return                      The approximate total ETH cost to issue the set
+     * @param _setToken      Address of the set token
+     * @return amountEthIn   An array representing the amount of ether to purchase each component of the set
+     * @return sumEth        The approximate total ETH cost to issue the set
      */
-    function _getApproximateIssueCosts(
-        ISetToken.Position[] memory _positions,
-        uint256 _setTokenAmount
-    ) 
+    function _getAmountETHForIssuance(ISetToken _setToken) 
         internal
         view
         returns (uint256[] memory, uint256)
     {
         uint256 sumEth = 0;
-        uint256[] memory amountEthIn = new uint256[](_positions.length);
-        for(uint256 i = 0; i < _positions.length; i++) {
-            uint256 unit = uint256(_positions[i].unit);
-            address token = _positions[i].component;
-            uint256 amountOut = _setTokenAmount.mul(unit).div(1 ether);
-            uint256 uniPrice = _tokenAvailable(uniFactory, token) ? _getBuyPrice(true, token, amountOut) : PreciseUnitMath.maxUint256();
-            uint256 sushiPrice = _tokenAvailable(sushiFactory, token) ? _getBuyPrice(false, token, amountOut) : PreciseUnitMath.maxUint256();
+        ISetToken.Position[] memory positions = _setToken.getPositions();
+        uint256[] memory amountEthIn = new uint256[](positions.length);
+        for(uint256 i = 0; i < positions.length; i++) {
+            uint256 unit = uint256(positions[i].unit);
+            address token = positions[i].component;
+            uint256 uniPrice = _tokenAvailable(uniFactory, token) ? _getBuyPrice(true, token, unit) : PreciseUnitMath.maxUint256();
+            uint256 sushiPrice = _tokenAvailable(sushiFactory, token) ? _getBuyPrice(false, token, unit) : PreciseUnitMath.maxUint256();
             uint256 amountEth = Math.min(uniPrice, sushiPrice);
             sumEth = sumEth.add(amountEth);
             amountEthIn[i] = amountEth;
