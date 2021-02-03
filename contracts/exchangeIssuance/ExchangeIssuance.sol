@@ -40,7 +40,6 @@ import { IWETH } from "../interfaces/IWETH.sol";
 contract ExchangeIssuance is ReentrancyGuard {
     
     // TODO: use safeERC20
-    // TODO: Rename _getApproximateIssueCosts function
     
     using SafeMath for uint256;
     
@@ -271,8 +270,8 @@ contract ExchangeIssuance is ReentrancyGuard {
                 amountTokenOut = UniswapV2Library.getAmountOut(scaledAmountEth, tokenReserveA, tokenReserveB);
             } else {
                 require(exchanges[i] == Exchange.Sushiswap);
-                (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, WETH, token);
-                amountTokenOut = UniswapV2Library.getAmountOut(scaledAmountEth, tokenReserveA, tokenReserveB);
+                (uint256 tokenReserveA, uint256 tokenReserveB) = SushiswapV2Library.getReserves(sushiFactory, WETH, token);
+                amountTokenOut = SushiswapV2Library.getAmountOut(scaledAmountEth, tokenReserveA, tokenReserveB);
             }
             
             // update the maxIndexAmount
@@ -314,7 +313,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             return totalEth;
         }
         
-        (uint256 setTokenAmount, ) = _getMaxTokenForExactETH(_outputToken, totalEth);
+        (uint256 setTokenAmount, ) = _getMaxTokenForExactToken(totalEth, WETH, _outputToken);
         return setTokenAmount;
     }
 
@@ -391,7 +390,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             return outputAmount;
         } else {
             uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
-            (uint amountTokenOut, Exchange exchange) = _getMaxTokenForExactETH(_outputToken, wethBalance);
+            (uint amountTokenOut, Exchange exchange) = _getMaxTokenForExactToken(wethBalance, address(WETH), _outputToken);
             
             require(amountTokenOut > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
             
@@ -568,33 +567,35 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
     
     /**
-     * Compares the amount of token received for an exact amount of Ether across both exchanges,
+     * Compares the amount of token received for an exact amount of another token across both exchanges,
      * and returns the max amount.
      *
-     * @param _token        The address of output token
-     * @param _amountETHIn  The amount of input ETH
+     * @param _amountIn     The amount of input token
+     * @param _tokenA       The address of tokenA
+     * @param _tokenB       The address of tokenB
      * 
      * @return              The max amount of tokens that can be received across both exchanges
      * @return              The Exchange on which maximum amount of token can be received
      */
-    function _getMaxTokenForExactETH(address _token, uint256 _amountETHIn) internal view returns (uint256, Exchange) {
+    function _getMaxTokenForExactToken(uint256 _amountIn, address _tokenA, address _tokenB) internal view returns (uint256, Exchange) {
         
         uint256 uniTokenOut = 0;
         uint256 sushiTokenOut = 0;
         
-        if(_tokenAvailable(uniFactory, _token)) {
-            (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, WETH, _token);
-            uniTokenOut = UniswapV2Library.getAmountOut(_amountETHIn, tokenReserveA, tokenReserveB);
+        if(_pairAvailable(uniFactory, _tokenA, _tokenB)) {
+            (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, _tokenA, _tokenB);
+            uniTokenOut = UniswapV2Library.getAmountOut(_amountIn, tokenReserveA, tokenReserveB);
         }
         
-        if(_tokenAvailable(sushiFactory, _token)) {
-            (uint256 tokenReserveA, uint256 tokenReserveB) = SushiswapV2Library.getReserves(sushiFactory, WETH, _token);
-            sushiTokenOut = SushiswapV2Library.getAmountOut(_amountETHIn, tokenReserveA, tokenReserveB);
+        if(_pairAvailable(sushiFactory, _tokenA, _tokenB)) {
+            (uint256 tokenReserveA, uint256 tokenReserveB) = SushiswapV2Library.getReserves(sushiFactory, _tokenA, _tokenB);
+            sushiTokenOut = SushiswapV2Library.getAmountOut(_amountIn, tokenReserveA, tokenReserveB);
         }
         
         return (uniTokenOut >= sushiTokenOut) ? (uniTokenOut, Exchange.Uniswap) : (sushiTokenOut, Exchange.Sushiswap); 
     }
     
+
     /**
      * Gets the sell price of a token given an exact amount of tokens to spend
      *
@@ -625,4 +626,18 @@ contract ExchangeIssuance is ReentrancyGuard {
     function _tokenAvailable(address _factory, address _token) internal view returns (bool) {
         return IUniswapV2Factory(_factory).getPair(WETH, _token) != address(0);
     }
+    
+    /**
+     * Checks if a pair is available on the given DEX.
+     *
+     * @param _factory   The factory to use (can be either uniFactory or sushiFactory)
+     * @param _tokenA    The address of the tokenA
+     * @param _tokenB    The address of the tokenB
+     *
+     * @return          A boolean representing if the token is available
+     */
+    function _pairAvailable(address _factory, address _tokenA, address _tokenB) internal view returns (bool) {
+        return IUniswapV2Factory(_factory).getPair(_tokenA, _tokenB) != address(0);
+    }
+    
 }
