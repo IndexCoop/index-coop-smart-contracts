@@ -38,7 +38,9 @@ import { IWETH } from "../interfaces/IWETH.sol";
  *
  */
 contract ExchangeIssuance is ReentrancyGuard {
-
+    
+    // TODO: use safeERC20
+    
     using SafeMath for uint256;
     
     /* ============ constants ============ */
@@ -135,40 +137,57 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
 
     /**
-     * Issues an set token by swapping for the underlying tokens on Uniswap
-     * or Sushiswap.
+     * Issues set tokens for an exact amount of input token. 
+     * Acquires set token components at the best price accross uniswap and sushiswap.
+     * Uses the acquired components to issue the set tokens.
      *
      * @param _setToken         Address of the set token being issued
      * @param _amountInput      Amount of the input token / ether to spend
-     * @param _isInputETH       Set to true if the input token is Ether
-     * @param _inputToken       Address of input token. Ignored if _isInputETH is true
-     * @param _minSetReceive    Minimum amount of index to receive
+     * @param _inputToken       Address of input token
+     * @param _minSetReceive    Minimum amount of set tokens to receive
      */
-    function exchangeIssue(
+    function issueSetTokenForExactToken(
         ISetToken _setToken,
         uint256 _amountInput,
-        bool _isInputETH,
         IERC20 _inputToken,
+        uint256 _minSetReceive
+    )
+        external
+        nonReentrant
+    {   
+        _inputToken.transferFrom(msg.sender, address(this), _amountInput);
+        
+        if(address(_inputToken) != WETH) {
+            _purchaseWETHExactTokens(address(_inputToken), _amountInput);
+        }
+            
+        uint256 setTokenAmount = _issueSetTokenForExactWETH(_setToken, _minSetReceive);     // issue set token
+        
+        emit ExchangeIssue(msg.sender, address(_setToken), address(_inputToken), setTokenAmount);
+    }
+    
+    /**
+     * Issues set tokens for an exact amount of input ether. 
+     * Acquires set token components at the best price accross uniswap and sushiswap.
+     * Uses the acquired components to issue the set tokens.
+     * 
+     * @param _setToken         Address of the set token being issued
+     * @param _minSetReceive    Minimum amount of index to receive
+     */
+    function issueSetTokenForExactETH(
+        ISetToken _setToken,
         uint256 _minSetReceive
     )
         external
         payable
         nonReentrant
     {
-        _handleIssueInput(_isInputETH, _inputToken, _amountInput);
-
-        uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
         
-        uint256 minSetTokenAmountOut = _getMaxAmountOutForExactETH(address(_setToken), wethBalance);    // get best price of set token
+        IWETH(WETH).deposit{value: msg.value}();
         
-        //get approximate costs
-        ISetToken.Position[] memory positions = _setToken.getPositions();
-        (uint256[] memory amountEthIn, uint256 sumEth) = _getApproximateIssueCosts(positions, minSetTokenAmountOut);
-
-        uint256 maxIndexAmount = _acquireComponents(positions, amountEthIn, wethBalance, sumEth);
-        require(maxIndexAmount > _minSetReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
-        basicIssuanceModule.issue(_setToken, maxIndexAmount, msg.sender);
-        emit ExchangeIssue(msg.sender, address(_setToken), _isInputETH ? address(0) : address(_inputToken), maxIndexAmount);
+        uint256 setTokenAmount = _issueSetTokenForExactWETH(_setToken, _minSetReceive);     // issue set token
+        
+        emit ExchangeIssue(msg.sender, address(_setToken), address(WETH), setTokenAmount);
     }
 
     /**
@@ -310,7 +329,35 @@ contract ExchangeIssuance is ReentrancyGuard {
             _sellTokenBestPrice(positions[i].component);
         }
     }
+    
+    /**
+     * Issues set tokens for an exact amount of input WETH. 
+     * Acquires set token components at the best price accross uniswap and sushiswap.
+     * Uses the acquired components to issue the set tokens.
+     * 
+     * @param _setToken         Address of the set token being issued
+     * @param _minSetReceive    Minimum amount of index to receive
+     * @return setTokenAmount   Amount of set tokens issued
+     */
+    function _issueSetTokenForExactWETH(ISetToken _setToken, uint256 _minSetReceive) internal returns(uint256) {
+        uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
+        
+        uint256 maxSetTokenAmount = _getMaxAmountOutForExactETH(address(_setToken), wethBalance);         // get best price of set token
+        
+        ISetToken.Position[] memory positions = _setToken.getPositions();
+        
+        (uint256[] memory amountEthIn, uint256 sumEth) = _getApproximateIssueCosts(positions, maxSetTokenAmount);
 
+        uint256 setTokenAmount = _acquireComponents(positions, amountEthIn, wethBalance, sumEth);   // acquire set token components
+        
+        require(maxSetTokenAmount > _minSetReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
+        
+        basicIssuanceModule.issue(_setToken, maxSetTokenAmount, msg.sender);                            // issue token
+        
+        return setTokenAmount;
+    }
+    
+    
     /**
      * Handles converting the contract's full WETH balance to the output
      * token or ether and transfers it to the msg sender.
@@ -349,25 +396,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         }
     }
 
-    /**
-     * Handles converting the input token or ether into WETH.
-     *
-     * @param _isInputETH   Set to true if the input is ETH
-     * @param _inputToken   The input token. Ignored if _isInputETH is true
-     * @param _amountInput  The amount of the input to convert to WETH
-     */
-    function _handleIssueInput(bool _isInputETH, IERC20 _inputToken, uint256 _amountInput) internal {
-        if(_isInputETH) {
-            require(msg.value == _amountInput, "ExchangeIssuance: INCORRECT_INPUT_AMOUNT");
-            IWETH(WETH).deposit{value: msg.value}();    // ETH -> WETH
-        } else if(address(_inputToken) != WETH) {
-            _inputToken.transferFrom(msg.sender, address(this), _amountInput);
-            _purchaseWETHExactTokens(address(_inputToken), _amountInput);    // _inputToken -> WETH
-        } else {
-            _inputToken.transferFrom(msg.sender, address(this), _amountInput);  // already WETH
-        }
-    }
-
+  
     /**
      * Aquires all the components neccesary to issue a set, purchasing tokens
      * from either Uniswap or Sushiswap to get the best price.
@@ -492,15 +521,15 @@ contract ExchangeIssuance is ReentrancyGuard {
     /**
      * Gets the approximate costs for issuing a token.
      * 
-     * @param _positions             An array of the SetToken's components
-     * @param _minSetTokenAmountOut  The minimum (but close to the actual value) amount of set tokens
+     * @param _positions            An array of the SetToken's components
+     * @param _setTokenAmount       Amount of set tokens
      * 
      * @return                      An array representing the approximate Ether cost to purchase each component of the set
      * @return                      The approximate total ETH cost to issue the set
      */
     function _getApproximateIssueCosts(
         ISetToken.Position[] memory _positions,
-        uint256 _minSetTokenAmountOut
+        uint256 _setTokenAmount
     ) 
         internal
         view
@@ -511,7 +540,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         for(uint256 i = 0; i < _positions.length; i++) {
             uint256 unit = uint256(_positions[i].unit);
             address token = _positions[i].component;
-            uint256 amountOut = _minSetTokenAmountOut.mul(unit).div(1 ether);
+            uint256 amountOut = _setTokenAmount.mul(unit).div(1 ether);
             uint256 uniPrice = _tokenAvailable(uniFactory, token) ? _getBuyPrice(true, token, amountOut) : PreciseUnitMath.maxUint256();
             uint256 sushiPrice = _tokenAvailable(sushiFactory, token) ? _getBuyPrice(false, token, amountOut) : PreciseUnitMath.maxUint256();
             uint256 amountEth = Math.min(uniPrice, sushiPrice);
