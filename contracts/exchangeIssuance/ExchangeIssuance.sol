@@ -150,7 +150,7 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @param _inputToken       Address of input token
      * @param _minSetReceive    Minimum amount of set tokens to receive
      */
-    function issueSetTokenForExactToken(
+    function issueSetForExactToken(
         ISetToken _setToken,
         uint256 _amountInput,
         IERC20 _inputToken,
@@ -161,15 +161,13 @@ contract ExchangeIssuance is ReentrancyGuard {
     {   
         _inputToken.transferFrom(msg.sender, address(this), _amountInput);
         
-        if(address(_inputToken) != WETH) {
+        if(address(_inputToken) != WETH) {      // swap inputToken to WETH
             (, Exchange exchange) = _getMaxTokenForExactToken(_amountInput, address(_inputToken), WETH);
-            
             IERC20(_inputToken).approve(address(_getRouter(exchange)), _amountInput);
-            
-            _sellToken(exchange, address(_inputToken), _amountInput);       // swap inputToken to WETH
+            _sellToken(exchange, address(_inputToken), _amountInput);       
         }
             
-        uint256 setTokenAmount = _issueSetTokenForExactWETH(_setToken, _minSetReceive);     // issue set token
+        uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive);     // issue set token
         
         emit ExchangeIssue(msg.sender, address(_setToken), address(_inputToken), setTokenAmount);
     }
@@ -182,7 +180,7 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @param _setToken         Address of the set token being issued
      * @param _minSetReceive    Minimum amount of index to receive
      */
-    function issueSetTokenForExactETH(
+    function issueSetForExactETH(
         ISetToken _setToken,
         uint256 _minSetReceive
     )
@@ -193,7 +191,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         IWETH(WETH).deposit{value: msg.value}();
         
-        uint256 setTokenAmount = _issueSetTokenForExactWETH(_setToken, _minSetReceive);     // issue set token
+        uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive);     // issue set token
         
         emit ExchangeIssue(msg.sender, address(_setToken), address(WETH), setTokenAmount);
     }
@@ -248,12 +246,11 @@ contract ExchangeIssuance is ReentrancyGuard {
         returns (uint256)
     {
         uint256 amountEth;
-        if(!_isInputETH && address(_inputToken) != WETH) {
+        if(!_isInputETH && address(_inputToken) != WETH)
             (amountEth, ) = _getMaxTokenForExactToken(_amountInput, address(WETH),  address(_inputToken));
-        } else {
+        else
             amountEth = _amountInput;
-        }
-
+        
         (uint256[] memory amountEthIn, Exchange[] memory exchanges, uint256 sumEth) = _getAmountETHForIssuance(_setToken);
         
         uint256 maxIndexAmount = PreciseUnitMath.maxUint256();
@@ -261,12 +258,9 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         for (uint i = 0; i < positions.length; i++) {
             address token = positions[i].component;
-            uint256 unit = uint256(positions[i].unit);
-
             uint256 scaledAmountEth = amountEthIn[i].mul(amountEth).div(sumEth);  // scale the amountEthIn
             
             uint256 amountTokenOut;
-            
             if(exchanges[i] == Exchange.Uniswap) {
                 (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, WETH, token);
                 amountTokenOut = UniswapV2Library.getAmountOut(scaledAmountEth, tokenReserveA, tokenReserveB);
@@ -275,9 +269,8 @@ contract ExchangeIssuance is ReentrancyGuard {
                 (uint256 tokenReserveA, uint256 tokenReserveB) = SushiswapV2Library.getReserves(sushiFactory, WETH, token);
                 amountTokenOut = SushiswapV2Library.getAmountOut(scaledAmountEth, tokenReserveA, tokenReserveB);
             }
-            
-            // update the maxIndexAmount
-            maxIndexAmount = Math.min(amountTokenOut.mul(1 ether).div(unit), maxIndexAmount);
+
+            maxIndexAmount = Math.min(amountTokenOut.mul(1 ether).div(uint256(positions[i].unit)), maxIndexAmount);
         }
         return maxIndexAmount;
     }
@@ -344,7 +337,7 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @param _minSetReceive    Minimum amount of index to receive
      * @return setTokenAmount   Amount of set tokens issued
      */
-    function _issueSetTokenForExactWETH(ISetToken _setToken, uint256 _minSetReceive) internal returns(uint256) {
+    function _issueSetForExactWETH(ISetToken _setToken, uint256 _minSetReceive) internal returns (uint256) {
         uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
         
         ISetToken.Position[] memory positions = _setToken.getPositions();
@@ -426,14 +419,12 @@ contract ExchangeIssuance is ReentrancyGuard {
     {
         uint256 maxIndexAmount = PreciseUnitMath.maxUint256();
         for (uint i = 0; i < positions.length; i++) {
-            address token = positions[i].component;
-            uint256 unit = uint256(positions[i].unit);
-
+            
             uint256 scaledAmountEth = amountEthIn[i].mul(wethBalance).div(sumEth);  // scale the amountEthIn
             
-            uint256 amountTokenOut = _purchaseToken(exchanges[i], token, scaledAmountEth);
+            uint256 amountTokenOut = _purchaseToken(exchanges[i], positions[i].component, scaledAmountEth);
 
-            maxIndexAmount = Math.min(amountTokenOut.mul(1 ether).div(unit), maxIndexAmount);   // update the maxIndexAmount
+            maxIndexAmount = Math.min(amountTokenOut.mul(1 ether).div(uint256(positions[i].unit)), maxIndexAmount);   // update the maxIndexAmount
         }
         return maxIndexAmount;
     }
@@ -492,13 +483,8 @@ contract ExchangeIssuance is ReentrancyGuard {
         Exchange[] memory exchanges = new Exchange[](positions.length);
         
         for(uint256 i = 0; i < positions.length; i++) {
-
-            (uint256 amountEth, Exchange exchange) = _getMinETHForExactToken(positions[i].component, uint256(positions[i].unit));
-            
-            amountEthIn[i] = amountEth;
-            exchanges[i] = exchange;            
-
-            sumEth = sumEth.add(amountEth);     // increment sum
+            (amountEthIn[i], exchanges[i]) = _getMinETHForExactToken(positions[i].component, uint256(positions[i].unit));
+            sumEth = sumEth.add(amountEthIn[i]);     // increment sum
         }
         return (amountEthIn, exchanges, sumEth);
     }

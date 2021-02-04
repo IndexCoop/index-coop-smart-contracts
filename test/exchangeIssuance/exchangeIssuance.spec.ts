@@ -35,7 +35,7 @@ const issueERC20 = async (ERC20Address: string, account: Signer, amount: Number)
   // issue DPI with ERC20
   await ERC20.approve(exchangeIssuance.address, ethers.utils.parseEther(amount.toString()));
   await exchangeIssuance.approveSetToken(dpiAddress);
-  await exchangeIssuance.issueSetTokenForExactToken(
+  await exchangeIssuance.issueSetForExactToken(
     dpiAddress,
     ethers.utils.parseEther(amount.toString()),
     ERC20Address,
@@ -102,7 +102,7 @@ describe("ExchangeIssuance", function () {
       const overrides = {
         value: ethers.utils.parseEther("5"),
       };
-      await exchangeIssuance.issueSetTokenForExactETH(dpiAddress, 0, overrides);
+      await exchangeIssuance.issueSetForExactETH(dpiAddress, 0, overrides);
 
       // get final ETH and DPI balances
       const finalDPIBalance = await dpi.balanceOf(account.getAddress());
