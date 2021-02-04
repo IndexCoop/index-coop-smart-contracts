@@ -67,13 +67,14 @@ contract ExchangeIssuance is ReentrancyGuard {
         address indexed _recipient,
         address indexed _setToken,
         address indexed _inputToken,
-        uint256 _amountSetToken
+        uint256 _amountIn,
+        uint256 _amountOut
     );
     event ExchangeRedeem(
         address indexed _recipient,
         address indexed _setToken,
         address indexed _outputToken,
-        uint256 _amountSetToken,
+        uint256 _amountIn,
         uint256 _amountOut
     );
 
@@ -169,7 +170,8 @@ contract ExchangeIssuance is ReentrancyGuard {
             
         uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive);     // issue set token
         
-        emit ExchangeIssue(msg.sender, address(_setToken), address(_inputToken), setTokenAmount);
+        emit ExchangeIssue(msg.sender, address(_setToken), address(_inputToken), _amountInput, setTokenAmount);
+        
     }
     
     /**
@@ -193,7 +195,8 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive);     // issue set token
         
-        emit ExchangeIssue(msg.sender, address(_setToken), address(WETH), setTokenAmount);
+        emit ExchangeIssue(msg.sender, address(_setToken), address(WETH), msg.value, setTokenAmount);
+        
     }
 
     /**
