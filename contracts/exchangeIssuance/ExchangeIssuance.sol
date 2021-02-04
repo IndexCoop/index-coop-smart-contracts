@@ -162,7 +162,11 @@ contract ExchangeIssuance is ReentrancyGuard {
         _inputToken.transferFrom(msg.sender, address(this), _amountInput);
         
         if(address(_inputToken) != WETH) {
-            _purchaseWETHExactTokens(address(_inputToken), _amountInput);
+            (, Exchange exchange) = _getMaxTokenForExactToken(_amountInput, address(_inputToken), WETH);
+            
+            IERC20(_inputToken).approve(address(_getRouter(exchange)), _amountInput);
+            
+            _sellToken(exchange, address(_inputToken), _amountInput);       // swap inputToken to WETH
         }
             
         uint256 setTokenAmount = _issueSetTokenForExactWETH(_setToken, _minSetReceive);     // issue set token
@@ -356,7 +360,6 @@ contract ExchangeIssuance is ReentrancyGuard {
         return setTokenAmount;
     }
     
-    
     /**
      * Handles converting the contract's full WETH balance to the output
      * token or ether and transfers it to the msg sender.
@@ -400,7 +403,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
 
   
-    /**
+     /**
      * Aquires all the components neccesary to issue a set, purchasing tokens
      * from either Uniswap or Sushiswap to get the best price.
      *
@@ -448,15 +451,12 @@ contract ExchangeIssuance is ReentrancyGuard {
         address[] memory path = new address[](2);
         path[0] = WETH;
         path[1] = _token;
-
-        uint256 amountOut = (_exchange == Exchange.Uniswap)
-            ? uniRouter.swapExactTokensForTokens(_amount, 0, path, address(this), block.timestamp)[1]
-            : sushiRouter.swapExactTokensForTokens(_amount, 0, path, address(this), block.timestamp)[1];
-        return amountOut;
+        return _getRouter(_exchange).swapExactTokensForTokens(_amount, 0, path, address(this), block.timestamp)[1];
     }
  
     /**
-     * Sells the contracts entire balance of the specified token
+     * Sells a specified amount of token on a specified exchagne for Ether.
+     * Note: You need to approve the token which is being sold, before calling this function.
      *
      * @param _exchange     The exchange on which to sell the token.
      * @param _token        The address of the token to sell
@@ -468,30 +468,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         address[] memory path = new address[](2);
         path[0] = _token;
         path[1] = WETH;
-        
-        uint256 amountOut = (_exchange == Exchange.Uniswap)
-            ? uniRouter.swapExactTokensForTokens(_amount, 0, path, address(this), block.timestamp)[1]
-            : sushiRouter.swapExactTokensForTokens(_amount, 0, path, address(this), block.timestamp)[1];
-        return amountOut;
-    }
-
-    /**
-     * Purchases Ether given an exact amount of a token to spend
-     *
-     * @param _token    Token to spend
-     * @param _amount   Amount of token to spend
-     */
-    function _purchaseWETHExactTokens(address _token, uint256 _amount) internal {
-        address[] memory path = new address[](2);
-        path[0] = _token;
-        path[1] = WETH;
-
-        uint256 uniAmountOut = _tokenAvailable(uniFactory, _token) ? uniRouter.getAmountsOut(_amount, path)[1] : 0;
-        uint256 sushiAmountOut = _tokenAvailable(sushiFactory, _token) ? sushiRouter.getAmountsOut(_amount, path)[1] : 0;
-        IUniswapV2Router02 router = uniAmountOut >= sushiAmountOut ? uniRouter : sushiRouter;
-
-        IERC20(_token).approve(address(router), PreciseUnitMath.maxUint256());
-        router.swapExactTokensForTokens(_amount, 0, path, address(this), block.timestamp);
+        return _getRouter(_exchange).swapExactTokensForTokens(_amount, 0, path, address(this), block.timestamp)[1];
     }
 
     /**
@@ -541,12 +518,12 @@ contract ExchangeIssuance is ReentrancyGuard {
         uint256 uniEthIn = PreciseUnitMath.maxUint256();
         uint256 sushiEthIn = PreciseUnitMath.maxUint256();
         
-        if(_tokenAvailable(uniFactory, _token)) {
+        if(_pairAvailable(uniFactory, _token, WETH)) {
             (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, WETH, _token);
             uniEthIn = UniswapV2Library.getAmountIn(_amountTokenOut, tokenReserveA, tokenReserveB);
         }
         
-        if(_tokenAvailable(sushiFactory, _token)) {
+        if(_pairAvailable(sushiFactory, _token, WETH)) {
             (uint256 tokenReserveA, uint256 tokenReserveB) = SushiswapV2Library.getReserves(sushiFactory, WETH, _token);
             sushiEthIn = SushiswapV2Library.getAmountIn(_amountTokenOut, tokenReserveA, tokenReserveB);
         }
@@ -583,38 +560,6 @@ contract ExchangeIssuance is ReentrancyGuard {
         return (uniTokenOut >= sushiTokenOut) ? (uniTokenOut, Exchange.Uniswap) : (sushiTokenOut, Exchange.Sushiswap); 
     }
     
-
-    /**
-     * Gets the sell price of a token given an exact amount of tokens to spend
-     *
-     * @param _isUni    Specifies whether to fetch the Uniswap or Sushiswap price
-     * @param _token    The address of the input token
-     * @param _amount   The input amount of _token
-     *
-     * @return          The amount of WETH that would be received for this swap
-     */
-    function _getSellPrice(bool _isUni, address _token, uint256 _amount) internal view returns (uint256) {
-        if (_isUni) {
-            (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, WETH, _token);
-            return uniRouter.getAmountOut(_amount, tokenReserveB, tokenReserveA);
-        } else {
-            (uint256 tokenReserveA, uint256 tokenReserveB) = SushiswapV2Library.getReserves(sushiFactory, WETH, _token);
-            return sushiRouter.getAmountOut(_amount, tokenReserveB, tokenReserveA);
-        }
-    }
-
-    /**
-     * Checks if a token is available on the given DEX
-     *
-     * @param _factory  The factory to use (can be either uniFactory or sushiFactory)
-     * @param _token    The address of the token
-     *
-     * @return          A boolean representing if the token is available
-     */
-    function _tokenAvailable(address _factory, address _token) internal view returns (bool) {
-        return IUniswapV2Factory(_factory).getPair(WETH, _token) != address(0);
-    }
-    
     /**
      * Checks if a pair is available on the given DEX.
      *
@@ -627,5 +572,15 @@ contract ExchangeIssuance is ReentrancyGuard {
     function _pairAvailable(address _factory, address _tokenA, address _tokenB) internal view returns (bool) {
         return IUniswapV2Factory(_factory).getPair(_tokenA, _tokenB) != address(0);
     }
+    
+    /**
+     * Returns the router address of a given exchange.
+     * 
+     * @param _exchange     The Exchange whose router address is needed
+     * @return              IUniswapV2Router02 router of the given exchange
+     */
+     function _getRouter(Exchange _exchange) internal view returns(IUniswapV2Router02) {
+         return (_exchange == Exchange.Uniswap) ? uniRouter : sushiRouter;
+     }
     
 }
