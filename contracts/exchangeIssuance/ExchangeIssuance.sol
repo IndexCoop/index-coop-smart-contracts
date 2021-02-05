@@ -277,7 +277,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         }
         return maxIndexAmount;
     }
-
+    
     /**
      * Returns an estimated quantity of ETH or specified ERC20 received for a given SetToken and SetToken quantity. 
      * Estimation pulls the best price of each component from Uniswap or Sushiswap.
@@ -347,11 +347,11 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         (uint256[] memory amountEthIn, Exchange[] memory exchanges, uint256 sumEth) = _getAmountETHForIssuance(_setToken);
 
-        uint256 setTokenAmount = _acquireComponents(positions, amountEthIn, exchanges, wethBalance, sumEth);   // acquire set token components
+        uint256 setTokenAmount = _acquireComponents(positions, amountEthIn, exchanges, wethBalance, sumEth);    // acquire set components
         
         require(setTokenAmount > _minSetReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
         
-        basicIssuanceModule.issue(_setToken, setTokenAmount, msg.sender);                            // issue token
+        basicIssuanceModule.issue(_setToken, setTokenAmount, msg.sender);       // issue token
         
         return setTokenAmount;
     }
@@ -448,6 +448,23 @@ contract ExchangeIssuance is ReentrancyGuard {
         path[1] = _tokenOut;
         return _getRouter(_exchange).swapExactTokensForTokens(_amountIn, 0, path, address(this), block.timestamp)[1];
     }
+    
+    /**
+     * Swap tokens for exact amount of output tokens on a given DEX.
+     *
+     * @param _exchange     The exchange on which to peform the swap
+     * @param _tokenIn      The address of the input token
+     * @param _tokenOut     The address of the output token
+     * @param _amountOut    The amount of output token required
+     * 
+     * @return              The amount of input tokens spent
+     */
+    function _swapTokensForExactTokens(Exchange _exchange, address _tokenIn, address _tokenOut, uint256 _amountOut) internal returns (uint256) {
+        address[] memory path = new address[](2);
+        path[0] = _tokenIn;
+        path[1] = _tokenOut;
+        return _getRouter(_exchange).swapTokensForExactTokens(_amountOut, PreciseUnitMath.maxUint256(), path, address(this), block.timestamp)[0];
+    }
  
     /**
      * Gets the amount of ether required for issuing each component in a set set token.
@@ -470,35 +487,36 @@ contract ExchangeIssuance is ReentrancyGuard {
         Exchange[] memory exchanges = new Exchange[](positions.length);
         
         for(uint256 i = 0; i < positions.length; i++) {
-            (amountEthIn[i], exchanges[i]) = _getMinETHForExactToken(positions[i].component, uint256(positions[i].unit));
+            (amountEthIn[i], exchanges[i]) = _getMinTokenForExactToken(uint256(positions[i].unit), WETH, positions[i].component);
             sumEth = sumEth.add(amountEthIn[i]);     // increment sum
         }
         return (amountEthIn, exchanges, sumEth);
     }
     
     /**
-     * Compares the amount of token received for an exact amount of Ether across both exchanges,
-     * and returns the max amount.
+     * Compares the amount of token required for an exact amount of another token across both exchanges,
+     * and returns the min amount.
      *
-     * @param _token            The address of output token
-     * @param _amountTokenOut   The amount of output token
+     * @param _amountOut    The amount of output token
+     * @param _tokenA       The address of tokenA
+     * @param _tokenB       The address of tokenB
      * 
-     * @return              The min amount of ether required across both exchanges
-     * @return              The Exchange on which minimum amount of ether is required
+     * @return              The min amount of tokenA required across both exchanges
+     * @return              The Exchange on which minimum amount of tokenA is required
      */
-    function _getMinETHForExactToken(address _token, uint256 _amountTokenOut) internal view returns (uint256, Exchange) {
+    function _getMinTokenForExactToken(uint256 _amountOut, address _tokenA, address _tokenB) internal view returns (uint256, Exchange) {
         
         uint256 uniEthIn = PreciseUnitMath.maxUint256();
         uint256 sushiEthIn = PreciseUnitMath.maxUint256();
         
-        if(_pairAvailable(uniFactory, _token, WETH)) {
-            (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, WETH, _token);
-            uniEthIn = UniswapV2Library.getAmountIn(_amountTokenOut, tokenReserveA, tokenReserveB);
+        if(_pairAvailable(uniFactory, _tokenA, _tokenB)) {
+            (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, _tokenA, _tokenB);
+            uniEthIn = UniswapV2Library.getAmountIn(_amountOut, tokenReserveA, tokenReserveB);
         }
         
-        if(_pairAvailable(sushiFactory, _token, WETH)) {
-            (uint256 tokenReserveA, uint256 tokenReserveB) = SushiswapV2Library.getReserves(sushiFactory, WETH, _token);
-            sushiEthIn = SushiswapV2Library.getAmountIn(_amountTokenOut, tokenReserveA, tokenReserveB);
+        if(_pairAvailable(sushiFactory, _tokenA, _tokenB)) {
+            (uint256 tokenReserveA, uint256 tokenReserveB) = SushiswapV2Library.getReserves(sushiFactory, _tokenA, _tokenB);
+            sushiEthIn = SushiswapV2Library.getAmountIn(_amountOut, tokenReserveA, tokenReserveB);
         }
         
         return (uniEthIn <= sushiEthIn) ? (uniEthIn, Exchange.Uniswap) : (sushiEthIn, Exchange.Sushiswap);
