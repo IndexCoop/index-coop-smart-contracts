@@ -239,7 +239,7 @@ describe("ExchangeIssuance", function () {
       const exchangeIssuance = await deploy(account);
 
       // get approx issue amount in DPI
-      const amountOut = await exchangeIssuance.getEstimatedIssueSetQuantity(dpiAddress, ethers.utils.parseEther("200"), wethAddress);
+      const amountOut = await exchangeIssuance.getEstimatedIssueSetAmount(dpiAddress, ethers.utils.parseEther("200"), wethAddress);
 
       // check if output is correct (this may break if you change the block number of the hardhat fork)
       expect(amountOut.gt(ethers.utils.parseEther("4"))).to.equal(true);
@@ -250,7 +250,7 @@ describe("ExchangeIssuance", function () {
       const exchangeIssuance = await deploy(account);
 
       // get approx issue amount in DPI
-      const amountOut = await exchangeIssuance.getEstimatedIssueSetQuantity(dpiAddress, ethers.utils.parseEther("200"), daiAddress);
+      const amountOut = await exchangeIssuance.getEstimatedIssueSetAmount(dpiAddress, ethers.utils.parseEther("200"), daiAddress);
 
       // check if output is correct (this may break if you change the block number of the hardhat fork)
       expect(amountOut.gt(ethers.utils.parseEther("1"))).to.equal(true);
@@ -289,7 +289,7 @@ describe("ExchangeIssuance", function () {
       const exchangeIssuance = await deploy(account);
 
       // get approx redeem amount in ETH
-      const amountOut = await exchangeIssuance.getEstimatedRedeemSetQuantity(dpiAddress, ethers.utils.parseEther("1"), true, "0x0000000000000000000000000000000000000000");
+      const amountOut = await exchangeIssuance.getEstimatedRedeemSetAmount(dpiAddress, ethers.utils.parseEther("1"), true, "0x0000000000000000000000000000000000000000");
 
       // check if output is correct (this may break if you change the block number of the hardhat fork)
       expect(amountOut.gt(ethers.utils.parseEther("0.15"))).to.equal(true);
@@ -300,7 +300,7 @@ describe("ExchangeIssuance", function () {
       const exchangeIssuance = await deploy(account);
 
       // get approx redeem amount in ETH
-      const amountOut = await exchangeIssuance.getEstimatedRedeemSetQuantity(dpiAddress, ethers.utils.parseEther("1"), false, daiAddress);
+      const amountOut = await exchangeIssuance.getEstimatedRedeemSetAmount(dpiAddress, ethers.utils.parseEther("1"), false, daiAddress);
 
       // check if output is correct (this may break if you change the block number of the hardhat fork)
       expect(amountOut.gt(ethers.utils.parseEther("180"))).to.equal(true);

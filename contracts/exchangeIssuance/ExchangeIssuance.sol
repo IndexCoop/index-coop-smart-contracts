@@ -307,7 +307,7 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @param _inputToken       Address of input token.
      * @return                  Estimated amount of Set tokens that will be received
      */
-    function getEstimatedIssueSetQuantity(
+    function getEstimatedIssueSetAmount(
         ISetToken _setToken,
         uint256 _amountInput,
         IERC20 _inputToken
@@ -381,7 +381,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
     
     /**
-     * Returns an estimated quantity of ETH or specified ERC20 received for a given SetToken and SetToken quantity. 
+     * Returns an estimated amount of ETH or specified ERC20 received for a given SetToken and SetToken amount. 
      * Estimation pulls the best price of each component from Uniswap or Sushiswap.
      *
      * @param _setToken             Set token redeemed
@@ -390,7 +390,7 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @param _outputToken          Address of output token. Ignored if _isOutputETH is true
      * @return                      Estimated amount of ether/erc20 that will be received
      */
-    function getEstimatedRedeemSetQuantity(
+    function getEstimatedRedeemSetAmount(
         ISetToken _setToken,
         uint256 _amountSetToRedeem,
         bool _isOutputETH,
