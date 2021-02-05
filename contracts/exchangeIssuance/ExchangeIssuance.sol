@@ -198,6 +198,30 @@ contract ExchangeIssuance is ReentrancyGuard {
         emit ExchangeIssue(msg.sender, address(_setToken), address(WETH), msg.value, setTokenAmount);
         
     }
+    
+    /**
+    * Issues an exact amount of set tokens using a given amount of ether.
+    * The set token components are acquired at the best price across DEXes.
+    *
+    * @param _setToken          Address of the set token being issued
+    * @param _amountSetToken    Amount of set tokens to issue
+    */
+    function issueExactSetFromETH(
+        ISetToken _setToken,
+        uint256 _amountSetToken
+    )
+        external
+        payable
+        nonReentrant
+    {
+        IWETH(WETH).deposit{value: msg.value}();
+        
+        uint256 amountEth = _issueExactSetFromWETH(_setToken, _amountSetToken);
+        
+        uint256 returnAmount = msg.value.sub(amountEth);
+        IWETH(WETH).withdraw(returnAmount);
+        msg.sender.transfer(returnAmount);                     // return rest of the ether
+    }
 
     /**
      * Redeems a set token and sells the underlying tokens using Uniswap
@@ -279,6 +303,39 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
     
     /**
+    * Returns the amount of input tokens required to issue an exact amount of set tokens.
+    *
+    * @param _setToken          Address of the set token being issued
+    * @param _amountSetToken    Amount of set tokens to issue
+    */
+    function getAmountInToIssueExactSet(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        IERC20 _inputToken
+    )
+        external
+        view
+        returns(uint256)
+    {
+        
+        uint256 totalEth = 0;
+        
+        ISetToken.Position[] memory positions = _setToken.getPositions();
+        for(uint256 i = 0; i < positions.length; i++) {     
+            uint256 amountToken = uint256(positions[i].unit).mul(_amountSetToken).div(1 ether);
+            (uint256 amountEth,) = _getMinTokenForExactToken(amountToken, WETH, positions[i].component);    // acquire set components
+            totalEth = totalEth.add(amountEth);
+        }
+        
+        if(address(_inputToken) == WETH) {
+            return totalEth;
+        } else {
+            (uint256 tokenAmount, ) = _getMinTokenForExactToken(totalEth, address(_inputToken), address(WETH));
+            return tokenAmount;
+        }
+    }
+    
+    /**
      * Returns an estimated quantity of ETH or specified ERC20 received for a given SetToken and SetToken quantity. 
      * Estimation pulls the best price of each component from Uniswap or Sushiswap.
      *
@@ -355,6 +412,34 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         return setTokenAmount;
     }
+    
+    /**
+     * Issues an exact amount of set tokens using WETH. 
+     * Acquires set token components at the best prices across uniswap and sushiswap.
+     * Uses the acquired components to issue the set tokens.
+     * 
+     * @param _setToken          Address of the set token being issued
+     * @param _amountSetToken    Amount of set tokens to issue
+     * @return sumEth            Total amount of ether used to acquire the set token components    
+     */
+    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken) internal returns(uint256) {
+        
+        uint256 sumEth = 0;
+        
+        ISetToken.Position[] memory positions = _setToken.getPositions();
+        for(uint256 i = 0; i < positions.length; i++) {     // acquire set components
+
+            uint256 amountToken = uint256(positions[i].unit).mul(_amountSetToken).div(1 ether);
+            
+            (, Exchange exchange) = _getMinTokenForExactToken(amountToken, WETH, positions[i].component);
+            uint256 amountEth = _swapTokensForExactTokens(exchange, WETH, positions[i].component, amountToken);
+            sumEth = sumEth.add(amountEth);
+        }
+        
+        basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);      // issue token
+        
+        return sumEth;
+     }
     
     /**
      * Handles converting the contract's full WETH balance to the output

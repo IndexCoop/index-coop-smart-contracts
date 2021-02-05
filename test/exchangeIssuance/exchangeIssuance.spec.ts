@@ -86,7 +86,7 @@ describe("ExchangeIssuance", function () {
     account = await ethers.provider.getSigner("0x56178a0d5F301bAf6CF3e1Cd53d9863437345Bf9");
   });
 
-  describe("Issue", () => {
+  describe("Issue (Exact input)", () => {
     it("Should issue DPI with ETH", async () => {
       // get initial ETH and DPI balances
       const dpi = new ethers.Contract(dpiAddress, erc20abi, account);
@@ -121,6 +121,33 @@ describe("ExchangeIssuance", function () {
     it("Should issue DPI with an ERC20 (WETH)", async () => {
       const passed = await issueERC20(wethAddress, account, 200);
       expect(passed).to.equal(true);
+    });
+  });
+
+  describe("Issue (Exact output)", () => {
+    it("Should issue DPI with ETH", async () => {
+      // get initial ETH and DPI balances
+      const dpi = new ethers.Contract(dpiAddress, erc20abi, account);
+
+      const initDPIBalance = await dpi.balanceOf(account.getAddress());
+      const initETHBalance = await account.getBalance();
+
+      // deploy ExchangeIssuance.sol
+      const exchangeIssuance = await deploy(account);
+
+      // issue 5 DPI
+      await exchangeIssuance.approveSetToken(dpiAddress);
+      const DPIIssueAmount = ethers.utils.parseEther("5");
+      const ETHAmountIn = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, DPIIssueAmount, wethAddress);
+      await exchangeIssuance.issueExactSetFromETH(dpiAddress, DPIIssueAmount, {value: ETHAmountIn});
+
+      // get final ETH and DPI balances
+      const finalDPIBalance = await dpi.balanceOf(account.getAddress());
+      const finalETHBalance = await account.getBalance();
+
+      // check if change in DPI balance is equal to DPI amount issued
+      expect(finalDPIBalance.sub(initDPIBalance)).to.equal(DPIIssueAmount);
+      expect(finalETHBalance.add(ethers.utils.parseEther("0.2")).lt(initETHBalance)).to.equal(true);
     });
   });
 
@@ -163,7 +190,7 @@ describe("ExchangeIssuance", function () {
     });
   });
 
-  describe("Estimate Issue", () => {
+  describe("Estimate Issue (Fixed Input)", () => {
     it("Should be able to get approx issue amount given an input Ether amount", async () => {
       // deploy ExchangeIssuance.sol
       const exchangeIssuance = await deploy(account);
@@ -186,6 +213,20 @@ describe("ExchangeIssuance", function () {
       expect(amountOut.gt(ethers.utils.parseEther("1"))).to.equal(true);
     });
   });
+
+  describe("Estimate Issue (Fixed Output)", () => {
+      it("Should be able to get approx input Ether amount given a DPI amount", async () => {
+        // deploy ExchangeIssuance.sol
+        const exchangeIssuance = await deploy(account);
+
+        const DPIAmountOut = ethers.utils.parseEther("5");
+        const ETHAmountIn = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, DPIAmountOut, wethAddress);
+
+        // check if output is correct (this may break if you change the block number of the hardhat fork)
+        expect(ETHAmountIn.lt(ethers.utils.parseEther("0.89"))).to.equal(true);
+        expect(ETHAmountIn.gt(ethers.utils.parseEther("0.86"))).to.equal(true);
+      });
+    });
 
   describe("Estimate Redeem", () => {
     it("Should be able to get approx redeem amount in ETH", async () => {
