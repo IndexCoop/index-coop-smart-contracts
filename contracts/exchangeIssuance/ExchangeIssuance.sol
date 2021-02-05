@@ -165,7 +165,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         if(address(_inputToken) != WETH) {      // swap inputToken to WETH
             (, Exchange exchange) = _getMaxTokenForExactToken(_amountInput, address(_inputToken), WETH);
             IERC20(_inputToken).approve(address(_getRouter(exchange)), _amountInput);
-            _sellToken(exchange, address(_inputToken), _amountInput);       
+            _swapExactTokensForTokens(exchange, address(_inputToken), WETH, _amountInput);
         }
             
         uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive);     // issue set token
@@ -327,7 +327,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             address token = positions[i].component;
             uint256 tokenBalance = IERC20(token).balanceOf(address(this));
             (, Exchange exchange) = _getMaxTokenForExactToken(tokenBalance, token, WETH);
-            _sellToken(exchange, token, tokenBalance);
+            _swapExactTokensForTokens(exchange, token, WETH, tokenBalance);
         }
     }
     
@@ -392,7 +392,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             
             require(amountTokenOut > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
             
-            uint256 outputAmount = _purchaseToken(exchange, _outputToken, wethBalance);
+            uint256 outputAmount = _swapExactTokensForTokens(exchange, WETH, _outputToken, wethBalance);
             IERC20(_outputToken).transfer(msg.sender, outputAmount);
             return outputAmount;
         }
@@ -425,7 +425,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             
             uint256 scaledAmountEth = amountEthIn[i].mul(wethBalance).div(sumEth);  // scale the amountEthIn
             
-            uint256 amountTokenOut = _purchaseToken(exchanges[i], positions[i].component, scaledAmountEth);
+            uint256 amountTokenOut = _swapExactTokensForTokens(exchanges[i], WETH, positions[i].component, scaledAmountEth);
 
             maxIndexAmount = Math.min(amountTokenOut.mul(1 ether).div(uint256(positions[i].unit)), maxIndexAmount);   // update the maxIndexAmount
         }
@@ -433,38 +433,22 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
 
     /**
-     * Purchases a token using an exact WETH amount
+     * Swap exact tokens for another token on a given DEX.
      *
-     * @param _exchange     The exchange on which to purchase the token.
-     * @param _token        The address of the token to purchase
-     * @param _amount       The amount of WETH to spend on the purchase
+     * @param _exchange     The exchange on which to peform the swap
+     * @param _tokenIn      The address of the input token
+     * @param _tokenOut     The address of the output token
+     * @param _amountIn     The amount of input token to be spent
      * 
-     * @return              The amount of the token purchased
+     * @return              The amount of output tokens
      */
-    function _purchaseToken(Exchange _exchange, address _token, uint256 _amount) internal returns (uint256) {
+    function _swapExactTokensForTokens(Exchange _exchange, address _tokenIn, address _tokenOut, uint256 _amountIn) internal returns (uint256) {
         address[] memory path = new address[](2);
-        path[0] = WETH;
-        path[1] = _token;
-        return _getRouter(_exchange).swapExactTokensForTokens(_amount, 0, path, address(this), block.timestamp)[1];
+        path[0] = _tokenIn;
+        path[1] = _tokenOut;
+        return _getRouter(_exchange).swapExactTokensForTokens(_amountIn, 0, path, address(this), block.timestamp)[1];
     }
  
-    /**
-     * Sells a specified amount of token on a specified exchagne for Ether.
-     * Note: You need to approve the token which is being sold, before calling this function.
-     *
-     * @param _exchange     The exchange on which to sell the token.
-     * @param _token        The address of the token to sell
-     * @param _amount       The amount of token to sell
-     * 
-     * @return              The amount of the WETH received
-     */
-    function _sellToken(Exchange _exchange, address _token, uint256 _amount) internal returns (uint256) {
-        address[] memory path = new address[](2);
-        path[0] = _token;
-        path[1] = WETH;
-        return _getRouter(_exchange).swapExactTokensForTokens(_amount, 0, path, address(this), block.timestamp)[1];
-    }
-
     /**
      * Gets the amount of ether required for issuing each component in a set set token.
      * The amount of ether is calculated based on prices across both uniswap and sushiswap.
