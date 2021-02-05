@@ -22,7 +22,7 @@ const deploy = async (account: any) => {
   return (await ExchangeIssuance.deploy(uniFactory, uniRouter, sushiFactory, sushiRouter, basicIssuanceModule)).connect(account);
 };
 
-const issueERC20 = async (ERC20Address: string, account: Signer, amount: Number) => {
+const issueSetForExactToken = async (ERC20Address: string, account: Signer, amount: Number) => {
   // get initial DPI and ERC20 balances
   const dpi = new ethers.Contract(dpiAddress, erc20abi, account);
   const initDPIBalance = await dpi.balanceOf(account.getAddress());
@@ -46,8 +46,41 @@ const issueERC20 = async (ERC20Address: string, account: Signer, amount: Number)
   const finalDPIBalance = await dpi.balanceOf(account.getAddress());
   const finalERC20Balance = await ERC20.balanceOf(account.getAddress());
 
-  // check if final DPI is less than init, and if final DAI is more than init
+  // check if final DPI is greater than init, and if final DAI is less than init
   return finalDPIBalance.gt(initDPIBalance) && finalERC20Balance.lt(initERC20Balance);
+};
+
+const issueExactSetFromToken = async (ERC20Address: string, account: Signer, amountSetToken: Number) => {
+  // get initial DPI and ERC20 balances
+  const dpi = new ethers.Contract(dpiAddress, erc20abi, account);
+  const ERC20 = new ethers.Contract(ERC20Address, erc20abi, account);
+  const DPIIssueAmount = ethers.utils.parseEther(amountSetToken.toString());
+
+  const initDPIBalance = await dpi.balanceOf(account.getAddress());
+  const initERC20Balance = await ERC20.balanceOf(account.getAddress());
+
+  // deploy ExchangeIssuance.sol
+  const exchangeIssuance = await deploy(account);
+
+  await exchangeIssuance.approveSetToken(dpiAddress);
+
+  // issue DPI with ERC20
+  let amountToken = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, DPIIssueAmount, ERC20Address);
+  amountToken = amountToken.mul("2");
+  await ERC20.approve(exchangeIssuance.address, amountToken);
+  await exchangeIssuance.issueExactSetFromToken(
+    dpiAddress,
+    ethers.utils.parseEther(amountSetToken.toString()),
+    ERC20Address,
+    amountToken
+  );
+
+  // get final DPI and ERC20 balances
+  const finalDPIBalance = await dpi.balanceOf(account.getAddress());
+  const finalERC20Balance = await ERC20.balanceOf(account.getAddress());
+
+  // check if change in DPI balance is equal to DPI amount issued, and if final DAI is less than init
+  return finalDPIBalance.sub(initDPIBalance).eq(DPIIssueAmount) && finalERC20Balance.lt(initERC20Balance);
 };
 
 const redeemERC20 = async (ERC20Address: string, account: Signer, amount: Number) => {
@@ -114,12 +147,12 @@ describe("ExchangeIssuance", function () {
     });
 
     it("Should issue DPI with an ERC20 (DAI)", async () => {
-      const passed = await issueERC20(daiAddress, account, 2000);
+      const passed = await issueSetForExactToken(daiAddress, account, 2000);
       expect(passed).to.equal(true);
     });
 
     it("Should issue DPI with an ERC20 (WETH)", async () => {
-      const passed = await issueERC20(wethAddress, account, 200);
+      const passed = await issueSetForExactToken(wethAddress, account, 200);
       expect(passed).to.equal(true);
     });
   });
@@ -148,6 +181,16 @@ describe("ExchangeIssuance", function () {
       // check if change in DPI balance is equal to DPI amount issued
       expect(finalDPIBalance.sub(initDPIBalance)).to.equal(DPIIssueAmount);
       expect(finalETHBalance.add(ethers.utils.parseEther("0.2")).lt(initETHBalance)).to.equal(true);
+    });
+
+    it("Should issue DPI with an ERC20 (DAI)", async () => {
+      const passed = await issueExactSetFromToken(daiAddress, account, 20);
+      expect(passed).to.equal(true);
+    });
+
+    it("Should issue DPI with an ERC20 (WETH)", async () => {
+      const passed = await issueExactSetFromToken(wethAddress, account, 20);
+      expect(passed).to.equal(true);
     });
   });
 
@@ -191,23 +234,23 @@ describe("ExchangeIssuance", function () {
   });
 
   describe("Estimate Issue (Fixed Input)", () => {
-    it("Should be able to get approx issue amount given an input Ether amount", async () => {
+    it("Should be able to get approx issue amount given an input ERC20 amount (WETH)", async () => {
       // deploy ExchangeIssuance.sol
       const exchangeIssuance = await deploy(account);
 
       // get approx issue amount in DPI
-      const amountOut = await exchangeIssuance.getEstimatedIssueSetQuantity(dpiAddress, ethers.utils.parseEther("1"), true, "0x0000000000000000000000000000000000000000");
+      const amountOut = await exchangeIssuance.getEstimatedIssueSetQuantity(dpiAddress, ethers.utils.parseEther("200"), wethAddress);
 
       // check if output is correct (this may break if you change the block number of the hardhat fork)
       expect(amountOut.gt(ethers.utils.parseEther("4"))).to.equal(true);
     });
 
-    it("Should be able to get approx issue amount given an input ERC20 amount (dai)", async () => {
+    it("Should be able to get approx issue amount given an input ERC20 amount (DAI)", async () => {
       // deploy ExchangeIssuance.sol
       const exchangeIssuance = await deploy(account);
 
       // get approx issue amount in DPI
-      const amountOut = await exchangeIssuance.getEstimatedIssueSetQuantity(dpiAddress, ethers.utils.parseEther("200"), false, daiAddress);
+      const amountOut = await exchangeIssuance.getEstimatedIssueSetQuantity(dpiAddress, ethers.utils.parseEther("200"), daiAddress);
 
       // check if output is correct (this may break if you change the block number of the hardhat fork)
       expect(amountOut.gt(ethers.utils.parseEther("1"))).to.equal(true);
@@ -215,18 +258,30 @@ describe("ExchangeIssuance", function () {
   });
 
   describe("Estimate Issue (Fixed Output)", () => {
-      it("Should be able to get approx input Ether amount given a DPI amount", async () => {
-        // deploy ExchangeIssuance.sol
-        const exchangeIssuance = await deploy(account);
+    it("Should be able to get approx input ERC20 (WETH) amount given a DPI amount", async () => {
+      // deploy ExchangeIssuance.sol
+      const exchangeIssuance = await deploy(account);
 
-        const DPIAmountOut = ethers.utils.parseEther("5");
-        const ETHAmountIn = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, DPIAmountOut, wethAddress);
+      const DPIIssueAmount = ethers.utils.parseEther("5");
+      const ETHAmountIn = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, DPIIssueAmount, wethAddress);
 
-        // check if output is correct (this may break if you change the block number of the hardhat fork)
-        expect(ETHAmountIn.lt(ethers.utils.parseEther("0.89"))).to.equal(true);
-        expect(ETHAmountIn.gt(ethers.utils.parseEther("0.86"))).to.equal(true);
-      });
+      // check if output is correct (this may break if you change the block number of the hardhat fork)
+      expect(ETHAmountIn.lt(ethers.utils.parseEther("0.89"))).to.equal(true);
+      expect(ETHAmountIn.gt(ethers.utils.parseEther("0.86"))).to.equal(true);
     });
+
+    it("Should be able to get approx input ERC20 (DAI) amount given a DPI amount", async () => {
+      // deploy ExchangeIssuance.sol
+      const exchangeIssuance = await deploy(account);
+
+      const DPIIssueAmount = ethers.utils.parseEther("5");
+      const DAIAmountIn = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, DPIIssueAmount, daiAddress);
+
+      // check if output is correct (this may break if you change the block number of the hardhat fork)
+      expect(DAIAmountIn.lt(ethers.utils.parseEther("200").mul(5))).to.equal(true);
+      expect(DAIAmountIn.gt(ethers.utils.parseEther("190").mul(5))).to.equal(true);
+    });
+  });
 
   describe("Estimate Redeem", () => {
     it("Should be able to get approx redeem amount in ETH", async () => {

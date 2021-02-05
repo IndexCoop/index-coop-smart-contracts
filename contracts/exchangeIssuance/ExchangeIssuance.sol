@@ -40,6 +40,7 @@ import { IWETH } from "../interfaces/IWETH.sol";
 contract ExchangeIssuance is ReentrancyGuard {
     
     // TODO: use safeERC20
+    // TODO: Discuss KNC token approve function.
     
     using SafeMath for uint256;
     
@@ -179,7 +180,7 @@ contract ExchangeIssuance is ReentrancyGuard {
      * Acquires set token components at the best price accross uniswap and sushiswap.
      * Uses the acquired components to issue the set tokens.
      * 
-     * @param _setToken         Address of the set token being issued
+     * @param _setToken         Address of the set token to be issued
      * @param _minSetReceive    Minimum amount of index to receive
      */
     function issueSetForExactETH(
@@ -197,6 +198,51 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         emit ExchangeIssue(msg.sender, address(_setToken), address(WETH), msg.value, setTokenAmount);
         
+    }
+    
+    /**
+    * Issues an exact amount of set tokens using ERC20 tokens as input.
+    * Acquires set token components at the best price accross uniswap and sushiswap.
+    * Uses the acquired components to issue the set tokens.
+    *
+    * @param _setToken              Address of the set token to be issued
+    * @param _amountSetToken        Amount of set tokens to issue
+    * @param _inputToken            Address of the input token
+    * @param _amountInputToken      Amount of input tokens to be used to issue set tokens
+    */
+    function issueExactSetFromToken(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        IERC20 _inputToken,
+        uint256 _amountInputToken
+    )
+        external
+        nonReentrant
+    {
+        
+        _inputToken.transferFrom(msg.sender, address(this), _amountInputToken);
+        
+        uint256 initETHAmount;
+        if(address(_inputToken) != WETH) {      // swap inputToken to WETH
+            (, Exchange exchange) = _getMaxTokenForExactToken(_amountInputToken, address(_inputToken), WETH);
+            IERC20(_inputToken).approve(address(_getRouter(exchange)), _amountInputToken);
+            initETHAmount = _swapExactTokensForTokens(exchange, address(_inputToken), WETH, _amountInputToken);
+        } else {
+            initETHAmount = _amountInputToken;
+        }
+        
+        uint256 amountETHSpent = _issueExactSetFromWETH(_setToken, _amountSetToken);        // issue set tokens
+        
+        uint256 amountETHReturn = initETHAmount.sub(amountETHSpent);        // unspent ether amount
+        
+        uint256 amountTokenReturn;        
+        if(address(_inputToken) != WETH) {      // buy return token using unspent ether
+            (, Exchange exchange) = _getMaxTokenForExactToken(amountETHReturn, WETH, address(_inputToken));
+            amountTokenReturn = _swapExactTokensForTokens(exchange, WETH, address(_inputToken), amountETHReturn);   
+        } else {
+            amountTokenReturn = amountETHReturn;
+        }
+        _inputToken.transfer(msg.sender, amountTokenReturn);        // return unspent tokens to user
     }
     
     /**
@@ -220,7 +266,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         uint256 returnAmount = msg.value.sub(amountEth);
         IWETH(WETH).withdraw(returnAmount);
-        msg.sender.transfer(returnAmount);                     // return rest of the ether
+        msg.sender.transfer(returnAmount);                     // return unspent ether
     }
 
     /**
@@ -253,19 +299,17 @@ contract ExchangeIssuance is ReentrancyGuard {
     receive() external payable {}
 
     /**
-     * Returns an estimated quantity of the specified SetToken given an input amount of ETH or a specified ERC20 receieved when issuing.
+     * Returns an estimated quantity of the specified SetToken given a specified amount of input token.
      * Estimating pulls the best price of each component using Uniswap or Sushiswap
      *
      * @param _setToken         Address of the set token being issued
      * @param _amountInput      Amount of the input token to spend
-     * @param _isInputETH       Set to true if the input token is Ether
-     * @param _inputToken       Address of input token. Ignored if _isInputETH is true
+     * @param _inputToken       Address of input token.
      * @return                  Estimated amount of Set tokens that will be received
      */
     function getEstimatedIssueSetQuantity(
         ISetToken _setToken,
         uint256 _amountInput,
-        bool _isInputETH,
         IERC20 _inputToken
     )
         external
@@ -273,7 +317,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         returns (uint256)
     {
         uint256 amountEth;
-        if(!_isInputETH && address(_inputToken) != WETH)
+        if(address(_inputToken) != WETH)
             (amountEth, ) = _getMaxTokenForExactToken(_amountInput, address(WETH),  address(_inputToken));
         else
             amountEth = _amountInput;
@@ -307,6 +351,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     *
     * @param _setToken          Address of the set token being issued
     * @param _amountSetToken    Amount of set tokens to issue
+    * @return                   Amount of tokens needed to issue specified amount of Set tokens
     */
     function getAmountInToIssueExactSet(
         ISetToken _setToken,
@@ -415,7 +460,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     
     /**
      * Issues an exact amount of set tokens using WETH. 
-     * Acquires set token components at the best prices across uniswap and sushiswap.
+     * Acquires set token components at the best price accross uniswap and sushiswap.
      * Uses the acquired components to issue the set tokens.
      * 
      * @param _setToken          Address of the set token being issued
@@ -428,7 +473,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         ISetToken.Position[] memory positions = _setToken.getPositions();
         for(uint256 i = 0; i < positions.length; i++) {     // acquire set components
-
+            
             uint256 amountToken = uint256(positions[i].unit).mul(_amountSetToken).div(1 ether);
             
             (, Exchange exchange) = _getMinTokenForExactToken(amountToken, WETH, positions[i].component);
