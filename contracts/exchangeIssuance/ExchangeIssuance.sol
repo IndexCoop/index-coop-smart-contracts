@@ -270,20 +270,16 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
 
     /**
-     * Redeems a set token and sells the underlying tokens using Uniswap
-     * or Sushiswap.
+     * Redeems an exact amount of set tokens for ETH using Uniswap
+     * or Sushiswap
      *
      * @param _setToken             Address of the set token being redeemed
-     * @param _amountSetToRedeem    The amount of the set token to redeem
-     * @param _isOutputETH          Set to true if the output token is Ether
-     * @param _outputToken          Address of output token. Ignored if _isOutputETH is true
-     * @param _minOutputReceive     Minimum amount of output token / ether to receive
+     * @param _amountSetToRedeem    Amount set tokens to redeem
+     * @param _minOutputReceive     Minimum amount of ETH to receive
      */
-    function exchangeRedeem(
+    function redeemExactSetForETH(
         ISetToken _setToken,
         uint256 _amountSetToRedeem,
-        bool _isOutputETH,
-        address _outputToken,
         uint256 _minOutputReceive
     )
         external
@@ -292,8 +288,33 @@ contract ExchangeIssuance is ReentrancyGuard {
         _setToken.transferFrom(msg.sender, address(this), _amountSetToRedeem);
         basicIssuanceModule.redeem(_setToken, _amountSetToRedeem, address(this));
         _liquidateComponents(_setToken);
-        uint256 outputAmount = _handleRedeemOutput(_isOutputETH, _outputToken, _minOutputReceive);
-        emit ExchangeRedeem(msg.sender, address(_setToken), _isOutputETH ? address(0) : _outputToken, _amountSetToRedeem, outputAmount);
+        uint256 outputAmount = _handleRedeemOutput(true, WETH, _minOutputReceive);
+        emit ExchangeRedeem(msg.sender, address(_setToken), WETH, _amountSetToRedeem, outputAmount);
+    }
+
+    /**
+     * Redeems an exact amount of set tokens for an ERC20 using
+     * Uniswap or Sushiswap
+     *
+     * @param _setToken             Address of the set token being redeemed
+     * @param _amountSetToRedeem    Amount set tokens to redeem
+     * @param _outputToken          Address of output token
+     * @param _minOutputReceive     Minimum amount of output token to receive
+     */
+    function redeemExactSetForToken(
+        ISetToken _setToken,
+        uint256 _amountSetToRedeem,
+        IERC20 _outputToken,
+        uint256 _minOutputReceive
+    )
+        external
+        nonReentrant
+    {
+        _setToken.transferFrom(msg.sender, address(this), _amountSetToRedeem);
+        basicIssuanceModule.redeem(_setToken, _amountSetToRedeem, address(this));
+        _liquidateComponents(_setToken);
+        uint256 outputAmount = _handleRedeemOutput(false, address(_outputToken), _minOutputReceive);
+        emit ExchangeRedeem(msg.sender, address(_setToken), address(_outputToken), _amountSetToRedeem, outputAmount);
     }
 
     receive() external payable {}
@@ -605,7 +626,7 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @return exchanges     An array containing the exchange on which to perform the swap
      * @return sumEth        The approximate total ETH cost to issue the set
      */
-    function _getAmountETHForIssuance(ISetToken _setToken) 
+    function _getAmountETHForIssuance(ISetToken _setToken)
         internal
         view
         returns (uint256[] memory, Exchange[] memory, uint256)
@@ -622,7 +643,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         }
         return (amountEthIn, exchanges, sumEth);
     }
-    
+
     /**
      * Compares the amount of token required for an exact amount of another token across both exchanges,
      * and returns the min amount.

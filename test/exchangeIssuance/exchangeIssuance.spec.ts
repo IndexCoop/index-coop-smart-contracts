@@ -83,7 +83,7 @@ const issueExactSetFromToken = async (ERC20Address: string, account: Signer, amo
   return finalDPIBalance.sub(initDPIBalance).eq(DPIIssueAmount) && finalERC20Balance.lt(initERC20Balance);
 };
 
-const redeemERC20 = async (ERC20Address: string, account: Signer, amount: Number) => {
+const redeemExactSetForERC20 = async (ERC20Address: string, account: Signer, amount: Number) => {
   // get initial DPI and ERC20 balances
   const dpi = new ethers.Contract(dpiAddress, erc20abi, account);
   const initDPIBalance = await dpi.balanceOf(account.getAddress());
@@ -96,7 +96,7 @@ const redeemERC20 = async (ERC20Address: string, account: Signer, amount: Number
   // redeem DPI for ERC20
   await dpi.approve(exchangeIssuance.address, ethers.utils.parseEther(amount.toString()));
   await exchangeIssuance.approveSetToken(dpiAddress);
-  await exchangeIssuance.exchangeRedeem(dpiAddress, ethers.utils.parseEther(amount.toString()), false, ERC20Address, ethers.utils.parseEther("0"));
+  await exchangeIssuance.redeemExactSetForToken(dpiAddress, ethers.utils.parseEther(amount.toString()), ERC20Address, ethers.utils.parseEther("0"));
 
   // get final DPI and ERC20 balances
   const finalDPIBalance = await dpi.balanceOf(account.getAddress());
@@ -194,7 +194,7 @@ describe("ExchangeIssuance", function () {
     });
   });
 
-  describe("Redeem", () => {
+  describe("Redeem (Exact input)", () => {
     it("Should redeem DPI for ETH", async () => {
       // get initial ETH and DPI balances
       const dpi = new ethers.Contract(dpiAddress, erc20abi, account);
@@ -207,9 +207,8 @@ describe("ExchangeIssuance", function () {
       // redeem dpi for ETH
       await dpi.approve(exchangeIssuance.address, ethers.utils.parseEther("10"));
       await exchangeIssuance.approveSetToken(dpiAddress);
-      await exchangeIssuance.exchangeRedeem(dpiAddress,
+      await exchangeIssuance.redeemExactSetForETH(dpiAddress,
         ethers.utils.parseEther("10"),
-        true, "0x0000000000000000000000000000000000000000",
         ethers.utils.parseEther("1")
       );
 
@@ -223,12 +222,12 @@ describe("ExchangeIssuance", function () {
     });
 
     it("Should redeem DPI for an ERC20 (DAI)", async () => {
-      const passed = await redeemERC20(daiAddress, account, 10);
+      const passed = await redeemExactSetForERC20(daiAddress, account, 10);
       expect(passed).to.equal(true);
     });
 
     it("Should redeem DPI for an ERC20 (WETH)", async () => {
-      const passed = await redeemERC20(wethAddress, account, 10);
+      const passed = await redeemExactSetForERC20(wethAddress, account, 10);
       expect(passed).to.equal(true);
     });
   });
