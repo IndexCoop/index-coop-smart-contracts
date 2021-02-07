@@ -317,6 +317,57 @@ contract ExchangeIssuance is ReentrancyGuard {
         emit ExchangeRedeem(msg.sender, address(_setToken), address(_outputToken), _amountSetToRedeem, outputAmount);
     }
 
+     function redeemSetForExactETH(
+         ISetToken _setToken,
+         uint256 _outputAmount,
+         uint256 _maxSpend
+     )
+        external
+        nonReentrant
+    {
+        uint256 costForOneSet = _getEstimatedRedeemSetAmount(_setToken, 1 ether, WETH);
+        uint256 approxSetToRedeem = _outputAmount.mul(1 ether).div(costForOneSet);
+
+        uint256 sumEth = _getSumValue(_setToken, approxSetToRedeem);
+        uint256 _amountSetToRedeem = _outputAmount.mul(approxSetToRedeem).div(sumEth);
+        
+        _setToken.transferFrom(msg.sender, address(this), _amountSetToRedeem);
+        basicIssuanceModule.redeem(_setToken, _amountSetToRedeem, address(this));
+        _liquidateComponents(_setToken);
+        uint256 outputAmount = _handleRedeemOutput(true, WETH, 0);
+        emit ExchangeRedeem(msg.sender, address(_setToken), WETH, _amountSetToRedeem, outputAmount);
+    }
+
+     function redeemSetForExactToken(
+         ISetToken _setToken,
+         uint256 _outputAmount,
+         IERC20 _outputToken,
+         uint256 _maxSpend
+     )
+        external
+        nonReentrant
+    {
+        uint256 outputAmountETH = 0;
+        if (address(_outputToken) == WETH) {
+            outputAmountETH = _outputAmount;
+        } else {
+            (outputAmountETH,) = _getMinTokenForExactToken(_outputAmount, WETH, address(_outputToken));
+        }
+
+        uint256 costForOneSet = _getEstimatedRedeemSetAmount(_setToken, 1 ether, WETH);
+        uint256 approxSetToRedeem = outputAmountETH.mul(1 ether).div(costForOneSet);
+
+        uint256 sumEth = _getSumValue(_setToken, approxSetToRedeem);
+        uint256 _amountSetToRedeem = outputAmountETH.mul(approxSetToRedeem).div(sumEth);
+        
+        _setToken.transferFrom(msg.sender, address(this), _amountSetToRedeem);
+        basicIssuanceModule.redeem(_setToken, _amountSetToRedeem, address(this));
+        _liquidateComponents(_setToken);
+        uint256 outputAmount = _handleRedeemOutput(false, address(_outputToken), 0);
+        emit ExchangeRedeem(msg.sender, address(_setToken), WETH, _amountSetToRedeem, outputAmount);
+
+    }
+
     receive() external payable {}
 
     /**
@@ -407,17 +458,38 @@ contract ExchangeIssuance is ReentrancyGuard {
      *
      * @param _setToken             Set token redeemed
      * @param _amountSetToRedeem    Amount of set token
-     * @param _isOutputETH          Set to true if the output token is Ether
      * @param _outputToken          Address of output token. Ignored if _isOutputETH is true
      * @return                      Estimated amount of ether/erc20 that will be received
      */
     function getEstimatedRedeemSetAmount(
         ISetToken _setToken,
         uint256 _amountSetToRedeem,
-        bool _isOutputETH,
         address _outputToken
     ) 
         external
+        view
+        returns (uint256)
+    {
+        return _getEstimatedRedeemSetAmount(_setToken, _amountSetToRedeem, _outputToken);
+    }
+
+    /* ============ Internal Functions ============ */
+
+    /**
+     * Returns an estimated amount of ETH or specified ERC20 received for a given SetToken and SetToken amount. 
+     * Estimation pulls the best price of each component from Uniswap or Sushiswap.
+     *
+     * @param _setToken             Set token redeemed
+     * @param _amountSetToRedeem    Amount of set token
+     * @param _outputToken          Address of output token. Ignored if _isOutputETH is true
+     * @return                      Estimated amount of ether/erc20 that will be received
+     */
+    function _getEstimatedRedeemSetAmount(
+        ISetToken _setToken,
+        uint256 _amountSetToRedeem,
+        address _outputToken
+    ) 
+        internal
         view
         returns (uint256)
     {
@@ -428,15 +500,14 @@ contract ExchangeIssuance is ReentrancyGuard {
             (uint256 amountEth, ) = _getMaxTokenForExactToken(amount, positions[i].component, WETH);
             totalEth = totalEth.add(amountEth);
         }
-        if(_isOutputETH || _outputToken == WETH) {
+        if(_outputToken == WETH) {
             return totalEth;
         }
         
-        (uint256 setTokenAmount, ) = _getMaxTokenForExactToken(totalEth, WETH, _outputToken);
-        return setTokenAmount;
+        (uint256 tokenAmount, ) = _getMaxTokenForExactToken(totalEth, WETH, _outputToken);
+        return tokenAmount;
     }
 
-    /* ============ Internal Functions ============ */
 
     /**
      * Sells the total balance that the contract holds of each component of the set
@@ -642,6 +713,18 @@ contract ExchangeIssuance is ReentrancyGuard {
             sumEth = sumEth.add(amountEthIn[i]);     // increment sum
         }
         return (amountEthIn, exchanges, sumEth);
+    }
+    
+    function _getSumValue(ISetToken _setToken, uint256 _amount) internal view returns (uint256) {
+        uint256 sumEth = 0;
+        ISetToken.Position[] memory positions = _setToken.getPositions();
+
+        for (uint256 i = 0; i < positions.length; i++) {
+            uint256 amountComponent = uint256(positions[i].unit).mul(_amount).div(1 ether);
+            (uint256 value,) = _getMaxTokenForExactToken(amountComponent, positions[i].component, WETH);
+            sumEth = sumEth.add(value);
+        }
+        return sumEth;
     }
 
     /**
