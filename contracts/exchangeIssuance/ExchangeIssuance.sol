@@ -148,14 +148,14 @@ contract ExchangeIssuance is ReentrancyGuard {
      * Uses the acquired components to issue the set tokens.
      *
      * @param _setToken         Address of the set token being issued
-     * @param _amountInput      Amount of the input token / ether to spend
      * @param _inputToken       Address of input token
+     * @param _amountInput      Amount of the input token / ether to spend
      * @param _minSetReceive    Minimum amount of set tokens to receive
      */
     function issueSetForExactToken(
         ISetToken _setToken,
-        uint256 _amountInput,
         IERC20 _inputToken,
+        uint256 _amountInput,
         uint256 _minSetReceive
     )
         external
@@ -206,14 +206,14 @@ contract ExchangeIssuance is ReentrancyGuard {
     * Uses the acquired components to issue the set tokens.
     *
     * @param _setToken              Address of the set token to be issued
-    * @param _amountSetToken        Amount of set tokens to issue
     * @param _inputToken            Address of the input token
+    * @param _amountSetToken        Amount of set tokens to issue
     * @param _amountInputToken      Amount of input tokens to be used to issue set tokens
     */
     function issueExactSetFromToken(
         ISetToken _setToken,
-        uint256 _amountSetToken,
         IERC20 _inputToken,
+        uint256 _amountSetToken,
         uint256 _amountInputToken
     )
         external
@@ -401,8 +401,8 @@ contract ExchangeIssuance is ReentrancyGuard {
      */
     function getEstimatedIssueSetAmount(
         ISetToken _setToken,
-        uint256 _amountInput,
-        IERC20 _inputToken
+        IERC20 _inputToken,
+        uint256 _amountInput
     )
         external
         view
@@ -447,8 +447,8 @@ contract ExchangeIssuance is ReentrancyGuard {
     */
     function getAmountInToIssueExactSet(
         ISetToken _setToken,
-        uint256 _amountSetToken,
-        IERC20 _inputToken
+        IERC20 _inputToken,
+        uint256 _amountSetToken
     )
         external
         view
@@ -483,14 +483,38 @@ contract ExchangeIssuance is ReentrancyGuard {
      */
     function getEstimatedRedeemSetAmount(
         ISetToken _setToken,
-        uint256 _amountSetToRedeem,
-        address _outputToken
+        address _outputToken,
+        uint256 _amountSetToRedeem
     ) 
         external
         view
         returns (uint256)
     {
         return _getEstimatedRedeemSetAmount(_setToken, _amountSetToRedeem, _outputToken);
+    }
+
+    function getAmountInToRedeemExactOutput(
+        ISetToken _setToken,
+        IERC20 _outputToken,
+        uint256 _outputAmount
+    )
+        external
+        view
+        returns (uint256)
+    {
+        uint256 outputAmountETH = 0;
+        if (address(_outputToken) == WETH) {
+            outputAmountETH = _outputAmount;
+        } else {
+            (outputAmountETH,) = _getMinTokenForExactToken(_outputAmount, WETH, address(_outputToken));
+        }
+
+        uint256 costForOneSet = _getEstimatedRedeemSetAmount(_setToken, 1 ether, WETH);
+        uint256 approxSetToRedeem = outputAmountETH.mul(1 ether).div(costForOneSet);
+
+        uint256 sumEth = _getSumValue(_setToken, approxSetToRedeem);
+        uint256 amountSetToRedeem = outputAmountETH.mul(approxSetToRedeem).div(sumEth);
+        return amountSetToRedeem;
     }
 
     /* ============ Internal Functions ============ */

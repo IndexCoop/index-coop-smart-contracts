@@ -37,8 +37,8 @@ const issueSetForExactToken = async (ERC20Address: string, account: Signer, amou
   await exchangeIssuance.approveSetToken(dpiAddress);
   await exchangeIssuance.issueSetForExactToken(
     dpiAddress,
-    ethers.utils.parseEther(amount.toString()),
     ERC20Address,
+    ethers.utils.parseEther(amount.toString()),
     ethers.utils.parseEther("0")
   );
 
@@ -65,13 +65,13 @@ const issueExactSetFromToken = async (ERC20Address: string, account: Signer, amo
   await exchangeIssuance.approveSetToken(dpiAddress);
 
   // issue DPI with ERC20
-  let amountToken = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, DPIIssueAmount, ERC20Address);
+  let amountToken = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, ERC20Address, DPIIssueAmount);
   amountToken = amountToken.mul("2");
   await ERC20.approve(exchangeIssuance.address, amountToken);
   await exchangeIssuance.issueExactSetFromToken(
     dpiAddress,
-    ethers.utils.parseEther(amountSetToken.toString()),
     ERC20Address,
+    ethers.utils.parseEther(amountSetToken.toString()),
     amountToken
   );
 
@@ -193,7 +193,7 @@ describe("ExchangeIssuance", function () {
       // issue 5 DPI
       await exchangeIssuance.approveSetToken(dpiAddress);
       const DPIIssueAmount = ethers.utils.parseEther("5");
-      const ETHAmountIn = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, DPIIssueAmount, wethAddress);
+      const ETHAmountIn = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, wethAddress, DPIIssueAmount);
       await exchangeIssuance.issueExactSetFromETH(dpiAddress, DPIIssueAmount, {value: ETHAmountIn});
 
       // get final ETH and DPI balances
@@ -298,7 +298,7 @@ describe("ExchangeIssuance", function () {
       const exchangeIssuance = await deploy(account);
 
       // get approx issue amount in DPI
-      const amountOut = await exchangeIssuance.getEstimatedIssueSetAmount(dpiAddress, ethers.utils.parseEther("200"), wethAddress);
+      const amountOut = await exchangeIssuance.getEstimatedIssueSetAmount(dpiAddress, wethAddress, ethers.utils.parseEther("200"));
 
       // check if output is correct (this may break if you change the block number of the hardhat fork)
       expect(amountOut.gt(ethers.utils.parseEther("4"))).to.equal(true);
@@ -309,7 +309,7 @@ describe("ExchangeIssuance", function () {
       const exchangeIssuance = await deploy(account);
 
       // get approx issue amount in DPI
-      const amountOut = await exchangeIssuance.getEstimatedIssueSetAmount(dpiAddress, ethers.utils.parseEther("200"), daiAddress);
+      const amountOut = await exchangeIssuance.getEstimatedIssueSetAmount(dpiAddress, daiAddress, ethers.utils.parseEther("200"));
 
       // check if output is correct (this may break if you change the block number of the hardhat fork)
       expect(amountOut.gt(ethers.utils.parseEther("1"))).to.equal(true);
@@ -322,19 +322,19 @@ describe("ExchangeIssuance", function () {
       const exchangeIssuance = await deploy(account);
 
       const DPIIssueAmount = ethers.utils.parseEther("5");
-      const ETHAmountIn = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, DPIIssueAmount, wethAddress);
+      const ETHAmountIn = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, wethAddress, DPIIssueAmount);
 
       // check if output is correct (this may break if you change the block number of the hardhat fork)
       expect(ETHAmountIn.lt(ethers.utils.parseEther("0.89"))).to.equal(true);
       expect(ETHAmountIn.gt(ethers.utils.parseEther("0.86"))).to.equal(true);
     });
 
-    it("Should be able to get approx input ERC20 (DAI) amount given a DPI amount", async () => {
+    it("Should be able to get approx input ERC20 (DAI) amount given a amount", async () => {
       // deploy ExchangeIssuance.sol
       const exchangeIssuance = await deploy(account);
 
       const DPIIssueAmount = ethers.utils.parseEther("5");
-      const DAIAmountIn = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, DPIIssueAmount, daiAddress);
+      const DAIAmountIn = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, daiAddress, DPIIssueAmount);
 
       // check if output is correct (this may break if you change the block number of the hardhat fork)
       expect(DAIAmountIn.lt(ethers.utils.parseEther("200").mul(5))).to.equal(true);
@@ -342,28 +342,39 @@ describe("ExchangeIssuance", function () {
     });
   });
 
-  describe("Estimate Redeem", () => {
-    it("Should be able to get approx redeem amount in ETH", async () => {
+  describe("Estimate Redeem (Fixed input)", () => {
+    it("Should be able to get approx redeem amount in ETH given an input set amount", async () => {
       // deploy ExchangeIssuance.sol
       const exchangeIssuance = await deploy(account);
 
       // get approx redeem amount in ETH
-      const amountOut = await exchangeIssuance.getEstimatedRedeemSetAmount(dpiAddress, ethers.utils.parseEther("1"), wethAddress);
+      const amountOut = await exchangeIssuance.getEstimatedRedeemSetAmount(dpiAddress, wethAddress, ethers.utils.parseEther("1"));
 
       // check if output is correct (this may break if you change the block number of the hardhat fork)
       expect(amountOut.gt(ethers.utils.parseEther("0.15"))).to.equal(true);
     });
 
-    it("Should be able to get approx redeem amount in an ERC20 (dai)", async () => {
+    it("Should be able to get approx redeem amount in an ERC20 (dai) given an input set amount", async () => {
       // deploy ExchangeIssuance.sol
       const exchangeIssuance = await deploy(account);
 
       // get approx redeem amount in ETH
-      const amountOut = await exchangeIssuance.getEstimatedRedeemSetAmount(dpiAddress, ethers.utils.parseEther("1"), daiAddress);
+      const amountOut = await exchangeIssuance.getEstimatedRedeemSetAmount(dpiAddress, daiAddress, ethers.utils.parseEther("1"));
 
       // check if output is correct (this may break if you change the block number of the hardhat fork)
       expect(amountOut.gt(ethers.utils.parseEther("180"))).to.equal(true);
     });
 
+    describe("Estimated Redeem (Fixed output)", () => {
+      it("Should be aple to get an approximate input set amount given an output ETH amount", async () => {
+        const exchangeIssuance = await deploy(account);
+
+        // get approx redeem amount in ETH
+        const amountIn = await exchangeIssuance.getAmountInToRedeemExactOutput(dpiAddress, wethAddress, ethers.utils.parseEther("1"));
+
+        // check if output is correct (this may break if you change the block number of the hardhat fork)
+        expect(amountIn.gt(ethers.utils.parseEther("5"))).to.equal(true);
+      });
+    });
   });
 });
