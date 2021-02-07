@@ -96,7 +96,7 @@ const redeemExactSetForERC20 = async (ERC20Address: string, account: Signer, amo
   // redeem DPI for ERC20
   await dpi.approve(exchangeIssuance.address, ethers.utils.parseEther(amount.toString()));
   await exchangeIssuance.approveSetToken(dpiAddress);
-  await exchangeIssuance.redeemExactSetForToken(dpiAddress, ethers.utils.parseEther(amount.toString()), ERC20Address, ethers.utils.parseEther("0"));
+  await exchangeIssuance.redeemExactSetForToken(dpiAddress, ERC20Address, ethers.utils.parseEther(amount.toString()), ethers.utils.parseEther("0"));
 
   // get final DPI and ERC20 balances
   const finalDPIBalance = await dpi.balanceOf(account.getAddress());
@@ -119,7 +119,7 @@ const redeemSetForExactERC20 = async (ERC20Address: string, account: Signer, amo
   // redeem DPI for ERC20
   await dpi.approve(exchangeIssuance.address, ethers.utils.parseEther("1000000"));
   await exchangeIssuance.approveSetToken(dpiAddress);
-  await exchangeIssuance.redeemSetForExactToken(dpiAddress, ethers.utils.parseEther(amount.toString()), ERC20Address, ethers.utils.parseEther("1000000"));
+  await exchangeIssuance.redeemSetForExactToken(dpiAddress, ERC20Address, ethers.utils.parseEther(amount.toString()), ethers.utils.parseEther("1000000"));
 
   // get final DPI and ERC20 balances
   const finalDPIBalance = await dpi.balanceOf(account.getAddress());
@@ -270,7 +270,7 @@ describe("ExchangeIssuance", function () {
       // redeem dpi for ETH
       await exchangeIssuance.redeemSetForExactETH(dpiAddress,
         ethers.utils.parseEther("100"),
-        ethers.utils.parseEther("1"),
+        ethers.utils.parseEther("1000"),
         {gasPrice: 0}
       );
 
