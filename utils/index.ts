@@ -37,6 +37,7 @@ export {
   preciseMulCeil,
   preciseMulCeilInt,
   preciseDivCeilInt,
+  usdc
 } from "./common";
 
 export {
