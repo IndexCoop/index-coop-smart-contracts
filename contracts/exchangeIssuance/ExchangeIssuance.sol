@@ -208,27 +208,27 @@ contract ExchangeIssuance is ReentrancyGuard {
     * @param _setToken              Address of the set token to be issued
     * @param _inputToken            Address of the input token
     * @param _amountSetToken        Amount of set tokens to issue
-    * @param _amountInputToken      Amount of input tokens to be used to issue set tokens
+    * @param _maxAmountInputToken   Maximum amount of input tokens to be used to issue set tokens
     */
     function issueExactSetFromToken(
         ISetToken _setToken,
         IERC20 _inputToken,
         uint256 _amountSetToken,
-        uint256 _amountInputToken
+        uint256 _maxAmountInputToken
     )
         external
         nonReentrant
     {
         
-        _inputToken.transferFrom(msg.sender, address(this), _amountInputToken);
+        _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
         
         uint256 initETHAmount;
         if(address(_inputToken) != WETH) {      // swap inputToken to WETH
-            (, Exchange exchange) = _getMaxTokenForExactToken(_amountInputToken, address(_inputToken), WETH);
-            IERC20(_inputToken).approve(address(_getRouter(exchange)), _amountInputToken);
-            initETHAmount = _swapExactTokensForTokens(exchange, address(_inputToken), WETH, _amountInputToken);
+            (, Exchange exchange) = _getMaxTokenForExactToken(_maxAmountInputToken, address(_inputToken), WETH);
+            IERC20(_inputToken).approve(address(_getRouter(exchange)), _maxAmountInputToken);
+            initETHAmount = _swapExactTokensForTokens(exchange, address(_inputToken), WETH, _maxAmountInputToken);
         } else {
-            initETHAmount = _amountInputToken;
+            initETHAmount = _maxAmountInputToken;
         }
         
         uint256 amountETHSpent = _issueExactSetFromWETH(_setToken, _amountSetToken);        // issue set tokens
@@ -242,6 +242,8 @@ contract ExchangeIssuance is ReentrancyGuard {
         } else {
             amountTokenReturn = amountETHReturn;
         }
+
+        emit ExchangeIssue(msg.sender, address(_setToken), address(_inputToken), _maxAmountInputToken.sub(amountTokenReturn), _amountSetToken);
         _inputToken.transfer(msg.sender, amountTokenReturn);        // return unspent tokens to user
     }
     
@@ -266,7 +268,8 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         uint256 returnAmount = msg.value.sub(amountEth);
         IWETH(WETH).withdraw(returnAmount);
-        msg.sender.transfer(returnAmount);                     // return unspent ether
+        emit ExchangeIssue(msg.sender, address(_setToken), WETH, amountEth, _amountSetToken);
+        msg.sender.transfer(returnAmount);      // return unspent ether
     }
 
     /**
@@ -417,29 +420,6 @@ contract ExchangeIssuance is ReentrancyGuard {
         uint256 _amountSetToRedeem
     ) 
         external
-        view
-        returns (uint256)
-    {
-        return _getEstimatedRedeemSetAmount(_setToken, _amountSetToRedeem, _outputToken);
-    }
-
-    /* ============ Internal Functions ============ */
-
-    /**
-     * Returns an estimated amount of ETH or specified ERC20 received for a given SetToken and SetToken amount. 
-     * Estimation pulls the best price of each component from Uniswap or Sushiswap.
-     *
-     * @param _setToken             Set token redeemed
-     * @param _amountSetToRedeem    Amount of set token
-     * @param _outputToken          Address of output token. Ignored if _isOutputETH is true
-     * @return                      Estimated amount of ether/erc20 that will be received
-     */
-    function _getEstimatedRedeemSetAmount(
-        ISetToken _setToken,
-        uint256 _amountSetToRedeem,
-        address _outputToken
-    ) 
-        internal
         view
         returns (uint256)
     {
