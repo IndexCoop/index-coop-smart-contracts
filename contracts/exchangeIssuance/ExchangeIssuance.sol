@@ -291,7 +291,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         _setToken.transferFrom(msg.sender, address(this), _amountSetToRedeem);
         basicIssuanceModule.redeem(_setToken, _amountSetToRedeem, address(this));
         _liquidateComponents(_setToken);
-        uint256 outputAmount = _handleRedeemOutput(true, WETH, _minOutputReceive);
+        uint256 outputAmount = _handleRedeemOutputETH(_minOutputReceive);
         emit ExchangeRedeem(msg.sender, address(_setToken), WETH, _amountSetToRedeem, outputAmount);
     }
 
@@ -316,7 +316,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         _setToken.transferFrom(msg.sender, address(this), _amountSetToRedeem);
         basicIssuanceModule.redeem(_setToken, _amountSetToRedeem, address(this));
         _liquidateComponents(_setToken);
-        uint256 outputAmount = _handleRedeemOutput(false, address(_outputToken), _minOutputReceive);
+        uint256 outputAmount = _handleRedeemOutputToken(_outputToken, _minOutputReceive);
         emit ExchangeRedeem(msg.sender, address(_setToken), address(_outputToken), _amountSetToRedeem, outputAmount);
     }
 
@@ -508,43 +508,44 @@ contract ExchangeIssuance is ReentrancyGuard {
      }
     
     /**
-     * Handles converting the contract's full WETH balance to the output
-     * token or ether and transfers it to the msg sender.
+     * Handles converting the contract's full WETH balance to ether 
+     * and transfers it to the msg sender.
      *
-     * @param _isOutputETH      Converts the contract's WETH balance to ETH if set to true
-     * @param _outputToken      The token to swap the contract's WETH balance to. 
-     *                          Ignored if _isOutputETH is set to true.
-     * @param _minOutputReceive Minimum amount of output token or ether to receive. This 
+     * @param _minOutputReceive Minimum amount of output ether to receive. This 
      *                          function reverts if the output is less than this. 
-     * @return                  Amount of output ether or tokens sent to msg.sender
+     * @return                  Amount of output ether sent to msg.sender
      */
-    function _handleRedeemOutput(
-        bool _isOutputETH,
-        address _outputToken,
-        uint256 _minOutputReceive
-    )
-        internal
-        returns (uint256)
-    {
-        if(_isOutputETH) {
-            IWETH(WETH).withdraw(IERC20(WETH).balanceOf(address(this)));
-            uint256 outputAmount = address(this).balance;
-            require(outputAmount > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
-            msg.sender.transfer(outputAmount);
-            return outputAmount;
-        } else if (_outputToken == WETH) {
+    function _handleRedeemOutputETH(uint256 _minOutputReceive) internal returns (uint256) {
+        IWETH(WETH).withdraw(IERC20(WETH).balanceOf(address(this)));
+        uint256 outputAmount = address(this).balance;
+        require(outputAmount > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
+        msg.sender.transfer(outputAmount);
+        return outputAmount;
+    }
+
+    /**
+     * Handles converting the contract's full WETH balance to the output
+     * token and transfers it to the msg sender.
+     *
+     * @param _outputToken      The token to swap the contract's WETH balance to. 
+     * @param _minOutputReceive Minimum amount of output token to receive. This 
+     *                          function reverts if the output is less than this. 
+     * @return                  Amount of tokens sent to msg.sender
+     */
+    function _handleRedeemOutputToken(IERC20 _outputToken, uint256 _minOutputReceive) internal returns (uint256) {
+        if (address(_outputToken) == WETH) {
             uint256 outputAmount = IERC20(WETH).balanceOf(address(this));
             require(outputAmount > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
             IERC20(WETH).transfer(msg.sender, outputAmount);
             return outputAmount;
         } else {
             uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
-            (uint amountTokenOut, Exchange exchange) = _getMaxTokenForExactToken(wethBalance, address(WETH), _outputToken);
+            (uint amountTokenOut, Exchange exchange) = _getMaxTokenForExactToken(wethBalance, address(WETH), address(_outputToken));
             
             require(amountTokenOut > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
             
-            uint256 outputAmount = _swapExactTokensForTokens(exchange, WETH, _outputToken, wethBalance);
-            IERC20(_outputToken).transfer(msg.sender, outputAmount);
+            uint256 outputAmount = _swapExactTokensForTokens(exchange, WETH, address(_outputToken), wethBalance);
+            _outputToken.transfer(msg.sender, outputAmount);
             return outputAmount;
         }
     }
