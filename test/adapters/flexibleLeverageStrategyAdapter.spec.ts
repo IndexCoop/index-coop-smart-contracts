@@ -5,7 +5,7 @@ import { ethers } from "hardhat";
 import { Address, Account, Bytes } from "@utils/types";
 import { ADDRESS_ZERO, ZERO, EMPTY_BYTES } from "@utils/constants";
 import { FlexibleLeverageStrategyAdapter, ICManagerV2, TradeAdapterMock } from "@utils/contracts/index";
-import { CompoundLeverageModule, ContractCallerMock, SetToken } from "@utils/contracts/setV2";
+import { CompoundLeverageModule, ContractCallerMock, DebtIssuanceModule, SetToken } from "@utils/contracts/setV2";
 import { CEther, CERc20 } from "@utils/contracts/compound";
 import DeployHelper from "@utils/deploys";
 import {
@@ -66,6 +66,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
   let flexibleLeverageStrategyAdapter: FlexibleLeverageStrategyAdapter;
   let compoundLeverageModule: CompoundLeverageModule;
   let secondCompoundLeverageModule: CompoundLeverageModule;
+  let debtIssuanceModule: DebtIssuanceModule;
   let icManagerV2: ICManagerV2;
 
   before(async () => {
@@ -139,8 +140,10 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       cEther.address,
       setV2Setup.weth.address
     );
-
     await setV2Setup.controller.addModule(secondCompoundLeverageModule.address);
+
+    debtIssuanceModule = await deployer.setV2.deployDebtIssuanceModule(setV2Setup.controller.address);
+    await setV2Setup.controller.addModule(debtIssuanceModule.address);
 
     // Deploy mock trade adapter
     tradeAdapterMock = await deployer.mocks.deployTradeAdapterMock();
@@ -154,15 +157,34 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       "MockTradeAdapter",
       tradeAdapterMock.address,
     );
+    await setV2Setup.integrationRegistry.addIntegration(
+      compoundLeverageModule.address,
+      "DefaultIssuanceModule",
+      debtIssuanceModule.address,
+    );
+    await setV2Setup.integrationRegistry.addIntegration(
+      secondCompoundLeverageModule.address,
+      "DefaultIssuanceModule",
+      debtIssuanceModule.address,
+    );
 
     setToken = await setV2Setup.createSetToken(
       [cEther.address],
       [BigNumber.from(5000000000)], // Equivalent to 1 ETH
-      [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address, compoundLeverageModule.address, secondCompoundLeverageModule.address]
+      [
+        setV2Setup.issuanceModule.address,
+        setV2Setup.streamingFeeModule.address,
+        compoundLeverageModule.address,
+        secondCompoundLeverageModule.address,
+        debtIssuanceModule.address,
+      ]
     );
     await gulpComptrollerMock.addSetTokenAddress(setToken.address);
+    await compoundLeverageModule.updateAnySetInitializable(true);
+    await secondCompoundLeverageModule.updateAnySetInitializable(true);
 
     // Initialize modules
+    await debtIssuanceModule.initialize(setToken.address, ether(1), ZERO, ZERO, owner.address, ADDRESS_ZERO);
     await setV2Setup.issuanceModule.initialize(setToken.address, ADDRESS_ZERO);
     const feeRecipient = owner.address;
     const maxStreamingFeePercentage = ether(.1);
