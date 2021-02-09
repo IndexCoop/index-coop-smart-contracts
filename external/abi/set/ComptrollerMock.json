@@ -1,0 +1,122 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "ComptrollerMock",
+  "sourceName": "contracts/mocks/external/ComptrollerMock.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_comp",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_compAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "_collateralCToken",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_setToken",
+          "type": "address"
+        }
+      ],
+      "name": "addSetTokenAddress",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "allMarkets",
+      "outputs": [
+        {
+          "internalType": "contract ICErc20",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_holder",
+          "type": "address"
+        }
+      ],
+      "name": "claimComp",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address[]",
+          "name": "_cTokens",
+          "type": "address[]"
+        }
+      ],
+      "name": "enterMarkets",
+      "outputs": [
+        {
+          "internalType": "uint256[]",
+          "name": "",
+          "type": "uint256[]"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getAllMarkets",
+      "outputs": [
+        {
+          "internalType": "contract ICErc20[]",
+          "name": "",
+          "type": "address[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_compAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "setCompAmount",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561001057600080fd5b506040516104be3803806104be8339818101604052606081101561003357600080fd5b5080516020820151604090920151600080546001600160a01b039384166001600160a01b031991821617825560019485556003805495860181559091527fc2575a0e9e593c00f959f8c92f12db2869c3395a3b0502d05e2516446f71f85b9093018054929091169190921617905561040e806100b06000396000f3fe608060405234801561001057600080fd5b50600436106100625760003560e01c80632bcb08c51461006757806352d84d1e1461008657806375e9141d146100bf578063b0772d0b146100e5578063c29982381461013d578063e9af0292146101e0575b600080fd5b6100846004803603602081101561007d57600080fd5b5035610206565b005b6100a36004803603602081101561009c57600080fd5b503561020b565b604080516001600160a01b039092168252519081900360200190f35b610084600480360360208110156100d557600080fd5b50356001600160a01b0316610232565b6100ed610254565b60408051602080825283518183015283519192839290830191858101910280838360005b83811015610129578181015183820152602001610111565b505050509050019250505060405180910390f35b6100ed6004803603602081101561015357600080fd5b81019060208101813564010000000081111561016e57600080fd5b82018360208201111561018057600080fd5b803590602001918460208302840111640100000000831117156101a257600080fd5b9190808060200260200160405190810160405280939291908181526020018383602002808284376000920191909152509295506102b6945050505050565b610084600480360360208110156101f657600080fd5b50356001600160a01b0316610301565b600155565b6003818154811061021857fe5b6000918252602090912001546001600160a01b0316905081565b600280546001600160a01b0319166001600160a01b0392909216919091179055565b606060038054806020026020016040519081016040528092919081815260200182805480156102ac57602002820191906000526020600020905b81546001600160a01b0316815260019091019060200180831161028e575b5050505050905090565b6060815167ffffffffffffffff811180156102d057600080fd5b506040519080825280602002602001820160405280156102fa578160200160208202803683370190505b5092915050565b600080546002546001546040805163a9059cbb60e01b81526001600160a01b039384166004820152602481019290925251919092169263a9059cbb92604480820193602093909283900390910190829087803b15801561036057600080fd5b505af1158015610374573d6000803e3d6000fd5b505050506040513d602081101561038a57600080fd5b50516103d5576040805162461bcd60e51b8152602060048201526015602482015274115490cc8c081d1c985b9cd9995c8819985a5b1959605a1b604482015290519081900360640190fd5b5056fea264697066735822122086887fe5484e9771420d2ca8aacda485a0329c0c8feab7873226f4095c33172964736f6c634300060a0033",
+  "deployedBytecode": "",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

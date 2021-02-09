@@ -136,7 +136,6 @@ describe("MerkleDistributor", () => {
     });
 
     beforeEach(async () => {
-      console.log(treeInfo.merkleRoot);
       distributor = await deployer.token.deployMerkleDistributor(token.address, treeInfo.merkleRoot);
       await token.connect(owner.wallet).transfer(distributor.address, ether(1900));
 
@@ -152,7 +151,6 @@ describe("MerkleDistributor", () => {
 
     it("should set the correct token address", async () => {
       const preTokenBalance = await token.balanceOf(subjectAccount);
-      console.log(treeInfo.merkleRoot);
       await subject();
 
       const postTokenBalance = await token.balanceOf(subjectAccount);
