@@ -25,7 +25,6 @@ import { ICompoundLeverageModule } from "../interfaces/ICompoundLeverageModule.s
 import { ICompoundPriceOracle } from "../interfaces/ICompoundPriceOracle.sol";
 import { ICErc20 } from "../interfaces/ICErc20.sol";
 import { IICManagerV2 } from "../interfaces/IICManagerV2.sol";
-import { AddressArrayUtils } from "../lib/AddressArrayUtils.sol";
 import { BaseAdapter } from "../lib/BaseAdapter.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
@@ -433,7 +432,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     /**
      * Get current leverage ratio. Note: uses borrow balance and exchange rate that is stored versus current.
      */
-    function getCurrentLeverageRatio() external view returns(uint256) {
+    function getCurrentLeverageRatio() public view returns(uint256) {
         uint256 collateralPrice = priceOracle.getUnderlyingPrice(address(targetCollateralCToken));
         uint256 borrowPrice = priceOracle.getUnderlyingPrice(address(targetBorrowCToken));
 
@@ -447,6 +446,21 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         uint256 borrowValue = borrowPrice.preciseMul(borrowBalance).preciseDiv(10 ** borrowAssetDecimals);
 
         return _calculateCurrentLeverageRatio(collateralValue, borrowValue);
+    }
+
+    /**
+     * Get Ether rebalance incentive for when current leverage ratio exceeds incentivized leverage ratio
+     */
+    function getEtherRebalanceIncentive() external view returns(uint256) {
+        uint256 currentLeverageRatio = getCurrentLeverageRatio();
+
+        if (currentLeverageRatio > incentivizedTierTwoLeverageRatio) {
+            return incentivizedTierTwoEthReward;
+        } else if (currentLeverageRatio > incentivizedTierOneLeverageRatio) {
+            return incentivizedTierOneEthReward;
+        } else {
+            return 0;
+        }
     }
 
     /* ============ Internal Functions ============ */
@@ -515,7 +529,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         uint256 maxBorrow = _calculateMaxBorrowInCollateral(_actionInfo, false);
 
         // Calculate collateral units and min repay units and whether rebalance should be incentivized
-        uint256 rebalanceIncentive = 0;
+        uint256 rebalanceIncentive;
         uint256 collateralRebalanceUnits;
         uint256 minRepayUnits;
         if (_currentLeverageRatio > incentivizedTierTwoLeverageRatio) {
@@ -571,6 +585,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         }
     }
 
+    /**
+     * Create the action info struct to be used in internal functions
+     */
     function _createActionInfo() internal returns(ActionInfo memory) {
         ActionInfo memory rebalanceInfo;
 
@@ -585,17 +602,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         return rebalanceInfo;
     }
 
-    function _calculateCurrentLeverageRatio(
-        uint256 _collateralValue,
-        uint256 _borrowValue
-    )
-        internal
-        pure
-        returns(uint256)
-    {
-        return _collateralValue.preciseDiv(_collateralValue.sub(_borrowValue));
-    }
-
+    /**
+     * Check rebalance is valid and set last rebalance timestamp
+     */
     function _validateRebalanceAndSetTimestamp(uint256 _currentLeverageRatio) internal {
         if (isTWAP && _currentLeverageRatio > incentivizedTierOneLeverageRatio) {
             // If TWAP and current leverage ratio is ABOVE the threshold for incentivization, then validate that the incentivized cooldown period has elapsed
@@ -624,38 +633,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         }
     }
 
-    function _calculateNewLeverageRatio(uint256 _currentLeverageRatio) internal view returns(uint256) {
-        uint256 newLeverageRatio;
-        if (isTWAP) {
-            newLeverageRatio = twapState.twapNewLeverageRatio;
-        } else {
-            uint256 a = targetLeverageRatio.preciseMul(recenteringSpeed);
-            uint256 b = PreciseUnitMath.preciseUnit().sub(recenteringSpeed).preciseMul(_currentLeverageRatio);
-            uint256 c = a.add(b);
-            uint256 d = Math.min(c, maxLeverageRatio);
-            newLeverageRatio = Math.max(minLeverageRatio, d);
-        }
-
-        return newLeverageRatio;
-    }
-
-    function _calculateMaxBorrowInCollateral(ActionInfo memory _actionInfo, bool _isLever) internal view returns(uint256) {
-        ( , uint256 accountLiquidity, ) = comptroller.getAccountLiquidity(address(setToken));
-
-        if (_isLever) {
-            return accountLiquidity
-                .preciseMul(PreciseUnitMath.preciseUnit().sub(bufferPercentage))
-                .preciseDiv(_actionInfo.collateralPrice)
-                .preciseMul(10 ** collateralAssetDecimals); // Normalize decimals
-        } else {
-            uint256 limitAdjust = accountLiquidity.add(_actionInfo.borrowValue).preciseMul(bufferPercentage);
-            return _actionInfo.collateralBalance
-                .mul(accountLiquidity.sub(limitAdjust))
-                .preciseMul(PreciseUnitMath.preciseUnit().sub(bufferPercentage))
-                .div(accountLiquidity.add(_actionInfo.borrowValue).sub(limitAdjust));
-        }
-    }
-
+    /**
+     * Calculate the collateral units to trade for lever and delever. If above the max trade size or max borrow then set TWAP accordingly
+     */
     function _calculateCollateralUnitsAndUpdateTWAP(
         uint256 _maxBorrow,
         uint256 _totalRebalanceNotional,
@@ -683,6 +663,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         return chunkRebalanceNotional.preciseDiv(_actionInfo.setTotalSupply);
     }
 
+    /**
+     * Calculate collateral units and min repay units for delever
+     */
     function _calculateDeleverUnits(
         uint256 _maxBorrow,
         uint256 _totalRebalanceNotional,
@@ -707,7 +690,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         return (collateralRebalanceUnits, minRepayUnits);
     }
 
-
+    /**
+     * Update state at the start or middle of a TWAP rebalance
+     */
     function _updateTWAPState(uint256 _newLeverageRatio) internal {
         if (isTWAP) {
             twapState.lastTWAPTradeTimestamp = block.timestamp;
@@ -718,6 +703,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         }
     }
 
+    /**
+     * Remove state when TWAP rebalance concludes
+     */
     function _removeTWAPState() internal {
         if (isTWAP) {
             isTWAP = false;
@@ -725,6 +713,29 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         }
     }
 
+    /**
+     * Calculate the max borrow / repay amount allowed in collateral units for lever / delever
+     */
+    function _calculateMaxBorrowInCollateral(ActionInfo memory _actionInfo, bool _isLever) internal view returns(uint256) {
+        ( , uint256 accountLiquidity, ) = comptroller.getAccountLiquidity(address(setToken));
+
+        if (_isLever) {
+            return accountLiquidity
+                .preciseMul(PreciseUnitMath.preciseUnit().sub(bufferPercentage))
+                .preciseDiv(_actionInfo.collateralPrice)
+                .preciseMul(10 ** collateralAssetDecimals); // Normalize decimals
+        } else {
+            uint256 limitAdjust = accountLiquidity.add(_actionInfo.borrowValue).preciseMul(bufferPercentage);
+            return _actionInfo.collateralBalance
+                .mul(accountLiquidity.sub(limitAdjust))
+                .preciseMul(PreciseUnitMath.preciseUnit().sub(bufferPercentage))
+                .div(accountLiquidity.add(_actionInfo.borrowValue).sub(limitAdjust));
+        }
+    }
+
+    /**
+     * Derive the borrow units from collateral units for lever
+     */
     function _calculateBorrowUnits(uint256 _collateralRebalanceUnits, ActionInfo memory _actionInfo) internal view returns (uint256) {
         uint256 pairPrice = _actionInfo.collateralPrice.preciseDiv(_actionInfo.borrowPrice);
         return _collateralRebalanceUnits
@@ -733,10 +744,16 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             .preciseMul(10 ** borrowAssetDecimals);
     }
 
+    /**
+     * Calculate the min receive units in collateral units for lever
+     */
     function _calculateMinReceiveUnits(uint256 _collateralRebalanceUnits) internal view returns (uint256) {
         return _collateralRebalanceUnits.preciseMul(PreciseUnitMath.preciseUnit().sub(slippageTolerance));
     }
 
+    /**
+     * Derive the min repay units from collateral units for delever
+     */
     function _calculateMinRepayUnits(uint256 _collateralRebalanceUnits, uint256 _slippageTolerance, ActionInfo memory _actionInfo) internal view returns (uint256) {
         uint256 pairPrice = _actionInfo.collateralPrice.preciseDiv(_actionInfo.borrowPrice);
 
@@ -745,5 +762,38 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             .preciseMul(pairPrice)
             .preciseMul(10 ** borrowAssetDecimals)
             .preciseMul(PreciseUnitMath.preciseUnit().sub(_slippageTolerance));
+    }
+
+    /**
+     * Calculate the current leverage ratio given a valuation of the collateral and borrow assets
+     */
+    function _calculateCurrentLeverageRatio(
+        uint256 _collateralValue,
+        uint256 _borrowValue
+    )
+        internal
+        pure
+        returns(uint256)
+    {
+        return _collateralValue.preciseDiv(_collateralValue.sub(_borrowValue));
+    }
+
+    /**
+     * Calculate the new leverage rati using the flexible leverage methodology. If currently in a TWAP rebalance, then return the stored new leverage ratio.
+     */
+    function _calculateNewLeverageRatio(uint256 _currentLeverageRatio) internal view returns(uint256) {
+        uint256 newLeverageRatio;
+        if (isTWAP) {
+            newLeverageRatio = twapState.twapNewLeverageRatio;
+        } else {
+            // CLRt+1 = max(MINLR, min(MAXLR, CLRt * (1 - RS) + TLR * RS))
+            uint256 a = targetLeverageRatio.preciseMul(recenteringSpeed);
+            uint256 b = PreciseUnitMath.preciseUnit().sub(recenteringSpeed).preciseMul(_currentLeverageRatio);
+            uint256 c = a.add(b);
+            uint256 d = Math.min(c, maxLeverageRatio);
+            newLeverageRatio = Math.max(minLeverageRatio, d);
+        }
+
+        return newLeverageRatio;
     }
 }
