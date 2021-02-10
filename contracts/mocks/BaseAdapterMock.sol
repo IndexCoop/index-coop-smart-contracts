@@ -39,6 +39,11 @@ contract BaseAdapterMock is BaseAdapter {
         onlyMethodologist
     {}
 
+    function testOnlyEOA()
+        external
+        onlyEOA
+    {}
+
     /* ============ Helper Functions ============ */
 
     function updateManager(IICManagerV2 _newManager) external {
