@@ -1,9 +1,11 @@
 import "module-alias/register";
 
+import { BigNumber } from "@ethersproject/bignumber";
 import { Account, Address, Bytes } from "@utils/types";
 import { ZERO, ADDRESS_ZERO } from "@utils/constants";
 import { BaseAdapterMock, ICManagerV2 } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
+import { ContractCallerMock } from "@utils/contracts/setV2";
 
 import DeployHelper from "@utils/deploys";
 import {
@@ -130,6 +132,50 @@ describe("BaseAdapter", () => {
 
       it("should revert", async () => {
         await expect(subject()).to.be.revertedWith("Must be methodologist");
+      });
+    });
+  });
+
+  describe("#testOnlyMethodologist", async () => {
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      subjectCaller = methodologist;
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return baseAdapterMock.connect(subjectCaller.wallet).testOnlyMethodologist();
+    }
+
+    it("should succeed without revert", async () => {
+      await subject();
+    });
+
+    describe("when the sender is not EOA", async () => {
+      let subjectTarget: Address;
+      let subjectCallData: string;
+      let subjectValue: BigNumber;
+
+      let contractCaller: ContractCallerMock;
+
+      beforeEach(async () => {
+        contractCaller = await deployer.setV2.deployContractCallerMock();
+
+        subjectTarget = baseAdapterMock.address;
+        subjectCallData = baseAdapterMock.interface.encodeFunctionData("testOnlyEOA");
+        subjectValue = ZERO;
+      });
+
+      async function subjectContractCaller(): Promise<any> {
+        return await contractCaller.invoke(
+          subjectTarget,
+          subjectValue,
+          subjectCallData
+        );
+      }
+
+      it("the trade reverts", async () => {
+        await expect(subjectContractCaller()).to.be.revertedWith("Caller must be EOA Address");
       });
     });
   });
