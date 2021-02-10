@@ -14,7 +14,7 @@
     limitations under the License.
 */
 
-pragma solidity ^0.6.10;
+pragma solidity 0.6.10;
 
 import { IICManagerV2 } from "../interfaces/IICManagerV2.sol";
 
@@ -41,6 +41,14 @@ abstract contract BaseAdapter {
      */
     modifier onlyMethodologist() {
         require(msg.sender == manager.methodologist(), "Must be methodologist");
+        _;
+    }
+
+    /**
+     * Throws if caller is a contract
+     */
+    modifier onlyEOA() {
+        require(msg.sender == tx.origin, "Caller must be EOA Address");
         _;
     }
 
