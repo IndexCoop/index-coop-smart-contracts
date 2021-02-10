@@ -3110,4 +3110,65 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       });
     });
   });
+
+  describe("#getEtherRebalanceIncentive", async () => {
+    beforeEach(async () => {
+      // Approve tokens to issuance module and call issue
+      await cEther.approve(setV2Setup.issuanceModule.address, ether(1000));
+
+      // Issue 1 SetToken
+      const issueQuantity = ether(1);
+      await setV2Setup.issuanceModule.issue(setToken.address, issueQuantity, owner.address);
+
+      await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+
+      // Engage to initial leverage
+      await flexibleLeverageStrategyAdapter.engage();
+      await increaseTimeAsync(BigNumber.from(3600));
+      await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+      await flexibleLeverageStrategyAdapter.rebalance();
+    });
+
+    async function subject(): Promise<any> {
+      return flexibleLeverageStrategyAdapter.getEtherRebalanceIncentive();
+    }
+
+    describe("when above highest tier incentive", async () => {
+      beforeEach(async () => {
+        // Set reward above tier 2 incentive. ~4.3x
+        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(650));
+      });
+
+      it("should return the correct value", async () => {
+        const etherIncentive = await subject();
+
+        expect(etherIncentive).to.eq(incentivizedTierTwoEthReward);
+      });
+    });
+
+    describe("when above lower tier incentive", async () => {
+      beforeEach(async () => {
+        // Set reward above tier 2 incentive. ~3x
+        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(750));
+      });
+
+      it("should return the correct value", async () => {
+        const etherIncentive = await subject();
+
+        expect(etherIncentive).to.eq(incentivizedTierOneEthReward);
+      });
+    });
+
+    describe("when above highest tier incentive", async () => {
+      beforeEach(async () => {
+        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(2000));
+      });
+
+      it("should return the correct value", async () => {
+        const etherIncentive = await subject();
+
+        expect(etherIncentive).to.eq(ZERO);
+      });
+    });
+  });
 });
