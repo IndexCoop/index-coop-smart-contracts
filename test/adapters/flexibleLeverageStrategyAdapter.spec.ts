@@ -251,10 +251,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         setV2Setup.usdc.address,                                         // Target underlying borrow
       ],
       [
-        "18",
-        "6",
-      ],
-      [
         targetLeverageRatio.toString(),         // Target leverage ratio
         minLeverageRatio.toString(),            // Min leverage ratio
         maxLeverageRatio.toString(),            // Max leverage ratio
@@ -289,7 +285,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
   describe("#constructor", async () => {
     let subjectInstances: Address[];
-    let subjectAssetDecimals: string[];
     let subjectMethodologyParams: string[];
     let subjectExecutionParams: string[];
     let subjectIncentiveParams: string[];
@@ -307,11 +302,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         cUSDC.address,                     // Target cToken borrow
         setV2Setup.weth.address,           // Target underlying collateral
         setV2Setup.usdc.address,           // Target underlying collateral
-      ];
-
-      subjectAssetDecimals = [
-        "18",
-        "6",
       ];
 
       subjectMethodologyParams = [
@@ -346,7 +336,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     async function subject(): Promise<FlexibleLeverageStrategyAdapter> {
       return await deployer.adapters.deployFlexibleLeverageStrategyAdapter(
         subjectInstances,
-        subjectAssetDecimals,
         subjectMethodologyParams,
         subjectExecutionParams,
         subjectIncentiveParams,
@@ -377,16 +366,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       expect(targetBorrowCToken).to.eq(subjectInstances[6]);
       expect(collateralAsset).to.eq(subjectInstances[7]);
       expect(borrowAsset).to.eq(subjectInstances[8]);
-    });
-
-    it("should set the correct asset decimals", async () => {
-      const retrievedAdapter = await subject();
-
-      const collateralAssetDecimals = await retrievedAdapter.collateralAssetDecimals();
-      const borrowAssetDecimals = await retrievedAdapter.borrowAssetDecimals();
-
-      expect(collateralAssetDecimals).to.eq(subjectAssetDecimals[0]);
-      expect(borrowAssetDecimals).to.eq(subjectAssetDecimals[1]);
     });
 
     it("should set the correct methodology parameters", async () => {
@@ -578,10 +557,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
               cUSDC.address,                     // Target cToken borrow
               setV2Setup.weth.address,           // Target underlying collateral
               setV2Setup.usdc.address,           // Target underlying borrow
-            ],
-            [
-              "18",
-              "6",
             ],
             [
               targetLeverageRatio.toString(),    // Target leverage ratio

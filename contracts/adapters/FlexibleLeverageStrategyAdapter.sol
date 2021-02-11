@@ -17,22 +17,33 @@
 pragma solidity 0.6.10;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Math } from "@openzeppelin/contracts/math/Math.sol";
+import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
-import { ISetToken } from "../interfaces/ISetToken.sol";
+import { BaseAdapter } from "../lib/BaseAdapter.sol";
+import { ICErc20 } from "../interfaces/ICErc20.sol";
+import { IICManagerV2 } from "../interfaces/IICManagerV2.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
 import { ICompoundLeverageModule } from "../interfaces/ICompoundLeverageModule.sol";
 import { ICompoundPriceOracle } from "../interfaces/ICompoundPriceOracle.sol";
-import { ICErc20 } from "../interfaces/ICErc20.sol";
-import { IICManagerV2 } from "../interfaces/IICManagerV2.sol";
-import { BaseAdapter } from "../lib/BaseAdapter.sol";
-import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+import { ISetToken } from "../interfaces/ISetToken.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
+/**
+ * @title FlexibleLeverageStrategyAdapter
+ * @author Set Protocol
+ *
+ * Smart contract that enables trustless leverage tokens using the flexible leverage methodology. This adapter is paired with the CompoundLeverageModule from Set
+ * protocol where module interactions are invoked via the ICManagerV2 contract. Any leveraged token can be constructed as long as the collateral and borrow
+ * asset is available on Compound. This adapter contract also allows the operator to set an ETH reward to incentivize keepers calling the rebalance function at
+ * different leverage thresholds.
+ *
+ */
 contract FlexibleLeverageStrategyAdapter is BaseAdapter {
-    using SafeMath for uint256;
-    using PreciseUnitMath for uint256;
     using Address for address;
+    using PreciseUnitMath for uint256;
+    using SafeMath for uint256;
 
     /* ============ Structs ============ */
 
@@ -73,8 +84,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     ICErc20 public targetBorrowCToken;                      // Instance of target borrow cToken asset
     address public collateralAsset;                         // Address of underlying collateral
     address public borrowAsset;                             // Address of underlying borrow asset
-    uint256 public collateralAssetDecimals;                 // Decimals of collateral asset
-    uint256 public borrowAssetDecimals;                     // Decimals of borrow asset
+    uint256 internal collateralAssetDecimals;               // Decimals of collateral asset
+    uint256 internal borrowAssetDecimals;                   // Decimals of borrow asset
     
     uint256 public targetLeverageRatio;                     // Target leverage ratio
     uint256 public minLeverageRatio;                        // Min leverage ratio
@@ -110,7 +121,6 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * Instantiate addresses, asset decmials, methodology parameters, execution parameters, and initial exchange name and data
      * 
      * @param _instances               Array of contract addresses
-     * @param _assetDecimals           Decimals for collateral and borrow assets
      * @param _methodologyParams       Parameters of flexible leverage methodology
      * @param _executionParams         Trade execution parameters
      * @param _incentiveParams         Rebalance parameters for when leverage ratio exceeds threshold for incentives
@@ -119,7 +129,6 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      */
     constructor(
         address[9] memory _instances,
-        uint256[2] memory _assetDecimals,
         uint256[5] memory _methodologyParams,
         uint256[4] memory _executionParams,
         uint256[7] memory _incentiveParams,
@@ -138,8 +147,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         collateralAsset = _instances[7];
         borrowAsset = _instances[8];
 
-        collateralAssetDecimals = _assetDecimals[0];
-        borrowAssetDecimals = _assetDecimals[1];
+        collateralAssetDecimals = ERC20(collateralAsset).decimals();
+        borrowAssetDecimals = ERC20(borrowAsset).decimals();
 
         targetLeverageRatio = _methodologyParams[0];
         minLeverageRatio = _methodologyParams[1];
@@ -433,6 +442,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * Get current leverage ratio. Note: uses borrow balance and exchange rate that is stored versus current.
      */
     function getCurrentLeverageRatio() public view returns(uint256) {
+        // Note: Compound price oracle returns prices in 10 ** 18 
         uint256 collateralPrice = priceOracle.getUnderlyingPrice(address(targetCollateralCToken));
         uint256 borrowPrice = priceOracle.getUnderlyingPrice(address(targetBorrowCToken));
 
@@ -475,6 +485,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     )
         internal
     {
+        // Get total amount of collateral that needs to be rebalanced
         uint256 totalRebalanceNotional = _newLeverageRatio
             .sub(_currentLeverageRatio)
             .preciseDiv(_currentLeverageRatio)
@@ -521,6 +532,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     )
         internal
     {
+        // Get total amount of collateral that needs to be rebalanced
         uint256 totalRebalanceNotional = _currentLeverageRatio
             .sub(_newLeverageRatio)
             .preciseDiv(_currentLeverageRatio)
