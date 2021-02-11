@@ -244,8 +244,9 @@ contract ExchangeIssuance is ReentrancyGuard {
         } else {
             amountTokenReturn = amountETHReturn;
         }
-
-        _inputToken.transfer(msg.sender, amountTokenReturn);
+        
+        if (amountTokenReturn > 0)
+            _inputToken.transfer(msg.sender, amountTokenReturn);
         
         emit ExchangeIssue(msg.sender, _setToken, address(_inputToken), _maxAmountInputToken.sub(amountTokenReturn), _amountSetToken);
     }
@@ -272,8 +273,11 @@ contract ExchangeIssuance is ReentrancyGuard {
         uint256 amountEth = _issueExactSetFromWETH(_setToken, _amountSetToken);
         
         uint256 returnAmount = msg.value.sub(amountEth);
-        IWETH(WETH).withdraw(returnAmount);
-        msg.sender.transfer(returnAmount);
+        
+        if(returnAmount > 0) {
+            IWETH(WETH).withdraw(returnAmount);
+            msg.sender.transfer(returnAmount);    
+        }
         
         emit ExchangeIssue(msg.sender, _setToken, address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), amountEth, _amountSetToken);
     }
