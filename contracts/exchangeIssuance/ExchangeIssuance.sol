@@ -22,6 +22,7 @@ import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import { IBasicIssuanceModule } from "../interfaces/IBasicIssuanceModule.sol";
+import { IController } from "../interfaces/IController.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
@@ -56,7 +57,8 @@ contract ExchangeIssuance is ReentrancyGuard {
     address private uniFactory;
     IUniswapV2Router02 private sushiRouter;
     address private sushiFactory;
-
+    
+    IController private setController;
     IBasicIssuanceModule private basicIssuanceModule;
     address private WETH;
 
@@ -77,7 +79,14 @@ contract ExchangeIssuance is ReentrancyGuard {
         uint256 _amountSetRedeemed,     // The amount of SetTokens redeemed for output tokens
         uint256 _amountOutputToken      // The amount of output tokens received by the recipient
     );
-
+    
+    /* ============ Modifiers ============ */
+    
+    modifier isSetToken(ISetToken _setToken) {
+         require(setController.isSet(address(_setToken)), "ExchangeIssuance: INVALID SET");
+         _;
+    }
+    
     /* ============ Constructor ============ */
 
     constructor(
@@ -85,6 +94,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         IUniswapV2Router02 _uniRouter, 
         address _sushiFactory, 
         IUniswapV2Router02 _sushiRouter, 
+        IController _setController,
         IBasicIssuanceModule _basicIssuanceModule
     )
         public
@@ -96,6 +106,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         sushiRouter = _sushiRouter;
 
         WETH = uniRouter.WETH();
+        setController = _setController;
         basicIssuanceModule = _basicIssuanceModule;
         IERC20(WETH).approve(address(uniRouter), PreciseUnitMath.maxUint256());
         IERC20(WETH).approve(address(sushiRouter), PreciseUnitMath.maxUint256());
@@ -155,10 +166,13 @@ contract ExchangeIssuance is ReentrancyGuard {
         IERC20 _inputToken,
         uint256 _amountInput,
         uint256 _minSetReceive
-    )
+    )   
+        isSetToken(_setToken)
         external
         nonReentrant
     {   
+        require(_amountInput > 0, "ExchangeIssuance: INVALID INPUTS");
+        
         _inputToken.transferFrom(msg.sender, address(this), _amountInput);
         
         if(address(_inputToken) != WETH) 
@@ -179,10 +193,13 @@ contract ExchangeIssuance is ReentrancyGuard {
         ISetToken _setToken,
         uint256 _minSetReceive
     )
+        isSetToken(_setToken)
         external
         payable
         nonReentrant
     {
+        require(msg.value > 0, "ExchangeIssuance: INVALID INPUTS");
+        
         IWETH(WETH).deposit{value: msg.value}();
         
         uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive);
@@ -204,9 +221,11 @@ contract ExchangeIssuance is ReentrancyGuard {
         uint256 _amountSetToken,
         uint256 _maxAmountInputToken
     )
+        isSetToken(_setToken)
         external
         nonReentrant
     {
+        require(_amountSetToken > 0 && _maxAmountInputToken > 0, "ExchangeIssuance: INVALID INPUTS");
         
         _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
         
@@ -241,10 +260,13 @@ contract ExchangeIssuance is ReentrancyGuard {
         ISetToken _setToken,
         uint256 _amountSetToken
     )
+        isSetToken(_setToken)
         external
         payable
         nonReentrant
     {
+        require(msg.value > 0 && _amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
+        
         IWETH(WETH).deposit{value: msg.value}();
         
         uint256 amountEth = _issueExactSetFromWETH(_setToken, _amountSetToken);
@@ -271,9 +293,12 @@ contract ExchangeIssuance is ReentrancyGuard {
         uint256 _amountSetToRedeem,
         uint256 _minOutputReceive
     )
+        isSetToken(_setToken)
         external
         nonReentrant
     {
+        require(_amountSetToRedeem > 0, "ExchangeIssuance: INVALID INPUTS");
+        
         uint256 amountEthOut = _redeemExactSetForWETH(_setToken, _amountSetToRedeem);
         
         if (address(_outputToken) == WETH) {
@@ -308,9 +333,12 @@ contract ExchangeIssuance is ReentrancyGuard {
         uint256 _amountSetToRedeem,
         uint256 _minETHReceive
     )
+        isSetToken(_setToken)
         external
         nonReentrant
     {
+        require(_amountSetToRedeem > 0, "ExchangeIssuance: INVALID INPUTS");
+        
         uint256 amountEthOut = _redeemExactSetForWETH(_setToken, _amountSetToRedeem);
         
         require(amountEthOut > _minETHReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
@@ -338,10 +366,13 @@ contract ExchangeIssuance is ReentrancyGuard {
         IERC20 _inputToken,
         uint256 _amountInput
     )
+        isSetToken(_setToken)
         external
         view
         returns (uint256)
     {
+        require(_amountInput > 0, "ExchangeIssuance: INVALID INPUTS");
+        
         uint256 amountEth;
         if(address(_inputToken) != WETH)
             (amountEth, ) = _getMaxTokenForExactToken(_amountInput, address(WETH),  address(_inputToken));
@@ -384,10 +415,12 @@ contract ExchangeIssuance is ReentrancyGuard {
         IERC20 _inputToken,
         uint256 _amountSetToken
     )
+        isSetToken(_setToken)
         external
         view
         returns(uint256)
     {
+        require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
         
         uint256 totalEth = 0;
         
@@ -419,10 +452,13 @@ contract ExchangeIssuance is ReentrancyGuard {
         address _outputToken,
         uint256 _amountSetToRedeem
     ) 
+        isSetToken(_setToken)
         external
         view
         returns (uint256)
     {
+        require(_amountSetToRedeem > 0, "ExchangeIssuance: INVALID INPUTS");
+        
         ISetToken.Position[] memory positions = _setToken.getPositions();
         uint256 totalEth = 0;
         for (uint256 i = 0; i < positions.length; i++) {
