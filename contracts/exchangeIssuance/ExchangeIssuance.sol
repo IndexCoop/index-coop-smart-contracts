@@ -163,11 +163,8 @@ contract ExchangeIssuance is ReentrancyGuard {
     {   
         _inputToken.transferFrom(msg.sender, address(this), _amountInput);
         
-        if(address(_inputToken) != WETH) {
-            (, Exchange exchange) = _getMaxTokenForExactToken(_amountInput, address(_inputToken), WETH);
-            _inputToken.approve(address(_getRouter(exchange)), _amountInput);
-            _swapExactTokensForTokens(exchange, address(_inputToken), WETH, _amountInput);
-        }
+        if(address(_inputToken) != WETH) 
+           _swapTokenForWETH(_inputToken, _amountInput);
 
         uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive);
         
@@ -215,20 +212,15 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
         
-        uint256 initETHAmount;
-        if(address(_inputToken) != WETH) {
-            (, Exchange exchange) = _getMaxTokenForExactToken(_maxAmountInputToken, address(_inputToken), WETH);
-            _inputToken.approve(address(_getRouter(exchange)), _maxAmountInputToken);
-            initETHAmount = _swapExactTokensForTokens(exchange, address(_inputToken), WETH, _maxAmountInputToken);
-        } else {
-            initETHAmount = _maxAmountInputToken;
-        }
+        uint256 initETHAmount = address(_inputToken) == WETH
+            ? _maxAmountInputToken
+            :  _swapTokenForWETH(_inputToken, _maxAmountInputToken);
         
         uint256 amountETHSpent = _issueExactSetFromWETH(_setToken, _amountSetToken);
         
         uint256 amountETHReturn = initETHAmount.sub(amountETHSpent);
         
-        uint256 amountTokenReturn;        
+        uint256 amountTokenReturn;
         if(address(_inputToken) != WETH) {
             (, Exchange exchange) = _getMaxTokenForExactToken(amountETHReturn, WETH, address(_inputToken));
             amountTokenReturn = _swapExactTokensForTokens(exchange, WETH, address(_inputToken), amountETHReturn);   
@@ -237,6 +229,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         }
 
         _inputToken.transfer(msg.sender, amountTokenReturn);
+        
         emit ExchangeIssue(msg.sender, _setToken, address(_inputToken), _maxAmountInputToken.sub(amountTokenReturn), _amountSetToken);
     }
     
@@ -260,8 +253,9 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         uint256 returnAmount = msg.value.sub(amountEth);
         IWETH(WETH).withdraw(returnAmount);
-        emit ExchangeIssue(msg.sender, _setToken, address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), amountEth, _amountSetToken);
         msg.sender.transfer(returnAmount);
+        
+        emit ExchangeIssue(msg.sender, _setToken, address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), amountEth, _amountSetToken);
     }
 
     /**
@@ -346,7 +340,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         for (uint i = 0; i < positions.length; i++) {
             address token = positions[i].component;
-            uint256 scaledAmountEth = amountEthIn[i].mul(amountEth).div(sumEth);  // scale the amountEthIn
+            uint256 scaledAmountEth = amountEthIn[i].mul(amountEth).div(sumEth);
             
             uint256 amountTokenOut;
             if(exchanges[i] == Exchange.Uniswap) {
@@ -385,7 +379,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         ISetToken.Position[] memory positions = _setToken.getPositions();
         for(uint256 i = 0; i < positions.length; i++) {     
             uint256 amountToken = uint256(positions[i].unit).mul(_amountSetToken).div(1 ether);
-            (uint256 amountEth,) = _getMinTokenForExactToken(amountToken, WETH, positions[i].component);    // acquire set components
+            (uint256 amountEth,) = _getMinTokenForExactToken(amountToken, WETH, positions[i].component);
             totalEth = totalEth.add(amountEth);
         }
         
@@ -484,7 +478,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         uint256 sumEth = 0;
         
         ISetToken.Position[] memory positions = _setToken.getPositions();
-        for(uint256 i = 0; i < positions.length; i++) {     // acquire set components
+        for(uint256 i = 0; i < positions.length; i++) {
             
             uint256 amountToken = uint256(positions[i].unit).mul(_amountSetToken).div(1 ether);
             
@@ -493,7 +487,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             sumEth = sumEth.add(amountEth);
         }
         
-        basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);      // issue token
+        basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
         
         return sumEth;
      }
@@ -565,15 +559,30 @@ contract ExchangeIssuance is ReentrancyGuard {
         uint256 maxIndexAmount = PreciseUnitMath.maxUint256();
         for (uint i = 0; i < positions.length; i++) {
             
-            uint256 scaledAmountEth = amountEthIn[i].mul(wethBalance).div(sumEth);  // scale the amountEthIn
+            uint256 scaledAmountEth = amountEthIn[i].mul(wethBalance).div(sumEth);
             
             uint256 amountTokenOut = _swapExactTokensForTokens(exchanges[i], WETH, positions[i].component, scaledAmountEth);
 
-            maxIndexAmount = Math.min(amountTokenOut.mul(1 ether).div(uint256(positions[i].unit)), maxIndexAmount);   // update the maxIndexAmount
+            maxIndexAmount = Math.min(amountTokenOut.mul(1 ether).div(uint256(positions[i].unit)), maxIndexAmount);
         }
         return maxIndexAmount;
     }
-
+    
+    /**
+     * Swaps a given amount of an ERC20 token to WETH for the best price on Uniswap/Sushiswap.
+     * 
+     * @param _token    Address of the ERC20 token to be swapped for WETH
+     * @param _amount   Amount of ERC20 token to be swapped
+     * @return          Amount of WETH received after the swap
+     */
+    function _swapTokenForWETH(IERC20 _token, uint256 _amount) internal returns (uint256) {
+        (, Exchange exchange) = _getMaxTokenForExactToken(_amount, address(_token), WETH);
+        IUniswapV2Router02 router = _getRouter(exchange);
+        if(_token.allowance(address(this), address(router)) < _amount)
+            _token.approve(address(router), _amount);
+        return _swapExactTokensForTokens(exchange, address(_token), WETH, _amount);
+    }
+    
     /**
      * Swap exact tokens for another token on a given DEX.
      *
@@ -581,7 +590,6 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @param _tokenIn      The address of the input token
      * @param _tokenOut     The address of the output token
      * @param _amountIn     The amount of input token to be spent
-     * 
      * @return              The amount of output tokens
      */
     function _swapExactTokensForTokens(Exchange _exchange, address _tokenIn, address _tokenOut, uint256 _amountIn) internal returns (uint256) {
@@ -598,7 +606,6 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @param _tokenIn      The address of the input token
      * @param _tokenOut     The address of the output token
      * @param _amountOut    The amount of output token required
-     * 
      * @return              The amount of input tokens spent
      */
     function _swapTokensForExactTokens(Exchange _exchange, address _tokenIn, address _tokenOut, uint256 _amountOut) internal returns (uint256) {
@@ -630,7 +637,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         for(uint256 i = 0; i < positions.length; i++) {
             (amountEthIn[i], exchanges[i]) = _getMinTokenForExactToken(uint256(positions[i].unit), WETH, positions[i].component);
-            sumEth = sumEth.add(amountEthIn[i]);     // increment sum
+            sumEth = sumEth.add(amountEthIn[i]);
         }
         return (amountEthIn, exchanges, sumEth);
     }
@@ -642,7 +649,6 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @param _amountOut    The amount of output token
      * @param _tokenA       The address of tokenA
      * @param _tokenB       The address of tokenB
-     * 
      * @return              The min amount of tokenA required across both exchanges
      * @return              The Exchange on which minimum amount of tokenA is required
      */
@@ -671,7 +677,6 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @param _amountIn     The amount of input token
      * @param _tokenA       The address of tokenA
      * @param _tokenB       The address of tokenB
-     * 
      * @return              The max amount of tokens that can be received across both exchanges
      * @return              The Exchange on which maximum amount of token can be received
      */
@@ -699,7 +704,6 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @param _factory   The factory to use (can be either uniFactory or sushiFactory)
      * @param _tokenA    The address of the tokenA
      * @param _tokenB    The address of the tokenB
-     *
      * @return          A boolean representing if the token is available
      */
     function _pairAvailable(address _factory, address _tokenA, address _tokenB) internal view returns (bool) {
