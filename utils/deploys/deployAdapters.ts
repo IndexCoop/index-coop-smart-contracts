@@ -13,7 +13,6 @@ export default class DeployAdapters {
 
   public async deployFlexibleLeverageStrategyAdapter(
     instances: any,
-    assetDecimals: any,
     methodologyParams: any,
     executionParams: any,
     incentiveParams: any,
@@ -22,7 +21,6 @@ export default class DeployAdapters {
   ): Promise<FlexibleLeverageStrategyAdapter> {
     return await new FlexibleLeverageStrategyAdapter__factory(this._deployerSigner).deploy(
       instances,
-      assetDecimals,
       methodologyParams,
       executionParams,
       incentiveParams,
