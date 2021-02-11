@@ -32,9 +32,8 @@ import { UniswapV2Library } from "../../external/contracts/UniswapV2Library.sol"
  * @title ExchangeIssuance
  * @author Index Coop
  *
- * Contract for minting and redeeming any SetToken using
- * ETH or an ERC20 as the paying/receiving currency. All swaps are done using the best price
- * found on Uniswap or Sushiswap.
+ * Contract for issuing and redeeming any SetToken using ETH or an ERC20 as the paying/receiving currency.
+ * All swaps are done using the best price found on Uniswap or Sushiswap.
  *
  */
 contract ExchangeIssuance is ReentrancyGuard {
@@ -256,33 +255,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         emit ExchangeIssue(msg.sender, _setToken, address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), amountEth, _amountSetToken);
     }
-
-    /**
-     * Redeems an exact amount of SetTokens for ETH.
-     * The SetToken must be approved by the sender to this contract.
-     *
-     * @param _setToken             Address of the SetToken being redeemed
-     * @param _amountSetToRedeem    Amount SetTokens to redeem
-     * @param _minETHReceive        Minimum amount of ETH to receive
-     */
-    function redeemExactSetForETH(
-        ISetToken _setToken,
-        uint256 _amountSetToRedeem,
-        uint256 _minETHReceive
-    )
-        external
-        nonReentrant
-    {
-        uint256 amountEthOut = _redeemExactSetForWETH(_setToken, _amountSetToRedeem);
-        
-        require(amountEthOut > _minETHReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
-        
-        IWETH(WETH).withdraw(amountEthOut);
-        msg.sender.transfer(amountEthOut);
-
-        emit ExchangeRedeem(msg.sender, _setToken, address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), _amountSetToRedeem, amountEthOut);
-    }
-
+    
     /**
      * Redeems an exact amount of SetTokens for an ERC20 token.
      * The SetToken must be approved by the sender to this contract.
@@ -321,6 +294,32 @@ contract ExchangeIssuance is ReentrancyGuard {
             emit ExchangeRedeem(msg.sender, _setToken, address(_outputToken), _amountSetToRedeem, outputAmount);
         }
     }
+    
+    /**
+     * Redeems an exact amount of SetTokens for ETH.
+     * The SetToken must be approved by the sender to this contract.
+     *
+     * @param _setToken             Address of the SetToken being redeemed
+     * @param _amountSetToRedeem    Amount SetTokens to redeem
+     * @param _minETHReceive        Minimum amount of ETH to receive
+     */
+    function redeemExactSetForETH(
+        ISetToken _setToken,
+        uint256 _amountSetToRedeem,
+        uint256 _minETHReceive
+    )
+        external
+        nonReentrant
+    {
+        uint256 amountEthOut = _redeemExactSetForWETH(_setToken, _amountSetToRedeem);
+        
+        require(amountEthOut > _minETHReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
+        
+        IWETH(WETH).withdraw(amountEthOut);
+        msg.sender.transfer(amountEthOut);
+
+        emit ExchangeRedeem(msg.sender, _setToken, address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), _amountSetToRedeem, amountEthOut);
+    }
 
     // required for weth.withdraw() to work properly
     receive() external payable {}
@@ -349,7 +348,6 @@ contract ExchangeIssuance is ReentrancyGuard {
         else
             amountEth = _amountInput;
         
-        // uint256 amountEth = _getMaxTokenForExactToken(_amountInput, address(WETH),  address(_inputToken));
         (uint256[] memory amountEthIn, Exchange[] memory exchanges, uint256 sumEth) = _getAmountETHForIssuance(_setToken);
         
         uint256 maxIndexAmount = PreciseUnitMath.maxUint256();
@@ -360,7 +358,6 @@ contract ExchangeIssuance is ReentrancyGuard {
             uint256 scaledAmountEth = amountEthIn[i].mul(amountEth).div(sumEth);
             
             uint256 amountTokenOut;
-            
             if(exchanges[i] == Exchange.Uniswap) {
                 (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, WETH, token);
                 amountTokenOut = UniswapV2Library.getAmountOut(scaledAmountEth, tokenReserveA, tokenReserveB);
@@ -403,10 +400,10 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         if(address(_inputToken) == WETH) {
             return totalEth;
-        } else {
-            (uint256 tokenAmount, ) = _getMinTokenForExactToken(totalEth, address(_inputToken), address(WETH));
-            return tokenAmount;
-        }
+        } 
+        
+        (uint256 tokenAmount, ) = _getMinTokenForExactToken(totalEth, address(_inputToken), address(WETH));
+        return tokenAmount;
     }
     
     /**
@@ -440,7 +437,11 @@ contract ExchangeIssuance is ReentrancyGuard {
         (uint256 tokenAmount, ) = _getMaxTokenForExactToken(totalEth, WETH, _outputToken);
         return tokenAmount;
     }
-
+    
+    
+    /* ============ Internal Functions ============ */
+    
+    
     /**
      * Sells the total balance that the contract holds of each component of the set
      * using the best quoted price from either Uniswap or Sushiswap
@@ -525,7 +526,34 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         return _liquidateComponentsForWETH(_setToken);
     }
-
+    
+    /**
+     * Gets the amount of ether required for issuing each component in a set SetToken.
+     * The amount of ether is calculated based on prices across both uniswap and sushiswap.
+     * 
+     * @param _setToken      Address of the SetToken
+     * @return amountEthIn   An array containing the amount of ether to purchase each component of the set
+     * @return exchanges     An array containing the exchange on which to perform the swap
+     * @return sumEth        The approximate total ETH cost to issue the set
+     */
+    function _getAmountETHForIssuance(ISetToken _setToken)
+        internal
+        view
+        returns (uint256[] memory, Exchange[] memory, uint256)
+    {
+        uint256 sumEth = 0;
+        ISetToken.Position[] memory positions = _setToken.getPositions();
+        
+        uint256[] memory amountEthIn = new uint256[](positions.length);
+        Exchange[] memory exchanges = new Exchange[](positions.length);
+        
+        for(uint256 i = 0; i < positions.length; i++) {
+            (amountEthIn[i], exchanges[i]) = _getMinTokenForExactToken(uint256(positions[i].unit), WETH, positions[i].component);
+            sumEth = sumEth.add(amountEthIn[i]);
+        }
+        return (amountEthIn, exchanges, sumEth);
+    }
+    
     /**
      * Aquires all the components neccesary to issue a set, purchasing tokens
      * from either Uniswap or Sushiswap to get the best price.
@@ -606,33 +634,6 @@ contract ExchangeIssuance is ReentrancyGuard {
         return _getRouter(_exchange).swapTokensForExactTokens(_amountOut, PreciseUnitMath.maxUint256(), path, address(this), block.timestamp)[0];
     }
  
-    /**
-     * Gets the amount of ether required for issuing each component in a set SetToken.
-     * The amount of ether is calculated based on prices across both uniswap and sushiswap.
-     * 
-     * @param _setToken      Address of the SetToken
-     * @return amountEthIn   An array containing the amount of ether to purchase each component of the set
-     * @return exchanges     An array containing the exchange on which to perform the swap
-     * @return sumEth        The approximate total ETH cost to issue the set
-     */
-    function _getAmountETHForIssuance(ISetToken _setToken)
-        internal
-        view
-        returns (uint256[] memory, Exchange[] memory, uint256)
-    {
-        uint256 sumEth = 0;
-        ISetToken.Position[] memory positions = _setToken.getPositions();
-        
-        uint256[] memory amountEthIn = new uint256[](positions.length);
-        Exchange[] memory exchanges = new Exchange[](positions.length);
-        
-        for(uint256 i = 0; i < positions.length; i++) {
-            (amountEthIn[i], exchanges[i]) = _getMinTokenForExactToken(uint256(positions[i].unit), WETH, positions[i].component);
-            sumEth = sumEth.add(amountEthIn[i]);
-        }
-        return (amountEthIn, exchanges, sumEth);
-    }
-
     /**
      * Compares the amount of token required for an exact amount of another token across both exchanges,
      * and returns the min amount.
