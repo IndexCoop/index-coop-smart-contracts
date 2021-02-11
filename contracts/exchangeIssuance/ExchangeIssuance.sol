@@ -40,7 +40,6 @@ import { UniswapV2Library } from "../../external/contracts/UniswapV2Library.sol"
 contract ExchangeIssuance is ReentrancyGuard {
     
     // TODO: use safeERC20
-    // TODO: Discuss KNC token approve function.
     
     using SafeMath for uint256;
     
@@ -264,21 +263,24 @@ contract ExchangeIssuance is ReentrancyGuard {
      *
      * @param _setToken             Address of the SetToken being redeemed
      * @param _amountSetToRedeem    Amount SetTokens to redeem
-     * @param _minOutputReceive     Minimum amount of ETH to receive
+     * @param _minETHReceive        Minimum amount of ETH to receive
      */
     function redeemExactSetForETH(
         ISetToken _setToken,
         uint256 _amountSetToRedeem,
-        uint256 _minOutputReceive
+        uint256 _minETHReceive
     )
         external
         nonReentrant
     {
-        _setToken.transferFrom(msg.sender, address(this), _amountSetToRedeem);
-        basicIssuanceModule.redeem(_setToken, _amountSetToRedeem, address(this));
-        _liquidateComponents(_setToken);
-        uint256 outputAmount = _handleRedeemOutputETH(_minOutputReceive);
-        emit ExchangeRedeem(msg.sender, _setToken, address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), _amountSetToRedeem, outputAmount);
+        uint256 amountEthOut = _redeemExactSetForWETH(_setToken, _amountSetToRedeem);
+        
+        require(amountEthOut > _minETHReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
+        
+        IWETH(WETH).withdraw(amountEthOut);
+        msg.sender.transfer(amountEthOut);
+
+        emit ExchangeRedeem(msg.sender, _setToken, address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), _amountSetToRedeem, amountEthOut);
     }
 
     /**
@@ -299,11 +301,25 @@ contract ExchangeIssuance is ReentrancyGuard {
         external
         nonReentrant
     {
-        _setToken.transferFrom(msg.sender, address(this), _amountSetToRedeem);
-        basicIssuanceModule.redeem(_setToken, _amountSetToRedeem, address(this));
-        _liquidateComponents(_setToken);
-        uint256 outputAmount = _handleRedeemOutputToken(_outputToken, _minOutputReceive);
-        emit ExchangeRedeem(msg.sender, _setToken, address(_outputToken), _amountSetToRedeem, outputAmount);
+        uint256 amountEthOut = _redeemExactSetForWETH(_setToken, _amountSetToRedeem);
+        
+        if (address(_outputToken) == WETH) {
+            
+            require(amountEthOut > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
+            _outputToken.transfer(msg.sender, amountEthOut);
+            
+            emit ExchangeRedeem(msg.sender, _setToken, address(_outputToken), _amountSetToRedeem, amountEthOut);
+        
+        } else {
+            
+            (uint amountTokenOut, Exchange exchange) = _getMaxTokenForExactToken(amountEthOut, address(WETH), address(_outputToken));
+            require(amountTokenOut > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
+            
+            uint256 outputAmount = _swapExactTokensForTokens(exchange, WETH, address(_outputToken), amountEthOut);
+            _outputToken.transfer(msg.sender, outputAmount);
+           
+            emit ExchangeRedeem(msg.sender, _setToken, address(_outputToken), _amountSetToRedeem, outputAmount);
+        }
     }
 
     // required for weth.withdraw() to work properly
@@ -333,6 +349,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         else
             amountEth = _amountInput;
         
+        // uint256 amountEth = _getMaxTokenForExactToken(_amountInput, address(WETH),  address(_inputToken));
         (uint256[] memory amountEthIn, Exchange[] memory exchanges, uint256 sumEth) = _getAmountETHForIssuance(_setToken);
         
         uint256 maxIndexAmount = PreciseUnitMath.maxUint256();
@@ -343,6 +360,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             uint256 scaledAmountEth = amountEthIn[i].mul(amountEth).div(sumEth);
             
             uint256 amountTokenOut;
+            
             if(exchanges[i] == Exchange.Uniswap) {
                 (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, WETH, token);
                 amountTokenOut = UniswapV2Library.getAmountOut(scaledAmountEth, tokenReserveA, tokenReserveB);
@@ -428,15 +446,18 @@ contract ExchangeIssuance is ReentrancyGuard {
      * using the best quoted price from either Uniswap or Sushiswap
      * 
      * @param _setToken     The SetToken that is being liquidated
+     * @return              Amount of WETH received after liquidating all components of the SetToken
      */
-    function _liquidateComponents(ISetToken _setToken) internal {
+    function _liquidateComponentsForWETH(ISetToken _setToken) internal returns (uint256) {
+        uint256 sumEth = 0;
         ISetToken.Position[] memory positions = _setToken.getPositions();
         for (uint256 i = 0; i < positions.length; i++) {
             address token = positions[i].component;
             uint256 tokenBalance = IERC20(token).balanceOf(address(this));
             (, Exchange exchange) = _getMaxTokenForExactToken(tokenBalance, token, WETH);
-            _swapExactTokensForTokens(exchange, token, WETH, tokenBalance);
+            sumEth = sumEth.add(_swapExactTokensForTokens(exchange, token, WETH, tokenBalance));
         }
+        return sumEth;
     }
     
     /**
@@ -486,56 +507,26 @@ contract ExchangeIssuance is ReentrancyGuard {
             uint256 amountEth = _swapTokensForExactTokens(exchange, WETH, positions[i].component, amountToken);
             sumEth = sumEth.add(amountEth);
         }
-        
         basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
-        
         return sumEth;
-     }
+    }
     
     /**
-     * Handles converting the contract's full WETH balance to ether 
-     * and transfers it to the msg sender.
-     *
-     * @param _minOutputReceive Minimum amount of output ether to receive. This 
-     *                          function reverts if the output is less than this. 
-     * @return                  Amount of output ether sent to msg.sender
+     * Redeems a given amount of SetToken and then liquidates the components received for WETH.
+     * 
+     * @param _setToken             Address of the SetToken to be redeemed
+     * @param _amountSetToRedeem    Amount of SetToken to be redeemed
+     * @return                      Amount of WETH received after liquidating SetToken components
      */
-    function _handleRedeemOutputETH(uint256 _minOutputReceive) internal returns (uint256) {
-        IWETH(WETH).withdraw(IERC20(WETH).balanceOf(address(this)));
-        uint256 outputAmount = address(this).balance;
-        require(outputAmount > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
-        msg.sender.transfer(outputAmount);
-        return outputAmount;
+    function _redeemExactSetForWETH(ISetToken _setToken, uint256 _amountSetToRedeem) internal returns (uint256) {
+        _setToken.transferFrom(msg.sender, address(this), _amountSetToRedeem);
+        
+        basicIssuanceModule.redeem(_setToken, _amountSetToRedeem, address(this));
+        
+        return _liquidateComponentsForWETH(_setToken);
     }
 
     /**
-     * Handles converting the contract's full WETH balance to the output
-     * token and transfers it to the msg sender.
-     *
-     * @param _outputToken      The token to swap the contract's WETH balance to. 
-     * @param _minOutputReceive Minimum amount of output token to receive. This 
-     *                          function reverts if the output is less than this. 
-     * @return                  Amount of tokens sent to msg.sender
-     */
-    function _handleRedeemOutputToken(IERC20 _outputToken, uint256 _minOutputReceive) internal returns (uint256) {
-        if (address(_outputToken) == WETH) {
-            uint256 outputAmount = IERC20(WETH).balanceOf(address(this));
-            require(outputAmount > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
-            IERC20(WETH).transfer(msg.sender, outputAmount);
-            return outputAmount;
-        } else {
-            uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
-            (uint amountTokenOut, Exchange exchange) = _getMaxTokenForExactToken(wethBalance, address(WETH), address(_outputToken));
-            
-            require(amountTokenOut > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
-            
-            uint256 outputAmount = _swapExactTokensForTokens(exchange, WETH, address(_outputToken), wethBalance);
-            _outputToken.transfer(msg.sender, outputAmount);
-            return outputAmount;
-        }
-    }
-
-     /**
      * Aquires all the components neccesary to issue a set, purchasing tokens
      * from either Uniswap or Sushiswap to get the best price.
      *
@@ -569,7 +560,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
     
     /**
-     * Swaps a given amount of an ERC20 token to WETH for the best price on Uniswap/Sushiswap.
+     * Swaps a given amount of an ERC20 token for WETH for the best price on Uniswap/Sushiswap.
      * 
      * @param _token    Address of the ERC20 token to be swapped for WETH
      * @param _amount   Amount of ERC20 token to be swapped
