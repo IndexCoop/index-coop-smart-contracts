@@ -14,25 +14,25 @@
 pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
-import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
-import { Math } from "@openzeppelin/contracts/math/Math.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { IUniswapV2Router02 } from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import { IUniswapV2Factory } from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
+import { IUniswapV2Router02 } from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import { Math } from "@openzeppelin/contracts/math/Math.sol";
+import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
-import { UniswapV2Library } from "../../external/contracts/UniswapV2Library.sol";
-import { SushiswapV2Library } from "../../external/contracts/SushiswapV2Library.sol";
-import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IBasicIssuanceModule } from "../interfaces/IBasicIssuanceModule.sol";
+import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
+import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
+import { SushiswapV2Library } from "../../external/contracts/SushiswapV2Library.sol";
+import { UniswapV2Library } from "../../external/contracts/UniswapV2Library.sol";
 
 /**
  * @title ExchangeIssuance
  * @author Index Coop
  *
- * Contract for minting and redeeming any Set token using
+ * Contract for minting and redeeming any SetToken using
  * ETH or an ERC20 as the paying/receiving currency. All swaps are done using the best price
  * found on Uniswap or Sushiswap.
  *
@@ -48,7 +48,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     
     enum Exchange { Uniswap, Sushiswap }
     
-    /* ============ constants ============ */
+    /* ============ Constants ============ */
     
     uint256 constant private MAX_UINT96 = 2 ** 96 - 1;
     
@@ -65,18 +65,19 @@ contract ExchangeIssuance is ReentrancyGuard {
     /* ============ Events ============ */
 
     event ExchangeIssue(
-        address indexed _recipient,
-        address indexed _setToken,
-        address indexed _inputToken,
-        uint256 _amountIn,
-        uint256 _amountOut
+        address indexed _recipient,     // The recipient address of the issued SetTokens
+        ISetToken indexed _setToken,    // The issued SetToken
+        address indexed _inputToken,    // The address of the input asset(ERC20/ETH) used to issue the SetTokens
+        uint256 _amountInputToken,      // The amount of input tokens used for issuance
+        uint256 _amountSetIssued        // The amount of SetTokens received by the recipient
     );
+
     event ExchangeRedeem(
-        address indexed _recipient,
-        address indexed _setToken,
-        address indexed _outputToken,
-        uint256 _amountIn,
-        uint256 _amountOut
+        address indexed _recipient,     // The recipient address which redeemed the SetTokens
+        ISetToken indexed _setToken,    // The redeemed SetToken
+        address indexed _outputToken,   // The addres of output asset(ERC20/ETH) received by the recipient
+        uint256 _amountSetRedeemed,     // The amount of SetTokens redeemed for output tokens
+        uint256 _amountOutputToken      // The amount of output tokens received by the recipient
     );
 
     /* ============ Constructor ============ */
@@ -106,7 +107,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     
     /**
      * Runs all the necessary approval functions required for a given ERC20 token.
-     * This function can be called when a new token is added to a set token during a 
+     * This function can be called when a new token is added to a SetToken during a 
      * rebalance.
      *
      * @param _token    Address of the token which needs approval
@@ -125,32 +126,31 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @param _tokens    Addresses of the tokens which need approval
      */
     function approveTokens(IERC20[] calldata _tokens) external {
-        for(uint256 i = 0; i < _tokens.length; i++)
+        for (uint256 i = 0; i < _tokens.length; i++)
             approveToken(_tokens[i]);
     }
 
     /**
      * Runs all the necessary approval functions required before issuing
-     * or redeeming a set token. This function need to be called only once before the first time
-     * this smart contract is used on any particular set token.
+     * or redeeming a SetToken. This function need to be called only once before the first time
+     * this smart contract is used on any particular SetToken.
      *
-     * @param _setToken    Address of the set token being initialized
+     * @param _setToken    Address of the SetToken being initialized
      */
     function approveSetToken(ISetToken _setToken) external {
-        ISetToken.Position[] memory positions = _setToken.getPositions();
-        for (uint256 i = 0; i < positions.length; i++)
-            approveToken(IERC20(positions[i].component));
+        address[] memory components = _setToken.getComponents();
+        for (uint256 i = 0; i < components.length; i++)
+            approveToken(IERC20(components[i]));
     }
 
     /**
-     * Issues set tokens for an exact amount of input token. 
-     * Acquires set token components at the best price accross uniswap and sushiswap.
-     * Uses the acquired components to issue the set tokens.
+     * Issues SetTokens for an exact amount of input ERC20 tokens.
+     * The ERC20 token must be approved by the sender to this contract. 
      *
-     * @param _setToken         Address of the set token being issued
+     * @param _setToken         Address of the SetToken being issued
      * @param _inputToken       Address of input token
      * @param _amountInput      Amount of the input token / ether to spend
-     * @param _minSetReceive    Minimum amount of set tokens to receive
+     * @param _minSetReceive    Minimum amount of SetTokens to receive. Prevents unnecessary slippage.
      */
     function issueSetForExactToken(
         ISetToken _setToken,
@@ -163,25 +163,22 @@ contract ExchangeIssuance is ReentrancyGuard {
     {   
         _inputToken.transferFrom(msg.sender, address(this), _amountInput);
         
-        if(address(_inputToken) != WETH) {      // swap inputToken to WETH
+        if(address(_inputToken) != WETH) {
             (, Exchange exchange) = _getMaxTokenForExactToken(_amountInput, address(_inputToken), WETH);
-            IERC20(_inputToken).approve(address(_getRouter(exchange)), _amountInput);
+            _inputToken.approve(address(_getRouter(exchange)), _amountInput);
             _swapExactTokensForTokens(exchange, address(_inputToken), WETH, _amountInput);
         }
-            
-        uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive);     // issue set token
+
+        uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive);
         
-        emit ExchangeIssue(msg.sender, address(_setToken), address(_inputToken), _amountInput, setTokenAmount);
-        
+        emit ExchangeIssue(msg.sender, _setToken, address(_inputToken), _amountInput, setTokenAmount);
     }
     
     /**
-     * Issues set tokens for an exact amount of input ether. 
-     * Acquires set token components at the best price accross uniswap and sushiswap.
-     * Uses the acquired components to issue the set tokens.
+     * Issues SetTokens for an exact amount of input ether.
      * 
-     * @param _setToken         Address of the set token to be issued
-     * @param _minSetReceive    Minimum amount of index to receive
+     * @param _setToken         Address of the SetToken to be issued
+     * @param _minSetReceive    Minimum amount of SetTokens to receive. Prevents unnecessary slippage.
      */
     function issueSetForExactETH(
         ISetToken _setToken,
@@ -191,24 +188,20 @@ contract ExchangeIssuance is ReentrancyGuard {
         payable
         nonReentrant
     {
-        
         IWETH(WETH).deposit{value: msg.value}();
         
-        uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive);     // issue set token
+        uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive);
         
-        emit ExchangeIssue(msg.sender, address(_setToken), address(WETH), msg.value, setTokenAmount);
-        
+        emit ExchangeIssue(msg.sender, _setToken, address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), msg.value, setTokenAmount);   
     }
     
     /**
-    * Issues an exact amount of set tokens using ERC20 tokens as input.
-    * Acquires set token components at the best price accross uniswap and sushiswap.
-    * Uses the acquired components to issue the set tokens.
+    * Issues an exact amount of SetTokens for given amount of input ether.
     *
-    * @param _setToken              Address of the set token to be issued
+    * @param _setToken              Address of the SetToken to be issued
     * @param _inputToken            Address of the input token
-    * @param _amountSetToken        Amount of set tokens to issue
-    * @param _maxAmountInputToken   Maximum amount of input tokens to be used to issue set tokens
+    * @param _amountSetToken        Amount of SetTokens to issue
+    * @param _maxAmountInputToken   Maximum amount of input tokens to be used to issue SetTokens
     */
     function issueExactSetFromToken(
         ISetToken _setToken,
@@ -223,36 +216,35 @@ contract ExchangeIssuance is ReentrancyGuard {
         _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
         
         uint256 initETHAmount;
-        if(address(_inputToken) != WETH) {      // swap inputToken to WETH
+        if(address(_inputToken) != WETH) {
             (, Exchange exchange) = _getMaxTokenForExactToken(_maxAmountInputToken, address(_inputToken), WETH);
-            IERC20(_inputToken).approve(address(_getRouter(exchange)), _maxAmountInputToken);
+            _inputToken.approve(address(_getRouter(exchange)), _maxAmountInputToken);
             initETHAmount = _swapExactTokensForTokens(exchange, address(_inputToken), WETH, _maxAmountInputToken);
         } else {
             initETHAmount = _maxAmountInputToken;
         }
         
-        uint256 amountETHSpent = _issueExactSetFromWETH(_setToken, _amountSetToken);        // issue set tokens
+        uint256 amountETHSpent = _issueExactSetFromWETH(_setToken, _amountSetToken);
         
-        uint256 amountETHReturn = initETHAmount.sub(amountETHSpent);        // unspent ether amount
+        uint256 amountETHReturn = initETHAmount.sub(amountETHSpent);
         
         uint256 amountTokenReturn;        
-        if(address(_inputToken) != WETH) {      // buy return token using unspent ether
+        if(address(_inputToken) != WETH) {
             (, Exchange exchange) = _getMaxTokenForExactToken(amountETHReturn, WETH, address(_inputToken));
             amountTokenReturn = _swapExactTokensForTokens(exchange, WETH, address(_inputToken), amountETHReturn);   
         } else {
             amountTokenReturn = amountETHReturn;
         }
 
-        emit ExchangeIssue(msg.sender, address(_setToken), address(_inputToken), _maxAmountInputToken.sub(amountTokenReturn), _amountSetToken);
-        _inputToken.transfer(msg.sender, amountTokenReturn);        // return unspent tokens to user
+        _inputToken.transfer(msg.sender, amountTokenReturn);
+        emit ExchangeIssue(msg.sender, _setToken, address(_inputToken), _maxAmountInputToken.sub(amountTokenReturn), _amountSetToken);
     }
     
     /**
-    * Issues an exact amount of set tokens using a given amount of ether.
-    * The set token components are acquired at the best price across DEXes.
+    * Issues an exact amount of SetTokens using a given amount of ether.
     *
-    * @param _setToken          Address of the set token being issued
-    * @param _amountSetToken    Amount of set tokens to issue
+    * @param _setToken          Address of the SetToken being issued
+    * @param _amountSetToken    Amount of SetTokens to issue
     */
     function issueExactSetFromETH(
         ISetToken _setToken,
@@ -268,16 +260,16 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         uint256 returnAmount = msg.value.sub(amountEth);
         IWETH(WETH).withdraw(returnAmount);
-        emit ExchangeIssue(msg.sender, address(_setToken), WETH, amountEth, _amountSetToken);
-        msg.sender.transfer(returnAmount);      // return unspent ether
+        emit ExchangeIssue(msg.sender, _setToken, address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), amountEth, _amountSetToken);
+        msg.sender.transfer(returnAmount);
     }
 
     /**
-     * Redeems an exact amount of set tokens for ETH using Uniswap
-     * or Sushiswap
+     * Redeems an exact amount of SetTokens for ETH.
+     * The SetToken must be approved by the sender to this contract.
      *
-     * @param _setToken             Address of the set token being redeemed
-     * @param _amountSetToRedeem    Amount set tokens to redeem
+     * @param _setToken             Address of the SetToken being redeemed
+     * @param _amountSetToRedeem    Amount SetTokens to redeem
      * @param _minOutputReceive     Minimum amount of ETH to receive
      */
     function redeemExactSetForETH(
@@ -292,16 +284,16 @@ contract ExchangeIssuance is ReentrancyGuard {
         basicIssuanceModule.redeem(_setToken, _amountSetToRedeem, address(this));
         _liquidateComponents(_setToken);
         uint256 outputAmount = _handleRedeemOutputETH(_minOutputReceive);
-        emit ExchangeRedeem(msg.sender, address(_setToken), WETH, _amountSetToRedeem, outputAmount);
+        emit ExchangeRedeem(msg.sender, _setToken, address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), _amountSetToRedeem, outputAmount);
     }
 
     /**
-     * Redeems an exact amount of set tokens for an ERC20 using
-     * Uniswap or Sushiswap
+     * Redeems an exact amount of SetTokens for an ERC20 token.
+     * The SetToken must be approved by the sender to this contract.
      *
-     * @param _setToken             Address of the set token being redeemed
+     * @param _setToken             Address of the SetToken being redeemed
      * @param _outputToken          Address of output token
-     * @param _amountSetToRedeem    Amount set tokens to redeem
+     * @param _amountSetToRedeem    Amount SetTokens to redeem
      * @param _minOutputReceive     Minimum amount of output token to receive
      */
     function redeemExactSetForToken(
@@ -317,7 +309,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         basicIssuanceModule.redeem(_setToken, _amountSetToRedeem, address(this));
         _liquidateComponents(_setToken);
         uint256 outputAmount = _handleRedeemOutputToken(_outputToken, _minOutputReceive);
-        emit ExchangeRedeem(msg.sender, address(_setToken), address(_outputToken), _amountSetToRedeem, outputAmount);
+        emit ExchangeRedeem(msg.sender, _setToken, address(_outputToken), _amountSetToRedeem, outputAmount);
     }
 
     // required for weth.withdraw() to work properly
@@ -327,10 +319,10 @@ contract ExchangeIssuance is ReentrancyGuard {
      * Returns an estimated quantity of the specified SetToken given a specified amount of input token.
      * Estimating pulls the best price of each component using Uniswap or Sushiswap
      *
-     * @param _setToken         Address of the set token being issued
+     * @param _setToken         Address of the SetToken being issued
      * @param _amountInput      Amount of the input token to spend
      * @param _inputToken       Address of input token.
-     * @return                  Estimated amount of Set tokens that will be received
+     * @return                  Estimated amount of SetTokens that will be received
      */
     function getEstimatedIssueSetAmount(
         ISetToken _setToken,
@@ -372,11 +364,11 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
     
     /**
-    * Returns the amount of input tokens required to issue an exact amount of set tokens.
+    * Returns the amount of input tokens required to issue an exact amount of SetTokens.
     *
-    * @param _setToken          Address of the set token being issued
-    * @param _amountSetToken    Amount of set tokens to issue
-    * @return                   Amount of tokens needed to issue specified amount of Set tokens
+    * @param _setToken          Address of the SetToken being issued
+    * @param _amountSetToken    Amount of SetTokens to issue
+    * @return                   Amount of tokens needed to issue specified amount of SetTokens
     */
     function getAmountInToIssueExactSet(
         ISetToken _setToken,
@@ -407,10 +399,9 @@ contract ExchangeIssuance is ReentrancyGuard {
     
     /**
      * Returns an estimated amount of ETH or specified ERC20 received for a given SetToken and SetToken amount. 
-     * Estimation pulls the best price of each component from Uniswap or Sushiswap.
      *
-     * @param _setToken             Set token redeemed
-     * @param _amountSetToRedeem    Amount of set token
+     * @param _setToken             SetToken redeemed
+     * @param _amountSetToRedeem    Amount of SetToken
      * @param _outputToken          Address of output token. Ignored if _isOutputETH is true
      * @return                      Estimated amount of ether/erc20 that will be received
      */
@@ -442,7 +433,7 @@ contract ExchangeIssuance is ReentrancyGuard {
      * Sells the total balance that the contract holds of each component of the set
      * using the best quoted price from either Uniswap or Sushiswap
      * 
-     * @param _setToken     The set token that is being liquidated
+     * @param _setToken     The SetToken that is being liquidated
      */
     function _liquidateComponents(ISetToken _setToken) internal {
         ISetToken.Position[] memory positions = _setToken.getPositions();
@@ -455,13 +446,13 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
     
     /**
-     * Issues set tokens for an exact amount of input WETH. 
-     * Acquires set token components at the best price accross uniswap and sushiswap.
-     * Uses the acquired components to issue the set tokens.
+     * Issues SetTokens for an exact amount of input WETH. 
+     * Acquires SetToken components at the best price accross uniswap and sushiswap.
+     * Uses the acquired components to issue the SetTokens.
      * 
-     * @param _setToken         Address of the set token being issued
+     * @param _setToken         Address of the SetToken being issued
      * @param _minSetReceive    Minimum amount of index to receive
-     * @return setTokenAmount   Amount of set tokens issued
+     * @return setTokenAmount   Amount of SetTokens issued
      */
     function _issueSetForExactWETH(ISetToken _setToken, uint256 _minSetReceive) internal returns (uint256) {
         uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
@@ -470,23 +461,23 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         (uint256[] memory amountEthIn, Exchange[] memory exchanges, uint256 sumEth) = _getAmountETHForIssuance(_setToken);
 
-        uint256 setTokenAmount = _acquireComponents(positions, amountEthIn, exchanges, wethBalance, sumEth);    // acquire set components
+        uint256 setTokenAmount = _acquireComponents(positions, amountEthIn, exchanges, wethBalance, sumEth);
         
         require(setTokenAmount > _minSetReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
         
-        basicIssuanceModule.issue(_setToken, setTokenAmount, msg.sender);       // issue token
+        basicIssuanceModule.issue(_setToken, setTokenAmount, msg.sender);
         
         return setTokenAmount;
     }
     
     /**
-     * Issues an exact amount of set tokens using WETH. 
-     * Acquires set token components at the best price accross uniswap and sushiswap.
-     * Uses the acquired components to issue the set tokens.
+     * Issues an exact amount of SetTokens using WETH. 
+     * Acquires SetToken components at the best price accross uniswap and sushiswap.
+     * Uses the acquired components to issue the SetTokens.
      * 
-     * @param _setToken          Address of the set token being issued
-     * @param _amountSetToken    Amount of set tokens to issue
-     * @return sumEth            Total amount of ether used to acquire the set token components    
+     * @param _setToken          Address of the SetToken being issued
+     * @param _amountSetToken    Amount of SetTokens to issue
+     * @return sumEth            Total amount of ether used to acquire the SetToken components    
      */
     function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken) internal returns(uint256) {
         
@@ -618,10 +609,10 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
  
     /**
-     * Gets the amount of ether required for issuing each component in a set set token.
+     * Gets the amount of ether required for issuing each component in a set SetToken.
      * The amount of ether is calculated based on prices across both uniswap and sushiswap.
      * 
-     * @param _setToken      Address of the set token
+     * @param _setToken      Address of the SetToken
      * @return amountEthIn   An array containing the amount of ether to purchase each component of the set
      * @return exchanges     An array containing the exchange on which to perform the swap
      * @return sumEth        The approximate total ETH cost to issue the set
