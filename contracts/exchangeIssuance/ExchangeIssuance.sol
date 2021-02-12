@@ -205,7 +205,8 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
     
     /**
-    * Issues an exact amount of SetTokens for given amount of input ether.
+    * Issues an exact amount of SetTokens for given amount of input ERC20 tokens.
+    * The excess amount of tokens is returned in an equivalent amount of ether.
     *
     * @param _setToken              Address of the SetToken to be issued
     * @param _inputToken            Address of the input token
@@ -230,28 +231,21 @@ contract ExchangeIssuance is ReentrancyGuard {
             ? _maxAmountInputToken
             :  _swapTokenForWETH(_inputToken, _maxAmountInputToken);
         
-        uint256 amountETHSpent = _issueExactSetFromWETH(_setToken, _amountSetToken);
+        uint256 amountEthSpent = _issueExactSetFromWETH(_setToken, _amountSetToken);
         
-        uint256 amountETHReturn = initETHAmount.sub(amountETHSpent);
-        
-        uint256 amountTokenReturn;
-        if(address(_inputToken) == WETH)
-            amountTokenReturn = amountETHReturn;
-        else {
-            // Get max amount of tokens with the available WETH balance
-            (, Exchange exchange) = _getMaxTokenForExactToken(amountETHReturn, WETH, address(_inputToken));
-            amountTokenReturn = _swapExactTokensForTokens(exchange, WETH, address(_inputToken), amountETHReturn);
+        uint256 amountEthReturn = initETHAmount.sub(amountEthSpent);
+        if (amountEthReturn > 0) {
+            IWETH(WETH).withdraw(amountEthReturn);
+            msg.sender.transfer(amountEthReturn);
         }
         
-        if (amountTokenReturn > 0)
-            _inputToken.safeTransfer(msg.sender, amountTokenReturn);
-        
-        emit ExchangeIssue(msg.sender, _setToken, address(_inputToken), _maxAmountInputToken.sub(amountTokenReturn), _amountSetToken);
+        emit ExchangeIssue(msg.sender, _setToken, address(_inputToken), _maxAmountInputToken, _amountSetToken);
     }
     
     /**
     * Issues an exact amount of SetTokens using a given amount of ether.
-    *
+    * The excess ether is returned back.
+    * 
     * @param _setToken          Address of the SetToken being issued
     * @param _amountSetToken    Amount of SetTokens to issue
     */
