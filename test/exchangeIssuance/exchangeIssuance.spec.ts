@@ -20,7 +20,14 @@ const basicIssuanceModule = "0xd8EF3cACe8b4907117a45B0b125c68560532F94D";
 
 const deploy = async (account: any) => {
   const ExchangeIssuance = await ethers.getContractFactory("ExchangeIssuance");
-  return (await ExchangeIssuance.deploy(uniFactory, uniRouter, sushiFactory, sushiRouter, setController, basicIssuanceModule)).connect(account);
+  return (await ExchangeIssuance.deploy(uniFactory,
+    uniRouter,
+    sushiFactory,
+    sushiRouter,
+    setController,
+    basicIssuanceModule
+    )
+  ).connect(account);
 };
 
 const issueSetForExactToken = async (ERC20Address: string, account: Signer, amount: Number) => {

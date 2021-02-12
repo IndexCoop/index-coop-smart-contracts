@@ -18,6 +18,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IUniswapV2Factory } from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Router02 } from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import { Math } from "@openzeppelin/contracts/math/Math.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
@@ -39,9 +40,9 @@ import { UniswapV2Library } from "../../external/contracts/UniswapV2Library.sol"
  */
 contract ExchangeIssuance is ReentrancyGuard {
     
-    // TODO: use safeERC20
-    
     using SafeMath for uint256;
+    using SafeERC20 for IERC20;
+    using SafeERC20 for ISetToken;
     
     /* ============ Enums ============ */
     
@@ -173,7 +174,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     {   
         require(_amountInput > 0, "ExchangeIssuance: INVALID INPUTS");
         
-        _inputToken.transferFrom(msg.sender, address(this), _amountInput);
+        _inputToken.safeTransferFrom(msg.sender, address(this), _amountInput);
         
         if(address(_inputToken) != WETH) 
            _swapTokenForWETH(_inputToken, _amountInput);
@@ -227,7 +228,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     {
         require(_amountSetToken > 0 && _maxAmountInputToken > 0, "ExchangeIssuance: INVALID INPUTS");
         
-        _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
+        _inputToken.safeTransferFrom(msg.sender, address(this), _maxAmountInputToken);
         
         uint256 initETHAmount = address(_inputToken) == WETH
             ? _maxAmountInputToken
@@ -246,7 +247,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         }
         
         if (amountTokenReturn > 0)
-            _inputToken.transfer(msg.sender, amountTokenReturn);
+            _inputToken.safeTransfer(msg.sender, amountTokenReturn);
         
         emit ExchangeIssue(msg.sender, _setToken, address(_inputToken), _maxAmountInputToken.sub(amountTokenReturn), _amountSetToken);
     }
@@ -308,7 +309,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         if (address(_outputToken) == WETH) {
             
             require(amountEthOut > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
-            _outputToken.transfer(msg.sender, amountEthOut);
+            _outputToken.safeTransfer(msg.sender, amountEthOut);
             
             emit ExchangeRedeem(msg.sender, _setToken, address(_outputToken), _amountSetToRedeem, amountEthOut);
         
@@ -318,7 +319,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             require(amountTokenOut > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
             
             uint256 outputAmount = _swapExactTokensForTokens(exchange, WETH, address(_outputToken), amountEthOut);
-            _outputToken.transfer(msg.sender, outputAmount);
+            _outputToken.safeTransfer(msg.sender, outputAmount);
            
             emit ExchangeRedeem(msg.sender, _setToken, address(_outputToken), _amountSetToRedeem, outputAmount);
         }
@@ -560,7 +561,7 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @return                      Amount of WETH received after liquidating SetToken components
      */
     function _redeemExactSetForWETH(ISetToken _setToken, uint256 _amountSetToRedeem) internal returns (uint256) {
-        _setToken.transferFrom(msg.sender, address(this), _amountSetToRedeem);
+        _setToken.safeTransferFrom(msg.sender, address(this), _amountSetToRedeem);
         
         basicIssuanceModule.redeem(_setToken, _amountSetToRedeem, address(this));
         
