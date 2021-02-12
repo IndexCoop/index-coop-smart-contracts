@@ -312,4 +312,23 @@ describe("ExchangeIssuance", function () {
       expect(amountOut.gt(ethers.utils.parseEther("180"))).to.equal(true);
     });
   });
+
+  describe("isSetToken modifier", () => {
+    it("Should revert when SetToken is not conform to ISetToken", async () => {
+      // deploy ExchangeIssuance.sol
+      const exchangeIssuance = await deploy(account);
+
+      // aprove dai
+      const dai = new ethers.Contract(daiAddress, erc20abi, account);
+      await dai.approve(exchangeIssuance.address, ethers.utils.parseEther("10"));
+
+      // redeem dpi for ETH
+      const result = exchangeIssuance.redeemExactSetForETH(daiAddress,
+        ethers.utils.parseEther("10"),
+        ethers.utils.parseEther("1")
+      );
+
+      await expect(result).to.be.revertedWith("INVALID SET");
+    });
+  });
 });
