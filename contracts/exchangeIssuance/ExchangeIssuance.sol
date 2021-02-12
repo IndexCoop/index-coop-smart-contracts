@@ -646,8 +646,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     function _swapTokenForWETH(IERC20 _token, uint256 _amount) internal returns (uint256) {
         (, Exchange exchange) = _getMaxTokenForExactToken(_amount, address(_token), WETH);
         IUniswapV2Router02 router = _getRouter(exchange);
-        if(_token.allowance(address(this), address(router)) == 0)
-            _safeApprove(_token, address(router));
+        _safeApprove(_token, address(router));
         return _swapExactTokensForTokens(exchange, address(_token), WETH, _amount);
     }
     
