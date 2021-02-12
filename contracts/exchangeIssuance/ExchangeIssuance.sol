@@ -48,10 +48,6 @@ contract ExchangeIssuance is ReentrancyGuard {
     
     enum Exchange { Uniswap, Sushiswap }
     
-    /* ============ Constants ============ */
-    
-    uint256 constant private MAX_UINT96 = 2 ** 96 - 1;
-    
     /* ============ State Variables ============ */
 
     IUniswapV2Router02 private uniRouter;
@@ -109,8 +105,8 @@ contract ExchangeIssuance is ReentrancyGuard {
         WETH = uniRouter.WETH();
         setController = _setController;
         basicIssuanceModule = _basicIssuanceModule;
-        IERC20(WETH).approve(address(uniRouter), PreciseUnitMath.maxUint256());
-        IERC20(WETH).approve(address(sushiRouter), PreciseUnitMath.maxUint256());
+        IERC20(WETH).safeApprove(address(uniRouter), PreciseUnitMath.maxUint256());
+        IERC20(WETH).safeApprove(address(sushiRouter), PreciseUnitMath.maxUint256());
     }
     
     /* ============ Public Functions ============ */
@@ -123,9 +119,9 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @param _token    Address of the token which needs approval
      */
     function approveToken(IERC20 _token) public {
-        _token.approve(address(uniRouter), MAX_UINT96);
-        _token.approve(address(sushiRouter), MAX_UINT96);
-        _token.approve(address(basicIssuanceModule), MAX_UINT96);
+        _safeApprove(_token, address(uniRouter));
+        _safeApprove(_token, address(sushiRouter));
+        _safeApprove(_token, address(basicIssuanceModule));
     }
 
     /* ============ External Functions ============ */
@@ -481,7 +477,19 @@ contract ExchangeIssuance is ReentrancyGuard {
     
     
     /* ============ Internal Functions ============ */
-    
+
+    /**
+     * Sets a max aproval for a token as long as its current allowance is
+     * equal to 0. We shouldn't have to worry about our allowance after that,
+     * since it we are using a huge approval amount.
+     * @param _token    Token to approve
+     * @param _spender  Spender address to approve
+     */
+    function _safeApprove(IERC20 _token, address _spender) internal returns (uint256) {
+        if (_token.allowance(address(this), _spender) == 0) {
+            _token.safeIncreaseAllowance(_spender, PreciseUnitMath.maxUint256());
+        }
+    }
     
     /**
      * Sells the total balance that the contract holds of each component of the set
@@ -638,8 +646,8 @@ contract ExchangeIssuance is ReentrancyGuard {
     function _swapTokenForWETH(IERC20 _token, uint256 _amount) internal returns (uint256) {
         (, Exchange exchange) = _getMaxTokenForExactToken(_amount, address(_token), WETH);
         IUniswapV2Router02 router = _getRouter(exchange);
-        if(_token.allowance(address(this), address(router)) < _amount)
-            _token.approve(address(router), _amount);
+        if(_token.allowance(address(this), address(router)) == 0)
+            _safeApprove(_token, address(router));
         return _swapExactTokensForTokens(exchange, address(_token), WETH, _amount);
     }
     
