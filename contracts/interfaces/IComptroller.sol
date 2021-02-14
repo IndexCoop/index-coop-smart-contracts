@@ -13,7 +13,7 @@ interface IComptroller {
      * @param cTokens The list of addresses of the cToken markets to be enabled
      * @return Success indicator for whether each corresponding market was entered
      */
-    function enterMarkets(address[] memory cTokens) external returns (uint[] memory);
+    function enterMarkets(address[] memory cTokens) external returns (uint256[] memory);
 
     /**
      * @notice Removes asset from sender's account liquidity calculation
@@ -22,9 +22,9 @@ interface IComptroller {
      * @param cTokenAddress The address of the asset to be removed
      * @return Whether or not the account successfully exited the market
      */
-    function exitMarket(address cTokenAddress) external returns (uint);
+    function exitMarket(address cTokenAddress) external returns (uint256);
 
     function claimComp(address holder) external;
 
-    function getAccountLiquidity(address account) external view returns (uint, uint, uint);
+    function markets(address cTokenAddress) external view returns (bool, uint256, bool);
 }
