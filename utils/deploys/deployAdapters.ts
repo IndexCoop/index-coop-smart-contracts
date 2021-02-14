@@ -1,5 +1,5 @@
 import { Signer } from "ethers";
-import { Bytes } from "../types";
+import { LeverageTokenSettings } from "../types";
 import { FlexibleLeverageStrategyAdapter } from "../contracts/index";
 
 import { FlexibleLeverageStrategyAdapter__factory } from "../../typechain/factories/FlexibleLeverageStrategyAdapter__factory";
@@ -12,20 +12,10 @@ export default class DeployAdapters {
   }
 
   public async deployFlexibleLeverageStrategyAdapter(
-    instances: any,
-    methodologyParams: any,
-    executionParams: any,
-    incentiveParams: any,
-    initialExchangeName: string,
-    initialExchangeData: Bytes
+    leverageTokenSettings: LeverageTokenSettings
   ): Promise<FlexibleLeverageStrategyAdapter> {
     return await new FlexibleLeverageStrategyAdapter__factory(this._deployerSigner).deploy(
-      instances,
-      methodologyParams,
-      executionParams,
-      incentiveParams,
-      initialExchangeName,
-      initialExchangeData
+      leverageTokenSettings
     );
   }
 }
