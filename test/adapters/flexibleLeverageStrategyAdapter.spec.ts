@@ -714,7 +714,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       // Engage to initial leverage
       await flexibleLeverageStrategyAdapter.engage();
-      await increaseTimeAsync(BigNumber.from(86400));
+      await increaseTimeAsync(BigNumber.from(100000));
       await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
       await flexibleLeverageStrategyAdapter.rebalance();
     });
@@ -722,7 +722,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     context("when current leverage ratio is below target (lever) and no TWAP", async () => {
       beforeEach(async () => {
         destinationTokenQuantity = ether(0.1);
-        await increaseTimeAsync(BigNumber.from(86400));
+        await increaseTimeAsync(BigNumber.from(100000));
         await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1010));
         await setV2Setup.weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
 
@@ -1010,7 +1010,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       beforeEach(async () => {
         // Withdraw balance of USDC from exchange contract from engage
         await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
-        await increaseTimeAsync(BigNumber.from(86400));
+        await increaseTimeAsync(BigNumber.from(100000));
         // Set to $990 so need to delever
         await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(990));
         await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(2500000));
@@ -1275,7 +1275,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
     context("when currently in the last chunk of a TWAP rebalance", async () => {
       beforeEach(async () => {
-        await increaseTimeAsync(BigNumber.from(86400));
+        await increaseTimeAsync(BigNumber.from(100000));
         await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1200));
 
         destinationTokenQuantity = ether(0.01);
@@ -1354,7 +1354,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       let preTWAPLeverageRatio: BigNumber;
 
       beforeEach(async () => {
-        await increaseTimeAsync(BigNumber.from(86400));
+        await increaseTimeAsync(BigNumber.from(100000));
         await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1200));
 
         destinationTokenQuantity = ether(0.0001);
@@ -1459,13 +1459,13 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       // Engage to initial leverage
       await flexibleLeverageStrategyAdapter.engage();
-      await increaseTimeAsync(BigNumber.from(86400));
+      await increaseTimeAsync(BigNumber.from(100000));
       await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
       await flexibleLeverageStrategyAdapter.rebalance();
 
       // Withdraw balance of USDC from exchange contract from engage
       await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
-      await increaseTimeAsync(BigNumber.from(86400));
+      await increaseTimeAsync(BigNumber.from(100000));
 
       // Set to $650 so need to ripcord
       await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(750));
@@ -1723,7 +1723,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           await flexibleLeverageStrategyAdapter.updateTraderStatus([owner.address], [true]);
           // Engage to initial leverage
           await flexibleLeverageStrategyAdapter.engage();
-          await increaseTimeAsync(BigNumber.from(86400));
+          await increaseTimeAsync(BigNumber.from(100000));
           await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
           await flexibleLeverageStrategyAdapter.rebalance();
 
@@ -3156,7 +3156,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       // Engage to initial leverage
       await flexibleLeverageStrategyAdapter.engage();
-      await increaseTimeAsync(BigNumber.from(86400));
+      await increaseTimeAsync(BigNumber.from(100000));
       await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
 
       await flexibleLeverageStrategyAdapter.rebalance();
