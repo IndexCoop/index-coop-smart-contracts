@@ -1719,13 +1719,12 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
 
         if (ifEngaged) {
+          // Add allowed trader
+          await flexibleLeverageStrategyAdapter.updateTraderStatus([owner.address], [true]);
           // Engage to initial leverage
           await flexibleLeverageStrategyAdapter.engage();
           await increaseTimeAsync(BigNumber.from(86400));
           await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-
-          // Add allowed trader
-          await flexibleLeverageStrategyAdapter.updateTraderStatus([owner.address], [true]);
           await flexibleLeverageStrategyAdapter.rebalance();
 
           // Withdraw balance of USDC from exchange contract from engage
@@ -1860,19 +1859,20 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
 
         // Engage to initial leverage
+        await flexibleLeverageStrategyAdapter.updateTraderStatus([owner.address], [true]);
         await flexibleLeverageStrategyAdapter.engage();
         await increaseTimeAsync(BigNumber.from(3600));
         await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-        await flexibleLeverageStrategyAdapter.updateTraderStatus([owner.address], [true]);
         await flexibleLeverageStrategyAdapter.rebalance();
 
         // Clear balance of USDC from exchange contract from engage
         await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
-        await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(1000000000)); // 800 USDC
+        await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(1000000000));
         await flexibleLeverageStrategyAdapter.setMaxTradeSize(ether(2));
 
-        // Reduce account liquidity
-        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(750));
+        // Set price to reduce borrowing power
+        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(650));
+
         subjectCaller = owner;
       });
 
@@ -1905,8 +1905,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         const exchangeRate = await cEther.exchangeRateStored();
         const previousCollateralBalance = preciseMul(previousCTokenBalance, exchangeRate);
 
-        const borrowValue = (await cUSDC.borrowBalanceStored(setToken.address)).mul(ether(1)).div(BigNumber.from(1000000)); // Normalize decimals
-        const accountLiquidity = (await compoundSetup.comptroller.getAccountLiquidity(setToken.address))[1];
+        const collateralPrice = await compoundSetup.priceOracle.getUnderlyingPrice(cEther.address);
+        const collateralFactor = (await compoundSetup.comptroller.markets(cEther.address))[1];
 
         await subject();
 
@@ -1916,10 +1916,10 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
         const maxRedeemCollateral = calculateMaxBorrowForDelever(
           previousCollateralBalance,
-          borrowValue,
+          collateralFactor,
           unutilizedLeveragePercentage,
-          ether(1),
-          accountLiquidity
+          collateralPrice,
+          ether(1)
         );
 
         const maxRedeemCToken = preciseDiv(maxRedeemCollateral, exchangeRate);

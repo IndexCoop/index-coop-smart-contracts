@@ -30,14 +30,17 @@ export function calculateCollateralRebalanceUnits(
 
 export function calculateMaxBorrowForDelever(
   collateralBalance: BigNumber,
-  borrowValue: BigNumber,
-  bufferPercentage: BigNumber,
+  collateralFactor: BigNumber,
+  unutilizedLeveragePercentage: BigNumber,
+  collateralPrice: BigNumber,
   collateralBaseUnits: BigNumber,
-  accountLiquidity: BigNumber
 ): BigNumber {
-  const limitAdjust = preciseMul(accountLiquidity.add(borrowValue), bufferPercentage);
-  const a = collateralBalance.mul(accountLiquidity.sub(limitAdjust));
-  const b = preciseMul(a, ether(1).sub(bufferPercentage));
+  const collateralValue = preciseDiv(preciseMul(collateralBalance, collateralPrice), collateralBaseUnits);
+  const a = preciseMul(
+    preciseMul(collateralValue, collateralFactor),
+    ether(1).sub(unutilizedLeveragePercentage)
+  );
+  const b = preciseDiv(a, collateralPrice);
 
-  return b.div(accountLiquidity.add(borrowValue).sub(limitAdjust));
+  return preciseMul(b, collateralBaseUnits);
 }
