@@ -683,7 +683,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * incentive quantity, then transfer contract balance instead to prevent reverts.
      */
     function _transferEtherRewardToCaller(uint256 _etherReward) internal {
-        etherReward < address(this).balance ? msg.sender.transfer(etherReward) : msg.sender.transfer(address(this).balance);
+        _etherReward < address(this).balance ? msg.sender.transfer(_etherReward) : msg.sender.transfer(address(this).balance);
     }
 
     /**
