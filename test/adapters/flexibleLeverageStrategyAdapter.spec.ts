@@ -230,7 +230,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
     unutilizedLeveragePercentage = ether(0.01);
     twapMaxTradeSize = ether(0.5);
-    twapCooldownPeriod = BigNumber.from(3600);
+    twapCooldownPeriod = BigNumber.from(3000);
     slippageTolerance = ether(0.01);
 
     incentivizedTwapMaxTradeSize = ether(2);
@@ -714,7 +714,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       // Engage to initial leverage
       await flexibleLeverageStrategyAdapter.engage();
-      await increaseTimeAsync(BigNumber.from(3600));
+      await increaseTimeAsync(BigNumber.from(86400));
       await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
       await flexibleLeverageStrategyAdapter.rebalance();
     });
@@ -1459,7 +1459,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       // Engage to initial leverage
       await flexibleLeverageStrategyAdapter.engage();
-      await increaseTimeAsync(BigNumber.from(3600));
+      await increaseTimeAsync(BigNumber.from(86400));
       await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
       await flexibleLeverageStrategyAdapter.rebalance();
 
@@ -1721,7 +1721,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         if (ifEngaged) {
           // Engage to initial leverage
           await flexibleLeverageStrategyAdapter.engage();
-          await increaseTimeAsync(BigNumber.from(3600));
+          await increaseTimeAsync(BigNumber.from(86400));
           await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
 
           // Add allowed trader
@@ -3156,7 +3156,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       // Engage to initial leverage
       await flexibleLeverageStrategyAdapter.engage();
-      await increaseTimeAsync(BigNumber.from(3600));
+      await increaseTimeAsync(BigNumber.from(86400));
       await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
 
       await flexibleLeverageStrategyAdapter.rebalance();
