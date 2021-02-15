@@ -252,8 +252,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             // IMPORTANT: If currently in TWAP and price has moved advantageously. For delever, this means the current leverage ratio has dropped
             // below the TWAP leverage ratio and for lever, this means the current leverage ratio has gone above the TWAP leverage ratio. 
             // Update state and exit the function, skipping additional calculations and trade.
-            bool shouldExit = _updateStateAndExitIfAdvantageous(currentLeverageRatio);
-            if (shouldExit) {
+            if (_updateStateAndExitIfAdvantageous(currentLeverageRatio)) {
                 return;
             }
 
@@ -567,7 +566,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         uint256 currentLeverageRatio = getCurrentLeverageRatio();
 
         if (currentLeverageRatio >= incentivizedLeverageRatio) {
-            return etherReward;
+            // If ETH reward is below the balance on this contract, then return ETH balance on contract instead
+            return etherReward < address(this).balance ? etherReward : address(this).balance;
         } else {
             return 0;
         }
