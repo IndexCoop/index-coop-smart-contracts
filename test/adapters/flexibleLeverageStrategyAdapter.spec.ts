@@ -3429,6 +3429,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
     describe("when above incentivized leverage ratio", async () => {
       beforeEach(async () => {
+        await owner.wallet.sendTransaction({to: flexibleLeverageStrategyAdapter.address, value: ether(1)});
         await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(650));
       });
 
@@ -3436,6 +3437,20 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         const etherIncentive = await subject();
 
         expect(etherIncentive).to.eq(etherReward);
+      });
+
+      describe("when ETH balance is below ETH reward amount", async () => {
+        beforeEach(async () => {
+          await flexibleLeverageStrategyAdapter.withdrawEtherBalance();
+          // Transfer 0.01 ETH to contract
+          await owner.wallet.sendTransaction({to: flexibleLeverageStrategyAdapter.address, value: ether(0.01)});
+        });
+
+        it("should return the correct value", async () => {
+          const etherIncentive = await subject();
+
+          expect(etherIncentive).to.eq(ether(0.01));
+        });
       });
     });
 
