@@ -235,10 +235,6 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * is incentivized with a reward in Ether
      */
     function rebalance() external onlyEOA onlyAllowedTrader(msg.sender) {
-        // If currently in the midst of a TWAP rebalance, ensure that the cooldown period has elapsed
-        if (twapLeverageRatio != 0) {
-            require(lastTradeTimestamp.add(twapCooldownPeriod) < block.timestamp, "Cooldown period must have elapsed");
-        }
 
         ActionInfo memory rebalanceInfo = _createActionInfo();
         require(rebalanceInfo.borrowBalance > 0, "Borrow balance must exist");
@@ -253,6 +249,17 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
         uint256 newLeverageRatio;
         if (twapLeverageRatio != 0) {
+            // IMPORTANT: If currently in TWAP and price has moved advantageously. For delever, this means the current leverage ratio has dropped
+            // below the TWAP leverage ratio and for lever, this means the current leverage ratio has gone above the TWAP leverage ratio. 
+            // Update state and exit the function, skipping additional calculations and trade.
+            bool shouldExit = _updateStateAndExitIfAdvantageous(currentLeverageRatio);
+            if (shouldExit) {
+                return;
+            }
+
+            // If currently in the midst of a TWAP rebalance, ensure that the cooldown period has elapsed
+            require(lastTradeTimestamp.add(twapCooldownPeriod) < block.timestamp, "Cooldown period must have elapsed");
+
             newLeverageRatio = twapLeverageRatio;
         } else {
             require(
@@ -306,12 +313,10 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
         // Ensure that current leverage ratio must be greater than leverage threshold
         require(currentLeverageRatio >= incentivizedLeverageRatio, "Must be above incentivized leverage ratio");
-
-        uint256 newLeverageRatio = _calculateNewLeverageRatio(currentLeverageRatio);
         
         _delever(
             currentLeverageRatio,
-            newLeverageRatio,
+            maxLeverageRatio, // The target new leverage ratio is always the max leverage ratio
             ripcordInfo,
             incentivizedSlippageTolerance,
             incentivizedTwapMaxTradeSize
@@ -572,6 +577,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
     /**
      * Calculate notional rebalance quantity, whether to chunk rebalance based on max trade size and max borrow. Invoke lever on CompoundLeverageModule.
+     * All state update on this contract will be at the end in the updateTradeState function. The new leverage ratio will be stored as the TWAP leverage
+     * ratio if the chunk size is not equal to total notional and new leverage ratio is not equal to the existing TWAP leverage ratio. If chunk size is
+     * the same as calculated total notional, then clear the TWAP leverage ratio state.
      */
     function _lever(
         uint256 _currentLeverageRatio,
@@ -656,7 +664,35 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     /**
-     * Update state on this strategy adapter to track last trade timestamp for next rebalance, and leverage ratio if TWAP has kicked off
+     * If in the midst of a TWAP rebalance (twapLeverageRatio is nonzero), check if current leverage ratio has move advantageously
+     * and update state and skip rest of trade execution. For levering (twapLeverageRatio < targetLeverageRatio), check if the current
+     * leverage ratio surpasses the stored TWAP leverage ratio. For delever (twapLeverageRatio > targetLeverageRatio), check if the
+     * current leverage ratio has dropped below the stored TWAP leverage ratio. In both cases, update the trade state and return true.
+     *
+     * return bool          Boolean indicating if we should skip the rest of the rebalance execution
+     */
+    function _updateStateAndExitIfAdvantageous(uint256 _currentLeverageRatio) internal returns (bool) {
+        if (
+            (twapLeverageRatio < targetLeverageRatio && _currentLeverageRatio > twapLeverageRatio) 
+            || (twapLeverageRatio > targetLeverageRatio && _currentLeverageRatio < twapLeverageRatio)
+        ) {
+            // Update trade timestamp and delete TWAP leverage ratio. Setting chunk and total rebalance notional to 0 will delete
+            // TWAP state
+            _updateTradeState(0, 0, 0);
+
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Update state on this strategy adapter to track last trade timestamp and whether to clear TWAP leverage ratio or store new TWAP
+     * leverage ratio. There are 3 cases to consider:
+     * - End TWAP / regular rebalance: if chunk size is equal to total notional, then rebalances are not chunked and clear TWAP state.
+     * - Start TWAP: If chunk size is different from total notional and the new leverage ratio is not already stored, then set TWAP ratio.
+     * - Continue TWAP: If chunk size is different from total notional, and new leverage ratio is already stored, then do not set the new 
+     * TWAP ratio.
      */
     function _updateTradeState(
         uint256 _chunkRebalanceNotional,
@@ -667,12 +703,13 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     {
         lastTradeTimestamp = block.timestamp;
 
-        // If total rebalance notional is not TWAP, then ensure TWAP leverage ratio state is cleared
+        // If the chunk size is equal to the total notional meaning that rebalances are not chunked, then clear TWAP state.
         if (_chunkRebalanceNotional == _totalRebalanceNotional) {
-            twapLeverageRatio = 0;
+            delete twapLeverageRatio;
         }
 
-        // Store the calculated leverage ratio which effectively kicks off a TWAP
+        // If currently in the midst of TWAP, the new leverage ratio will already have been set to the twapLeverageRatio 
+        // in the rebalance() function and this check will be skipped.
         if(_chunkRebalanceNotional != _totalRebalanceNotional && _newLeverageRatio != twapLeverageRatio) {
             twapLeverageRatio = _newLeverageRatio;
         }
@@ -729,30 +766,33 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * assets deposited in lending protocols for borrowing.
      * 
      * For lever, max borrow is calculated as:
-     * (USD value of collateral * collateral factor * (1 - unutilized leverage) - USD value of borrow) / price of collateral asset
+     * (Net borrow limit in USD - existing borrow value in USD) / collateral asset price adjusted for decimals
      *
-     * For delever, max borrow is claculed as:
-     * USD value of collateral * collateral factor * (1 - unutilized leverage) / price of collateral asset
+     * For delever, max borrow is calculated as:
+     * Collateral balance in base units * (net borrow limit in USD - existing borrow value in USD) / net borrow limit in USD
+     *
+     * Net borrow limit is calculated as:
+     * The collateral value in USD * Compound collateral factor * (1 - unutilized leverage %)
      *
      * return uint256          Max borrow notional denominated in collateral asset
      */
     function _calculateMaxBorrowCollateral(ActionInfo memory _actionInfo, bool _isLever) internal view returns(uint256) {
-        // Retrieve collateral factor which is the % borrowed value in precise units (75% = 75 * 1e16)
+        // Retrieve collateral factor which is the % increase in borrow limit in precise units (75% = 75 * 1e16)
         ( , uint256 collateralFactorMantissa, ) = comptroller.markets(address(targetCollateralCToken));
 
+        uint256 netBorrowLimit = _actionInfo.collateralValue
+            .preciseMul(collateralFactorMantissa)
+            .preciseMul(PreciseUnitMath.preciseUnit().sub(unutilizedLeveragePercentage));
+
         if (_isLever) {
-            return _actionInfo.collateralValue
-                .preciseMul(collateralFactorMantissa)
-                .preciseMul(PreciseUnitMath.preciseUnit().sub(unutilizedLeveragePercentage))
+            return netBorrowLimit
                 .sub(_actionInfo.borrowValue)
                 .preciseDiv(_actionInfo.collateralPrice)
                 .preciseMul(10 ** collateralAssetDecimals);
         } else {
-            return _actionInfo.collateralValue
-                .preciseMul(collateralFactorMantissa)
-                .preciseMul(PreciseUnitMath.preciseUnit().sub(unutilizedLeveragePercentage))
-                .preciseDiv(_actionInfo.collateralPrice)
-                .preciseMul(10 ** collateralAssetDecimals);
+            return _actionInfo.collateralBalance
+                .preciseMul(netBorrowLimit.sub(_actionInfo.borrowValue))
+                .preciseDiv(netBorrowLimit);
         }
     }
 
