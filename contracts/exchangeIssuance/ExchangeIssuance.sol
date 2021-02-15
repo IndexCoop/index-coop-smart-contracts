@@ -493,7 +493,7 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @param _token    Token to approve
      * @param _spender  Spender address to approve
      */
-    function _safeApprove(IERC20 _token, address _spender) internal returns (uint256) {
+    function _safeApprove(IERC20 _token, address _spender) internal {
         if (_token.allowance(address(this), _spender) == 0) {
             _token.safeIncreaseAllowance(_spender, PreciseUnitMath.maxUint256());
         }
