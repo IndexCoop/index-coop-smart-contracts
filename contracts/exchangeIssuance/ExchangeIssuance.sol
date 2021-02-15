@@ -41,6 +41,7 @@ import { UniswapV2Library } from "../../external/contracts/UniswapV2Library.sol"
 contract ExchangeIssuance is ReentrancyGuard {
     
     using SafeMath for uint256;
+    using PreciseUnitMath for uint256;
     using SafeERC20 for IERC20;
     using SafeERC20 for ISetToken;
     
@@ -401,7 +402,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             }
 
             uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(component));
-            maxIndexAmount = Math.min(amountTokenOut.mul(1 ether).div(unit), maxIndexAmount);
+            maxIndexAmount = Math.min(amountTokenOut.preciseDiv(unit), maxIndexAmount);
         }
         return maxIndexAmount;
     }
@@ -430,7 +431,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         address[] memory components = _setToken.getComponents();
         for (uint256 i = 0; i < components.length; i++) {
             uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
-            uint256 amountToken = uint256(unit).mul(_amountSetToken).div(1 ether);
+            uint256 amountToken = unit.preciseMul(_amountSetToken);
             
             // get minimum amount of ETH to be spent to acquire the required amount of tokens
             (uint256 amountEth,) = _getMinTokenForExactToken(amountToken, WETH, components[i]);
@@ -469,7 +470,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         uint256 totalEth = 0;
         for (uint256 i = 0; i < components.length; i++) {
             uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
-            uint256 amount = uint256(unit).mul(_amountSetToRedeem).div(1 ether);
+            uint256 amount = unit.preciseMul(_amountSetToRedeem);
             
             // get maximum amount of ETH received for a given amount of SetToken component
             (uint256 amountEth, ) = _getMaxTokenForExactToken(amount, components[i], WETH);
@@ -560,7 +561,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         for (uint256 i = 0; i < components.length; i++) {
             
             uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
-            uint256 amountToken = uint256(unit).mul(_amountSetToken).div(1 ether);
+            uint256 amountToken = uint256(unit).preciseMul(_amountSetToken);
             
             // Get minimum amount of ETH to be spent to acquire the required amount of SetToken component
             (, Exchange exchange) = _getMinTokenForExactToken(amountToken, WETH, components[i]);
@@ -647,7 +648,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             uint256 amountTokenOut = _swapExactTokensForTokens(_exchanges[i], WETH, components[i], scaledAmountEth);
 
             uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
-            maxIndexAmount = Math.min(amountTokenOut.mul(1 ether).div(unit), maxIndexAmount);
+            maxIndexAmount = Math.min(amountTokenOut.preciseDiv(unit), maxIndexAmount);
         }
         return maxIndexAmount;
     }
