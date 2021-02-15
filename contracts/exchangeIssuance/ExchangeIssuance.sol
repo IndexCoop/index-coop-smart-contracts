@@ -47,6 +47,10 @@ contract ExchangeIssuance is ReentrancyGuard {
     /* ============ Enums ============ */
     
     enum Exchange { Uniswap, Sushiswap }
+
+    /* ============ Constants ============= */
+
+    address constant private ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     
     /* ============ State Variables ============ */
 
@@ -64,7 +68,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     event ExchangeIssue(
         address indexed _recipient,     // The recipient address of the issued SetTokens
         ISetToken indexed _setToken,    // The issued SetToken
-        address indexed _inputToken,    // The address of the input asset(ERC20/ETH) used to issue the SetTokens
+        IERC20 indexed _inputToken,    // The address of the input asset(ERC20/ETH) used to issue the SetTokens
         uint256 _amountInputToken,      // The amount of input tokens used for issuance
         uint256 _amountSetIssued        // The amount of SetTokens received by the recipient
     );
@@ -72,7 +76,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     event ExchangeRedeem(
         address indexed _recipient,     // The recipient address which redeemed the SetTokens
         ISetToken indexed _setToken,    // The redeemed SetToken
-        address indexed _outputToken,   // The addres of output asset(ERC20/ETH) received by the recipient
+        IERC20 indexed _outputToken,   // The addres of output asset(ERC20/ETH) received by the recipient
         uint256 _amountSetRedeemed,     // The amount of SetTokens redeemed for output tokens
         uint256 _amountOutputToken      // The amount of output tokens received by the recipient
     );
@@ -180,7 +184,7 @@ contract ExchangeIssuance is ReentrancyGuard {
 
         uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive);
         
-        emit ExchangeIssue(msg.sender, _setToken, address(_inputToken), _amountInput, setTokenAmount);
+        emit ExchangeIssue(msg.sender, _setToken, _inputToken, _amountInput, setTokenAmount);
     }
     
     /**
@@ -204,7 +208,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive);
         
-        emit ExchangeIssue(msg.sender, _setToken, address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), msg.value, setTokenAmount);   
+        emit ExchangeIssue(msg.sender, _setToken, IERC20(ETH_ADDRESS), msg.value, setTokenAmount);
     }
     
     /**
@@ -242,7 +246,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             msg.sender.transfer(amountEthReturn);
         }
         
-        emit ExchangeIssue(msg.sender, _setToken, address(_inputToken), _maxAmountInputToken, _amountSetToken);
+        emit ExchangeIssue(msg.sender, _setToken, _inputToken, _maxAmountInputToken, _amountSetToken);
     }
     
     /**
@@ -274,7 +278,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             msg.sender.transfer(returnAmount);    
         }
         
-        emit ExchangeIssue(msg.sender, _setToken, address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), amountEth, _amountSetToken);
+        emit ExchangeIssue(msg.sender, _setToken, IERC20(ETH_ADDRESS), amountEth, _amountSetToken);
     }
     
     /**
@@ -304,7 +308,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             require(amountEthOut > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
             _outputToken.safeTransfer(msg.sender, amountEthOut);
             
-            emit ExchangeRedeem(msg.sender, _setToken, address(_outputToken), _amountSetToRedeem, amountEthOut);
+            emit ExchangeRedeem(msg.sender, _setToken, _outputToken, _amountSetToRedeem, amountEthOut);
         } else {
             // Get max amount of tokens with the available amountEthOut
             (uint amountTokenOut, Exchange exchange) = _getMaxTokenForExactToken(amountEthOut, address(WETH), address(_outputToken));
@@ -313,7 +317,7 @@ contract ExchangeIssuance is ReentrancyGuard {
             uint256 outputAmount = _swapExactTokensForTokens(exchange, WETH, address(_outputToken), amountEthOut);
             _outputToken.safeTransfer(msg.sender, outputAmount);
            
-            emit ExchangeRedeem(msg.sender, _setToken, address(_outputToken), _amountSetToRedeem, outputAmount);
+            emit ExchangeRedeem(msg.sender, _setToken, _outputToken, _amountSetToRedeem, outputAmount);
         }
     }
     
@@ -343,7 +347,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         IWETH(WETH).withdraw(amountEthOut);
         msg.sender.transfer(amountEthOut);
 
-        emit ExchangeRedeem(msg.sender, _setToken, address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE), _amountSetToRedeem, amountEthOut);
+        emit ExchangeRedeem(msg.sender, _setToken, IERC20(ETH_ADDRESS), _amountSetToRedeem, amountEthOut);
     }
 
     // required for weth.withdraw() to work properly
