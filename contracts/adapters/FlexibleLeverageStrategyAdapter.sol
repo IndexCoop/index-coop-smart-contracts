@@ -48,6 +48,14 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
 
+    /* ============ Enums ============ */
+
+    enum ShouldRebalance {
+        NONE,
+        REBALANCE,
+        RIPCORD
+    }
+
     /* ============ Structs ============ */
 
     struct ActionInfo {
@@ -602,6 +610,51 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         } else {
             return 0;
         }
+    }
+
+    /**
+     * Helper that checks if conditions are met for rebalance or ripcord. Returns an enum with 0 = no rebalance, 1 = call rebalance(), 2 = call ripcord()
+     *
+     * return ShouldRebalance         Enum detailing whether to rebalance, ripcord or no action
+     */
+    function shouldRebalance() external view returns(ShouldRebalance) {
+        uint256 currentLeverageRatio = getCurrentLeverageRatio();
+
+        // Check TWAP states first for ripcord and regular rebalances
+        if (twapLeverageRatio != 0) {
+            // Check incentivized cooldown period has elapsed for ripcord
+            if (
+                currentLeverageRatio >= incentivizedLeverageRatio
+                && lastTradeTimestamp.add(incentivizedTwapCooldownPeriod) < block.timestamp
+            ) {
+                return ShouldRebalance.RIPCORD;
+            }
+
+            // Check cooldown period has elapsed for rebalance
+            if (
+                currentLeverageRatio < incentivizedLeverageRatio
+                && lastTradeTimestamp.add(twapCooldownPeriod) < block.timestamp
+            ) {
+                return ShouldRebalance.REBALANCE;
+            }
+        } else {
+            // If not TWAP, then check that current leverage is above ripcord threshold
+            if (currentLeverageRatio >= incentivizedLeverageRatio) {
+                return ShouldRebalance.RIPCORD;
+            }
+
+            // If not TWAP, then check that either rebalance interval has elapsed, current leverage is above max or current leverage is below min
+            if (
+                block.timestamp.sub(lastTradeTimestamp) > rebalanceInterval
+                || currentLeverageRatio > maxLeverageRatio
+                || currentLeverageRatio < minLeverageRatio
+            ) {
+                return ShouldRebalance.REBALANCE;
+            }
+        }
+
+        // If none of the above conditions are satisfied, then should not rebalance
+        return ShouldRebalance.NONE;
     }
 
     /* ============ Internal Functions ============ */

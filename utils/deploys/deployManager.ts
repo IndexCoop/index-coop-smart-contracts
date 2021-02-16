@@ -34,12 +34,14 @@ export default class DeployToken {
   public async deployICManagerV2(
     set: Address,
     operator: Address,
-    methodologist: Address
+    methodologist: Address,
+    adapters: Address[]
   ): Promise<ICManagerV2> {
     return await new ICManagerV2__factory(this._deployerSigner).deploy(
       set,
       operator,
-      methodologist
+      methodologist,
+      adapters
     );
   }
 }
