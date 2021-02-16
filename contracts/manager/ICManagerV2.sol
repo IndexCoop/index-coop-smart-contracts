@@ -99,13 +99,21 @@ contract ICManagerV2 is MutualUpgrade {
     constructor(
         ISetToken _setToken,
         address _operator,
-        address _methodologist
+        address _methodologist,
+        address[] memory _adapters
     )
         public
     {
         setToken = _setToken;
         operator = _operator;
         methodologist = _methodologist;
+
+        for (uint256 i = 0; i < _adapters.length; i++) {
+            require(!isAdapter[_adapters[i]], "Adapter already exists");
+
+            isAdapter[_adapters[i]] = true;
+        }
+        adapters = _adapters;
     }
 
     /* ============ External Functions ============ */

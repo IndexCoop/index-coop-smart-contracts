@@ -69,7 +69,8 @@ describe("ICManagerV2", () => {
     icManagerV2 = await deployer.manager.deployICManagerV2(
       setToken.address,
       owner.address,
-      methodologist.address
+      methodologist.address,
+      []
     );
 
     // Transfer ownership to ICManagerV2
@@ -82,18 +83,21 @@ describe("ICManagerV2", () => {
     let subjectSetToken: Address;
     let subjectOperator: Address;
     let subjectMethodologist: Address;
+    let subjectAdapters: Address[];
 
     beforeEach(async () => {
       subjectSetToken = setToken.address;
       subjectOperator = owner.address;
       subjectMethodologist = methodologist.address;
+      subjectAdapters = [await getRandomAddress(), await getRandomAddress()];
     });
 
     async function subject(): Promise<ICManagerV2> {
       return await deployer.manager.deployICManagerV2(
         subjectSetToken,
         subjectOperator,
-        subjectMethodologist
+        subjectMethodologist,
+        subjectAdapters
       );
     }
 
@@ -116,6 +120,32 @@ describe("ICManagerV2", () => {
 
       const actualMethodologist = await retrievedICManager.methodologist();
       expect (actualMethodologist).to.eq(subjectMethodologist);
+    });
+
+    it("should set the correct adapters", async () => {
+      const retrievedICManager = await subject();
+
+      const actualAdapters = await retrievedICManager.getAdapters();
+      expect(JSON.stringify(actualAdapters)).to.eq(JSON.stringify(subjectAdapters));
+    });
+
+    it("should set the adapter mapping", async () => {
+      const retrievedICManager = await subject();
+      const isAdapterOne = await retrievedICManager.isAdapter(subjectAdapters[0]);
+      const isAdapterTwo = await retrievedICManager.isAdapter(subjectAdapters[1]);
+
+      expect(isAdapterOne).to.be.true;
+      expect(isAdapterTwo).to.be.true;
+    });
+
+    describe("when the adapter already exists", async () => {
+      beforeEach(async () => {
+        subjectAdapters = [mockAdapter.address, mockAdapter.address];
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Adapter already exists");
+      });
     });
   });
 
