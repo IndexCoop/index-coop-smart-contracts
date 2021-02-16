@@ -9,5 +9,6 @@ export { MutualUpgradeMock } from "../../typechain/MutualUpgradeMock";
 export { RewardsDistributionRecipient } from "../../typechain/RewardsDistributionRecipient";
 export { StakingRewards } from "../../typechain/StakingRewards";
 export { StakingRewardsV2 } from "../../typechain/StakingRewardsV2";
+export { StandardTokenMock } from "../../typechain/StandardTokenMock";
 export { Vesting } from "../../typechain/Vesting";
 export { WETH9 } from "../../typechain/WETH9";

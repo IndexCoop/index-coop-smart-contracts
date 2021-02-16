@@ -10,4 +10,3 @@ export { DebtIssuanceModule } from "../../typechain/DebtIssuanceModule";
 export { IntegrationRegistry } from "../../typechain/IntegrationRegistry";
 export { SingleIndexModule } from "../../typechain/SingleIndexModule";
 export { StreamingFeeModule } from "../../typechain/StreamingFeeModule";
-export { StandardTokenMock } from "../../typechain/StandardTokenMock";

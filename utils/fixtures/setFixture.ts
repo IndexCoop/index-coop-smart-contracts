@@ -9,10 +9,9 @@ import {
   IntegrationRegistry,
   SetToken,
   SetTokenCreator,
-  StreamingFeeModule,
-  StandardTokenMock
+  StreamingFeeModule
 } from "../contracts/setV2";
-import { WETH9 } from "../contracts/index";
+import { WETH9, StandardTokenMock } from "../contracts/index";
 import DeployHelper from "../deploys";
 import {
   ether,
