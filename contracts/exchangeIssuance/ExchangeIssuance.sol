@@ -511,6 +511,13 @@ contract ExchangeIssuance is ReentrancyGuard {
         uint256 sumEth = 0;
         address[] memory components = _setToken.getComponents();
         for (uint256 i = 0; i < components.length; i++) {
+            
+            // Check that the component does not have external positions
+            require(
+                _setToken.getExternalPositionModules(components[i]).length == 0,
+                "Exchange Issuance: EXTERNAL_POSITIONS_NOT_ALLOWED"
+            );
+
             address token = components[i];
             uint256 tokenBalance = IERC20(token).balanceOf(address(this));
             
@@ -553,13 +560,19 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @param _amountSetToken    Amount of SetTokens to issue
      * @return sumEth            Total amount of ether used to acquire the SetToken components    
      */
-    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken) internal returns(uint256) {
+    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken) internal returns (uint256) {
         
         uint256 sumEth = 0;
         
         address[] memory components = _setToken.getComponents();
         for (uint256 i = 0; i < components.length; i++) {
             
+            // Check that the component does not have external positions
+            require(
+                _setToken.getExternalPositionModules(components[i]).length == 0,
+                "Exchange Issuance: EXTERNAL_POSITIONS_NOT_ALLOWED"
+            );
+
             uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
             uint256 amountToken = uint256(unit).preciseMul(_amountSetToken);
             
@@ -608,7 +621,13 @@ contract ExchangeIssuance is ReentrancyGuard {
         Exchange[] memory exchanges = new Exchange[](components.length);
         
         for (uint256 i = 0; i < components.length; i++) {
-            
+
+            // Check that the component does not have external positions
+            require(
+                _setToken.getExternalPositionModules(components[i]).length == 0,
+                "Exchange Issuance: EXTERNAL_POSITIONS_NOT_ALLOWED"
+            );
+
             // Get minimum amount of ETH to be spent to acquire the required amount of SetToken component
             uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
             (amountEthIn[i], exchanges[i]) = _getMinTokenForExactToken(unit, WETH, components[i]);
