@@ -703,10 +703,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * return bool          Boolean indicating if we should skip the rest of the rebalance execution
      */
     function _updateStateAndExitIfAdvantageous(uint256 _currentLeverageRatio) internal returns (bool) {
-        // Note: for lever, we use >= in the unlikely case TWAP leverage ratio calculation is rounded down to the targetLeverageRatio
         if (
             (twapLeverageRatio < targetLeverageRatio && _currentLeverageRatio >= twapLeverageRatio) 
-            || (twapLeverageRatio >= targetLeverageRatio && _currentLeverageRatio <= twapLeverageRatio)
+            || (twapLeverageRatio > targetLeverageRatio && _currentLeverageRatio <= twapLeverageRatio)
         ) {
             // Update trade timestamp and delete TWAP leverage ratio. Setting chunk and total rebalance notional to 0 will delete
             // TWAP state
