@@ -62,6 +62,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
   let leverageTokenSettings: LeverageTokenSettings;
   let customTargetLeverageRatio: any;
+  let customMinLeverageRatio: any;
   let customCTokenCollateralAddress: any;
   let customCompoundLeverageModule: any;
 
@@ -223,7 +224,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
   beforeEach(async () => {
     // Deploy adapter
     targetLeverageRatio = customTargetLeverageRatio || ether(2);
-    minLeverageRatio = ether(1.7);
+    minLeverageRatio = customMinLeverageRatio || ether(1.7);
     maxLeverageRatio = ether(2.3);
     recenteringSpeed = ether(0.05);
     rebalanceInterval = BigNumber.from(86400);
@@ -691,10 +692,12 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     context("when rebalance notional is less than max trade size and less than max borrow", async () => {
       before(async () => {
         customTargetLeverageRatio = ether(1.25); // Change to 1.25x
+        customMinLeverageRatio = ether(1.1);
       });
 
       after(async () => {
         customTargetLeverageRatio = undefined;
+        customMinLeverageRatio = undefined;
       });
 
       beforeEach(async () => {
@@ -2295,10 +2298,12 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     context("when notional is less than max trade size and total rebalance notional is less than max borrow", async () => {
       before(async () => {
         customTargetLeverageRatio = ether(1.25); // Change to 1.25x
+        customMinLeverageRatio = ether(1.1);
       });
 
       after(async () => {
         customTargetLeverageRatio = undefined;
+        customMinLeverageRatio = undefined;
       });
 
       beforeEach(async () => {
