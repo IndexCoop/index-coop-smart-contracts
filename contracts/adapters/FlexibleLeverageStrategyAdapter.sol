@@ -308,6 +308,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
                 twapMaxTradeSize
             );
         } else {
+            // In the case newLeverageRatio is equal to currentLeverageRatio (which only occurs if we're exactly at the target), the trade quantity
+            // will be calculated as 0 and will revert in the CompoundLeverageModule.
             _lever(
                 currentLeverageRatio,
                 newLeverageRatio,
