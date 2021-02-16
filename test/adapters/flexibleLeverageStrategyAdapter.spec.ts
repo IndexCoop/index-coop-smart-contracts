@@ -3,7 +3,7 @@ import { BigNumber } from "@ethersproject/bignumber";
 import { ethers } from "hardhat";
 
 import { Address, Account, Bytes, LeverageTokenSettings } from "@utils/types";
-import { ADDRESS_ZERO, ZERO, EMPTY_BYTES, MAX_UINT_256 } from "@utils/constants";
+import { ADDRESS_ZERO, ONE, TWO, ZERO, EMPTY_BYTES, MAX_UINT_256 } from "@utils/constants";
 import { FlexibleLeverageStrategyAdapter, ICManagerV2, TradeAdapterMock } from "@utils/contracts/index";
 import { CompoundLeverageModule, ContractCallerMock, DebtIssuanceModule, SetToken } from "@utils/contracts/setV2";
 import { CEther, CERc20 } from "@utils/contracts/compound";
@@ -214,7 +214,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     icManagerV2 = await deployer.manager.deployICManagerV2(
       setToken.address,
       owner.address,
-      methodologist.address
+      methodologist.address,
+      []
     );
 
     // Transfer ownership to ic manager
@@ -3548,6 +3549,167 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         const etherIncentive = await subject();
 
         expect(etherIncentive).to.eq(ZERO);
+      });
+    });
+  });
+
+  describe("#shouldRebalance", async () => {
+    beforeEach(async () => {
+      // Approve tokens to issuance module and call issue
+      await cEther.approve(setV2Setup.issuanceModule.address, ether(1000));
+
+      // Issue 1 SetToken
+      const issueQuantity = ether(1);
+      await setV2Setup.issuanceModule.issue(setToken.address, issueQuantity, owner.address);
+
+      await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+
+      // Add allowed trader
+      await flexibleLeverageStrategyAdapter.updateTraderStatus([owner.address], [true]);
+
+      // Engage to initial leverage
+      await flexibleLeverageStrategyAdapter.engage();
+      await increaseTimeAsync(BigNumber.from(100000));
+      await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+
+      await flexibleLeverageStrategyAdapter.rebalance();
+    });
+
+    async function subject(): Promise<any> {
+      return flexibleLeverageStrategyAdapter.shouldRebalance();
+    }
+
+    context("when in the midst of a TWAP rebalance", async () => {
+      beforeEach(async () => {
+        // Withdraw balance of USDC from exchange contract from engage
+        await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
+
+        // > Max trade size
+        await flexibleLeverageStrategyAdapter.setMaxTradeSize(ether(0.001));
+
+        // Set up new rebalance TWAP
+        await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
+        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(990));
+        await increaseTimeAsync(BigNumber.from(100000));
+        await flexibleLeverageStrategyAdapter.rebalance();
+      });
+
+      describe("when above incentivized leverage ratio and incentivized TWAP cooldown has elapsed", async () => {
+        beforeEach(async () => {
+          // Set to above incentivized ratio
+          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(800));
+          await increaseTimeAsync(BigNumber.from(100));
+        });
+
+        it("should return ripcord", async () => {
+          const shouldRebalance = await subject();
+
+          expect(shouldRebalance).to.eq(TWO);
+        });
+      });
+
+      describe("when below incentivized leverage ratio and regular TWAP cooldown has elapsed", async () => {
+        beforeEach(async () => {
+          // Set to below incentivized ratio
+          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(900));
+          await increaseTimeAsync(BigNumber.from(4000));
+        });
+
+        it("should return rebalance", async () => {
+          const shouldRebalance = await subject();
+
+          expect(shouldRebalance).to.eq(ONE);
+        });
+      });
+
+      describe("when above incentivized leverage ratio and incentivized TWAP cooldown has NOT elapsed", async () => {
+        beforeEach(async () => {
+          // Set to above incentivized ratio
+          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(800));
+        });
+
+        it("should not ripcord", async () => {
+          const shouldRebalance = await subject();
+
+          expect(shouldRebalance).to.eq(ZERO);
+        });
+      });
+
+      describe("when below incentivized leverage ratio and regular TWAP cooldown has NOT elapsed", async () => {
+        beforeEach(async () => {
+          // Set to above incentivized ratio
+          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(900));
+        });
+
+        it("should not rebalance", async () => {
+          const shouldRebalance = await subject();
+
+          expect(shouldRebalance).to.eq(ZERO);
+        });
+      });
+    });
+
+    context("when not in a TWAP rebalance", async () => {
+      describe("when above incentivized leverage ratio", async () => {
+        beforeEach(async () => {
+          // Set to above incentivized ratio
+          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(800));
+        });
+
+        it("should return ripcord", async () => {
+          const shouldRebalance = await subject();
+
+          expect(shouldRebalance).to.eq(TWO);
+        });
+      });
+
+      describe("when between max and min leverage ratio and rebalance interval has elapsed", async () => {
+        beforeEach(async () => {
+          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(990));
+          await increaseTimeAsync(BigNumber.from(100000));
+        });
+
+        it("should return rebalance", async () => {
+          const shouldRebalance = await subject();
+
+          expect(shouldRebalance).to.eq(ONE);
+        });
+      });
+
+      describe("when above max leverage ratio but below incentivized leverage ratio", async () => {
+        beforeEach(async () => {
+          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(850));
+        });
+
+        it("should return rebalance", async () => {
+          const shouldRebalance = await subject();
+
+          expect(shouldRebalance).to.eq(ONE);
+        });
+      });
+
+      describe("when below min leverage ratio", async () => {
+        beforeEach(async () => {
+          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1300));
+        });
+
+        it("should return rebalance", async () => {
+          const shouldRebalance = await subject();
+
+          expect(shouldRebalance).to.eq(ONE);
+        });
+      });
+
+      describe("when between max and min leverage ratio and rebalance interval has NOT elapsed", async () => {
+        beforeEach(async () => {
+          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(990));
+        });
+
+        it("should not rebalance", async () => {
+          const shouldRebalance = await subject();
+
+          expect(shouldRebalance).to.eq(ZERO);
+        });
       });
     });
   });
