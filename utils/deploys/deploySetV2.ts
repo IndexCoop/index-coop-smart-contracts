@@ -12,10 +12,9 @@ import {
   StreamingFeeModule,
   SetToken,
   SetTokenCreator,
-  SingleIndexModule,
-  StandardTokenMock
+  SingleIndexModule
 } from "../contracts/setV2";
-import { WETH9 } from "../contracts/index";
+import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
 import { Controller__factory } from "../../typechain/factories/Controller__factory";
 import { CompoundLeverageModule__factory } from "../../typechain/factories/CompoundLeverageModule__factory";
