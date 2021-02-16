@@ -168,7 +168,36 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * 
      * @param _leverageTokenSettings            Struct containing data for initializing this adapter
      */
-    constructor(LeverageTokenSettings memory _leverageTokenSettings) public {
+    constructor(LeverageTokenSettings memory _leverageTokenSettings) public {  
+        require (
+            _leverageTokenSettings.minLeverageRatio <= _leverageTokenSettings.targetLeverageRatio,
+            "Must be valid min leverage"
+        );
+        require (
+            _leverageTokenSettings.maxLeverageRatio >= _leverageTokenSettings.targetLeverageRatio,
+            "Must be valid max leverage"
+        );
+        require (
+            _leverageTokenSettings.recenteringSpeed <= PreciseUnitMath.preciseUnit() && _leverageTokenSettings.recenteringSpeed > 0,
+            "Must be valid recentering speed"
+        );
+        require (
+            _leverageTokenSettings.unutilizedLeveragePercentage <= PreciseUnitMath.preciseUnit(),
+            "Unutilized leverage must be <100%"
+        );
+        require (
+            _leverageTokenSettings.slippageTolerance <= PreciseUnitMath.preciseUnit(),
+            "Slippage tolerance must be <100%"
+        );
+        require (
+            _leverageTokenSettings.incentivizedSlippageTolerance <= PreciseUnitMath.preciseUnit(),
+            "Incentivized slippage tolerance must be <100%"
+        );
+        require (
+            _leverageTokenSettings.incentivizedLeverageRatio >= _leverageTokenSettings.maxLeverageRatio,
+            "Incentivized leverage ratio must be > max leverage ratio"
+        );
+
         setToken = _leverageTokenSettings.setToken;
         leverageModule = _leverageTokenSettings.leverageModule;
         manager = _leverageTokenSettings.manager;
@@ -672,9 +701,10 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * return bool          Boolean indicating if we should skip the rest of the rebalance execution
      */
     function _updateStateAndExitIfAdvantageous(uint256 _currentLeverageRatio) internal returns (bool) {
+        // Note: for lever, we use >= in the unlikely case TWAP leverage ratio calculation is rounded down to the targetLeverageRatio
         if (
-            (twapLeverageRatio < targetLeverageRatio && _currentLeverageRatio > twapLeverageRatio) 
-            || (twapLeverageRatio > targetLeverageRatio && _currentLeverageRatio < twapLeverageRatio)
+            (twapLeverageRatio < targetLeverageRatio && _currentLeverageRatio >= twapLeverageRatio) 
+            || (twapLeverageRatio >= targetLeverageRatio && _currentLeverageRatio <= twapLeverageRatio)
         ) {
             // Update trade timestamp and delete TWAP leverage ratio. Setting chunk and total rebalance notional to 0 will delete
             // TWAP state

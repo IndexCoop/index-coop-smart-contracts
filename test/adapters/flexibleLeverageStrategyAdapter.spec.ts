@@ -400,6 +400,86 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       expect(exchangeData).to.eq(EMPTY_BYTES);
     });
+
+    describe("when min leverage ratio is above target", async () => {
+      beforeEach(async () => {
+        subjectLeverageTokenSettings.minLeverageRatio = ether(2.1);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be valid min leverage");
+      });
+    });
+
+    describe("when max leverage ratio is below target", async () => {
+      beforeEach(async () => {
+        subjectLeverageTokenSettings.maxLeverageRatio = ether(1.9);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be valid max leverage");
+      });
+    });
+
+    describe("when recentering speed is >100%", async () => {
+      beforeEach(async () => {
+        subjectLeverageTokenSettings.recenteringSpeed = ether(1.1);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be valid recentering speed");
+      });
+    });
+
+    describe("when recentering speed is 0%", async () => {
+      beforeEach(async () => {
+        subjectLeverageTokenSettings.recenteringSpeed = ZERO;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be valid recentering speed");
+      });
+    });
+
+    describe("when unutilizedLeveragePercentage is >100%", async () => {
+      beforeEach(async () => {
+        subjectLeverageTokenSettings.unutilizedLeveragePercentage = ether(1.1);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Unutilized leverage must be <100%");
+      });
+    });
+
+    describe("when slippage tolerance is >100%", async () => {
+      beforeEach(async () => {
+        subjectLeverageTokenSettings.slippageTolerance = ether(1.1);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Slippage tolerance must be <100%");
+      });
+    });
+
+    describe("when incentivized slippage tolerance is >100%", async () => {
+      beforeEach(async () => {
+        subjectLeverageTokenSettings.incentivizedSlippageTolerance = ether(1.1);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Incentivized slippage tolerance must be <100%");
+      });
+    });
+
+    describe("when incentivize leverage ratio is less than max leverage ratio", async () => {
+      beforeEach(async () => {
+        subjectLeverageTokenSettings.incentivizedLeverageRatio = ether(2.29);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Incentivized leverage ratio must be > max leverage ratio");
+      });
+    });
   });
 
   describe("#engage", async () => {
