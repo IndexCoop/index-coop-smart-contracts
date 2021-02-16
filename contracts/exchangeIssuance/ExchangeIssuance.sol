@@ -640,12 +640,12 @@ contract ExchangeIssuance is ReentrancyGuard {
      * Aquires all the components neccesary to issue a set, purchasing tokens
      * from either Uniswap or Sushiswap to get the best price.
      *
-     * @param _setToken     The set token
-     * @param _amountEthIn   An array containint the approximate ETH cost of each component.
+     * @param _setToken      The set token
+     * @param _amountEthIn   An array containing the approximate ETH cost of each component.
      * @param _wethBalance   The amount of WETH that the contract has to spend on aquiring the total components
      * @param _sumEth        The approximate amount of ETH required to purchase the necessary tokens
      *
-     * @return              The maximum amount of the SetToken that can be issued with the aquired components
+     * @return               The maximum amount of the SetToken that can be issued with the aquired components
      */
     function _acquireComponents(
         ISetToken _setToken,
