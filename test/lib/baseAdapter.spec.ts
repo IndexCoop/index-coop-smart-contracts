@@ -63,20 +63,21 @@ describe("BaseAdapter", () => {
     };
     await setV2Setup.streamingFeeModule.initialize(setToken.address, streamingFeeSettings);
 
-    baseAdapterMock = await deployer.mocks.deployBaseAdapterMock();
-
     // Deploy ICManagerV2
     icManagerV2 = await deployer.manager.deployICManagerV2(
       setToken.address,
       owner.address,
       methodologist.address,
-      [baseAdapterMock.address]
+      []
     );
+
+    baseAdapterMock = await deployer.mocks.deployBaseAdapterMock(icManagerV2.address);
 
     // Transfer ownership to ICManagerV2
     await setToken.setManager(icManagerV2.address);
 
-    await baseAdapterMock.updateManager(icManagerV2.address);
+    await icManagerV2.connect(owner.wallet).addAdapter(baseAdapterMock.address);
+    await icManagerV2.connect(methodologist.wallet).addAdapter(baseAdapterMock.address);
   });
 
   addSnapshotBeforeRestoreAfterEach();

@@ -69,7 +69,8 @@ describe("FeeSplitAdapter", () => {
     icManagerV2 = await deployer.manager.deployICManagerV2(
       setToken.address,
       operator.address,
-      methodologist.address
+      methodologist.address,
+      []
     );
 
     await setV2Setup.debtIssuanceModule.initialize(
