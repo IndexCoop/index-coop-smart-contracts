@@ -68,7 +68,7 @@ describe("BaseAdapter", () => {
       setToken.address,
       owner.address,
       methodologist.address,
-      [baseAdapterMock.address]
+      []
     );
 
     baseAdapterMock = await deployer.mocks.deployBaseAdapterMock(icManagerV2.address);
@@ -76,7 +76,8 @@ describe("BaseAdapter", () => {
     // Transfer ownership to ICManagerV2
     await setToken.setManager(icManagerV2.address);
 
-    await baseAdapterMock.updateCallerStatus([owner.address], [true]);
+    await icManagerV2.connect(owner.wallet).addAdapter(baseAdapterMock.address);
+    await icManagerV2.connect(methodologist.wallet).addAdapter(baseAdapterMock.address);
   });
 
   addSnapshotBeforeRestoreAfterEach();
