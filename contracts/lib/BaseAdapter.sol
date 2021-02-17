@@ -52,10 +52,24 @@ abstract contract BaseAdapter {
         _;
     }
 
+    /**
+     * Throws if not allowed caller
+     */
+    modifier onlyAllowedCaller(address _caller) {
+        require(isAllowedCaller(_caller), "Address not permitted to call");
+        _;
+    }
+
     /* ============ State Variables ============ */
 
     // Instance of manager contract
     IICManagerV2 public manager;
+
+    // Boolean indicating if anyone can call function
+    bool public anyoneCallable;
+
+    // Mapping of addresses allowed to call function
+    mapping(address => bool) public callAllowList;
 
 
     /* ============ Internal Functions ============ */
@@ -68,5 +82,14 @@ abstract contract BaseAdapter {
      */
     function invokeManager(address _module, bytes memory _encoded) internal {
         manager.interactModule(_module, _encoded);
+    }
+
+    /**
+     * Determine if passed address is allowed to call function. If anyoneCallable set to true anyone can call otherwise needs to be approved.
+     *
+     * return bool              Boolean indicating if caller is allowed trader
+     */
+    function isAllowedCaller(address _caller) internal view virtual returns (bool) {
+        return anyoneCallable || callAllowList[_caller];
     }
 }

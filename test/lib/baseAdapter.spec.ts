@@ -77,6 +77,7 @@ describe("BaseAdapter", () => {
     await setToken.setManager(icManagerV2.address);
 
     await baseAdapterMock.updateManager(icManagerV2.address);
+    await baseAdapterMock.updateCallAllowList(owner.address, true);
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -173,6 +174,42 @@ describe("BaseAdapter", () => {
 
       it("the trade reverts", async () => {
         await expect(subjectContractCaller()).to.be.revertedWith("Caller must be EOA Address");
+      });
+    });
+  });
+
+  describe("#testOnlyAllowedCaller", async () => {
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      subjectCaller = owner;
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return baseAdapterMock.connect(subjectCaller.wallet).testOnlyAllowedCaller(subjectCaller.address);
+    }
+
+    it("should succeed without revert", async () => {
+      await subject();
+    });
+
+    describe("when the caller is not on allowlist", async () => {
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Address not permitted to call");
+      });
+
+      describe("when anyoneCallable is flipped to true", async () => {
+        beforeEach(async () => {
+          await baseAdapterMock.updateAnyoneCallable(true);
+        });
+
+        it("should succeed without revert", async () => {
+          await subject();
+        });
       });
     });
   });
