@@ -12,19 +12,21 @@
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
     See the License for the specific language governing permissions and
     limitations under the License.
-*/
 
+    SPDX-License-Identifier: Apache License, Version 2.0
+*/
 pragma solidity 0.6.10;
-pragma experimental "ABIEncoderV2";
 
 import { ISetToken } from "./ISetToken.sol";
 
-interface IICManagerV2 {
-    function setToken() external returns(ISetToken);
-    
-    function methodologist() external returns(address);
-
-    function operator() external returns(address);
-
-    function interactModule(address _module, bytes calldata _encoded) external;
+/**
+ * @title IDebtIssuanceModule
+ * @author Set Protocol
+ *
+ * Interface for interacting with Debt Issuance module interface.
+ */
+interface IDebtIssuanceModule {
+    function updateIssueFee(ISetToken _setToken, uint256 _newIssueFee) external;
+    function updateRedeemFee(ISetToken _setToken, uint256 _newRedeemFee) external;
+    function updateFeeRecipient(ISetToken _setToken, address _newRedeemFee) external;
 }

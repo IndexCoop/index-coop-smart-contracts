@@ -57,6 +57,9 @@ abstract contract BaseAdapter {
     // Instance of manager contract
     IICManagerV2 public manager;
 
+    /* ============ State Variables ============ */
+
+    constructor(IICManagerV2 _manager) public { manager = _manager; }
 
     /* ============ Internal Functions ============ */
     
