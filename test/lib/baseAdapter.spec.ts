@@ -63,8 +63,6 @@ describe("BaseAdapter", () => {
     };
     await setV2Setup.streamingFeeModule.initialize(setToken.address, streamingFeeSettings);
 
-    baseAdapterMock = await deployer.mocks.deployBaseAdapterMock();
-
     // Deploy ICManagerV2
     icManagerV2 = await deployer.manager.deployICManagerV2(
       setToken.address,
@@ -73,10 +71,11 @@ describe("BaseAdapter", () => {
       [baseAdapterMock.address]
     );
 
+    baseAdapterMock = await deployer.mocks.deployBaseAdapterMock(icManagerV2.address);
+
     // Transfer ownership to ICManagerV2
     await setToken.setManager(icManagerV2.address);
 
-    await baseAdapterMock.updateManager(icManagerV2.address);
     await baseAdapterMock.updateCallerStatus([owner.address], [true]);
   });
 

@@ -78,6 +78,9 @@ abstract contract BaseAdapter {
     // Mapping of addresses allowed to call function
     mapping(address => bool) public callAllowList;
 
+    /* ============ Constructor ============ */
+
+    constructor(IICManagerV2 _manager) public { manager = _manager; }
 
     /* ============ External Functions ============ */
 
