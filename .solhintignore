@@ -2,3 +2,5 @@ node_modules
 contracts/mocks
 contracts/Migrations.sol
 contracts/external
+contracts/lib/UniswapV2Library.sol
+contracts/lib/SushiswapV2Library.sol
