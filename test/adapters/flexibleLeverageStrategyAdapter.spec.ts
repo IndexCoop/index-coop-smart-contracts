@@ -3477,10 +3477,10 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           await increaseTimeAsync(BigNumber.from(100));
         });
 
-        it("should return ripcord", async () => {
+        it("should return iterate ripcord", async () => {
           const shouldRebalance = await subject();
 
-          expect(shouldRebalance).to.eq(TWO);
+          expect(shouldRebalance).to.eq(BigNumber.from(4));
         });
       });
 
@@ -3491,10 +3491,10 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           await increaseTimeAsync(BigNumber.from(4000));
         });
 
-        it("should return rebalance", async () => {
+        it("should return iterate rebalance", async () => {
           const shouldRebalance = await subject();
 
-          expect(shouldRebalance).to.eq(ONE);
+          expect(shouldRebalance).to.eq(TWO);
         });
       });
 
@@ -3504,7 +3504,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(800));
         });
 
-        it("should not ripcord", async () => {
+        it("should not rebalance", async () => {
           const shouldRebalance = await subject();
 
           expect(shouldRebalance).to.eq(ZERO);
@@ -3535,7 +3535,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         it("should return ripcord", async () => {
           const shouldRebalance = await subject();
 
-          expect(shouldRebalance).to.eq(TWO);
+          expect(shouldRebalance).to.eq(BigNumber.from(3));
         });
       });
 
