@@ -822,6 +822,11 @@ describe("FlexibleLeverageStrategyAdapter", () => {
   describe("#rebalance", async () => {
     let destinationTokenQuantity: BigNumber;
     let subjectCaller: Account;
+    let ifEngaged: boolean;
+
+    before(async () => {
+      ifEngaged = true;
+    });
 
     beforeEach(async () => {
       // Approve tokens to issuance module and call issue
@@ -836,11 +841,13 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       // Add allowed trader
       await flexibleLeverageStrategyAdapter.updateCallerStatus([owner.address], [true]);
 
-      // Engage to initial leverage
-      await flexibleLeverageStrategyAdapter.engage();
-      await increaseTimeAsync(BigNumber.from(100000));
-      await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-      await flexibleLeverageStrategyAdapter.iterateRebalance();
+      if (ifEngaged) {
+        // Engage to initial leverage
+        await flexibleLeverageStrategyAdapter.engage();
+        await increaseTimeAsync(BigNumber.from(100000));
+        await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+        await flexibleLeverageStrategyAdapter.iterateRebalance();
+      }
     });
 
     context("when current leverage ratio is below target (lever)", async () => {
@@ -1452,11 +1459,39 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         });
       });
     });
+
+    context("when not engaged", async () => {
+      async function subject(): Promise<any> {
+        return flexibleLeverageStrategyAdapter.rebalance();
+      }
+
+      describe("when collateral balance is zero", async () => {
+        before(async () => {
+          // Set collateral asset to cUSDC with 0 balance
+          customCTokenCollateralAddress = cUSDC.address;
+          ifEngaged = false;
+        });
+
+        after(async () => {
+          customCTokenCollateralAddress = undefined;
+          ifEngaged = true;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Collateral balance must be > 0");
+        });
+      });
+    });
   });
 
   describe("#iterateRebalance", async () => {
     let destinationTokenQuantity: BigNumber;
     let subjectCaller: Account;
+    let ifEngaged: boolean;
+
+    before(async () => {
+      ifEngaged = true;
+    });
 
     beforeEach(async () => {
       // Approve tokens to issuance module and call issue
@@ -1471,11 +1506,13 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       // Add allowed trader
       await flexibleLeverageStrategyAdapter.updateCallerStatus([owner.address], [true]);
 
-      // Engage to initial leverage
-      await flexibleLeverageStrategyAdapter.engage();
-      await increaseTimeAsync(BigNumber.from(100000));
-      await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-      await flexibleLeverageStrategyAdapter.iterateRebalance();
+      if (ifEngaged) {
+        // Engage to initial leverage
+        await flexibleLeverageStrategyAdapter.engage();
+        await increaseTimeAsync(BigNumber.from(100000));
+        await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+        await flexibleLeverageStrategyAdapter.iterateRebalance();
+      }
     });
 
     context("when currently in the last chunk of a TWAP rebalance", async () => {
@@ -1855,11 +1892,39 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         });
       });
     });
+
+    context("when not engaged", async () => {
+      async function subject(): Promise<any> {
+        return flexibleLeverageStrategyAdapter.iterateRebalance();
+      }
+
+      describe("when collateral balance is zero", async () => {
+        before(async () => {
+          // Set collateral asset to cUSDC with 0 balance
+          customCTokenCollateralAddress = cUSDC.address;
+          ifEngaged = false;
+        });
+
+        after(async () => {
+          customCTokenCollateralAddress = undefined;
+          ifEngaged = true;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Collateral balance must be > 0");
+        });
+      });
+    });
   });
 
   describe("#ripcord", async () => {
     let transferredEth: BigNumber;
     let subjectCaller: Account;
+    let ifEngaged: boolean;
+
+    before(async () => {
+      ifEngaged = true;
+    });
 
     beforeEach(async () => {
       // Approve tokens to issuance module and call issue
@@ -1874,11 +1939,13 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       // Add allowed trader
       await flexibleLeverageStrategyAdapter.updateCallerStatus([owner.address], [true]);
 
-      // Engage to initial leverage
-      await flexibleLeverageStrategyAdapter.engage();
-      await increaseTimeAsync(BigNumber.from(100000));
-      await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-      await flexibleLeverageStrategyAdapter.iterateRebalance();
+      if (ifEngaged) {
+        // Engage to initial leverage
+        await flexibleLeverageStrategyAdapter.engage();
+        await increaseTimeAsync(BigNumber.from(100000));
+        await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+        await flexibleLeverageStrategyAdapter.iterateRebalance();
+      }
 
       subjectCaller = owner;
     });
@@ -2267,11 +2334,39 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         await expect(subject()).to.be.revertedWith("Must call iterate");
       });
     });
+
+    context("when not engaged", async () => {
+      async function subject(): Promise<any> {
+        return flexibleLeverageStrategyAdapter.ripcord();
+      }
+
+      describe("when collateral balance is zero", async () => {
+        before(async () => {
+          // Set collateral asset to cUSDC with 0 balance
+          customCTokenCollateralAddress = cUSDC.address;
+          ifEngaged = false;
+        });
+
+        after(async () => {
+          customCTokenCollateralAddress = undefined;
+          ifEngaged = true;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Collateral balance must be > 0");
+        });
+      });
+    });
   });
 
   describe("#iterateRipcord", async () => {
     let transferredEth: BigNumber;
     let subjectCaller: Account;
+    let ifEngaged: boolean;
+
+    before(async () => {
+      ifEngaged = true;
+    });
 
     beforeEach(async () => {
       // Approve tokens to issuance module and call issue
@@ -2286,11 +2381,13 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       // Add allowed trader
       await flexibleLeverageStrategyAdapter.updateCallerStatus([owner.address], [true]);
 
-      // Engage to initial leverage
-      await flexibleLeverageStrategyAdapter.engage();
-      await increaseTimeAsync(BigNumber.from(100000));
-      await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-      await flexibleLeverageStrategyAdapter.iterateRebalance();
+      if (ifEngaged) {
+        // Engage to initial leverage
+        await flexibleLeverageStrategyAdapter.engage();
+        await increaseTimeAsync(BigNumber.from(100000));
+        await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+        await flexibleLeverageStrategyAdapter.iterateRebalance();
+      }
 
       subjectCaller = owner;
     });
@@ -2449,6 +2546,29 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       it("should revert", async () => {
         await expect(subject()).to.be.revertedWith("Not in TWAP state");
+      });
+    });
+
+    context("when not engaged", async () => {
+      async function subject(): Promise<any> {
+        return flexibleLeverageStrategyAdapter.iterateRebalance();
+      }
+
+      describe("when collateral balance is zero", async () => {
+        before(async () => {
+          // Set collateral asset to cUSDC with 0 balance
+          customCTokenCollateralAddress = cUSDC.address;
+          ifEngaged = false;
+        });
+
+        after(async () => {
+          customCTokenCollateralAddress = undefined;
+          ifEngaged = true;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Collateral balance must be > 0");
+        });
       });
     });
   });
@@ -3374,7 +3494,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       await increaseTimeAsync(BigNumber.from(100000));
       await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
 
-      await flexibleLeverageStrategyAdapter.rebalance();
+      await flexibleLeverageStrategyAdapter.iterateRebalance();
     });
 
     async function subject(): Promise<any> {
