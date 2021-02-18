@@ -1,5 +1,5 @@
 /*
-    Copyright 2020 Set Labs Inc.
+    Copyright 2021 Set Labs Inc.
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -12,27 +12,15 @@
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
     See the License for the specific language governing permissions and
     limitations under the License.
-
-    SPDX-License-Identifier: Apache License, Version 2.0
 */
 
 pragma solidity 0.6.10;
+pragma experimental "ABIEncoderV2";
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+interface IICManagerV2 {
+    function methodologist() external returns(address);
 
-// mock class using BasicToken
-contract StandardTokenMock is ERC20 {
-    constructor(
-        address _initialAccount,
-        uint256 _initialBalance,
-        string memory _name,
-        string memory _symbol,
-        uint8 _decimals
-    )
-        public
-        ERC20(_name, _symbol)
-    {
-        _mint(_initialAccount, _initialBalance);
-        _setupDecimals(_decimals);
-    }
+    function operator() external returns(address);
+
+    function interactModule(address _module, bytes calldata _encoded) external;
 }

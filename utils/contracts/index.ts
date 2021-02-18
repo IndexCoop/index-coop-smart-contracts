@@ -1,9 +1,14 @@
+export { BaseAdapterMock } from "../../typechain/BaseAdapterMock";
 export { ICManager } from "../../typechain/ICManager";
+export { ICManagerV2 } from "../../typechain/ICManagerV2";
+export { TradeAdapterMock } from "../../typechain/TradeAdapterMock";
+export { FlexibleLeverageStrategyAdapter } from "../../typechain/FlexibleLeverageStrategyAdapter";
 export { IndexToken } from "../../typechain/IndexToken";
 export { MerkleDistributor } from "../../typechain/MerkleDistributor";
 export { MutualUpgradeMock } from "../../typechain/MutualUpgradeMock";
 export { RewardsDistributionRecipient } from "../../typechain/RewardsDistributionRecipient";
 export { StakingRewards } from "../../typechain/StakingRewards";
 export { StakingRewardsV2 } from "../../typechain/StakingRewardsV2";
+export { StandardTokenMock } from "../../typechain/StandardTokenMock";
 export { Vesting } from "../../typechain/Vesting";
 export { WETH9 } from "../../typechain/WETH9";

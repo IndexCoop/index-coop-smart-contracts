@@ -4,13 +4,14 @@ import { BigNumber } from "@ethersproject/bignumber";
 
 import {
   BasicIssuanceModule,
+  CompoundLeverageModule,
   Controller,
+  IntegrationRegistry,
   SetToken,
   SetTokenCreator,
-  StreamingFeeModule,
-  StandardTokenMock
+  StreamingFeeModule
 } from "../contracts/setV2";
-import { WETH9 } from "../contracts/index";
+import { WETH9, StandardTokenMock } from "../contracts/index";
 import DeployHelper from "../deploys";
 import {
   ether,
@@ -38,6 +39,8 @@ export class SetFixture {
 
   public issuanceModule: BasicIssuanceModule;
   public streamingFeeModule: StreamingFeeModule;
+  public integrationRegistry: IntegrationRegistry;
+  public compoundLeverageModule: CompoundLeverageModule;
 
   public weth: WETH9;
   public usdc: StandardTokenMock;
@@ -62,13 +65,14 @@ export class SetFixture {
 
     this.factory = await this._deployer.setV2.deploySetTokenCreator(this.controller.address);
 
+    this.integrationRegistry = await this._deployer.setV2.deployIntegrationRegistry(this.controller.address);
     this.streamingFeeModule = await this._deployer.setV2.deployStreamingFeeModule(this.controller.address);
 
     await this.controller.initialize(
       [this.factory.address], // Factories
       [this.issuanceModule.address, this.streamingFeeModule.address], // Modules
-      [], // Resources
-      []
+      [this.integrationRegistry.address], // Resources
+      [0]
     );
   }
 

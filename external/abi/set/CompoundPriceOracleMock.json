@@ -1,0 +1,65 @@
+{
+  "contractName": "CompoundPriceOracleMock",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "assetToPrices",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_asset",
+          "type": "address"
+        }
+      ],
+      "name": "getUnderlyingPrice",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_token",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_newPrice",
+          "type": "uint256"
+        }
+      ],
+      "name": "setUnderlyingPrice",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561001057600080fd5b50610151806100206000396000f3fe608060405234801561001057600080fd5b50600436106100415760003560e01c8063127ffda014610046578063b4ba21c814610074578063fc57d4df146100ac575b600080fd5b6100726004803603604081101561005c57600080fd5b506001600160a01b0381351690602001356100d2565b005b61009a6004803603602081101561008a57600080fd5b50356001600160a01b03166100ee565b60408051918252519081900360200190f35b61009a600480360360208110156100c257600080fd5b50356001600160a01b0316610100565b6001600160a01b03909116600090815260208190526040902055565b60006020819052908152604090205481565b6001600160a01b03166000908152602081905260409020549056fea26469706673582212205d943ab0a6f456f64ae8ac7af69d6f3d5c8302346d24d17e499e16fe7eda398b64736f6c634300060a0033",
+  "deployedBytecode": "",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

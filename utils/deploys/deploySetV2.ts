@@ -1,18 +1,27 @@
 import { Signer } from "ethers";
-import { BigNumberish } from "@ethersproject/bignumber";
+import { BigNumber, BigNumberish } from "@ethersproject/bignumber";
 import { Address } from "../types";
 import {
+  CompoundLeverageModule,
   Controller,
+  ComptrollerMock,
+  ContractCallerMock,
+  DebtIssuanceModule,
   BasicIssuanceModule,
+  IntegrationRegistry,
   StreamingFeeModule,
   SetToken,
   SetTokenCreator,
-  SingleIndexModule,
-  StandardTokenMock
+  SingleIndexModule
 } from "../contracts/setV2";
-import { WETH9 } from "../contracts/index";
+import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
 import { Controller__factory } from "../../typechain/factories/Controller__factory";
+import { CompoundLeverageModule__factory } from "../../typechain/factories/CompoundLeverageModule__factory";
+import { ComptrollerMock__factory } from "../../typechain/factories/ComptrollerMock__factory";
+import { ContractCallerMock__factory } from "../../typechain/factories/ContractCallerMock__factory";
+import { DebtIssuanceModule__factory } from "../../typechain/factories/DebtIssuanceModule__factory";
+import { IntegrationRegistry__factory } from "../../typechain/factories/IntegrationRegistry__factory";
 import { BasicIssuanceModule__factory } from "../../typechain/factories/BasicIssuanceModule__factory";
 import { SingleIndexModule__factory } from "../../typechain/factories/SingleIndexModule__factory";
 import { StreamingFeeModule__factory } from "../../typechain/factories/StreamingFeeModule__factory";
@@ -60,6 +69,26 @@ export default class DeploySetV2 {
     return await new BasicIssuanceModule__factory(this._deployerSigner).deploy(controller);
   }
 
+  public async deployContractCallerMock(): Promise<ContractCallerMock> {
+    return await new ContractCallerMock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployComptrollerMock(
+    comp: Address,
+    compAmount: BigNumber,
+    cToken: Address
+  ): Promise<ComptrollerMock> {
+    return await new ComptrollerMock__factory(this._deployerSigner).deploy(
+      comp,
+      compAmount,
+      cToken
+    );
+  }
+
+  public async deployDebtIssuanceModule(controller: Address): Promise<DebtIssuanceModule> {
+    return await new DebtIssuanceModule__factory(this._deployerSigner).deploy(controller);
+  }
+
   public async deployStreamingFeeModule(controller: Address): Promise<StreamingFeeModule> {
     return await new StreamingFeeModule__factory(this._deployerSigner).deploy(controller);
   }
@@ -82,6 +111,26 @@ export default class DeploySetV2 {
 
   public async deployWETH(): Promise<WETH9> {
     return await new WETH9__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployIntegrationRegistry(controller: Address): Promise<IntegrationRegistry> {
+    return await new IntegrationRegistry__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployCompoundLeverageModule(
+    controller: Address,
+    compToken: Address,
+    comptroller: Address,
+    cEther: Address,
+    weth: Address
+  ): Promise<CompoundLeverageModule> {
+    return await new CompoundLeverageModule__factory(this._deployerSigner).deploy(
+      controller,
+      compToken,
+      comptroller,
+      cEther,
+      weth
+    );
   }
 
   public async deployTokenMock(
