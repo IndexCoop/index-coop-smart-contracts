@@ -24,7 +24,6 @@ import {
   getCompoundFixture,
   getWaffleExpect,
   getRandomAccount,
-  getRandomAddress,
   getLastBlockTimestamp,
   increaseTimeAsync,
   preciseDiv,
@@ -41,7 +40,6 @@ const provider = ethers.provider;
 describe("FlexibleLeverageStrategyAdapter", () => {
   let owner: Account;
   let methodologist: Account;
-  let otherTrader: Account;
   let setV2Setup: SetFixture;
   let compoundSetup: CompoundFixture;
 
@@ -86,7 +84,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     [
       owner,
       methodologist,
-      otherTrader,
     ] = await getAccounts();
 
     deployer = new DeployHelper(owner.wallet);
@@ -837,7 +834,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
 
       // Add allowed trader
-      await flexibleLeverageStrategyAdapter.updateTraderStatus([owner.address], [true]);
+      await flexibleLeverageStrategyAdapter.updateCallerStatus([owner.address], [true]);
 
       // Engage to initial leverage
       await flexibleLeverageStrategyAdapter.engage();
@@ -1743,7 +1740,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
 
       // Add allowed trader
-      await flexibleLeverageStrategyAdapter.updateTraderStatus([owner.address], [true]);
+      await flexibleLeverageStrategyAdapter.updateCallerStatus([owner.address], [true]);
 
       // Engage to initial leverage
       await flexibleLeverageStrategyAdapter.engage();
@@ -2187,7 +2184,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
         if (ifEngaged) {
           // Add allowed trader
-          await flexibleLeverageStrategyAdapter.updateTraderStatus([owner.address], [true]);
+          await flexibleLeverageStrategyAdapter.updateCallerStatus([owner.address], [true]);
           // Engage to initial leverage
           await flexibleLeverageStrategyAdapter.engage();
           await increaseTimeAsync(BigNumber.from(100000));
@@ -2326,7 +2323,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
 
         // Engage to initial leverage
-        await flexibleLeverageStrategyAdapter.updateTraderStatus([owner.address], [true]);
+        await flexibleLeverageStrategyAdapter.updateCallerStatus([owner.address], [true]);
         await flexibleLeverageStrategyAdapter.engage();
         await increaseTimeAsync(BigNumber.from(4000));
         await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
@@ -3067,164 +3064,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     });
   });
 
-  describe("#updateTraderStatus", async () => {
-    let subjectTraders: Address[];
-    let subjectStatuses: boolean[];
-    let subjectCaller: Account;
-
-    beforeEach(async () => {
-      subjectTraders = [otherTrader.address, await getRandomAddress(), await getRandomAddress()];
-      subjectStatuses = [true, true, true];
-      subjectCaller = owner;
-    });
-
-    async function subject(): Promise<any> {
-      return await flexibleLeverageStrategyAdapter.connect(subjectCaller.wallet).updateTraderStatus(
-        subjectTraders,
-        subjectStatuses
-      );
-    }
-
-    it("the trader status should be flipped to true", async () => {
-      await subject();
-
-      const isTraderOne = await flexibleLeverageStrategyAdapter.callAllowList(subjectTraders[0]);
-      const isTraderTwo = await flexibleLeverageStrategyAdapter.callAllowList(subjectTraders[1]);
-      const isTraderThree = await flexibleLeverageStrategyAdapter.callAllowList(subjectTraders[2]);
-
-      expect(isTraderOne).to.be.true;
-      expect(isTraderTwo).to.be.true;
-      expect(isTraderThree).to.be.true;
-    });
-
-    it("should TraderStatusUpdated event", async () => {
-      await expect(subject()).to.emit(flexibleLeverageStrategyAdapter, "TraderStatusUpdated").withArgs(
-        subjectTraders[0],
-        true
-      );
-    });
-
-    describe("when array lengths don't match", async () => {
-      beforeEach(async () => {
-        subjectTraders = [otherTrader.address, await getRandomAddress()];
-        subjectStatuses = [false];
-      });
-
-      it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Array length mismatch");
-      });
-    });
-
-    describe("when traders are duplicated", async () => {
-      beforeEach(async () => {
-        subjectTraders = [otherTrader.address, otherTrader.address, await getRandomAddress()];
-      });
-
-      it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Cannot duplicate traders");
-      });
-    });
-
-    describe("when arrays are empty", async () => {
-      beforeEach(async () => {
-        subjectTraders = [];
-        subjectStatuses = [];
-      });
-
-      it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Array length must be > 0");
-      });
-    });
-
-    describe("when the caller is not the operator", async () => {
-      beforeEach(async () => {
-        subjectCaller = await getRandomAccount();
-      });
-
-      it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Must be operator");
-      });
-    });
-
-    describe("when rebalance is in progress", async () => {
-      beforeEach(async () => {
-        // Approve tokens to issuance module and call issue
-        await cEther.approve(setV2Setup.issuanceModule.address, ether(1000));
-
-        // Issue 1 SetToken
-        const issueQuantity = ether(1);
-        await setV2Setup.issuanceModule.issue(setToken.address, issueQuantity, owner.address);
-
-        await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-
-        // Engage to initial leverage
-        await flexibleLeverageStrategyAdapter.engage();
-      });
-
-      it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Rebalance is currently in progress");
-      });
-    });
-  });
-
-  describe("#updateAnyoneTrade", async () => {
-    let subjectStatus: boolean;
-    let subjectCaller: Account;
-
-    beforeEach(async () => {
-      subjectStatus = true;
-      subjectCaller = owner;
-    });
-
-    async function subject(): Promise<any> {
-      return await flexibleLeverageStrategyAdapter.connect(subjectCaller.wallet).updateAnyoneTrade(subjectStatus);
-    }
-
-    it("should flip anyoneCallable", async () => {
-      await subject();
-
-      const canAnyoneTrade = await flexibleLeverageStrategyAdapter.anyoneCallable();
-
-      expect(canAnyoneTrade).to.be.true;
-    });
-
-    it("should emit an event signaling flip", async () => {
-      await expect(subject()).to.emit(flexibleLeverageStrategyAdapter, "AnyoneTradeUpdated").withArgs(
-        true
-      );
-    });
-
-    describe("when the caller is not the operator", async () => {
-      beforeEach(async () => {
-        subjectCaller = await getRandomAccount();
-      });
-
-      it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Must be operator");
-      });
-    });
-
-    describe("when rebalance is in progress", async () => {
-      beforeEach(async () => {
-        // Approve tokens to issuance module and call issue
-        await cEther.approve(setV2Setup.issuanceModule.address, ether(1000));
-
-        // Issue 1 SetToken
-        const issueQuantity = ether(1);
-        await setV2Setup.issuanceModule.issue(setToken.address, issueQuantity, owner.address);
-
-        await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-
-        // Engage to initial leverage
-        await flexibleLeverageStrategyAdapter.engage();
-      });
-
-      it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Rebalance is currently in progress");
-      });
-    });
-  });
-
   describe("#getCurrentEtherIncentive", async () => {
     beforeEach(async () => {
       // Approve tokens to issuance module and call issue
@@ -3237,7 +3076,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
 
       // Add allowed trader
-      await flexibleLeverageStrategyAdapter.updateTraderStatus([owner.address], [true]);
+      await flexibleLeverageStrategyAdapter.updateCallerStatus([owner.address], [true]);
 
       // Engage to initial leverage
       await flexibleLeverageStrategyAdapter.engage();
@@ -3303,7 +3142,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
 
       // Add allowed trader
-      await flexibleLeverageStrategyAdapter.updateTraderStatus([owner.address], [true]);
+      await flexibleLeverageStrategyAdapter.updateCallerStatus([owner.address], [true]);
 
       // Engage to initial leverage
       await flexibleLeverageStrategyAdapter.engage();
