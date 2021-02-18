@@ -1564,7 +1564,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     });
 
     context("when current leverage ratio is above target and middle of a TWAP rebalance", async () => {
-      let preTWAPLeverageRatio: BigNumber;
+      let preTwapLeverageRatio: BigNumber;
 
       beforeEach(async () => {
         await increaseTimeAsync(BigNumber.from(100000));
@@ -1581,7 +1581,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         };
         await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
         await setV2Setup.weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
-        preTWAPLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
+        preTwapLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
 
         await flexibleLeverageStrategyAdapter.connect(owner.wallet).rebalance();
         await increaseTimeAsync(BigNumber.from(4000));
@@ -1610,7 +1610,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         const currentTwapLeverageRatio = await flexibleLeverageStrategyAdapter.twapLeverageRatio();
 
         const expectedNewLeverageRatio = calculateNewLeverageRatio(
-          preTWAPLeverageRatio,
+          preTwapLeverageRatio,
           targetLeverageRatio,
           minLeverageRatio,
           maxLeverageRatio,
@@ -1680,7 +1680,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           const currentTwapLeverageRatio = await flexibleLeverageStrategyAdapter.twapLeverageRatio();
 
           const expectedNewLeverageRatio = calculateNewLeverageRatio(
-            preTWAPLeverageRatio,
+            preTwapLeverageRatio,
             targetLeverageRatio,
             minLeverageRatio,
             maxLeverageRatio,
@@ -1784,7 +1784,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     });
 
     context("when current leverage ratio is below target and middle of a TWAP rebalance", async () => {
-      let preTWAPLeverageRatio: BigNumber;
+      let preTwapLeverageRatio: BigNumber;
 
       beforeEach(async () => {
         await increaseTimeAsync(BigNumber.from(100000));
@@ -1801,7 +1801,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         };
         await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
         await setV2Setup.weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
-        preTWAPLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
+        preTwapLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
 
         await flexibleLeverageStrategyAdapter.connect(owner.wallet).rebalance();
         await increaseTimeAsync(BigNumber.from(4000));
@@ -1835,7 +1835,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           const currentTwapLeverageRatio = await flexibleLeverageStrategyAdapter.twapLeverageRatio();
 
           const expectedNewLeverageRatio = calculateNewLeverageRatio(
-            preTWAPLeverageRatio,
+            preTwapLeverageRatio,
             targetLeverageRatio,
             minLeverageRatio,
             maxLeverageRatio,
@@ -2269,7 +2269,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     });
   });
 
-  describe.only("#iterateRipcord", async () => {
+  describe("#iterateRipcord", async () => {
     let transferredEth: BigNumber;
     let subjectCaller: Account;
 
@@ -2290,7 +2290,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       await flexibleLeverageStrategyAdapter.engage();
       await increaseTimeAsync(BigNumber.from(100000));
       await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-      await flexibleLeverageStrategyAdapter.rebalance();
+      await flexibleLeverageStrategyAdapter.iterateRebalance();
 
       subjectCaller = owner;
     });
@@ -2364,7 +2364,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         });
 
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Cooldown not elapsed or not valid leverage ratio");
+          await expect(subject()).to.be.revertedWith("TWAP cooldown must have elapsed");
         });
       });
 
@@ -2444,7 +2444,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       });
 
       async function subject(): Promise<any> {
-        return flexibleLeverageStrategyAdapter.connect(subjectCaller.wallet).ripcord();
+        return flexibleLeverageStrategyAdapter.connect(subjectCaller.wallet).iterateRipcord();
       }
 
       it("should revert", async () => {
@@ -3440,7 +3440,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       await increaseTimeAsync(BigNumber.from(100000));
       await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
 
-      await flexibleLeverageStrategyAdapter.rebalance();
+      await flexibleLeverageStrategyAdapter.iterateRebalance();
     });
 
     async function subject(): Promise<any> {

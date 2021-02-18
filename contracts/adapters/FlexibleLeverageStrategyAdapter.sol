@@ -303,14 +303,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         _validateRipcord(leverageInfo);
         _validateTWAP();
 
-        uint256 chunkRebalanceNotional;
-        uint256 totalRebalanceNotional;
-        if (!_isAdvantageousTWAP(leverageInfo.currentLeverageRatio)) {
-            (chunkRebalanceNotional, totalRebalanceNotional) = _delever(leverageInfo, methodology.maxLeverageRatio);
-        }
+        (uint256 chunkRebalanceNotional, uint256 totalRebalanceNotional) = _delever(leverageInfo, methodology.maxLeverageRatio);
 
-        // If not advantageous, then rebalance is skipped and chunk and total rebalance notional are both 0, which means TWAP state is
-        // cleared
         _updateIterateState(chunkRebalanceNotional, totalRebalanceNotional);
 
         _transferEtherRewardToCaller(incentive.etherReward);        
@@ -586,29 +580,6 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         return (chunkRebalanceNotional, totalRebalanceNotional);
     }
 
-    /**
-     * If in the midst of a TWAP rebalance (twapLeverageRatio is nonzero), check if current leverage ratio has move advantageously
-     * and update state and skip rest of trade execution. For levering (twapLeverageRatio < targetLeverageRatio), check if the current
-     * leverage ratio surpasses the stored TWAP leverage ratio. For delever (twapLeverageRatio > targetLeverageRatio), check if the
-     * current leverage ratio has dropped below the stored TWAP leverage ratio. In both cases, update the trade state and return true.
-     *
-     * return bool          Boolean indicating if we should skip the rest of the rebalance execution
-     */
-    function _updateStateAndExitIfAdvantageous(uint256 _currentLeverageRatio) internal returns (bool) {
-        if (
-            (twapLeverageRatio < methodology.targetLeverageRatio && _currentLeverageRatio >= twapLeverageRatio) 
-            || (twapLeverageRatio > methodology.targetLeverageRatio && _currentLeverageRatio <= twapLeverageRatio)
-        ) {
-            // Update trade timestamp and delete TWAP leverage ratio. Setting chunk and total rebalance notional to 0 will delete
-            // TWAP state
-            _updateTradeState(0, 0, 0);
-
-            return true;
-        } else {
-            return false;
-        }
-    }
-
     function _updateRebalanceState(
         uint256 _chunkRebalanceNotional,
         uint256 _totalRebalanceNotional,
@@ -620,36 +591,6 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
         // Check to start TWAP
         if (_chunkRebalanceNotional < _totalRebalanceNotional) {
-            twapLeverageRatio = _newLeverageRatio;
-        }
-    }
-
-
-    /**
-     * Update state on this strategy adapter to track last trade timestamp and whether to clear TWAP leverage ratio or store new TWAP
-     * leverage ratio. There are 3 cases to consider:
-     * - End TWAP / regular rebalance: if chunk size is equal to total notional, then rebalances are not chunked and clear TWAP state.
-     * - Start TWAP: If chunk size is different from total notional and the new leverage ratio is not already stored, then set TWAP ratio.
-     * - Continue TWAP: If chunk size is different from total notional, and new leverage ratio is already stored, then do not set the new 
-     * TWAP ratio.
-     */
-    function _updateTradeState(
-        uint256 _chunkRebalanceNotional,
-        uint256 _totalRebalanceNotional,
-        uint256 _newLeverageRatio
-    )
-        internal
-    {
-        lastTradeTimestamp = block.timestamp;
-
-        // If the chunk size is equal to the total notional meaning that rebalances are not chunked, then clear TWAP state.
-        if (_chunkRebalanceNotional == _totalRebalanceNotional) {
-            delete twapLeverageRatio;
-        }
-
-        // If currently in the midst of TWAP, the new leverage ratio will already have been set to the twapLeverageRatio 
-        // in the rebalance() function and this check will be skipped.
-        if(_chunkRebalanceNotional != _totalRebalanceNotional && _newLeverageRatio != twapLeverageRatio) {
             twapLeverageRatio = _newLeverageRatio;
         }
     }
@@ -869,13 +810,12 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
     function _validateRipcord(LeverageInfo memory _leverageInfo) internal view {
         require(_leverageInfo.currentLeverageRatio >= incentive.incentivizedLeverageRatio, "Must be above incentivized leverage ratio");
+        // If currently in the midst of a TWAP rebalance, ensure that the cooldown period has elapsed
+        require(lastTradeTimestamp.add(incentive.incentivizedTwapCooldownPeriod) < block.timestamp, "TWAP cooldown must have elapsed");
     }
 
     function _validateTWAP() internal view {
         require(twapLeverageRatio > 0, "Not in TWAP state");
-
-        // If currently in the midst of a TWAP rebalance, ensure that the cooldown period has elapsed
-        require(lastTradeTimestamp.add(execution.twapCooldownPeriod) < block.timestamp, "TWAP cooldown must have elapsed");
     }
 
     function _validateNonTWAP() internal view {
