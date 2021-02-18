@@ -22,7 +22,6 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Math } from "@openzeppelin/contracts/math/Math.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
-import { AddressArrayUtils } from "../lib/AddressArrayUtils.sol";
 import { BaseAdapter } from "../lib/BaseAdapter.sol";
 import { ICErc20 } from "../interfaces/ICErc20.sol";
 import { IICManagerV2 } from "../interfaces/IICManagerV2.sol";
@@ -44,7 +43,6 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  */
 contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     using Address for address;
-    using AddressArrayUtils for address[];
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
 
@@ -143,9 +141,6 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         uint256 _incentivizedTwapMaxTradeSize
     );
 
-    event TraderStatusUpdated(address indexed _trader, bool _status);
-    event AnyoneTradeUpdated(bool indexed _status);
-
     /* ============ Modifiers ============ */
 
     /**
@@ -158,38 +153,38 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
     /* ============ State Variables ============ */
 
-    ContractSettings public contractSettings;               // Struct containing contract addresses
-    MethodologySettings public methodologySettings;         // Struct containing methodology parameters
-    ExecutionSettings public executionSettings;             // Struct containing execution parameters
-    IncentiveSettings public incentiveSettings;             // Struct containing incentive parameters for ripcord
-    uint256 public twapLeverageRatio;                       // Stored leverage ratio to keep track of target between TWAP rebalances
-    uint256 public lastTradeTimestamp;                      // Last rebalance timestamp. Must be past rebalance interval to rebalance
+    ContractSettings public strategy;               // Struct containing contract addresses
+    MethodologySettings public methodology;         // Struct containing methodology parameters
+    ExecutionSettings public execution;             // Struct containing execution parameters
+    IncentiveSettings public incentive;             // Struct containing incentive parameters for ripcord
+    uint256 public twapLeverageRatio;               // Stored leverage ratio to keep track of target between TWAP rebalances
+    uint256 public lastTradeTimestamp;              // Last rebalance timestamp. Must be past rebalance interval to rebalance
 
     /* ============ Constructor ============ */
 
     /**
      * Instantiate addresses, methodology parameters, execution parameters, and incentive parameters.
      * 
-     * @param _manager                      Address of ICManagerV2 contract
-     * @param _contractSettings             Struct containing contract addresses
-     * @param _methodologySettings          Struct containing methodology parameters
-     * @param _executionSettings            Struct containing execution parameters
-     * @param _incentiveSettings            Struct containing incentive parameters for ripcord
+     * @param _manager              Address of ICManagerV2 contract
+     * @param _strategy             Struct containing contract addresses
+     * @param _methodology          Struct containing methodology parameters
+     * @param _execution            Struct containing execution parameters
+     * @param _incentive            Struct containing incentive parameters for ripcord
      */
     constructor(
         IICManagerV2 _manager,
-        ContractSettings memory _contractSettings,
-        MethodologySettings memory _methodologySettings,
-        ExecutionSettings memory _executionSettings,
-        IncentiveSettings memory _incentiveSettings
+        ContractSettings memory _strategy,
+        MethodologySettings memory _methodology,
+        ExecutionSettings memory _execution,
+        IncentiveSettings memory _incentive
     ) public {
         manager = _manager;
-        contractSettings = _contractSettings;
-        methodologySettings = _methodologySettings;
-        executionSettings = _executionSettings;
-        incentiveSettings = _incentiveSettings;
+        strategy = _strategy;
+        methodology = _methodology;
+        execution = _execution;
+        incentive = _incentive;
 
-        _validateSettings(methodologySettings, executionSettings, incentiveSettings);
+        _validateSettings(methodology, execution, incentive);
     }
 
     /* ============ External Functions ============ */
@@ -209,7 +204,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         // Calculate total rebalance units and kick off TWAP if above max borrow or max trade size
         _lever(
             PreciseUnitMath.preciseUnit(), // 1x leverage in precise units
-            methodologySettings.targetLeverageRatio,
+            methodology.targetLeverageRatio,
             engageInfo
         );
     }
@@ -233,7 +228,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         );
 
         // Ensure that when leverage exceeds incentivized threshold, only ripcord can be called to prevent potential state inconsistencies
-        require(currentLeverageRatio < incentiveSettings.incentivizedLeverageRatio, "Must call ripcord");
+        require(currentLeverageRatio < incentive.incentivizedLeverageRatio, "Must call ripcord");
 
         uint256 newLeverageRatio;
         if (twapLeverageRatio != 0) {
@@ -245,14 +240,14 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             }
 
             // If currently in the midst of a TWAP rebalance, ensure that the cooldown period has elapsed
-            require(lastTradeTimestamp.add(executionSettings.twapCooldownPeriod) < block.timestamp, "Cooldown period must have elapsed");
+            require(lastTradeTimestamp.add(execution.twapCooldownPeriod) < block.timestamp, "Cooldown period must have elapsed");
 
             newLeverageRatio = twapLeverageRatio;
         } else {
             require(
-                block.timestamp.sub(lastTradeTimestamp) > methodologySettings.rebalanceInterval
-                || currentLeverageRatio > methodologySettings.maxLeverageRatio
-                || currentLeverageRatio < methodologySettings.minLeverageRatio,
+                block.timestamp.sub(lastTradeTimestamp) > methodology.rebalanceInterval
+                || currentLeverageRatio > methodology.maxLeverageRatio
+                || currentLeverageRatio < methodology.minLeverageRatio,
                 "Rebalance interval not yet elapsed"
             );
             newLeverageRatio = _calculateNewLeverageRatio(currentLeverageRatio);
@@ -263,8 +258,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
                 currentLeverageRatio,
                 newLeverageRatio,
                 rebalanceInfo,
-                executionSettings.slippageTolerance,
-                executionSettings.twapMaxTradeSize
+                execution.slippageTolerance,
+                execution.twapMaxTradeSize
             );
         } else {
             // In the case newLeverageRatio is equal to currentLeverageRatio (which only occurs if we're exactly at the target), the trade quantity
@@ -287,7 +282,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         // If currently in the midst of a TWAP rebalance, ensure that the cooldown period has elapsed
         if (twapLeverageRatio != 0) {
             require(
-                lastTradeTimestamp.add(incentiveSettings.incentivizedTwapCooldownPeriod) < block.timestamp,
+                lastTradeTimestamp.add(incentive.incentivizedTwapCooldownPeriod) < block.timestamp,
                 "Incentivized cooldown period must have elapsed"
             );
         }
@@ -301,17 +296,17 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         );
 
         // Ensure that current leverage ratio must be greater than leverage threshold
-        require(currentLeverageRatio >= incentiveSettings.incentivizedLeverageRatio, "Must be above incentivized leverage ratio");
+        require(currentLeverageRatio >= incentive.incentivizedLeverageRatio, "Must be above incentivized leverage ratio");
         
         _delever(
             currentLeverageRatio,
-            methodologySettings.maxLeverageRatio, // The target new leverage ratio is always the max leverage ratio
+            methodology.maxLeverageRatio, // The target new leverage ratio is always the max leverage ratio
             ripcordInfo,
-            incentiveSettings.incentivizedSlippageTolerance,
-            incentiveSettings.incentivizedTwapMaxTradeSize
+            incentive.incentivizedSlippageTolerance,
+            incentive.incentivizedTwapMaxTradeSize
         );
 
-        _transferEtherRewardToCaller(incentiveSettings.etherReward);
+        _transferEtherRewardToCaller(incentive.etherReward);
     }
 
     /**
@@ -336,8 +331,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             currentLeverageRatio,
             PreciseUnitMath.preciseUnit(), // This is reducing back to a leverage ratio of 1
             disengageInfo,
-            executionSettings.slippageTolerance,
-            executionSettings.twapMaxTradeSize
+            execution.slippageTolerance,
+            execution.twapMaxTradeSize
         );
     }
 
@@ -348,14 +343,14 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     function gulp() external noRebalanceInProgress onlyEOA {
         bytes memory gulpCallData = abi.encodeWithSignature(
             "gulp(address,address,uint256,string,bytes)",
-            address(contractSettings.setToken),
-            contractSettings.collateralAsset,
+            address(strategy.setToken),
+            strategy.collateralAsset,
             0,
-            executionSettings.exchangeName,
-            executionSettings.exchangeData
+            execution.exchangeName,
+            execution.exchangeData
         );
 
-        invokeManager(address(contractSettings.leverageModule), gulpCallData);
+        invokeManager(address(strategy.leverageModule), gulpCallData);
     }
 
     /**
@@ -365,16 +360,16 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * @param _newMethodologySettings          Struct containing methodology parameters
      */
     function setMethodologySettings(MethodologySettings memory _newMethodologySettings) external onlyOperator noRebalanceInProgress {
-        methodologySettings = _newMethodologySettings;
+        methodology = _newMethodologySettings;
 
-        _validateSettings(methodologySettings, executionSettings, incentiveSettings);
+        _validateSettings(methodology, execution, incentive);
 
         emit MethodologySettingsUpdated(
-            methodologySettings.targetLeverageRatio,
-            methodologySettings.minLeverageRatio,
-            methodologySettings.maxLeverageRatio,
-            methodologySettings.recenteringSpeed,
-            methodologySettings.rebalanceInterval
+            methodology.targetLeverageRatio,
+            methodology.minLeverageRatio,
+            methodology.maxLeverageRatio,
+            methodology.recenteringSpeed,
+            methodology.rebalanceInterval
         );
     }
 
@@ -385,17 +380,17 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * @param _newExecutionSettings          Struct containing execution parameters
      */
     function setExecutionSettings(ExecutionSettings memory _newExecutionSettings) external onlyOperator noRebalanceInProgress {
-        executionSettings = _newExecutionSettings;
+        execution = _newExecutionSettings;
 
-        _validateSettings(methodologySettings, executionSettings, incentiveSettings);
+        _validateSettings(methodology, execution, incentive);
 
         emit ExecutionSettingsUpdated(
-            executionSettings.unutilizedLeveragePercentage,
-            executionSettings.twapMaxTradeSize,
-            executionSettings.twapCooldownPeriod,
-            executionSettings.slippageTolerance,
-            executionSettings.exchangeName,
-            executionSettings.exchangeData
+            execution.unutilizedLeveragePercentage,
+            execution.twapMaxTradeSize,
+            execution.twapCooldownPeriod,
+            execution.slippageTolerance,
+            execution.exchangeName,
+            execution.exchangeData
         );
     }
 
@@ -406,16 +401,16 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * @param _newIncentiveSettings          Struct containing incentive parameters
      */
     function setIncentiveSettings(IncentiveSettings memory _newIncentiveSettings) external onlyOperator noRebalanceInProgress {
-        incentiveSettings = _newIncentiveSettings;
+        incentive = _newIncentiveSettings;
 
-        _validateSettings(methodologySettings, executionSettings, incentiveSettings);
+        _validateSettings(methodology, execution, incentive);
 
         emit IncentiveSettingsUpdated(
-            incentiveSettings.etherReward,
-            incentiveSettings.incentivizedLeverageRatio,
-            incentiveSettings.incentivizedSlippageTolerance,
-            incentiveSettings.incentivizedTwapCooldownPeriod,
-            incentiveSettings.incentivizedTwapMaxTradeSize
+            incentive.etherReward,
+            incentive.incentivizedLeverageRatio,
+            incentive.incentivizedSlippageTolerance,
+            incentive.incentivizedTwapCooldownPeriod,
+            incentive.incentivizedTwapMaxTradeSize
         );
     }
     
@@ -424,34 +419,6 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      */
     function withdrawEtherBalance() external onlyOperator noRebalanceInProgress {
         msg.sender.transfer(address(this).balance);
-    }
-
-    /**
-     * OPERATOR ONLY: Toggle ability for passed addresses to trade from current state 
-     *
-     * @param _traders           Array trader addresses to toggle status
-     */
-    function updateTraderStatus(address[] calldata _traders, bool[] calldata _statuses) external onlyOperator noRebalanceInProgress {
-        require(_traders.length == _statuses.length, "Array length mismatch");
-        require(_traders.length > 0, "Array length must be > 0");
-        require(!_traders.hasDuplicate(), "Cannot duplicate traders");
-
-        for (uint256 i = 0; i < _traders.length; i++) {
-            address trader = _traders[i];
-            bool status = _statuses[i];
-            callAllowList[trader] = status;
-            emit TraderStatusUpdated(trader, status);
-        }
-    }
-
-    /**
-     * OPERATOR ONLY: Toggle whether anyone can trade, bypassing the traderAllowList 
-     *
-     * @param _status           Boolean indicating whether to allow anyone trade
-     */
-    function updateAnyoneTrade(bool _status) external onlyOperator noRebalanceInProgress {
-        anyoneCallable = _status;
-        emit AnyoneTradeUpdated(_status);
     }
 
     receive() external payable {}
@@ -478,9 +445,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     function getCurrentEtherIncentive() external view returns(uint256) {
         uint256 currentLeverageRatio = getCurrentLeverageRatio();
 
-        if (currentLeverageRatio >= incentiveSettings.incentivizedLeverageRatio) {
+        if (currentLeverageRatio >= incentive.incentivizedLeverageRatio) {
             // If ETH reward is below the balance on this contract, then return ETH balance on contract instead
-            return incentiveSettings.etherReward < address(this).balance ? incentiveSettings.etherReward : address(this).balance;
+            return incentive.etherReward < address(this).balance ? incentive.etherReward : address(this).balance;
         } else {
             return 0;
         }
@@ -498,30 +465,30 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         if (twapLeverageRatio != 0) {
             // Check incentivized cooldown period has elapsed for ripcord
             if (
-                currentLeverageRatio >= incentiveSettings.incentivizedLeverageRatio
-                && lastTradeTimestamp.add(incentiveSettings.incentivizedTwapCooldownPeriod) < block.timestamp
+                currentLeverageRatio >= incentive.incentivizedLeverageRatio
+                && lastTradeTimestamp.add(incentive.incentivizedTwapCooldownPeriod) < block.timestamp
             ) {
                 return ShouldRebalance.RIPCORD;
             }
 
             // Check cooldown period has elapsed for rebalance
             if (
-                currentLeverageRatio < incentiveSettings.incentivizedLeverageRatio
-                && lastTradeTimestamp.add(executionSettings.twapCooldownPeriod) < block.timestamp
+                currentLeverageRatio < incentive.incentivizedLeverageRatio
+                && lastTradeTimestamp.add(execution.twapCooldownPeriod) < block.timestamp
             ) {
                 return ShouldRebalance.REBALANCE;
             }
         } else {
             // If not TWAP, then check that current leverage is above ripcord threshold
-            if (currentLeverageRatio >= incentiveSettings.incentivizedLeverageRatio) {
+            if (currentLeverageRatio >= incentive.incentivizedLeverageRatio) {
                 return ShouldRebalance.RIPCORD;
             }
 
             // If not TWAP, then check that either rebalance interval has elapsed, current leverage is above max or current leverage is below min
             if (
-                block.timestamp.sub(lastTradeTimestamp) > methodologySettings.rebalanceInterval
-                || currentLeverageRatio > methodologySettings.maxLeverageRatio
-                || currentLeverageRatio < methodologySettings.minLeverageRatio
+                block.timestamp.sub(lastTradeTimestamp) > methodology.rebalanceInterval
+                || currentLeverageRatio > methodology.maxLeverageRatio
+                || currentLeverageRatio < methodology.minLeverageRatio
             ) {
                 return ShouldRebalance.REBALANCE;
             }
@@ -554,7 +521,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
         uint256 maxBorrow = _calculateMaxBorrowCollateral(_actionInfo, true);
 
-        uint256 chunkRebalanceNotional = Math.min(Math.min(maxBorrow, totalRebalanceNotional), executionSettings.twapMaxTradeSize);
+        uint256 chunkRebalanceNotional = Math.min(Math.min(maxBorrow, totalRebalanceNotional), execution.twapMaxTradeSize);
 
         uint256 collateralRebalanceUnits = chunkRebalanceNotional.preciseDiv(_actionInfo.setTotalSupply);
 
@@ -564,16 +531,16 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
         bytes memory leverCallData = abi.encodeWithSignature(
             "lever(address,address,address,uint256,uint256,string,bytes)",
-            address(contractSettings.setToken),
-            contractSettings.borrowAsset,
-            contractSettings.collateralAsset,
+            address(strategy.setToken),
+            strategy.borrowAsset,
+            strategy.collateralAsset,
             borrowUnits,
             minReceiveUnits,
-            executionSettings.exchangeName,
-            executionSettings.exchangeData
+            execution.exchangeName,
+            execution.exchangeData
         );
 
-        invokeManager(address(contractSettings.leverageModule), leverCallData);
+        invokeManager(address(strategy.leverageModule), leverCallData);
 
         _updateTradeState(chunkRebalanceNotional, totalRebalanceNotional, _newLeverageRatio);
     }
@@ -607,16 +574,16 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
         bytes memory deleverCallData = abi.encodeWithSignature(
             "delever(address,address,address,uint256,uint256,string,bytes)",
-            address(contractSettings.setToken),
-            contractSettings.collateralAsset,
-            contractSettings.borrowAsset,
+            address(strategy.setToken),
+            strategy.collateralAsset,
+            strategy.borrowAsset,
             collateralRebalanceUnits,
             minRepayUnits,
-            executionSettings.exchangeName,
-            executionSettings.exchangeData
+            execution.exchangeName,
+            execution.exchangeData
         );
 
-        invokeManager(address(contractSettings.leverageModule), deleverCallData);
+        invokeManager(address(strategy.leverageModule), deleverCallData);
 
         _updateTradeState(chunkRebalanceNotional, totalRebalanceNotional, _newLeverageRatio);
     }
@@ -631,8 +598,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      */
     function _updateStateAndExitIfAdvantageous(uint256 _currentLeverageRatio) internal returns (bool) {
         if (
-            (twapLeverageRatio < methodologySettings.targetLeverageRatio && _currentLeverageRatio >= twapLeverageRatio) 
-            || (twapLeverageRatio > methodologySettings.targetLeverageRatio && _currentLeverageRatio <= twapLeverageRatio)
+            (twapLeverageRatio < methodology.targetLeverageRatio && _currentLeverageRatio >= twapLeverageRatio) 
+            || (twapLeverageRatio > methodology.targetLeverageRatio && _currentLeverageRatio <= twapLeverageRatio)
         ) {
             // Update trade timestamp and delete TWAP leverage ratio. Setting chunk and total rebalance notional to 0 will delete
             // TWAP state
@@ -690,16 +657,16 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         ActionInfo memory rebalanceInfo;
 
         // IMPORTANT: Compound oracle returns prices adjusted for decimals. USDC is 6 decimals so $1 * 10^18 * 10^18 / 10^6 = 10^30
-        rebalanceInfo.collateralPrice = contractSettings.priceOracle.getUnderlyingPrice(address(contractSettings.targetCollateralCToken));
-        rebalanceInfo.borrowPrice = contractSettings.priceOracle.getUnderlyingPrice(address(contractSettings.targetBorrowCToken));
+        rebalanceInfo.collateralPrice = strategy.priceOracle.getUnderlyingPrice(address(strategy.targetCollateralCToken));
+        rebalanceInfo.borrowPrice = strategy.priceOracle.getUnderlyingPrice(address(strategy.targetBorrowCToken));
 
         // Calculate stored exchange rate which does not trigger a state update
-        uint256 cTokenBalance = contractSettings.targetCollateralCToken.balanceOf(address(contractSettings.setToken));
-        rebalanceInfo.collateralBalance = cTokenBalance.preciseMul(contractSettings.targetCollateralCToken.exchangeRateStored());
-        rebalanceInfo.borrowBalance = contractSettings.targetBorrowCToken.borrowBalanceStored(address(contractSettings.setToken));
+        uint256 cTokenBalance = strategy.targetCollateralCToken.balanceOf(address(strategy.setToken));
+        rebalanceInfo.collateralBalance = cTokenBalance.preciseMul(strategy.targetCollateralCToken.exchangeRateStored());
+        rebalanceInfo.borrowBalance = strategy.targetBorrowCToken.borrowBalanceStored(address(strategy.setToken));
         rebalanceInfo.collateralValue = rebalanceInfo.collateralPrice.preciseMul(rebalanceInfo.collateralBalance);
         rebalanceInfo.borrowValue = rebalanceInfo.borrowPrice.preciseMul(rebalanceInfo.borrowBalance);
-        rebalanceInfo.setTotalSupply = contractSettings.setToken.totalSupply();
+        rebalanceInfo.setTotalSupply = strategy.setToken.totalSupply();
 
         return rebalanceInfo;
     }
@@ -713,11 +680,11 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      */
     function _calculateNewLeverageRatio(uint256 _currentLeverageRatio) internal view returns(uint256) {
         // CLRt+1 = max(MINLR, min(MAXLR, CLRt * (1 - RS) + TLR * RS))
-        uint256 a = methodologySettings.targetLeverageRatio.preciseMul(methodologySettings.recenteringSpeed);
-        uint256 b = PreciseUnitMath.preciseUnit().sub(methodologySettings.recenteringSpeed).preciseMul(_currentLeverageRatio);
+        uint256 a = methodology.targetLeverageRatio.preciseMul(methodology.recenteringSpeed);
+        uint256 b = PreciseUnitMath.preciseUnit().sub(methodology.recenteringSpeed).preciseMul(_currentLeverageRatio);
         uint256 c = a.add(b);
-        uint256 d = Math.min(c, methodologySettings.maxLeverageRatio);
-        return Math.max(methodologySettings.minLeverageRatio, d);
+        uint256 d = Math.min(c, methodology.maxLeverageRatio);
+        return Math.max(methodology.minLeverageRatio, d);
     }
 
     /**
@@ -737,11 +704,11 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      */
     function _calculateMaxBorrowCollateral(ActionInfo memory _actionInfo, bool _isLever) internal view returns(uint256) {
         // Retrieve collateral factor which is the % increase in borrow limit in precise units (75% = 75 * 1e16)
-        ( , uint256 collateralFactorMantissa, ) = contractSettings.comptroller.markets(address(contractSettings.targetCollateralCToken));
+        ( , uint256 collateralFactorMantissa, ) = strategy.comptroller.markets(address(strategy.targetCollateralCToken));
 
         uint256 netBorrowLimit = _actionInfo.collateralValue
             .preciseMul(collateralFactorMantissa)
-            .preciseMul(PreciseUnitMath.preciseUnit().sub(executionSettings.unutilizedLeveragePercentage));
+            .preciseMul(PreciseUnitMath.preciseUnit().sub(execution.unutilizedLeveragePercentage));
 
         if (_isLever) {
             return netBorrowLimit
@@ -770,7 +737,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * return uint256           Min position units to receive after lever trade
      */
     function _calculateMinCollateralReceiveUnits(uint256 _collateralRebalanceUnits) internal view returns (uint256) {
-        return _collateralRebalanceUnits.preciseMul(PreciseUnitMath.preciseUnit().sub(executionSettings.slippageTolerance));
+        return _collateralRebalanceUnits.preciseMul(PreciseUnitMath.preciseUnit().sub(execution.slippageTolerance));
     }
 
     /**
@@ -790,51 +757,51 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * Validate settings in constructor and setters when updating.
      */
     function _validateSettings(
-        MethodologySettings memory _methodologySettings,
-        ExecutionSettings memory _executionSettings,
-        IncentiveSettings memory _incentiveSettings
+        MethodologySettings memory _methodology,
+        ExecutionSettings memory _execution,
+        IncentiveSettings memory _incentive
     )
         internal
         pure
     {
         require (
-            _methodologySettings.minLeverageRatio <= _methodologySettings.targetLeverageRatio,
+            _methodology.minLeverageRatio <= _methodology.targetLeverageRatio,
             "Must be valid min leverage"
         );
         require (
-            _methodologySettings.maxLeverageRatio >= _methodologySettings.targetLeverageRatio,
+            _methodology.maxLeverageRatio >= _methodology.targetLeverageRatio,
             "Must be valid max leverage"
         );
         require (
-            _methodologySettings.recenteringSpeed <= PreciseUnitMath.preciseUnit() && _methodologySettings.recenteringSpeed > 0,
+            _methodology.recenteringSpeed <= PreciseUnitMath.preciseUnit() && _methodology.recenteringSpeed > 0,
             "Must be valid recentering speed"
         );
         require (
-            _executionSettings.unutilizedLeveragePercentage <= PreciseUnitMath.preciseUnit(),
+            _execution.unutilizedLeveragePercentage <= PreciseUnitMath.preciseUnit(),
             "Unutilized leverage must be <100%"
         );
         require (
-            _executionSettings.slippageTolerance <= PreciseUnitMath.preciseUnit(),
+            _execution.slippageTolerance <= PreciseUnitMath.preciseUnit(),
             "Slippage tolerance must be <100%"
         );
         require (
-            _incentiveSettings.incentivizedSlippageTolerance <= PreciseUnitMath.preciseUnit(),
+            _incentive.incentivizedSlippageTolerance <= PreciseUnitMath.preciseUnit(),
             "Incentivized slippage tolerance must be <100%"
         );
         require (
-            _incentiveSettings.incentivizedLeverageRatio >= _methodologySettings.maxLeverageRatio,
+            _incentive.incentivizedLeverageRatio >= _methodology.maxLeverageRatio,
             "Incentivized leverage ratio must be > max leverage ratio"
         );
         require (
-            _methodologySettings.rebalanceInterval >= _executionSettings.twapCooldownPeriod,
+            _methodology.rebalanceInterval >= _execution.twapCooldownPeriod,
             "Rebalance interval must be greater than TWAP cooldown period"
         );
         require (
-            _executionSettings.twapCooldownPeriod >= _incentiveSettings.incentivizedTwapCooldownPeriod,
+            _execution.twapCooldownPeriod >= _incentive.incentivizedTwapCooldownPeriod,
             "TWAP cooldown must be greater than incentivized TWAP cooldown"
         );
         require (
-            _executionSettings.twapMaxTradeSize <= _incentiveSettings.incentivizedTwapMaxTradeSize,
+            _execution.twapMaxTradeSize <= _incentive.incentivizedTwapMaxTradeSize,
             "TWAP max trade size must be less than incentivized TWAP max trade size"
         );
     }

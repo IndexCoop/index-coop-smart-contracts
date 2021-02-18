@@ -16,6 +16,7 @@
 
 pragma solidity 0.6.10;
 
+import { AddressArrayUtils } from "../lib/AddressArrayUtils.sol";
 import { IICManagerV2 } from "../interfaces/IICManagerV2.sol";
 
 /**
@@ -25,6 +26,12 @@ import { IICManagerV2 } from "../interfaces/IICManagerV2.sol";
  * Abstract class that houses common adapter-related state and functions.
  */
 abstract contract BaseAdapter {
+    using AddressArrayUtils for address[];
+
+    /* ============ Events ============ */
+
+    event CallerStatusUpdated(address indexed _caller, bool _status);
+    event AnyoneCallableUpdated(bool indexed _status);
 
     /* ============ Modifiers ============ */
 
@@ -72,6 +79,37 @@ abstract contract BaseAdapter {
     mapping(address => bool) public callAllowList;
 
 
+    /* ============ External Functions ============ */
+
+    /**
+     * OPERATOR ONLY: Toggle ability for passed addresses to call only allowed caller functions
+     *
+     * @param _callers           Array of caller addresses to toggle status
+     * @param _statuses          Array of statuses for each caller
+     */
+    function updateCallerStatus(address[] calldata _callers, bool[] calldata _statuses) external onlyOperator {
+        require(_callers.length == _statuses.length, "Array length mismatch");
+        require(_callers.length > 0, "Array length must be > 0");
+        require(!_callers.hasDuplicate(), "Cannot duplicate callers");
+
+        for (uint256 i = 0; i < _callers.length; i++) {
+            address caller = _callers[i];
+            bool status = _statuses[i];
+            callAllowList[caller] = status;
+            emit CallerStatusUpdated(caller, status);
+        }
+    }
+
+    /**
+     * OPERATOR ONLY: Toggle whether anyone can call function, bypassing the callAllowlist 
+     *
+     * @param _status           Boolean indicating whether to allow anyone call
+     */
+    function updateAnyoneCallable(bool _status) external onlyOperator {
+        anyoneCallable = _status;
+        emit AnyoneCallableUpdated(_status);
+    }
+
     /* ============ Internal Functions ============ */
     
     /**
@@ -87,7 +125,7 @@ abstract contract BaseAdapter {
     /**
      * Determine if passed address is allowed to call function. If anyoneCallable set to true anyone can call otherwise needs to be approved.
      *
-     * return bool              Boolean indicating if caller is allowed trader
+     * return bool              Boolean indicating if allowed caller
      */
     function isAllowedCaller(address _caller) internal view virtual returns (bool) {
         return anyoneCallable || callAllowList[_caller];

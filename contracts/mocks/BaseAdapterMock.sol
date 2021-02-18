@@ -54,12 +54,4 @@ contract BaseAdapterMock is BaseAdapter {
     function updateManager(IICManagerV2 _newManager) external {
         manager = _newManager;
     }
-
-    function updateAnyoneCallable(bool _status) external {
-        anyoneCallable = _status;
-    }
-
-    function updateCallAllowList(address _caller, bool _status) external {
-        callAllowList[_caller] = _status;
-    }
 }
