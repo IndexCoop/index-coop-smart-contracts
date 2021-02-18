@@ -51,7 +51,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     enum ShouldRebalance {
         NONE,
         REBALANCE,
-        RIPCORD
+        ITERATE_REBALANCE,
+        RIPCORD,
+        ITERATE_RIPCORD
     }
 
     /* ============ Structs ============ */
@@ -460,7 +462,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
                 currentLeverageRatio >= incentive.incentivizedLeverageRatio
                 && lastTradeTimestamp.add(incentive.incentivizedTwapCooldownPeriod) < block.timestamp
             ) {
-                return ShouldRebalance.RIPCORD;
+                return ShouldRebalance.ITERATE_RIPCORD;
             }
 
             // Check cooldown period has elapsed for rebalance
@@ -468,7 +470,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
                 currentLeverageRatio < incentive.incentivizedLeverageRatio
                 && lastTradeTimestamp.add(execution.twapCooldownPeriod) < block.timestamp
             ) {
-                return ShouldRebalance.REBALANCE;
+                return ShouldRebalance.ITERATE_REBALANCE;
             }
         } else {
             // If not TWAP, then check that current leverage is above ripcord threshold
@@ -515,7 +517,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
         uint256 maxBorrow = _calculateMaxBorrowCollateral(_leverageInfo.action, true);
 
-        uint256 chunkRebalanceNotional = Math.min(Math.min(maxBorrow, totalRebalanceNotional), execution.twapMaxTradeSize);
+        uint256 chunkRebalanceNotional = Math.min(Math.min(maxBorrow, totalRebalanceNotional), _leverageInfo.twapMaxTradeSize);
 
         uint256 collateralRebalanceUnits = chunkRebalanceNotional.preciseDiv(_leverageInfo.action.setTotalSupply);
 
