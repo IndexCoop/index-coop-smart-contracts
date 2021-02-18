@@ -33,13 +33,11 @@ export function calculateMaxBorrowForDelever(
   collateralFactor: BigNumber,
   unutilizedLeveragePercentage: BigNumber,
   collateralPrice: BigNumber,
-  collateralBaseUnits: BigNumber,
   borrowPrice: BigNumber,
   borrowBalance: BigNumber,
-  borrowBaseUnits: BigNumber
 ): BigNumber {
-  const collateralValue = preciseDiv(preciseMul(collateralBalance, collateralPrice), collateralBaseUnits);
-  const borrowValue = preciseDiv(preciseMul(borrowBalance, borrowPrice), borrowBaseUnits);
+  const collateralValue = preciseMul(collateralBalance, collateralPrice);
+  const borrowValue = preciseMul(borrowBalance, borrowPrice);
   const netBorrowLimit = preciseMul(
     preciseMul(collateralValue, collateralFactor),
     ether(1).sub(unutilizedLeveragePercentage)

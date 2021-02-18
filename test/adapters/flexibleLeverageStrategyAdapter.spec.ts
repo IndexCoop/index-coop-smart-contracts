@@ -1116,7 +1116,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         });
 
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Address not permitted to trade");
+          await expect(subject()).to.be.revertedWith("Address not permitted to call");
         });
       });
 
@@ -2005,10 +2005,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             collateralFactor,
             unutilizedLeveragePercentage,
             collateralPrice,
-            ether(1),
             borrowPrice,
             previousBorrowBalance,
-            BigNumber.from(1000000)
           );
 
           const maxRedeemCToken = preciseDiv(maxRedeemCollateral, exchangeRate);
@@ -2400,10 +2398,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           collateralFactor,
           unutilizedLeveragePercentage,
           collateralPrice,
-          ether(1),
           borrowPrice,
           previousBorrowBalance,
-          BigNumber.from(1000000)
         );
 
         const maxRedeemCToken = preciseDiv(maxRedeemCollateral, exchangeRate);
