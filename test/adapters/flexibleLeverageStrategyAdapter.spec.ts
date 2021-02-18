@@ -840,10 +840,10 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       await flexibleLeverageStrategyAdapter.engage();
       await increaseTimeAsync(BigNumber.from(100000));
       await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-      await flexibleLeverageStrategyAdapter.rebalance();
+      await flexibleLeverageStrategyAdapter.iterateRebalance();
     });
 
-    context("when current leverage ratio is below target (lever) and no TWAP", async () => {
+    context("when current leverage ratio is below target (lever)", async () => {
       beforeEach(async () => {
         destinationTokenQuantity = ether(0.1);
         await increaseTimeAsync(BigNumber.from(100000));
@@ -1074,16 +1074,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
           expect(newSecondPosition.module).to.eq(compoundLeverageModule.address);
         });
-
-        describe("when TWAP cooldown has not elapsed", async () => {
-          beforeEach(async () => {
-            await subject();
-          });
-
-          it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("Cooldown period must have elapsed");
-          });
-        });
       });
 
       describe("when rebalance interval has not elapsed", async () => {
@@ -1092,7 +1082,31 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         });
 
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Rebalance interval not yet elapsed");
+          await expect(subject()).to.be.revertedWith("Cooldown not elapsed or not valid leverage ratio");
+        });
+      });
+
+      describe("when in a TWAP rebalance", async () => {
+        beforeEach(async () => {
+          await increaseTimeAsync(BigNumber.from(100000));
+          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1200));
+
+          const newExecutionSettings = {
+            unutilizedLeveragePercentage: unutilizedLeveragePercentage,
+            twapMaxTradeSize: ether(0.01),
+            twapCooldownPeriod: twapCooldownPeriod,
+            slippageTolerance: slippageTolerance,
+            exchangeName: "MockTradeAdapter",
+            exchangeData: EMPTY_BYTES,
+          };
+          await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
+          await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.01));
+
+          await subject();
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must call iterate");
         });
       });
 
@@ -1144,9 +1158,20 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           await expect(subjectContractCaller()).to.be.revertedWith("Caller must be EOA Address");
         });
       });
+
+      describe("when SetToken has 0 supply", async () => {
+        beforeEach(async () => {
+          await setV2Setup.usdc.approve(debtIssuanceModule.address, MAX_UINT_256);
+          await debtIssuanceModule.redeem(setToken.address, ether(1), owner.address);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("SetToken must have > 0 supply");
+        });
+      });
     });
 
-    context("when current leverage ratio is above target (delever) and no TWAP", async () => {
+    context("when current leverage ratio is above target (delever)", async () => {
       beforeEach(async () => {
         // Withdraw balance of USDC from exchange contract from engage
         await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
@@ -1423,9 +1448,34 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         });
 
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Must call ripcord");
+          await expect(subject()).to.be.revertedWith("Must be below incentivized leverage ratio");
         });
       });
+    });
+  });
+
+  describe("#iterateRebalance", async () => {
+    let destinationTokenQuantity: BigNumber;
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      // Approve tokens to issuance module and call issue
+      await cEther.approve(setV2Setup.issuanceModule.address, ether(1000));
+
+      // Issue 1 SetToken
+      const issueQuantity = ether(1);
+      await setV2Setup.issuanceModule.issue(setToken.address, issueQuantity, owner.address);
+
+      await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+
+      // Add allowed trader
+      await flexibleLeverageStrategyAdapter.updateCallerStatus([owner.address], [true]);
+
+      // Engage to initial leverage
+      await flexibleLeverageStrategyAdapter.engage();
+      await increaseTimeAsync(BigNumber.from(100000));
+      await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+      await flexibleLeverageStrategyAdapter.iterateRebalance();
     });
 
     context("when currently in the last chunk of a TWAP rebalance", async () => {
@@ -1454,7 +1504,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       });
 
       async function subject(): Promise<any> {
-        return flexibleLeverageStrategyAdapter.connect(subjectCaller.wallet).rebalance();
+        return flexibleLeverageStrategyAdapter.connect(subjectCaller.wallet).iterateRebalance();
       }
 
       it("should set the last trade timestamp", async () => {
@@ -1541,7 +1591,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       });
 
       async function subject(): Promise<any> {
-        return flexibleLeverageStrategyAdapter.connect(subjectCaller.wallet).rebalance();
+        return flexibleLeverageStrategyAdapter.connect(subjectCaller.wallet).iterateRebalance();
       }
 
       it("should set the last trade timestamp", async () => {
@@ -1649,6 +1699,88 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           expect(currentPositions[1].unit).to.eq(initialPositions[1].unit);
         });
       });
+
+      describe("when above incentivized leverage ratio threshold", async () => {
+        beforeEach(async () => {
+          await subject();
+
+          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(650));
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be below incentivized leverage ratio");
+        });
+      });
+
+      describe("when cooldown has not elapsed", async () => {
+        beforeEach(async () => {
+          await subject();
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Cooldown not elapsed or not valid leverage ratio");
+        });
+      });
+
+      describe("when borrow balance is 0", async () => {
+        beforeEach(async () => {
+          // Repay entire balance of cUSDC on behalf of SetToken
+          await cUSDC.repayBorrowBehalf(setToken.address, MAX_UINT_256);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Borrow balance must exist");
+        });
+      });
+
+      describe("when caller is not an allowed trader", async () => {
+        beforeEach(async () => {
+          subjectCaller = await getRandomAccount();
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Address not permitted to call");
+        });
+      });
+
+      describe("when caller is a contract", async () => {
+        let subjectTarget: Address;
+        let subjectCallData: string;
+        let subjectValue: BigNumber;
+
+        let contractCaller: ContractCallerMock;
+
+        beforeEach(async () => {
+          contractCaller = await deployer.setV2.deployContractCallerMock();
+
+          subjectTarget = flexibleLeverageStrategyAdapter.address;
+          subjectCallData = flexibleLeverageStrategyAdapter.interface.encodeFunctionData("iterateRebalance");
+          subjectValue = ZERO;
+        });
+
+        async function subjectContractCaller(): Promise<any> {
+          return await contractCaller.invoke(
+            subjectTarget,
+            subjectValue,
+            subjectCallData
+          );
+        }
+
+        it("the trade reverts", async () => {
+          await expect(subjectContractCaller()).to.be.revertedWith("Caller must be EOA Address");
+        });
+      });
+
+      describe("when SetToken has 0 supply", async () => {
+        beforeEach(async () => {
+          await setV2Setup.usdc.approve(debtIssuanceModule.address, MAX_UINT_256);
+          await debtIssuanceModule.redeem(setToken.address, ether(1), owner.address);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("SetToken must have > 0 supply");
+        });
+      });
     });
 
     context("when current leverage ratio is below target and middle of a TWAP rebalance", async () => {
@@ -1679,7 +1811,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       });
 
       async function subject(): Promise<any> {
-        return flexibleLeverageStrategyAdapter.connect(subjectCaller.wallet).rebalance();
+        return flexibleLeverageStrategyAdapter.connect(subjectCaller.wallet).iterateRebalance();
       }
 
       describe("when price has moved advantageously towards target leverage ratio", async () => {
@@ -1746,7 +1878,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       await flexibleLeverageStrategyAdapter.engage();
       await increaseTimeAsync(BigNumber.from(100000));
       await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-      await flexibleLeverageStrategyAdapter.rebalance();
+      await flexibleLeverageStrategyAdapter.iterateRebalance();
 
       subjectCaller = owner;
     });
@@ -1940,16 +2072,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
           expect(newSecondPosition.module).to.eq(compoundLeverageModule.address);
         });
-
-        describe("when incentivized cooldown period has not elapsed", async () => {
-          beforeEach(async () => {
-            await subject();
-          });
-
-          it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("Incentivized cooldown period must have elapsed");
-          });
-        });
       });
 
       describe("when greater than max borrow", async () => {
@@ -2035,16 +2157,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
           expect(newSecondPosition.module).to.eq(compoundLeverageModule.address);
         });
-
-        describe("when incentivized cooldown period has not elapsed", async () => {
-          beforeEach(async () => {
-            await subject();
-          });
-
-          it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("Incentivized cooldown period must have elapsed");
-          });
-        });
       });
 
       describe("when below incentivized leverage ratio threshold", async () => {
@@ -2095,6 +2207,92 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           await expect(subjectContractCaller()).to.be.revertedWith("Caller must be EOA Address");
         });
       });
+
+      describe("when SetToken has 0 supply", async () => {
+        beforeEach(async () => {
+          await setV2Setup.usdc.approve(debtIssuanceModule.address, MAX_UINT_256);
+          await debtIssuanceModule.redeem(setToken.address, ether(1), owner.address);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("SetToken must have > 0 supply");
+        });
+      });
+    });
+
+    context("when in the midst of a TWAP rebalance", async () => {
+      let newIncentivizedMaxTradeSize: BigNumber;
+
+      beforeEach(async () => {
+        // Withdraw balance of USDC from exchange contract from engage
+        await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
+        await increaseTimeAsync(BigNumber.from(100000));
+        transferredEth = ether(1);
+        await owner.wallet.sendTransaction({to: flexibleLeverageStrategyAdapter.address, value: transferredEth});
+
+        // > Max trade size
+        const newExecutionSettings = {
+          unutilizedLeveragePercentage: unutilizedLeveragePercentage,
+          twapMaxTradeSize: ether(0.0001),
+          twapCooldownPeriod: twapCooldownPeriod,
+          slippageTolerance: slippageTolerance,
+          exchangeName: "MockTradeAdapter",
+          exchangeData: EMPTY_BYTES,
+        };
+        await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
+        newIncentivizedMaxTradeSize = ether(0.001);
+        const newIncentiveSettings = {
+          incentivizedTwapMaxTradeSize: newIncentivizedMaxTradeSize,
+          incentivizedTwapCooldownPeriod: incentivizedTwapCooldownPeriod,
+          incentivizedSlippageTolerance: incentivizedSlippageTolerance,
+          etherReward: etherReward,
+          incentivizedLeverageRatio: incentivizedLeverageRatio,
+        };
+        await flexibleLeverageStrategyAdapter.setIncentiveSettings(newIncentiveSettings);
+
+        // Set to above incentivized ratio
+        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(800));
+        await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
+
+        await flexibleLeverageStrategyAdapter.ripcord();
+        await increaseTimeAsync(BigNumber.from(100));
+        await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
+      });
+
+      async function subject(): Promise<any> {
+        return flexibleLeverageStrategyAdapter.connect(subjectCaller.wallet).ripcord();
+      }
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must call iterate");
+      });
+    });
+  });
+
+  describe.only("#iterateRipcord", async () => {
+    let transferredEth: BigNumber;
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      // Approve tokens to issuance module and call issue
+      await cEther.approve(setV2Setup.issuanceModule.address, ether(1000));
+
+      // Issue 1 SetToken
+      const issueQuantity = ether(1);
+      await setV2Setup.issuanceModule.issue(setToken.address, issueQuantity, owner.address);
+
+      await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+
+      // Add allowed trader
+      await flexibleLeverageStrategyAdapter.updateCallerStatus([owner.address], [true]);
+
+      // Engage to initial leverage
+      await flexibleLeverageStrategyAdapter.engage();
+      await increaseTimeAsync(BigNumber.from(100000));
+      await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+      await flexibleLeverageStrategyAdapter.rebalance();
+
+      subjectCaller = owner;
     });
 
     context("when in the midst of a TWAP rebalance", async () => {
@@ -2140,7 +2338,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       });
 
       async function subject(): Promise<any> {
-        return flexibleLeverageStrategyAdapter.connect(subjectCaller.wallet).ripcord();
+        return flexibleLeverageStrategyAdapter.connect(subjectCaller.wallet).iterateRipcord();
       }
 
       it("should set the last trade timestamp", async () => {
@@ -2158,6 +2356,99 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
         expect(preTwapLeverageRatio).to.eq(ZERO);
         expect(currentTwapLeverageRatio).to.eq(maxLeverageRatio);
+      });
+
+      describe("when incentivized cooldown period has not elapsed", async () => {
+        beforeEach(async () => {
+          await subject();
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Cooldown not elapsed or not valid leverage ratio");
+        });
+      });
+
+      describe("when below incentivized leverage ratio threshold", async () => {
+        beforeEach(async () => {
+          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(2000));
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be above incentivized leverage ratio");
+        });
+      });
+
+      describe("when borrow balance is 0", async () => {
+        beforeEach(async () => {
+          // Repay entire balance of cUSDC on behalf of SetToken
+          await cUSDC.repayBorrowBehalf(setToken.address, MAX_UINT_256);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Borrow balance must exist");
+        });
+      });
+
+      describe("when caller is a contract", async () => {
+        let subjectTarget: Address;
+        let subjectCallData: string;
+        let subjectValue: BigNumber;
+
+        let contractCaller: ContractCallerMock;
+
+        beforeEach(async () => {
+          contractCaller = await deployer.setV2.deployContractCallerMock();
+
+          subjectTarget = flexibleLeverageStrategyAdapter.address;
+          subjectCallData = flexibleLeverageStrategyAdapter.interface.encodeFunctionData("iterateRipcord");
+          subjectValue = ZERO;
+        });
+
+        async function subjectContractCaller(): Promise<any> {
+          return await contractCaller.invoke(
+            subjectTarget,
+            subjectValue,
+            subjectCallData
+          );
+        }
+
+        it("the trade reverts", async () => {
+          await expect(subjectContractCaller()).to.be.revertedWith("Caller must be EOA Address");
+        });
+      });
+
+      describe("when SetToken has 0 supply", async () => {
+        beforeEach(async () => {
+          await setV2Setup.usdc.approve(debtIssuanceModule.address, MAX_UINT_256);
+          await debtIssuanceModule.redeem(setToken.address, ether(1), owner.address);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("SetToken must have > 0 supply");
+        });
+      });
+    });
+
+    context("when not in a TWAP rebalance", async () => {
+      beforeEach(async () => {
+        // Withdraw balance of USDC from exchange contract from engage
+        await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
+        await increaseTimeAsync(BigNumber.from(100000));
+
+        // Set to above incentivized ratio
+        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(800));
+        await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(450000000));
+
+        transferredEth = ether(1);
+        await owner.wallet.sendTransaction({to: flexibleLeverageStrategyAdapter.address, value: transferredEth});
+      });
+
+      async function subject(): Promise<any> {
+        return flexibleLeverageStrategyAdapter.connect(subjectCaller.wallet).ripcord();
+      }
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Not in TWAP state");
       });
     });
   });
@@ -2189,7 +2480,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           await flexibleLeverageStrategyAdapter.engage();
           await increaseTimeAsync(BigNumber.from(100000));
           await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-          await flexibleLeverageStrategyAdapter.rebalance();
+          await flexibleLeverageStrategyAdapter.iterateRebalance();
 
           // Withdraw balance of USDC from exchange contract from engage
           await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
@@ -2327,7 +2618,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         await flexibleLeverageStrategyAdapter.engage();
         await increaseTimeAsync(BigNumber.from(4000));
         await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-        await flexibleLeverageStrategyAdapter.rebalance();
+        await flexibleLeverageStrategyAdapter.iterateRebalance();
 
         // Clear balance of USDC from exchange contract from engage
         await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
