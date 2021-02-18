@@ -523,7 +523,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
         uint256 borrowUnits = _calculateBorrowUnits(collateralRebalanceUnits, _leverageInfo.action);
 
-        uint256 minReceiveCollateralUnits = _calculateMinCollateralReceiveUnits(collateralRebalanceUnits);
+        uint256 minReceiveCollateralUnits = _calculateMinCollateralReceiveUnits(collateralRebalanceUnits, _leverageInfo.slippageTolerance);
 
         bytes memory leverCallData = abi.encodeWithSignature(
             "lever(address,address,address,uint256,uint256,string,bytes)",
@@ -693,8 +693,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      *
      * return uint256           Min position units to receive after lever trade
      */
-    function _calculateMinCollateralReceiveUnits(uint256 _collateralRebalanceUnits) internal view returns (uint256) {
-        return _collateralRebalanceUnits.preciseMul(PreciseUnitMath.preciseUnit().sub(execution.slippageTolerance));
+    function _calculateMinCollateralReceiveUnits(uint256 _collateralRebalanceUnits, uint256 _slippageTolerance) internal view returns (uint256) {
+        return _collateralRebalanceUnits.preciseMul(PreciseUnitMath.preciseUnit().sub(_slippageTolerance));
     }
 
     /**
