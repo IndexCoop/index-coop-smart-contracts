@@ -83,15 +83,15 @@ contract ICManagerV2 is MutualUpgrade {
     ISetToken public setToken;
 
     // Array of listed adapters
-    address[] adapters;
+    address[] internal adapters;
 
     // Mapping to check if adapter is added
     mapping(address => bool) public isAdapter;
 
-    // Address of operator
+    // Address of operator which typically executes manager only functions on Set Protocol modules
     address public operator;
 
-    // Address of methodologist
+    // Address of methodologist which serves as providing methodology for the index
     address public methodologist;
 
     /* ============ Constructor ============ */
