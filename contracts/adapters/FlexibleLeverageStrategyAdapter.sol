@@ -117,22 +117,19 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         uint256 _currentLeverageRatio,
         uint256 _newLeverageRatio,
         uint256 _chunkRebalanceNotional,
-        uint256 _totalRebalanceNotional,
-        address _caller
+        uint256 _totalRebalanceNotional
     );
     event RebalanceIterated(
         uint256 _currentLeverageRatio,
         uint256 _newLeverageRatio,
         uint256 _chunkRebalanceNotional,
-        uint256 _totalRebalanceNotional,
-        address _caller
+        uint256 _totalRebalanceNotional
     );
     event RipcordCalled(
         uint256 _currentLeverageRatio,
         uint256 _newLeverageRatio,
         uint256 _rebalanceNotional,
-        uint256 _etherIncentive,
-        address _caller
+        uint256 _etherIncentive
     );
     event Disengaged(uint256 _currentLeverageRatio, uint256 _newLeverageRatio, uint256 _chunkRebalanceNotional, uint256 _totalRebalanceNotional);
     event MethodologySettingsUpdated(
@@ -170,7 +167,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
     /* ============ State Variables ============ */
 
-    ContractSettings public strategy;               // Struct containing contract addresses
+    ContractSettings public strategy;               // Struct of contracts used in the strategy (SetToken, price oracles, leverage module etc)
     MethodologySettings public methodology;         // Struct containing methodology parameters
     ExecutionSettings public execution;             // Struct containing execution parameters
     IncentiveSettings public incentive;             // Struct containing incentive parameters for ripcord
@@ -183,7 +180,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * Instantiate addresses, methodology parameters, execution parameters, and incentive parameters.
      * 
      * @param _manager              Address of ICManagerV2 contract
-     * @param _strategy             Struct containing contract addresses
+     * @param _strategy             Struct of contract addresses
      * @param _methodology          Struct containing methodology parameters
      * @param _execution            Struct containing execution parameters
      * @param _incentive            Struct containing incentive parameters for ripcord
@@ -218,7 +215,6 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         require(engageInfo.collateralBalance > 0, "Collateral balance must be > 0");
         require(engageInfo.borrowBalance == 0, "Debt must be 0");
 
-        // Get leverage Info
         LeverageInfo memory leverageInfo = LeverageInfo({
             action: engageInfo,
             currentLeverageRatio: PreciseUnitMath.preciseUnit(), // 1x leverage in precise units
@@ -231,7 +227,6 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             uint256 chunkRebalanceNotional,
             uint256 totalRebalanceNotional
         ) = _lever(leverageInfo, methodology.targetLeverageRatio);
-
 
         _updateRebalanceState(
             chunkRebalanceNotional,
@@ -248,12 +243,12 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     /**
-     * ONLY EOA AND ALLOWED TRADER: Rebalance according to flexible leverage methodology. If current leverage ratio is between the max and min bounds, then rebalance 
+     * ONLY EOA AND ALLOWED CALLER: Rebalance according to flexible leverage methodology. If current leverage ratio is between the max and min bounds, then rebalance 
      * can only be called once the rebalance interval has elapsed since last timestamp. If outside the max and min, rebalance can be called anytime to bring leverage
      * ratio back to the max or min bounds. The methodology will determine whether to delever or lever.
      *
-     * Note: If the calculated current leverage ratio is above the incentivized leverage ratio then rebalance cannot be called. Instead, you must call ripcord() which
-     * is incentivized with a reward in Ether
+     * Note: If the calculated current leverage ratio is above the incentivized leverage ratio or in TWAP then rebalance cannot be called. Instead, you must call
+     * ripcord() which is incentivized with a reward in Ether or iterateRebalance().
      */
      function rebalance() external onlyEOA onlyAllowedCaller(msg.sender) {
         LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(execution.slippageTolerance, execution.twapMaxTradeSize);
@@ -274,12 +269,14 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             leverageInfo.currentLeverageRatio,
             newLeverageRatio,
             chunkRebalanceNotional,
-            totalRebalanceNotional,
-            msg.sender
+            totalRebalanceNotional
         );
     }
 
-
+    /**
+     * ONLY EOA AND ALLOWED CALLER: Iterate a rebalance when in TWAP. TWAP cooldown period must have elapsed. If price moves advantageously, then exit without rebalancing
+     * and clear TWAP state. This function can only be called when below incentivized leverage ratio and in TWAP state.
+     */
     function iterateRebalance() external onlyEOA onlyAllowedCaller(msg.sender) {
         LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(execution.slippageTolerance, execution.twapMaxTradeSize);
 
@@ -300,8 +297,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             leverageInfo.currentLeverageRatio,
             twapLeverageRatio,
             chunkRebalanceNotional,
-            totalRebalanceNotional,
-            msg.sender
+            totalRebalanceNotional
         );
     }
 
@@ -309,7 +305,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * ONLY EOA: In case the current leverage ratio exceeds the incentivized leverage threshold, the ripcord function can be called by anyone to return leverage ratio
      * back to the max leverage ratio. This function typically would only be called during times of high downside volatility and / or normal keeper malfunctions. The caller
      * of ripcord() will receive a reward in Ether. The ripcord function uses it's own TWAP cooldown period, slippage tolerance and TWAP max trade size which are typically
-     * looser than in the rebalance() function.
+     * looser than in regular rebalances.
      */
     function ripcord() external onlyEOA {
         LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(
@@ -319,7 +315,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
         _validateRipcord(leverageInfo);
 
-        ( , uint256 totalRebalanceNotional) = _delever(leverageInfo, methodology.maxLeverageRatio);
+        ( uint256 chunkRebalanceNotional, ) = _delever(leverageInfo, methodology.maxLeverageRatio);
 
         _updateRipcordState();
 
@@ -328,9 +324,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         emit RipcordCalled(
             leverageInfo.currentLeverageRatio,
             methodology.maxLeverageRatio,
-            totalRebalanceNotional,
-            etherTransferred,
-            msg.sender
+            chunkRebalanceNotional,
+            etherTransferred
         );
     }
 

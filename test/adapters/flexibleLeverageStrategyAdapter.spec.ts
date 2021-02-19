@@ -954,7 +954,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           expectedNewLeverageRatio,
           totalRebalanceNotional,
           totalRebalanceNotional,
-          subjectCaller.address
         );
       });
 
@@ -1758,7 +1757,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           expectedNewLeverageRatio,
           chunkRebalanceNotional,
           totalRebalanceNotional,
-          subjectCaller.address
         );
       });
 
@@ -2126,7 +2124,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         const exchangeRate = await cEther.exchangeRateStored();
         const cEtherBalance = await cEther.balanceOf(setToken.address);
         const collateralBalance = preciseMul(exchangeRate, cEtherBalance);
-        const totalRebalanceNotional = preciseMul(
+        const chunkRebalanceNotional = preciseMul(
           preciseDiv(currentLeverageRatio.sub(methodology.maxLeverageRatio), currentLeverageRatio),
           collateralBalance
         );
@@ -2134,9 +2132,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         await expect(subject()).to.emit(flexibleLeverageStrategyAdapter, "RipcordCalled").withArgs(
           currentLeverageRatio,
           methodology.maxLeverageRatio,
-          totalRebalanceNotional,
+          chunkRebalanceNotional,
           incentive.etherReward,
-          subjectCaller.address
         );
       });
 
