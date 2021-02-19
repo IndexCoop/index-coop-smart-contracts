@@ -24,10 +24,10 @@ const config: HardhatUserConfig = {
   },
   networks: {
     hardhat: {
-      forking: {
-          url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
-          blockNumber: 11649166,
-      },
+      // forking: {
+      //     url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
+      //     blockNumber: 11649166,
+      // },
       accounts: getHardhatPrivateKeys(),
     },
     localhost: {
