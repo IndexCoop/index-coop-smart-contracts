@@ -19,7 +19,6 @@ pragma solidity 0.6.10;
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
-import { AddressArrayUtils } from "../lib/AddressArrayUtils.sol";
 import { BaseAdapter } from "../lib/BaseAdapter.sol";
 import { IICManagerV2 } from "../interfaces/IICManagerV2.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
@@ -48,11 +47,7 @@ contract FeeSplitAdapter is MutualUpgrade, BaseAdapter, TimeLockUpgrade {
     /* ============ State Variables ============ */
 
     ISetToken public setToken;
-    
-    // Streaming fee module address
     IStreamingFeeModule public streamingFeeModule;
-
-    // Debt issuance module address
     IDebtIssuanceModule public debtIssuanceModule;
 
     // Percent of fees in precise units (10^16 = 1%) sent to operator, rest to methodologist
@@ -93,8 +88,13 @@ contract FeeSplitAdapter is MutualUpgrade, BaseAdapter, TimeLockUpgrade {
         uint256 operatorTake = totalFees.preciseMul(operatorFeeSplit);
         uint256 methodologistTake = totalFees.sub(operatorTake);
 
-        setToken.transfer(operator, operatorTake);
-        setToken.transfer(methodologist, methodologistTake);
+        if (operatorTake > 0) {
+            setToken.transfer(operator, operatorTake);
+        }
+
+        if (methodologistTake > 0) {
+            setToken.transfer(methodologist, methodologistTake);
+        }
 
         emit FeesAccrued(operator, methodologist, operatorTake, methodologistTake);
     }
@@ -103,13 +103,13 @@ contract FeeSplitAdapter is MutualUpgrade, BaseAdapter, TimeLockUpgrade {
      * ONLY METHODOLOGIST: Updates streaming fee on StreamingFeeModule. NOTE: This will accrue streaming fees though not send to operator
      * and methodologist.
      */
-    function updateStreamingFee(uint256 _newFee) external onlyMethodologist {
+    function updateStreamingFee(uint256 _newFee) external onlyMethodologist timeLockUpgrade {
         bytes memory callData = abi.encodeWithSignature("updateStreamingFee(address,uint256)", manager.setToken(), _newFee);
         manager.interactModule(address(streamingFeeModule), callData);
     }
 
     /**
-     * ONLY OPERATOR: Updates issue fee on DebtIssuanceModule. Only is executed once time lock has passed.
+     * ONLY OPERATOR: Updates issue fee on IssuanceModule. Only is executed once time lock has passed.
      */
     function updateIssueFee(uint256 _newFee) external onlyOperator timeLockUpgrade {
         bytes memory callData = abi.encodeWithSignature("updateIssueFee(address,uint256)", manager.setToken(), _newFee);
@@ -117,7 +117,7 @@ contract FeeSplitAdapter is MutualUpgrade, BaseAdapter, TimeLockUpgrade {
     }
 
     /**
-     * ONLY OPERATOR: Updates redeem fee on DebtIssuanceModule. Only is executed once time lock has passed.
+     * ONLY OPERATOR: Updates redeem fee on IssuanceModule. Only is executed once time lock has passed.
      */
     function updateRedeemFee(uint256 _newFee) external onlyOperator timeLockUpgrade {
         bytes memory callData = abi.encodeWithSignature("updateRedeemFee(address,uint256)", manager.setToken(), _newFee);

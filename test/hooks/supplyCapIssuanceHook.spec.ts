@@ -1,7 +1,7 @@
 import "module-alias/register";
 
 import { Address, Account } from "@utils/types";
-import { FLIIssuanceHook } from "@utils/contracts/index";
+import { SupplyCapIssuanceHook } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -17,14 +17,14 @@ import { BigNumber, ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
 
-describe("FLIIssuanceHook", () => {
+describe("SupplyCapIssuanceHook", () => {
   let owner: Account;
   let setV2Setup: SetFixture;
 
   let deployer: DeployHelper;
   let setToken: SetToken;
 
-  let issuanceHook: FLIIssuanceHook;
+  let issuanceHook: SupplyCapIssuanceHook;
 
   before(async () => {
     [
@@ -52,14 +52,14 @@ describe("FLIIssuanceHook", () => {
       subjectSupplyCap = ether(10);
     });
 
-    async function subject(): Promise<FLIIssuanceHook> {
-      return await deployer.hooks.deployFLIIssuanceHook(subjectSupplyCap);
+    async function subject(): Promise<SupplyCapIssuanceHook> {
+      return await deployer.hooks.deploySupplyCapIssuanceHook(subjectSupplyCap);
     }
 
     it("should set the correct SetToken address", async () => {
       const hook = await subject();
 
-      const actualSupplyCap = await hook.fliSupplyCap();
+      const actualSupplyCap = await hook.supplyCap();
       expect(actualSupplyCap).to.eq(subjectSupplyCap);
     });
   });
@@ -70,7 +70,7 @@ describe("FLIIssuanceHook", () => {
     let subjectTo: Address;
 
     beforeEach(async () => {
-      issuanceHook = await deployer.hooks.deployFLIIssuanceHook(ether(10));
+      issuanceHook = await deployer.hooks.deploySupplyCapIssuanceHook(ether(10));
 
       await setV2Setup.debtIssuanceModule.initialize(
         setToken.address,
@@ -116,7 +116,7 @@ describe("FLIIssuanceHook", () => {
     let subjectCaller: Account;
 
     beforeEach(async () => {
-      issuanceHook = await deployer.hooks.deployFLIIssuanceHook(ether(10));
+      issuanceHook = await deployer.hooks.deploySupplyCapIssuanceHook(ether(10));
 
       subjectNewCap = ether(20);
       subjectCaller = owner;
@@ -129,9 +129,13 @@ describe("FLIIssuanceHook", () => {
     it("should update supply cap", async () => {
       await subject();
 
-      const actualCap = await issuanceHook.fliSupplyCap();
+      const actualCap = await issuanceHook.supplyCap();
 
       expect(actualCap).to.eq(subjectNewCap);
+    });
+
+    it("should emit the correct SupplyCapUpdated event", async () => {
+      await expect(subject()).to.emit(issuanceHook, "SupplyCapUpdated").withArgs(subjectNewCap);
     });
 
     describe("when caller is not owner", async () => {

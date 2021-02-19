@@ -206,6 +206,38 @@ describe("FeeSplitAdapter", () => {
         expect(methodologistBalance).to.eq(expectedMethodologistTake);
       });
 
+      describe("when methodologist fees are 0", async () => {
+        beforeEach(async () => {
+          await feeAdapter.connect(operator.wallet).updateFeeSplit(ether(1));
+          await feeAdapter.connect(methodologist.wallet).updateFeeSplit(ether(1));
+        });
+
+        it("should revert", async () => {
+          const preMethodologistBalance = await setToken.balanceOf(methodologist.address);
+
+          await subject();
+
+          const postMethodologistBalance = await setToken.balanceOf(methodologist.address);
+          expect(postMethodologistBalance.sub(preMethodologistBalance)).to.eq(ZERO);
+        });
+      });
+
+      describe("when operator fees are 0", async () => {
+        beforeEach(async () => {
+          await feeAdapter.connect(operator.wallet).updateFeeSplit(ZERO);
+          await feeAdapter.connect(methodologist.wallet).updateFeeSplit(ZERO);
+        });
+
+        it("should revert", async () => {
+          const preOperatorBalance = await setToken.balanceOf(operator.address);
+
+          await subject();
+
+          const postOperatorBalance = await setToken.balanceOf(operator.address);
+          expect(postOperatorBalance.sub(preOperatorBalance)).to.eq(ZERO);
+        });
+      });
+
       it("should emit a FeesAccrued event", async () => {
         await expect(subject()).to.emit(feeAdapter, "FeesAccrued");
       });
@@ -232,35 +264,88 @@ describe("FeeSplitAdapter", () => {
       async function subject(): Promise<ContractTransaction> {
         return await feeAdapter.connect(subjectCaller.wallet).updateStreamingFee(subjectNewFee);
       }
+      context("when no timelock period has been set", async () => {
+        it("should update the streaming fee", async () => {
+          await subject();
 
-      it("should update the streaming fee", async () => {
-        await subject();
+          const feeState = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
 
-        const feeState = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
+          expect(feeState.streamingFeePercentage).to.eq(subjectNewFee);
+        });
 
-        expect(feeState.streamingFeePercentage).to.eq(subjectNewFee);
+        it("should send correct amount of fees to operator and methodologist", async () => {
+          const preAdpaterBalance = await setToken.balanceOf(feeAdapter.address);
+          const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
+          const totalSupply = await setToken.totalSupply();
+
+          const txnTimestamp = await getTransactionTimestamp(subject());
+
+          const expectedFeeInflation = await getStreamingFee(
+            setV2Setup.streamingFeeModule,
+            setToken.address,
+            feeState.lastStreamingFeeTimestamp,
+            txnTimestamp,
+            ether(.02)
+          );
+
+          const feeInflation = getStreamingFeeInflationAmount(expectedFeeInflation, totalSupply);
+
+          const postAdpaterBalance = await setToken.balanceOf(feeAdapter.address);
+
+          expect(postAdpaterBalance.sub(preAdpaterBalance)).to.eq(feeInflation);
+        });
       });
 
-      it("should send correct amount of fees to operator and methodologist", async () => {
-        const preAdpaterBalance = await setToken.balanceOf(feeAdapter.address);
-        const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
-        const totalSupply = await setToken.totalSupply();
+      context("when 1 day timelock period has been set", async () => {
+        beforeEach(async () => {
+          await feeAdapter.connect(owner.wallet).setTimeLockPeriod(ONE_DAY_IN_SECONDS);
+        });
 
-        const txnTimestamp = await getTransactionTimestamp(subject());
+        it("sets the upgradeHash", async () => {
+          await subject();
+          const timestamp = await getLastBlockTimestamp();
+          const calldata = feeAdapter.interface.encodeFunctionData("updateStreamingFee", [subjectNewFee]);
+          const upgradeHash = solidityKeccak256(["bytes"], [calldata]);
+          const actualTimestamp = await feeAdapter.timeLockedUpgrades(upgradeHash);
+          expect(actualTimestamp).to.eq(timestamp);
+        });
 
-        const expectedFeeInflation = await getStreamingFee(
-          setV2Setup.streamingFeeModule,
-          setToken.address,
-          feeState.lastStreamingFeeTimestamp,
-          txnTimestamp,
-          ether(.02)
-        );
+        context("when 1 day timelock has elapsed", async () => {
+          beforeEach(async () => {
+            await subject();
+            await increaseTimeAsync(ONE_DAY_IN_SECONDS.add(1));
+          });
 
-        const feeInflation = getStreamingFeeInflationAmount(expectedFeeInflation, totalSupply);
+          it("should update the streaming fee", async () => {
+            await subject();
 
-        const postAdpaterBalance = await setToken.balanceOf(feeAdapter.address);
+            const feeState = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
 
-        expect(postAdpaterBalance.sub(preAdpaterBalance)).to.eq(feeInflation);
+            expect(feeState.streamingFeePercentage).to.eq(subjectNewFee);
+          });
+
+          it("should send correct amount of fees to operator and methodologist", async () => {
+            const preAdpaterBalance = await setToken.balanceOf(feeAdapter.address);
+            const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
+            const totalSupply = await setToken.totalSupply();
+
+            const txnTimestamp = await getTransactionTimestamp(subject());
+
+            const expectedFeeInflation = await getStreamingFee(
+              setV2Setup.streamingFeeModule,
+              setToken.address,
+              feeState.lastStreamingFeeTimestamp,
+              txnTimestamp,
+              ether(.02)
+            );
+
+            const feeInflation = getStreamingFeeInflationAmount(expectedFeeInflation, totalSupply);
+
+            const postAdpaterBalance = await setToken.balanceOf(feeAdapter.address);
+
+            expect(postAdpaterBalance.sub(preAdpaterBalance)).to.eq(feeInflation);
+          });
+        });
       });
 
       describe("when the caller is not the methodologist", async () => {

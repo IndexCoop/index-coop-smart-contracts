@@ -20,16 +20,17 @@ pragma experimental ABIEncoderV2;
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
+import { IManagerIssuanceHook } from "../interfaces/IManagerIssuanceHook.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 
 
 /**
- * @title FLIIssuanceHook
+ * @title SupplyCapIssuanceHook
  * @author Set Protocol
  *
  * Issuance hook for FLI product that allows IndexCoop to set limit on amount of Sets that can be minted.
  */
-contract FLIIssuanceHook is Ownable {
+contract SupplyCapIssuanceHook is Ownable, IManagerIssuanceHook {
     using SafeMath for uint256;
 
     /* ============ Events ============ */
@@ -39,10 +40,15 @@ contract FLIIssuanceHook is Ownable {
     /* ============ State Variables ============ */
 
     // Cap on totalSupply of FLI Sets
-    uint256 public fliSupplyCap;
+    uint256 public supplyCap;
 
-    constructor(uint256 _supplyCap) public { fliSupplyCap = _supplyCap; }
+    /* ============ Constructor ============ */
 
+    constructor(uint256 _supplyCap) public { supplyCap = _supplyCap; }
+
+    /**
+     * Adheres to IManagerIssuanceHook interface, and checks to make sure the current issue call won't push total supply over cap.
+     */
     function invokePreIssueHook(
         ISetToken _setToken,
         uint256 _issueQuantity,
@@ -50,14 +56,31 @@ contract FLIIssuanceHook is Ownable {
         address /*_to*/
     )
         external
-        view
+        override
     {
         uint256 totalSupply = _setToken.totalSupply();
 
-        require(totalSupply.add(_issueQuantity) <= fliSupplyCap, "Supply cap exceeded");
+        require(totalSupply.add(_issueQuantity) <= supplyCap, "Supply cap exceeded");
     }
 
+    /**
+     * Adheres to IManagerIssuanceHook interface
+     */
+    function invokePreRedeemHook(
+        ISetToken _setToken,
+        uint256 _redeemQuantity,
+        address _sender,
+        address _to
+    )
+        external
+        override
+    {}
+
+    /**
+     * ONLY OWNER: Updates supply cap
+     */
     function updateSupplyCap(uint256 _newCap) external onlyOwner {
-        fliSupplyCap = _newCap;
+        supplyCap = _newCap;
+        SupplyCapUpdated(_newCap);
     }
 }

@@ -4,7 +4,7 @@ export { ICManagerV2 } from "../../typechain/ICManagerV2";
 export { TradeAdapterMock } from "../../typechain/TradeAdapterMock";
 export { FeeSplitAdapter } from "../../typechain/FeeSplitAdapter";
 export { FlexibleLeverageStrategyAdapter } from "../../typechain/FlexibleLeverageStrategyAdapter";
-export { FLIIssuanceHook } from "../../typechain/FLIIssuanceHook";
+export { SupplyCapIssuanceHook } from "../../typechain/SupplyCapIssuanceHook";
 export { IndexToken } from "../../typechain/IndexToken";
 export { MerkleDistributor } from "../../typechain/MerkleDistributor";
 export { MutualUpgradeMock } from "../../typechain/MutualUpgradeMock";

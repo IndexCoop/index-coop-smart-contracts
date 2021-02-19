@@ -1,7 +1,7 @@
 import { Signer, BigNumber } from "ethers";
-import { FLIIssuanceHook } from "../contracts/index";
+import { SupplyCapIssuanceHook } from "../contracts/index";
 
-import { FLIIssuanceHook__factory } from "../../typechain/factories/FLIIssuanceHook__factory";
+import { SupplyCapIssuanceHook__factory } from "../../typechain/factories/SupplyCapIssuanceHook__factory";
 
 export default class DeployHooks {
   private _deployerSigner: Signer;
@@ -10,7 +10,7 @@ export default class DeployHooks {
     this._deployerSigner = deployerSigner;
   }
 
-  public async deployFLIIssuanceHook(supplyCap: BigNumber): Promise<FLIIssuanceHook> {
-    return await new FLIIssuanceHook__factory(this._deployerSigner).deploy(supplyCap);
+  public async deploySupplyCapIssuanceHook(supplyCap: BigNumber): Promise<SupplyCapIssuanceHook> {
+    return await new SupplyCapIssuanceHook__factory(this._deployerSigner).deploy(supplyCap);
   }
 }
