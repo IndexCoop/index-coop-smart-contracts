@@ -206,13 +206,17 @@ describe("FeeSplitAdapter", () => {
         expect(methodologistBalance).to.eq(expectedMethodologistTake);
       });
 
+      it("should emit a FeesAccrued event", async () => {
+        await expect(subject()).to.emit(feeAdapter, "FeesAccrued");
+      });
+
       describe("when methodologist fees are 0", async () => {
         beforeEach(async () => {
           await feeAdapter.connect(operator.wallet).updateFeeSplit(ether(1));
           await feeAdapter.connect(methodologist.wallet).updateFeeSplit(ether(1));
         });
 
-        it("should revert", async () => {
+        it("should not send fees to methodologist", async () => {
           const preMethodologistBalance = await setToken.balanceOf(methodologist.address);
 
           await subject();
@@ -228,7 +232,7 @@ describe("FeeSplitAdapter", () => {
           await feeAdapter.connect(methodologist.wallet).updateFeeSplit(ZERO);
         });
 
-        it("should revert", async () => {
+        it("should not send fees to operator", async () => {
           const preOperatorBalance = await setToken.balanceOf(operator.address);
 
           await subject();
@@ -236,10 +240,6 @@ describe("FeeSplitAdapter", () => {
           const postOperatorBalance = await setToken.balanceOf(operator.address);
           expect(postOperatorBalance.sub(preOperatorBalance)).to.eq(ZERO);
         });
-      });
-
-      it("should emit a FeesAccrued event", async () => {
-        await expect(subject()).to.emit(feeAdapter, "FeesAccrued");
       });
     });
 
