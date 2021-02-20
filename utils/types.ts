@@ -33,30 +33,38 @@ export interface MerkleDistributorInfo {
 
 export type DistributionFormat = { address: string; earnings: BigNumber; };
 
-export interface LeverageTokenSettings {
+export interface ContractSettings {
   setToken: Address;
   leverageModule: Address;
-  manager: Address;
   comptroller: Address;
   priceOracle: Address;
   targetCollateralCToken: Address;
   targetBorrowCToken: Address;
   collateralAsset: Address;
   borrowAsset: Address;
+}
+
+export interface MethodologySettings {
   targetLeverageRatio: BigNumber;
   minLeverageRatio: BigNumber;
   maxLeverageRatio: BigNumber;
   recenteringSpeed: BigNumber;
   rebalanceInterval: BigNumber;
+}
+
+export interface ExecutionSettings {
   unutilizedLeveragePercentage: BigNumber;
   twapMaxTradeSize: BigNumber;
   twapCooldownPeriod: BigNumber;
   slippageTolerance: BigNumber;
+  exchangeName: string;
+  exchangeData: Bytes;
+}
+
+export interface IncentiveSettings {
   incentivizedTwapMaxTradeSize: BigNumber;
   incentivizedTwapCooldownPeriod: BigNumber;
   incentivizedSlippageTolerance: BigNumber;
   etherReward: BigNumber;
   incentivizedLeverageRatio: BigNumber;
-  exchangeName: string;
-  exchangeData: Bytes;
 }

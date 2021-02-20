@@ -44,6 +44,11 @@ contract BaseAdapterMock is BaseAdapter {
         onlyEOA
     {}
 
+    function testOnlyAllowedCaller(address _caller)
+        external
+        onlyAllowedCaller(_caller)
+    {}
+
     /* ============ Helper Functions ============ */
 
     function updateManager(IICManagerV2 _newManager) external {
