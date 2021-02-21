@@ -78,6 +78,8 @@ describe("BaseAdapter", () => {
 
     await icManagerV2.connect(owner.wallet).addAdapter(baseAdapterMock.address);
     await icManagerV2.connect(methodologist.wallet).addAdapter(baseAdapterMock.address);
+
+    await baseAdapterMock.updateCallerStatus([owner.address], [true]);
   });
 
   addSnapshotBeforeRestoreAfterEach();
