@@ -11,6 +11,11 @@ export const usdc = (amount: number): BigNumber => {
   return BigNumber.from(weiString);
 };
 
+export const bitcoin = (amount: number): BigNumber => {
+  const weiString = BigNumber.from("100000000").mul(amount);
+  return BigNumber.from(weiString);
+};
+
 export const gWei = (amount: number): BigNumber => {
   const weiString = BigNumber.from("1000000000").mul(amount);
   return BigNumber.from(weiString);

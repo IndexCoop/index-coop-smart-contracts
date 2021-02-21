@@ -29,13 +29,14 @@ export {
 } from "./test";
 
 export {
+  bitcoin,
   divDown,
-  min,
   ether,
   getStreamingFee,
   getStreamingFeeInflationAmount,
   getPostFeePositionUnits,
   gWei,
+  min,
   preciseDiv,
   preciseDivCeil,
   preciseMul,

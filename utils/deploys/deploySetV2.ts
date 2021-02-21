@@ -15,7 +15,7 @@ import {
   SetToken,
   SetTokenCreator,
   SingleIndexModule,
-  UniswapV2ExchangeAdapter,
+  UniswapV2ExchangeAdapter
 } from "../contracts/setV2";
 import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
