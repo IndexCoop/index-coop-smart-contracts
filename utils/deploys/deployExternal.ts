@@ -14,6 +14,12 @@ import {
   WhitePaperInterestRateModel
 } from "./../contracts/compound";
 
+import {
+  UniswapV2Factory,
+  UniswapV2Pair,
+  UniswapV2Router02
+} from "../contracts/uniswap";
+
 import { Address } from "./../types";
 
 import { CERc20__factory } from "../../typechain/factories/CERc20__factory";
@@ -26,6 +32,9 @@ import { Comptroller__factory } from "../../typechain/factories/Comptroller__fac
 import { PriceOracleProxy__factory } from "../../typechain/factories/PriceOracleProxy__factory";
 import { Unitroller__factory } from "../../typechain/factories/Unitroller__factory";
 import { WhitePaperInterestRateModel__factory } from "../../typechain/factories/WhitePaperInterestRateModel__factory";
+import { UniswapV2Factory__factory } from "../../typechain/factories/UniswapV2Factory__factory";
+import { UniswapV2Pair__factory } from "../../typechain/factories/UniswapV2Pair__factory";
+import { UniswapV2Router02__factory } from "../../typechain/factories/UniswapV2Router02__factory";
 
 export default class DeployExternalContracts {
   private _deployerSigner: Signer;
@@ -122,5 +131,18 @@ export default class DeployExternalContracts {
     multiplier: BigNumberish
   ): Promise<WhitePaperInterestRateModel> {
     return await new WhitePaperInterestRateModel__factory(this._deployerSigner).deploy(baseRate, multiplier);
+  }
+
+  // Uniswap
+  public async deployUniswapV2Factory(_feeToSetter: string): Promise<UniswapV2Factory> {
+    return await new UniswapV2Factory__factory(this._deployerSigner).deploy(_feeToSetter);
+  }
+
+  public async deployUniswapV2Router02(_factory: Address, _weth: Address): Promise<UniswapV2Router02> {
+    return await new UniswapV2Router02__factory(this._deployerSigner).deploy(_factory, _weth);
+  }
+
+  public async deployUniswapV2Pair(_factory: Address, _weth: Address): Promise<UniswapV2Pair> {
+    return await new UniswapV2Pair__factory(this._deployerSigner).deploy();
   }
 }
