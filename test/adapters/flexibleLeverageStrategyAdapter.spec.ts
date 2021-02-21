@@ -849,6 +849,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         await increaseTimeAsync(BigNumber.from(100000));
         await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
         await flexibleLeverageStrategyAdapter.iterateRebalance();
+        console.log((await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio()).toString());
       }
     };
 

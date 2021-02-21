@@ -8,6 +8,8 @@ import {
   UniswapV2Pair,
   UniswapV2Router02
 } from "../contracts/uniswap";
+
+import { UniswapV2ExchangeAdapter } from "../contracts/setV2";
 import { UniswapV2Pair__factory } from "../../typechain/factories/UniswapV2Pair__factory";
 
 export class UniswapFixture {
@@ -19,9 +21,11 @@ export class UniswapFixture {
   public pair: UniswapV2Pair;
   public router: UniswapV2Router02;
 
-  public wethDaiPool: UniswapV2Pair;
+  public wethUsdcPool: UniswapV2Pair;
   public wethWbtcPool: UniswapV2Pair;
-  public uniWethPool: UniswapV2Pair;
+  public wbtcUsdcPool: UniswapV2Pair;
+
+  public uniswapTradeAdapter: UniswapV2ExchangeAdapter;
 
   constructor(provider: Web3Provider | JsonRpcProvider, ownerAddress: Address) {
     this._ownerSigner = provider.getSigner(ownerAddress);
@@ -33,8 +37,11 @@ export class UniswapFixture {
     this.factory = await this._deployer.external.deployUniswapV2Factory(this.owner);
     this.router = await this._deployer.external.deployUniswapV2Router02(this.factory.address, _weth);
 
-    this.wethDaiPool = await this.createNewPair(_weth, _usdc);
+    this.wethUsdcPool = await this.createNewPair(_weth, _usdc);
     this.wethWbtcPool = await this.createNewPair(_weth, _wbtc);
+    this.wbtcUsdcPool = await this.createNewPair(_wbtc, _usdc);
+
+    this.uniswapTradeAdapter = await this._deployer.setV2.deployUniswapV2ExchangeAdapter(this.router.address);
   }
 
   public async createNewPair(_tokenOne: Address, _tokenTwo: Address): Promise<UniswapV2Pair> {

@@ -333,7 +333,7 @@ describe("FLIRebalanceViewer", () => {
           beforeEach(async () => {
             await setUniswapPoolToPrice(
               uniswapSetup.router,
-              uniswapSetup.wethDaiPool,
+              uniswapSetup.wethUsdcPool,
               setV2Setup.weth,
               setV2Setup.usdc,
               ether(750),
@@ -366,7 +366,7 @@ describe("FLIRebalanceViewer", () => {
           beforeEach(async () => {
             await setUniswapPoolToPrice(
               uniswapSetup.router,
-              uniswapSetup.wethDaiPool,
+              uniswapSetup.wethUsdcPool,
               setV2Setup.weth,
               setV2Setup.usdc,
               ether(880),
@@ -427,7 +427,7 @@ describe("FLIRebalanceViewer", () => {
           beforeEach(async () => {
             await setUniswapPoolToPrice(
               uniswapSetup.router,
-              uniswapSetup.wethDaiPool,
+              uniswapSetup.wethUsdcPool,
               setV2Setup.weth,
               setV2Setup.usdc,
               ether(755),
@@ -459,7 +459,7 @@ describe("FLIRebalanceViewer", () => {
           beforeEach(async () => {
             await setUniswapPoolToPrice(
               uniswapSetup.router,
-              uniswapSetup.wethDaiPool,
+              uniswapSetup.wethUsdcPool,
               setV2Setup.weth,
               setV2Setup.usdc,
               ether(970),
@@ -490,7 +490,7 @@ describe("FLIRebalanceViewer", () => {
           beforeEach(async () => {
             await setUniswapPoolToPrice(
               uniswapSetup.router,
-              uniswapSetup.wethDaiPool,
+              uniswapSetup.wethUsdcPool,
               setV2Setup.weth,
               setV2Setup.usdc,
               ether(830),
@@ -521,7 +521,7 @@ describe("FLIRebalanceViewer", () => {
           beforeEach(async () => {
             await setUniswapPoolToPrice(
               uniswapSetup.router,
-              uniswapSetup.wethDaiPool,
+              uniswapSetup.wethUsdcPool,
               setV2Setup.weth,
               setV2Setup.usdc,
               ether(1430),
