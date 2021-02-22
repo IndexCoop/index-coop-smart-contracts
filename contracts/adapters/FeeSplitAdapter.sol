@@ -100,10 +100,10 @@ contract FeeSplitAdapter is MutualUpgrade, BaseAdapter, TimeLockUpgrade {
     }
 
     /**
-     * ONLY METHODOLOGIST: Updates streaming fee on StreamingFeeModule. NOTE: This will accrue streaming fees though not send to operator
+     * ONLY OPERATOR: Updates streaming fee on StreamingFeeModule. NOTE: This will accrue streaming fees though not send to operator
      * and methodologist.
      */
-    function updateStreamingFee(uint256 _newFee) external onlyMethodologist timeLockUpgrade {
+    function updateStreamingFee(uint256 _newFee) external onlyOperator timeLockUpgrade {
         bytes memory callData = abi.encodeWithSignature("updateStreamingFee(address,uint256)", manager.setToken(), _newFee);
         invokeManager(address(streamingFeeModule), callData);
     }
@@ -125,13 +125,13 @@ contract FeeSplitAdapter is MutualUpgrade, BaseAdapter, TimeLockUpgrade {
     }
 
     /**
-     * MUTUAL UPGRADE: Updates fee recipient on both streaming fee and debt issuance modules.
+     * ONLY OPERATOR: Updates fee recipient on both streaming fee and debt issuance modules.
      */
     function updateFeeRecipient(
         address _newFeeRecipient
     )
         external
-        mutualUpgrade(manager.operator(), manager.methodologist())
+        onlyOperator
     {
         bytes memory callData = abi.encodeWithSignature("updateFeeRecipient(address,address)", manager.setToken(), _newFeeRecipient);
         invokeManager(address(streamingFeeModule), callData);
@@ -139,13 +139,13 @@ contract FeeSplitAdapter is MutualUpgrade, BaseAdapter, TimeLockUpgrade {
     }
 
     /**
-     * MUTUAL UPGRADE: Updates fee split between operator and methodologist. Split defined in precise units (1% = 10^16).
+     * ONLY OPERATOR: Updates fee split between operator and methodologist. Split defined in precise units (1% = 10^16).
      */
     function updateFeeSplit(
         uint256 _newFeeSplit
     )
         external
-        mutualUpgrade(manager.operator(), manager.methodologist())
+        onlyOperator
     {
         require(_newFeeSplit <= PreciseUnitMath.preciseUnit(), "Fee must be less than 100%");
         accrueFeesAndDistribute();

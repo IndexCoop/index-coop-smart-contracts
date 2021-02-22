@@ -39,7 +39,7 @@ contract SupplyCapIssuanceHook is Ownable, IManagerIssuanceHook {
     
     /* ============ State Variables ============ */
 
-    // Cap on totalSupply of FLI Sets
+    // Cap on totalSupply of Sets
     uint256 public supplyCap;
 
     /* ============ Constructor ============ */

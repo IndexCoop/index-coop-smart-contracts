@@ -12,7 +12,7 @@ import {
 } from "@utils/types";
 import { ADDRESS_ZERO, ONE, TWO, THREE, ZERO, EMPTY_BYTES, MAX_UINT_256 } from "@utils/constants";
 import { FlexibleLeverageStrategyAdapter, ICManagerV2, TradeAdapterMock } from "@utils/contracts/index";
-import { CompoundLeverageModule, ContractCallerMock, DebtIssuanceModule, SetToken } from "@utils/contracts/setV2";
+import { CompoundLeverageModule, ContractCallerMock, DebtIssuanceModule, SetToken, ComptrollerMock } from "@utils/contracts/setV2";
 import { CEther, CERc20 } from "@utils/contracts/compound";
 import DeployHelper from "@utils/deploys";
 import {
@@ -48,6 +48,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
   let cEther: CEther;
   let cUSDC: CERc20;
   let tradeAdapterMock: TradeAdapterMock;
+  let gulpComptrollerMock: ComptrollerMock;
 
   let strategy: ContractSettings;
   let methodology: MethodologySettings;
@@ -120,7 +121,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     await setV2Setup.controller.addModule(compoundLeverageModule.address);
 
     // Deploy Comptroller mock for gulp as COMP address is hardcoded in Comptroller
-    const gulpComptrollerMock = await deployer.setV2.deployComptrollerMock(
+    gulpComptrollerMock = await deployer.setV2.deployComptrollerMock(
       compoundSetup.comp.address,
       ether(1),
       cEther.address
@@ -162,7 +163,9 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       "DefaultIssuanceModule",
       debtIssuanceModule.address,
     );
+  });
 
+  beforeEach(async () => {
     setToken = await setV2Setup.createSetToken(
       [cEther.address],
       [BigNumber.from(5000000000)], // Equivalent to 1 ETH
@@ -209,10 +212,10 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     );
 
     // Transfer ownership to ic manager
-    await setToken.setManager(icManagerV2.address);
-  });
+    if ((await setToken.manager()) == owner.address) {
+      await setToken.connect(owner.wallet).setManager(icManagerV2.address);
+    }
 
-  beforeEach(async () => {
     // Deploy adapter
     const targetLeverageRatio = customTargetLeverageRatio || ether(2);
     const minLeverageRatio = customMinLeverageRatio || ether(1.7);
@@ -273,7 +276,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     );
 
     // Add adapter
-    await icManagerV2.connect(methodologist.wallet).initializeAdapters([flexibleLeverageStrategyAdapter.address]);
+    await icManagerV2.connect(owner.wallet).initializeAdapters([flexibleLeverageStrategyAdapter.address]);
   });
 
   addSnapshotBeforeRestoreAfterEach();
