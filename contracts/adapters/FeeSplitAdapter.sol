@@ -105,7 +105,7 @@ contract FeeSplitAdapter is MutualUpgrade, BaseAdapter, TimeLockUpgrade {
      */
     function updateStreamingFee(uint256 _newFee) external onlyMethodologist timeLockUpgrade {
         bytes memory callData = abi.encodeWithSignature("updateStreamingFee(address,uint256)", manager.setToken(), _newFee);
-        manager.interactModule(address(streamingFeeModule), callData);
+        invokeManager(address(streamingFeeModule), callData);
     }
 
     /**
@@ -113,7 +113,7 @@ contract FeeSplitAdapter is MutualUpgrade, BaseAdapter, TimeLockUpgrade {
      */
     function updateIssueFee(uint256 _newFee) external onlyOperator timeLockUpgrade {
         bytes memory callData = abi.encodeWithSignature("updateIssueFee(address,uint256)", manager.setToken(), _newFee);
-        manager.interactModule(address(debtIssuanceModule), callData);
+        invokeManager(address(debtIssuanceModule), callData);
     }
 
     /**
@@ -121,7 +121,7 @@ contract FeeSplitAdapter is MutualUpgrade, BaseAdapter, TimeLockUpgrade {
      */
     function updateRedeemFee(uint256 _newFee) external onlyOperator timeLockUpgrade {
         bytes memory callData = abi.encodeWithSignature("updateRedeemFee(address,uint256)", manager.setToken(), _newFee);
-        manager.interactModule(address(debtIssuanceModule), callData);
+        invokeManager(address(debtIssuanceModule), callData);
     }
 
     /**
@@ -134,8 +134,8 @@ contract FeeSplitAdapter is MutualUpgrade, BaseAdapter, TimeLockUpgrade {
         mutualUpgrade(manager.operator(), manager.methodologist())
     {
         bytes memory callData = abi.encodeWithSignature("updateFeeRecipient(address,address)", manager.setToken(), _newFeeRecipient);
-        manager.interactModule(address(streamingFeeModule), callData);
-        manager.interactModule(address(debtIssuanceModule), callData);
+        invokeManager(address(streamingFeeModule), callData);
+        invokeManager(address(debtIssuanceModule), callData);
     }
 
     /**

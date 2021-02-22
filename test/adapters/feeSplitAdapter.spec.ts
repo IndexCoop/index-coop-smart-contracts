@@ -58,8 +58,7 @@ describe("FeeSplitAdapter", () => {
     icManagerV2 = await deployer.manager.deployICManagerV2(
       setToken.address,
       operator.address,
-      methodologist.address,
-      []
+      methodologist.address
     );
 
     const feeRecipient = icManagerV2.address;
@@ -154,8 +153,7 @@ describe("FeeSplitAdapter", () => {
         operatorSplit
       );
 
-      await icManagerV2.connect(operator.wallet).addAdapter(feeAdapter.address);
-      await icManagerV2.connect(methodologist.wallet).addAdapter(feeAdapter.address);
+      await icManagerV2.connect(operator.wallet).initializeAdapters([feeAdapter.address]);
 
       // Transfer ownership to ICManagerV2
       await setToken.setManager(icManagerV2.address);

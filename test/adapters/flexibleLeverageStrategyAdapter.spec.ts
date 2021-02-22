@@ -206,7 +206,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       setToken.address,
       owner.address,
       methodologist.address,
-      []
     );
 
     // Transfer ownership to ic manager
@@ -274,8 +273,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     );
 
     // Add adapter
-    await icManagerV2.connect(methodologist.wallet).addAdapter(flexibleLeverageStrategyAdapter.address);
-    await icManagerV2.connect(owner.wallet).addAdapter(flexibleLeverageStrategyAdapter.address);
+    await icManagerV2.connect(methodologist.wallet).initializeAdapters([flexibleLeverageStrategyAdapter.address]);
   });
 
   addSnapshotBeforeRestoreAfterEach();
