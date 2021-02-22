@@ -44,7 +44,23 @@ contract SupplyCapIssuanceHook is Ownable, IManagerIssuanceHook {
 
     /* ============ Constructor ============ */
 
-    constructor(uint256 _supplyCap) public { supplyCap = _supplyCap; }
+    /**
+     * Constructor, overwrites owner and original supply cap.
+     *
+     * @param _initialOwner     Owner address, overwrites Ownable logic which sets to deployer as default
+     * @param _supplyCap        Supply cap for Set (in wei of Set)
+     */
+    constructor(
+        address _initialOwner,
+        uint256 _supplyCap
+    )
+        public
+    {
+        supplyCap = _supplyCap;
+
+        // Overwrite _owner param of Ownable contract
+        transferOwnership(_initialOwner);
+    }
 
     /**
      * Adheres to IManagerIssuanceHook interface, and checks to make sure the current issue call won't push total supply over cap.

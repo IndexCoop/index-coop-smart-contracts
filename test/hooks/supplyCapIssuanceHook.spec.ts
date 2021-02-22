@@ -19,6 +19,7 @@ const expect = getWaffleExpect();
 
 describe("SupplyCapIssuanceHook", () => {
   let owner: Account;
+  let hookOwner: Account;
   let setV2Setup: SetFixture;
 
   let deployer: DeployHelper;
@@ -29,6 +30,7 @@ describe("SupplyCapIssuanceHook", () => {
   before(async () => {
     [
       owner,
+      hookOwner,
     ] = await getAccounts();
 
     deployer = new DeployHelper(owner.wallet);
@@ -46,14 +48,16 @@ describe("SupplyCapIssuanceHook", () => {
   addSnapshotBeforeRestoreAfterEach();
 
   describe("#constructor", async () => {
+    let subjectOwner: Address;
     let subjectSupplyCap: BigNumber;
 
     beforeEach(async () => {
+      subjectOwner = hookOwner.address;
       subjectSupplyCap = ether(10);
     });
 
     async function subject(): Promise<SupplyCapIssuanceHook> {
-      return await deployer.hooks.deploySupplyCapIssuanceHook(subjectSupplyCap);
+      return await deployer.hooks.deploySupplyCapIssuanceHook(subjectOwner, subjectSupplyCap);
     }
 
     it("should set the correct SetToken address", async () => {
@@ -61,6 +65,13 @@ describe("SupplyCapIssuanceHook", () => {
 
       const actualSupplyCap = await hook.supplyCap();
       expect(actualSupplyCap).to.eq(subjectSupplyCap);
+    });
+
+    it("should set the correct owner address", async () => {
+      const hook = await subject();
+
+      const actualOwner = await hook.owner();
+      expect(actualOwner).to.eq(subjectOwner);
     });
   });
 
@@ -70,7 +81,7 @@ describe("SupplyCapIssuanceHook", () => {
     let subjectTo: Address;
 
     beforeEach(async () => {
-      issuanceHook = await deployer.hooks.deploySupplyCapIssuanceHook(ether(10));
+      issuanceHook = await deployer.hooks.deploySupplyCapIssuanceHook(owner.address, ether(10));
 
       await setV2Setup.debtIssuanceModule.initialize(
         setToken.address,
@@ -116,7 +127,7 @@ describe("SupplyCapIssuanceHook", () => {
     let subjectCaller: Account;
 
     beforeEach(async () => {
-      issuanceHook = await deployer.hooks.deploySupplyCapIssuanceHook(ether(10));
+      issuanceHook = await deployer.hooks.deploySupplyCapIssuanceHook(owner.address, ether(10));
 
       subjectNewCap = ether(20);
       subjectCaller = owner;
