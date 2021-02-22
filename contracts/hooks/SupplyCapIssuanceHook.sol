@@ -28,7 +28,7 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
  * @title SupplyCapIssuanceHook
  * @author Set Protocol
  *
- * Issuance hook for FLI product that allows IndexCoop to set limit on amount of Sets that can be minted.
+ * Issuance hook that checks new issuances won't push SetToken totalSupply over supply cap.
  */
 contract SupplyCapIssuanceHook is Ownable, IManagerIssuanceHook {
     using SafeMath for uint256;

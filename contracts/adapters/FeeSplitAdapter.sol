@@ -20,10 +20,10 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import { BaseAdapter } from "../lib/BaseAdapter.sol";
+import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { IICManagerV2 } from "../interfaces/IICManagerV2.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IStreamingFeeModule } from "../interfaces/IStreamingFeeModule.sol";
-import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { MutualUpgrade } from "../lib/MutualUpgrade.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { TimeLockUpgrade } from "../lib/TimeLockUpgrade.sol";
@@ -80,7 +80,7 @@ contract FeeSplitAdapter is MutualUpgrade, BaseAdapter, TimeLockUpgrade {
     function accrueFeesAndDistribute() public {
         streamingFeeModule.accrueFee(setToken);
         
-        uint256 totalFees = setToken.balanceOf(address(this));
+        uint256 totalFees = setToken.balanceOf(address(manager));
         
         address operator = manager.operator();
         address methodologist = manager.methodologist();
@@ -89,11 +89,11 @@ contract FeeSplitAdapter is MutualUpgrade, BaseAdapter, TimeLockUpgrade {
         uint256 methodologistTake = totalFees.sub(operatorTake);
 
         if (operatorTake > 0) {
-            setToken.transfer(operator, operatorTake);
+            invokeManagerTransfer(address(setToken), operator, operatorTake);
         }
 
         if (methodologistTake > 0) {
-            setToken.transfer(methodologist, methodologistTake);
+            invokeManagerTransfer(address(setToken), methodologist, methodologistTake);
         }
 
         emit FeesAccrued(operator, methodologist, operatorTake, methodologistTake);

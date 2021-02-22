@@ -241,6 +241,41 @@ describe("BaseAdapter", () => {
     });
   });
 
+  describe("#testInvokeManagerTransfer", async () => {
+    let subjectToken: Address;
+    let subjectDestination: Address;
+    let subjectAmount: BigNumber;
+
+    beforeEach(async () => {
+      subjectToken = setV2Setup.weth.address;
+      subjectDestination = otherAccount.address;
+      subjectAmount = ether(1);
+
+      await setV2Setup.weth.transfer(icManagerV2.address, subjectAmount);
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return baseAdapterMock.testInvokeManagerTransfer(
+        subjectToken,
+        subjectDestination,
+        subjectAmount
+      );
+    }
+
+    it("should send the given amount from the manager to the address", async () => {
+      const preManagerAmount = await setV2Setup.weth.balanceOf(icManagerV2.address);
+      const preDestinationAmount = await setV2Setup.weth.balanceOf(subjectDestination);
+
+      await subject();
+
+      const postManagerAmount = await setV2Setup.weth.balanceOf(icManagerV2.address);
+      const postDestinationAmount = await setV2Setup.weth.balanceOf(subjectDestination);
+
+      expect(preManagerAmount.sub(postManagerAmount)).to.eq(subjectAmount);
+      expect(postDestinationAmount.sub(preDestinationAmount)).to.eq(subjectAmount);
+    });
+  });
+
   describe("#updateCallerStatus", async () => {
     let subjectFunctionCallers: Address[];
     let subjectStatuses: boolean[];

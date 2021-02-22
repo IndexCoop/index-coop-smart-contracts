@@ -27,6 +27,10 @@ contract BaseAdapterMock is BaseAdapter {
 
     /* ============ External Functions ============ */
 
+    function testInvokeManagerTransfer(address _token, address _destination, uint256 _amount) external {
+        invokeManagerTransfer(_token, _destination, _amount);
+    }
+
     function testInvokeManager(address _module, bytes calldata _encoded) external {
         invokeManager(_module, _encoded);
     }
