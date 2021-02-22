@@ -130,7 +130,7 @@ jobs:
           command: cp .env.default .env
       - run:
           name: Create shared coverage outputs folder
-          command: mkdir -p /tmp/coverage_fork
+          command: mkdir -p /tmp/coverage
       - run:
           name: Coverage
           command: |
@@ -138,17 +138,17 @@ jobs:
       - run:
           name: Save coverage
           command: |
-            cp coverage.json /tmp/coverage_fork/cov_fork.json
-            chmod -R 777 /tmp/coverage_fork/cov_fork.json
+            cp coverage.json /tmp/coverage/cov_fork.json
+            chmod -R 777 /tmp/coverage/cov_fork.json
       - persist_to_workspace:
-          root: /tmp/coverage_fork
+          root: /tmp/coverage
           paths:
             - cov_fork.json
 
   report_coverage:
     docker:
       - image: circleci/node:10.11.0
-    working_directory: ~/set-protocol-v2
+    working_directory: ~/index-coop-private
     steps:
       - attach_workspace:
           at: /tmp/coverage
@@ -159,12 +159,11 @@ jobs:
           command: |
             mkdir -p reports
             cp -R /tmp/coverage/* .
-            cp -R /tmp/coverage_fork/* .
             npx istanbul-combine-updated -r lcov cov_0.json cov_1.json cov_fork.json
       - run:
           name: Upload coverage
           command: |
-            cat coverage/lcov.info | node_modules/.bin/coveralls
+            cat coverage/lcov.info | ./node_modules/.bin/coveralls
 
 workflows:
   version: 2
