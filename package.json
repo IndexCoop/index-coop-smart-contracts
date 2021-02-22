@@ -21,6 +21,7 @@
     "clean-dev-deployment": "rm -rf deployments/50-development.json",
     "compile": "npx hardhat compile",
     "coverage": "yarn clean && yarn build && npx hardhat coverage --temp artifacts --network coverage",
+    "coverage:fork": "yarn clean && yarn build && FORK=true npx hardhat coverage --temp artifacts",
     "fix-typechain": "node scripts/fix-typechain.js && yarn rename-extensions",
     "flatten": "npx waffle flatten",
     "lint": "yarn run lint-sol && yarn run lint-ts",
