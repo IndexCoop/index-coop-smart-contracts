@@ -12,6 +12,17 @@ import "hardhat-deploy";
 
 internalTask(TASK_COMPILE_SOLIDITY_COMPILE).setAction(setupNativeSolc);
 
+const forkingConfig = {
+  url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
+  blockNumber: 11649166,
+};
+
+const mochaConfig = {
+  grep: "@forked-network",
+  invert: (process.env.FORK) ? false : true,
+  timeout: (process.env.FORK) ? 50000 : 20000,
+} as Mocha.MochaOptions;
+
 const config: HardhatUserConfig = {
   solidity: {
     version: "0.6.10",
@@ -19,15 +30,12 @@ const config: HardhatUserConfig = {
       optimizer: { enabled: true, runs: 200 },
     },
   },
-  namedAccounts: {  
+  namedAccounts: {
     deployer: 0,
   },
   networks: {
     hardhat: {
-      // forking: {
-      //     url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
-      //     blockNumber: 11649166,
-      // },
+      forking: (process.env.FORK) ? forkingConfig : undefined,
       accounts: getHardhatPrivateKeys(),
     },
     localhost: {
@@ -43,14 +51,8 @@ const config: HardhatUserConfig = {
       // @ts-ignore
       accounts: [`0x${process.env.PRODUCTION_MAINNET_DEPLOY_PRIVATE_KEY}`],
     },
-    // To update coverage network configuration got o .solcover.js and update param in providerOptions field
-    coverage: {
-      url: "http://127.0.0.1:8555", // Coverage launches its own ganache-cli client
-    },
   },
-  mocha: {
-    timeout: 20000
-  },
+  mocha: mochaConfig,
   typechain: {
     outDir: "typechain",
     target: "ethers-v5",
