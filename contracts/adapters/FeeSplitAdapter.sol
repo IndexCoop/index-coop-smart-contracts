@@ -24,7 +24,6 @@ import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { IICManagerV2 } from "../interfaces/IICManagerV2.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IStreamingFeeModule } from "../interfaces/IStreamingFeeModule.sol";
-import { MutualUpgrade } from "../lib/MutualUpgrade.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { TimeLockUpgrade } from "../lib/TimeLockUpgrade.sol";
 
@@ -35,7 +34,7 @@ import { TimeLockUpgrade } from "../lib/TimeLockUpgrade.sol";
  *
  * Smart contract adapter that allows for splitting and setting streaming and mint/redeem fees. 
  */
-contract FeeSplitAdapter is MutualUpgrade, BaseAdapter, TimeLockUpgrade {
+contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade {
     using Address for address;
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
@@ -127,12 +126,7 @@ contract FeeSplitAdapter is MutualUpgrade, BaseAdapter, TimeLockUpgrade {
     /**
      * ONLY OPERATOR: Updates fee recipient on both streaming fee and debt issuance modules.
      */
-    function updateFeeRecipient(
-        address _newFeeRecipient
-    )
-        external
-        onlyOperator
-    {
+    function updateFeeRecipient(address _newFeeRecipient) external onlyOperator {
         bytes memory callData = abi.encodeWithSignature("updateFeeRecipient(address,address)", manager.setToken(), _newFeeRecipient);
         invokeManager(address(streamingFeeModule), callData);
         invokeManager(address(debtIssuanceModule), callData);
@@ -141,12 +135,7 @@ contract FeeSplitAdapter is MutualUpgrade, BaseAdapter, TimeLockUpgrade {
     /**
      * ONLY OPERATOR: Updates fee split between operator and methodologist. Split defined in precise units (1% = 10^16).
      */
-    function updateFeeSplit(
-        uint256 _newFeeSplit
-    )
-        external
-        onlyOperator
-    {
+    function updateFeeSplit(uint256 _newFeeSplit) external onlyOperator {
         require(_newFeeSplit <= PreciseUnitMath.preciseUnit(), "Fee must be less than 100%");
         accrueFeesAndDistribute();
         operatorFeeSplit = _newFeeSplit;
