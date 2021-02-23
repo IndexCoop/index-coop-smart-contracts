@@ -13,8 +13,8 @@ export default class DeployMocks {
     this._deployerSigner = deployerSigner;
   }
 
-  public async deployBaseAdapterMock(): Promise<BaseAdapterMock> {
-    return await new BaseAdapterMock__factory(this._deployerSigner).deploy();
+  public async deployBaseAdapterMock(manager: Address): Promise<BaseAdapterMock> {
+    return await new BaseAdapterMock__factory(this._deployerSigner).deploy(manager);
   }
 
   public async deployTradeAdapterMock(): Promise<TradeAdapterMock> {

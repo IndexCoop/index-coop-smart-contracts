@@ -94,19 +94,33 @@ contract ICManagerV2 is MutualUpgrade {
     // Address of methodologist which serves as providing methodology for the index
     address public methodologist;
 
+    // Indicates whether manager has been initialized
+    bool public initialized;
+
     /* ============ Constructor ============ */
 
     constructor(
         ISetToken _setToken,
         address _operator,
-        address _methodologist,
-        address[] memory _adapters
+        address _methodologist
     )
         public
     {
         setToken = _setToken;
         operator = _operator;
         methodologist = _methodologist;
+    }
+
+    /* ============ External Functions ============ */
+
+    /**
+     * OPEERATOR ONLY: Initialize manager by passing in array of valid adapters. Only callable once. All new adapters must be added
+     * through mutual upgrade.
+     *
+     * @param _adapters           Array of adapters to add to manager
+     */
+    function initializeAdapters(address[] memory _adapters) external onlyOperator {
+        require(!initialized, "Manager already initialized");
 
         for (uint256 i = 0; i < _adapters.length; i++) {
             require(!isAdapter[_adapters[i]], "Adapter already exists");
@@ -114,9 +128,8 @@ contract ICManagerV2 is MutualUpgrade {
             isAdapter[_adapters[i]] = true;
         }
         adapters = _adapters;
+        initialized = true;
     }
-
-    /* ============ External Functions ============ */
 
     /**
      * MUTUAL UPGRADE: Update the SetToken manager address. Operator and Methodologist must each call

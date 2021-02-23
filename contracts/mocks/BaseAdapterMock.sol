@@ -23,7 +23,13 @@ import { IICManagerV2 } from "../interfaces/IICManagerV2.sol";
 
 contract BaseAdapterMock is BaseAdapter {
 
+    constructor(IICManagerV2 _manager) public BaseAdapter(_manager) {}
+
     /* ============ External Functions ============ */
+
+    function testInvokeManagerTransfer(address _token, address _destination, uint256 _amount) external {
+        invokeManagerTransfer(_token, _destination, _amount);
+    }
 
     function testInvokeManager(address _module, bytes calldata _encoded) external {
         invokeManager(_module, _encoded);
@@ -48,10 +54,4 @@ contract BaseAdapterMock is BaseAdapter {
         external
         onlyAllowedCaller(_caller)
     {}
-
-    /* ============ Helper Functions ============ */
-
-    function updateManager(IICManagerV2 _newManager) external {
-        manager = _newManager;
-    }
 }
