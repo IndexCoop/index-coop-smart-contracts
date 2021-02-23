@@ -78,6 +78,9 @@ abstract contract BaseAdapter {
     // Mapping of addresses allowed to call function
     mapping(address => bool) public callAllowList;
 
+    /* ============ Constructor ============ */
+
+    constructor(IICManagerV2 _manager) public { manager = _manager; }
 
     /* ============ External Functions ============ */
 
@@ -112,6 +115,17 @@ abstract contract BaseAdapter {
 
     /* ============ Internal Functions ============ */
     
+    /**
+     * Invoke manager to transfer tokens from manager to other contract.
+     *
+     * @param _token           Token being transferred from manager contract
+     * @param _amount          Amount of token being transferred
+     */
+    function invokeManagerTransfer(address _token, address _destination, uint256 _amount) internal {
+        bytes memory callData = abi.encodeWithSignature("transfer(address,uint256)", _destination, _amount);
+        invokeManager(_token, callData);
+    }
+
     /**
      * Invoke call from manager
      *

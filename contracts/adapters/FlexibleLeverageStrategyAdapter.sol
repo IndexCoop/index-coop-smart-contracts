@@ -39,7 +39,6 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  * protocol where module interactions are invoked via the ICManagerV2 contract. Any leveraged token can be constructed as long as the collateral and borrow
  * asset is available on Compound. This adapter contract also allows the operator to set an ETH reward to incentivize keepers calling the rebalance function at
  * different leverage thresholds.
- *
  */
 contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     using Address for address;
@@ -191,8 +190,10 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         MethodologySettings memory _methodology,
         ExecutionSettings memory _execution,
         IncentiveSettings memory _incentive
-    ) public {
-        manager = _manager;
+    )
+        public
+        BaseAdapter(_manager)
+    {
         strategy = _strategy;
         methodology = _methodology;
         execution = _execution;

@@ -63,20 +63,19 @@ describe("BaseAdapter", () => {
     };
     await setV2Setup.streamingFeeModule.initialize(setToken.address, streamingFeeSettings);
 
-    baseAdapterMock = await deployer.mocks.deployBaseAdapterMock();
-
     // Deploy ICManagerV2
     icManagerV2 = await deployer.manager.deployICManagerV2(
       setToken.address,
       owner.address,
       methodologist.address,
-      [baseAdapterMock.address]
     );
+
+    baseAdapterMock = await deployer.mocks.deployBaseAdapterMock(icManagerV2.address);
 
     // Transfer ownership to ICManagerV2
     await setToken.setManager(icManagerV2.address);
+    await icManagerV2.initializeAdapters([baseAdapterMock.address]);
 
-    await baseAdapterMock.updateManager(icManagerV2.address);
     await baseAdapterMock.updateCallerStatus([owner.address], [true]);
   });
 
@@ -236,6 +235,41 @@ describe("BaseAdapter", () => {
       await subject();
       const feeStates = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
       expect(feeStates.feeRecipient).to.eq(otherAccount.address);
+    });
+  });
+
+  describe("#testInvokeManagerTransfer", async () => {
+    let subjectToken: Address;
+    let subjectDestination: Address;
+    let subjectAmount: BigNumber;
+
+    beforeEach(async () => {
+      subjectToken = setV2Setup.weth.address;
+      subjectDestination = otherAccount.address;
+      subjectAmount = ether(1);
+
+      await setV2Setup.weth.transfer(icManagerV2.address, subjectAmount);
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return baseAdapterMock.testInvokeManagerTransfer(
+        subjectToken,
+        subjectDestination,
+        subjectAmount
+      );
+    }
+
+    it("should send the given amount from the manager to the address", async () => {
+      const preManagerAmount = await setV2Setup.weth.balanceOf(icManagerV2.address);
+      const preDestinationAmount = await setV2Setup.weth.balanceOf(subjectDestination);
+
+      await subject();
+
+      const postManagerAmount = await setV2Setup.weth.balanceOf(icManagerV2.address);
+      const postDestinationAmount = await setV2Setup.weth.balanceOf(subjectDestination);
+
+      expect(preManagerAmount.sub(postManagerAmount)).to.eq(subjectAmount);
+      expect(postDestinationAmount.sub(preDestinationAmount)).to.eq(subjectAmount);
     });
   });
 

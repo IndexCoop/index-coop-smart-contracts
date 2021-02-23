@@ -6,6 +6,7 @@ import {
   BasicIssuanceModule,
   CompoundLeverageModule,
   Controller,
+  DebtIssuanceModule,
   IntegrationRegistry,
   SetToken,
   SetTokenCreator,
@@ -38,6 +39,7 @@ export class SetFixture {
   public factory: SetTokenCreator;
 
   public issuanceModule: BasicIssuanceModule;
+  public debtIssuanceModule: DebtIssuanceModule;
   public streamingFeeModule: StreamingFeeModule;
   public integrationRegistry: IntegrationRegistry;
   public compoundLeverageModule: CompoundLeverageModule;
@@ -59,6 +61,7 @@ export class SetFixture {
     [, , , this.feeRecipient] = await this._provider.listAccounts();
 
     this.controller = await this._deployer.setV2.deployController(this.feeRecipient);
+    this.debtIssuanceModule = await this._deployer.setV2.deployDebtIssuanceModule(this.controller.address);
     this.issuanceModule = await this._deployer.setV2.deployBasicIssuanceModule(this.controller.address);
 
     await this.initializeStandardComponents();
@@ -70,7 +73,7 @@ export class SetFixture {
 
     await this.controller.initialize(
       [this.factory.address], // Factories
-      [this.issuanceModule.address, this.streamingFeeModule.address], // Modules
+      [this.issuanceModule.address, this.streamingFeeModule.address, this.debtIssuanceModule.address], // Modules
       [this.integrationRegistry.address], // Resources
       [0]
     );

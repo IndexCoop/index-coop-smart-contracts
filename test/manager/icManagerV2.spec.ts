@@ -16,6 +16,7 @@ import {
   getRandomAddress
 } from "@utils/index";
 import { SetFixture } from "@utils/fixtures";
+import { ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
 
@@ -70,7 +71,6 @@ describe("ICManagerV2", () => {
       setToken.address,
       owner.address,
       methodologist.address,
-      []
     );
 
     // Transfer ownership to ICManagerV2
@@ -83,13 +83,11 @@ describe("ICManagerV2", () => {
     let subjectSetToken: Address;
     let subjectOperator: Address;
     let subjectMethodologist: Address;
-    let subjectAdapters: Address[];
 
     beforeEach(async () => {
       subjectSetToken = setToken.address;
       subjectOperator = owner.address;
       subjectMethodologist = methodologist.address;
-      subjectAdapters = [await getRandomAddress(), await getRandomAddress()];
     });
 
     async function subject(): Promise<ICManagerV2> {
@@ -97,7 +95,6 @@ describe("ICManagerV2", () => {
         subjectSetToken,
         subjectOperator,
         subjectMethodologist,
-        subjectAdapters
       );
     }
 
@@ -121,21 +118,41 @@ describe("ICManagerV2", () => {
       const actualMethodologist = await retrievedICManager.methodologist();
       expect (actualMethodologist).to.eq(subjectMethodologist);
     });
+  });
+
+  describe("#initializeAdapters", async () => {
+    let subjectAdapters: Address[];
+
+    beforeEach(async () => {
+      subjectAdapters = [await getRandomAddress(), await getRandomAddress()];
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return await icManagerV2.initializeAdapters(subjectAdapters);
+    }
 
     it("should set the correct adapters", async () => {
-      const retrievedICManager = await subject();
+      await subject();
 
-      const actualAdapters = await retrievedICManager.getAdapters();
+      const actualAdapters = await icManagerV2.getAdapters();
       expect(JSON.stringify(actualAdapters)).to.eq(JSON.stringify(subjectAdapters));
     });
 
     it("should set the adapter mapping", async () => {
-      const retrievedICManager = await subject();
-      const isAdapterOne = await retrievedICManager.isAdapter(subjectAdapters[0]);
-      const isAdapterTwo = await retrievedICManager.isAdapter(subjectAdapters[1]);
+      await subject();
+      const isAdapterOne = await icManagerV2.isAdapter(subjectAdapters[0]);
+      const isAdapterTwo = await icManagerV2.isAdapter(subjectAdapters[1]);
 
       expect(isAdapterOne).to.be.true;
       expect(isAdapterTwo).to.be.true;
+    });
+
+    it("flips the initialized flag to true", async () => {
+      await subject();
+
+      const isInitialized = await icManagerV2.initialized();
+
+      expect(isInitialized).to.be.true;
     });
 
     describe("when the adapter already exists", async () => {
@@ -145,6 +162,16 @@ describe("ICManagerV2", () => {
 
       it("should revert", async () => {
         await expect(subject()).to.be.revertedWith("Adapter already exists");
+      });
+    });
+
+    describe("when initializedAdapters has already been called", async () => {
+      beforeEach(async () => {
+        await subject();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Manager already initialized");
       });
     });
   });
