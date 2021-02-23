@@ -178,8 +178,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       ]
     );
     await gulpComptrollerMock.addSetTokenAddress(setToken.address);
-    await compoundLeverageModule.updateAnySetInitializable(true);
-    await secondCompoundLeverageModule.updateAnySetInitializable(true);
+    await compoundLeverageModule.updateAnySetAllowed(true);
+    await secondCompoundLeverageModule.updateAnySetAllowed(true);
 
     // Initialize modules
     await debtIssuanceModule.initialize(setToken.address, ether(1), ZERO, ZERO, owner.address, ADDRESS_ZERO);
