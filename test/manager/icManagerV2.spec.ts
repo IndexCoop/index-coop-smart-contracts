@@ -1,9 +1,8 @@
 import "module-alias/register";
-import { solidityKeccak256 } from "ethers/lib/utils";
 
 import { Address, Account, Bytes } from "@utils/types";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
-import { ICManagerV2 } from "@utils/contracts/index";
+import { ICManagerV2, BaseAdapterMock } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -16,7 +15,6 @@ import {
   getRandomAddress
 } from "@utils/index";
 import { SetFixture } from "@utils/fixtures";
-import { ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
 
@@ -25,13 +23,13 @@ describe("ICManagerV2", () => {
   let methodologist: Account;
   let otherAccount: Account;
   let newManager: Account;
-  let mockAdapter: Account;
   let setV2Setup: SetFixture;
 
   let deployer: DeployHelper;
   let setToken: SetToken;
 
   let icManagerV2: ICManagerV2;
+  let baseAdapter: BaseAdapterMock;
 
   before(async () => {
     [
@@ -39,7 +37,6 @@ describe("ICManagerV2", () => {
       otherAccount,
       newManager,
       methodologist,
-      mockAdapter,
     ] = await getAccounts();
 
     deployer = new DeployHelper(owner.wallet);
@@ -75,6 +72,8 @@ describe("ICManagerV2", () => {
 
     // Transfer ownership to ICManagerV2
     await setToken.setManager(icManagerV2.address);
+
+    baseAdapter = await deployer.mocks.deployBaseAdapterMock(icManagerV2.address);
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -120,62 +119,6 @@ describe("ICManagerV2", () => {
     });
   });
 
-  describe("#initializeAdapters", async () => {
-    let subjectAdapters: Address[];
-
-    beforeEach(async () => {
-      subjectAdapters = [await getRandomAddress(), await getRandomAddress()];
-    });
-
-    async function subject(): Promise<ContractTransaction> {
-      return await icManagerV2.initializeAdapters(subjectAdapters);
-    }
-
-    it("should set the correct adapters", async () => {
-      await subject();
-
-      const actualAdapters = await icManagerV2.getAdapters();
-      expect(JSON.stringify(actualAdapters)).to.eq(JSON.stringify(subjectAdapters));
-    });
-
-    it("should set the adapter mapping", async () => {
-      await subject();
-      const isAdapterOne = await icManagerV2.isAdapter(subjectAdapters[0]);
-      const isAdapterTwo = await icManagerV2.isAdapter(subjectAdapters[1]);
-
-      expect(isAdapterOne).to.be.true;
-      expect(isAdapterTwo).to.be.true;
-    });
-
-    it("flips the initialized flag to true", async () => {
-      await subject();
-
-      const isInitialized = await icManagerV2.initialized();
-
-      expect(isInitialized).to.be.true;
-    });
-
-    describe("when the adapter already exists", async () => {
-      beforeEach(async () => {
-        subjectAdapters = [mockAdapter.address, mockAdapter.address];
-      });
-
-      it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Adapter already exists");
-      });
-    });
-
-    describe("when initializedAdapters has already been called", async () => {
-      beforeEach(async () => {
-        await subject();
-      });
-
-      it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Manager already initialized");
-      });
-    });
-  });
-
   describe("#setManager", async () => {
     let subjectNewManager: Address;
     let subjectCaller: Account;
@@ -186,41 +129,33 @@ describe("ICManagerV2", () => {
     });
 
     async function subject(): Promise<any> {
-      icManagerV2 = icManagerV2.connect(subjectCaller.wallet);
-      return icManagerV2.setManager(subjectNewManager);
+      return icManagerV2.connect(subjectCaller.wallet).setManager(subjectNewManager);
     }
 
-    it("should log the proposed manager hash in the mutualUpgrades mapping", async () => {
-      const txHash = await subject();
+    it("should change the manager address", async () => {
+      await subject();
+      const manager = await setToken.manager();
 
-      const expectedHash = solidityKeccak256(["bytes", "address"], [txHash.data, subjectCaller.address]);
-      const isLogged = await icManagerV2.mutualUpgrades(expectedHash);
-
-      expect(isLogged).to.be.true;
+      expect(manager).to.eq(newManager.address);
     });
 
-    describe("when proposed manager hash is already set", async () => {
+    describe("when passed manager is the zero address", async () => {
       beforeEach(async () => {
-        await icManagerV2.connect(owner.wallet).setManager(newManager.address);
-
-        subjectCaller = methodologist;
-      });
-
-      it("should change the manager address", async () => {
-        await subject();
-        const manager = await setToken.manager();
-
-        expect(manager).to.eq(newManager.address);
-      });
-    });
-
-    describe("when the caller is not the operator or methodologist", async () => {
-      beforeEach(async () => {
-        subjectCaller = await getRandomAccount();
+        subjectNewManager = ADDRESS_ZERO;
       });
 
       it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Must be authorized address");
+        await expect(subject()).to.be.revertedWith("Zero address not valid");
+      });
+    });
+
+    describe("when the caller is not the operator", async () => {
+      beforeEach(async () => {
+        subjectCaller = methodologist;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be operator");
       });
     });
   });
@@ -230,56 +165,35 @@ describe("ICManagerV2", () => {
     let subjectCaller: Account;
 
     beforeEach(async () => {
-      subjectAdapter = mockAdapter.address;
+      subjectAdapter = baseAdapter.address;
       subjectCaller = owner;
     });
 
     async function subject(): Promise<any> {
-      icManagerV2 = icManagerV2.connect(subjectCaller.wallet);
-      return icManagerV2.addAdapter(subjectAdapter);
+      return icManagerV2.connect(subjectCaller.wallet).addAdapter(subjectAdapter);
     }
 
-    it("should log the proposed adapter hash in the mutualUpgrades mapping", async () => {
-      const txHash = await subject();
+    it("should add the adapter address", async () => {
+      await subject();
+      const adapters = await icManagerV2.getAdapters();
 
-      const expectedHash = solidityKeccak256(["bytes", "address"], [txHash.data, subjectCaller.address]);
-      const isLogged = await icManagerV2.mutualUpgrades(expectedHash);
-
-      expect(isLogged).to.be.true;
+      expect(adapters[0]).to.eq(baseAdapter.address);
     });
 
-    describe("when proposed adapter hash is already set", async () => {
-      beforeEach(async () => {
-        await icManagerV2.connect(owner.wallet).addAdapter(mockAdapter.address);
+    it("should set the adapter mapping", async () => {
+      await subject();
+      const isAdapter = await icManagerV2.isAdapter(subjectAdapter);
 
-        subjectCaller = methodologist;
-      });
+      expect(isAdapter).to.be.true;
+    });
 
-      it("should add the adapter address", async () => {
-        await subject();
-        const adapters = await icManagerV2.getAdapters();
-
-        expect(adapters[0]).to.eq(mockAdapter.address);
-      });
-
-      it("should set the adapter mapping", async () => {
-        await subject();
-        const isAdapter = await icManagerV2.isAdapter(subjectAdapter);
-
-        expect(isAdapter).to.be.true;
-      });
-
-      it("should emit the correct AdapterAdded event", async () => {
-        await expect(subject()).to.emit(icManagerV2, "AdapterAdded").withArgs(mockAdapter.address);
-      });
+    it("should emit the correct AdapterAdded event", async () => {
+      await expect(subject()).to.emit(icManagerV2, "AdapterAdded").withArgs(baseAdapter.address);
     });
 
     describe("when the adapter already exists", async () => {
       beforeEach(async () => {
-        await icManagerV2.connect(owner.wallet).addAdapter(mockAdapter.address);
-        subjectCaller = methodologist;
         await subject();
-        await icManagerV2.connect(owner.wallet).addAdapter(mockAdapter.address);
       });
 
       it("should revert", async () => {
@@ -287,13 +201,23 @@ describe("ICManagerV2", () => {
       });
     });
 
-    describe("when the caller is not the operator or methodologist", async () => {
+    describe("when adapter has different manager address", async () => {
       beforeEach(async () => {
-        subjectCaller = await getRandomAccount();
+        subjectAdapter = (await deployer.mocks.deployBaseAdapterMock(await getRandomAddress())).address;
       });
 
       it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Must be authorized address");
+        await expect(subject()).to.be.revertedWith("Adapter manager invalid");
+      });
+    });
+
+    describe("when the caller is not the operator", async () => {
+      beforeEach(async () => {
+        subjectCaller = methodologist;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be operator");
       });
     });
   });
@@ -303,59 +227,37 @@ describe("ICManagerV2", () => {
     let subjectCaller: Account;
 
     beforeEach(async () => {
-      await icManagerV2.connect(owner.wallet).addAdapter(mockAdapter.address);
-      await icManagerV2.connect(methodologist.wallet).addAdapter(mockAdapter.address);
+      await icManagerV2.connect(owner.wallet).addAdapter(baseAdapter.address);
 
-      subjectAdapter = mockAdapter.address;
+      subjectAdapter = baseAdapter.address;
       subjectCaller = owner;
     });
 
     async function subject(): Promise<any> {
-      icManagerV2 = icManagerV2.connect(subjectCaller.wallet);
-      return icManagerV2.removeAdapter(subjectAdapter);
+      return icManagerV2.connect(subjectCaller.wallet).removeAdapter(subjectAdapter);
     }
 
-    it("should log the proposed adapter hash in the mutualUpgrades mapping", async () => {
-      const txHash = await subject();
+    it("should remove the adapter address", async () => {
+      await subject();
+      const adapters = await icManagerV2.getAdapters();
 
-      const expectedHash = solidityKeccak256(["bytes", "address"], [txHash.data, subjectCaller.address]);
-      const isLogged = await icManagerV2.mutualUpgrades(expectedHash);
-
-      expect(isLogged).to.be.true;
+      expect(adapters.length).to.eq(0);
     });
 
-    describe("when proposed adapter hash is already set", async () => {
-      beforeEach(async () => {
-        await icManagerV2.connect(owner.wallet).removeAdapter(mockAdapter.address);
+    it("should set the adapter mapping", async () => {
+      await subject();
+      const isAdapter = await icManagerV2.isAdapter(subjectAdapter);
 
-        subjectCaller = methodologist;
-      });
+      expect(isAdapter).to.be.false;
+    });
 
-      it("should remove the adapter address", async () => {
-        await subject();
-        const adapters = await icManagerV2.getAdapters();
-
-        expect(adapters.length).to.eq(0);
-      });
-
-      it("should set the adapter mapping", async () => {
-        await subject();
-        const isAdapter = await icManagerV2.isAdapter(subjectAdapter);
-
-        expect(isAdapter).to.be.false;
-      });
-
-      it("should emit the correct AdapterRemoved event", async () => {
-        await expect(subject()).to.emit(icManagerV2, "AdapterRemoved").withArgs(mockAdapter.address);
-      });
+    it("should emit the correct AdapterRemoved event", async () => {
+      await expect(subject()).to.emit(icManagerV2, "AdapterRemoved").withArgs(baseAdapter.address);
     });
 
     describe("when the adapter does not exist", async () => {
       beforeEach(async () => {
         subjectAdapter = await getRandomAddress();
-
-        await icManagerV2.connect(owner.wallet).removeAdapter(subjectAdapter);
-        subjectCaller = methodologist;
       });
 
       it("should revert", async () => {
@@ -363,13 +265,13 @@ describe("ICManagerV2", () => {
       });
     });
 
-    describe("when the caller is not the operator or methodologist", async () => {
+    describe("when the caller is not the operator", async () => {
       beforeEach(async () => {
-        subjectCaller = await getRandomAccount();
+        subjectCaller = methodologist;
       });
 
       it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Must be authorized address");
+        await expect(subject()).to.be.revertedWith("Must be operator");
       });
     });
   });
@@ -386,8 +288,7 @@ describe("ICManagerV2", () => {
     });
 
     async function subject(): Promise<any> {
-      icManagerV2 = icManagerV2.connect(subjectCaller.wallet);
-      return icManagerV2.addModule(subjectModule);
+      return icManagerV2.connect(subjectCaller.wallet).addModule(subjectModule);
     }
 
     it("should add the module to the SetToken", async () => {
@@ -407,14 +308,12 @@ describe("ICManagerV2", () => {
     });
   });
 
-  describe("#interactModule", async () => {
+  describe("#interactManager", async () => {
     let subjectModule: Address;
     let subjectCallData: Bytes;
-    let subjectCaller: Account;
 
     beforeEach(async () => {
-      await icManagerV2.connect(owner.wallet).addAdapter(owner.address);
-      await icManagerV2.connect(methodologist.wallet).addAdapter(owner.address);
+      await icManagerV2.connect(owner.wallet).addAdapter(baseAdapter.address);
 
       subjectModule = setV2Setup.streamingFeeModule.address;
 
@@ -423,12 +322,10 @@ describe("ICManagerV2", () => {
         setToken.address,
         otherAccount.address,
       ]);
-      subjectCaller = owner;
     });
 
     async function subject(): Promise<any> {
-      icManagerV2 = icManagerV2.connect(subjectCaller.wallet);
-      return icManagerV2.interactModule(subjectModule, subjectCallData);
+      return baseAdapter.interactManager(subjectModule, subjectCallData);
     }
 
     it("should call updateFeeRecipient on the streaming fee module from the SetToken", async () => {
@@ -439,7 +336,7 @@ describe("ICManagerV2", () => {
 
     describe("when the caller is not an adapter", async () => {
       beforeEach(async () => {
-        subjectCaller = await getRandomAccount();
+        await icManagerV2.connect(owner.wallet).removeAdapter(baseAdapter.address);
       });
 
       it("should revert", async () => {
@@ -458,8 +355,7 @@ describe("ICManagerV2", () => {
     });
 
     async function subject(): Promise<any> {
-      icManagerV2 = icManagerV2.connect(subjectCaller.wallet);
-      return icManagerV2.removeModule(subjectModule);
+      return icManagerV2.connect(subjectCaller.wallet).removeModule(subjectModule);
     }
 
     it("should remove the module from the SetToken", async () => {
@@ -489,8 +385,7 @@ describe("ICManagerV2", () => {
     });
 
     async function subject(): Promise<any> {
-      icManagerV2 = icManagerV2.connect(subjectCaller.wallet);
-      return icManagerV2.setMethodologist(subjectNewMethodologist);
+      return icManagerV2.connect(subjectCaller.wallet).setMethodologist(subjectNewMethodologist);
     }
 
     it("should set the new methodologist", async () => {
@@ -524,8 +419,7 @@ describe("ICManagerV2", () => {
     });
 
     async function subject(): Promise<any> {
-      icManagerV2 = icManagerV2.connect(subjectCaller.wallet);
-      return icManagerV2.setOperator(subjectNewOperator);
+      return icManagerV2.connect(subjectCaller.wallet).setOperator(subjectNewOperator);
     }
 
     it("should set the new operator", async () => {

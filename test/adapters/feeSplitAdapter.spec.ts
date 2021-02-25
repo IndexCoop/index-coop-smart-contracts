@@ -130,7 +130,7 @@ describe("FeeSplitAdapter", () => {
     it("should set the correct debt issuance module address", async () => {
       const feeAdapter = await subject();
 
-      const actualDebtIssuanceModule = await feeAdapter.debtIssuanceModule();
+      const actualDebtIssuanceModule = await feeAdapter.issuanceModule();
       expect(actualDebtIssuanceModule).to.eq(subjectDebtIssuanceModule);
     });
 
@@ -153,7 +153,7 @@ describe("FeeSplitAdapter", () => {
         operatorSplit
       );
 
-      await icManagerV2.connect(operator.wallet).initializeAdapters([feeAdapter.address]);
+      await icManagerV2.connect(operator.wallet).addAdapter(feeAdapter.address);
 
       // Transfer ownership to ICManagerV2
       await setToken.setManager(icManagerV2.address);

@@ -17,14 +17,8 @@
 pragma solidity 0.6.10;
 pragma experimental "ABIEncoderV2";
 
-import { ISetToken } from "./ISetToken.sol";
+import { IICManagerV2 } from "./IICManagerV2.sol";
 
-interface IICManagerV2 {
-    function setToken() external returns(ISetToken);
-    
-    function methodologist() external returns(address);
-
-    function operator() external returns(address);
-
-    function interactManager(address _module, bytes calldata _encoded) external;
+interface IAdapter {
+    function manager() external view returns (IICManagerV2);
 }

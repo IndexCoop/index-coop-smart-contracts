@@ -74,7 +74,7 @@ describe("BaseAdapter", () => {
 
     // Transfer ownership to ICManagerV2
     await setToken.setManager(icManagerV2.address);
-    await icManagerV2.initializeAdapters([baseAdapterMock.address]);
+    await icManagerV2.addAdapter(baseAdapterMock.address);
 
     await baseAdapterMock.updateCallerStatus([owner.address], [true]);
   });

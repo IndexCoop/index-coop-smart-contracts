@@ -276,7 +276,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     );
 
     // Add adapter
-    await icManagerV2.connect(owner.wallet).initializeAdapters([flexibleLeverageStrategyAdapter.address]);
+    await icManagerV2.connect(owner.wallet).addAdapter(flexibleLeverageStrategyAdapter.address);
   });
 
   addSnapshotBeforeRestoreAfterEach();

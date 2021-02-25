@@ -54,4 +54,8 @@ contract BaseAdapterMock is BaseAdapter {
         external
         onlyAllowedCaller(_caller)
     {}
+
+    function interactManager(address _target, bytes calldata _data) external {
+        invokeManager(_target, _data);
+    }
 }

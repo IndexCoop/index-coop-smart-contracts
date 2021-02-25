@@ -52,7 +52,7 @@ abstract contract BaseAdapter {
     }
 
     /**
-     * Throws if caller is a contract
+     * Throws if caller is a contract, can be used to stop flash loan and sandwich attacks
      */
     modifier onlyEOA() {
         require(msg.sender == tx.origin, "Caller must be EOA Address");
@@ -133,7 +133,7 @@ abstract contract BaseAdapter {
      * @param _encoded          Encoded byte data
      */
     function invokeManager(address _module, bytes memory _encoded) internal {
-        manager.interactModule(_module, _encoded);
+        manager.interactManager(_module, _encoded);
     }
 
     /**

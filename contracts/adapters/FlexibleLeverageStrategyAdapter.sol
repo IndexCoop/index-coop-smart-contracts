@@ -48,29 +48,29 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     /* ============ Enums ============ */
 
     enum ShouldRebalance {
-        NONE,
-        REBALANCE,
-        ITERATE_REBALANCE,
-        RIPCORD
+        NONE,                   // Indicates no rebalance action can be taken
+        REBALANCE,              // Indicates rebalance() function can be successfully called
+        ITERATE_REBALANCE,      // Indicates iterateRebalance() function can be successfully called
+        RIPCORD                 // Indicates ripcord() function can be successfully called
     }
 
     /* ============ Structs ============ */
 
     struct ActionInfo {
-        uint256 collateralPrice;                   // Price of underlying in precise units (10e18)
-        uint256 borrowPrice;                       // Price of underlying in precise units (10e18)
-        uint256 collateralBalance;                 // Balance of underlying held in Compound in base units (e.g. USDC 10e6)
-        uint256 borrowBalance;                     // Balance of underlying borrowed from Compound in base units
-        uint256 collateralValue;                   // Valuation in USD adjusted for decimals in precise units (10e18)
-        uint256 borrowValue;                       // Valuation in USD adjusted for decimals in precise units (10e18)
-        uint256 setTotalSupply;                    // Total supply of SetToken
+        uint256 collateralPrice;                        // Price of underlying in precise units (10e18)
+        uint256 borrowPrice;                            // Price of underlying in precise units (10e18)
+        uint256 collateralBalance;                      // Balance of underlying held in Compound in base units (e.g. USDC 10e6)
+        uint256 borrowBalance;                          // Balance of underlying borrowed from Compound in base units
+        uint256 collateralValue;                        // Valuation in USD adjusted for decimals in precise units (10e18)
+        uint256 borrowValue;                            // Valuation in USD adjusted for decimals in precise units (10e18)
+        uint256 setTotalSupply;                         // Total supply of SetToken
     }
 
      struct LeverageInfo {
         ActionInfo action;
-        uint256 currentLeverageRatio;
-        uint256 slippageTolerance;
-        uint256 twapMaxTradeSize;
+        uint256 currentLeverageRatio;                   // Current leverage ratio of Set
+        uint256 slippageTolerance;                      // Allowable percent trade slippage in preciseUnits (1% = 10^16)
+        uint256 twapMaxTradeSize;                       // Max trade size in collateral units allowed for rebalance action
     }
 
     struct ContractSettings {
