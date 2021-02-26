@@ -34,6 +34,8 @@ import { UniswapV2Pair } from "@typechain/UniswapV2Pair";
 const expect = getWaffleExpect();
 
 interface CheckpointSettings {
+  issueAmount: BigNumber;
+  redeemAmount: BigNumber;
   collateralPrice: BigNumber;
   borrowPrice: BigNumber;
   elapsedTime: BigNumber;
@@ -46,21 +48,21 @@ interface FLISettings {
   borrowCToken: CEther | CERc20;
   uniswapPool: UniswapV2Pair;
   targetLeverageRatio: BigNumber;
+  twapMaxTradeSize: BigNumber;
+  incentivizedTwapMaxTradeSize: BigNumber;
   checkpoints: CheckpointSettings[];
 }
 
 // Across scenario constants
-const minLeverageBuffer = ether(.1);
-const maxLeverageBuffer = ether(.1);
+const minLeverageBuffer = ether(.15);
+const maxLeverageBuffer = ether(.15);
 const recenteringSpeed = ether(0.05);
 const rebalanceInterval = BigNumber.from(86400);
 
 const unutilizedLeveragePercentage = ether(0.01);
-const twapMaxTradeSize = ether(10);
 const twapCooldownPeriod = BigNumber.from(3000);
 const slippageTolerance = ether(0.01);
 
-const incentivizedTwapMaxTradeSize = ether(100);
 const incentivizedTwapCooldownPeriod = BigNumber.from(60);
 const incentivizedSlippageTolerance = ether(0.05);
 const etherReward = ether(1);
@@ -217,10 +219,12 @@ describe.only("FlexibleLeverageStrategyAdapter", () => {
         borrowCToken: cUSDC,
         uniswapPool: uniswapSetup.wethUsdcPool,
         targetLeverageRatio: ether(2),
+        twapMaxTradeSize: usdc(50000),
+        incentivizedTwapMaxTradeSize: usdc(100000),
         checkpoints: [
-          { collateralPrice: ether(1000), borrowPrice: ether(1), elapsedTime: ONE_DAY_IN_SECONDS },
-          { collateralPrice: ether(1100), borrowPrice: ether(1), elapsedTime: ONE_DAY_IN_SECONDS },
-          { collateralPrice: ether(800), borrowPrice: ether(1), elapsedTime: ONE_HOUR_IN_SECONDS.mul(12) },
+          { issueAmount: ZERO, redeemAmount: ZERO, collateralPrice: ether(1000), borrowPrice: ether(1), elapsedTime: ONE_DAY_IN_SECONDS },
+          { issueAmount: ZERO, redeemAmount: ZERO, collateralPrice: ether(1100), borrowPrice: ether(1), elapsedTime: ONE_DAY_IN_SECONDS },
+          { issueAmount: ZERO, redeemAmount: ZERO, collateralPrice: ether(800), borrowPrice: ether(1), elapsedTime: ONE_HOUR_IN_SECONDS.mul(12) },
         ],
       } as FLISettings,
       {
@@ -230,10 +234,12 @@ describe.only("FlexibleLeverageStrategyAdapter", () => {
         borrowCToken: cEther,
         uniswapPool: uniswapSetup.wethUsdcPool,
         targetLeverageRatio: ether(2),
+        twapMaxTradeSize: usdc(1000),
+        incentivizedTwapMaxTradeSize: usdc(100000),
         checkpoints: [
-          { collateralPrice: ether(1000), borrowPrice: ether(1), elapsedTime: ONE_DAY_IN_SECONDS },
-          { collateralPrice: ether(1100), borrowPrice: ether(1), elapsedTime: ONE_DAY_IN_SECONDS },
-          { collateralPrice: ether(800), borrowPrice: ether(1), elapsedTime: ONE_HOUR_IN_SECONDS.mul(12) },
+          { issueAmount: ether(5), redeemAmount: ZERO, collateralPrice: ether(1), borrowPrice: ether(1300), elapsedTime: ONE_DAY_IN_SECONDS },
+          { issueAmount: ether(100), redeemAmount: ZERO, collateralPrice: ether(1), borrowPrice: ether(1300), elapsedTime: ONE_HOUR_IN_SECONDS },
+          { issueAmount: ZERO, redeemAmount: ZERO, collateralPrice: ether(1), borrowPrice: ether(1300), elapsedTime: ONE_HOUR_IN_SECONDS },
         ],
       } as FLISettings,
     ];
@@ -249,7 +255,7 @@ describe.only("FlexibleLeverageStrategyAdapter", () => {
 
       await deployFLISetup(subjectScenario);
 
-      await issueFLITokens(subjectScenario.collateralCToken);
+      await issueFLITokens(subjectScenario.collateralCToken, ether(10));
 
       await engageFLI();
     });
@@ -275,7 +281,7 @@ describe.only("FlexibleLeverageStrategyAdapter", () => {
 
       await deployFLISetup(subjectScenario);
 
-      await issueFLITokens(subjectScenario.collateralCToken);
+      await issueFLITokens(subjectScenario.collateralCToken, ether(10));
 
       await engageFLI();
     });
@@ -294,9 +300,10 @@ describe.only("FlexibleLeverageStrategyAdapter", () => {
   });
 
   async function deployFLISetup(fliSettings: FLISettings): Promise<void> {
+    console.log((await fliSettings.collateralCToken.initialExchangeRateMantissa()).toString());
     setToken = await setV2Setup.createSetToken(
       [fliSettings.collateralCToken.address],
-      [BigNumber.from(5000000000)], // Equivalent to 1 ETH
+      [BigNumber.from(500000000000)], // Equivalent to 1 ETH
       [
         setV2Setup.streamingFeeModule.address,
         compoundLeverageModule.address,
@@ -358,14 +365,14 @@ describe.only("FlexibleLeverageStrategyAdapter", () => {
     };
     execution = {
       unutilizedLeveragePercentage: unutilizedLeveragePercentage,
-      twapMaxTradeSize: twapMaxTradeSize,
+      twapMaxTradeSize: fliSettings.twapMaxTradeSize,
       twapCooldownPeriod: twapCooldownPeriod,
       slippageTolerance: slippageTolerance,
       exchangeName: "UniswapTradeAdapter",
       exchangeData: EMPTY_BYTES,
     };
     incentive = {
-      incentivizedTwapMaxTradeSize: incentivizedTwapMaxTradeSize,
+      incentivizedTwapMaxTradeSize: fliSettings.incentivizedTwapMaxTradeSize,
       incentivizedTwapCooldownPeriod: incentivizedTwapCooldownPeriod,
       incentivizedSlippageTolerance: incentivizedSlippageTolerance,
       etherReward: etherReward,
@@ -385,12 +392,11 @@ describe.only("FlexibleLeverageStrategyAdapter", () => {
     await icManagerV2.connect(owner.wallet).initializeAdapters([flexibleLeverageStrategyAdapter.address]);
   }
 
-  async function issueFLITokens(collateralCToken: CERc20 | CEther): Promise<void> {
-    await collateralCToken.approve(setV2Setup.debtIssuanceModule.address, ether(10000));
-
-    // Issue 1 SetToken
-    const issueQuantity = ether(10);
-    await setV2Setup.debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
+  async function issueFLITokens(collateralCToken: CERc20 | CEther, amount: BigNumber): Promise<void> {
+    if (amount.gt(ZERO)) {
+      await collateralCToken.approve(setV2Setup.debtIssuanceModule.address, MAX_UINT_256);
+      await setV2Setup.debtIssuanceModule.issue(setToken.address, amount, owner.address);
+    }
   }
 
   async function engageFLI(): Promise<void> {
@@ -408,10 +414,13 @@ describe.only("FlexibleLeverageStrategyAdapter", () => {
     for (let i = 0; i < fliSettings.checkpoints.length; i++) {
       await setPricesAndUniswapPool(fliSettings, i);
 
+      await issueFLITokens(fliSettings.collateralCToken, fliSettings.checkpoints[i].issueAmount);
+
       await increaseTimeAsync(fliSettings.checkpoints[i].elapsedTime);
 
       const rebalanceType = await flexibleLeverageStrategyAdapter.shouldRebalance();
 
+      console.log("Pre-Rebalance Leverage Ratio:", (await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio()).toString());
       if (rebalanceType != 0) {
         await executeTrade(rebalanceType);
       }
@@ -433,6 +442,7 @@ describe.only("FlexibleLeverageStrategyAdapter", () => {
     await compoundSetup.priceOracle.setUnderlyingPrice(fliSettings.borrowCToken.address, scaledBorrowPrice);
 
     const [ amount, buyCollateral ] = await calculateUniswapTradeAmount(fliSettings, checkpoint);
+
     if (buyCollateral) {
       await uniswapSetup.router.swapTokensForExactTokens(
         amount,
@@ -477,7 +487,7 @@ describe.only("FlexibleLeverageStrategyAdapter", () => {
 
     const currentK = collateralReserve.mul(borrowReserve);
     const collateralLeft = sqrt(currentK.div(expectedPrice.mul(borrowDecimals).div(collateralDecimals))).mul(BigNumber.from(10).pow(9));
-    console.log(collateralLeft.toString(), expectedPrice.mul(borrowDecimals).div(collateralDecimals).toString());
+
     return collateralLeft.gt(collateralReserve) ?
       [ collateralLeft.sub(collateralReserve), false ] :
       [ collateralReserve.sub(collateralLeft), true ];
