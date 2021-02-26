@@ -14,6 +14,7 @@
 pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IUniswapV2Factory } from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Router02 } from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
@@ -40,6 +41,7 @@ import { UniswapV2Library } from "../../external/contracts/UniswapV2Library.sol"
  */
 contract ExchangeIssuance is ReentrancyGuard {
     
+    using Address for address payable;
     using SafeMath for uint256;
     using PreciseUnitMath for uint256;
     using SafeERC20 for IERC20;
@@ -51,18 +53,20 @@ contract ExchangeIssuance is ReentrancyGuard {
 
     /* ============ Constants ============= */
 
-    address constant private ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    uint256 constant private MAX_UINT96 = 2**96 - 1;
+    address constant public ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     
     /* ============ State Variables ============ */
 
-    IUniswapV2Router02 private uniRouter;
-    address private uniFactory;
-    IUniswapV2Router02 private sushiRouter;
-    address private sushiFactory;
+    address public WETH;
+    IUniswapV2Router02 public uniRouter;
+    IUniswapV2Router02 public sushiRouter;
     
-    IController private setController;
-    IBasicIssuanceModule private basicIssuanceModule;
-    address private WETH;
+    address public immutable uniFactory;
+    address public immutable sushiFactory;
+    
+    IController public immutable setController;
+    IBasicIssuanceModule public immutable basicIssuanceModule;
 
     /* ============ Events ============ */
 
@@ -92,6 +96,7 @@ contract ExchangeIssuance is ReentrancyGuard {
     /* ============ Constructor ============ */
 
     constructor(
+        address _weth,
         address _uniFactory,
         IUniswapV2Router02 _uniRouter, 
         address _sushiFactory, 
@@ -106,10 +111,11 @@ contract ExchangeIssuance is ReentrancyGuard {
 
         sushiFactory = _sushiFactory;
         sushiRouter = _sushiRouter;
-
-        WETH = uniRouter.WETH();
+        
         setController = _setController;
         basicIssuanceModule = _basicIssuanceModule;
+        
+        WETH = _weth;
         IERC20(WETH).safeApprove(address(uniRouter), PreciseUnitMath.maxUint256());
         IERC20(WETH).safeApprove(address(sushiRouter), PreciseUnitMath.maxUint256());
     }
@@ -131,6 +137,11 @@ contract ExchangeIssuance is ReentrancyGuard {
 
     /* ============ External Functions ============ */
     
+    receive() external payable {
+        // required for weth.withdraw() to work properly
+        require(msg.sender == WETH, "ExchangeIssuance: Direct deposits not allowed");
+    }
+    
     /**
      * Runs all the necessary approval functions required for a list of ERC20 tokens.
      *
@@ -149,9 +160,14 @@ contract ExchangeIssuance is ReentrancyGuard {
      *
      * @param _setToken    Address of the SetToken being initialized
      */
-    function approveSetToken(ISetToken _setToken) external {
+    function approveSetToken(ISetToken _setToken) isSetToken(_setToken) external {
         address[] memory components = _setToken.getComponents();
         for (uint256 i = 0; i < components.length; i++) {
+            // Check that the component does not have external positions
+            require(
+                _setToken.getExternalPositionModules(components[i]).length == 0,
+                "ExchangeIssuance: EXTERNAL_POSITIONS_NOT_ALLOWED"
+            );
             approveToken(IERC20(components[i]));
         }
     }
@@ -179,11 +195,11 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         _inputToken.safeTransferFrom(msg.sender, address(this), _amountInput);
         
-        if (address(_inputToken) != WETH) {
-           _swapTokenForWETH(_inputToken, _amountInput);
-        }
+        uint256 amountEth = address(_inputToken) == WETH
+            ? _amountInput
+            : _swapTokenForWETH(_inputToken, _amountInput);
 
-        uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive);
+        uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive, amountEth);
         
         emit ExchangeIssue(msg.sender, _setToken, _inputToken, _amountInput, setTokenAmount);
     }
@@ -207,7 +223,7 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         IWETH(WETH).deposit{value: msg.value}();
         
-        uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive);
+        uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive, msg.value);
         
         emit ExchangeIssue(msg.sender, _setToken, IERC20(ETH_ADDRESS), msg.value, setTokenAmount);
     }
@@ -219,7 +235,8 @@ contract ExchangeIssuance is ReentrancyGuard {
     * @param _setToken              Address of the SetToken to be issued
     * @param _inputToken            Address of the input token
     * @param _amountSetToken        Amount of SetTokens to issue
-    * @param _maxAmountInputToken   Maximum amount of input tokens to be used to issue SetTokens
+    * @param _maxAmountInputToken   Maximum amount of input tokens to be used to issue SetTokens. The unused 
+    *                               input tokens are returned as ether.
     */
     function issueExactSetFromToken(
         ISetToken _setToken,
@@ -239,12 +256,12 @@ contract ExchangeIssuance is ReentrancyGuard {
             ? _maxAmountInputToken
             :  _swapTokenForWETH(_inputToken, _maxAmountInputToken);
         
-        uint256 amountEthSpent = _issueExactSetFromWETH(_setToken, _amountSetToken);
+        uint256 amountEthSpent = _issueExactSetFromWETH(_setToken, _amountSetToken, initETHAmount);
         
         uint256 amountEthReturn = initETHAmount.sub(amountEthSpent);
         if (amountEthReturn > 0) {
             IWETH(WETH).withdraw(amountEthReturn);
-            msg.sender.transfer(amountEthReturn);
+            (payable(msg.sender)).sendValue(amountEthReturn);
         }
         
         emit ExchangeIssue(msg.sender, _setToken, _inputToken, _maxAmountInputToken, _amountSetToken);
@@ -270,13 +287,13 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         IWETH(WETH).deposit{value: msg.value}();
         
-        uint256 amountEth = _issueExactSetFromWETH(_setToken, _amountSetToken);
+        uint256 amountEth = _issueExactSetFromWETH(_setToken, _amountSetToken, msg.value);
         
         uint256 returnAmount = msg.value.sub(amountEth);
         
         if (returnAmount > 0) {
             IWETH(WETH).withdraw(returnAmount);
-            msg.sender.transfer(returnAmount);    
+            (payable(msg.sender)).sendValue(returnAmount);
         }
         
         emit ExchangeIssue(msg.sender, _setToken, IERC20(ETH_ADDRESS), amountEth, _amountSetToken);
@@ -346,13 +363,10 @@ contract ExchangeIssuance is ReentrancyGuard {
         require(amountEthOut > _minETHReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
         
         IWETH(WETH).withdraw(amountEthOut);
-        msg.sender.transfer(amountEthOut);
+        (payable(msg.sender)).sendValue(amountEthOut);
 
         emit ExchangeRedeem(msg.sender, _setToken, IERC20(ETH_ADDRESS), _amountSetToRedeem, amountEthOut);
     }
-
-    // required for weth.withdraw() to work properly
-    receive() external payable {}
 
     /**
      * Returns an estimated quantity of the specified SetToken given a specified amount of input token.
@@ -377,32 +391,36 @@ contract ExchangeIssuance is ReentrancyGuard {
         
         uint256 amountEth;
         if (address(_inputToken) != WETH) {
-            (amountEth, ) = _getMaxTokenForExactToken(_amountInput, address(WETH),  address(_inputToken));
+            // get max amount of WETH for the `_amountInput` amount of input tokens
+            (amountEth, ) = _getMaxTokenForExactToken(_amountInput, address(_inputToken), WETH);
         } else {
             amountEth = _amountInput;
         }
         
-        (uint256[] memory amountEthIn, Exchange[] memory exchanges, uint256 sumEth) = _getAmountETHForIssuance(_setToken);
+        address[] memory components = _setToken.getComponents();
+        (
+            uint256 sumEth, 
+            uint256[] memory amountEthIn, 
+            Exchange[] memory exchanges, 
+            uint256[] memory amountComponents
+        ) = _getAmountETHForIssuance(_setToken, components, PreciseUnitMath.preciseUnit());
         
         uint256 maxIndexAmount = PreciseUnitMath.maxUint256();
-        address[] memory components = _setToken.getComponents();
         
         for (uint256 i = 0; i < components.length; i++) {
-            address component = components[i];
             uint256 scaledAmountEth = amountEthIn[i].mul(amountEth).div(sumEth);
             
             uint256 amountTokenOut;
             if (exchanges[i] == Exchange.Uniswap) {
-                (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, WETH, component);
-                amountTokenOut = UniswapV2Library.getAmountOut(scaledAmountEth, tokenReserveA, tokenReserveB);
+                (uint256 reserveIn, uint256 reserveOut) = UniswapV2Library.getReserves(uniFactory, WETH, components[i]);
+                amountTokenOut = UniswapV2Library.getAmountOut(scaledAmountEth, reserveIn, reserveOut);
             } else {
-                require(exchanges[i] == Exchange.Sushiswap);
-                (uint256 tokenReserveA, uint256 tokenReserveB) = SushiswapV2Library.getReserves(sushiFactory, WETH, component);
-                amountTokenOut = SushiswapV2Library.getAmountOut(scaledAmountEth, tokenReserveA, tokenReserveB);
+                require(exchanges[i] == Exchange.Sushiswap, "ExchangeIssuance: Exchange not supported");
+                (uint256 reserveIn, uint256 reserveOut) = SushiswapV2Library.getReserves(sushiFactory, WETH, components[i]);
+                amountTokenOut = SushiswapV2Library.getAmountOut(scaledAmountEth, reserveIn, reserveOut);
             }
-
-            uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(component));
-            maxIndexAmount = Math.min(amountTokenOut.preciseDiv(unit), maxIndexAmount);
+            
+            maxIndexAmount = Math.min(amountTokenOut.preciseDiv(amountComponents[i]), maxIndexAmount);
         }
         return maxIndexAmount;
     }
@@ -426,17 +444,8 @@ contract ExchangeIssuance is ReentrancyGuard {
     {
         require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
         
-        uint256 totalEth = 0;
-        
         address[] memory components = _setToken.getComponents();
-        for (uint256 i = 0; i < components.length; i++) {
-            uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
-            uint256 amountToken = unit.preciseMul(_amountSetToken);
-            
-            // get minimum amount of ETH to be spent to acquire the required amount of tokens
-            (uint256 amountEth,) = _getMinTokenForExactToken(amountToken, WETH, components[i]);
-            totalEth = totalEth.add(amountEth);
-        }
+        (uint256 totalEth, , , ) = _getAmountETHForIssuance(_setToken, components, _amountSetToken);
         
         if (address(_inputToken) == WETH) {
             return totalEth;
@@ -447,14 +456,14 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
     
     /**
-     * Returns an estimated amount of ETH or specified ERC20 received for a given SetToken and SetToken amount. 
+     * Returns amount of ETH/ERC20 received upon redeeming a given amount of SetToken.
      *
-     * @param _setToken             SetToken redeemed
+     * @param _setToken             SetToken to be redeemed
      * @param _amountSetToRedeem    Amount of SetToken
-     * @param _outputToken          Address of output token. Ignored if _isOutputETH is true
+     * @param _outputToken          Address of output token
      * @return                      Estimated amount of ether/erc20 that will be received
      */
-    function getEstimatedRedeemSetAmount(
+    function getAmountOutOnRedeemSet(
         ISetToken _setToken,
         address _outputToken,
         uint256 _amountSetToRedeem
@@ -466,9 +475,16 @@ contract ExchangeIssuance is ReentrancyGuard {
     {
         require(_amountSetToRedeem > 0, "ExchangeIssuance: INVALID INPUTS");
         
-        address[] memory components = _setToken.getComponents();
         uint256 totalEth = 0;
+        address[] memory components = _setToken.getComponents();
         for (uint256 i = 0; i < components.length; i++) {
+            
+            // Check that the component does not have external positions
+            require(
+                _setToken.getExternalPositionModules(components[i]).length == 0,
+                "Exchange Issuance: EXTERNAL_POSITIONS_NOT_ALLOWED"
+            );
+            
             uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
             uint256 amount = unit.preciseMul(_amountSetToRedeem);
             
@@ -489,14 +505,16 @@ contract ExchangeIssuance is ReentrancyGuard {
     /* ============ Internal Functions ============ */
 
     /**
-     * Sets a max aproval limit for an ERC20 token, provided the current allowance is zero. 
+     * Sets a max aproval limit for an ERC20 token, provided the current allowance 
+     * is less than 1/2 MAX_UINT96. 
      * 
      * @param _token    Token to approve
      * @param _spender  Spender address to approve
      */
     function _safeApprove(IERC20 _token, address _spender) internal {
-        if (_token.allowance(address(this), _spender) == 0) {
-            _token.safeIncreaseAllowance(_spender, PreciseUnitMath.maxUint256());
+        uint256 allowance = _token.allowance(address(this), _spender);
+        if (allowance < MAX_UINT96 / 2) {
+            _token.safeIncreaseAllowance(_spender, MAX_UINT96 - allowance);
         }
     }
     
@@ -535,19 +553,30 @@ contract ExchangeIssuance is ReentrancyGuard {
      * 
      * @param _setToken         Address of the SetToken being issued
      * @param _minSetReceive    Minimum amount of index to receive
+     * @param _totalEthAmount   Total amount of WETH to be used to purchase the SetToken components
      * @return setTokenAmount   Amount of SetTokens issued
      */
-    function _issueSetForExactWETH(ISetToken _setToken, uint256 _minSetReceive) internal returns (uint256) {
-        uint256 wethBalance = IERC20(WETH).balanceOf(address(this));
+    function _issueSetForExactWETH(ISetToken _setToken, uint256 _minSetReceive, uint256 _totalEthAmount) internal returns (uint256) {
         
-        (uint256[] memory amountEthIn, Exchange[] memory exchanges, uint256 sumEth) = _getAmountETHForIssuance(_setToken);
-
-        uint256 setTokenAmount = _acquireComponents(_setToken, amountEthIn, exchanges, wethBalance, sumEth);
+        address[] memory components = _setToken.getComponents();
+        (
+            uint256 sumEth, 
+            uint256[] memory amountEthIn, 
+            Exchange[] memory exchanges, 
+            uint256[] memory amountComponents
+        ) = _getAmountETHForIssuance(_setToken, components, PreciseUnitMath.preciseUnit());
         
-        require(setTokenAmount > _minSetReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
+        // Acquire the SetToken components from exchanges
+        uint256 setTokenAmount = PreciseUnitMath.maxUint256();
+        for (uint256 i = 0; i < components.length; i++) {
+            uint256 scaledAmountEth = amountEthIn[i].mul(_totalEthAmount).div(sumEth);
+            uint256 amountTokenOut = _swapExactTokensForTokens(exchanges[i], WETH, components[i], scaledAmountEth);
+            setTokenAmount = Math.min(amountTokenOut.preciseDiv(amountComponents[i]), setTokenAmount);
+        }
+        
+        require(setTokenAmount >= _minSetReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
         
         basicIssuanceModule.issue(_setToken, setTokenAmount, msg.sender);
-        
         return setTokenAmount;
     }
     
@@ -557,32 +586,29 @@ contract ExchangeIssuance is ReentrancyGuard {
      * Uses the acquired components to issue the SetTokens.
      * 
      * @param _setToken          Address of the SetToken being issued
-     * @param _amountSetToken    Amount of SetTokens to issue
-     * @return sumEth            Total amount of ether used to acquire the SetToken components    
+     * @param _amountSetToken    Amount of SetTokens to be issued
+     * @param _maxEther          Max amount of ether that can be used to acquire the SetToken components
+     * @return totalEth          Total amount of ether used to acquire the SetToken components
      */
-    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken) internal returns (uint256) {
-        
-        uint256 sumEth = 0;
+    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken, uint256 _maxEther) internal returns (uint256) {
         
         address[] memory components = _setToken.getComponents();
+        (
+            uint256 sumEth,
+            , 
+            Exchange[] memory exchanges, 
+            uint256[] memory amountComponents
+        ) = _getAmountETHForIssuance(_setToken, components, _amountSetToken);
+        
+        require(sumEth <= _maxEther, "ExchangeIssuance: INSUFFICIENT_INPUT_AMOUNT");
+        
+        uint256 totalEth = 0;
         for (uint256 i = 0; i < components.length; i++) {
-            
-            // Check that the component does not have external positions
-            require(
-                _setToken.getExternalPositionModules(components[i]).length == 0,
-                "Exchange Issuance: EXTERNAL_POSITIONS_NOT_ALLOWED"
-            );
-
-            uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
-            uint256 amountToken = uint256(unit).preciseMul(_amountSetToken);
-            
-            // Get minimum amount of ETH to be spent to acquire the required amount of SetToken component
-            (, Exchange exchange) = _getMinTokenForExactToken(amountToken, WETH, components[i]);
-            uint256 amountEth = _swapTokensForExactTokens(exchange, WETH, components[i], amountToken);
-            sumEth = sumEth.add(amountEth);
+            uint256 amountEth = _swapTokensForExactTokens(exchanges[i], WETH, components[i], amountComponents[i]);
+            totalEth = totalEth.add(amountEth);
         }
         basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
-        return sumEth;
+        return totalEth;
     }
     
     /**
@@ -601,75 +627,44 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
     
     /**
-     * Gets the amount of ether required for issuing each component in a set SetToken.
-     * The amount of ether is calculated based on prices across both uniswap and sushiswap.
+     * Gets the total amount of ether required for purchasing each component in a SetToken,
+     * to enable the issuance of a given amount of SetTokens.
      * 
-     * @param _setToken      Address of the SetToken
-     * @return amountEthIn   An array containing the amount of ether to purchase each component of the set
-     * @return exchanges     An array containing the exchange on which to perform the swap
-     * @return sumEth        The approximate total ETH cost to issue the set
+     * @param _setToken             Address of the SetToken to be issued
+     * @param _components           An array containing the addresses of the SetToken components
+     * @param _amountSetToken       Amount of SetToken to be issued
+     * @return sumEth               The approximate total ETH cost to issue the set
+     * @return amountEthIn          An array containing the amount of ether to purchase each component of the SetToken
+     * @return exchanges            An array containing the exchange on which to perform the purchase
+     * @return amountComponents     An array containing the amount of each SetToken component required for issuing the given
+     *                              amount of SetToken
      */
-    function _getAmountETHForIssuance(ISetToken _setToken)
+    function _getAmountETHForIssuance(ISetToken _setToken, address[] memory _components, uint256 _amountSetToken)
         internal
         view
-        returns (uint256[] memory, Exchange[] memory, uint256)
+        returns (uint256, uint256[] memory, Exchange[] memory, uint256[] memory)
     {
         uint256 sumEth = 0;
-        address[] memory components = _setToken.getComponents();
+        uint256[] memory amountEthIn = new uint256[](_components.length);
+        uint256[] memory amountComponents = new uint256[](_components.length);
+        Exchange[] memory exchanges = new Exchange[](_components.length);
         
-        uint256[] memory amountEthIn = new uint256[](components.length);
-        Exchange[] memory exchanges = new Exchange[](components.length);
-        
-        for (uint256 i = 0; i < components.length; i++) {
+        for (uint256 i = 0; i < _components.length; i++) {
 
             // Check that the component does not have external positions
             require(
-                _setToken.getExternalPositionModules(components[i]).length == 0,
+                _setToken.getExternalPositionModules(_components[i]).length == 0,
                 "Exchange Issuance: EXTERNAL_POSITIONS_NOT_ALLOWED"
             );
 
             // Get minimum amount of ETH to be spent to acquire the required amount of SetToken component
-            uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
-            (amountEthIn[i], exchanges[i]) = _getMinTokenForExactToken(unit, WETH, components[i]);
+            uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(_components[i]));
+            amountComponents[i] = uint256(unit).preciseMul(_amountSetToken);
+            
+            (amountEthIn[i], exchanges[i]) = _getMinTokenForExactToken(amountComponents[i], WETH, _components[i]);
             sumEth = sumEth.add(amountEthIn[i]);
         }
-        return (amountEthIn, exchanges, sumEth);
-    }
-    
-    /**
-     * Aquires all the components neccesary to issue a set, purchasing tokens
-     * from either Uniswap or Sushiswap to get the best price.
-     *
-     * @param _setToken      The set token
-     * @param _amountEthIn   An array containing the approximate ETH cost of each component.
-     * @param _wethBalance   The amount of WETH that the contract has to spend on aquiring the total components
-     * @param _sumEth        The approximate amount of ETH required to purchase the necessary tokens
-     *
-     * @return               The maximum amount of the SetToken that can be issued with the aquired components
-     */
-    function _acquireComponents(
-        ISetToken _setToken,
-        uint256[] memory _amountEthIn,
-        Exchange[] memory _exchanges,
-        uint256 _wethBalance,
-        uint256 _sumEth
-    ) 
-        internal
-        returns (uint256)
-    {
-        address[] memory components = _setToken.getComponents();
-        uint256 maxIndexAmount = PreciseUnitMath.maxUint256();
-
-        for (uint256 i = 0; i < components.length; i++) {
-
-            uint256 scaledAmountEth = _amountEthIn[i].mul(_wethBalance).div(_sumEth);
-            
-            uint256 amountTokenOut = _swapExactTokensForTokens(_exchanges[i], WETH, components[i], scaledAmountEth);
-
-            uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
-            maxIndexAmount = Math.min(amountTokenOut.preciseDiv(unit), maxIndexAmount);
-        }
-        return maxIndexAmount;
+        return (sumEth, amountEthIn, exchanges, amountComponents);
     }
     
     /**
@@ -696,6 +691,9 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @return              The amount of output tokens
      */
     function _swapExactTokensForTokens(Exchange _exchange, address _tokenIn, address _tokenOut, uint256 _amountIn) internal returns (uint256) {
+        if (_tokenIn == _tokenOut) {
+            return _amountIn;
+        }
         address[] memory path = new address[](2);
         path[0] = _tokenIn;
         path[1] = _tokenOut;
@@ -712,6 +710,9 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @return              The amount of input tokens spent
      */
     function _swapTokensForExactTokens(Exchange _exchange, address _tokenIn, address _tokenOut, uint256 _amountOut) internal returns (uint256) {
+        if (_tokenIn == _tokenOut) {
+            return _amountOut;
+        }
         address[] memory path = new address[](2);
         path[0] = _tokenIn;
         path[1] = _tokenOut;
@@ -729,21 +730,33 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @return              The Exchange on which minimum amount of tokenA is required
      */
     function _getMinTokenForExactToken(uint256 _amountOut, address _tokenA, address _tokenB) internal view returns (uint256, Exchange) {
+        if (_tokenA == _tokenB) {
+            return (_amountOut, Exchange(-1));
+        }
         
-        uint256 uniEthIn = PreciseUnitMath.maxUint256();
-        uint256 sushiEthIn = PreciseUnitMath.maxUint256();
+        uint256 maxIn = PreciseUnitMath.maxUint256() ; 
+        uint256 uniTokenIn = maxIn;
+        uint256 sushiTokenIn = maxIn;
         
         if (_pairAvailable(uniFactory, _tokenA, _tokenB)) {
-            (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, _tokenA, _tokenB);
-            uniEthIn = UniswapV2Library.getAmountIn(_amountOut, tokenReserveA, tokenReserveB);
+            (uint256 reserveIn, uint256 reserveOut) = UniswapV2Library.getReserves(uniFactory, _tokenA, _tokenB);
+            // Prevent subtraction overflow by making sure pool reserves are greater than swap amount
+            if(reserveOut > _amountOut) {
+                uniTokenIn = UniswapV2Library.getAmountIn(_amountOut, reserveIn, reserveOut);
+            }
         }
         
         if (_pairAvailable(sushiFactory, _tokenA, _tokenB)) {
-            (uint256 tokenReserveA, uint256 tokenReserveB) = SushiswapV2Library.getReserves(sushiFactory, _tokenA, _tokenB);
-            sushiEthIn = SushiswapV2Library.getAmountIn(_amountOut, tokenReserveA, tokenReserveB);
+            (uint256 reserveIn, uint256 reserveOut) = SushiswapV2Library.getReserves(sushiFactory, _tokenA, _tokenB);
+            // Prevent subtraction overflow by making sure pool reserves are greater than swap amount
+            if(reserveOut > _amountOut) {
+                sushiTokenIn = SushiswapV2Library.getAmountIn(_amountOut, reserveIn, reserveOut);
+            }
         }
         
-        return (uniEthIn <= sushiEthIn) ? (uniEthIn, Exchange.Uniswap) : (sushiEthIn, Exchange.Sushiswap);
+        // Fails if both the values are maxIn
+        require(!(uniTokenIn == maxIn && sushiTokenIn == maxIn), "ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        return (uniTokenIn <= sushiTokenIn) ? (uniTokenIn, Exchange.Uniswap) : (sushiTokenIn, Exchange.Sushiswap);
     }
     
     /**
@@ -757,20 +770,25 @@ contract ExchangeIssuance is ReentrancyGuard {
      * @return              The Exchange on which maximum amount of token can be received
      */
     function _getMaxTokenForExactToken(uint256 _amountIn, address _tokenA, address _tokenB) internal view returns (uint256, Exchange) {
+        if (_tokenA == _tokenB) {
+            return (_amountIn, Exchange(-1));
+        }
         
         uint256 uniTokenOut = 0;
         uint256 sushiTokenOut = 0;
         
         if(_pairAvailable(uniFactory, _tokenA, _tokenB)) {
-            (uint256 tokenReserveA, uint256 tokenReserveB) = UniswapV2Library.getReserves(uniFactory, _tokenA, _tokenB);
-            uniTokenOut = UniswapV2Library.getAmountOut(_amountIn, tokenReserveA, tokenReserveB);
+            (uint256 reserveIn, uint256 reserveOut) = UniswapV2Library.getReserves(uniFactory, _tokenA, _tokenB);
+            uniTokenOut = UniswapV2Library.getAmountOut(_amountIn, reserveIn, reserveOut);
         }
         
         if(_pairAvailable(sushiFactory, _tokenA, _tokenB)) {
-            (uint256 tokenReserveA, uint256 tokenReserveB) = SushiswapV2Library.getReserves(sushiFactory, _tokenA, _tokenB);
-            sushiTokenOut = SushiswapV2Library.getAmountOut(_amountIn, tokenReserveA, tokenReserveB);
+            (uint256 reserveIn, uint256 reserveOut) = SushiswapV2Library.getReserves(sushiFactory, _tokenA, _tokenB);
+            sushiTokenOut = SushiswapV2Library.getAmountOut(_amountIn, reserveIn, reserveOut);
         }
         
+        // Fails if both the values are 0
+        require(!(uniTokenOut == 0 && sushiTokenOut == 0), "ExchangeIssuance: ILLIQUID_SET_COMPONENT");
         return (uniTokenOut >= sushiTokenOut) ? (uniTokenOut, Exchange.Uniswap) : (sushiTokenOut, Exchange.Sushiswap); 
     }
     
