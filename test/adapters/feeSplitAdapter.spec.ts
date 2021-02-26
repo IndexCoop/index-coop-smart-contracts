@@ -3,7 +3,7 @@ import "module-alias/register";
 import { solidityKeccak256 } from "ethers/lib/utils";
 import { Address, Account } from "@utils/types";
 import { ADDRESS_ZERO, ZERO, ONE_DAY_IN_SECONDS, ONE_YEAR_IN_SECONDS } from "@utils/constants";
-import { FeeSplitAdapter, IBaseManager } from "@utils/contracts/index";
+import { FeeSplitAdapter, BaseManager } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -33,7 +33,7 @@ describe("FeeSplitAdapter", () => {
   let deployer: DeployHelper;
   let setToken: SetToken;
 
-  let baseManagerV2: IBaseManager;
+  let baseManagerV2: BaseManager;
   let feeAdapter: FeeSplitAdapter;
 
   before(async () => {
@@ -54,8 +54,8 @@ describe("FeeSplitAdapter", () => {
       [setV2Setup.debtIssuanceModule.address, setV2Setup.streamingFeeModule.address]
     );
 
-    // Deploy IBaseManager
-    baseManagerV2 = await deployer.manager.deployIBaseManager(
+    // Deploy BaseManager
+    baseManagerV2 = await deployer.manager.deployBaseManager(
       setToken.address,
       operator.address,
       methodologist.address
@@ -155,7 +155,7 @@ describe("FeeSplitAdapter", () => {
 
       await baseManagerV2.connect(operator.wallet).addAdapter(feeAdapter.address);
 
-      // Transfer ownership to IBaseManager
+      // Transfer ownership to BaseManager
       await setToken.setManager(baseManagerV2.address);
     });
 

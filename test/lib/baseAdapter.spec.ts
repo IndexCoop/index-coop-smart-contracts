@@ -3,7 +3,7 @@ import "module-alias/register";
 import { BigNumber } from "@ethersproject/bignumber";
 import { Account, Address, Bytes } from "@utils/types";
 import { ZERO, ADDRESS_ZERO } from "@utils/constants";
-import { BaseAdapterMock, IBaseManager } from "@utils/contracts/index";
+import { BaseAdapterMock, BaseManager } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import { ContractCallerMock } from "@utils/contracts/setV2";
 
@@ -29,7 +29,7 @@ describe("BaseAdapter", () => {
   let setToken: SetToken;
   let setV2Setup: SetFixture;
 
-  let baseManagerV2: IBaseManager;
+  let baseManagerV2: BaseManager;
   let baseAdapterMock: BaseAdapterMock;
 
   before(async () => {
@@ -63,8 +63,8 @@ describe("BaseAdapter", () => {
     };
     await setV2Setup.streamingFeeModule.initialize(setToken.address, streamingFeeSettings);
 
-    // Deploy IBaseManager
-    baseManagerV2 = await deployer.manager.deployIBaseManager(
+    // Deploy BaseManager
+    baseManagerV2 = await deployer.manager.deployBaseManager(
       setToken.address,
       owner.address,
       methodologist.address,
@@ -72,7 +72,7 @@ describe("BaseAdapter", () => {
 
     baseAdapterMock = await deployer.mocks.deployBaseAdapterMock(baseManagerV2.address);
 
-    // Transfer ownership to IBaseManager
+    // Transfer ownership to BaseManager
     await setToken.setManager(baseManagerV2.address);
     await baseManagerV2.addAdapter(baseAdapterMock.address);
 

@@ -11,7 +11,7 @@ import {
   IncentiveSettings
 } from "@utils/types";
 import { ADDRESS_ZERO, ONE, TWO, THREE, ZERO, EMPTY_BYTES, MAX_UINT_256 } from "@utils/constants";
-import { FlexibleLeverageStrategyAdapter, IBaseManager, TradeAdapterMock } from "@utils/contracts/index";
+import { FlexibleLeverageStrategyAdapter, BaseManager, TradeAdapterMock } from "@utils/contracts/index";
 import { CompoundLeverageModule, ContractCallerMock, DebtIssuanceModule, SetToken, ComptrollerMock } from "@utils/contracts/setV2";
 import { CEther, CERc20 } from "@utils/contracts/compound";
 import DeployHelper from "@utils/deploys";
@@ -63,7 +63,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
   let compoundLeverageModule: CompoundLeverageModule;
   let secondCompoundLeverageModule: CompoundLeverageModule;
   let debtIssuanceModule: DebtIssuanceModule;
-  let baseManagerV2: IBaseManager;
+  let baseManagerV2: BaseManager;
 
   before(async () => {
     [
@@ -205,7 +205,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       []
     );
 
-    baseManagerV2 = await deployer.manager.deployIBaseManager(
+    baseManagerV2 = await deployer.manager.deployBaseManager(
       setToken.address,
       owner.address,
       methodologist.address,
