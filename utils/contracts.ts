@@ -1,5 +1,10 @@
 export { IndexToken } from "../typechain/IndexToken";
 export { MerkleDistributor } from "../typechain/MerkleDistributor";
 export { RewardsDistributionRecipient } from "../typechain/RewardsDistributionRecipient";
+export { SetToken } from "../typechain/SetToken";
+export { StandardTokenMock } from "../typechain/StandardTokenMock";
 export { StakingRewards } from "../typechain/StakingRewards";
 export { Vesting } from "../typechain/Vesting";
+export { UniswapV2Pair } from "../typechain/UniswapV2Pair";
+export { UniswapV2Router02 } from "../typechain/UniswapV2Router02";
+export { WETH9 } from "../typechain/WETH9";

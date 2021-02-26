@@ -9,8 +9,15 @@ export { IndexToken } from "../../typechain/IndexToken";
 export { MerkleDistributor } from "../../typechain/MerkleDistributor";
 export { MutualUpgradeMock } from "../../typechain/MutualUpgradeMock";
 export { RewardsDistributionRecipient } from "../../typechain/RewardsDistributionRecipient";
+export { SetToken } from "../../typechain/SetToken";
 export { StakingRewards } from "../../typechain/StakingRewards";
 export { StakingRewardsV2 } from "../../typechain/StakingRewardsV2";
 export { StandardTokenMock } from "../../typechain/StandardTokenMock";
 export { Vesting } from "../../typechain/Vesting";
+export { Uni } from "../../typechain/Uni";
+export { UniswapTimelock } from "../../typechain/UniswapTimelock";
+export { UniswapV2Factory } from "../../typechain/UniswapV2Factory";
+export { UniswapV2Pair } from "../../typechain/UniswapV2Pair";
+export { UniswapV2Router02 } from "../../typechain/UniswapV2Router02";
 export { WETH9 } from "../../typechain/WETH9";
+

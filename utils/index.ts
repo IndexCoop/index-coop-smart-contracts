@@ -7,9 +7,11 @@ export const getBlockchainUtils = () => new Blockchain(provider);
 
 import { SetFixture } from "./fixtures";
 import { CompoundFixture } from "./fixtures";
+import { UniswapFixture } from "./fixtures";
 
 export const getSetFixture = (ownerAddress: Address) => new SetFixture(provider, ownerAddress);
 export const getCompoundFixture = (ownerAddress: Address) => new CompoundFixture(provider, ownerAddress);
+export const getUniswapFixture = (ownerAddress: Address) => new UniswapFixture(provider, ownerAddress);
 
 export {
   getAccounts,

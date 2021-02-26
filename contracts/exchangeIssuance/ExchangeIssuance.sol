@@ -29,7 +29,7 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { SushiswapV2Library } from "../../external/contracts/SushiswapV2Library.sol";
-import { UniswapV2Library } from "../../external/contracts/UniswapV2Library.sol";
+import { UniswapV2Library } from "../../external/contracts/uniswap/lib/UniswapV2Library.sol";
 
 /**
  * @title ExchangeIssuance
