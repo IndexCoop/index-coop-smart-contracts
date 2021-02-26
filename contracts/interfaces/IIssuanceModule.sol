@@ -25,7 +25,7 @@ import { ISetToken } from "./ISetToken.sol";
  *
  * Interface for interacting with Debt Issuance module interface.
  */
-interface IDebtIssuanceModule {
+interface IIssuanceModule {
     function updateIssueFee(ISetToken _setToken, uint256 _newIssueFee) external;
     function updateRedeemFee(ISetToken _setToken, uint256 _newRedeemFee) external;
     function updateFeeRecipient(ISetToken _setToken, address _newRedeemFee) external;

@@ -24,7 +24,7 @@ import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import { BaseAdapter } from "../lib/BaseAdapter.sol";
 import { ICErc20 } from "../interfaces/ICErc20.sol";
-import { IICManagerV2 } from "../interfaces/IICManagerV2.sol";
+import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
 import { ICompoundLeverageModule } from "../interfaces/ICompoundLeverageModule.sol";
 import { ICompoundPriceOracle } from "../interfaces/ICompoundPriceOracle.sol";
@@ -36,7 +36,7 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  * @author Set Protocol
  *
  * Smart contract that enables trustless leverage tokens using the flexible leverage methodology. This adapter is paired with the CompoundLeverageModule from Set
- * protocol where module interactions are invoked via the ICManagerV2 contract. Any leveraged token can be constructed as long as the collateral and borrow
+ * protocol where module interactions are invoked via the IBaseManager contract. Any leveraged token can be constructed as long as the collateral and borrow
  * asset is available on Compound. This adapter contract also allows the operator to set an ETH reward to incentivize keepers calling the rebalance function at
  * different leverage thresholds.
  */
@@ -48,29 +48,29 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     /* ============ Enums ============ */
 
     enum ShouldRebalance {
-        NONE,
-        REBALANCE,
-        ITERATE_REBALANCE,
-        RIPCORD
+        NONE,                   // Indicates no rebalance action can be taken
+        REBALANCE,              // Indicates rebalance() function can be successfully called
+        ITERATE_REBALANCE,      // Indicates iterateRebalance() function can be successfully called
+        RIPCORD                 // Indicates ripcord() function can be successfully called
     }
 
     /* ============ Structs ============ */
 
     struct ActionInfo {
-        uint256 collateralPrice;                   // Price of underlying in precise units (10e18)
-        uint256 borrowPrice;                       // Price of underlying in precise units (10e18)
-        uint256 collateralBalance;                 // Balance of underlying held in Compound in base units (e.g. USDC 10e6)
-        uint256 borrowBalance;                     // Balance of underlying borrowed from Compound in base units
-        uint256 collateralValue;                   // Valuation in USD adjusted for decimals in precise units (10e18)
-        uint256 borrowValue;                       // Valuation in USD adjusted for decimals in precise units (10e18)
-        uint256 setTotalSupply;                    // Total supply of SetToken
+        uint256 collateralPrice;                        // Price of underlying in precise units (10e18)
+        uint256 borrowPrice;                            // Price of underlying in precise units (10e18)
+        uint256 collateralBalance;                      // Balance of underlying held in Compound in base units (e.g. USDC 10e6)
+        uint256 borrowBalance;                          // Balance of underlying borrowed from Compound in base units
+        uint256 collateralValue;                        // Valuation in USD adjusted for decimals in precise units (10e18)
+        uint256 borrowValue;                            // Valuation in USD adjusted for decimals in precise units (10e18)
+        uint256 setTotalSupply;                         // Total supply of SetToken
     }
 
      struct LeverageInfo {
         ActionInfo action;
-        uint256 currentLeverageRatio;
-        uint256 slippageTolerance;
-        uint256 twapMaxTradeSize;
+        uint256 currentLeverageRatio;                   // Current leverage ratio of Set
+        uint256 slippageTolerance;                      // Allowable percent trade slippage in preciseUnits (1% = 10^16)
+        uint256 twapMaxTradeSize;                       // Max trade size in collateral units allowed for rebalance action
     }
 
     struct ContractSettings {
@@ -178,14 +178,14 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     /**
      * Instantiate addresses, methodology parameters, execution parameters, and incentive parameters.
      * 
-     * @param _manager              Address of ICManagerV2 contract
+     * @param _manager              Address of IBaseManager contract
      * @param _strategy             Struct of contract addresses
      * @param _methodology          Struct containing methodology parameters
      * @param _execution            Struct containing execution parameters
      * @param _incentive            Struct containing incentive parameters for ripcord
      */
     constructor(
-        IICManagerV2 _manager,
+        IBaseManager _manager,
         ContractSettings memory _strategy,
         MethodologySettings memory _methodology,
         ExecutionSettings memory _execution,

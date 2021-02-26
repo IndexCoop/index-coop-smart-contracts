@@ -20,8 +20,8 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import { BaseAdapter } from "../lib/BaseAdapter.sol";
-import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
-import { IICManagerV2 } from "../interfaces/IICManagerV2.sol";
+import { IIssuanceModule } from "../interfaces/IIssuanceModule.sol";
+import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IStreamingFeeModule } from "../interfaces/IStreamingFeeModule.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
@@ -47,7 +47,7 @@ contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade {
 
     ISetToken public setToken;
     IStreamingFeeModule public streamingFeeModule;
-    IDebtIssuanceModule public debtIssuanceModule;
+    IIssuanceModule public issuanceModule;
 
     // Percent of fees in precise units (10^16 = 1%) sent to operator, rest to methodologist
     uint256 public operatorFeeSplit;
@@ -55,16 +55,16 @@ contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade {
     /* ============ Constructor ============ */
 
     constructor(
-        IICManagerV2 _manager,
+        IBaseManager _manager,
         IStreamingFeeModule _streamingFeeModule,
-        IDebtIssuanceModule _debtIssuanceModule,
+        IIssuanceModule _issuanceModule,
         uint256 _operatorFeeSplit
     )
         public
         BaseAdapter(_manager)
     {
         streamingFeeModule = _streamingFeeModule;
-        debtIssuanceModule = _debtIssuanceModule;
+        issuanceModule = _issuanceModule;
         operatorFeeSplit = _operatorFeeSplit;
         setToken = manager.setToken();
     }
@@ -112,7 +112,7 @@ contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade {
      */
     function updateIssueFee(uint256 _newFee) external onlyOperator timeLockUpgrade {
         bytes memory callData = abi.encodeWithSignature("updateIssueFee(address,uint256)", manager.setToken(), _newFee);
-        invokeManager(address(debtIssuanceModule), callData);
+        invokeManager(address(issuanceModule), callData);
     }
 
     /**
@@ -120,16 +120,16 @@ contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade {
      */
     function updateRedeemFee(uint256 _newFee) external onlyOperator timeLockUpgrade {
         bytes memory callData = abi.encodeWithSignature("updateRedeemFee(address,uint256)", manager.setToken(), _newFee);
-        invokeManager(address(debtIssuanceModule), callData);
+        invokeManager(address(issuanceModule), callData);
     }
 
     /**
-     * ONLY OPERATOR: Updates fee recipient on both streaming fee and debt issuance modules.
+     * ONLY OPERATOR: Updates fee recipient on both streaming fee and issuance modules.
      */
     function updateFeeRecipient(address _newFeeRecipient) external onlyOperator {
         bytes memory callData = abi.encodeWithSignature("updateFeeRecipient(address,address)", manager.setToken(), _newFeeRecipient);
         invokeManager(address(streamingFeeModule), callData);
-        invokeManager(address(debtIssuanceModule), callData);
+        invokeManager(address(issuanceModule), callData);
     }
 
     /**
