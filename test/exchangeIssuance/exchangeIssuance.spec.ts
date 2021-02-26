@@ -20,7 +20,9 @@ const basicIssuanceModule = "0xd8EF3cACe8b4907117a45B0b125c68560532F94D";
 
 const deploy = async (account: any) => {
   const ExchangeIssuance = await ethers.getContractFactory("ExchangeIssuance");
-  return (await ExchangeIssuance.deploy(uniFactory,
+  return (await ExchangeIssuance.deploy(
+    wethAddress,
+    uniFactory,
     uniRouter,
     sushiFactory,
     sushiRouter,
@@ -300,7 +302,7 @@ describe("ExchangeIssuance [ @forked-network ]", function () {
       const exchangeIssuance = await deploy(account);
 
       // get approx redeem amount in ETH
-      const amountOut = await exchangeIssuance.getEstimatedRedeemSetAmount(dpiAddress, wethAddress, ethers.utils.parseEther("1"));
+      const amountOut = await exchangeIssuance.getAmountOutOnRedeemSet(dpiAddress, wethAddress, ethers.utils.parseEther("1"));
 
       // check if output is correct (this may break if you change the block number of the hardhat fork)
       expect(amountOut.gt(ethers.utils.parseEther("0.15"))).to.equal(true);
@@ -311,7 +313,7 @@ describe("ExchangeIssuance [ @forked-network ]", function () {
       const exchangeIssuance = await deploy(account);
 
       // get approx redeem amount in ETH
-      const amountOut = await exchangeIssuance.getEstimatedRedeemSetAmount(dpiAddress, daiAddress, ethers.utils.parseEther("1"));
+      const amountOut = await exchangeIssuance.getAmountOutOnRedeemSet(dpiAddress, daiAddress, ethers.utils.parseEther("1"));
 
       // check if output is correct (this may break if you change the block number of the hardhat fork)
       expect(amountOut.gt(ethers.utils.parseEther("180"))).to.equal(true);
