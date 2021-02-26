@@ -3,7 +3,7 @@ import "module-alias/register";
 import { BigNumber } from "@ethersproject/bignumber";
 import { Account, Address, Bytes } from "@utils/types";
 import { ZERO, ADDRESS_ZERO } from "@utils/constants";
-import { BaseAdapterMock, ICManagerV2 } from "@utils/contracts/index";
+import { BaseAdapterMock, BaseManager } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import { ContractCallerMock } from "@utils/contracts/setV2";
 
@@ -29,7 +29,7 @@ describe("BaseAdapter", () => {
   let setToken: SetToken;
   let setV2Setup: SetFixture;
 
-  let icManagerV2: ICManagerV2;
+  let baseManagerV2: BaseManager;
   let baseAdapterMock: BaseAdapterMock;
 
   before(async () => {
@@ -63,18 +63,18 @@ describe("BaseAdapter", () => {
     };
     await setV2Setup.streamingFeeModule.initialize(setToken.address, streamingFeeSettings);
 
-    // Deploy ICManagerV2
-    icManagerV2 = await deployer.manager.deployICManagerV2(
+    // Deploy BaseManager
+    baseManagerV2 = await deployer.manager.deployBaseManager(
       setToken.address,
       owner.address,
       methodologist.address,
     );
 
-    baseAdapterMock = await deployer.mocks.deployBaseAdapterMock(icManagerV2.address);
+    baseAdapterMock = await deployer.mocks.deployBaseAdapterMock(baseManagerV2.address);
 
-    // Transfer ownership to ICManagerV2
-    await setToken.setManager(icManagerV2.address);
-    await icManagerV2.initializeAdapters([baseAdapterMock.address]);
+    // Transfer ownership to BaseManager
+    await setToken.setManager(baseManagerV2.address);
+    await baseManagerV2.addAdapter(baseAdapterMock.address);
 
     await baseAdapterMock.updateCallerStatus([owner.address], [true]);
   });
@@ -248,7 +248,7 @@ describe("BaseAdapter", () => {
       subjectDestination = otherAccount.address;
       subjectAmount = ether(1);
 
-      await setV2Setup.weth.transfer(icManagerV2.address, subjectAmount);
+      await setV2Setup.weth.transfer(baseManagerV2.address, subjectAmount);
     });
 
     async function subject(): Promise<ContractTransaction> {
@@ -260,12 +260,12 @@ describe("BaseAdapter", () => {
     }
 
     it("should send the given amount from the manager to the address", async () => {
-      const preManagerAmount = await setV2Setup.weth.balanceOf(icManagerV2.address);
+      const preManagerAmount = await setV2Setup.weth.balanceOf(baseManagerV2.address);
       const preDestinationAmount = await setV2Setup.weth.balanceOf(subjectDestination);
 
       await subject();
 
-      const postManagerAmount = await setV2Setup.weth.balanceOf(icManagerV2.address);
+      const postManagerAmount = await setV2Setup.weth.balanceOf(baseManagerV2.address);
       const postDestinationAmount = await setV2Setup.weth.balanceOf(subjectDestination);
 
       expect(preManagerAmount.sub(postManagerAmount)).to.eq(subjectAmount);

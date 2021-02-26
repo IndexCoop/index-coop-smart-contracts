@@ -19,11 +19,11 @@
 pragma solidity 0.6.10;
 
 import { BaseAdapter } from "../lib/BaseAdapter.sol";
-import { IICManagerV2 } from "../interfaces/IICManagerV2.sol";
+import { IBaseManager } from "../interfaces/IBaseManager.sol";
 
 contract BaseAdapterMock is BaseAdapter {
 
-    constructor(IICManagerV2 _manager) public BaseAdapter(_manager) {}
+    constructor(IBaseManager _manager) public BaseAdapter(_manager) {}
 
     /* ============ External Functions ============ */
 
@@ -54,4 +54,8 @@ contract BaseAdapterMock is BaseAdapter {
         external
         onlyAllowedCaller(_caller)
     {}
+
+    function interactManager(address _target, bytes calldata _data) external {
+        invokeManager(_target, _data);
+    }
 }

@@ -1,10 +1,10 @@
 import { Signer } from "ethers";
 import { BigNumber } from "@ethersproject/bignumber";
 import { Address } from "../types";
-import { ICManager, ICManagerV2 } from "../contracts/index";
+import { ICManager, BaseManager } from "../contracts/index";
 
 import { ICManager__factory } from "../../typechain/factories/ICManager__factory";
-import { ICManagerV2__factory } from "../../typechain/factories/ICManagerV2__factory";
+import { BaseManager__factory } from "../../typechain/factories/BaseManager__factory";
 
 export default class DeployToken {
   private _deployerSigner: Signer;
@@ -31,12 +31,12 @@ export default class DeployToken {
     );
   }
 
-  public async deployICManagerV2(
+  public async deployBaseManager(
     set: Address,
     operator: Address,
     methodologist: Address,
-  ): Promise<ICManagerV2> {
-    return await new ICManagerV2__factory(this._deployerSigner).deploy(
+  ): Promise<BaseManager> {
+    return await new BaseManager__factory(this._deployerSigner).deploy(
       set,
       operator,
       methodologist,
