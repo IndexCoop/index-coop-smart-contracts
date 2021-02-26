@@ -482,32 +482,35 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     function shouldRebalance() external view returns(ShouldRebalance) {
         uint256 currentLeverageRatio = getCurrentLeverageRatio();
 
-        // If above ripcord threshold, then check if incentivized cooldown period has elapsed
-        if (currentLeverageRatio >= incentive.incentivizedLeverageRatio) {
-            if (lastTradeTimestamp.add(incentive.incentivizedTwapCooldownPeriod) < block.timestamp) {
-                return ShouldRebalance.RIPCORD;
-            }
-        } else {
-            // If TWAP, then check if the cooldown period has elapsed
-            if (twapLeverageRatio > 0) {
-                if (lastTradeTimestamp.add(execution.twapCooldownPeriod) < block.timestamp) {
-                    return ShouldRebalance.ITERATE_REBALANCE;
-                }
-            } else {
-                // If not TWAP, then check if the rebalance interval has elapsed OR current leverage is above max leverage OR current leverage is below
-                // min leverage
-                if (
-                    block.timestamp.sub(lastTradeTimestamp) > methodology.rebalanceInterval
-                    || currentLeverageRatio > methodology.maxLeverageRatio
-                    || currentLeverageRatio < methodology.minLeverageRatio
-                ) {
-                    return ShouldRebalance.REBALANCE;
-                }
-            }
-        }
+        return _shouldRebalance(currentLeverageRatio, methodology.minLeverageRatio, methodology.maxLeverageRatio);
+    }
 
-        // If none of the above conditions are satisfied, then should not rebalance
-        return ShouldRebalance.NONE;
+    /**
+     * Helper that checks if conditions are met for rebalance or ripcord with custom max and min bounds specified by caller. This function simplifies the
+     * logic for off-chain keeper bots to determine what threshold to call rebalance when leverage exceeds max or drops below min. Returns an enum with
+     * 0 = no rebalance, 1 = call rebalance(), 2 = call iterateRebalance()3 = call ripcord()
+     *
+     * @param _customMinLeverageRatio          Min leverage ratio passed in by caller
+     * @param _customMaxLeverageRatio          Max leverage ratio passed in by caller
+     *
+     * return ShouldRebalance                  Enum detailing whether to rebalance, iterateRebalance, ripcord or no action
+     */
+    function shouldRebalanceWithBounds(
+        uint256 _customMinLeverageRatio,
+        uint256 _customMaxLeverageRatio
+    )
+        external
+        view
+        returns(ShouldRebalance)
+    {
+        require (
+            _customMinLeverageRatio <= methodology.minLeverageRatio && _customMaxLeverageRatio >= methodology.maxLeverageRatio,
+            "Custom bounds must be valid"
+        );
+
+        uint256 currentLeverageRatio = getCurrentLeverageRatio();
+
+        return _shouldRebalance(currentLeverageRatio, _customMinLeverageRatio, _customMaxLeverageRatio);
     }
 
     /* ============ Internal Functions ============ */
@@ -919,5 +922,47 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         msg.sender.transfer(etherToTransfer);
 
         return etherToTransfer;
+    }
+
+    /**
+     * Internal function returning the ShouldRebalance enum used in shouldRebalance and shouldRebalanceWithBounds external getter functions
+     *
+     * return ShouldRebalance         Enum detailing whether to rebalance, iterateRebalance, ripcord or no action
+     */
+    function _shouldRebalance(
+        uint256 _currentLeverageRatio,
+        uint256 _minLeverageRatio,
+        uint256 _maxLeverageRatio
+    )
+        internal
+        view
+        returns(ShouldRebalance)
+    {
+        // If above ripcord threshold, then check if incentivized cooldown period has elapsed
+        if (_currentLeverageRatio >= incentive.incentivizedLeverageRatio) {
+            if (lastTradeTimestamp.add(incentive.incentivizedTwapCooldownPeriod) < block.timestamp) {
+                return ShouldRebalance.RIPCORD;
+            }
+        } else {
+            // If TWAP, then check if the cooldown period has elapsed
+            if (twapLeverageRatio > 0) {
+                if (lastTradeTimestamp.add(execution.twapCooldownPeriod) < block.timestamp) {
+                    return ShouldRebalance.ITERATE_REBALANCE;
+                }
+            } else {
+                // If not TWAP, then check if the rebalance interval has elapsed OR current leverage is above max leverage OR current leverage is below
+                // min leverage
+                if (
+                    block.timestamp.sub(lastTradeTimestamp) > methodology.rebalanceInterval
+                    || _currentLeverageRatio > _maxLeverageRatio
+                    || _currentLeverageRatio < _minLeverageRatio
+                ) {
+                    return ShouldRebalance.REBALANCE;
+                }
+            }
+        }
+
+        // If none of the above conditions are satisfied, then should not rebalance
+        return ShouldRebalance.NONE;
     }
 }
