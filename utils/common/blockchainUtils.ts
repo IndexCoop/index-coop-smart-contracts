@@ -34,7 +34,8 @@ export class Blockchain {
   }
 
   public async getCurrentTimestamp(): Promise<any> {
-    return await this._provider.getBlock(await this._provider.getBlockNumber());
+    const block = await this._provider.getBlock(await this._provider.getBlockNumber());
+    return block.timestamp;
   }
 
   public async setNextBlockTimestamp(timestamp: number): Promise<any> {

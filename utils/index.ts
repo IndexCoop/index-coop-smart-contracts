@@ -23,6 +23,7 @@ export {
   getRandomAddress,
   increaseTimeAsync,
   mineBlockAsync,
+  cacheBeforeEach,
 } from "./test";
 
 export {
