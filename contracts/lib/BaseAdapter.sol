@@ -17,7 +17,7 @@
 pragma solidity 0.6.10;
 
 import { AddressArrayUtils } from "../lib/AddressArrayUtils.sol";
-import { IICManagerV2 } from "../interfaces/IICManagerV2.sol";
+import { IBaseManager } from "../interfaces/IBaseManager.sol";
 
 /**
  * @title BaseAdapter
@@ -70,7 +70,7 @@ abstract contract BaseAdapter {
     /* ============ State Variables ============ */
 
     // Instance of manager contract
-    IICManagerV2 public manager;
+    IBaseManager public manager;
 
     // Boolean indicating if anyone can call function
     bool public anyoneCallable;
@@ -80,7 +80,7 @@ abstract contract BaseAdapter {
 
     /* ============ Constructor ============ */
 
-    constructor(IICManagerV2 _manager) public { manager = _manager; }
+    constructor(IBaseManager _manager) public { manager = _manager; }
 
     /* ============ External Functions ============ */
 

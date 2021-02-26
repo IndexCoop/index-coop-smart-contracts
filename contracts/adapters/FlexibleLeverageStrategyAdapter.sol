@@ -24,7 +24,7 @@ import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import { BaseAdapter } from "../lib/BaseAdapter.sol";
 import { ICErc20 } from "../interfaces/ICErc20.sol";
-import { IICManagerV2 } from "../interfaces/IICManagerV2.sol";
+import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
 import { ICompoundLeverageModule } from "../interfaces/ICompoundLeverageModule.sol";
 import { ICompoundPriceOracle } from "../interfaces/ICompoundPriceOracle.sol";
@@ -36,7 +36,7 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  * @author Set Protocol
  *
  * Smart contract that enables trustless leverage tokens using the flexible leverage methodology. This adapter is paired with the CompoundLeverageModule from Set
- * protocol where module interactions are invoked via the ICManagerV2 contract. Any leveraged token can be constructed as long as the collateral and borrow
+ * protocol where module interactions are invoked via the IBaseManager contract. Any leveraged token can be constructed as long as the collateral and borrow
  * asset is available on Compound. This adapter contract also allows the operator to set an ETH reward to incentivize keepers calling the rebalance function at
  * different leverage thresholds.
  */
@@ -178,14 +178,14 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     /**
      * Instantiate addresses, methodology parameters, execution parameters, and incentive parameters.
      * 
-     * @param _manager              Address of ICManagerV2 contract
+     * @param _manager              Address of IBaseManager contract
      * @param _strategy             Struct of contract addresses
      * @param _methodology          Struct containing methodology parameters
      * @param _execution            Struct containing execution parameters
      * @param _incentive            Struct containing incentive parameters for ripcord
      */
     constructor(
-        IICManagerV2 _manager,
+        IBaseManager _manager,
         ContractSettings memory _strategy,
         MethodologySettings memory _methodology,
         ExecutionSettings memory _execution,

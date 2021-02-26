@@ -21,7 +21,7 @@ import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import { BaseAdapter } from "../lib/BaseAdapter.sol";
 import { IIssuanceModule } from "../interfaces/IIssuanceModule.sol";
-import { IICManagerV2 } from "../interfaces/IICManagerV2.sol";
+import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IStreamingFeeModule } from "../interfaces/IStreamingFeeModule.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
@@ -55,7 +55,7 @@ contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade {
     /* ============ Constructor ============ */
 
     constructor(
-        IICManagerV2 _manager,
+        IBaseManager _manager,
         IStreamingFeeModule _streamingFeeModule,
         IIssuanceModule _issuanceModule,
         uint256 _operatorFeeSplit

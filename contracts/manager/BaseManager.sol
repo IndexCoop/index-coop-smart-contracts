@@ -24,12 +24,12 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 
 
 /**
- * @title ICManagerV2
+ * @title BaseManager
  * @author Set Protocol
  *
  * Smart contract manager that contains permissions and admin functionality
  */
-contract ICManagerV2 {
+contract BaseManager {
     using Address for address;
     using AddressArrayUtils for address[];
 
@@ -124,7 +124,7 @@ contract ICManagerV2 {
     }
 
     /**
-     * MUTUAL UPGRADE: Add a new adapter that the ICManagerV2 can call.
+     * MUTUAL UPGRADE: Add a new adapter that the BaseManager can call.
      *
      * @param _adapter           New adapter to add
      */
@@ -140,7 +140,7 @@ contract ICManagerV2 {
     }
 
     /**
-     * MUTUAL UPGRADE: Remove an existing adapter tracked by the ICManagerV2.
+     * MUTUAL UPGRADE: Remove an existing adapter tracked by the BaseManager.
      *
      * @param _adapter           Old adapter to remove
      */

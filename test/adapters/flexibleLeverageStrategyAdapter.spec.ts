@@ -11,7 +11,7 @@ import {
   IncentiveSettings
 } from "@utils/types";
 import { ADDRESS_ZERO, ONE, TWO, THREE, ZERO, EMPTY_BYTES, MAX_UINT_256 } from "@utils/constants";
-import { FlexibleLeverageStrategyAdapter, ICManagerV2, TradeAdapterMock } from "@utils/contracts/index";
+import { FlexibleLeverageStrategyAdapter, IBaseManager, TradeAdapterMock } from "@utils/contracts/index";
 import { CompoundLeverageModule, ContractCallerMock, DebtIssuanceModule, SetToken, ComptrollerMock } from "@utils/contracts/setV2";
 import { CEther, CERc20 } from "@utils/contracts/compound";
 import DeployHelper from "@utils/deploys";
@@ -63,7 +63,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
   let compoundLeverageModule: CompoundLeverageModule;
   let secondCompoundLeverageModule: CompoundLeverageModule;
   let debtIssuanceModule: DebtIssuanceModule;
-  let icManagerV2: ICManagerV2;
+  let baseManagerV2: IBaseManager;
 
   before(async () => {
     [
@@ -205,7 +205,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       []
     );
 
-    icManagerV2 = await deployer.manager.deployICManagerV2(
+    baseManagerV2 = await deployer.manager.deployIBaseManager(
       setToken.address,
       owner.address,
       methodologist.address,
@@ -213,7 +213,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
     // Transfer ownership to ic manager
     if ((await setToken.manager()) == owner.address) {
-      await setToken.connect(owner.wallet).setManager(icManagerV2.address);
+      await setToken.connect(owner.wallet).setManager(baseManagerV2.address);
     }
 
     // Deploy adapter
@@ -268,7 +268,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     };
 
     flexibleLeverageStrategyAdapter = await deployer.adapters.deployFlexibleLeverageStrategyAdapter(
-      icManagerV2.address,
+      baseManagerV2.address,
       strategy,
       methodology,
       execution,
@@ -276,7 +276,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     );
 
     // Add adapter
-    await icManagerV2.connect(owner.wallet).addAdapter(flexibleLeverageStrategyAdapter.address);
+    await baseManagerV2.connect(owner.wallet).addAdapter(flexibleLeverageStrategyAdapter.address);
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -289,7 +289,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     let subjectIncentiveSettings: IncentiveSettings;
 
     beforeEach(async () => {
-      subjectManagerAddress = icManagerV2.address;
+      subjectManagerAddress = baseManagerV2.address;
       subjectContractSettings = {
         setToken: setToken.address,
         leverageModule: compoundLeverageModule.address,

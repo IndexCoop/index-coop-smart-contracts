@@ -17,8 +17,8 @@
 pragma solidity 0.6.10;
 pragma experimental "ABIEncoderV2";
 
-import { IICManagerV2 } from "./IICManagerV2.sol";
+import { IBaseManager } from "./IBaseManager.sol";
 
 interface IAdapter {
-    function manager() external view returns (IICManagerV2);
+    function manager() external view returns (IBaseManager);
 }

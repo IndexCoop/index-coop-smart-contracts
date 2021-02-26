@@ -2,7 +2,7 @@ import "module-alias/register";
 
 import { Address, Account, Bytes } from "@utils/types";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
-import { ICManagerV2, BaseAdapterMock } from "@utils/contracts/index";
+import { BaseManager, BaseAdapterMock } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -18,7 +18,7 @@ import { SetFixture } from "@utils/fixtures";
 
 const expect = getWaffleExpect();
 
-describe("ICManagerV2", () => {
+describe("BaseManager", () => {
   let owner: Account;
   let methodologist: Account;
   let otherAccount: Account;
@@ -28,7 +28,7 @@ describe("ICManagerV2", () => {
   let deployer: DeployHelper;
   let setToken: SetToken;
 
-  let icManagerV2: ICManagerV2;
+  let baseManager: BaseManager;
   let baseAdapter: BaseAdapterMock;
 
   before(async () => {
@@ -63,17 +63,17 @@ describe("ICManagerV2", () => {
     };
     await setV2Setup.streamingFeeModule.initialize(setToken.address, streamingFeeSettings);
 
-    // Deploy ICManagerV2
-    icManagerV2 = await deployer.manager.deployICManagerV2(
+    // Deploy BaseManager
+    baseManager = await deployer.manager.deployBaseManager(
       setToken.address,
       owner.address,
       methodologist.address,
     );
 
-    // Transfer ownership to ICManagerV2
-    await setToken.setManager(icManagerV2.address);
+    // Transfer ownership to BaseManager
+    await setToken.setManager(baseManager.address);
 
-    baseAdapter = await deployer.mocks.deployBaseAdapterMock(icManagerV2.address);
+    baseAdapter = await deployer.mocks.deployBaseAdapterMock(baseManager.address);
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -89,8 +89,8 @@ describe("ICManagerV2", () => {
       subjectMethodologist = methodologist.address;
     });
 
-    async function subject(): Promise<ICManagerV2> {
-      return await deployer.manager.deployICManagerV2(
+    async function subject(): Promise<BaseManager> {
+      return await deployer.manager.deployBaseManager(
         subjectSetToken,
         subjectOperator,
         subjectMethodologist,
@@ -129,7 +129,7 @@ describe("ICManagerV2", () => {
     });
 
     async function subject(): Promise<any> {
-      return icManagerV2.connect(subjectCaller.wallet).setManager(subjectNewManager);
+      return baseManager.connect(subjectCaller.wallet).setManager(subjectNewManager);
     }
 
     it("should change the manager address", async () => {
@@ -170,25 +170,25 @@ describe("ICManagerV2", () => {
     });
 
     async function subject(): Promise<any> {
-      return icManagerV2.connect(subjectCaller.wallet).addAdapter(subjectAdapter);
+      return baseManager.connect(subjectCaller.wallet).addAdapter(subjectAdapter);
     }
 
     it("should add the adapter address", async () => {
       await subject();
-      const adapters = await icManagerV2.getAdapters();
+      const adapters = await baseManager.getAdapters();
 
       expect(adapters[0]).to.eq(baseAdapter.address);
     });
 
     it("should set the adapter mapping", async () => {
       await subject();
-      const isAdapter = await icManagerV2.isAdapter(subjectAdapter);
+      const isAdapter = await baseManager.isAdapter(subjectAdapter);
 
       expect(isAdapter).to.be.true;
     });
 
     it("should emit the correct AdapterAdded event", async () => {
-      await expect(subject()).to.emit(icManagerV2, "AdapterAdded").withArgs(baseAdapter.address);
+      await expect(subject()).to.emit(baseManager, "AdapterAdded").withArgs(baseAdapter.address);
     });
 
     describe("when the adapter already exists", async () => {
@@ -227,32 +227,32 @@ describe("ICManagerV2", () => {
     let subjectCaller: Account;
 
     beforeEach(async () => {
-      await icManagerV2.connect(owner.wallet).addAdapter(baseAdapter.address);
+      await baseManager.connect(owner.wallet).addAdapter(baseAdapter.address);
 
       subjectAdapter = baseAdapter.address;
       subjectCaller = owner;
     });
 
     async function subject(): Promise<any> {
-      return icManagerV2.connect(subjectCaller.wallet).removeAdapter(subjectAdapter);
+      return baseManager.connect(subjectCaller.wallet).removeAdapter(subjectAdapter);
     }
 
     it("should remove the adapter address", async () => {
       await subject();
-      const adapters = await icManagerV2.getAdapters();
+      const adapters = await baseManager.getAdapters();
 
       expect(adapters.length).to.eq(0);
     });
 
     it("should set the adapter mapping", async () => {
       await subject();
-      const isAdapter = await icManagerV2.isAdapter(subjectAdapter);
+      const isAdapter = await baseManager.isAdapter(subjectAdapter);
 
       expect(isAdapter).to.be.false;
     });
 
     it("should emit the correct AdapterRemoved event", async () => {
-      await expect(subject()).to.emit(icManagerV2, "AdapterRemoved").withArgs(baseAdapter.address);
+      await expect(subject()).to.emit(baseManager, "AdapterRemoved").withArgs(baseAdapter.address);
     });
 
     describe("when the adapter does not exist", async () => {
@@ -288,7 +288,7 @@ describe("ICManagerV2", () => {
     });
 
     async function subject(): Promise<any> {
-      return icManagerV2.connect(subjectCaller.wallet).addModule(subjectModule);
+      return baseManager.connect(subjectCaller.wallet).addModule(subjectModule);
     }
 
     it("should add the module to the SetToken", async () => {
@@ -313,7 +313,7 @@ describe("ICManagerV2", () => {
     let subjectCallData: Bytes;
 
     beforeEach(async () => {
-      await icManagerV2.connect(owner.wallet).addAdapter(baseAdapter.address);
+      await baseManager.connect(owner.wallet).addAdapter(baseAdapter.address);
 
       subjectModule = setV2Setup.streamingFeeModule.address;
 
@@ -336,7 +336,7 @@ describe("ICManagerV2", () => {
 
     describe("when the caller is not an adapter", async () => {
       beforeEach(async () => {
-        await icManagerV2.connect(owner.wallet).removeAdapter(baseAdapter.address);
+        await baseManager.connect(owner.wallet).removeAdapter(baseAdapter.address);
       });
 
       it("should revert", async () => {
@@ -355,7 +355,7 @@ describe("ICManagerV2", () => {
     });
 
     async function subject(): Promise<any> {
-      return icManagerV2.connect(subjectCaller.wallet).removeModule(subjectModule);
+      return baseManager.connect(subjectCaller.wallet).removeModule(subjectModule);
     }
 
     it("should remove the module from the SetToken", async () => {
@@ -385,17 +385,17 @@ describe("ICManagerV2", () => {
     });
 
     async function subject(): Promise<any> {
-      return icManagerV2.connect(subjectCaller.wallet).setMethodologist(subjectNewMethodologist);
+      return baseManager.connect(subjectCaller.wallet).setMethodologist(subjectNewMethodologist);
     }
 
     it("should set the new methodologist", async () => {
       await subject();
-      const actualIndexModule = await icManagerV2.methodologist();
+      const actualIndexModule = await baseManager.methodologist();
       expect(actualIndexModule).to.eq(subjectNewMethodologist);
     });
 
     it("should emit the correct MethodologistChanged event", async () => {
-      await expect(subject()).to.emit(icManagerV2, "MethodologistChanged").withArgs(methodologist.address, subjectNewMethodologist);
+      await expect(subject()).to.emit(baseManager, "MethodologistChanged").withArgs(methodologist.address, subjectNewMethodologist);
     });
 
     describe("when the caller is not the methodologist", async () => {
@@ -419,17 +419,17 @@ describe("ICManagerV2", () => {
     });
 
     async function subject(): Promise<any> {
-      return icManagerV2.connect(subjectCaller.wallet).setOperator(subjectNewOperator);
+      return baseManager.connect(subjectCaller.wallet).setOperator(subjectNewOperator);
     }
 
     it("should set the new operator", async () => {
       await subject();
-      const actualIndexModule = await icManagerV2.operator();
+      const actualIndexModule = await baseManager.operator();
       expect(actualIndexModule).to.eq(subjectNewOperator);
     });
 
     it("should emit the correct OperatorChanged event", async () => {
-      await expect(subject()).to.emit(icManagerV2, "OperatorChanged").withArgs(owner.address, subjectNewOperator);
+      await expect(subject()).to.emit(baseManager, "OperatorChanged").withArgs(owner.address, subjectNewOperator);
     });
 
     describe("when the caller is not the operator", async () => {

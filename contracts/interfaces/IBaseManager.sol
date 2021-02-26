@@ -19,7 +19,7 @@ pragma experimental "ABIEncoderV2";
 
 import { ISetToken } from "./ISetToken.sol";
 
-interface IICManagerV2 {
+interface IBaseManager {
     function setToken() external returns(ISetToken);
     
     function methodologist() external returns(address);
