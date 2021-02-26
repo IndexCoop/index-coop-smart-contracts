@@ -3,7 +3,7 @@ import "module-alias/register";
 import { solidityKeccak256 } from "ethers/lib/utils";
 import { Address, Account } from "@utils/types";
 import { ADDRESS_ZERO, ZERO, ONE_DAY_IN_SECONDS, ONE_YEAR_IN_SECONDS } from "@utils/constants";
-import { FeeSplitAdapter, ICManagerV2 } from "@utils/contracts/index";
+import { FeeSplitAdapter, BaseManager } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -33,7 +33,7 @@ describe("FeeSplitAdapter", () => {
   let deployer: DeployHelper;
   let setToken: SetToken;
 
-  let icManagerV2: ICManagerV2;
+  let baseManagerV2: BaseManager;
   let feeAdapter: FeeSplitAdapter;
 
   before(async () => {
@@ -54,14 +54,14 @@ describe("FeeSplitAdapter", () => {
       [setV2Setup.debtIssuanceModule.address, setV2Setup.streamingFeeModule.address]
     );
 
-    // Deploy ICManagerV2
-    icManagerV2 = await deployer.manager.deployICManagerV2(
+    // Deploy BaseManager
+    baseManagerV2 = await deployer.manager.deployBaseManager(
       setToken.address,
       operator.address,
       methodologist.address
     );
 
-    const feeRecipient = icManagerV2.address;
+    const feeRecipient = baseManagerV2.address;
     const maxStreamingFeePercentage = ether(.1);
     const streamingFeePercentage = ether(.02);
     const streamingFeeSettings = {
@@ -77,7 +77,7 @@ describe("FeeSplitAdapter", () => {
       ether(.1),
       ether(.01),
       ether(.005),
-      icManagerV2.address,
+      baseManagerV2.address,
       ADDRESS_ZERO
     );
   });
@@ -91,7 +91,7 @@ describe("FeeSplitAdapter", () => {
     let subjectOperatorFeeSplit: BigNumber;
 
     beforeEach(async () => {
-      subjectManager = icManagerV2.address;
+      subjectManager = baseManagerV2.address;
       subjectStreamingFeeModule = setV2Setup.streamingFeeModule.address;
       subjectDebtIssuanceModule = setV2Setup.debtIssuanceModule.address;
       subjectOperatorFeeSplit = ether(.7);
@@ -117,7 +117,7 @@ describe("FeeSplitAdapter", () => {
       const feeAdapter = await subject();
 
       const actualManager = await feeAdapter.manager();
-      expect(actualManager).to.eq(icManagerV2.address);
+      expect(actualManager).to.eq(baseManagerV2.address);
     });
 
     it("should set the correct streaming fee module address", async () => {
@@ -130,7 +130,7 @@ describe("FeeSplitAdapter", () => {
     it("should set the correct debt issuance module address", async () => {
       const feeAdapter = await subject();
 
-      const actualDebtIssuanceModule = await feeAdapter.debtIssuanceModule();
+      const actualDebtIssuanceModule = await feeAdapter.issuanceModule();
       expect(actualDebtIssuanceModule).to.eq(subjectDebtIssuanceModule);
     });
 
@@ -147,16 +147,16 @@ describe("FeeSplitAdapter", () => {
 
     beforeEach(async () => {
       feeAdapter = await deployer.adapters.deployFeeSplitAdapter(
-        icManagerV2.address,
+        baseManagerV2.address,
         setV2Setup.streamingFeeModule.address,
         setV2Setup.debtIssuanceModule.address,
         operatorSplit
       );
 
-      await icManagerV2.connect(operator.wallet).initializeAdapters([feeAdapter.address]);
+      await baseManagerV2.connect(operator.wallet).addAdapter(feeAdapter.address);
 
-      // Transfer ownership to ICManagerV2
-      await setToken.setManager(icManagerV2.address);
+      // Transfer ownership to BaseManager
+      await setToken.setManager(baseManagerV2.address);
     });
 
     describe("#accrueFeesAndDistribute", async () => {
@@ -267,7 +267,7 @@ describe("FeeSplitAdapter", () => {
         });
 
         it("should send correct amount of fees to operator and methodologist", async () => {
-          const preManagerBalance = await setToken.balanceOf(icManagerV2.address);
+          const preManagerBalance = await setToken.balanceOf(baseManagerV2.address);
           const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
           const totalSupply = await setToken.totalSupply();
 
@@ -283,7 +283,7 @@ describe("FeeSplitAdapter", () => {
 
           const feeInflation = getStreamingFeeInflationAmount(expectedFeeInflation, totalSupply);
 
-          const postManagerBalance = await setToken.balanceOf(icManagerV2.address);
+          const postManagerBalance = await setToken.balanceOf(baseManagerV2.address);
 
           expect(postManagerBalance.sub(preManagerBalance)).to.eq(feeInflation);
         });
@@ -318,7 +318,7 @@ describe("FeeSplitAdapter", () => {
           });
 
           it("should send correct amount of fees to operator and methodologist", async () => {
-            const preManagerBalance = await setToken.balanceOf(icManagerV2.address);
+            const preManagerBalance = await setToken.balanceOf(baseManagerV2.address);
             const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
             const totalSupply = await setToken.totalSupply();
 
@@ -334,7 +334,7 @@ describe("FeeSplitAdapter", () => {
 
             const feeInflation = getStreamingFeeInflationAmount(expectedFeeInflation, totalSupply);
 
-            const postManagerBalance = await setToken.balanceOf(icManagerV2.address);
+            const postManagerBalance = await setToken.balanceOf(baseManagerV2.address);
 
             expect(postManagerBalance.sub(preManagerBalance)).to.eq(feeInflation);
           });
