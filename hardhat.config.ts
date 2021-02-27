@@ -20,7 +20,7 @@ const forkingConfig = {
 const mochaConfig = {
   grep: "@forked-network",
   invert: (process.env.FORK) ? false : true,
-  timeout: (process.env.FORK) ? 50000 : 30000,
+  timeout: (process.env.FORK) ? 50000 : 40000,
 } as Mocha.MochaOptions;
 
 const config: HardhatUserConfig = {

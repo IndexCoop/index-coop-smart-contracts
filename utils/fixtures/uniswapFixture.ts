@@ -22,7 +22,7 @@ export class UniswapFixture {
 
   public wethUsdcPool: UniswapV2Pair;
   public wethWbtcPool: UniswapV2Pair;
-  public uniWethPool: UniswapV2Pair;
+  public wbtcUsdcPool: UniswapV2Pair;
 
   public uniswapTradeAdapter: UniswapV2ExchangeAdapter;
 
@@ -38,6 +38,7 @@ export class UniswapFixture {
 
     this.wethUsdcPool = await this.createNewPair(_weth, _usdc);
     this.wethWbtcPool = await this.createNewPair(_weth, _wbtc);
+    this.wbtcUsdcPool = await this.createNewPair(_wbtc, _usdc);
 
     this.uniswapTradeAdapter = await this._deployer.setV2.deployUniswapV2ExchangeAdapter(this.router.address);
   }
