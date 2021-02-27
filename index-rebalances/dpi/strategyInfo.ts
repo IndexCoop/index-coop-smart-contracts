@@ -4,6 +4,7 @@ import { BigNumber } from "@ethersproject/bignumber";
 import { Address } from "@utils/types";
 import { ZERO } from "@utils/constants";
 import { ether } from "@utils/common/index";
+import { assets } from "../assetInfo"
 
 interface AssetInfo {
   address: Address,
@@ -11,7 +12,7 @@ interface AssetInfo {
   maxTradeSize: BigNumber,
   exchange: Exchanges,
   coolOffPeriod: BigNumber,
-  currentUnit: BigNumber
+  currentUnit: BigNumber,
 }
 
 export interface StrategyInfo {
@@ -27,63 +28,63 @@ enum Exchanges {
 
 export const strategyInfo: StrategyInfo = {
   YFI: {
-    address: "0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e",
-    supply: BigNumber.from(30000),
+    address: assets.YFI.address,
+    supply: BigNumber.from(34847),
     maxTradeSize: ether(12),
     exchange: Exchanges.SUSHISWAP,
     coolOffPeriod: BigNumber.from(600),
     currentUnit: ZERO,
   },
   COMP: {
-    address: "0xc00e94Cb662C3520282E6f5717214004A7f26888",
-    supply: BigNumber.from(4164882),
+    address: assets.COMP.address,
+    supply: BigNumber.from(4324120),
     maxTradeSize: ether(146),
     exchange: Exchanges.SUSHISWAP,
     coolOffPeriod: BigNumber.from(600),
     currentUnit: ZERO,
   },
   SNX: {
-    address: "0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F",
-    supply: BigNumber.from(142197167),
+    address: assets.SNX.address,
+    supply: BigNumber.from(146644888),
     maxTradeSize: ether(7500),
     exchange: Exchanges.SUSHISWAP,
     coolOffPeriod: BigNumber.from(600),
     currentUnit: ZERO,
   },
   MKR: {
-    address: "0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2",
-    supply: BigNumber.from(902135),
+    address: assets.MKR.address,
+    supply: BigNumber.from(901982),
     maxTradeSize: ether(39),
     exchange: Exchanges.UNISWAP,
     coolOffPeriod: BigNumber.from(600),
     currentUnit: ZERO,
   },
   REN: {
-    address: "0x408e41876cCCDC0F92210600ef50372656052a38",
-    supply: BigNumber.from(881153019),
+    address: assets.REN.address,
+    supply: BigNumber.from(881153018),
     maxTradeSize: ether(37000),
     exchange: Exchanges.SUSHISWAP,
     coolOffPeriod: BigNumber.from(900),
     currentUnit: ZERO,
   },
   KNC: {
-    address: "0xdd974D5C2e2928deA5F71b9825b8b646686BD200",
-    supply: BigNumber.from(201352515),
+    address: assets.KNC.address,
+    supply: BigNumber.from(204329112),
     maxTradeSize: ether(4000),
     exchange: Exchanges.UNISWAP,
     coolOffPeriod: BigNumber.from(600),
     currentUnit: ZERO,
   },
   LRC: {
-    address: "0xBBbbCA6A901c926F240b89EacB641d8Aec7AEafD",
-    supply: BigNumber.from(1246496469),
+    address: assets.LRC.address,
+    supply: BigNumber.from(1246496468),
     maxTradeSize: ether(78000),
     exchange: Exchanges.UNISWAP,
     coolOffPeriod: BigNumber.from(900),
     currentUnit: ZERO,
   },
   BAL: {
-    address: "0xba100000625a3754423978a60c9317c58a424e3D",
+    address: assets.BAL.address,
     supply: BigNumber.from(10799858),
     maxTradeSize: ether(11000),
     exchange: Exchanges.BALANCER,
@@ -91,26 +92,34 @@ export const strategyInfo: StrategyInfo = {
     currentUnit: ZERO,
   },
   UNI: {
-    address: "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
-    supply: BigNumber.from(284459084),
+    address: assets.UNI.address,
+    supply: BigNumber.from(299540475),
     maxTradeSize: ether(30000),
     exchange: Exchanges.UNISWAP,
     coolOffPeriod: BigNumber.from(900),
     currentUnit: ZERO,
   },
   AAVE: {
-    address: "0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9",
-    supply: BigNumber.from(12278216),
+    address: assets.AAVE.address,
+    supply: BigNumber.from(12409409),
     maxTradeSize: ether(830),
     exchange: Exchanges.SUSHISWAP,
     coolOffPeriod: BigNumber.from(600),
     currentUnit: ZERO,
   },
   MTA: {
-    address: "0xa3BeD4E1c75D00fa6f4E5E6922DB7261B5E9AcD2",
-    supply: BigNumber.from(15545071),
+    address: assets.MTA.address,
+    supply: BigNumber.from(18150727),
     maxTradeSize: ether(4600),
     exchange: Exchanges.UNISWAP,
+    coolOffPeriod: BigNumber.from(600),
+    currentUnit: ZERO,
+  },
+  SUSHI: {
+    address: assets.SUSHI.address,
+    supply: BigNumber.from(127244443),
+    maxTradeSize: ether(30000),
+    exchange: Exchanges.SUSHISWAP,
     coolOffPeriod: BigNumber.from(600),
     currentUnit: ZERO,
   }
