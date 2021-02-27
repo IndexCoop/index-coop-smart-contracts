@@ -44,7 +44,8 @@ export {
   preciseMulCeilInt,
   preciseDivCeilInt,
   sqrt,
-  usdc
+  usdc,
+  wbtc,
 } from "./common";
 
 export {

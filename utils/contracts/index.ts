@@ -2,6 +2,7 @@ export { BaseAdapterMock } from "../../typechain/BaseAdapterMock";
 export { ICManager } from "../../typechain/ICManager";
 export { BaseManager } from "../../typechain/BaseManager";
 export { TradeAdapterMock } from "../../typechain/TradeAdapterMock";
+export { ExchangeIssuance } from "../../typechain/ExchangeIssuance";
 export { FeeSplitAdapter } from "../../typechain/FeeSplitAdapter";
 export { FlexibleLeverageStrategyAdapter } from "../../typechain/FlexibleLeverageStrategyAdapter";
 export { SupplyCapIssuanceHook } from "../../typechain/SupplyCapIssuanceHook";

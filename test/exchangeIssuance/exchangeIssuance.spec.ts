@@ -1,341 +1,1457 @@
 import "module-alias/register";
-import { ethers } from "hardhat";
-import { Signer } from "ethers";
 
-const { expect } = require("chai");
-const hre = require("hardhat");
+import { Address, Account } from "@utils/types";
+import { ADDRESS_ZERO, ZERO, MAX_UINT_256, MAX_UINT_96, MAX_INT_256, ETH_ADDRESS } from "@utils/constants";
+import { ExchangeIssuance, StandardTokenMock, UniswapV2Router02, WETH9 } from "@utils/contracts/index";
+import { SetToken } from "@utils/contracts/setV2";
+import DeployHelper from "@utils/deploys";
+import {
+  addSnapshotBeforeRestoreAfterEach,
+  ether,
+  getAccounts,
+  getLastBlockTimestamp,
+  getSetFixture,
+  getUniswapFixture,
+  getWaffleExpect,
+} from "@utils/index";
+import { UnitsUtils } from "@utils/common/unitsUtils";
+import { SetFixture } from "@utils/fixtures";
+import { UniswapFixture } from "@utils/fixtures";
+import { BigNumber, ContractTransaction } from "ethers";
+import {
+  getAllowances,
+  getIssueExactSetFromToken,
+  getIssueSetForExactToken,
+  getRedeemExactSetForToken,
+  getIssueExactSetFromETH,
+  getIssueExactSetFromTokenRefund,
+  getIssueSetForExactETH,
+  getRedeemExactSetForETH,
+} from "@utils/common/exchangeIssuanceUtils";
 
-const erc20abi = require("./erc20abi");
+const expect = getWaffleExpect();
 
-const dpiAddress = "0x1494ca1f11d487c2bbe4543e90080aeba4ba3c2b";
-const daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
-const wethAddress = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
 
-const uniFactory = "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f";
-const uniRouter = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D";
-const sushiFactory = "0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac";
-const sushiRouter = "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F";
-const setController = "0xa4c8d221d8BB851f83aadd0223a8900A6921A349";
-const basicIssuanceModule = "0xd8EF3cACe8b4907117a45B0b125c68560532F94D";
+describe("ExchangeIssuance", async () => {
+  let owner: Account;
+  let user: Account;
+  let externalPositionModule: Account;
+  let setV2Setup: SetFixture;
 
-const deploy = async (account: any) => {
-  const ExchangeIssuance = await ethers.getContractFactory("ExchangeIssuance");
-  return (await ExchangeIssuance.deploy(
-    wethAddress,
-    uniFactory,
-    uniRouter,
-    sushiFactory,
-    sushiRouter,
-    setController,
-    basicIssuanceModule
-    )
-  ).connect(account);
-};
+  let deployer: DeployHelper;
+  let setToken: SetToken;
+  let setTokenWithWeth: SetToken;
 
-const issueSetForExactToken = async (ERC20Address: string, account: Signer, amount: Number) => {
-  // get initial DPI and ERC20 balances
-  const dpi = new ethers.Contract(dpiAddress, erc20abi, account);
-  const initDPIBalance = await dpi.balanceOf(account.getAddress());
-  const ERC20 = new ethers.Contract(ERC20Address, erc20abi, account);
-  const initERC20Balance = await ERC20.balanceOf(account.getAddress());
-
-  // deploy ExchangeIssuance.sol
-  const exchangeIssuance = await deploy(account);
-
-  // issue DPI with ERC20
-  await ERC20.approve(exchangeIssuance.address, ethers.utils.parseEther(amount.toString()));
-  await exchangeIssuance.approveSetToken(dpiAddress);
-  await exchangeIssuance.issueSetForExactToken(
-    dpiAddress,
-    ERC20Address,
-    ethers.utils.parseEther(amount.toString()),
-    ethers.utils.parseEther("0")
-  );
-
-  // get final DPI and ERC20 balances
-  const finalDPIBalance = await dpi.balanceOf(account.getAddress());
-  const finalERC20Balance = await ERC20.balanceOf(account.getAddress());
-
-  // check if final DPI is greater than init, and if final DAI is less than init
-  return finalDPIBalance.gt(initDPIBalance) && finalERC20Balance.lt(initERC20Balance);
-};
-
-const issueExactSetFromToken = async (ERC20Address: string, account: Signer, amountSetToken: Number) => {
-  // get initial DPI and ERC20 balances
-  const dpi = new ethers.Contract(dpiAddress, erc20abi, account);
-  const ERC20 = new ethers.Contract(ERC20Address, erc20abi, account);
-  const DPIIssueAmount = ethers.utils.parseEther(amountSetToken.toString());
-
-  const initDPIBalance = await dpi.balanceOf(account.getAddress());
-  const initERC20Balance = await ERC20.balanceOf(account.getAddress());
-
-  // deploy ExchangeIssuance.sol
-  const exchangeIssuance = await deploy(account);
-
-  await exchangeIssuance.approveSetToken(dpiAddress);
-
-  // issue DPI with ERC20
-  let amountToken = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, ERC20Address, DPIIssueAmount);
-  amountToken = amountToken.mul("2");
-  await ERC20.approve(exchangeIssuance.address, amountToken);
-  await exchangeIssuance.issueExactSetFromToken(
-    dpiAddress,
-    ERC20Address,
-    ethers.utils.parseEther(amountSetToken.toString()),
-    amountToken
-  );
-
-  // get final DPI and ERC20 balances
-  const finalDPIBalance = await dpi.balanceOf(account.getAddress());
-  const finalERC20Balance = await ERC20.balanceOf(account.getAddress());
-
-  // check if change in DPI balance is equal to DPI amount issued, and if final DAI is less than init
-  return finalDPIBalance.sub(initDPIBalance).eq(DPIIssueAmount) && finalERC20Balance.lt(initERC20Balance);
-};
-
-const redeemExactSetForERC20 = async (ERC20Address: string, account: Signer, amount: Number) => {
-  // get initial DPI and ERC20 balances
-  const dpi = new ethers.Contract(dpiAddress, erc20abi, account);
-  const initDPIBalance = await dpi.balanceOf(account.getAddress());
-  const ERC20 = new ethers.Contract(ERC20Address, erc20abi, account);
-  const initERC20Balance = await ERC20.balanceOf(account.getAddress());
-
-  // deploy ExchangeIssuance.sol
-  const exchangeIssuance = await deploy(account);
-
-  // redeem DPI for ERC20
-  await dpi.approve(exchangeIssuance.address, ethers.utils.parseEther(amount.toString()));
-  await exchangeIssuance.approveSetToken(dpiAddress);
-  await exchangeIssuance.redeemExactSetForToken(
-    dpiAddress,
-    ERC20Address,
-    ethers.utils.parseEther(amount.toString()),
-    ethers.utils.parseEther("0")
-  );
-
-  // get final DPI and ERC20 balances
-  const finalDPIBalance = await dpi.balanceOf(account.getAddress());
-  const finalERC20Balance = await ERC20.balanceOf(account.getAddress());
-
-  // check if final DPI is less than init, and if final ERC20 is more than init
-  return finalDPIBalance.lt(initDPIBalance) && finalERC20Balance.gt(initERC20Balance);
-};
-
-describe("ExchangeIssuance [ @forked-network ]", function () {
-
-  let account: Signer;
+  let exchangeIssuance: ExchangeIssuance;
 
   before(async () => {
-    await hre.network.provider.request({
-      method: "hardhat_impersonateAccount",
-      params: ["0x56178a0d5F301bAf6CF3e1Cd53d9863437345Bf9"],
-    }
+    [
+      owner,
+      user,
+      externalPositionModule,
+    ] = await getAccounts();
+
+    deployer = new DeployHelper(owner.wallet);
+
+    setV2Setup = getSetFixture(owner.address);
+    await setV2Setup.initialize();
+
+    const daiUnits = ether(0.5);
+    const wbtcUnits = UnitsUtils.wbtc(1);
+    setToken = await setV2Setup.createSetToken(
+      [setV2Setup.dai.address, setV2Setup.wbtc.address],
+      [daiUnits, wbtcUnits],
+      [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address]
     );
-    account = await ethers.provider.getSigner("0x56178a0d5F301bAf6CF3e1Cd53d9863437345Bf9");
+
+    await setV2Setup.issuanceModule.initialize(setToken.address, ADDRESS_ZERO);
+
+    const wethUnits = ether(0.5);
+    setTokenWithWeth = await setV2Setup.createSetToken(
+      [setV2Setup.dai.address, setV2Setup.weth.address],
+      [daiUnits, wethUnits],
+      [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address]
+    );
+
+    await setV2Setup.issuanceModule.initialize(setTokenWithWeth.address, ADDRESS_ZERO);
   });
 
-  describe("Issue (Exact input)", () => {
-    it("Should issue DPI with ETH", async () => {
-      // get initial ETH and DPI balances
-      const dpi = new ethers.Contract(dpiAddress, erc20abi, account);
-      const initDPIBalance = await dpi.balanceOf(account.getAddress());
-      const initETHBalance = await account.getBalance();
+  addSnapshotBeforeRestoreAfterEach();
 
-      // deploy ExchangeIssuance.sol
-      const exchangeIssuance = await deploy(account);
+  describe("#constructor", async () => {
+    let wethAddress: Address;
+    let uniswapFactory: Address;
+    let uniswapRouter: UniswapV2Router02;
+    let sushiswapFactory: Address;
+    let sushiswapRouter: UniswapV2Router02;
+    let controllerAddress: Address;
+    let basicIssuanceModuleAddress: Address;
 
-      // issue 5 ETH worth of DPI
-      await exchangeIssuance.approveSetToken(dpiAddress);
-      const overrides = {
-        value: ethers.utils.parseEther("5"),
-      };
-      await exchangeIssuance.issueSetForExactETH(dpiAddress, 0, overrides);
+    before(async () => {
+      let uniswapSetup: UniswapFixture;
+      let sushiswapSetup: UniswapFixture;
+      let wbtcAddress: Address;
+      let daiAddress: Address;
 
-      // get final ETH and DPI balances
-      const finalDPIBalance = await dpi.balanceOf(account.getAddress());
-      const finalETHBalance = await account.getBalance();
+      wethAddress = setV2Setup.weth.address;
+      wbtcAddress = setV2Setup.wbtc.address;
+      daiAddress = setV2Setup.dai.address;
 
-      // check if final DPI is greater than init, and if final ETH is less than init (accounting for gas fees)
-      expect(finalDPIBalance.gt(initDPIBalance)).to.equal(true);
-      expect(finalETHBalance.add(ethers.utils.parseEther("0.2")).lt(initETHBalance)).to.equal(true);
+      uniswapSetup = getUniswapFixture(owner.address);
+      await uniswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
+
+      sushiswapSetup = getUniswapFixture(owner.address);
+      await sushiswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
+
+      uniswapFactory = uniswapSetup.factory.address;
+      uniswapRouter = uniswapSetup.router;
+      sushiswapFactory = sushiswapSetup.factory.address;
+      sushiswapRouter = sushiswapSetup.router;
+      controllerAddress = setV2Setup.controller.address;
+      basicIssuanceModuleAddress = setV2Setup.issuanceModule.address;
     });
 
-    it("Should issue DPI with an ERC20 (DAI)", async () => {
-      const passed = await issueSetForExactToken(daiAddress, account, 2000);
-      expect(passed).to.equal(true);
+    async function subject(): Promise<ExchangeIssuance> {
+      return await deployer.adapters.deployExchangeIssuance(
+        wethAddress,
+        uniswapFactory,
+        uniswapRouter.address,
+        sushiswapFactory,
+        sushiswapRouter.address,
+        controllerAddress,
+        basicIssuanceModuleAddress
+      );
+    }
+
+    it("verify state set properly via constructor", async () => {
+      const exchangeIssuanceContract: ExchangeIssuance = await subject();
+
+      const expectedWethAddress = await exchangeIssuanceContract.WETH();
+      expect(expectedWethAddress).to.eq(wethAddress);
+
+      const expectedUniRouterAddress = await exchangeIssuanceContract.uniRouter();
+      expect(expectedUniRouterAddress).to.eq(uniswapRouter.address);
+
+      const expectedUniFactoryAddress = await exchangeIssuanceContract.uniFactory();
+      expect(expectedUniFactoryAddress).to.eq(uniswapFactory);
+
+      const expectedSushiRouterAddress = await exchangeIssuanceContract.sushiRouter();
+      expect(expectedSushiRouterAddress).to.eq(sushiswapRouter.address);
+
+      const expectedSushiFactoryAddress = await exchangeIssuanceContract.sushiFactory();
+      expect(expectedSushiFactoryAddress).to.eq(sushiswapFactory);
+
+      const expectedControllerAddress = await exchangeIssuanceContract.setController();
+      expect(expectedControllerAddress).to.eq(controllerAddress);
+
+      const expectedBasicIssuanceModuleAddress = await exchangeIssuanceContract.basicIssuanceModule();
+      expect(expectedBasicIssuanceModuleAddress).to.eq(basicIssuanceModuleAddress);
     });
 
-    it("Should issue DPI with an ERC20 (WETH)", async () => {
-      const passed = await issueSetForExactToken(wethAddress, account, 200);
-      expect(passed).to.equal(true);
+    it("approves WETH to the uniswap and sushiswap router", async () => {
+      const exchangeIssuance: ExchangeIssuance = await subject();
+
+      // validate the allowance of WETH between uniswap, sushiswap, and the deployed exchange issuance contract
+      const uniswapWethAllowance = await setV2Setup.weth.allowance(exchangeIssuance.address, uniswapRouter.address);
+      expect(uniswapWethAllowance).to.eq(MAX_UINT_256);
+
+      const sushiswapWethAllownace = await setV2Setup.weth.allowance(exchangeIssuance.address, sushiswapRouter.address);
+      expect(sushiswapWethAllownace).to.eq(MAX_UINT_256);
+
     });
   });
 
-  describe("Issue (Exact output)", () => {
-    it("Should issue DPI with ETH", async () => {
-      // get initial ETH and DPI balances
-      const dpi = new ethers.Contract(dpiAddress, erc20abi, account);
+  context("when exchange issuance is deployed", async () => {
+    let subjectWethAddress: Address;
+    let uniswapFactory: Address;
+    let uniswapRouter: UniswapV2Router02;
+    let sushiswapFactory: Address;
+    let sushiswapRouter: UniswapV2Router02;
+    let controllerAddress: Address;
+    let basicIssuanceModuleAddress: Address;
 
-      const initDPIBalance = await dpi.balanceOf(account.getAddress());
-      const initETHBalance = await account.getBalance();
+    let weth: WETH9;
+    let wbtc: StandardTokenMock;
+    let dai: StandardTokenMock;
+    let usdc: StandardTokenMock;
+    let illiquidToken: StandardTokenMock;
+    let setTokenIlliquid: SetToken;
 
-      // deploy ExchangeIssuance.sol
-      const exchangeIssuance = await deploy(account);
+    beforeEach(async () => {
+      let uniswapSetup: UniswapFixture;
+      let sushiswapSetup: UniswapFixture;
 
-      // issue 5 DPI
-      await exchangeIssuance.approveSetToken(dpiAddress);
-      const DPIIssueAmount = ethers.utils.parseEther("5");
-      const ETHAmountIn = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, wethAddress, DPIIssueAmount);
-      await exchangeIssuance.issueExactSetFromETH(dpiAddress, DPIIssueAmount, {value: ETHAmountIn});
+      weth = setV2Setup.weth;
+      wbtc = setV2Setup.wbtc;
+      dai = setV2Setup.dai;
+      usdc = setV2Setup.usdc;
+      illiquidToken = await deployer.setV2.deployTokenMock(owner.address, ether(1000000), 18, "illiquid token", "RUGGED");
 
-      // get final ETH and DPI balances
-      const finalDPIBalance = await dpi.balanceOf(account.getAddress());
-      const finalETHBalance = await account.getBalance();
+      usdc.transfer(user.address, UnitsUtils.usdc(10000));
 
-      // check if change in DPI balance is equal to DPI amount issued
-      expect(finalDPIBalance.sub(initDPIBalance)).to.equal(DPIIssueAmount);
-      expect(finalETHBalance.add(ethers.utils.parseEther("0.2")).lt(initETHBalance)).to.equal(true);
-    });
+      const daiUnits = ether(0.5);
+      const illiquidTokenUnits = ether(0.5);
+      setTokenIlliquid = await setV2Setup.createSetToken(
+        [setV2Setup.dai.address, illiquidToken.address],
+        [daiUnits, illiquidTokenUnits],
+        [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address]
+      );
+      await setV2Setup.issuanceModule.initialize(setTokenIlliquid.address, ADDRESS_ZERO);
 
-    it("Should issue DPI with an ERC20 (DAI)", async () => {
-      const passed = await issueExactSetFromToken(daiAddress, account, 20);
-      expect(passed).to.equal(true);
-    });
+      uniswapSetup = await getUniswapFixture(owner.address);
+      await uniswapSetup.initialize(owner, weth.address, wbtc.address, dai.address);
+      sushiswapSetup = await getUniswapFixture(owner.address);
+      await sushiswapSetup.initialize(owner, weth.address, wbtc.address, dai.address);
 
-    it("Should issue DPI with an ERC20 (WETH)", async () => {
-      const passed = await issueExactSetFromToken(wethAddress, account, 20);
-      expect(passed).to.equal(true);
-    });
-  });
+      subjectWethAddress = weth.address;
+      uniswapFactory = uniswapSetup.factory.address;
+      uniswapRouter = uniswapSetup.router;
+      sushiswapFactory = sushiswapSetup.factory.address;
+      sushiswapRouter = sushiswapSetup.router;
+      controllerAddress = setV2Setup.controller.address;
+      basicIssuanceModuleAddress = setV2Setup.issuanceModule.address;
 
-  describe("Redeem (Exact input)", () => {
-    it("Should redeem DPI for ETH", async () => {
-      // get initial ETH and DPI balances
-      const dpi = new ethers.Contract(dpiAddress, erc20abi, account);
-      const initDPIBalance = await dpi.balanceOf(account.getAddress());
-      const initETHBalance = await account.getBalance();
+      await uniswapSetup.createNewPair(weth.address, wbtc.address);
+      await uniswapSetup.createNewPair(weth.address, dai.address);
+      await uniswapSetup.createNewPair(weth.address, usdc.address);
 
-      // deploy ExchangeIssuance.sol
-      const exchangeIssuance = await deploy(account);
-
-      // redeem dpi for ETH
-      await dpi.approve(exchangeIssuance.address, ethers.utils.parseEther("10"));
-      await exchangeIssuance.approveSetToken(dpiAddress);
-      await exchangeIssuance.redeemExactSetForETH(dpiAddress,
-        ethers.utils.parseEther("10"),
-        ethers.utils.parseEther("1")
+      await wbtc.approve(uniswapRouter.address, MAX_UINT_256);
+      await uniswapRouter.connect(owner.wallet).addLiquidityETH(
+        wbtc.address,
+        UnitsUtils.wbtc(100000),
+        MAX_UINT_256,
+        MAX_UINT_256,
+        owner.address,
+        (await getLastBlockTimestamp()).add(1),
+        { value: ether(100), gasLimit: 9000000 }
       );
 
-      // get final ETH and DPI balances
-      const finalDPIBalance = await dpi.balanceOf(account.getAddress());
-      const finalETHBalance = await account.getBalance();
-
-      // check if final DPI is less than init, and if final ETH is more than init
-      expect(finalDPIBalance.lt(initDPIBalance)).to.equal(true);
-      expect(finalETHBalance.gt(initETHBalance)).to.equal(true);
-    });
-
-    it("Should redeem DPI for an ERC20 (DAI)", async () => {
-      const passed = await redeemExactSetForERC20(daiAddress, account, 10);
-      expect(passed).to.equal(true);
-    });
-
-    it("Should redeem DPI for an ERC20 (WETH)", async () => {
-      const passed = await redeemExactSetForERC20(wethAddress, account, 10);
-      expect(passed).to.equal(true);
-    });
-  });
-
-  describe("Estimate Issue (Fixed Input)", () => {
-    it("Should be able to get approx issue amount given an input ERC20 amount (WETH)", async () => {
-      // deploy ExchangeIssuance.sol
-      const exchangeIssuance = await deploy(account);
-
-      // get approx issue amount in DPI
-      const amountOut = await exchangeIssuance.getEstimatedIssueSetAmount(dpiAddress, wethAddress, ethers.utils.parseEther("200"));
-
-      // check if output is correct (this may break if you change the block number of the hardhat fork)
-      expect(amountOut.gt(ethers.utils.parseEther("4"))).to.equal(true);
-    });
-
-    it("Should be able to get approx issue amount given an input ERC20 amount (DAI)", async () => {
-      // deploy ExchangeIssuance.sol
-      const exchangeIssuance = await deploy(account);
-
-      // get approx issue amount in DPI
-      const amountOut = await exchangeIssuance.getEstimatedIssueSetAmount(dpiAddress, daiAddress, ethers.utils.parseEther("200"));
-
-      // check if output is correct (this may break if you change the block number of the hardhat fork)
-      expect(amountOut.gt(ethers.utils.parseEther("1"))).to.equal(true);
-    });
-  });
-
-  describe("Estimate Issue (Fixed Output)", () => {
-    it("Should be able to get approx input ERC20 (WETH) amount given a DPI amount", async () => {
-      // deploy ExchangeIssuance.sol
-      const exchangeIssuance = await deploy(account);
-
-      const DPIIssueAmount = ethers.utils.parseEther("5");
-      const ETHAmountIn = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, wethAddress, DPIIssueAmount);
-
-      // check if output is correct (this may break if you change the block number of the hardhat fork)
-      expect(ETHAmountIn.lt(ethers.utils.parseEther("0.89"))).to.equal(true);
-      expect(ETHAmountIn.gt(ethers.utils.parseEther("0.86"))).to.equal(true);
-    });
-
-    it("Should be able to get approx input ERC20 (DAI) amount given a amount", async () => {
-      // deploy ExchangeIssuance.sol
-      const exchangeIssuance = await deploy(account);
-
-      const DPIIssueAmount = ethers.utils.parseEther("5");
-      const DAIAmountIn = await exchangeIssuance.getAmountInToIssueExactSet(dpiAddress, daiAddress, DPIIssueAmount);
-
-      // check if output is correct (this may break if you change the block number of the hardhat fork)
-      expect(DAIAmountIn.lt(ethers.utils.parseEther("200").mul(5))).to.equal(true);
-      expect(DAIAmountIn.gt(ethers.utils.parseEther("190").mul(5))).to.equal(true);
-    });
-  });
-
-  describe("Estimate Redeem (Fixed input)", () => {
-    it("Should be able to get approx redeem amount in ETH given an input set amount", async () => {
-      // deploy ExchangeIssuance.sol
-      const exchangeIssuance = await deploy(account);
-
-      // get approx redeem amount in ETH
-      const amountOut = await exchangeIssuance.getAmountOutOnRedeemSet(dpiAddress, wethAddress, ethers.utils.parseEther("1"));
-
-      // check if output is correct (this may break if you change the block number of the hardhat fork)
-      expect(amountOut.gt(ethers.utils.parseEther("0.15"))).to.equal(true);
-    });
-
-    it("Should be able to get approx redeem amount in an ERC20 (dai) given an input set amount", async () => {
-      // deploy ExchangeIssuance.sol
-      const exchangeIssuance = await deploy(account);
-
-      // get approx redeem amount in ETH
-      const amountOut = await exchangeIssuance.getAmountOutOnRedeemSet(dpiAddress, daiAddress, ethers.utils.parseEther("1"));
-
-      // check if output is correct (this may break if you change the block number of the hardhat fork)
-      expect(amountOut.gt(ethers.utils.parseEther("180"))).to.equal(true);
-    });
-  });
-
-  describe("isSetToken modifier", () => {
-    it("Should revert when SetToken is not conform to ISetToken", async () => {
-      // deploy ExchangeIssuance.sol
-      const exchangeIssuance = await deploy(account);
-
-      // aprove dai
-      const dai = new ethers.Contract(daiAddress, erc20abi, account);
-      await dai.approve(exchangeIssuance.address, ethers.utils.parseEther("10"));
-
-      // redeem dpi for ETH
-      const result = exchangeIssuance.redeemExactSetForETH(daiAddress,
-        ethers.utils.parseEther("10"),
-        ethers.utils.parseEther("1")
+      await dai.approve(uniswapRouter.address, MAX_INT_256);
+      await uniswapRouter.connect(owner.wallet).addLiquidityETH(
+        dai.address,
+        ether(100000),
+        MAX_UINT_256,
+        MAX_UINT_256,
+        owner.address,
+        (await getLastBlockTimestamp()).add(1),
+        { value: ether(10), gasLimit: 9000000 }
       );
 
-      await expect(result).to.be.revertedWith("INVALID SET");
+      await usdc.connect(owner.wallet).approve(uniswapRouter.address, MAX_INT_256);
+      await uniswapRouter.connect(owner.wallet).addLiquidityETH(
+        usdc.address,
+        UnitsUtils.usdc(100000),
+        MAX_UINT_256,
+        MAX_UINT_256,
+        user.address,
+        (await getLastBlockTimestamp()).add(1),
+        { value: ether(100), gasLimit: 9000000 }
+      );
+
+      exchangeIssuance = await deployer.adapters.deployExchangeIssuance(
+        subjectWethAddress,
+        uniswapFactory,
+        uniswapRouter.address,
+        sushiswapFactory,
+        sushiswapRouter.address,
+        controllerAddress,
+        basicIssuanceModuleAddress
+      );
+    });
+
+    describe("#approveToken", async () => {
+      let subjectTokenToApprove: StandardTokenMock;
+
+      beforeEach(async () => {
+        subjectTokenToApprove = setV2Setup.dai;
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await exchangeIssuance.approveToken(subjectTokenToApprove.address);
+      }
+
+      it("should update the approvals correctly", async () => {
+        const spenders = [uniswapRouter.address, sushiswapRouter.address, basicIssuanceModuleAddress];
+        const tokens = [subjectTokenToApprove];
+
+        await subject();
+
+        const finalAllowances = await getAllowances(tokens, exchangeIssuance.address, spenders);
+
+        for (let i = 0; i < finalAllowances.length; i++) {
+          const actualAllowance = finalAllowances[i];
+          const expectedAllowance = MAX_UINT_96;
+          expect(actualAllowance).to.eq(expectedAllowance);
+        }
+      });
+    });
+
+    describe("#approveTokens", async () => {
+      let subjectTokensToApprove: StandardTokenMock[];
+
+      beforeEach(async () => {
+        subjectTokensToApprove = [setV2Setup.dai, setV2Setup.wbtc];
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await exchangeIssuance.approveTokens(subjectTokensToApprove.map(token => token.address));
+      }
+
+      it("should update the approvals correctly", async () => {
+        const spenders = [uniswapRouter.address, sushiswapRouter.address, basicIssuanceModuleAddress];
+
+        await subject();
+
+        const finalAllowances = await getAllowances(subjectTokensToApprove, exchangeIssuance.address, spenders);
+
+        for (let i = 0; i < finalAllowances.length; i++) {
+          const actualAllowance = finalAllowances[i];
+          const expectedAllowance = MAX_UINT_96;
+          expect(actualAllowance).to.eq(expectedAllowance);
+        }
+      });
+    });
+
+    describe("#approveSetToken", async () => {
+      let subjectSetToApprove: SetToken;
+
+      beforeEach(async () => {
+        subjectSetToApprove = setToken;
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await exchangeIssuance.approveSetToken(subjectSetToApprove.address);
+      }
+
+      it("should update the approvals correctly", async () => {
+        const tokens = [dai, wbtc];
+        const spenders = [uniswapRouter.address, sushiswapRouter.address, basicIssuanceModuleAddress];
+
+        await subject();
+
+        const finalAllowances = await getAllowances(tokens, exchangeIssuance.address, spenders);
+
+        for (let i = 0; i < finalAllowances.length; i++) {
+          const actualAllowance = finalAllowances[i];
+          const expectedAllowance = MAX_UINT_96;
+          expect(actualAllowance).to.eq(expectedAllowance);
+        }
+      });
+
+      context("when the set contains an external position", async () => {
+        beforeEach(async () => {
+          subjectSetToApprove = await setV2Setup.createSetToken(
+            [setV2Setup.dai.address],
+            [ether(0.5)],
+            [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address]
+          );
+          await setV2Setup.issuanceModule.initialize(subjectSetToApprove.address, ADDRESS_ZERO);
+
+          const controller = setV2Setup.controller;
+          await controller.addModule(externalPositionModule.address);
+          await subjectSetToApprove.addModule(externalPositionModule.address);
+          await subjectSetToApprove.connect(externalPositionModule.wallet).initializeModule();
+
+          await subjectSetToApprove.connect(externalPositionModule.wallet).addExternalPositionModule(
+            dai.address,
+            externalPositionModule.address
+          );
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: EXTERNAL_POSITIONS_NOT_ALLOWED");
+        });
+      });
+    });
+
+    describe("#receive", async () => {
+      let subjectCaller: Account;
+      let subjectAmount: BigNumber;
+
+      beforeEach(async () => {
+        subjectCaller = user;
+        subjectAmount = ether(10);
+      });
+
+      async function subject(): Promise<String> {
+        return subjectCaller.wallet.call({ to: exchangeIssuance.address, value: subjectAmount });
+      }
+
+      it("should revert when receiving ether not from the WETH contract", async () => {
+        await expect(subject()).to.be.revertedWith("ExchangeIssuance: Direct deposits not allowed");
+      });
+    });
+
+    describe("#issueSetForExactToken", async () => {
+      let subjectCaller: Account;
+      let subjectSetToken: SetToken;
+      let subjectInputToken: StandardTokenMock;
+      let subjectAmountInput: BigNumber;
+      let subjectMinSetReceive: BigNumber;
+
+      beforeEach(async () => {
+        subjectCaller = user;
+        subjectSetToken = setToken;
+        subjectInputToken = usdc;
+        subjectAmountInput = UnitsUtils.usdc(1000);
+        subjectMinSetReceive = ether(0);
+
+        await exchangeIssuance.approveSetToken(subjectSetToken.address);
+        await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256);
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await exchangeIssuance.connect(subjectCaller.wallet).issueSetForExactToken(
+          subjectSetToken.address,
+          subjectInputToken.address,
+          subjectAmountInput,
+          subjectMinSetReceive,
+          { gasLimit: 9000000 }
+        );
+      }
+
+      it("should issue the correct amount of Set to the caller", async () => {
+        const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
+        const expectedOutputOfSet = await getIssueSetForExactToken(
+          subjectSetToken,
+          subjectInputToken.address,
+          subjectAmountInput,
+          uniswapRouter,
+          weth.address
+        );
+
+        await subject();
+
+        const finalSetBalance = await subjectSetToken.balanceOf(subjectCaller.address);
+        const expectedSetBalance = initialBalanceOfSet.add(expectedOutputOfSet);
+        expect(finalSetBalance).to.eq(expectedSetBalance);
+      });
+
+      it("should use the correct amount of input token from the caller", async () => {
+        const initialBalanceOfInputToken = await subjectInputToken.balanceOf(subjectCaller.address);
+
+        await subject();
+
+        const finalBalanceOfInputToken = await subjectInputToken.balanceOf(subjectCaller.address);
+        const expectedTokenBalance = initialBalanceOfInputToken.sub(subjectAmountInput);
+        expect(finalBalanceOfInputToken).to.eq(expectedTokenBalance);
+      });
+
+      it("emits an ExchangeIssue log", async () => {
+        const expectedSetTokenAmount = await getIssueSetForExactToken(
+          subjectSetToken,
+          subjectInputToken.address,
+          subjectAmountInput,
+          uniswapRouter,
+          weth.address
+        );
+
+        await expect(subject()).to.emit(exchangeIssuance, "ExchangeIssue").withArgs(
+          subjectCaller.address,
+          subjectSetToken.address,
+          subjectInputToken.address,
+          subjectAmountInput,
+          expectedSetTokenAmount
+        );
+      });
+
+      context("when set contains weth", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenWithWeth;
+
+          await exchangeIssuance.approveSetToken(subjectSetToken.address);
+          await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256);
+        });
+
+        it("should issue the correct amount of Set to the caller", async () => {
+          const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
+          const expectedSetOutput = await getIssueSetForExactToken(
+            subjectSetToken,
+            subjectInputToken.address,
+            subjectAmountInput,
+            uniswapRouter,
+            weth.address
+          );
+
+          await subject();
+
+          const finalSetBalance = await subjectSetToken.balanceOf(subjectCaller.address);
+          const expectedBalance = initialBalanceOfSet.add(expectedSetOutput);
+          expect(finalSetBalance).to.eq(expectedBalance);
+        });
+
+        it("should use the correct amount of input token from the caller", async () => {
+          const initialBalanceOfToken = await subjectInputToken.balanceOf(subjectCaller.address);
+
+          await subject();
+
+          const finalTokenBalance = await subjectInputToken.balanceOf(subjectCaller.address);
+          const expectedBalance = initialBalanceOfToken.sub(subjectAmountInput);
+          expect(finalTokenBalance).to.eq(expectedBalance);
+        });
+
+        it("emits an ExchangeIssue log", async () => {
+          const expectedSetTokenAmount = await getIssueSetForExactToken(
+            subjectSetToken,
+            subjectInputToken.address,
+            subjectAmountInput,
+            uniswapRouter,
+            weth.address
+          );
+
+          await expect(subject()).to.emit(exchangeIssuance, "ExchangeIssue").withArgs(
+            subjectCaller.address,
+            subjectSetToken.address,
+            subjectInputToken.address,
+            subjectAmountInput,
+            expectedSetTokenAmount
+          );
+        });
+      });
+
+      context("when input amount is 0", async () => {
+        beforeEach(async () => {
+          subjectAmountInput = ZERO;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
+        });
+      });
+
+      context("when the set token has an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
+    });
+
+    describe("#issueSetForExactETH", async () => {
+      let subjectCaller: Account;
+      let subjectSetToken: SetToken;
+      let subjectAmountETHInput: BigNumber;
+      let subjectMinSetReceive: BigNumber;
+
+      beforeEach(async () => {
+        subjectSetToken = setToken;
+        subjectCaller = user;
+        subjectAmountETHInput = ether(1);
+        subjectMinSetReceive = ether(0);
+
+        await exchangeIssuance.approveSetToken(subjectSetToken.address);
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await exchangeIssuance.connect(subjectCaller.wallet).issueSetForExactETH(
+          subjectSetToken.address,
+          subjectMinSetReceive,
+          { value: subjectAmountETHInput, gasPrice: 0 }
+        );
+      }
+
+      it("should issue the correct amount of Set to the caller", async () => {
+        const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
+        const expectedOutput = await getIssueSetForExactETH(
+          subjectSetToken,
+          subjectAmountETHInput,
+          uniswapRouter,
+          subjectWethAddress
+        );
+
+        await subject();
+
+        const finalSetBalance = await subjectSetToken.balanceOf(subjectCaller.address);
+        const expectSetBalance = initialBalanceOfSet.add(expectedOutput);
+        expect(finalSetBalance).to.eq(expectSetBalance);
+      });
+
+      it("should use the correct amount of ether from the caller", async () => {
+        const initialBalanceOfEth = await user.wallet.getBalance();
+
+        await subject();
+
+        const finalEthBalance = await user.wallet.getBalance();
+        const expectedEthBalance = initialBalanceOfEth.sub(subjectAmountETHInput);
+        expect(finalEthBalance).to.eq(expectedEthBalance);
+      });
+
+      it("emits an ExchangeIssue log", async () => {
+        const expectedSetTokenAmount = await getIssueSetForExactETH(
+          subjectSetToken,
+          subjectAmountETHInput,
+          uniswapRouter,
+          subjectWethAddress
+        );
+
+        await expect(subject()).to.emit(exchangeIssuance, "ExchangeIssue").withArgs(
+          subjectCaller.address,
+          subjectSetToken.address,
+          ETH_ADDRESS,
+          subjectAmountETHInput,
+          expectedSetTokenAmount
+        );
+      });
+
+      context("when input ether amount is 0", async () => {
+        beforeEach(async () => {
+          subjectAmountETHInput = ZERO;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
+        });
+      });
+
+      context("when the set token has an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+          await exchangeIssuance.approveSetToken(subjectSetToken.address);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
+    });
+
+    describe("#issueExactSetFromToken", async () => {
+      let subjectCaller: Account;
+      let subjectSetToken: SetToken;
+      let subjectInputToken: StandardTokenMock;
+      let subjectMaxAmountInput: BigNumber;
+      let subjectAmountSetToken: BigNumber;
+
+      beforeEach(async () => {
+        subjectCaller = user;
+        subjectSetToken = setToken;
+        subjectInputToken = usdc;
+        subjectMaxAmountInput = UnitsUtils.usdc(1000);
+        subjectAmountSetToken = ether(10);
+
+        await exchangeIssuance.approveSetToken(subjectSetToken.address, { gasPrice: 0 });
+        await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await exchangeIssuance.connect(subjectCaller.wallet).issueExactSetFromToken(
+          subjectSetToken.address,
+          subjectInputToken.address,
+          subjectAmountSetToken,
+          subjectMaxAmountInput,
+          { gasPrice: 0 }
+        );
+      }
+
+      it("should issue the correct amount of Set to the caller", async () => {
+        const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
+
+        await subject();
+
+        const finalBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
+        const expectBalanceOfSet = initialBalanceOfSet.add(subjectAmountSetToken);
+        expect(finalBalanceOfSet).to.eq(expectBalanceOfSet);
+      });
+
+      it("should use the correct amount of input token from the caller", async () => {
+        const initialBalanceOfInputToken = await subjectInputToken.balanceOf(subjectCaller.address);
+
+        await subject();
+
+        const finalBalanceOfInputToken = await subjectInputToken.balanceOf(subjectCaller.address);
+        const expectedBalanceOfInputToken = initialBalanceOfInputToken.sub(subjectMaxAmountInput);
+        expect(finalBalanceOfInputToken).to.eq(expectedBalanceOfInputToken);
+      });
+
+      it("should return the correct amount of ether to the caller", async () => {
+        const initialBalanceOfEth = await subjectCaller.wallet.getBalance();
+        const expectedRefund = await getIssueExactSetFromTokenRefund(
+          subjectSetToken,
+          subjectInputToken,
+          subjectMaxAmountInput,
+          subjectAmountSetToken,
+          uniswapRouter,
+          weth.address
+        );
+
+        await subject();
+
+        const finalEthBalance = await subjectCaller.wallet.getBalance();
+        const expectedEthBalance = initialBalanceOfEth.add(expectedRefund);
+        expect(finalEthBalance).to.eq(expectedEthBalance);
+      });
+
+      it("emits an ExchangeIssue log", async () => {
+        await expect(subject()).to.emit(exchangeIssuance, "ExchangeIssue").withArgs(
+          subjectCaller.address,
+          subjectSetToken.address,
+          subjectInputToken.address,
+          subjectMaxAmountInput,
+          subjectAmountSetToken
+        );
+      });
+
+      it("emits a Refund log", async () => {
+        const expectedRefund = await getIssueExactSetFromTokenRefund(
+          subjectSetToken,
+          subjectInputToken,
+          subjectMaxAmountInput,
+          subjectAmountSetToken,
+          uniswapRouter,
+          weth.address
+        );
+
+        await expect(subject()).to.emit(exchangeIssuance, "Refund").withArgs(
+          subjectCaller.address,
+          expectedRefund
+        );
+      });
+
+      context("when set contains weth", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenWithWeth;
+          subjectAmountSetToken = ether(0.00001);
+
+          await exchangeIssuance.approveSetToken(subjectSetToken.address, { gasPrice: 0 });
+          await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+        });
+
+        it("should issue the correct amount of Set to the caller", async () => {
+          const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
+
+          await subject();
+
+          const finalBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
+          const expectedBalance = initialBalanceOfSet.add(subjectAmountSetToken);
+          expect(finalBalanceOfSet).to.eq(expectedBalance);
+        });
+
+        it("should use the correct amount of input token from the caller", async () => {
+          const initialBalanceOfInputToken = await subjectInputToken.balanceOf(subjectCaller.address);
+
+          await subject();
+
+          const finalBalanceOfInputToken = await subjectInputToken.balanceOf(subjectCaller.address);
+          const expectedBalance = initialBalanceOfInputToken.sub(subjectMaxAmountInput);
+          expect(finalBalanceOfInputToken).to.eq(expectedBalance);
+        });
+
+        it("should return the correct amount of ether to the caller", async () => {
+          const initialBalanceOfEth = await subjectCaller.wallet.getBalance();
+          const expectedRefund = await getIssueExactSetFromTokenRefund(
+            subjectSetToken,
+            subjectInputToken,
+            subjectMaxAmountInput,
+            subjectAmountSetToken,
+            uniswapRouter,
+            weth.address
+          );
+
+          await subject();
+
+          const finalEthBalance = await subjectCaller.wallet.getBalance();
+          const expectedBalance = initialBalanceOfEth.add(expectedRefund);
+          expect(finalEthBalance).to.eq(expectedBalance);
+        });
+
+        it("emits an ExchangeIssue log", async () => {
+          await expect(subject()).to.emit(exchangeIssuance, "ExchangeIssue").withArgs(
+            subjectCaller.address,
+            subjectSetToken.address,
+            subjectInputToken.address,
+            subjectMaxAmountInput,
+            subjectAmountSetToken
+          );
+        });
+
+        it("emits a Refund log", async () => {
+          const expectedRefund = await getIssueExactSetFromTokenRefund(
+            subjectSetToken,
+            subjectInputToken,
+            subjectMaxAmountInput,
+            subjectAmountSetToken,
+            uniswapRouter,
+            weth.address
+          );
+
+          await expect(subject()).to.emit(exchangeIssuance, "Refund").withArgs(
+            subjectCaller.address,
+            expectedRefund
+          );
+        });
+      });
+
+      context("when max input amount is 0", async () => {
+        beforeEach(async () => {
+          subjectMaxAmountInput = ZERO;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
+        });
+      });
+
+      context("when amount Set is 0", async () => {
+        beforeEach(async () => {
+          subjectAmountSetToken = ZERO;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
+        });
+      });
+
+      context("when the set token has an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+
+          await exchangeIssuance.approveSetToken(subjectSetToken.address, { gasPrice: 0 });
+          await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
+
+      context("when there is not enough liquidity to issue required amount", async () => {
+        beforeEach(async () => {
+          subjectAmountSetToken = ether(10 ** 10);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
+    });
+
+    describe("#issueExactSetFromETH", async () => {
+      let subjectCaller: Account;
+      let subjectSetToken: SetToken;
+      let subjectAmountETHInput: BigNumber;
+      let subjectAmountSetToken: BigNumber;
+
+      beforeEach(async () => {
+        subjectCaller = user;
+        subjectSetToken = setToken;
+        subjectAmountSetToken = ether(1000);
+        subjectAmountETHInput = ether(10);
+
+        await exchangeIssuance.approveSetToken(setToken.address);
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await exchangeIssuance.connect(subjectCaller.wallet).issueExactSetFromETH(
+          subjectSetToken.address,
+          subjectAmountSetToken,
+          { value: subjectAmountETHInput, gasPrice: 0 }
+        );
+      }
+
+      it("should issue the correct amount of Set to the caller", async () => {
+        const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
+
+        await subject();
+
+        const finalBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
+        const expectedBalance = initialBalanceOfSet.add(subjectAmountSetToken);
+        expect(finalBalanceOfSet).to.eq(expectedBalance);
+      });
+
+      it("should use the correct amount of ether from the caller", async () => {
+        const initialBalanceOfEth = await user.wallet.getBalance();
+        const expectedCost = await getIssueExactSetFromETH(
+          subjectSetToken,
+          subjectAmountSetToken,
+          uniswapRouter,
+          weth.address
+        );
+
+        await subject();
+
+        const finalEthBalance = await user.wallet.getBalance();
+        const expectedEthBalance = initialBalanceOfEth.sub(expectedCost);
+        expect(finalEthBalance).to.eq(expectedEthBalance);
+      });
+
+      it("emits an ExchangeIssue log", async () => {
+        const expectedCost = await getIssueExactSetFromETH(
+          subjectSetToken,
+          subjectAmountSetToken,
+          uniswapRouter,
+          weth.address
+        );
+
+        await expect(subject()).to.emit(exchangeIssuance, "ExchangeIssue").withArgs(
+          subjectCaller.address,
+          subjectSetToken.address,
+          ETH_ADDRESS,
+          expectedCost,
+          subjectAmountSetToken
+        );
+      });
+
+      context("when input ether amount is 0", async () => {
+        beforeEach(async () => {
+          subjectAmountETHInput = ZERO;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
+        });
+      });
+
+      context("when amount Set is 0", async () => {
+        beforeEach(async () => {
+          subjectAmountSetToken = ZERO;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
+        });
+      });
+
+      context("when the set token has an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+
+          await exchangeIssuance.approveSetToken(setToken.address);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
+
+      context("when there is not enough liquidity to issue required amount", async () => {
+        beforeEach(async () => {
+          subjectAmountSetToken = ether(10 ** 10);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
+    });
+
+    describe("#redeemExactSetForETH", async () => {
+      let subjectCaller: Account;
+      let subjectSetToken: SetToken;
+      let subjectAmountSetToken: BigNumber;
+      let subjectMinEthReceived: BigNumber;
+
+      beforeEach(async () => {
+        subjectCaller = user;
+        subjectSetToken = setToken;
+        subjectAmountSetToken = ether(100);
+        subjectMinEthReceived = ether(0);
+
+        await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
+        await exchangeIssuance.approveSetToken(subjectSetToken.address);
+        await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await exchangeIssuance.connect(subjectCaller.wallet).redeemExactSetForETH(
+          subjectSetToken.address,
+          subjectAmountSetToken,
+          subjectMinEthReceived,
+          { gasPrice: 0 }
+        );
+      }
+
+      it("should redeem the correct amount of a set to the caller", async () => {
+        const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
+
+        await subject();
+
+        const finalBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
+        const expectedSetBalance = initialBalanceOfSet.sub(subjectAmountSetToken);
+        expect(finalBalanceOfSet).to.eq(expectedSetBalance);
+      });
+
+      it("should return the correct amount of ETH to the caller", async () => {
+        const initialBalanceOfEth = await subjectCaller.wallet.getBalance();
+        const expectedEthReturned = await getRedeemExactSetForETH(
+          subjectSetToken,
+          subjectAmountSetToken,
+          uniswapRouter,
+          weth.address
+        );
+
+        await subject();
+
+        const finalEthBalance = await subjectCaller.wallet.getBalance();
+        const expectedEthBalance = initialBalanceOfEth.add(expectedEthReturned);
+        expect(finalEthBalance).to.eq(expectedEthBalance);
+      });
+
+      it("emits an ExchangeRedeem log", async () => {
+        const expectedEthReturned = await getRedeemExactSetForETH(
+          subjectSetToken,
+          subjectAmountSetToken,
+          uniswapRouter,
+          weth.address
+        );
+
+        await expect(subject()).to.emit(exchangeIssuance, "ExchangeRedeem").withArgs(
+          subjectCaller.address,
+          subjectSetToken.address,
+          ETH_ADDRESS,
+          subjectAmountSetToken,
+          expectedEthReturned
+        );
+      });
+
+      context("when amount Set is 0", async () => {
+        beforeEach(async () => {
+          subjectAmountSetToken = ZERO;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
+        });
+      });
+
+      context("when the set token has an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+
+          await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
+          await exchangeIssuance.approveSetToken(subjectSetToken.address);
+          await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
+    });
+
+    describe("#redeemExactSetForToken", async () => {
+      let subjectCaller: Account;
+      let subjectSetToken: SetToken;
+      let subjectAmountSetToken: BigNumber;
+      let subjectOutputToken: StandardTokenMock;
+      let subjectMinTokenReceived: BigNumber;
+
+      beforeEach(async () => {
+        subjectCaller = user;
+        subjectSetToken = setToken;
+        subjectAmountSetToken = ether(100);
+        subjectOutputToken = usdc;
+        subjectMinTokenReceived = ether(0);
+
+        // acquire set tokens to redeem
+        await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
+        await exchangeIssuance.approveSetToken(subjectSetToken.address);
+        await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await exchangeIssuance.connect(subjectCaller.wallet).redeemExactSetForToken(
+          subjectSetToken.address,
+          subjectOutputToken.address,
+          subjectAmountSetToken,
+          subjectMinTokenReceived,
+          { gasPrice: 0 }
+        );
+      }
+
+      it("should redeem the correct amount of a set to the caller", async () => {
+        const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
+
+        await subject();
+
+        const finalBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
+        const expectedBalance = initialBalanceOfSet.sub(subjectAmountSetToken);
+        expect(finalBalanceOfSet).to.eq(expectedBalance);
+      });
+
+      it("should return the correct amount of output token to the caller", async () => {
+        const initialBalanceOfToken = await subjectOutputToken.balanceOf(subjectCaller.address);
+        const expectedTokensReturned = await getRedeemExactSetForToken(
+          subjectSetToken,
+          subjectOutputToken,
+          subjectAmountSetToken,
+          uniswapRouter,
+          weth.address
+        );
+
+        await subject();
+
+        const finalTokenBalance = await subjectOutputToken.balanceOf(subjectCaller.address);
+        const expectedBalance = initialBalanceOfToken.add(expectedTokensReturned);
+        expect(finalTokenBalance).to.eq(expectedBalance);
+      });
+
+      it("emits an ExchangeRedeem log", async () => {
+        const expectedTokensReturned = await getRedeemExactSetForToken(
+          subjectSetToken,
+          subjectOutputToken,
+          subjectAmountSetToken,
+          uniswapRouter,
+          weth.address
+        );
+
+        await expect(subject()).to.emit(exchangeIssuance, "ExchangeRedeem").withArgs(
+          subjectCaller.address,
+          subjectSetToken.address,
+          subjectOutputToken.address,
+          subjectAmountSetToken,
+          expectedTokensReturned
+        );
+      });
+
+      context("when set contains weth", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenWithWeth;
+          subjectAmountSetToken = ether(1);
+
+          await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
+          await exchangeIssuance.approveSetToken(subjectSetToken.address);
+          await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+        });
+
+        it("should redeem the correct amount of a set to the caller", async () => {
+          const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
+
+          await subject();
+
+          const finalBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
+          const expectedBalanceOfSet = initialBalanceOfSet.sub(subjectAmountSetToken);
+          expect(finalBalanceOfSet).to.eq(expectedBalanceOfSet);
+        });
+
+        it("should return the correct amount of output token to the caller", async () => {
+          const initialBalanceOfToken = await subjectOutputToken.balanceOf(subjectCaller.address);
+          const expectedTokensReturned = await getRedeemExactSetForToken(
+            subjectSetToken,
+            subjectOutputToken,
+            subjectAmountSetToken,
+            uniswapRouter,
+            weth.address
+          );
+
+          await subject();
+
+          const finalTokenBalance = await subjectOutputToken.balanceOf(subjectCaller.address);
+          const expectedBalance = initialBalanceOfToken.add(expectedTokensReturned);
+          expect(finalTokenBalance).to.eq(expectedBalance);
+        });
+
+        it("emits an ExchangeRedeem log", async () => {
+          const expectedTokensReturned = await getRedeemExactSetForToken(
+            subjectSetToken,
+            subjectOutputToken,
+            subjectAmountSetToken,
+            uniswapRouter,
+            weth.address
+          );
+
+          await expect(subject()).to.emit(exchangeIssuance, "ExchangeRedeem").withArgs(
+            subjectCaller.address,
+            subjectSetToken.address,
+            subjectOutputToken.address,
+            subjectAmountSetToken,
+            expectedTokensReturned
+          );
+        });
+      });
+
+      context("when amount Set is 0", async () => {
+        beforeEach(async () => {
+          subjectAmountSetToken = ZERO;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
+        });
+      });
+
+      context("when the set token has an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+          await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
+          await exchangeIssuance.approveSetToken(subjectSetToken.address);
+          await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
+    });
+
+    describe("#getEstimatedIssueSetAmount", async () => {
+      let subjectSetToken: SetToken;
+      let subjectInputToken: StandardTokenMock | WETH9;
+      let subjectAmountInput: BigNumber;
+
+      beforeEach(async () => {
+        subjectSetToken = setToken;
+        subjectAmountInput = UnitsUtils.usdc(1000);
+      });
+
+      async function subject(): Promise<BigNumber> {
+        return await exchangeIssuance.getEstimatedIssueSetAmount(
+          subjectSetToken.address,
+          subjectInputToken.address,
+          subjectAmountInput
+        );
+      }
+
+      context("when input token is weth", async () => {
+        beforeEach(async () => {
+          subjectInputToken = weth;
+        });
+
+        it("should return the correct amount of output set", async () => {
+          const expectedSetOutput = await getIssueSetForExactToken(
+            subjectSetToken,
+            subjectInputToken.address,
+            subjectAmountInput,
+            uniswapRouter,
+            weth.address
+          );
+          const actualSetOutput = await subject();
+
+          expect(expectedSetOutput).to.eq(actualSetOutput);
+        });
+      });
+
+      context("when input token is an erc20", async () => {
+        beforeEach(async () => {
+          subjectInputToken = usdc;
+        });
+
+        it("should return the correct amount of output set", async () => {
+          const expectedSetOutput = await getIssueSetForExactToken(
+            subjectSetToken,
+            subjectInputToken.address,
+            subjectAmountInput,
+            uniswapRouter,
+            weth.address
+          );
+          const actualSetOutput = await subject();
+
+          expect(expectedSetOutput).to.eq(actualSetOutput);
+        });
+      });
+
+      context("when set contains weth", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenWithWeth;
+        });
+
+        it("should return the correct amount of output set", async () => {
+          const expectedSetOutput = await getIssueSetForExactToken(
+            subjectSetToken,
+            subjectInputToken.address,
+            subjectAmountInput,
+            uniswapRouter,
+            weth.address
+          );
+          const actualSetOutput = await subject();
+
+          expect(expectedSetOutput).to.eq(actualSetOutput);
+        });
+      });
+
+      context("when set contains an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
+    });
+
+    describe("#getAmountInToIssueExactSet", async () => {
+      let subjectSetToken: SetToken;
+      let subjectInputToken: StandardTokenMock | WETH9;
+      let subjectAmountSetToken: BigNumber;
+
+      beforeEach(async () => {
+        subjectSetToken = setToken;
+        subjectAmountSetToken = ether(1000);
+      });
+
+      async function subject(): Promise<BigNumber> {
+        return await exchangeIssuance.getAmountInToIssueExactSet(
+          subjectSetToken.address,
+          subjectInputToken.address,
+          subjectAmountSetToken
+        );
+      }
+
+      context("when input token is an erc20", async () => {
+        beforeEach(async () => {
+          subjectInputToken = usdc;
+        });
+
+        it("should return the correct amount of input tokens", async () => {
+          const expectedInputAmount = await getIssueExactSetFromToken(
+            subjectSetToken,
+            subjectInputToken,
+            subjectAmountSetToken,
+            uniswapRouter,
+            weth.address
+          );
+          const actualInputAmount = await subject();
+
+          expect(expectedInputAmount).to.eq(actualInputAmount);
+        });
+      });
+
+      context("when input token is weth", async () => {
+        beforeEach(async () => {
+          subjectInputToken = weth;
+        });
+
+        it("should return the correct amount of input tokens", async () => {
+          const expectedInputAmount = await getIssueExactSetFromToken(
+            subjectSetToken,
+            subjectInputToken,
+            subjectAmountSetToken,
+            uniswapRouter,
+            weth.address
+          );
+          const actualInputAmount = await subject();
+
+          expect(expectedInputAmount).to.eq(actualInputAmount);
+        });
+      });
+
+      context("when set contains weth", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenWithWeth;
+        });
+
+        it("should return the correct amount of input tokens", async () => {
+          const expectedInputAmount = await getIssueExactSetFromToken(
+            subjectSetToken,
+            subjectInputToken,
+            subjectAmountSetToken,
+            uniswapRouter,
+            weth.address
+          );
+          const actualInputAmount = await subject();
+
+          expect(expectedInputAmount).to.eq(actualInputAmount);
+        });
+      });
+
+      context("when set contains an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
+
+      context("when there is not enough liquidity to issue required amount", async () => {
+        beforeEach(async () => {
+          subjectAmountSetToken = ether(10 ** 10);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
+    });
+
+    describe("#getAmountOutOnRedeemSet", async () => {
+      let subjectSetToken: SetToken;
+      let subjectOutputToken: StandardTokenMock | WETH9;
+      let subjectAmountSetToken: BigNumber;
+
+      beforeEach(async () => {
+        subjectSetToken = setToken;
+        subjectAmountSetToken = ether(100);
+      });
+
+      async function subject(): Promise<BigNumber> {
+        return await exchangeIssuance.getAmountOutOnRedeemSet(
+          subjectSetToken.address,
+          subjectOutputToken.address,
+          subjectAmountSetToken
+        );
+      }
+
+      context("when output is an erc20", async () => {
+        beforeEach(async () => {
+          subjectOutputToken = usdc;
+        });
+
+        it("should return the correct amount of output tokens", async () => {
+          const expectedOutputAmount = await getRedeemExactSetForToken(
+            subjectSetToken,
+            subjectOutputToken,
+            subjectAmountSetToken,
+            uniswapRouter,
+            weth.address
+          );
+          const actualOutputAmount = await subject();
+
+          expect(expectedOutputAmount).to.eq(actualOutputAmount);
+        });
+      });
+
+      context("when output is weth", async () => {
+        beforeEach(async () => {
+          subjectOutputToken = weth;
+        });
+
+        it("should return the correct amount of output tokens", async () => {
+          const expectedOutputAmount = await getRedeemExactSetForToken(
+            subjectSetToken,
+            subjectOutputToken,
+            subjectAmountSetToken,
+            uniswapRouter,
+            weth.address
+          );
+          const actualOutputAmount = await subject();
+
+          expect(expectedOutputAmount).to.eq(actualOutputAmount);
+        });
+      });
+
+      context("when set contains weth", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenWithWeth;
+        });
+
+        it("should return the correct amount of output tokens", async () => {
+          const expectedOutputAmount = await getRedeemExactSetForToken(
+            subjectSetToken,
+            subjectOutputToken,
+            subjectAmountSetToken,
+            uniswapRouter,
+            weth.address
+          );
+          const actualOutputAmount = await subject();
+
+          expect(expectedOutputAmount).to.eq(actualOutputAmount);
+        });
+      });
+
+      context("when set contains an illiquid component", async () => {
+        beforeEach(async () => {
+          subjectSetToken = setTokenIlliquid;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
     });
   });
 });
