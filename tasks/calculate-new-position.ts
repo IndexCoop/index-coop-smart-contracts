@@ -38,23 +38,6 @@ interface RebalanceSummary {
   tradeNumber: BigNumber;
 }
 
-interface OrderIds {
-  [symbol: string]: string;
-}
-
-const orderIds: OrderIds = {
-  YFI: "yfi",
-  COMP: "compound",
-  SNX: "snx",
-  MKR: "maker",
-  REN: "ren",
-  KNC: "kyber-network",
-  LRC: "loopring",
-  BAL: "balancer",
-  UNI: "uniswap",
-  AAVE: "aave",
-  MTA: "mta",
-}
 interface ParamSetting {
   components: Address[];
   values: string[];
@@ -201,7 +184,7 @@ async function generateReports(
   let oldComponentsTargetUnits: string[] = [];
   for (let i = 0; i < rebalanceData.length; i++) {
     const asset = rebalanceData[i].asset;
-    tradeOrder = tradeOrder.replace(new RegExp(asset, 'g'), orderIds[asset]);
+    tradeOrder = tradeOrder.replace(new RegExp(asset, 'g'), assets[asset].id);
 
     if (rebalanceData[i].currentUnit == ZERO) {
       newComponents.push(assets[rebalanceData[i].asset].address);
