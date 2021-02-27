@@ -14,7 +14,7 @@ export {
   preciseDivCeilInt,
   sqrt
 } from "./mathUtils";
-export { ether, gWei, usdc } from "./unitsUtils";
+export { ether, gWei, usdc, wbtc } from "./unitsUtils";
 export { Blockchain } from "./blockchainUtils";
 export { ProtocolUtils } from "./protocolUtils";
 export {
