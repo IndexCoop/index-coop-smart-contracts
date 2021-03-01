@@ -2,6 +2,7 @@
 export { SetTokenCreator } from "../../typechain/SetTokenCreator";
 export { SetToken } from "../../typechain/SetToken";
 export { BasicIssuanceModule } from "../../typechain/BasicIssuanceModule";
+export { Compound } from "../../typechain/Compound";
 export { Controller } from "../../typechain/Controller";
 export { ContractCallerMock } from "../../typechain/ContractCallerMock";
 export { ComptrollerMock } from "../../typechain/ComptrollerMock";
