@@ -21,6 +21,7 @@ const mochaConfig = {
   timeout: (process.env.FORK) ? 50000 : 40000,
 } as Mocha.MochaOptions;
 require('./tasks/calculate-new-position');
+require('./tasks/validate-dpi-params');
 
 const config: HardhatUserConfig = {
   solidity: {

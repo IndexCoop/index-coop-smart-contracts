@@ -29,7 +29,7 @@ interface StrategyObject {
   [symbol: string]: AssetStrategy;
 }
 
-interface RebalanceSummary {
+export interface RebalanceSummary {
   asset: string;
   currentUnit: BigNumber;
   newUnit: BigNumber;
@@ -61,7 +61,7 @@ interface RebalanceReport {
 let tradeOrder: string = "";
 
 task("calculate-new-position", "Calculates new rebalance details for an index")
-  .addParam('rebalance', "Rebalance number")
+  .addParam('rebalance', "Rebalance month")
   .setAction(async ({rebalance}, hre) => {
     let rebalanceData: RebalanceSummary[] = [];
 
