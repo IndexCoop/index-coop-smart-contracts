@@ -1,6 +1,7 @@
-import { Signer, utils } from "ethers";
+import { Signer } from "ethers";
 import { BigNumber, BigNumberish } from "@ethersproject/bignumber";
 import { Address } from "../types";
+import { convertLibraryNameToLinkId } from "../common";
 import {
   Compound,
   CompoundLeverageModule,
@@ -130,18 +131,13 @@ export default class DeploySetV2 {
     cEther: Address,
     weth: Address,
   ): Promise<CompoundLeverageModule> {
-    // TO FIX: Pull library name from artifact's sourceName
-    const libraryName = "contracts/protocol/integration/lib/Compound.sol:Compound";
-    const hashedLibName = utils.keccak256(utils.toUtf8Bytes(libraryName));
-    const libKey = `__$${hashedLibName.slice(2).slice(0, 34)}$__`;
-
     const compoundLib = await this.deployCompoundLib();
-    const libraryAddress = compoundLib.address;
+    const linkId = convertLibraryNameToLinkId("Compound");
 
     return await new CompoundLeverageModule__factory(
       // @ts-ignore
       {
-        [libKey]: libraryAddress,
+        [linkId]: compoundLib.address,
       },
       // @ts-ignore
       this._deployerSigner
