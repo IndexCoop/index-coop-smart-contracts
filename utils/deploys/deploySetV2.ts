@@ -1,7 +1,8 @@
-import { Signer } from "ethers";
+import { Signer, utils } from "ethers";
 import { BigNumber, BigNumberish } from "@ethersproject/bignumber";
 import { Address } from "../types";
 import {
+  Compound,
   CompoundLeverageModule,
   Controller,
   ComptrollerMock,
@@ -17,6 +18,7 @@ import {
 import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
 import { Controller__factory } from "../../typechain/factories/Controller__factory";
+import { Compound__factory } from "../../typechain/factories/Compound__factory";
 import { CompoundLeverageModule__factory } from "../../typechain/factories/CompoundLeverageModule__factory";
 import { ComptrollerMock__factory } from "../../typechain/factories/ComptrollerMock__factory";
 import { ContractCallerMock__factory } from "../../typechain/factories/ContractCallerMock__factory";
@@ -43,6 +45,10 @@ export default class DeploySetV2 {
 
   public async deploySetTokenCreator(controller: Address): Promise<SetTokenCreator> {
     return await new SetTokenCreator__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployCompoundLib(): Promise<Compound> {
+    return await new Compound__factory(this._deployerSigner).deploy();
   }
 
   public async deploySetToken(
@@ -122,14 +128,29 @@ export default class DeploySetV2 {
     compToken: Address,
     comptroller: Address,
     cEther: Address,
-    weth: Address
+    weth: Address,
   ): Promise<CompoundLeverageModule> {
-    return await new CompoundLeverageModule__factory(this._deployerSigner).deploy(
+    // TO FIX: Pull library name from artifact's sourceName
+    const libraryName = "contracts/protocol/integration/lib/Compound.sol:Compound";
+    const hashedLibName = utils.keccak256(utils.toUtf8Bytes(libraryName));
+    const libKey = `__$${hashedLibName.slice(2).slice(0, 34)}$__`;
+
+    const compoundLib = await this.deployCompoundLib();
+    const libraryAddress = compoundLib.address;
+
+    return await new CompoundLeverageModule__factory(
+      // @ts-ignore
+      {
+        [libKey]: libraryAddress,
+      },
+      // @ts-ignore
+      this._deployerSigner
+    ).deploy(
       controller,
       compToken,
       comptroller,
       cEther,
-      weth
+      weth,
     );
   }
 
