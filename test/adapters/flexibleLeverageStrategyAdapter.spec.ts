@@ -3566,7 +3566,9 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     let subjectMinLeverageRatio: BigNumber;
     let subjectMaxLeverageRatio: BigNumber;
 
-    beforeEach(async () => {
+    cacheBeforeEach(async () => {
+      await initializeRootScopeContracts();
+
       // Approve tokens to issuance module and call issue
       await cEther.approve(setV2Setup.issuanceModule.address, ether(1000));
 
@@ -3585,7 +3587,9 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
 
       await flexibleLeverageStrategyAdapter.iterateRebalance();
+    });
 
+    beforeEach(() => {
       subjectMinLeverageRatio = ether(1.6);
       subjectMaxLeverageRatio = ether(2.4);
     });
