@@ -46,3 +46,18 @@ export function calculateMaxBorrowForDelever(
 
   return preciseDiv(a, netBorrowLimit);
 }
+
+export function calculateMaxRedeemForDeleverToZero(
+  currentLeverageRatio: BigNumber,
+  newLeverageRatio: BigNumber,
+  collateralBalance: BigNumber,
+  totalSupply: BigNumber,
+  slippageTolerance: BigNumber
+): BigNumber {
+  const a = currentLeverageRatio.gt(newLeverageRatio) ? currentLeverageRatio.sub(newLeverageRatio) : newLeverageRatio.sub(currentLeverageRatio);
+  const b = preciseDiv(a, currentLeverageRatio);
+  const rebalanceNotional = preciseMul(b, collateralBalance);
+  const notionalRedeemQuantity = preciseMul(rebalanceNotional, ether(1).add(slippageTolerance));
+
+  return preciseDiv(notionalRedeemQuantity, totalSupply);
+}

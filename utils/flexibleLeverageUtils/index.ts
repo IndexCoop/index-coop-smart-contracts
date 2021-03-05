@@ -1,5 +1,6 @@
 export {
   calculateNewLeverageRatio,
   calculateCollateralRebalanceUnits,
-  calculateMaxBorrowForDelever
+  calculateMaxBorrowForDelever,
+  calculateMaxRedeemForDeleverToZero
 } from "./flexibleLeverage";

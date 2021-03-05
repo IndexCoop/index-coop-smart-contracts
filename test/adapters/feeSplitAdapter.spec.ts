@@ -585,6 +585,16 @@ describe("FeeSplitAdapter", () => {
         expect(actualFeeSplit).to.eq(subjectNewFeeSplit);
       });
 
+      describe("when fee splits is >100%", async () => {
+        beforeEach(async () => {
+          subjectNewFeeSplit = ether(1.1);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Fee must be less than 100%");
+        });
+      });
+
       describe("when the caller is not the operator", async () => {
         beforeEach(async () => {
           subjectCaller = owner;
