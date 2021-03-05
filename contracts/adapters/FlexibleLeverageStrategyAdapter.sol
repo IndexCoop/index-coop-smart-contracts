@@ -356,23 +356,6 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     /**
-     * ONLY EOA: Call gulp on the CompoundLeverageModule. Gulp will claim COMP from liquidity mining and sell for more collateral asset, which effectively distributes to
-     * SetToken holders and reduces the interest rate paid for borrowing. Rebalance must not be in progress. Anyone callable
-     */
-    function gulp() external noRebalanceInProgress onlyEOA {
-        bytes memory gulpCallData = abi.encodeWithSignature(
-            "gulp(address,address,uint256,string,bytes)",
-            address(strategy.setToken),
-            strategy.collateralAsset,
-            0,
-            execution.exchangeName,
-            execution.exchangeData
-        );
-
-        invokeManager(address(strategy.leverageModule), gulpCallData);
-    }
-
-    /**
      * OPERATOR ONLY: Set methodology settings and check new settings are valid. Note: Need to pass in existing parameters if only changing a few settings. Must not be
      * in a rebalance.
      *

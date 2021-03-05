@@ -12,7 +12,7 @@ import {
 } from "@utils/types";
 import { ADDRESS_ZERO, ONE, TWO, THREE, ZERO, EMPTY_BYTES, MAX_UINT_256 } from "@utils/constants";
 import { FlexibleLeverageStrategyAdapter, BaseManager, TradeAdapterMock } from "@utils/contracts/index";
-import { CompoundLeverageModule, ContractCallerMock, DebtIssuanceModule, SetToken, ComptrollerMock } from "@utils/contracts/setV2";
+import { CompoundLeverageModule, ContractCallerMock, DebtIssuanceModule, SetToken } from "@utils/contracts/setV2";
 import { CEther, CERc20 } from "@utils/contracts/compound";
 import DeployHelper from "@utils/deploys";
 import {
@@ -48,7 +48,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
   let cEther: CEther;
   let cUSDC: CERc20;
   let tradeAdapterMock: TradeAdapterMock;
-  let gulpComptrollerMock: ComptrollerMock;
 
   let strategy: ContractSettings;
   let methodology: MethodologySettings;
@@ -57,11 +56,9 @@ describe("FlexibleLeverageStrategyAdapter", () => {
   let customTargetLeverageRatio: any;
   let customMinLeverageRatio: any;
   let customCTokenCollateralAddress: any;
-  let customCompoundLeverageModule: any;
 
   let flexibleLeverageStrategyAdapter: FlexibleLeverageStrategyAdapter;
   let compoundLeverageModule: CompoundLeverageModule;
-  let secondCompoundLeverageModule: CompoundLeverageModule;
   let debtIssuanceModule: DebtIssuanceModule;
   let baseManagerV2: BaseManager;
 
@@ -120,24 +117,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     );
     await setV2Setup.controller.addModule(compoundLeverageModule.address);
 
-    // Deploy Comptroller mock for gulp as COMP address is hardcoded in Comptroller
-    gulpComptrollerMock = await deployer.setV2.deployComptrollerMock(
-      compoundSetup.comp.address,
-      ether(1),
-      cEther.address
-    );
-    await compoundSetup.comp.transfer(gulpComptrollerMock.address, ether(1));
-
-    // Note: Deploy leverage module that uses the mock Comptroller
-    secondCompoundLeverageModule = await deployer.setV2.deployCompoundLeverageModule(
-      setV2Setup.controller.address,
-      compoundSetup.comp.address,
-      gulpComptrollerMock.address,
-      cEther.address,
-      setV2Setup.weth.address
-    );
-    await setV2Setup.controller.addModule(secondCompoundLeverageModule.address);
-
     debtIssuanceModule = await deployer.setV2.deployDebtIssuanceModule(setV2Setup.controller.address);
     await setV2Setup.controller.addModule(debtIssuanceModule.address);
 
@@ -148,18 +127,9 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       "MockTradeAdapter",
       tradeAdapterMock.address,
     );
-    await setV2Setup.integrationRegistry.addIntegration(
-      secondCompoundLeverageModule.address,
-      "MockTradeAdapter",
-      tradeAdapterMock.address,
-    );
+
     await setV2Setup.integrationRegistry.addIntegration(
       compoundLeverageModule.address,
-      "DefaultIssuanceModule",
-      debtIssuanceModule.address,
-    );
-    await setV2Setup.integrationRegistry.addIntegration(
-      secondCompoundLeverageModule.address,
       "DefaultIssuanceModule",
       debtIssuanceModule.address,
     );
@@ -173,13 +143,10 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         setV2Setup.issuanceModule.address,
         setV2Setup.streamingFeeModule.address,
         compoundLeverageModule.address,
-        secondCompoundLeverageModule.address,
         debtIssuanceModule.address,
       ]
     );
-    await gulpComptrollerMock.addSetTokenAddress(setToken.address);
     await compoundLeverageModule.updateAnySetAllowed(true);
-    await secondCompoundLeverageModule.updateAnySetAllowed(true);
 
     // Initialize modules
     await debtIssuanceModule.initialize(setToken.address, ether(1), ZERO, ZERO, owner.address, ADDRESS_ZERO);
@@ -198,11 +165,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       setToken.address,
       [setV2Setup.weth.address],
       [setV2Setup.usdc.address]
-    );
-    await secondCompoundLeverageModule.initialize(
-      setToken.address,
-      [setV2Setup.weth.address],
-      []
     );
 
     baseManagerV2 = await deployer.manager.deployBaseManager(
@@ -236,7 +198,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
     strategy = {
       setToken: setToken.address,
-      leverageModule: customCompoundLeverageModule || compoundLeverageModule.address,
+      leverageModule: compoundLeverageModule.address,
       comptroller: compoundSetup.comptroller.address,
       priceOracle: compoundSetup.priceOracle.address,
       targetCollateralCToken: customCTokenCollateralAddress || cEther.address,
@@ -2779,109 +2741,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         expect(newSecondPosition.positionState).to.eq(1); // External
         expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
         expect(newSecondPosition.module).to.eq(compoundLeverageModule.address);
-      });
-    });
-  });
-
-  describe("#gulp", async () => {
-    let destinationTokenQuantity: BigNumber;
-
-    before(async () => {
-      customCompoundLeverageModule = secondCompoundLeverageModule.address;
-    });
-
-    after(async () => {
-      customCompoundLeverageModule = undefined;
-    });
-
-    beforeEach(async () => {
-      // Approve tokens to issuance module and call issue
-      await cEther.approve(setV2Setup.issuanceModule.address, ether(1000));
-
-      // Issue 1 SetToken
-      const issueQuantity = ether(1);
-      destinationTokenQuantity = ether(0.5);
-      await setV2Setup.issuanceModule.issue(setToken.address, issueQuantity, owner.address);
-
-      await setV2Setup.weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
-    });
-
-    async function subject(): Promise<any> {
-      return flexibleLeverageStrategyAdapter.gulp();
-    }
-
-    it("should update the collateral position on the SetToken correctly", async () => {
-      const initialPositions = await setToken.getPositions();
-
-      await subject();
-
-      // cEther position is increased
-      const currentPositions = await setToken.getPositions();
-      const newFirstPosition = (await setToken.getPositions())[0];
-
-      // Get expected cTokens minted
-      const exchangeRate = await cEther.exchangeRateStored();
-      const newUnits = preciseDiv(destinationTokenQuantity, exchangeRate);
-      const expectedFirstPositionUnit = initialPositions[0].unit.add(newUnits);
-
-      expect(initialPositions.length).to.eq(1);
-      expect(currentPositions.length).to.eq(1);
-      expect(newFirstPosition.component).to.eq(cEther.address);
-      expect(newFirstPosition.positionState).to.eq(0); // Default
-      expect(newFirstPosition.unit).to.eq(expectedFirstPositionUnit);
-      expect(newFirstPosition.module).to.eq(ADDRESS_ZERO);
-    });
-
-    describe("when caller is a contract", async () => {
-      let subjectTarget: Address;
-      let subjectCallData: string;
-      let subjectValue: BigNumber;
-
-      let contractCaller: ContractCallerMock;
-
-      beforeEach(async () => {
-        contractCaller = await deployer.setV2.deployContractCallerMock();
-
-        subjectTarget = flexibleLeverageStrategyAdapter.address;
-        subjectCallData = flexibleLeverageStrategyAdapter.interface.encodeFunctionData("gulp");
-        subjectValue = ZERO;
-      });
-
-      async function subjectContractCaller(): Promise<any> {
-        return await contractCaller.invoke(
-          subjectTarget,
-          subjectValue,
-          subjectCallData
-        );
-      }
-
-      it("the trade reverts", async () => {
-        await expect(subjectContractCaller()).to.be.revertedWith("Caller must be EOA Address");
-      });
-    });
-
-    describe("when rebalance is in progress", async () => {
-      before(async () => {
-        // Use default leverage module to engage
-        customCompoundLeverageModule = undefined;
-      });
-
-      beforeEach(async () => {
-        // Approve tokens to issuance module and call issue
-        await cEther.approve(setV2Setup.issuanceModule.address, ether(1000));
-
-        // Issue 1 SetToken
-        const issueQuantity = ether(1);
-        await setV2Setup.issuanceModule.issue(setToken.address, issueQuantity, owner.address);
-
-        await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-
-        // Engage to initial leverage
-        await flexibleLeverageStrategyAdapter.engage();
-      });
-
-      it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Rebalance is currently in progress");
       });
     });
   });
