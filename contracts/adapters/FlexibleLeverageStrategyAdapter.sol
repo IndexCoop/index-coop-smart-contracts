@@ -227,7 +227,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         (
             uint256 chunkRebalanceNotional,
             uint256 totalRebalanceNotional
-        ) = _lever(leverageInfo, methodology.targetLeverageRatio);
+        ) = _calculateChunkRebalanceNotional(leverageInfo, methodology.targetLeverageRatio, true);
+
+        _lever(leverageInfo, chunkRebalanceNotional);
 
         _updateRebalanceState(
             chunkRebalanceNotional,
@@ -316,7 +318,12 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
         _validateRipcord(leverageInfo);
 
-        ( uint256 chunkRebalanceNotional, ) = _delever(leverageInfo, methodology.maxLeverageRatio);
+        (
+            uint256 chunkRebalanceNotional,
+            uint256 totalRebalanceNotional
+        ) = _calculateChunkRebalanceNotional(leverageInfo, methodology.maxLeverageRatio, false);
+
+        _delever(leverageInfo, chunkRebalanceNotional);
 
         _updateRipcordState();
 
@@ -345,7 +352,13 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         (
             uint256 chunkRebalanceNotional,
             uint256 totalRebalanceNotional
-        ) = _delever(leverageInfo, newLeverageRatio);
+        ) = _calculateChunkRebalanceNotional(leverageInfo, newLeverageRatio, false);
+
+        if (totalRebalanceNotional > chunkRebalanceNotional) {
+            _delever(leverageInfo, chunkRebalanceNotional);
+        } else {
+            _deleverToZeroBorrowBalance(leverageInfo, chunkRebalanceNotional);
+        }
 
         emit Disengaged(
             leverageInfo.currentLeverageRatio,
@@ -501,27 +514,14 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     /**
      * Calculate notional rebalance quantity, whether to chunk rebalance based on max trade size and max borrow and invoke lever on CompoundLeverageModule
      *
-     * return uint256           Calculated notional to trade
-     * return uint256           Total notional to rebalance over TWAP
      */
      function _lever(
         LeverageInfo memory _leverageInfo,
-        uint256 _newLeverageRatio
+        uint256 _chunkRebalanceNotional
     )
         internal
-        returns (uint256, uint256)
     {
-        // Get total amount of collateral that needs to be rebalanced
-        uint256 totalRebalanceNotional = _newLeverageRatio
-            .sub(_leverageInfo.currentLeverageRatio)
-            .preciseDiv(_leverageInfo.currentLeverageRatio)
-            .preciseMul(_leverageInfo.action.collateralBalance);
-
-        uint256 maxBorrow = _calculateMaxBorrowCollateral(_leverageInfo.action, true);
-
-        uint256 chunkRebalanceNotional = Math.min(Math.min(maxBorrow, totalRebalanceNotional), _leverageInfo.twapMaxTradeSize);
-
-        uint256 collateralRebalanceUnits = chunkRebalanceNotional.preciseDiv(_leverageInfo.action.setTotalSupply);
+        uint256 collateralRebalanceUnits = _chunkRebalanceNotional.preciseDiv(_leverageInfo.action.setTotalSupply);
 
         uint256 borrowUnits = _calculateBorrowUnits(collateralRebalanceUnits, _leverageInfo.action);
 
@@ -539,34 +539,18 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         );
 
         invokeManager(address(strategy.leverageModule), leverCallData);
-
-        return (chunkRebalanceNotional, totalRebalanceNotional);
     }
 
     /**
-     * Calculate notional rebalance quantity, whether to chunk rebalance based on max trade size and max borrow. Invoke delever on CompoundLeverageModule.
-     * 
-     * return uint256           Calculated notional to trade
-     * return uint256           Total notional to rebalance over TWAP
+     * Calculate delever units Invoke delever on CompoundLeverageModule.
      */
     function _delever(
         LeverageInfo memory _leverageInfo,
-        uint256 _newLeverageRatio
+        uint256 _chunkRebalanceNotional
     )
         internal
-        returns (uint256, uint256)
     {
-        // Get total amount of collateral that needs to be rebalanced
-        uint256 totalRebalanceNotional = _leverageInfo.currentLeverageRatio
-            .sub(_newLeverageRatio)
-            .preciseDiv(_leverageInfo.currentLeverageRatio)
-            .preciseMul(_leverageInfo.action.collateralBalance);
-
-        uint256 maxBorrow = _calculateMaxBorrowCollateral(_leverageInfo.action, false);
-
-        uint256 chunkRebalanceNotional = Math.min(Math.min(maxBorrow, totalRebalanceNotional), _leverageInfo.twapMaxTradeSize);
-
-        uint256 collateralRebalanceUnits = chunkRebalanceNotional.preciseDiv(_leverageInfo.action.setTotalSupply);
+        uint256 collateralRebalanceUnits = _chunkRebalanceNotional.preciseDiv(_leverageInfo.action.setTotalSupply);
 
         uint256 minRepayUnits = _calculateMinRepayUnits(collateralRebalanceUnits, _leverageInfo.slippageTolerance, _leverageInfo.action);
 
@@ -582,19 +566,60 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         );
 
         invokeManager(address(strategy.leverageModule), deleverCallData);
+    }
 
-        return (chunkRebalanceNotional, totalRebalanceNotional);
+    /**
+     * Invoke deleverToZeroBorrowBalance on CompoundLeverageModule.
+     */
+    function _deleverToZeroBorrowBalance(
+        LeverageInfo memory _leverageInfo,
+        uint256 _chunkRebalanceNotional
+    )
+        internal
+    {
+        uint256 maxCollateralRebalanceUnits = _chunkRebalanceNotional
+            .preciseMul(execution.slippageTolerance)
+            .preciseDiv(_leverageInfo.action.setTotalSupply);
+
+        bytes memory deleverToZeroBorrowBalanceCallData = abi.encodeWithSignature(
+            "delever(address,address,address,uint256,uint256,string,bytes)",
+            address(strategy.setToken),
+            strategy.collateralAsset,
+            strategy.borrowAsset,
+            maxCollateralRebalanceUnits,
+            execution.exchangeName,
+            execution.exchangeData
+        );
+
+        invokeManager(address(strategy.leverageModule), deleverToZeroBorrowBalanceCallData);
     }
 
     /**
      * Check whether to delever or lever based on the current vs new leverage ratios. Used in the rebalance() and iterateRebalance() functions
+     *
+     * return uint256           Calculated notional to trade
+     * return uint256           Total notional to rebalance over TWAP
      */
     function _handleRebalance(LeverageInfo memory _leverageInfo, uint256 _newLeverageRatio) internal returns(uint256, uint256) {
+        uint256 chunkRebalanceNotional;
+        uint256 totalRebalanceNotional;
         if (_newLeverageRatio < _leverageInfo.currentLeverageRatio) {
-            return _delever(_leverageInfo, _newLeverageRatio); 
+            (
+                chunkRebalanceNotional,
+                totalRebalanceNotional
+            ) = _calculateChunkRebalanceNotional(_leverageInfo, _newLeverageRatio, false);
+
+            _delever(_leverageInfo, chunkRebalanceNotional); 
         } else {
-            return _lever(_leverageInfo, _newLeverageRatio);
+            (
+                chunkRebalanceNotional,
+                totalRebalanceNotional
+            ) = _calculateChunkRebalanceNotional(_leverageInfo, _newLeverageRatio, true);
+
+            _lever(_leverageInfo, chunkRebalanceNotional);
         }
+
+        return (chunkRebalanceNotional, totalRebalanceNotional);
     }
 
     /**
@@ -781,6 +806,34 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         uint256 c = a.add(b);
         uint256 d = Math.min(c, methodology.maxLeverageRatio);
         return Math.max(methodology.minLeverageRatio, d);
+    }
+
+    /**
+     * Calculate total notional rebalance quantity and chunked rebalance quantity in collateral units. 
+     *
+     * return uint256          Chunked rebalance notional in collateral units
+     * return uint256          Total rebalance notional in collateral units
+     */
+    function _calculateChunkRebalanceNotional(
+        LeverageInfo memory _leverageInfo,
+        uint256 _newLeverageRatio,
+        bool _isLever
+    )
+        internal
+        view
+        returns (uint256, uint256)
+    {
+        // Get total amount of collateral that needs to be rebalanced
+        uint256 totalRebalanceNotional = _newLeverageRatio
+            .sub(_leverageInfo.currentLeverageRatio)
+            .preciseDiv(_leverageInfo.currentLeverageRatio)
+            .preciseMul(_leverageInfo.action.collateralBalance);
+
+        uint256 maxBorrow = _calculateMaxBorrowCollateral(_leverageInfo.action, _isLever);
+
+        uint256 chunkRebalanceNotional = Math.min(Math.min(maxBorrow, totalRebalanceNotional), _leverageInfo.twapMaxTradeSize);
+
+        return (chunkRebalanceNotional, totalRebalanceNotional);
     }
 
     /**
