@@ -37,7 +37,7 @@ import { SetFixture, CompoundFixture } from "@utils/fixtures";
 const expect = getWaffleExpect();
 const provider = ethers.provider;
 
-describe("FlexibleLeverageStrategyAdapter", () => {
+describe.only("FlexibleLeverageStrategyAdapter", () => {
   let owner: Account;
   let methodologist: Account;
   let setV2Setup: SetFixture;
