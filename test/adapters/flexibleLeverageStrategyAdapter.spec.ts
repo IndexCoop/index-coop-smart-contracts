@@ -30,14 +30,15 @@ import {
   preciseMul,
   calculateNewLeverageRatio,
   calculateCollateralRebalanceUnits,
-  calculateMaxBorrowForDelever
+  calculateMaxBorrowForDelever,
+  calculateMaxRedeemForDeleverToZero
 } from "@utils/index";
 import { SetFixture, CompoundFixture } from "@utils/fixtures";
 
 const expect = getWaffleExpect();
 const provider = ethers.provider;
 
-describe.only("FlexibleLeverageStrategyAdapter", () => {
+describe("FlexibleLeverageStrategyAdapter", () => {
   let owner: Account;
   let methodologist: Account;
   let setV2Setup: SetFixture;
@@ -2686,7 +2687,9 @@ describe.only("FlexibleLeverageStrategyAdapter", () => {
         // Withdraw balance of USDC from exchange contract from engage
         await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
 
-        await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(250000000));
+        const usdcBorrowBalance = await cUSDC.borrowBalanceStored(setToken.address);
+        // Transfer more than the borrow balance to the exchange
+        await setV2Setup.usdc.transfer(tradeAdapterMock.address, usdcBorrowBalance.add(1000000000));
         subjectCaller = owner;
       });
 
@@ -2708,15 +2711,15 @@ describe.only("FlexibleLeverageStrategyAdapter", () => {
         const newFirstPosition = (await setToken.getPositions())[0];
 
         // Get expected cTokens redeemed
-        const expectedCollateralAssetsRedeemed = calculateCollateralRebalanceUnits(
+        const expectedCollateralAssetsRedeemed = calculateMaxRedeemForDeleverToZero(
           currentLeverageRatio,
           ether(1), // 1x leverage
           previousCTokenBalance,
-          ether(1) // Total supply
+          ether(1), // Total supply
+          execution.slippageTolerance
         );
 
         const expectedFirstPositionUnit = initialPositions[0].unit.sub(expectedCollateralAssetsRedeemed);
-
         expect(initialPositions.length).to.eq(2);
         expect(currentPositions.length).to.eq(2);
         expect(newFirstPosition.component).to.eq(cEther.address);
@@ -2725,22 +2728,41 @@ describe.only("FlexibleLeverageStrategyAdapter", () => {
         expect(newFirstPosition.module).to.eq(ADDRESS_ZERO);
       });
 
-      it("should update the borrow position on the SetToken correctly", async () => {
-        const initialPositions = await setToken.getPositions();
-
+      it("should wipe out the debt on Compound", async () => {
         await subject();
 
-        // cEther position is increased
-        const currentPositions = await setToken.getPositions();
-        const newSecondPosition = (await setToken.getPositions())[1];
+        const borrowDebt = (await cUSDC.borrowBalanceStored(setToken.address)).mul(-1);
 
-        const expectedSecondPositionUnit = (await cUSDC.borrowBalanceStored(setToken.address)).mul(-1);
-        expect(initialPositions.length).to.eq(2);
-        expect(currentPositions.length).to.eq(2);
+        expect(borrowDebt).to.eq(ZERO);
+      });
+
+      it("should remove any external positions on the borrow asset", async () => {
+        await subject();
+
+        const borrowAssetExternalModules = await setToken.getExternalPositionModules(setV2Setup.usdc.address);
+        const borrowExternalUnit = await setToken.getExternalPositionRealUnit(
+          setV2Setup.usdc.address,
+          compoundLeverageModule.address
+        );
+        const isPositionModule = await setToken.isExternalPositionModule(
+          setV2Setup.usdc.address,
+          compoundLeverageModule.address
+        );
+
+        expect(borrowAssetExternalModules.length).to.eq(0);
+        expect(borrowExternalUnit).to.eq(ZERO);
+        expect(isPositionModule).to.eq(false);
+      });
+
+      it("should update the borrow asset equity on the SetToken correctly", async () => {
+        await subject();
+
+        // The DAI position is positive and represents equity
+        const newSecondPosition = (await setToken.getPositions())[1];
         expect(newSecondPosition.component).to.eq(setV2Setup.usdc.address);
-        expect(newSecondPosition.positionState).to.eq(1); // External
-        expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
-        expect(newSecondPosition.module).to.eq(compoundLeverageModule.address);
+        expect(newSecondPosition.positionState).to.eq(0); // Default
+        expect(BigNumber.from(newSecondPosition.unit)).to.gt(ZERO);
+        expect(newSecondPosition.module).to.eq(ADDRESS_ZERO);
       });
     });
   });

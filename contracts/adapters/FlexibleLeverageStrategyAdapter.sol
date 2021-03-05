@@ -318,10 +318,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
         _validateRipcord(leverageInfo);
 
-        (
-            uint256 chunkRebalanceNotional,
-            uint256 totalRebalanceNotional
-        ) = _calculateChunkRebalanceNotional(leverageInfo, methodology.maxLeverageRatio, false);
+        ( uint256 chunkRebalanceNotional, ) = _calculateChunkRebalanceNotional(leverageInfo, methodology.maxLeverageRatio, false);
 
         _delever(leverageInfo, chunkRebalanceNotional);
 
@@ -339,10 +336,11 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
     /**
      * OPERATOR ONLY: Return leverage ratio to 1x and delever to repay loan. This can be used for upgrading or shutting down the strategy. SetToken will redeem
-     * collateral position and trade for debt position to repay Compound. If target leverage ratio is above max borrow or max trade size, then operator must
-     * continue to call this function to complete repayment of loan. The function iterateRebalance will not work
+     * collateral position and trade for debt position to repay Compound. If the chunk rebalance size is less than the total notional size, then this function will
+     * delever and repay entire borrow balance on Compound. If chunk rebalance size is above max borrow or max trade size, then operator must
+     * continue to call this function to complete repayment of loan. The function iterateRebalance will not work. 
      *
-     * Note: due to slippage tolerance on trades, loan value may not be entirely repaid.
+     * Note: Delever to 0 will likely result in additional units of the borrow asset added as equity on the SetToken due to oracle price / market price mismatch
      */
     function disengage() external onlyOperator {
         LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(execution.slippageTolerance, execution.twapMaxTradeSize);
@@ -357,7 +355,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         if (totalRebalanceNotional > chunkRebalanceNotional) {
             _delever(leverageInfo, chunkRebalanceNotional);
         } else {
-            _deleverToZeroBorrowBalance(leverageInfo, chunkRebalanceNotional);
+            _deleverToZeroBorrowBalance(leverageInfo, totalRebalanceNotional);
         }
 
         emit Disengaged(
@@ -577,12 +575,13 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     )
         internal
     {
+        // Account for slippage tolerance in redeem quantity for the deleverToZeroBorrowBalance function
         uint256 maxCollateralRebalanceUnits = _chunkRebalanceNotional
-            .preciseMul(execution.slippageTolerance)
+            .preciseMul(PreciseUnitMath.preciseUnit().add(execution.slippageTolerance))
             .preciseDiv(_leverageInfo.action.setTotalSupply);
 
         bytes memory deleverToZeroBorrowBalanceCallData = abi.encodeWithSignature(
-            "delever(address,address,address,uint256,uint256,string,bytes)",
+            "deleverToZeroBorrowBalance(address,address,address,uint256,string,bytes)",
             address(strategy.setToken),
             strategy.collateralAsset,
             strategy.borrowAsset,
@@ -823,11 +822,10 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         view
         returns (uint256, uint256)
     {
-        // Get total amount of collateral that needs to be rebalanced
-        uint256 totalRebalanceNotional = _newLeverageRatio
-            .sub(_leverageInfo.currentLeverageRatio)
-            .preciseDiv(_leverageInfo.currentLeverageRatio)
-            .preciseMul(_leverageInfo.action.collateralBalance);
+        // Calculate absolute value of difference between new and current leverage ratio
+        uint256 leverageRatioDifference = _isLever ? _newLeverageRatio.sub(_leverageInfo.currentLeverageRatio) : _leverageInfo.currentLeverageRatio.sub(_newLeverageRatio);
+
+        uint256 totalRebalanceNotional = leverageRatioDifference.preciseDiv(_leverageInfo.currentLeverageRatio).preciseMul(_leverageInfo.action.collateralBalance);
 
         uint256 maxBorrow = _calculateMaxBorrowCollateral(_leverageInfo.action, _isLever);
 
