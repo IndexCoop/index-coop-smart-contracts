@@ -7,7 +7,7 @@ import { SetToken } from "../typechain/SetToken";
 import { SingleIndexModule } from "../typechain/SingleIndexModule";
 import { SetToken__factory } from "../typechain/factories/SetToken__factory";
 import { SingleIndexModule__factory } from "../typechain/factories/SingleIndexModule__factory";
-import { RebalanceSummary } from "./calculate-new-position";
+import { RebalanceReport } from "./calculate-new-position";
 import { strategyInfo } from "../index-rebalances/dpi/strategyInfo";
 import { BigNumber } from 'ethers';
 
@@ -24,15 +24,16 @@ task("validate-dpi-params", "Validates on-chain params match generated params")
   const indexModule: SingleIndexModule = await new SingleIndexModule__factory(owner).attach(SINGLE_INDEX_MODULE_ADDRESS);
 
   const filepath = `index-rebalances/dpi/rebalances/rebalance-${rebalance}.json`;
-  const summary: RebalanceSummary[] = JSON.parse(fs.readFileSync(filepath, 'utf8')).summary;
+  const expectedParams: RebalanceReport = JSON.parse(fs.readFileSync(filepath, 'utf8'));
 
   const positionMultiplier: BigNumber = await dpi.positionMultiplier();
 
-  // if (positionMultiplier != BigNumber.from(expectedParams.rebalanceParams.positionMultiplier)) {
+  // if (positionMultiplier.eq(BigNumber.from(expectedParams.rebalanceParams.positionMultiplier))) {
+  //   console.log(positionMultiplier.toString(), expectedParams.rebalanceParams.positionMultiplier.toString());
   //   throw Error("Different position multiplier used!")
   // }
 
-  await Promise.all(summary.map(async (obj, i) => {
+  await Promise.all(expectedParams.summary.map(async (obj, i) => {
     const address = strategyInfo[obj.asset].address;
 
     const info: any = await indexModule.assetInfo(address);
