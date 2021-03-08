@@ -49,7 +49,7 @@ interface RebalanceParams {
   positionMultiplier: string;
 }
 
-interface RebalanceReport {
+export interface RebalanceReport {
   summary: RebalanceSummary[];
   maxTradeSizeParams: ParamSetting;
   exchangeParams: ParamSetting;
