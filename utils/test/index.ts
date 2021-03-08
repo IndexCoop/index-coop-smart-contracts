@@ -12,4 +12,5 @@ export {
   getWaffleExpect,
   increaseTimeAsync,
   mineBlockAsync,
+  cacheBeforeEach
 } from "./testingUtils";
