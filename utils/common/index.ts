@@ -16,3 +16,6 @@ export {
 export { ether, gWei } from "./unitsUtils";
 export { Blockchain } from "./blockchainUtils";
 export { ProtocolUtils } from "./protocolUtils";
+export {
+  convertLibraryNameToLinkId
+} from "./libraryUtils";
