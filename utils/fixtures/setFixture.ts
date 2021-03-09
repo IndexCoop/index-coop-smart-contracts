@@ -42,7 +42,6 @@ export class SetFixture {
   public issuanceModule: BasicIssuanceModule;
   public debtIssuanceModule: DebtIssuanceModule;
   public streamingFeeModule: StreamingFeeModule;
-  public debtIssuanceModule: DebtIssuanceModule;
   public compoundLeverageModule: CompoundLeverageModule;
 
   public weth: WETH9;
