@@ -37,11 +37,11 @@ export class SetFixture {
 
   public controller: Controller;
   public factory: SetTokenCreator;
+  public integrationRegistry: IntegrationRegistry;
 
   public issuanceModule: BasicIssuanceModule;
   public debtIssuanceModule: DebtIssuanceModule;
   public streamingFeeModule: StreamingFeeModule;
-  public integrationRegistry: IntegrationRegistry;
   public compoundLeverageModule: CompoundLeverageModule;
 
   public weth: WETH9;
@@ -61,19 +61,24 @@ export class SetFixture {
     [, , , this.feeRecipient] = await this._provider.listAccounts();
 
     this.controller = await this._deployer.setV2.deployController(this.feeRecipient);
-    this.debtIssuanceModule = await this._deployer.setV2.deployDebtIssuanceModule(this.controller.address);
+    this.integrationRegistry = await this._deployer.setV2.deployIntegrationRegistry(this.controller.address);
+    this.factory = await this._deployer.setV2.deploySetTokenCreator(this.controller.address);
+
     this.issuanceModule = await this._deployer.setV2.deployBasicIssuanceModule(this.controller.address);
+    this.streamingFeeModule = await this._deployer.setV2.deployStreamingFeeModule(this.controller.address);
+    this.debtIssuanceModule = await this._deployer.setV2.deployDebtIssuanceModule(this.controller.address);
 
     await this.initializeStandardComponents();
 
-    this.factory = await this._deployer.setV2.deploySetTokenCreator(this.controller.address);
-
-    this.integrationRegistry = await this._deployer.setV2.deployIntegrationRegistry(this.controller.address);
-    this.streamingFeeModule = await this._deployer.setV2.deployStreamingFeeModule(this.controller.address);
+    const modules = [
+      this.issuanceModule.address,
+      this.streamingFeeModule.address,
+      this.debtIssuanceModule.address,
+    ];
 
     await this.controller.initialize(
       [this.factory.address], // Factories
-      [this.issuanceModule.address, this.streamingFeeModule.address, this.debtIssuanceModule.address], // Modules
+      modules, // Modules
       [this.integrationRegistry.address], // Resources
       [0]
     );
@@ -90,6 +95,10 @@ export class SetFixture {
     await this.usdc.approve(this.issuanceModule.address, ether(10000));
     await this.wbtc.approve(this.issuanceModule.address, ether(10000));
     await this.dai.approve(this.issuanceModule.address, ether(10000));
+    await this.weth.approve(this.debtIssuanceModule.address, ether(10000));
+    await this.usdc.approve(this.debtIssuanceModule.address, ether(10000));
+    await this.wbtc.approve(this.debtIssuanceModule.address, ether(10000));
+    await this.dai.approve(this.debtIssuanceModule.address, ether(10000));
   }
 
   public async createSetToken(
