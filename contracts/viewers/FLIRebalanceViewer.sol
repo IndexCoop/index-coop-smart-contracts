@@ -71,8 +71,8 @@ contract FLIRebalanceViewer {
      * 0 = no rebalance, 1 = call rebalance(), 2 = call iterateRebalance(), 3 = call ripcord(). Additionally, logic is added to check if an oracle update
      * should be forced to the Compound protocol ahead of the rebalance (4). 
      *
-     * @param _customMinLeverageRatio          Min leverage ratio passed in by caller
-     * @param _customMaxLeverageRatio          Max leverage ratio passed in by caller
+     * @param _customMinLeverageRatio          Min leverage ratio passed in by caller to trigger rebalance
+     * @param _customMaxLeverageRatio          Max leverage ratio passed in by caller to trigger rebalance
      *
      * return FLIRebalanceAction               Enum detailing whether to do nothing, rebalance, iterateRebalance, ripcord, or update Compound oracle
      */
@@ -93,14 +93,18 @@ contract FLIRebalanceViewer {
             return FLIRebalanceAction.NONE;
         } else if (shouldRebalance == FlexibleLeverageStrategyAdapter.ShouldRebalance.RIPCORD) {
             FlexibleLeverageStrategyAdapter.IncentiveSettings memory incentive = strategyAdapter.getIncentive();
-            return _shouldOracleBeUpdated(incentive.incentivizedTwapMaxTradeSize, incentive.incentivizedSlippageTolerance) ? 
-                FLIRebalanceAction.ORACLE : 
-                FLIRebalanceAction.RIPCORD;
+
+            bool updateOracle = _shouldOracleBeUpdated(incentive.incentivizedTwapMaxTradeSize, incentive.incentivizedSlippageTolerance);
+
+            return updateOracle ? FLIRebalanceAction.ORACLE : FLIRebalanceAction.RIPCORD;
         } else {
             FlexibleLeverageStrategyAdapter.ExecutionSettings memory execution = strategyAdapter.getExecution();
-            return _shouldOracleBeUpdated(execution.twapMaxTradeSize, execution.slippageTolerance) ? 
-                FLIRebalanceAction.ORACLE : 
-                shouldRebalance == FlexibleLeverageStrategyAdapter.ShouldRebalance.REBALANCE ? FLIRebalanceAction.REBALANCE : FLIRebalanceAction.ITERATE_REBALANCE;
+
+            FLIRebalanceAction convertedRebalanceAction = shouldRebalance == FlexibleLeverageStrategyAdapter.ShouldRebalance.REBALANCE ? 
+                FLIRebalanceAction.REBALANCE : FLIRebalanceAction.ITERATE_REBALANCE;
+            bool updateOracle = _shouldOracleBeUpdated(execution.twapMaxTradeSize, execution.slippageTolerance);
+
+            return updateOracle ? FLIRebalanceAction.ORACLE : convertedRebalanceAction;
         }
     }
 
@@ -125,18 +129,15 @@ contract FLIRebalanceViewer {
     {
         FlexibleLeverageStrategyAdapter.ContractSettings memory settings = strategyAdapter.getStrategy();
 
-        (
-            uint256 executionPrice,
-            uint256 oraclePrice
-        ) = strategyAdapter.getCurrentLeverageRatio() > strategyAdapter.getMethodology().targetLeverageRatio ? 
-            (
-                _getUniswapExecutionPrice(settings.borrowAsset, settings.collateralAsset, _maxTradeSize, false),
-                _getCompoundOraclePrice(settings.priceOracle, settings.targetBorrowCToken, settings.targetCollateralCToken)
-            ) :
-            (
-                _getUniswapExecutionPrice(settings.collateralAsset, settings.borrowAsset, _maxTradeSize, true),
-                _getCompoundOraclePrice(settings.priceOracle, settings.targetCollateralCToken, settings.targetBorrowCToken)   
-            );
+        uint256 executionPrice;
+        uint256 oraclePrice;
+        if (strategyAdapter.getCurrentLeverageRatio() > strategyAdapter.getMethodology().targetLeverageRatio) {
+            executionPrice = _getUniswapExecutionPrice(settings.borrowAsset, settings.collateralAsset, _maxTradeSize, false);
+            oraclePrice = _getCompoundOraclePrice(settings.priceOracle, settings.targetBorrowCToken, settings.targetCollateralCToken);
+        } else {
+            executionPrice = _getUniswapExecutionPrice(settings.collateralAsset, settings.borrowAsset, _maxTradeSize, true);
+            oraclePrice = _getCompoundOraclePrice(settings.priceOracle, settings.targetCollateralCToken, settings.targetBorrowCToken);
+        }
 
         return executionPrice > oraclePrice.preciseMul(PreciseUnitMath.preciseUnit().add(_slippageTolerance));
     }
