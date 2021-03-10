@@ -4,6 +4,7 @@ export { BaseManager } from "../../typechain/BaseManager";
 export { TradeAdapterMock } from "../../typechain/TradeAdapterMock";
 export { FeeSplitAdapter } from "../../typechain/FeeSplitAdapter";
 export { FlexibleLeverageStrategyAdapter } from "../../typechain/FlexibleLeverageStrategyAdapter";
+export { FLIRebalanceViewer } from "../../typechain/FLIRebalanceViewer";
 export { SupplyCapIssuanceHook } from "../../typechain/SupplyCapIssuanceHook";
 export { IndexToken } from "../../typechain/IndexToken";
 export { MerkleDistributor } from "../../typechain/MerkleDistributor";

@@ -1,6 +1,6 @@
 import { BigNumber } from "@ethersproject/bignumber";
 
-import { PRECISE_UNIT, ZERO } from "../constants";
+import { PRECISE_UNIT, ZERO, ONE, TWO } from "../constants";
 
 export const preciseMul = (a: BigNumber, b: BigNumber): BigNumber => {
   return a.mul(b).div(PRECISE_UNIT);
@@ -64,3 +64,14 @@ export const min = (
 ): BigNumber => {
   return valueOne.lt(valueTwo) ? valueOne : valueTwo;
 };
+
+export function sqrt(value: BigNumber) {
+  let z = value.add(ONE).div(TWO);
+  let y = value;
+  while (z.sub(y).isNegative()) {
+      y = z;
+      z = value.div(z).add(z).div(TWO);
+  }
+  return y;
+}
+
