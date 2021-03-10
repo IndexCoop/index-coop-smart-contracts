@@ -84,14 +84,14 @@ contract FLIRebalanceViewer {
         view
         returns(FLIRebalanceAction)
     {
-        FlexibleLeverageStrategyAdapter.ShouldRebalance shouldRebalance = strategyAdapter.shouldRebalanceWithBounds(
+        FlexibleLeverageStrategyAdapter.ShouldRebalance adapterRebalanceState = strategyAdapter.shouldRebalanceWithBounds(
             _customMinLeverageRatio,
             _customMaxLeverageRatio
         );
 
-        if (shouldRebalance == FlexibleLeverageStrategyAdapter.ShouldRebalance.NONE) {
+        if (adapterRebalanceState == FlexibleLeverageStrategyAdapter.ShouldRebalance.NONE) {
             return FLIRebalanceAction.NONE;
-        } else if (shouldRebalance == FlexibleLeverageStrategyAdapter.ShouldRebalance.RIPCORD) {
+        } else if (adapterRebalanceState == FlexibleLeverageStrategyAdapter.ShouldRebalance.RIPCORD) {
             FlexibleLeverageStrategyAdapter.IncentiveSettings memory incentive = strategyAdapter.getIncentive();
 
             bool updateOracle = _shouldOracleBeUpdated(incentive.incentivizedTwapMaxTradeSize, incentive.incentivizedSlippageTolerance);
@@ -100,11 +100,11 @@ contract FLIRebalanceViewer {
         } else {
             FlexibleLeverageStrategyAdapter.ExecutionSettings memory execution = strategyAdapter.getExecution();
 
-            FLIRebalanceAction convertedRebalanceAction = shouldRebalance == FlexibleLeverageStrategyAdapter.ShouldRebalance.REBALANCE ? 
+            FLIRebalanceAction rebalanceAction = adapterRebalanceState == FlexibleLeverageStrategyAdapter.ShouldRebalance.REBALANCE ? 
                 FLIRebalanceAction.REBALANCE : FLIRebalanceAction.ITERATE_REBALANCE;
             bool updateOracle = _shouldOracleBeUpdated(execution.twapMaxTradeSize, execution.slippageTolerance);
 
-            return updateOracle ? FLIRebalanceAction.ORACLE : convertedRebalanceAction;
+            return updateOracle ? FLIRebalanceAction.ORACLE : rebalanceAction;
         }
     }
 
