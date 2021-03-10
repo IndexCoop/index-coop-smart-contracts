@@ -166,10 +166,10 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
     /* ============ State Variables ============ */
 
-    ContractSettings internal strategy;               // Struct of contracts used in the strategy (SetToken, price oracles, leverage module etc)
-    MethodologySettings internal methodology;         // Struct containing methodology parameters
-    ExecutionSettings internal execution;             // Struct containing execution parameters
-    IncentiveSettings internal incentive;             // Struct containing incentive parameters for ripcord
+    ContractSettings internal strategy;             // Struct of contracts used in the strategy (SetToken, price oracles, leverage module etc)
+    MethodologySettings internal methodology;       // Struct containing methodology parameters
+    ExecutionSettings internal execution;           // Struct containing execution parameters
+    IncentiveSettings internal incentive;           // Struct containing incentive parameters for ripcord
     uint256 public twapLeverageRatio;               // Stored leverage ratio to keep track of target between TWAP rebalances
     uint256 public lastTradeTimestamp;              // Last rebalance timestamp. Must be past rebalance interval to rebalance
 
