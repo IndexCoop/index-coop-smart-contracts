@@ -306,7 +306,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
     it("should set the contract addresses", async () => {
       const retrievedAdapter = await subject();
-      const strategy = await retrievedAdapter.strategy();
+      const strategy = await retrievedAdapter.getStrategy();
 
       expect(strategy.setToken).to.eq(subjectContractSettings.setToken);
       expect(strategy.leverageModule).to.eq(subjectContractSettings.leverageModule);
@@ -320,7 +320,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
     it("should set the correct methodology parameters", async () => {
       const retrievedAdapter = await subject();
-      const methodology = await retrievedAdapter.methodology();
+      const methodology = await retrievedAdapter.getMethodology();
 
       expect(methodology.targetLeverageRatio).to.eq(subjectMethodologySettings.targetLeverageRatio);
       expect(methodology.minLeverageRatio).to.eq(subjectMethodologySettings.minLeverageRatio);
@@ -331,7 +331,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
     it("should set the correct execution parameters", async () => {
       const retrievedAdapter = await subject();
-      const execution = await retrievedAdapter.execution();
+      const execution = await retrievedAdapter.getExecution();
 
       expect(execution.unutilizedLeveragePercentage).to.eq(subjectExecutionSettings.unutilizedLeveragePercentage);
       expect(execution.twapMaxTradeSize).to.eq(subjectExecutionSettings.twapMaxTradeSize);
@@ -343,7 +343,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
     it("should set the correct incentive parameters", async () => {
       const retrievedAdapter = await subject();
-      const incentive = await retrievedAdapter.incentive();
+      const incentive = await retrievedAdapter.getIncentive();
 
       expect(incentive.incentivizedTwapMaxTradeSize).to.eq(subjectIncentiveSettings.incentivizedTwapMaxTradeSize);
       expect(incentive.incentivizedTwapCooldownPeriod).to.eq(subjectIncentiveSettings.incentivizedTwapCooldownPeriod);
@@ -2864,7 +2864,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       it("should set the correct methodology parameters", async () => {
         await subject();
-        const methodology = await flexibleLeverageStrategyAdapter.methodology();
+        const methodology = await flexibleLeverageStrategyAdapter.getMethodology();
 
         expect(methodology.targetLeverageRatio).to.eq(subjectMethodologySettings.targetLeverageRatio);
         expect(methodology.minLeverageRatio).to.eq(subjectMethodologySettings.minLeverageRatio);
@@ -3014,7 +3014,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       beforeEach(initializeSubjectVariables);
       it("should set the correct execution parameters", async () => {
         await subject();
-        const execution = await flexibleLeverageStrategyAdapter.execution();
+        const execution = await flexibleLeverageStrategyAdapter.getExecution();
 
         expect(execution.unutilizedLeveragePercentage).to.eq(subjectExecutionSettings.unutilizedLeveragePercentage);
         expect(execution.twapMaxTradeSize).to.eq(subjectExecutionSettings.twapMaxTradeSize);
@@ -3146,7 +3146,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       it("should set the correct incentive parameters", async () => {
         await subject();
-        const incentive = await flexibleLeverageStrategyAdapter.incentive();
+        const incentive = await flexibleLeverageStrategyAdapter.getIncentive();
 
         expect(incentive.incentivizedTwapMaxTradeSize).to.eq(subjectIncentiveSettings.incentivizedTwapMaxTradeSize);
         expect(incentive.incentivizedTwapCooldownPeriod).to.eq(subjectIncentiveSettings.incentivizedTwapCooldownPeriod);
