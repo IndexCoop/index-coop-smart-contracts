@@ -63,6 +63,8 @@ contract FLIRebalanceViewer {
         cEther = _cEther;
     }
 
+    /* ============ External Functions ============ */
+
     /**
      * Helper that checks if conditions are met for rebalance or ripcord with custom max and min bounds specified by caller. This function simplifies the
      * logic for off-chain keeper bots to determine what threshold to call rebalance when leverage exceeds max or drops below min. Returns an enum with
@@ -101,6 +103,8 @@ contract FLIRebalanceViewer {
                 shouldRebalance == FlexibleLeverageStrategyAdapter.ShouldRebalance.REBALANCE ? FLIRebalanceAction.REBALANCE : FLIRebalanceAction.ITERATE_REBALANCE;
         }
     }
+
+    /* ============ Internal Functions ============ */
 
     /**
      * Checks if the Compound oracles should be updated before executing any rebalance action. Updates must occur if the resulting trade would end up outside the
