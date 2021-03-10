@@ -17,14 +17,22 @@
 pragma solidity 0.6.10;
 pragma experimental "ABIEncoderV2";
 
-import { FlexibleLeverageStrategyAdapter } from "./FlexibleLeverageStrategyAdapter.sol";
+import { FlexibleLeverageStrategyAdapter } from "../adapters/FlexibleLeverageStrategyAdapter.sol";
 
 interface IFLIStrategyAdapter {
-    function strategy() external view returns (FlexibleLeverageStrategyAdapter.ContractSettings);
-    function methodology() external view returns (FlexibleLeverageStrategyAdapter.MethodologySettings);
-    function incentive() external view returns (FlexibleLeverageStrategyAdapter.IncentiveSettings);
-    function execution() external view returns (FlexibleLeverageStrategyAdapter.ExecutionSettings);
+    function strategy() external view returns (FlexibleLeverageStrategyAdapter.ContractSettings memory);
+    function methodology() external view returns (FlexibleLeverageStrategyAdapter.MethodologySettings memory);
+    function incentive() external view returns (FlexibleLeverageStrategyAdapter.IncentiveSettings memory);
+    function execution() external view returns (FlexibleLeverageStrategyAdapter.ExecutionSettings memory);
+
+    function getCurrentLeverageRatio() external view returns (uint256);
 
     function shouldRebalance() external view returns (FlexibleLeverageStrategyAdapter.ShouldRebalance);
-    function getCurrentLeverageRatio() external view returns (uint256);
+    function shouldRebalanceWithBounds(
+        uint256 _customMinLeverageRatio,
+        uint256 _customMaxLeverageRatio
+    )
+        external
+        view
+        returns(FlexibleLeverageStrategyAdapter.ShouldRebalance);
 }
