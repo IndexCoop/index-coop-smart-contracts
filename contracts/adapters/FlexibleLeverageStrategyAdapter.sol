@@ -166,10 +166,10 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
     /* ============ State Variables ============ */
 
-    ContractSettings public strategy;               // Struct of contracts used in the strategy (SetToken, price oracles, leverage module etc)
-    MethodologySettings public methodology;         // Struct containing methodology parameters
-    ExecutionSettings public execution;             // Struct containing execution parameters
-    IncentiveSettings public incentive;             // Struct containing incentive parameters for ripcord
+    ContractSettings internal strategy;               // Struct of contracts used in the strategy (SetToken, price oracles, leverage module etc)
+    MethodologySettings internal methodology;         // Struct containing methodology parameters
+    ExecutionSettings internal execution;             // Struct containing execution parameters
+    IncentiveSettings internal incentive;             // Struct containing incentive parameters for ripcord
     uint256 public twapLeverageRatio;               // Stored leverage ratio to keep track of target between TWAP rebalances
     uint256 public lastTradeTimestamp;              // Last rebalance timestamp. Must be past rebalance interval to rebalance
 
@@ -506,6 +506,14 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
         return _shouldRebalance(currentLeverageRatio, _customMinLeverageRatio, _customMaxLeverageRatio);
     }
+
+    /**
+     * Explicit getter functions for parameter structs are defined as workaround to issues fetching structs that have dynamic types.
+     */
+    function getStrategy() external view returns (ContractSettings memory) { return strategy; }
+    function getMethodology() external view returns (MethodologySettings memory) { return methodology; }
+    function getExecution() external view returns (ExecutionSettings memory) { return execution; }
+    function getIncentive() external view returns (IncentiveSettings memory) { return incentive; }
 
     /* ============ Internal Functions ============ */
 

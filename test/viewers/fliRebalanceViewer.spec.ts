@@ -8,7 +8,7 @@ import {
   ExecutionSettings,
   IncentiveSettings
 } from "@utils/types";
-import { ADDRESS_ZERO, ONE, TWO, THREE, ZERO, EMPTY_BYTES, MAX_UINT_256 } from "@utils/constants";
+import { ADDRESS_ZERO, ONE, TWO, THREE, FOUR, ZERO, EMPTY_BYTES, MAX_UINT_256 } from "@utils/constants";
 import { FlexibleLeverageStrategyAdapter, BaseManager, FLIRebalanceViewer } from "@utils/contracts/index";
 import { CompoundLeverageModule, DebtIssuanceModule, SetToken } from "@utils/contracts/setV2";
 import { CEther, CERc20 } from "@utils/contracts/compound";
@@ -22,6 +22,7 @@ import {
   getUniswapFixture,
   getWaffleExpect,
   increaseTimeAsync,
+  setUniswapPoolToPrice,
   usdc,
 } from "@utils/index";
 import { SetFixture, CompoundFixture, UniswapFixture } from "@utils/fixtures";
@@ -258,7 +259,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     );
   };
 
-  describe.only("#shouldRebalanceWithBounds", async () => {
+  describe("#shouldRebalanceWithBounds", async () => {
     let subjectMinLeverageRatio: BigNumber;
     let subjectMaxLeverageRatio: BigNumber;
 
@@ -294,7 +295,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       );
     }
 
-    context.only("when in the midst of a TWAP rebalance", async () => {
+    context("when in the midst of a TWAP rebalance", async () => {
       beforeEach(async () => {
         // > Max trade size
         const newExecutionSettings = {
@@ -325,6 +326,25 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
           expect(shouldRebalance).to.eq(THREE);
         });
+
+        describe("but Uniswap slippage would exceed bounds", async () => {
+          beforeEach(async () => {
+            await setUniswapPoolToPrice(
+              uniswapSetup.router,
+              uniswapSetup.wethDaiPool,
+              setV2Setup.weth,
+              setV2Setup.usdc,
+              ether(750),
+              owner.address
+            );
+          });
+
+          it("should return update oracle", async () => {
+            const shouldRebalance = await subject();
+
+            expect(shouldRebalance).to.eq(FOUR);
+          });
+        });
       });
 
       describe("when below incentivized leverage ratio and regular TWAP cooldown has elapsed", async () => {
@@ -338,6 +358,25 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           const shouldRebalance = await subject();
 
           expect(shouldRebalance).to.eq(TWO);
+        });
+
+        describe("but Uniswap slippage would exceed bounds", async () => {
+          beforeEach(async () => {
+            await setUniswapPoolToPrice(
+              uniswapSetup.router,
+              uniswapSetup.wethDaiPool,
+              setV2Setup.weth,
+              setV2Setup.usdc,
+              ether(880),
+              owner.address
+            );
+          });
+
+          it("should return update oracle", async () => {
+            const shouldRebalance = await subject();
+
+            expect(shouldRebalance).to.eq(FOUR);
+          });
         });
       });
 
@@ -381,6 +420,25 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
           expect(shouldRebalance).to.eq(THREE);
         });
+
+        describe("but Uniswap slippage would exceed bounds", async () => {
+          beforeEach(async () => {
+            await setUniswapPoolToPrice(
+              uniswapSetup.router,
+              uniswapSetup.wethDaiPool,
+              setV2Setup.weth,
+              setV2Setup.usdc,
+              ether(755),
+              owner.address
+            );
+          });
+
+          it("should return update oracle", async () => {
+            const shouldRebalance = await subject();
+
+            expect(shouldRebalance).to.eq(FOUR);
+          });
+        });
       });
 
       describe("when between max and min leverage ratio and rebalance interval has elapsed", async () => {
@@ -394,6 +452,25 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
           expect(shouldRebalance).to.eq(ONE);
         });
+
+        describe("but Uniswap slippage would exceed bounds", async () => {
+          beforeEach(async () => {
+            await setUniswapPoolToPrice(
+              uniswapSetup.router,
+              uniswapSetup.wethDaiPool,
+              setV2Setup.weth,
+              setV2Setup.usdc,
+              ether(970),
+              owner.address
+            );
+          });
+
+          it("should return update oracle", async () => {
+            const shouldRebalance = await subject();
+
+            expect(shouldRebalance).to.eq(FOUR);
+          });
+        });
       });
 
       describe("when above max leverage ratio but below incentivized leverage ratio", async () => {
@@ -406,6 +483,25 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
           expect(shouldRebalance).to.eq(ONE);
         });
+
+        describe("but Uniswap slippage would exceed bounds", async () => {
+          beforeEach(async () => {
+            await setUniswapPoolToPrice(
+              uniswapSetup.router,
+              uniswapSetup.wethDaiPool,
+              setV2Setup.weth,
+              setV2Setup.usdc,
+              ether(830),
+              owner.address
+            );
+          });
+
+          it("should return update oracle", async () => {
+            const shouldRebalance = await subject();
+
+            expect(shouldRebalance).to.eq(FOUR);
+          });
+        });
       });
 
       describe("when below min leverage ratio", async () => {
@@ -417,6 +513,25 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           const shouldRebalance = await subject();
 
           expect(shouldRebalance).to.eq(ONE);
+        });
+
+        describe("but Uniswap slippage would exceed bounds", async () => {
+          beforeEach(async () => {
+            await setUniswapPoolToPrice(
+              uniswapSetup.router,
+              uniswapSetup.wethDaiPool,
+              setV2Setup.weth,
+              setV2Setup.usdc,
+              ether(1430),
+              owner.address
+            );
+          });
+
+          it("should return update oracle", async () => {
+            const shouldRebalance = await subject();
+
+            expect(shouldRebalance).to.eq(FOUR);
+          });
         });
       });
 

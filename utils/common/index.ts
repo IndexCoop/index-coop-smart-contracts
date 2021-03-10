@@ -11,7 +11,8 @@ export {
   preciseMul,
   preciseMulCeil,
   preciseMulCeilInt,
-  preciseDivCeilInt
+  preciseDivCeilInt,
+  sqrt
 } from "./mathUtils";
 export { ether, gWei, usdc } from "./unitsUtils";
 export { Blockchain } from "./blockchainUtils";

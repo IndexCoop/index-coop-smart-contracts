@@ -20,10 +20,10 @@ pragma experimental "ABIEncoderV2";
 import { FlexibleLeverageStrategyAdapter } from "../adapters/FlexibleLeverageStrategyAdapter.sol";
 
 interface IFLIStrategyAdapter {
-    function strategy() external view returns (FlexibleLeverageStrategyAdapter.ContractSettings memory);
-    function methodology() external view returns (FlexibleLeverageStrategyAdapter.MethodologySettings memory);
-    function incentive() external view returns (FlexibleLeverageStrategyAdapter.IncentiveSettings memory);
-    function execution() external view returns (FlexibleLeverageStrategyAdapter.ExecutionSettings memory);
+    function getStrategy() external view returns (FlexibleLeverageStrategyAdapter.ContractSettings memory);
+    function getMethodology() external view returns (FlexibleLeverageStrategyAdapter.MethodologySettings memory);
+    function getIncentive() external view returns (FlexibleLeverageStrategyAdapter.IncentiveSettings memory);
+    function getExecution() external view returns (FlexibleLeverageStrategyAdapter.ExecutionSettings memory);
 
     function getCurrentLeverageRatio() external view returns (uint256);
 

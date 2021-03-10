@@ -42,6 +42,7 @@ export {
   preciseMulCeil,
   preciseMulCeilInt,
   preciseDivCeilInt,
+  sqrt,
   usdc
 } from "./common";
 
@@ -57,3 +58,7 @@ export {
   calculateMaxBorrowForDelever,
   calculateMaxRedeemForDeleverToZero
 } from "./flexibleLeverageUtils";
+
+export {
+  setUniswapPoolToPrice
+} from "./externalProtocolUtils";

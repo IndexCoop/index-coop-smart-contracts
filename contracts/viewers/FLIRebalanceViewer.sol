@@ -32,11 +32,14 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  * @title FLIRebalanceViewer
  * @author Set Protocol
  *
- * ETHFLI Rebalance viewer that returns whether a Compound oracle update should be forced before a rebalance goes through
+ * ETHFLI Rebalance viewer that returns whether a Compound oracle update should be forced before a rebalance goes through, if no
+ * oracle update the type of rebalance transaction will be returned adhering to the enum specified in FlexibleLeverageStrategyAdapter
  */
 contract FLIRebalanceViewer {
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
+
+    /* ============ Enums ============ */
 
     enum FLIRebalanceAction {
         NONE,                   // Indicates no rebalance action can be taken
@@ -46,9 +49,13 @@ contract FLIRebalanceViewer {
         ORACLE                  // Indicates Compound oracle update should be pushed 
     }
 
+    /* ============ State Variables ============ */
+
     IUniswapV2Router public uniswapRouter;
     IFLIStrategyAdapter public strategyAdapter;
     address public cEther;
+
+    /* ============ Constructor ============ */
 
     constructor(IUniswapV2Router _uniswapRouter, IFLIStrategyAdapter _strategyAdapter, address _cEther) public {
         uniswapRouter = _uniswapRouter;
@@ -83,12 +90,12 @@ contract FLIRebalanceViewer {
         if (shouldRebalance == FlexibleLeverageStrategyAdapter.ShouldRebalance.NONE) {
             return FLIRebalanceAction.NONE;
         } else if (shouldRebalance == FlexibleLeverageStrategyAdapter.ShouldRebalance.RIPCORD) {
-            FlexibleLeverageStrategyAdapter.IncentiveSettings memory incentive = strategyAdapter.incentive();
+            FlexibleLeverageStrategyAdapter.IncentiveSettings memory incentive = strategyAdapter.getIncentive();
             return _shouldOracleBeUpdated(incentive.incentivizedTwapMaxTradeSize, incentive.incentivizedSlippageTolerance) ? 
                 FLIRebalanceAction.ORACLE : 
                 FLIRebalanceAction.RIPCORD;
         } else {
-            FlexibleLeverageStrategyAdapter.ExecutionSettings memory execution = strategyAdapter.execution();
+            FlexibleLeverageStrategyAdapter.ExecutionSettings memory execution = strategyAdapter.getExecution();
             return _shouldOracleBeUpdated(execution.twapMaxTradeSize, execution.slippageTolerance) ? 
                 FLIRebalanceAction.ORACLE : 
                 shouldRebalance == FlexibleLeverageStrategyAdapter.ShouldRebalance.REBALANCE ? FLIRebalanceAction.REBALANCE : FLIRebalanceAction.ITERATE_REBALANCE;
@@ -112,12 +119,12 @@ contract FLIRebalanceViewer {
         view
         returns (bool)
     {
-        FlexibleLeverageStrategyAdapter.ContractSettings memory settings = strategyAdapter.strategy();
+        FlexibleLeverageStrategyAdapter.ContractSettings memory settings = strategyAdapter.getStrategy();
 
         (
             uint256 executionPrice,
             uint256 oraclePrice
-        ) = strategyAdapter.getCurrentLeverageRatio() > strategyAdapter.methodology().targetLeverageRatio ? 
+        ) = strategyAdapter.getCurrentLeverageRatio() > strategyAdapter.getMethodology().targetLeverageRatio ? 
             (
                 _getUniswapExecutionPrice(settings.borrowAsset, settings.collateralAsset, _maxTradeSize, false),
                 _getCompoundOraclePrice(settings.priceOracle, settings.targetBorrowCToken, settings.targetCollateralCToken)
