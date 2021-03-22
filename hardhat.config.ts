@@ -1,16 +1,13 @@
 require("dotenv").config();
 
-import { HardhatUserConfig, internalTask } from "hardhat/config";
-import { TASK_COMPILE_SOLIDITY_COMPILE } from "hardhat/builtin-tasks/task-names";
-import { execSync } from "child_process";
+import { HardhatUserConfig } from "hardhat/config";
 import { privateKeys } from "./utils/wallets";
 
 import "@nomiclabs/hardhat-waffle";
 import "hardhat-typechain";
 import "solidity-coverage";
 import "hardhat-deploy";
-
-internalTask(TASK_COMPILE_SOLIDITY_COMPILE).setAction(setupNativeSolc);
+import "./tasks";
 
 const forkingConfig = {
   url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
@@ -67,30 +64,6 @@ function getHardhatPrivateKeys() {
       balance: HUNDRED_THOUSAND_ETH,
     };
   });
-}
-
-// @ts-ignore
-async function setupNativeSolc({ input }, { config }, runSuper) {
-  let solcVersionOutput = "";
-  try {
-    solcVersionOutput = execSync(`solc --version`).toString();
-  } catch (error) {
-    // Probably failed because solc wasn"t installed. We do nothing here.
-  }
-
-  console.log("Output", solcVersionOutput);
-
-  if (!solcVersionOutput.includes(config.solidity.version)) {
-    console.log(`Using solcjs`);
-    return runSuper();
-  }
-
-  console.log(`Using native solc`);
-  const output = execSync(`solc --standard-json`, {
-    input: JSON.stringify(input, undefined, 2),
-  });
-
-  return JSON.parse(output.toString(`utf8`));
 }
 
 export default config;
