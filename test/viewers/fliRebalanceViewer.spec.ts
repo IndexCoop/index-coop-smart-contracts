@@ -29,7 +29,7 @@ import { SetFixture, CompoundFixture, UniswapFixture } from "@utils/fixtures";
 
 const expect = getWaffleExpect();
 
-describe("FlexibleLeverageStrategyAdapter", () => {
+describe("FLIRebalanceViewer", () => {
   let owner: Account;
   let methodologist: Account;
   let setV2Setup: SetFixture;
@@ -67,10 +67,20 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     await compoundSetup.initialize();
     uniswapSetup = getUniswapFixture(owner.address);
     await uniswapSetup.initialize(
-      owner.address,
+      owner,
       setV2Setup.weth.address,
       setV2Setup.wbtc.address,
       setV2Setup.usdc.address,
+    );
+
+    uniswapSetup.wethDaiPool = await uniswapSetup.createNewPair(
+      setV2Setup.weth.address,
+      setV2Setup.usdc.address
+    );
+
+    uniswapSetup.wethWbtcPool = await uniswapSetup.createNewPair(
+      setV2Setup.weth.address,
+      setV2Setup.wbtc.address
     );
 
     cEther = await compoundSetup.createAndEnableCEther(

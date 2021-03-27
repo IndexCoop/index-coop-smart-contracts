@@ -2,11 +2,12 @@ import "module-alias/register";
 
 import { Address, Account } from "@utils/types";
 import { ADDRESS_ZERO, ZERO, MAX_UINT_256, MAX_UINT_96, MAX_INT_256, ETH_ADDRESS, ONE } from "@utils/constants";
-import { ExchangeIssuance, StandardTokenMock, UniswapV2Factory, UniswapV2Router02, WETH9 } from "@utils/contracts/index";
+import { ExchangeIssuance, StandardTokenMock, WETH9 } from "@utils/contracts/index";
+import { UniswapV2Factory, UniswapV2Router02 } from "@utils/contracts/uniswap";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
-  addSnapshotBeforeRestoreAfterEach,
+  cacheBeforeEach,
   ether,
   getAccounts,
   getLastBlockTimestamp,
@@ -45,7 +46,7 @@ describe("ExchangeIssuance", async () => {
 
   let exchangeIssuance: ExchangeIssuance;
 
-  before(async () => {
+  cacheBeforeEach(async () => {
     [
       owner,
       user,
@@ -77,8 +78,6 @@ describe("ExchangeIssuance", async () => {
     await setV2Setup.issuanceModule.initialize(setTokenWithWeth.address, ADDRESS_ZERO);
   });
 
-  addSnapshotBeforeRestoreAfterEach();
-
   describe("#constructor", async () => {
     let wethAddress: Address;
     let uniswapFactory: UniswapV2Factory;
@@ -88,7 +87,7 @@ describe("ExchangeIssuance", async () => {
     let controllerAddress: Address;
     let basicIssuanceModuleAddress: Address;
 
-    before(async () => {
+    cacheBeforeEach(async () => {
       let uniswapSetup: UniswapFixture;
       let sushiswapSetup: UniswapFixture;
       let wbtcAddress: Address;
@@ -179,7 +178,7 @@ describe("ExchangeIssuance", async () => {
     let setTokenIlliquid: SetToken;
     let setTokenExternal: SetToken;
 
-    beforeEach(async () => {
+    cacheBeforeEach(async () => {
       let uniswapSetup: UniswapFixture;
       let sushiswapSetup: UniswapFixture;
 
@@ -420,16 +419,21 @@ describe("ExchangeIssuance", async () => {
       let subjectAmountInput: BigNumber;
       let subjectMinSetReceive: BigNumber;
 
-      beforeEach(async () => {
+      const initializeSubjectVariables = () => {
         subjectCaller = user;
         subjectSetToken = setToken;
         subjectInputToken = usdc;
         subjectAmountInput = UnitsUtils.usdc(1000);
         subjectMinSetReceive = ether(0);
+      };
 
+      cacheBeforeEach(async () => {
+        initializeSubjectVariables();
         await exchangeIssuance.approveSetToken(subjectSetToken.address);
         await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256);
       });
+
+      beforeEach(initializeSubjectVariables);
 
       async function subject(): Promise<ContractTransaction> {
         return await exchangeIssuance.connect(subjectCaller.wallet).issueSetForExactToken(
@@ -493,7 +497,7 @@ describe("ExchangeIssuance", async () => {
       });
 
       context("when input erc20 token is weth", async () => {
-        beforeEach(async () => {
+        cacheBeforeEach(async () => {
           subjectInputToken = weth;
           await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
         });
@@ -551,7 +555,7 @@ describe("ExchangeIssuance", async () => {
       });
 
       context("when set contains weth", async () => {
-        beforeEach(async () => {
+        cacheBeforeEach(async () => {
           subjectSetToken = setTokenWithWeth;
 
           await exchangeIssuance.approveSetToken(subjectSetToken.address);
@@ -647,14 +651,19 @@ describe("ExchangeIssuance", async () => {
       let subjectAmountETHInput: BigNumber;
       let subjectMinSetReceive: BigNumber;
 
-      beforeEach(async () => {
+      const initializeSubjectVariables = () => {
         subjectSetToken = setToken;
         subjectCaller = user;
         subjectAmountETHInput = ether(1);
         subjectMinSetReceive = ether(0);
+      };
 
+      cacheBeforeEach(async () => {
+        initializeSubjectVariables();
         await exchangeIssuance.approveSetToken(subjectSetToken.address);
       });
+
+      beforeEach(initializeSubjectVariables);
 
       async function subject(): Promise<ContractTransaction> {
         return await exchangeIssuance.connect(subjectCaller.wallet).issueSetForExactETH(
@@ -752,16 +761,21 @@ describe("ExchangeIssuance", async () => {
       let subjectMaxAmountInput: BigNumber;
       let subjectAmountSetToken: BigNumber;
 
-      beforeEach(async () => {
+      const initializeSubjectVariables = () => {
         subjectCaller = user;
         subjectSetToken = setToken;
         subjectInputToken = usdc;
         subjectMaxAmountInput = UnitsUtils.usdc(100);
         subjectAmountSetToken = ether(0.1);
+      };
 
+      cacheBeforeEach(async () => {
+        initializeSubjectVariables();
         await exchangeIssuance.approveSetToken(subjectSetToken.address, { gasPrice: 0 });
         await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
       });
+
+      beforeEach(initializeSubjectVariables);
 
       async function subject(): Promise<ContractTransaction> {
         return await exchangeIssuance.connect(subjectCaller.wallet).issueExactSetFromToken(
@@ -844,12 +858,18 @@ describe("ExchangeIssuance", async () => {
       });
 
       context("when input erc20 token is weth", async () => {
-        beforeEach(async () => {
+        const initializeSubjectVariables = () => {
           subjectInputToken = weth;
           subjectMaxAmountInput = UnitsUtils.ether(1000);
           subjectAmountSetToken = UnitsUtils.ether(1);
+        };
+
+        cacheBeforeEach(async () => {
+          initializeSubjectVariables();
           await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
         });
+
+        beforeEach(initializeSubjectVariables);
 
         it("should issue the correct amount of Set to the caller", async () => {
           const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
@@ -945,7 +965,7 @@ describe("ExchangeIssuance", async () => {
       });
 
       context("when set contains weth", async () => {
-        beforeEach(async () => {
+        cacheBeforeEach(async () => {
           subjectSetToken = setTokenWithWeth;
           subjectAmountSetToken = ether(0.00001);
 
@@ -1084,14 +1104,19 @@ describe("ExchangeIssuance", async () => {
       let subjectAmountETHInput: BigNumber;
       let subjectAmountSetToken: BigNumber;
 
-      beforeEach(async () => {
+      const initializeSubjectVariables = () => {
         subjectCaller = user;
         subjectSetToken = setToken;
         subjectAmountSetToken = ether(1000.3);
         subjectAmountETHInput = ether(10);
+      };
 
+      cacheBeforeEach(async () => {
+        initializeSubjectVariables();
         await exchangeIssuance.approveSetToken(setToken.address);
       });
+
+      beforeEach(initializeSubjectVariables);
 
       async function subject(): Promise<ContractTransaction> {
         return await exchangeIssuance.connect(subjectCaller.wallet).issueExactSetFromETH(
@@ -1245,16 +1270,21 @@ describe("ExchangeIssuance", async () => {
       let subjectAmountSetToken: BigNumber;
       let subjectMinEthReceived: BigNumber;
 
-      beforeEach(async () => {
+      const initializeSubjectVariables = () => {
         subjectCaller = user;
         subjectSetToken = setToken;
         subjectAmountSetToken = ether(100.3);
         subjectMinEthReceived = ether(0);
+      };
 
+      cacheBeforeEach(async () => {
+        initializeSubjectVariables();
         await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
         await exchangeIssuance.approveSetToken(subjectSetToken.address);
         await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
       });
+
+      beforeEach(initializeSubjectVariables);
 
       async function subject(): Promise<ContractTransaction> {
         return await exchangeIssuance.connect(subjectCaller.wallet).redeemExactSetForETH(
@@ -1356,18 +1386,23 @@ describe("ExchangeIssuance", async () => {
       let subjectOutputToken: StandardTokenMock | WETH9;
       let subjectMinTokenReceived: BigNumber;
 
-      beforeEach(async () => {
+      const initializeSubjectVariables = () => {
         subjectCaller = user;
         subjectSetToken = setToken;
         subjectAmountSetToken = ether(100);
         subjectOutputToken = usdc;
         subjectMinTokenReceived = ether(0);
+      };
 
+      cacheBeforeEach(async () => {
+        initializeSubjectVariables();
         // acquire set tokens to redeem
         await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
         await exchangeIssuance.approveSetToken(subjectSetToken.address);
         await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
       });
+
+      beforeEach(initializeSubjectVariables);
 
       async function subject(): Promise<ContractTransaction> {
         return await exchangeIssuance.connect(subjectCaller.wallet).redeemExactSetForToken(
@@ -1497,14 +1532,19 @@ describe("ExchangeIssuance", async () => {
       });
 
       context("when set contains weth", async () => {
-        beforeEach(async () => {
+        const initializeSubjectVariables = () => {
           subjectSetToken = setTokenWithWeth;
           subjectAmountSetToken = ether(1);
+        };
 
+        cacheBeforeEach(async () => {
+          initializeSubjectVariables();
           await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
           await exchangeIssuance.approveSetToken(subjectSetToken.address);
           await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
         });
+
+        beforeEach(initializeSubjectVariables);
 
         it("should redeem the correct amount of a set to the caller", async () => {
           const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
