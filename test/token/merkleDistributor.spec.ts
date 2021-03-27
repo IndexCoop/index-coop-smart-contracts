@@ -21,7 +21,7 @@ describe("MerkleDistributor", () => {
   let owner: Account;
   let walletOne: Account;
   let walletTwo: Account;
-  
+
   let deployer: DeployHelper;
   let token: IndexToken;
   let distributor: MerkleDistributor;

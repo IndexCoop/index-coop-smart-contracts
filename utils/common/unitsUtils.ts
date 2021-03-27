@@ -21,10 +21,6 @@ export const gWei = (amount: number): BigNumber => {
   return BigNumber.from(weiString);
 };
 
-export const usdc = (amount: number): BigNumber => {
-  return BigNumber.from(amount).mul(10 ** 6);
-};
-
 export const wbtc = (amount: number): BigNumber => {
   return BigNumber.from(amount).mul(BigNumber.from(10).pow(8));
 };
