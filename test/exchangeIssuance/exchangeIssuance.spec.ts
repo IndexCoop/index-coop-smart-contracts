@@ -30,7 +30,6 @@ import {
   getRedeemExactSetForETH,
 } from "@utils/common/exchangeIssuanceUtils";
 
-
 const expect = getWaffleExpect();
 
 
@@ -293,6 +292,43 @@ describe("ExchangeIssuance", async () => {
       );
     });
 
+    describe("#rescueTokens", async () => {
+      let subjectLostToken: StandardTokenMock;
+      let subjectAmountLost: BigNumber;
+      let subjectCaller: Account;
+
+      beforeEach(async () => {
+        subjectLostToken = dai;
+        subjectAmountLost = ether(105.2);
+        subjectCaller = owner;
+
+        await subjectLostToken.connect(subjectCaller.wallet).transfer(exchangeIssuance.address, subjectAmountLost);
+      });
+
+      const subject = async (): Promise<ContractTransaction> => {
+        return await exchangeIssuance.connect(subjectCaller.wallet).rescueTokens(dai.address, subjectCaller.address);
+      };
+
+      it ("should let owner recover lost tokens", async () => {
+        const tokensBefore = await subjectLostToken.balanceOf(subjectCaller.address);
+        await subject();
+        const tokensAfter = await subjectLostToken.balanceOf(subjectCaller.address);
+
+        const amountRecovered = tokensAfter.sub(tokensBefore);
+        expect(amountRecovered).to.be.eq(subjectAmountLost);
+      });
+
+      context("when called is not owner", async () => {
+        beforeEach(async () => {
+          subjectCaller = user;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Ownable: caller is not the owner");
+        });
+      });
+    });
+
     describe("#approveToken", async () => {
 
       let subjectTokenToApprove: StandardTokenMock;
@@ -441,6 +477,7 @@ describe("ExchangeIssuance", async () => {
           subjectInputToken.address,
           subjectAmountInput,
           subjectMinSetReceive,
+          ether(1),
           { gasLimit: 9000000 }
         );
       }
@@ -669,6 +706,7 @@ describe("ExchangeIssuance", async () => {
         return await exchangeIssuance.connect(subjectCaller.wallet).issueSetForExactETH(
           subjectSetToken.address,
           subjectMinSetReceive,
+          ether(1),
           { value: subjectAmountETHInput, gasPrice: 0 }
         );
       }
@@ -1636,7 +1674,8 @@ describe("ExchangeIssuance", async () => {
         return await exchangeIssuance.getEstimatedIssueSetAmount(
           subjectSetToken.address,
           subjectInputToken.address,
-          subjectAmountInput
+          subjectAmountInput,
+          ether(1)
         );
       }
 
