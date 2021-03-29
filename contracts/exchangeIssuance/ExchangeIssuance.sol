@@ -196,10 +196,11 @@ contract ExchangeIssuance is ReentrancyGuard, Ownable {
      * Issues SetTokens for an exact amount of input ERC20 tokens.
      * The ERC20 token must be approved by the sender to this contract.
      *
-     * @param _setToken         Address of the SetToken being issued
-     * @param _inputToken       Address of input token
-     * @param _amountInput      Amount of the input token / ether to spend
-     * @param _minSetReceive    Minimum amount of SetTokens to receive. Prevents unnecessary slippage.
+     * @param _setToken             Address of the SetToken being issued
+     * @param _inputToken           Address of input token
+     * @param _amountInput          Amount of the input token / ether to spend
+     * @param _minSetReceive        Minimum amount of SetTokens to receive. Prevents unnecessary slippage.
+     * @param _approxAmountSetToken Approximate amount of set tokens that will be issued
      *
      * @return setTokenAmount   Amount of SetTokens issued to the caller
      */
@@ -234,6 +235,7 @@ contract ExchangeIssuance is ReentrancyGuard, Ownable {
      *
      * @param _setToken         Address of the SetToken to be issued
      * @param _minSetReceive    Minimum amount of SetTokens to receive. Prevents unnecessary slippage.
+     * @param _approxAmountSetToken Approximate amount of set tokens that will be issued
      *
      * @return setTokenAmount   Amount of SetTokens issued to the caller
      */
@@ -433,11 +435,12 @@ contract ExchangeIssuance is ReentrancyGuard, Ownable {
     /**
      * Returns an estimated amount of SetToken that can be issued given an amount of input ERC20 token.
      *
-     * @param _setToken         Address of the SetToken being issued
-     * @param _amountInput      Amount of the input token to spend
-     * @param _inputToken       Address of input token.
+     * @param _setToken             Address of the SetToken being issued
+     * @param _amountInput          Amount of the input token to spend
+     * @param _inputToken           Address of input token.
+     * @param _approxAmountSetToken Approximate amount of set tokens that will be issued
      *
-     * @return                  Estimated amount of SetTokens that will be received
+     * @return                      Estimated amount of SetTokens that will be received
      */
     function getEstimatedIssueSetAmount(
         ISetToken _setToken,
@@ -549,11 +552,12 @@ contract ExchangeIssuance is ReentrancyGuard, Ownable {
     /**
      * Issues SetTokens for an exact amount of input WETH.
      *
-     * @param _setToken         Address of the SetToken being issued
-     * @param _minSetReceive    Minimum amount of index to receive
-     * @param _totalEthAmount   Total amount of WETH to be used to purchase the SetToken components
+     * @param _setToken             Address of the SetToken being issued
+     * @param _minSetReceive        Minimum amount of index to receive
+     * @param _totalEthAmount       Total amount of WETH to be used to purchase the SetToken components
+     * @param _approxAmountSetToken Approximate amount of set tokens that will be issued
      *
-     * @return setTokenAmount   Amount of SetTokens issued
+     * @return setTokenAmount       Amount of SetTokens issued
      */
     function _issueSetForExactWETH(ISetToken _setToken, uint256 _minSetReceive, uint256 _totalEthAmount, uint256 _approxAmountSetToken) internal returns (uint256) {
 
@@ -736,6 +740,7 @@ contract ExchangeIssuance is ReentrancyGuard, Ownable {
      * @param _setToken             Address of the SetToken to be issued
      * @param _components           An array containing the addresses of the SetToken components
      * @param _amountEth            Total amount of ether available for the purchase of SetToken components
+     * @param _approxAmountSetToken Approximate amount of set tokens that will be issued
      *
      * @return setIssueAmount       The max amount of SetTokens that can be issued
      * @return amountEthIn          An array containing the amount ether required to purchase each SetToken component
