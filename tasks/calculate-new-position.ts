@@ -194,8 +194,9 @@ async function generateReports(
 
   // Generate old component rebalance() params
   const components = await dpi.getComponents();
+
   for (let j = 0; j < components.length; j++) {
-    const [[asset,]] = Object.entries(assets).filter(([key, obj]) => obj.address == components[j]);
+    const [[asset,]] = Object.entries(assets).filter(([key, obj]) => obj.address.toLowerCase() == components[j].toLowerCase());
     oldComponentsTargetUnits.push(rebalanceData.filter(obj => obj.asset == asset)[0].newUnit.toString());
   }
 
