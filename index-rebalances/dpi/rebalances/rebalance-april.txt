@@ -1,0 +1,105 @@
+The parameters for updating exchanges are:
+    components: ["0x2ba592f78db6436527729929aaf6c908497cb200","0xa0246c9032bc3a600820415ae600c6388619a14d",]
+    exchanges: ["2","1",]
+
+The parameters for updating maxTradeSizes are:
+    components: ["0xc00e94Cb662C3520282E6f5717214004A7f26888","0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e","0x2ba592f78db6436527729929aaf6c908497cb200","0x408e41876cCCDC0F92210600ef50372656052a38","0xa3BeD4E1c75D00fa6f4E5E6922DB7261B5E9AcD2","0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9","0x6b3595068778dd592e39a122f4f5a5cf09c90fe2","0xba100000625a3754423978a60c9317c58a424e3D","0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F","0xa0246c9032bc3a600820415ae600c6388619a14d","0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984","0xdd974D5C2e2928deA5F71b9825b8b646686BD200","0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2",]
+    maxTradeSizes: ["192000000000000000000","13200000000000000000","135000000000000000000","55000000000000000000000","5000000000000000000000","1200000000000000000000","72000000000000000000000","9900000000000000000000","10250000000000000000000","125000000000000000000","17000000000000000000000","2100000000000000000000","40000000000000000000",]
+
+The parameters for updating coolOffPeriods are:
+    components: ["0x2ba592f78db6436527729929aaf6c908497cb200","0xa0246c9032bc3a600820415ae600c6388619a14d",]
+    coolOffPeriods: ["600","600",]
+
+The parameters for startRebalance are as follows:
+    newComponents: ["0x6b3595068778dd592e39a122f4f5a5cf09c90fe2","0x2ba592f78db6436527729929aaf6c908497cb200","0xa0246c9032bc3a600820415ae600c6388619a14d",]
+    newComponentsTargetUnits: ["1658173486139758946","7773990040422878","5908109238091636",]
+    oldComponentsTargetUnits: ["429224050530857","53285212104175302","1759403747672004141","10722075286868783","10477949565698415405","2433179984669890127","14822314466072916243","128423060613865544","6181718023486032738","147980294887006435","251154360127254657","1658173486139758946",]
+    positionMultiplier: 994832748042687048
+
+Trade Order is: yfi,compound,snx,maker,ren,kyber-network,loopring,balancer,aave,mta,uniswap,sushi,cream,farm,yfi,compound,snx,maker,ren,kyber-network,loopring,balancer,aave,mta,uniswap,sushi,cream,farm,yfi,compound,snx,maker,ren,kyber-network,loopring,aave,mta,uniswap,sushi,cream,farm,yfi,compound,snx,maker,ren,kyber-network,loopring,aave,uniswap,cream,farm,compound,snx,maker,ren,kyber-network,loopring,aave,uniswap,sushi,cream,compound,snx,maker,ren,kyber-network,loopring,aave,uniswap,cream,farm,compound,snx,maker,ren,kyber-network,loopring,aave,uniswap,cream,farm,compound,snx,maker,ren,kyber-network,loopring,aave,uniswap,sushi,cream,compound,snx,maker,ren,kyber-network,loopring,aave,uniswap,cream,farm,compound,snx,maker,ren,kyber-network,loopring,aave,uniswap,cream,farm,compound,snx,maker,ren,kyber-network,loopring,aave,uniswap,sushi,cream,compound,snx,maker,ren,kyber-network,loopring,aave,uniswap,cream,farm,compound,snx,maker,ren,kyber-network,loopring,aave,uniswap,cream,farm,compound,snx,maker,ren,kyber-network,loopring,aave,uniswap,sushi,cream,compound,snx,maker,ren,kyber-network,loopring,aave,uniswap,cream,farm,compound,snx,maker,ren,kyber-network,loopring,sushi,cream,farm,compound,snx,maker,ren,kyber-network,loopring,cream,farm,compound,snx,maker,ren,kyber-network,loopring,uniswap,cream,farm,compound,snx,maker,ren,kyber-network,loopring,uniswap,cream,farm,compound,snx,maker,ren,kyber-network,loopring,farm,compound,maker,ren,kyber-network,loopring,uniswap,compound,maker,ren,kyber-network,loopring,compound,maker,ren,kyber-network,loopring,uniswap,compound,maker,kyber-network,loopring,compound,maker,kyber-network,loopring,uniswap,compound,maker,kyber-network,loopring,compound,maker,kyber-network,loopring,compound,maker,kyber-network,loopring,uniswap,compound,maker,kyber-network,loopring,maker,kyber-network,loopring,maker,kyber-network,loopring,maker,kyber-network,loopring,kyber-network,loopring,uniswap,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,uniswap,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,uniswap,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,loopring,kyber-network,kyber-network,kyber-network,kyber-network,kyber-network,kyber-network,kyber-network,kyber-network,kyber-network,kyber-network,kyber-network,uniswap,
+
+Trade Stats by components is as follows:
+    YFI:
+        currentUnit: 566411985921079
+        newUnit: 429224050530857
+        notionalInToken: -43899596747036625635
+        notionalInUSD: -1577122
+        tradeNumber: 4
+    COMP:
+        currentUnit: 70285344407296533
+        newUnit: 53285212104175302
+        notionalInToken: -5439975101531305117565
+        notionalInUSD: -2155100
+        tradeNumber: 29
+    SNX:
+        currentUnit: 2383603243815950218
+        newUnit: 1759403747672004141
+        notionalInToken: -199741370059103222463687
+        notionalInUSD: -3501466
+        tradeNumber: 20
+    MKR:
+        currentUnit: 14661044448161044
+        newUnit: 10722075286868783
+        notionalInToken: -1260454553003412654170
+        notionalInUSD: -2675327
+        tradeNumber: 32
+    REN:
+        currentUnit: 14322484886094456781
+        newUnit: 10477949565698415405
+        notionalInToken: -1230236097402153322669399
+        notionalInUSD: -1267143
+        tradeNumber: 23
+    KNC:
+        currentUnit: 3321217267179696025
+        newUnit: 2433179984669890127
+        notionalInToken: -284168418218598825262368
+        notionalInUSD: -767254
+        tradeNumber: 136
+    LRC:
+        currentUnit: 20260870085903879514
+        newUnit: 14822314466072916243
+        notionalInToken: -1740316288876273351438732
+        notionalInUSD: -946382
+        tradeNumber: 125
+    BAL:
+        currentUnit: 175543634098937293
+        newUnit: 128423060613865544
+        notionalInToken: -15078397153509408333718
+        notionalInUSD: -859920
+        tradeNumber: 2
+    UNI:
+        currentUnit: 4868806936278409794
+        newUnit: 6181718023486032738
+        notionalInToken: 420126355347396526324175
+        notionalInUSD: 11734129
+        tradeNumber: 25
+    AAVE:
+        currentUnit: 201705684730304727
+        newUnit: 147980294887006435
+        notionalInToken: -17191912266114872838284
+        notionalInUSD: -6519173
+        tradeNumber: 15
+    MTA:
+        currentUnit: 295026525267063863
+        newUnit: 251154360127254657
+        notionalInToken: -14038919330469743471778
+        notionalInUSD: -43941
+        tradeNumber: 3
+    SUSHI:
+        currentUnit: 0
+        newUnit: 1658173486139758946
+        notionalInToken: 530608957494024926169080
+        notionalInUSD: 7704442
+        tradeNumber: 8
+    CREAM:
+        currentUnit: 0
+        newUnit: 7773990040422878
+        notionalInToken: 2487646066830214168528
+        notionalInUSD: 311080
+        tradeNumber: 19
+    FARM:
+        currentUnit: 0
+        newUnit: 5908109238091636
+        notionalInToken: 1890571589636668805006
+        notionalInUSD: 563182
+        tradeNumber: 16
