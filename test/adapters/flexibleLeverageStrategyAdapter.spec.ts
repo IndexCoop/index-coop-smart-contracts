@@ -219,7 +219,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       twapCooldownPeriod: twapCooldownPeriod,
       slippageTolerance: slippageTolerance,
       exchangeName: "MockTradeAdapter",
-      exchangeData: EMPTY_BYTES,
+      leverExchangeData: EMPTY_BYTES,
+      deleverExchangeData: EMPTY_BYTES,
     };
     incentive = {
       incentivizedTwapMaxTradeSize: incentivizedTwapMaxTradeSize,
@@ -275,7 +276,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         twapCooldownPeriod: BigNumber.from(120),
         slippageTolerance: ether(0.01),
         exchangeName: "MockTradeAdapter",
-        exchangeData: EMPTY_BYTES,
+        leverExchangeData: EMPTY_BYTES,
+        deleverExchangeData: EMPTY_BYTES,
       };
       subjectIncentiveSettings = {
         incentivizedTwapMaxTradeSize: ether(1),
@@ -338,7 +340,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       expect(execution.twapCooldownPeriod).to.eq(subjectExecutionSettings.twapCooldownPeriod);
       expect(execution.slippageTolerance).to.eq(subjectExecutionSettings.slippageTolerance);
       expect(execution.exchangeName).to.eq(subjectExecutionSettings.exchangeName);
-      expect(execution.exchangeData).to.eq(subjectExecutionSettings.exchangeData);
+      expect(execution.leverExchangeData).to.eq(subjectExecutionSettings.leverExchangeData);
+      expect(execution.deleverExchangeData).to.eq(subjectExecutionSettings.deleverExchangeData);
     });
 
     it("should set the correct incentive parameters", async () => {
@@ -645,7 +648,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           twapCooldownPeriod: execution.twapCooldownPeriod,
           slippageTolerance: execution.slippageTolerance,
           exchangeName: "MockTradeAdapter",
-          exchangeData: EMPTY_BYTES,
+          leverExchangeData: EMPTY_BYTES,
+          deleverExchangeData: EMPTY_BYTES,
         };
         await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
 
@@ -959,7 +963,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             twapCooldownPeriod: execution.twapCooldownPeriod,
             slippageTolerance: execution.slippageTolerance,
             exchangeName: "MockTradeAdapter",
-            exchangeData: EMPTY_BYTES,
+            leverExchangeData: EMPTY_BYTES,
+            deleverExchangeData: EMPTY_BYTES,
           };
           await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
           destinationTokenQuantity = ether(1);
@@ -1036,7 +1041,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             twapCooldownPeriod: execution.twapCooldownPeriod,
             slippageTolerance: execution.slippageTolerance,
             exchangeName: "MockTradeAdapter",
-            exchangeData: EMPTY_BYTES,
+            leverExchangeData: EMPTY_BYTES,
+            deleverExchangeData: EMPTY_BYTES,
           };
           await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
           await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1500));
@@ -1131,7 +1137,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             twapCooldownPeriod: execution.twapCooldownPeriod,
             slippageTolerance: execution.slippageTolerance,
             exchangeName: "MockTradeAdapter",
-            exchangeData: EMPTY_BYTES,
+            leverExchangeData: EMPTY_BYTES,
+            deleverExchangeData: EMPTY_BYTES,
           };
           await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
           await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.01));
@@ -1306,7 +1313,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             twapCooldownPeriod: execution.twapCooldownPeriod,
             slippageTolerance: execution.slippageTolerance,
             exchangeName: "MockTradeAdapter",
-            exchangeData: EMPTY_BYTES,
+            leverExchangeData: EMPTY_BYTES,
+            deleverExchangeData: EMPTY_BYTES,
           };
           await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
           await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(100000000));
@@ -1399,7 +1407,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             twapCooldownPeriod: execution.twapCooldownPeriod,
             slippageTolerance: execution.slippageTolerance,
             exchangeName: "MockTradeAdapter",
-            exchangeData: EMPTY_BYTES,
+            leverExchangeData: EMPTY_BYTES,
+            deleverExchangeData: EMPTY_BYTES,
           };
           await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
           // ~2.4x leverage
@@ -1562,7 +1571,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           twapCooldownPeriod: execution.twapCooldownPeriod,
           slippageTolerance: execution.slippageTolerance,
           exchangeName: "MockTradeAdapter",
-          exchangeData: EMPTY_BYTES,
+          leverExchangeData: EMPTY_BYTES,
+          deleverExchangeData: EMPTY_BYTES,
         };
         await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
         await setV2Setup.weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
@@ -1651,7 +1661,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           twapCooldownPeriod: execution.twapCooldownPeriod,
           slippageTolerance: execution.slippageTolerance,
           exchangeName: "MockTradeAdapter",
-          exchangeData: EMPTY_BYTES,
+          leverExchangeData: EMPTY_BYTES,
+          deleverExchangeData: EMPTY_BYTES,
         };
         await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
         await setV2Setup.weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
@@ -1900,7 +1911,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           twapCooldownPeriod: execution.twapCooldownPeriod,
           slippageTolerance: execution.slippageTolerance,
           exchangeName: "MockTradeAdapter",
-          exchangeData: EMPTY_BYTES,
+          leverExchangeData: EMPTY_BYTES,
+          deleverExchangeData: EMPTY_BYTES,
         };
         await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
         await setV2Setup.weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
@@ -2178,7 +2190,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             twapCooldownPeriod: execution.twapCooldownPeriod,
             slippageTolerance: execution.slippageTolerance,
             exchangeName: "MockTradeAdapter",
-            exchangeData: EMPTY_BYTES,
+            leverExchangeData: EMPTY_BYTES,
+            deleverExchangeData: EMPTY_BYTES,
           };
           await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
           newIncentivizedMaxTradeSize = ether(0.01);
@@ -2405,7 +2418,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           twapCooldownPeriod: execution.twapCooldownPeriod,
           slippageTolerance: execution.slippageTolerance,
           exchangeName: "MockTradeAdapter",
-          exchangeData: EMPTY_BYTES,
+          leverExchangeData: EMPTY_BYTES,
+          deleverExchangeData: EMPTY_BYTES,
         };
         await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
         newIncentivizedMaxTradeSize = ether(0.001);
@@ -2656,7 +2670,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           twapCooldownPeriod: execution.twapCooldownPeriod,
           slippageTolerance: execution.slippageTolerance,
           exchangeName: "MockTradeAdapter",
-          exchangeData: EMPTY_BYTES,
+          leverExchangeData: EMPTY_BYTES,
+          deleverExchangeData: EMPTY_BYTES,
         };
         await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
 
@@ -2999,7 +3014,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         twapCooldownPeriod: BigNumber.from(360),
         slippageTolerance: ether(0.02),
         exchangeName: "TestTradeAdapter",
-        exchangeData: "0x0000000000000000000000000000000000000000000000000000000000000001",
+        leverExchangeData: "0x0000000000000000000000000000000000000000000000000000000000000001",
+        deleverExchangeData: "0x0000000000000000000000000000000000000000000000000000000000000002",
       };
       subjectCaller = owner;
     };
@@ -3021,7 +3037,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         expect(execution.twapCooldownPeriod).to.eq(subjectExecutionSettings.twapCooldownPeriod);
         expect(execution.slippageTolerance).to.eq(subjectExecutionSettings.slippageTolerance);
         expect(execution.exchangeName).to.eq(subjectExecutionSettings.exchangeName);
-        expect(execution.exchangeData).to.eq(subjectExecutionSettings.exchangeData);
+        expect(execution.leverExchangeData).to.eq(subjectExecutionSettings.leverExchangeData);
+        expect(execution.deleverExchangeData).to.eq(subjectExecutionSettings.deleverExchangeData);
       });
 
       it("should emit ExecutionSettingsUpdated event", async () => {
@@ -3031,7 +3048,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           subjectExecutionSettings.twapCooldownPeriod,
           subjectExecutionSettings.slippageTolerance,
           subjectExecutionSettings.exchangeName,
-          subjectExecutionSettings.exchangeData,
+          subjectExecutionSettings.leverExchangeData,
+          subjectExecutionSettings.deleverExchangeData,
         );
       });
 
@@ -3418,7 +3436,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           twapCooldownPeriod: execution.twapCooldownPeriod,
           slippageTolerance: execution.slippageTolerance,
           exchangeName: "MockTradeAdapter",
-          exchangeData: EMPTY_BYTES,
+          leverExchangeData: EMPTY_BYTES,
+          deleverExchangeData: EMPTY_BYTES,
         };
         await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
 
@@ -3613,7 +3632,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           twapCooldownPeriod: execution.twapCooldownPeriod,
           slippageTolerance: execution.slippageTolerance,
           exchangeName: "MockTradeAdapter",
-          exchangeData: EMPTY_BYTES,
+          leverExchangeData: EMPTY_BYTES,
+          deleverExchangeData: EMPTY_BYTES,
         };
         await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
 

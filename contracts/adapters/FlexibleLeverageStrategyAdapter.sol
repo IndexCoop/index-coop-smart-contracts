@@ -39,6 +39,11 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  * protocol where module interactions are invoked via the IBaseManager contract. Any leveraged token can be constructed as long as the collateral and borrow
  * asset is available on Compound. This adapter contract also allows the operator to set an ETH reward to incentivize keepers calling the rebalance function at
  * different leverage thresholds.
+ *
+ * CHANGELOG 4/14/2021:
+ * - Update ExecutionSettings struct to split exchangeData into leverExchangeData and deleverExchangeData
+ * - Update _lever and _delever internal functions with struct changes
+ * - Update setExecutionSettings to account for leverExchangeData and deleverExchangeData
  */
 contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     using Address for address;
@@ -98,7 +103,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         uint256 twapCooldownPeriod;                      // Cooldown period required since last trade timestamp in seconds
         uint256 slippageTolerance;                       // % in precise units to price min token receive amount from trade quantities
         string exchangeName;                             // Name of exchange that is being used for leverage
-        bytes exchangeData;                              // Arbitrary exchange data passed into rebalance function
+        bytes leverExchangeData;                         // Arbitrary exchange data passed into rebalance function for levering up
+        bytes deleverExchangeData;                       // Arbitrary exchange data passed into rebalance function for delevering
     }
 
     struct IncentiveSettings {
@@ -144,7 +150,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         uint256 _twapCooldownPeriod,
         uint256 _slippageTolerance,
         string _exchangeName,
-        bytes _exchangeData
+        bytes _leverExchangeData,
+        bytes _deleverExchangeData
     );
     event IncentiveSettingsUpdated(
         uint256 _etherReward,
@@ -403,7 +410,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             execution.twapCooldownPeriod,
             execution.slippageTolerance,
             execution.exchangeName,
-            execution.exchangeData
+            execution.leverExchangeData,
+            execution.deleverExchangeData
         );
     }
 
@@ -541,7 +549,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             borrowUnits,
             minReceiveCollateralUnits,
             execution.exchangeName,
-            execution.exchangeData
+            execution.leverExchangeData
         );
 
         invokeManager(address(strategy.leverageModule), leverCallData);
@@ -568,7 +576,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             collateralRebalanceUnits,
             minRepayUnits,
             execution.exchangeName,
-            execution.exchangeData
+            execution.deleverExchangeData
         );
 
         invokeManager(address(strategy.leverageModule), deleverCallData);
@@ -595,7 +603,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             strategy.borrowAsset,
             maxCollateralRebalanceUnits,
             execution.exchangeName,
-            execution.exchangeData
+            execution.deleverExchangeData
         );
 
         invokeManager(address(strategy.leverageModule), deleverToZeroBorrowBalanceCallData);
