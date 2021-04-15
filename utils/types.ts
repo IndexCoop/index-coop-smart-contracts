@@ -58,7 +58,8 @@ export interface ExecutionSettings {
   twapCooldownPeriod: BigNumber;
   slippageTolerance: BigNumber;
   exchangeName: string;
-  exchangeData: Bytes;
+  leverExchangeData: Bytes;
+  deleverExchangeData: Bytes;
 }
 
 export interface IncentiveSettings {

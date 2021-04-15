@@ -29,7 +29,7 @@ import { SetFixture, CompoundFixture, UniswapFixture } from "@utils/fixtures";
 
 const expect = getWaffleExpect();
 
-describe("FlexibleLeverageStrategyAdapter", () => {
+describe("FLIRebalanceViewer", () => {
   let owner: Account;
   let methodologist: Account;
   let setV2Setup: SetFixture;
@@ -231,7 +231,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       twapCooldownPeriod: twapCooldownPeriod,
       slippageTolerance: slippageTolerance,
       exchangeName: "UniswapTradeAdapter",
-      exchangeData: EMPTY_BYTES,
+      leverExchangeData: EMPTY_BYTES,
+      deleverExchangeData: EMPTY_BYTES,
     };
     incentive = {
       incentivizedTwapMaxTradeSize: incentivizedTwapMaxTradeSize,
@@ -304,7 +305,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           twapCooldownPeriod: execution.twapCooldownPeriod,
           slippageTolerance: execution.slippageTolerance,
           exchangeName: "UniswapTradeAdapter",
-          exchangeData: EMPTY_BYTES,
+          leverExchangeData: EMPTY_BYTES,
+          deleverExchangeData: EMPTY_BYTES,
         };
         await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
 
