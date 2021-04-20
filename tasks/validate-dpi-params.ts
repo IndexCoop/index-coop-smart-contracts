@@ -28,10 +28,10 @@ task("validate-dpi-params", "Validates on-chain params match generated params")
 
   const positionMultiplier: BigNumber = await dpi.positionMultiplier();
 
-  // if (positionMultiplier.eq(BigNumber.from(expectedParams.rebalanceParams.positionMultiplier))) {
-  //   console.log(positionMultiplier.toString(), expectedParams.rebalanceParams.positionMultiplier.toString());
-  //   throw Error("Different position multiplier used!")
-  // }
+  if (positionMultiplier.eq(BigNumber.from(expectedParams.rebalanceParams.positionMultiplier))) {
+    console.log(positionMultiplier.toString(), expectedParams.rebalanceParams.positionMultiplier.toString());
+    throw Error("Different position multiplier used!")
+  }
 
   await Promise.all(expectedParams.summary.map(async (obj, i) => {
     const address = strategyInfo[obj.asset].address;
