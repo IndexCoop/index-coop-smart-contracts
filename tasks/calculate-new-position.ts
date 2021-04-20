@@ -9,9 +9,11 @@ import { SetToken__factory } from "../typechain/factories/SetToken__factory";
 import { SingleIndexModule__factory } from "../typechain/factories/SingleIndexModule__factory";
 import { Address } from "../utils/types";
 import { ZERO, PRECISE_UNIT } from "../utils/constants";
+import { ether, preciseDiv, preciseMul } from "../utils/common/index";
 import { assets } from "../index-rebalances/assetInfo";
 import { strategyInfo } from "../index-rebalances/dpi/strategyInfo";
 import { BigNumber } from 'ethers';
+import { zeroPad } from "ethers/lib/utils";
 
 require("@nomiclabs/hardhat-ethers");
 
@@ -63,13 +65,12 @@ let tradeOrder: string = "";
 task("calculate-new-position", "Calculates new rebalance details for an index")
   .addParam('rebalance', "Rebalance month")
   .setAction(async ({rebalance}, hre) => {
-    let rebalanceData: RebalanceSummary[] = [];
-
     const [owner] = await hre.ethers.getSigners();
     const dpi: SetToken = await new SetToken__factory(owner).attach(DPI_ADDRESS);
     const indexModule: SingleIndexModule = await new SingleIndexModule__factory(owner).attach(SINGLE_INDEX_MODULE_ADDRESS);
     
     const currentPositions: any[] = await dpi.getPositions();
+
     const strategyConstants: StrategyObject = createStrategyObject(currentPositions);
 
     const dpiValue = Object.entries(strategyConstants).map(([, obj]) => {
@@ -80,23 +81,7 @@ task("calculate-new-position", "Calculates new rebalance details for an index")
       return obj.supply.mul(obj.price);
     }).reduce((a, b) => a.add(b), ZERO).div(dpiValue);
 
-    const totalSupply = await dpi.totalSupply();
-    for (let i = 0; i < Object.keys(strategyConstants).length; i++) {
-      const key = Object.keys(strategyConstants)[i];
-      const assetObj = strategyConstants[key];
-
-      const newUnit = assetObj.supply.mul(PRECISE_UNIT).div(divisor);
-      const notionalInToken = newUnit.sub(assetObj.currentUnit).mul(totalSupply).div(PRECISE_UNIT);
-      const tokenSummary = {
-        asset: key,
-        currentUnit: assetObj.currentUnit,
-        newUnit: newUnit,
-        notionalInToken: notionalInToken,
-        notionalInUSD: notionalInToken.mul(assetObj.price).div(PRECISE_UNIT).div(PRECISE_UNIT),
-        tradeNumber: notionalInToken.div(assetObj.maxTradeSize).abs().add(1),
-      } as RebalanceSummary;
-      rebalanceData.push(tokenSummary);
-    }
+    let rebalanceData: RebalanceSummary[] = await calculateNewAllocations(strategyConstants, dpiValue, divisor, dpi);
     
     createRebalanceSchedule(rebalanceData);
 
@@ -108,13 +93,69 @@ task("calculate-new-position", "Calculates new rebalance details for an index")
     fs.writeFileSync(`index-rebalances/dpi/rebalances/rebalance-${rebalance}.json`, JSON.stringify(report));
   });
 
+async function calculateNewAllocations(
+  strategyConstants: StrategyObject,
+  dpiValue: BigNumber,
+  divisor: BigNumber,
+  dpi: SetToken,
+): Promise<RebalanceSummary[]> {
+  let rebalanceData: RebalanceSummary[] = [];
+
+  let sumOfCappedAllocations = ZERO;
+  let cappedAssets: string[] = [];
+
+  const totalSupply = await dpi.totalSupply();
+  for (let i = 0; i < Object.keys(strategyConstants).length; i++) {
+    const key = Object.keys(strategyConstants)[i];
+    const assetObj = strategyConstants[key];
+
+    let newUnit = assetObj.supply.mul(PRECISE_UNIT).div(divisor);
+
+    let allocation: BigNumber = strategyConstants[key].price.mul(newUnit).div(dpiValue);
+    if (allocation.gt(ether(.25))) {
+      cappedAssets.push(key);
+      newUnit = ether(.25).mul(dpiValue).div(strategyConstants[key].price);
+      allocation = ether(.25);
+    }
+    sumOfCappedAllocations = sumOfCappedAllocations.add(allocation);
+    rebalanceData.push({asset: key, newUnit: newUnit, currentUnit: ZERO, notionalInToken: ZERO, notionalInUSD: ZERO, tradeNumber: ZERO});
+  }
+
+  const cappedAssetAllocationSum = ether(.25).mul(cappedAssets.length);
+
+  for (let i = 0; i < rebalanceData.length; i++) {
+    const assetObj = strategyConstants[rebalanceData[i].asset];
+
+    let finalNewUnit: BigNumber = rebalanceData[i].newUnit;
+    if(!cappedAssets.includes(rebalanceData[i].asset)) {
+      const allocation: BigNumber = assetObj.price.mul(rebalanceData[i].newUnit).div(dpiValue);
+      const allocationSansCapped = preciseDiv(allocation, sumOfCappedAllocations.sub(cappedAssetAllocationSum));
+      const additionalAllocation = preciseMul(allocationSansCapped, PRECISE_UNIT.sub(sumOfCappedAllocations));
+
+      const finalCappedAllocation = allocation.add(additionalAllocation);
+      console.log(rebalanceData[i].asset, finalCappedAllocation.toString());
+      finalNewUnit = finalCappedAllocation.mul(dpiValue).div(assetObj.price);
+    }
+
+    const currentUnit = assetObj.currentUnit;
+    const notionalInToken = finalNewUnit.sub(currentUnit).mul(totalSupply).div(PRECISE_UNIT);
+
+    rebalanceData[i].newUnit = finalNewUnit;
+    rebalanceData[i].currentUnit = currentUnit;
+    rebalanceData[i].notionalInToken = notionalInToken;
+    rebalanceData[i].notionalInUSD = notionalInToken.mul(assetObj.price).div(PRECISE_UNIT).div(PRECISE_UNIT);
+    rebalanceData[i].tradeNumber = notionalInToken.div(assetObj.maxTradeSize).abs().add(1);
+  }
+  return rebalanceData;
+}
+
 function createStrategyObject(
   currentPositions: any[]
 ): any {
   const filteredConstants = _.pick(_.merge(assets, strategyInfo), Object.keys(strategyInfo));
   const keys = Object.keys(filteredConstants);
   for (let i = 0; i < keys.length; i++) {
-    const position = currentPositions.filter(obj => obj.component == filteredConstants[keys[i]].address)[0];
+    const position = currentPositions.filter(obj => obj.component.toLowerCase() == filteredConstants[keys[i]].address.toLowerCase())[0];
     if (position) { filteredConstants[keys[i]].currentUnit = position.unit; }
   }
   return filteredConstants;
