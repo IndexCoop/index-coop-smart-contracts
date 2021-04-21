@@ -381,11 +381,14 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     }
 
     it("validate state", async () => {
-      await subject();
+      const [preRebalanceLeverageRatios, postRebalanceLeverageRatios] = await subject();
 
       const lastTradeTimestamp = await flexibleLeverageStrategyAdapter.lastTradeTimestamp();
 
       expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
+      expect(postRebalanceLeverageRatios[0]).to.lt(preRebalanceLeverageRatios[0]);
+      expect(postRebalanceLeverageRatios[1]).to.gt(preRebalanceLeverageRatios[1]);
+      expect(postRebalanceLeverageRatios[2]).to.lt(preRebalanceLeverageRatios[2]);
     });
   });
 
@@ -407,11 +410,16 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     }
 
     it("validate state", async () => {
-      await subject();
+      const [preRebalanceLeverageRatios, postRebalanceLeverageRatios] = await subject();
 
       const lastTradeTimestamp = await flexibleLeverageStrategyAdapter.lastTradeTimestamp();
 
       expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
+      expect(postRebalanceLeverageRatios[0]).to.lt(preRebalanceLeverageRatios[0]);
+      expect(postRebalanceLeverageRatios[1]).to.lt(preRebalanceLeverageRatios[1]);
+      expect(postRebalanceLeverageRatios[2]).to.lt(preRebalanceLeverageRatios[2]);
+      expect(postRebalanceLeverageRatios[3]).to.lt(preRebalanceLeverageRatios[3]);
+      expect(postRebalanceLeverageRatios[4]).to.gt(preRebalanceLeverageRatios[4]);
     });
   });
 
@@ -433,11 +441,14 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     }
 
     it("validate state", async () => {
-      await subject();
+      const [preRebalanceLeverageRatios, postRebalanceLeverageRatios] = await subject();
 
       const lastTradeTimestamp = await flexibleLeverageStrategyAdapter.lastTradeTimestamp();
 
       expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
+      expect(postRebalanceLeverageRatios[0]).to.gt(preRebalanceLeverageRatios[0]);
+      expect(postRebalanceLeverageRatios[1]).to.gt(preRebalanceLeverageRatios[1]);
+      expect(postRebalanceLeverageRatios[2]).to.lt(preRebalanceLeverageRatios[2]);
     });
   });
 
@@ -559,12 +570,14 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     await flexibleLeverageStrategyAdapter.iterateRebalance();
   }
 
-  async function runScenarios(fliSettings: FLISettings, isMultihop: boolean): Promise<void> {
+  async function runScenarios(fliSettings: FLISettings, isMultihop: boolean): Promise<[BigNumber[], BigNumber[]]> {
     console.log(`Running Scenarios ${fliSettings.name}`);
     await increaseTimeAsync(rebalanceInterval);
 
     await flexibleLeverageStrategyAdapter.rebalance();
 
+    const preRebalanceLeverageRatios = [];
+    const postRebalanceLeverageRatios = [];
     for (let i = 0; i < fliSettings.checkpoints.length; i++) {
       console.log("----------------------");
 
@@ -579,12 +592,16 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       const rebalanceType = await flexibleLeverageStrategyAdapter.shouldRebalance();
 
-      console.log("Pre-Rebalance Leverage Ratio:", (await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio()).toString());
+      const preRebalanceLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
+      preRebalanceLeverageRatios.push(preRebalanceLeverageRatio);
+      console.log("Pre-Rebalance Leverage Ratio:", preRebalanceLeverageRatio.toString());
       if (rebalanceType != 0) {
         await executeTrade(rebalanceType);
       }
       console.log("RebalanceType:", rebalanceType);
-      console.log("Leverage Ratio:", (await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio()).toString());
+      const postRebalanceLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
+      postRebalanceLeverageRatios.push(postRebalanceLeverageRatio);
+      console.log("Leverage Ratio:", postRebalanceLeverageRatio.toString());
       console.log(
         "Debt Position:",
         (await setToken.getExternalPositionRealUnit(
@@ -597,6 +614,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       console.log("Collateral Asset Price:", fliSettings.checkpoints[i].collateralPrice.toString());
       console.log("Set Value:", (await calculateSetValue(fliSettings, i)).toString());
     }
+
+    return [preRebalanceLeverageRatios, postRebalanceLeverageRatios];
   }
 
   async function setPricesAndUniswapPool(
