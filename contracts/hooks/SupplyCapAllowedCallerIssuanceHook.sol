@@ -29,7 +29,9 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
  * @title SupplyCapAllowedCallerIssuanceHook
  * @author Set Protocol
  *
- * Issuance hook that checks new issuances won't push SetToken totalSupply over supply cap and checks if caller is allowed
+ * Issuance hook that checks
+ * 1) New issuances won't push SetToken totalSupply over supply cap
+ * 2) A contract address is allowed to call the module. This does not apply if caller is an EOA
  */
 contract SupplyCapAllowedCallerIssuanceHook is Ownable, IManagerIssuanceHook {
     using SafeMath for uint256;
@@ -49,7 +51,7 @@ contract SupplyCapAllowedCallerIssuanceHook is Ownable, IManagerIssuanceHook {
     // Boolean indicating if anyone can call function
     bool public anyoneCallable;
 
-    // Mapping of addresses allowed to call function
+    // Mapping of contract addresses allowed to call function
     mapping(address => bool) public callAllowList;
 
     /* ============ Constructor ============ */
@@ -86,26 +88,24 @@ contract SupplyCapAllowedCallerIssuanceHook is Ownable, IManagerIssuanceHook {
         external
         override
     {
+        _validateAllowedContractCaller(_sender);
+        
         uint256 totalSupply = _setToken.totalSupply();
         require(totalSupply.add(_issueQuantity) <= supplyCap, "Supply cap exceeded");
-
-        _validateAllowedCaller(_sender);
     }
 
     /**
      * Adheres to IManagerIssuanceHook interface
      */
     function invokePreRedeemHook(
-        ISetToken /* _setToken */,
-        uint256 /* _redeemQuantity */,
+        ISetToken _setToken,
+        uint256 _redeemQuantity,
         address _sender,
-        address /* _to */
+        address _to
     )
         external
         override
-    {
-        _validateAllowedCaller(_sender);
-    }
+    {}
 
     /**
      * ONLY OWNER: Updates supply cap
@@ -147,11 +147,13 @@ contract SupplyCapAllowedCallerIssuanceHook is Ownable, IManagerIssuanceHook {
     /* ============ Internal Functions ============ */
 
     /**
-     * Validate if passed address is allowed to call function. If anyoneCallable set to true anyone can call otherwise needs to be approved or an EOA.
+     * Validate if passed address is allowed to call function. If anyoneCallable is set to true, anyone can call otherwise needs to be an EOA or 
+     * approved contract address.
      */
-    function _validateAllowedCaller(address _caller) internal view {
-        bool isEOA = msg.sender == tx.origin;
-
-        require(anyoneCallable || isEOA || callAllowList[_caller], "Address not permitted to call");
+    function _validateAllowedContractCaller(address _caller) internal view {
+        require(
+            _caller == tx.origin || anyoneCallable || callAllowList[_caller],
+            "Contract not permitted to call"
+        );
     }
 }
