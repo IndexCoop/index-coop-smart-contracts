@@ -90,5 +90,80 @@ export const assets: Assets = {
     id: "farm",
     address: "0xa0246c9032bc3a600820415ae600c6388619a14d",
     price: ether(295.32)
-  }
+  },
+  MANA: {
+    id: "mana",
+    address: "0x0f5d2fb29fb7d3cfee444a200298f468908cc942",
+    price: ether(1.44) ,
+  },
+  ENJ: {
+    id: "enj",
+    address: "0xf629cbd94d3791c9250152bd8dfbdf380e2a3b9c",
+    price: ether(2.49),
+  },
+  WAXE: {
+    id: "waxe",
+    address: "0x7a2bc711e19ba6aff6ce8246c546e8c4b4944dfd",
+    price: ether(206.63),
+  },
+  AXS: {
+    id: "axie",
+    address: "0xf5d669627376ebd411e34b98f19c868c8aba5ada",
+    price: ether(8.86),
+  },
+  SAND: {
+    id: "sand",
+    address: "0x3845badade8e6dff049820680d1f14bd3903a5d0",
+    price: ether(0.518193),
+  },
+  RFOX: {
+    id: "rfox",
+    address: "0xa1d6df714f91debf4e0802a542e13067f31b8262",
+    price: ether(0.233598),
+  },
+  AUDIO: {
+    id: "audio",
+    address: "0x18aaa7115705e8be94bffebde57af9bfc265b998",
+    price: ether(1.94),
+  },
+  DG: {
+    id: "dg",
+    address: "0xee06a81a695750e71a662b51066f2c74cf4478a0",
+    price: ether(351.73),
+  },
+  NFTX: {
+    id: "nftx",
+    address: "0x87d73e916d7057945c9bcd8cdd94e42a6f47f776",
+    price: ether(133.18),
+  },
+  WHALE: {
+    id: "whale",
+    address: "0x9355372396e3f6daf13359b7b607a3374cc638e0",
+    price: ether(21.30),
+  },
+  MEME: {
+    id: "meme",
+    address: "0xd5525d397898e5502075ea5e830d8914f6f0affe",
+    price: ether(1971.58),
+  },
+  TVK: {
+    id: "tvk",
+    address: "0xd084b83c305dafd76ae3e1b4e1f1fe2ecccb3988",
+    price: ether(0.402864),
+  },
+  RARI: {
+    id: "rari",
+    address: "0xfca59cd816ab1ead66534d82bc21e7515ce441cf",
+    price: ether(20.28)
+  },
+  REVV: {
+    id: "revv",
+    address: "0x557b933a7c2c45672b610f8954a3deb39a51a8ca",
+    price: ether(0.260449)
+  },
+  MUSE: {
+    id: "muse",
+    address: "0xb6ca7399b4f9ca56fc27cbff44f4d2e4eef1fc81",
+    price: ether(32.06)
+  },
 };
