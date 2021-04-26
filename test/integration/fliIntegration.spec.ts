@@ -31,7 +31,7 @@ import {
   usdc
 } from "@utils/index";
 import { CompoundFixture, SetFixture, UniswapFixture } from "@utils/fixtures";
-import { UniswapV2Pair } from "@typechain/UniswapV2Pair";
+import { UniswapV2Pair } from "../../typechain/UniswapV2Pair";
 import { CERc20__factory } from "../../typechain/factories/CERc20__factory";
 import { CEther__factory } from "../../typechain/factories/CEther__factory";
 import { UniswapV2Router02 } from "@typechain/UniswapV2Router02";

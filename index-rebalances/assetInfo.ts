@@ -1,8 +1,6 @@
-import "module-alias/register";
-
 import { BigNumber } from "@ethersproject/bignumber";
-import { Address } from "@utils/types";
-import { ether } from "@utils/common/index";
+import { Address } from "../utils/types";
+import { ether } from "../utils/common/index";
 
 interface AssetInfo {
   id: string,
@@ -13,7 +11,6 @@ interface AssetInfo {
 export interface Assets {
   [symbol: string]: AssetInfo;
 }
-
 
 export const assets: Assets = {
   YFI: {

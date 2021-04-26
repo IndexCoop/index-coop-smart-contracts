@@ -1,8 +1,6 @@
-import "module-alias/register";
-
 import { BigNumber } from "@ethersproject/bignumber";
-import { ZERO } from "@utils/constants";
-import { ether } from "@utils/common/index";
+import { ZERO } from "../../utils/constants";
+import { ether } from "../../utils/common/index";
 import { assets } from "../assetInfo";
 import { Exchanges, StrategyInfo } from "../types";
 
