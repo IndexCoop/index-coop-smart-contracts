@@ -1,6 +1,5 @@
 import * as _ from "lodash";
 import * as fs from "fs";
-const handlebars = require("handlebars");
 
 import { task } from 'hardhat/config';
 import { SetToken } from "../typechain/SetToken";
