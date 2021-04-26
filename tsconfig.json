@@ -23,6 +23,7 @@
     "./typechain/**/*.ts",
     "./types/**/*.ts",
     "./tasks/**/*.ts",
+    "./index-rebalances/**/*.ts"
   ],
   "files": [
     "hardhat.config.ts",

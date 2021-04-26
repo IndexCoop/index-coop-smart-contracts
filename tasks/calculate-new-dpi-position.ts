@@ -1,3 +1,4 @@
+// @ts-nocheck
 import * as _ from "lodash";
 import * as fs from "fs";
 const handlebars = require("handlebars");
@@ -16,8 +17,6 @@ import { BigNumber } from 'ethers';
 import { RebalanceReport, RebalanceSummary, StrategyObject } from "../index-rebalances/types";
 import DEPENDENCY from "../index-rebalances/dependencies"
 
-require("@nomiclabs/hardhat-ethers");
-
 const {
   DPI,
   DPI_SINGLE_INDEX_MODULE,
@@ -33,7 +32,7 @@ task("calculate-new-dpi-position", "Calculates new rebalance details for an inde
     const indexModule: GeneralIndexModule = await new GeneralIndexModule__factory(owner).attach(
       DPI_SINGLE_INDEX_MODULE
     );
-    
+
     const currentPositions: any[] = await dpi.getPositions();
 
     const strategyConstants: StrategyObject = createStrategyObject(currentPositions);
@@ -47,7 +46,7 @@ task("calculate-new-dpi-position", "Calculates new rebalance details for an inde
     }).reduce((a, b) => a.add(b), ZERO).div(dpiValue);
 
     let rebalanceData: RebalanceSummary[] = await calculateNewAllocations(strategyConstants, dpiValue, divisor, dpi);
-    
+
     createRebalanceSchedule(rebalanceData);
 
     const report = await generateReports(rebalanceData, dpi, indexModule);
@@ -140,7 +139,7 @@ function createRebalanceSchedule(rebalanceData: RebalanceSummary[]) {
   let ethBalance: BigNumber = ZERO;
   let buyAssets: RebalanceSummary[] = rebalanceData.filter(obj => obj.notionalInToken.gte(ZERO));
   let sellAssets: RebalanceSummary[] = rebalanceData.filter(obj => obj.notionalInToken.lt(ZERO));
-  
+
   const totalRounds: BigNumber = Object.entries(rebalanceData).map(([, obj]) => obj.tradeCount).reduce((a, b) => { return  a.gt(b) ? a : b; }, ZERO);
   for (let i = 0; i < totalRounds.toNumber(); i++) {
     [sellAssets, ethBalance] = doSellTrades(sellAssets, ethBalance);
