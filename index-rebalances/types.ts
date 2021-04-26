@@ -1,7 +1,5 @@
-import "module-alias/register";
-
 import { BigNumber } from "@ethersproject/bignumber";
-import { Address } from "@utils/types";
+import { Address } from "../utils/types";
 
 export interface DPIAssetInfo extends AssetInfo {
   supply: BigNumber;
