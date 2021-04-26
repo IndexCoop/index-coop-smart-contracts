@@ -4,9 +4,9 @@ const handlebars = require("handlebars");
 
 import { task } from 'hardhat/config';
 import { SetToken } from "../typechain/SetToken";
-import { SingleIndexModule } from "../typechain/SingleIndexModule";
+import { GeneralIndexModule } from "../typechain/GeneralIndexModule";
 import { SetToken__factory } from "../typechain/factories/SetToken__factory";
-import { SingleIndexModule__factory } from "../typechain/factories/SingleIndexModule__factory";
+import { GeneralIndexModule__factory } from "../typechain/factories/GeneralIndexModule__factory";
 import { Address } from "../utils/types";
 import { ZERO, PRECISE_UNIT } from "../utils/constants";
 import { ether, preciseDiv, preciseMul } from "../utils/common/index";
@@ -30,7 +30,7 @@ task("calculate-new-dpi-position", "Calculates new rebalance details for an inde
   .setAction(async ({rebalance}, hre) => {
     const [owner] = await hre.ethers.getSigners();
     const dpi: SetToken = await new SetToken__factory(owner).attach(DPI);
-    const indexModule: SingleIndexModule = await new SingleIndexModule__factory(owner).attach(
+    const indexModule: GeneralIndexModule = await new GeneralIndexModule__factory(owner).attach(
       DPI_SINGLE_INDEX_MODULE
     );
     
@@ -194,7 +194,7 @@ function cleanupTrades(buyAssets: RebalanceSummary[]) {
 async function generateReports(
   rebalanceData: RebalanceSummary[],
   dpi: SetToken,
-  indexModule: SingleIndexModule
+  indexModule: GeneralIndexModule
 ): Promise<RebalanceReport> {
   // Generate trade order for backend and new components params for rebalance()
   let newComponents: Address[] = [];
@@ -227,7 +227,7 @@ async function generateReports(
   const coolOffValue: string[] = [];
   await Promise.all(Object.entries(strategyInfo).map(async ([key, obj]) => {
     const address = obj.address;
-    const info: any = await indexModule.executionInfo(address);
+    const info: any = await indexModule.executionInfo(dpi.address, address);
 
     if (info.maxSize.toString() != obj.maxTradeSize.toString()) {
       tradeSizeComponents.push(address);

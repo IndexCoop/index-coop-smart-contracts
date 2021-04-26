@@ -17,7 +17,7 @@ export const strategyInfo: StrategyInfo = {
   },
   COMP: {
     address: assets.COMP.address,
-    supply: BigNumber.from(4481070),
+    supply: BigNumber.from(5048104),
     maxTradeSize: ether(192),
     exchange: Exchanges.SUSHISWAP,
     coolOffPeriod: BigNumber.from(600),
@@ -25,7 +25,7 @@ export const strategyInfo: StrategyInfo = {
   },
   SNX: {
     address: assets.SNX.address,
-    supply: BigNumber.from(147958712),
+    supply: BigNumber.from(151684080),
     maxTradeSize: ether(10250),
     exchange: Exchanges.SUSHISWAP,
     coolOffPeriod: BigNumber.from(600),
@@ -49,7 +49,7 @@ export const strategyInfo: StrategyInfo = {
   },
   KNC: {
     address: assets.KNC.address,
-    supply: BigNumber.from(204620558),
+    supply: BigNumber.from(204614446),
     maxTradeSize: ether(2100),
     exchange: Exchanges.UNISWAP,
     coolOffPeriod: BigNumber.from(600),
@@ -57,7 +57,7 @@ export const strategyInfo: StrategyInfo = {
   },
   LRC: {
     address: assets.LRC.address,
-    supply: BigNumber.from(1246496468),
+    supply: BigNumber.from(1245991468),
     maxTradeSize: ether(14000),
     exchange: Exchanges.UNISWAP,
     coolOffPeriod: BigNumber.from(900),
@@ -81,7 +81,7 @@ export const strategyInfo: StrategyInfo = {
   },
   AAVE: {
     address: assets.AAVE.address,
-    supply: BigNumber.from(12444542),
+    supply: BigNumber.from(12492713),
     maxTradeSize: ether(1200),
     exchange: Exchanges.SUSHISWAP,
     coolOffPeriod: BigNumber.from(600),
@@ -89,7 +89,7 @@ export const strategyInfo: StrategyInfo = {
   },
   MTA: {
     address: assets.MTA.address,
-    supply: BigNumber.from(21121062),
+    supply: BigNumber.from(24894863),
     maxTradeSize: ether(5000),
     exchange: Exchanges.UNISWAP,
     coolOffPeriod: BigNumber.from(600),
@@ -97,7 +97,7 @@ export const strategyInfo: StrategyInfo = {
   },
   SUSHI: {
     address: assets.SUSHI.address,
-    supply: BigNumber.from(139445658),
+    supply: BigNumber.from(148978846),
     maxTradeSize: ether(72000),
     exchange: Exchanges.SUSHISWAP,
     coolOffPeriod: BigNumber.from(600),
@@ -105,7 +105,7 @@ export const strategyInfo: StrategyInfo = {
   },
   CREAM: {
     address: assets.CREAM.address,
-    supply: BigNumber.from(653761),
+    supply: BigNumber.from(685568),
     maxTradeSize: ether(135),
     exchange: Exchanges.SUSHISWAP,
     coolOffPeriod: BigNumber.from(600),
@@ -113,7 +113,7 @@ export const strategyInfo: StrategyInfo = {
   },
   FARM: {
     address: assets.FARM.address,
-    supply: BigNumber.from(496848),
+    supply: BigNumber.from(528505),
     maxTradeSize: ether(125),
     exchange: Exchanges.UNISWAP,
     coolOffPeriod: BigNumber.from(600),
