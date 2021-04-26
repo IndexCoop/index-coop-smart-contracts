@@ -17,8 +17,8 @@
   "scripts": {
     "build": "yarn compile && yarn build:typechain",
     "build:npm": "yarn compile:npm && yarn build:typechain",
-    "build:typechain": "yarn compile && yarn patch-hardhat-typechain && yarn typechain && yarn fix-typechain && yarn transpile-dist",
-    "calculate-dpi-units": "npx hardhat --network production calculate-new-position",
+    "build:typechain": "yarn patch-hardhat-typechain && yarn typechain && yarn fix-typechain && yarn transpile-dist",
+    "calculate-dpi-units": "npx hardhat --network production calculate-new-dpi-position",
     "validate-dpi-rebalance": "npx hardhat --network production validate-dpi-params",
     "chain": "npx hardhat node --no-deploy",
     "clean": "rm -rf coverage.json .coverage_cache .coverage_contracts cache coverage typechain artifacts dist",
