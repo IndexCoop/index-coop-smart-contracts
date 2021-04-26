@@ -2,7 +2,7 @@ import { BigNumber } from "ethers";
 
 import { UniswapV2Pair, UniswapV2Router02 } from "../contracts/uniswap";
 import { StandardTokenMock } from "@utils/contracts/index";
-import { WETH9 } from "@typechain/WETH9";
+import { WETH9 } from "../../typechain/WETH9";
 import { Address } from "../types";
 import { preciseDiv, sqrt } from "../index";
 import { ZERO, MAX_UINT_256 } from "../constants";
