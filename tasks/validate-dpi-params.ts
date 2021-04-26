@@ -7,7 +7,7 @@ import { SetToken } from "../typechain/SetToken";
 import { SingleIndexModule } from "../typechain/SingleIndexModule";
 import { SetToken__factory } from "../typechain/factories/SetToken__factory";
 import { SingleIndexModule__factory } from "../typechain/factories/SingleIndexModule__factory";
-import { RebalanceReport } from "./calculate-new-position";
+import { RebalanceReport } from "../index-rebalances/types";
 import { strategyInfo } from "../index-rebalances/dpi/strategyInfo";
 import { BigNumber } from 'ethers';
 
