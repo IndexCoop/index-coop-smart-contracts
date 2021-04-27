@@ -12,7 +12,7 @@ export interface MVIAssetInfo extends AssetInfo {
 export interface AssetInfo {
   address: Address,
   maxTradeSize: BigNumber,
-  exchange: Exchanges,
+  exchange: string,
   coolOffPeriod: BigNumber,
   currentUnit: BigNumber,
 }
@@ -21,11 +21,15 @@ export interface StrategyInfo {
   [symbol: string]: DPIAssetInfo | MVIAssetInfo;
 }
 
-export enum Exchanges {
-  NONE,
-  UNISWAP,
-  SUSHISWAP,
-  BALANCER
+export interface Exchanges {
+  [symbol: string]: string;
+}
+
+export let exchanges: Exchanges = {
+  NONE: "",
+  UNISWAP: "UniswapV2IndexExchangeAdapter",
+  SUSHISWAP: "SushiswapIndexExchangeAdapter",
+  BALANCER: "BalancerV1IndexExchangeAdapter"
 }
 
 export interface AssetStrategy {
@@ -57,12 +61,14 @@ export interface RebalanceSummary {
 export interface ParamSetting {
   components: Address[];
   values: string[];
+  data: string;
 }
 export interface RebalanceParams {
   newComponents: Address[];
   newComponentUnits: string[];
   oldComponentUnits: string[];
   positionMultiplier: string;
+  data: string;
 }
 
 export interface RebalanceReport {

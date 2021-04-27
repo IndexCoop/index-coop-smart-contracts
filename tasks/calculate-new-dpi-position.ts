@@ -19,7 +19,7 @@ import DEPENDENCY from "../index-rebalances/dependencies"
 
 const {
   DPI,
-  DPI_SINGLE_INDEX_MODULE,
+  GENERAL_INDEX_MODULE,
 } = DEPENDENCY;
 
 let tradeOrder: string = "";
@@ -30,7 +30,7 @@ task("calculate-new-dpi-position", "Calculates new rebalance details for an inde
     const [owner] = await hre.ethers.getSigners();
     const dpi: SetToken = await new SetToken__factory(owner).attach(DPI);
     const indexModule: GeneralIndexModule = await new GeneralIndexModule__factory(owner).attach(
-      DPI_SINGLE_INDEX_MODULE
+      GENERAL_INDEX_MODULE
     );
 
     const currentPositions: any[] = await dpi.getPositions();
@@ -232,7 +232,7 @@ async function generateReports(
       tradeSizeComponents.push(address);
       tradeSizeValue.push(obj.maxTradeSize.toString());
     }
-    if (info.exchange.toString() != obj.exchange.toString()) {
+    if (info.exchangeName.toString() != obj.exchange.toString()) {
       exchangeComponents.push(address);
       exchangeValue.push(obj.exchange.toString());
     }
@@ -257,21 +257,37 @@ async function generateReports(
     summary: rebalanceData,
     maxTradeSizeParams: {
       components: tradeSizeComponents,
-      values: tradeSizeValue
+      values: tradeSizeValue,
+      data: indexModule.interface.encodeFunctionData(
+        'setTradeMaximums',
+        [DPI, tradeSizeComponents, tradeSizeValue]
+      )
     },
     exchangeParams: {
       components: exchangeComponents,
-      values: exchangeValue
+      values: exchangeValue,
+      data: indexModule.interface.encodeFunctionData(
+        'setExchanges',
+        [DPI, exchangeComponents, exchangeValue]
+      )
     },
     coolOffPeriodParams: {
       components: coolOffComponents,
-      values: coolOffValue
+      values: coolOffValue,
+      data: indexModule.interface.encodeFunctionData(
+        'setCoolOffPeriods',
+        [DPI, coolOffComponents, coolOffValue]
+      )
     },
     rebalanceParams: {
       newComponents,
       newComponentUnits: newComponentsTargetUnits,
       oldComponentUnits: oldComponentsTargetUnits,
       positionMultiplier: positionMultiplier,
+      data: indexModule.interface.encodeFunctionData(
+        'startRebalance',
+        [DPI, newComponents, newComponentsTargetUnits, oldComponentsTargetUnits, positionMultiplier]
+      )
     },
     tradeOrder
   } as RebalanceReport;
