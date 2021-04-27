@@ -1,20 +1,24 @@
 The parameters for updating exchanges are:
     components: [{{#each exchangeParams.components}}"{{this}}",{{/each}}]
     exchanges: [{{#each exchangeParams.values}}"{{this}}",{{/each}}]
+    data: {{exchangeParams.data}}
 
 The parameters for updating maxTradeSizes are:
     components: [{{#each maxTradeSizeParams.components}}"{{this}}",{{/each}}]
     maxTradeSizes: [{{#each maxTradeSizeParams.values}}"{{this}}",{{/each}}]
+    data: {{maxTradeSizeParams.data}}
 
 The parameters for updating coolOffPeriods are:
     components: [{{#each coolOffPeriodParams.components}}"{{this}}",{{/each}}]
     coolOffPeriods: [{{#each coolOffPeriodParams.values}}"{{this}}",{{/each}}]
+    data: {{coolOffPeriodParams.data}}
 
 The parameters for startRebalance are as follows:
     newComponents: [{{#each rebalanceParams.newComponents}}"{{this}}",{{/each}}]
     newComponentsTargetUnits: [{{#each rebalanceParams.newComponentUnits}}"{{this}}",{{/each}}]
     oldComponentsTargetUnits: [{{#each rebalanceParams.oldComponentUnits}}"{{this}}",{{/each}}]
     positionMultiplier: {{rebalanceParams.positionMultiplier}}
+    data: {{rebalanceParams.data}}
 
 Trade Order is: {{tradeOrder}}
 
@@ -25,5 +29,5 @@ Trade Stats by components is as follows:
         newUnit: {{this.newUnit}}
         notionalInToken: {{this.notionalInToken}}
         notionalInUSD: {{this.notionalInUSD}}
-        tradeNumber: {{this.tradeNumber}}
+        tradeCount: {{this.tradeCount}}
     {{/each}}

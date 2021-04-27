@@ -6,28 +6,31 @@ import { task } from 'hardhat/config';
 import { RebalanceReport } from "../index-rebalances/types";
 import { strategyInfo } from "../index-rebalances/dpi/strategyInfo";
 import { BigNumber } from 'ethers';
+import DEPENDENCY from "../index-rebalances/dependencies"
 
-const DPI_ADDRESS = "0x1494CA1F11D487c2bBe4543E90080AeBa4BA3C2b";
-const SINGLE_INDEX_MODULE_ADDRESS = "0x25100726b25a6ddb8f8e68988272e1883733966e";
+const {
+  DPI,
+  GENERAL_INDEX_MODULE,
+} = DEPENDENCY;
 
 task("validate-dpi-params", "Validates on-chain params match generated params")
 .addParam('rebalance', "Rebalance month")
 .setAction(async ({rebalance}, hre) => {
   const { SetToken } = await import("../typechain/SetToken");
-  const { SingleIndexModule } = await  import("../typechain/SingleIndexModule");
+  const { GeneralIndexModule } = await  import("../typechain/GeneralIndexModule");
   const { SetToken__factory } = await import("../typechain/factories/SetToken__factory");
-  const { SingleIndexModule__factory } = await import("../typechain/factories/SingleIndexModule__factory");
+  const { GeneralIndexModule__factory } = await import("../typechain/factories/GeneralIndexModule__factory");
 
   const [owner] = await hre.ethers.getSigners();
-  const dpi: SetToken = await new SetToken__factory(owner).attach(DPI_ADDRESS);
-  const indexModule: SingleIndexModule = await new SingleIndexModule__factory(owner).attach(SINGLE_INDEX_MODULE_ADDRESS);
+  const dpi: SetToken = await new SetToken__factory(owner).attach(DPI);
+  const indexModule: GeneralIndexModule = await new GeneralIndexModule__factory(owner).attach(GENERAL_INDEX_MODULE);
 
   const filepath = `index-rebalances/dpi/rebalances/rebalance-${rebalance}.json`;
   const expectedParams: RebalanceReport = JSON.parse(fs.readFileSync(filepath, 'utf8'));
 
   const positionMultiplier: BigNumber = await dpi.positionMultiplier();
 
-  if (positionMultiplier.eq(BigNumber.from(expectedParams.rebalanceParams.positionMultiplier))) {
+  if (!positionMultiplier.eq(BigNumber.from(expectedParams.rebalanceParams.positionMultiplier))) {
     console.log(positionMultiplier.toString(), expectedParams.rebalanceParams.positionMultiplier.toString());
     throw Error("Different position multiplier used!")
   }
@@ -35,7 +38,7 @@ task("validate-dpi-params", "Validates on-chain params match generated params")
   await Promise.all(expectedParams.summary.map(async (obj, i) => {
     const address = strategyInfo[obj.asset].address;
 
-    const info: any = await indexModule.assetInfo(address);
+    const info: any = await indexModule.executionInfo(DPI, address);
 
     if (!BigNumber.from(obj.newUnit).eq(info.targetUnit)) {
       throw Error(`Target unit for ${obj.asset} is wrong should be ${obj.newUnit.toString()} instead of ${info.targetUnit}`);
@@ -47,15 +50,15 @@ task("validate-dpi-params", "Validates on-chain params match generated params")
       );
     }
 
-    if (!BigNumber.from(strategyInfo[obj.asset].exchange).eq(info.exchange)) {
+    if (strategyInfo[obj.asset].exchange != info.exchangeName) {
       throw Error(
-        `Exchange for ${obj.asset} is wrong should be ${strategyInfo[obj.asset].exchange.toString()} instead of ${info.exchange}`
+        `Exchange for ${obj.asset} is wrong should be ${strategyInfo[obj.asset].exchange} instead of ${info.exchange}`
       );
     }
 
     if (!strategyInfo[obj.asset].coolOffPeriod.eq(info.coolOffPeriod)) {
       throw Error(
-        `Exchange for ${obj.asset} is wrong should be ${strategyInfo[obj.asset].coolOffPeriod.toString()} instead of ${info.coolOffPeriod}`
+        `Cool off period for ${obj.asset} is wrong should be ${strategyInfo[obj.asset].coolOffPeriod.toString()} instead of ${info.coolOffPeriod}`
       );
     }
   }));
