@@ -122,9 +122,7 @@ contract SupplyCapAllowedCallerIssuanceHook is Ownable, IManagerIssuanceHook {
      * @param _statuses          Array of statuses for each caller
      */
     function updateCallerStatus(address[] calldata _callers, bool[] calldata _statuses) external onlyOwner {
-        require(_callers.length == _statuses.length, "Array length mismatch");
-        require(_callers.length > 0, "Array length must be > 0");
-        require(!_callers.hasDuplicate(), "Cannot duplicate callers");
+        _callers.validatePairsWithArray(_statuses);
 
         for (uint256 i = 0; i < _callers.length; i++) {
             address caller = _callers[i];
