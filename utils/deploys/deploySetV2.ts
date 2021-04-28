@@ -8,8 +8,9 @@ import {
   Controller,
   ComptrollerMock,
   ContractCallerMock,
-  DebtIssuanceModule,
   BasicIssuanceModule,
+  DebtIssuanceModule,
+  GeneralIndexModule,
   IntegrationRegistry,
   StreamingFeeModule,
   SetToken,
@@ -19,14 +20,16 @@ import {
 } from "../contracts/setV2";
 import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
+
+import { BasicIssuanceModule__factory } from "../../typechain/factories/BasicIssuanceModule__factory";
 import { Controller__factory } from "../../typechain/factories/Controller__factory";
 import { Compound__factory } from "../../typechain/factories/Compound__factory";
 import { CompoundLeverageModule__factory } from "../../typechain/factories/CompoundLeverageModule__factory";
 import { ComptrollerMock__factory } from "../../typechain/factories/ComptrollerMock__factory";
 import { ContractCallerMock__factory } from "../../typechain/factories/ContractCallerMock__factory";
 import { DebtIssuanceModule__factory } from "../../typechain/factories/DebtIssuanceModule__factory";
+import { GeneralIndexModule__factory } from "../../typechain/factories/GeneralIndexModule__factory";
 import { IntegrationRegistry__factory } from "../../typechain/factories/IntegrationRegistry__factory";
-import { BasicIssuanceModule__factory } from "../../typechain/factories/BasicIssuanceModule__factory";
 import { SingleIndexModule__factory } from "../../typechain/factories/SingleIndexModule__factory";
 import { StreamingFeeModule__factory } from "../../typechain/factories/StreamingFeeModule__factory";
 import { SetToken__factory } from "../../typechain/factories/SetToken__factory";
@@ -173,5 +176,13 @@ export default class DeploySetV2 {
 
   public async getTokenMock(token: Address): Promise<StandardTokenMock> {
     return await new StandardTokenMock__factory(this._deployerSigner).attach(token);
+  }
+
+  public async getSetToken(setToken: Address): Promise<SetToken> {
+    return await new SetToken__factory(this._deployerSigner).attach(setToken);
+  }
+
+  public async getGeneralIndexModule(indexModule: Address): Promise<GeneralIndexModule> {
+    return await new GeneralIndexModule__factory(this._deployerSigner).attach(indexModule);
   }
 }

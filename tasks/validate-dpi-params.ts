@@ -4,7 +4,7 @@ import * as fs from "fs";
 
 import { task } from 'hardhat/config';
 import { RebalanceReport } from "../index-rebalances/types";
-import { strategyInfo } from "../index-rebalances/dpi/strategyInfo";
+import { strategyInfo } from "../index-rebalances/indices/dpi/strategyInfo";
 import { BigNumber } from 'ethers';
 import DEPENDENCY from "../index-rebalances/dependencies"
 

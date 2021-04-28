@@ -1,5 +1,23 @@
 import { BigNumber } from "@ethersproject/bignumber";
 import { Address } from "../utils/types";
+import { SetToken } from "../utils/contracts/setV2";
+import { Signer } from "ethers";
+
+export interface Indices {
+  [symbol: string]: IndexInfo;
+}
+
+export interface IndexInfo {
+  address: string;
+  strategyInfo: StrategyInfo;
+  path: string;
+  calculateAssetAllocation(
+    owner: Signer,
+    setToken: SetToken,
+    strategyConstants: StrategyObject,
+    setTokenValue: BigNumber
+  ): Promise<RebalanceSummary[]>,
+}
 
 export interface DPIAssetInfo extends AssetInfo {
   supply: BigNumber;
@@ -10,11 +28,11 @@ export interface MVIAssetInfo extends AssetInfo {
 }
 
 export interface AssetInfo {
-  address: Address,
-  maxTradeSize: BigNumber,
-  exchange: string,
-  coolOffPeriod: BigNumber,
-  currentUnit: BigNumber,
+  address: Address;
+  maxTradeSize: BigNumber;
+  exchange: string;
+  coolOffPeriod: BigNumber;
+  currentUnit: BigNumber;
 }
 
 export interface StrategyInfo {
@@ -35,12 +53,14 @@ export let exchanges: Exchanges = {
 export interface AssetStrategy {
   address: Address;
   supply: BigNumber;
+  allocation: BigNumber;
   maxTradeSize: BigNumber;
   coolOffPeriod: BigNumber;
   exchange: Exchanges;
   currentUnit: BigNumber;
   price: BigNumber;
 }
+
 export interface StrategyObject {
   [symbol: string]: AssetStrategy;
 }
