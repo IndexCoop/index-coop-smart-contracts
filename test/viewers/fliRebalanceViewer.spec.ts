@@ -1,5 +1,6 @@
 import "module-alias/register";
 import { BigNumber } from "@ethersproject/bignumber";
+import { defaultAbiCoder } from "ethers/lib/utils";
 
 import {
   Account,
@@ -14,6 +15,7 @@ import { CompoundLeverageModule, DebtIssuanceModule, SetToken } from "@utils/con
 import { CEther, CERc20 } from "@utils/contracts/compound";
 import DeployHelper from "@utils/deploys";
 import {
+  bitcoin,
   cacheBeforeEach,
   ether,
   getAccounts,
@@ -103,6 +105,7 @@ describe("FLIRebalanceViewer", () => {
 
     await setV2Setup.weth.connect(owner.wallet).approve(uniswapSetup.router.address, MAX_UINT_256);
     await setV2Setup.usdc.connect(owner.wallet).approve(uniswapSetup.router.address, MAX_UINT_256);
+    await setV2Setup.wbtc.connect(owner.wallet).approve(uniswapSetup.router.address, MAX_UINT_256);
     await uniswapSetup.router.addLiquidity(
       setV2Setup.weth.address,
       setV2Setup.usdc.address,
@@ -110,6 +113,26 @@ describe("FLIRebalanceViewer", () => {
       usdc(10000000),
       ether(999),
       usdc(999000),
+      owner.address,
+      MAX_UINT_256
+    );
+    await uniswapSetup.router.addLiquidity(
+      setV2Setup.wbtc.address,
+      setV2Setup.usdc.address,
+      bitcoin(100),
+      usdc(5000000),
+      bitcoin(99),
+      usdc(4000000),
+      owner.address,
+      MAX_UINT_256
+    );
+    await uniswapSetup.router.addLiquidity(
+      setV2Setup.wbtc.address,
+      setV2Setup.weth.address,
+      bitcoin(100),
+      ether(5000),
+      bitcoin(99),
+      ether(4000),
       owner.address,
       MAX_UINT_256
     );
@@ -578,6 +601,97 @@ describe("FLIRebalanceViewer", () => {
 
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("Custom bounds must be valid");
+        });
+      });
+    });
+
+    context.only("when there is a multihop trade", async () => {
+      describe("when above max leverage ratio but below incentivized leverage ratio", async () => {
+        beforeEach(async () => {
+          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(850));
+
+          await flexibleLeverageStrategyAdapter.setExecutionSettings(
+            {
+              unutilizedLeveragePercentage: execution.unutilizedLeveragePercentage,
+              twapMaxTradeSize: execution.twapMaxTradeSize,
+              twapCooldownPeriod: execution.twapCooldownPeriod,
+              slippageTolerance: execution.slippageTolerance,
+              exchangeName: "UniswapTradeAdapter",
+              leverExchangeData: EMPTY_BYTES,
+              deleverExchangeData: defaultAbiCoder.encode(
+                ["address[]"],
+                [[setV2Setup.weth.address, setV2Setup.wbtc.address, setV2Setup.usdc.address]]
+              ),
+            }
+          );
+        });
+
+        it("should return rebalance", async () => {
+          const shouldRebalance = await subject();
+
+          expect(shouldRebalance).to.eq(ONE);
+        });
+
+        describe("but Uniswap slippage would exceed bounds", async () => {
+          beforeEach(async () => {
+            await setUniswapPoolToPrice(
+              uniswapSetup.router,
+              uniswapSetup.wethWbtcPool,
+              setV2Setup.weth,
+              setV2Setup.wbtc,
+              ether(0.01),
+              owner.address
+            );
+          });
+
+          it("should return update oracle", async () => {
+            const shouldRebalance = await subject();
+
+            expect(shouldRebalance).to.eq(FOUR);
+          });
+        });
+      });
+
+      describe("when below min leverage ratio", async () => {
+        beforeEach(async () => {
+          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1400));
+
+          await flexibleLeverageStrategyAdapter.setExecutionSettings(
+            {
+              unutilizedLeveragePercentage: execution.unutilizedLeveragePercentage,
+              twapMaxTradeSize: execution.twapMaxTradeSize,
+              twapCooldownPeriod: execution.twapCooldownPeriod,
+              slippageTolerance: execution.slippageTolerance,
+              exchangeName: "UniswapTradeAdapter",
+              leverExchangeData: defaultAbiCoder.encode(["address[]"], [[setV2Setup.usdc.address, setV2Setup.wbtc.address, setV2Setup.weth.address]]),
+              deleverExchangeData: EMPTY_BYTES,
+            }
+          );
+        });
+
+        it("should return rebalance", async () => {
+          const shouldRebalance = await subject();
+
+          expect(shouldRebalance).to.eq(ONE);
+        });
+
+        describe("but Uniswap slippage would exceed bounds", async () => {
+          beforeEach(async () => {
+            await setUniswapPoolToPrice(
+              uniswapSetup.router,
+              uniswapSetup.wethWbtcPool,
+              setV2Setup.weth,
+              setV2Setup.wbtc,
+              ether(0.06),
+              owner.address
+            );
+          });
+
+          it("should return update oracle", async () => {
+            const shouldRebalance = await subject();
+
+            expect(shouldRebalance).to.eq(FOUR);
+          });
         });
       });
     });
