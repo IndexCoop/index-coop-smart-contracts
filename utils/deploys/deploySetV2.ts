@@ -21,6 +21,7 @@ import {
 } from "../contracts/setV2";
 import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
+
 import { BasicIssuanceModule__factory } from "../../typechain/factories/BasicIssuanceModule__factory";
 import { Controller__factory } from "../../typechain/factories/Controller__factory";
 import { Compound__factory } from "../../typechain/factories/Compound__factory";
@@ -191,5 +192,13 @@ export default class DeploySetV2 {
 
   public async getTokenMock(token: Address): Promise<StandardTokenMock> {
     return await new StandardTokenMock__factory(this._deployerSigner).attach(token);
+  }
+
+  public async getSetToken(setToken: Address): Promise<SetToken> {
+    return await new SetToken__factory(this._deployerSigner).attach(setToken);
+  }
+
+  public async getGeneralIndexModule(indexModule: Address): Promise<GeneralIndexModule> {
+    return await new GeneralIndexModule__factory(this._deployerSigner).attach(indexModule);
   }
 }
