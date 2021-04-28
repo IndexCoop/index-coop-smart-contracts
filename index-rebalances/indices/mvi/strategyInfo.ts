@@ -1,0 +1,128 @@
+import { BigNumber } from "@ethersproject/bignumber";
+import { ZERO } from "../../../utils/constants";
+import { ether } from "../../../utils/common/index";
+import { ASSETS } from "../../assetInfo";
+import { exchanges, StrategyInfo } from "../../types";
+
+export const strategyInfo: StrategyInfo = {
+  MANA: {
+    address: ASSETS.MANA.address,
+    allocation: ether(0.145),
+    maxTradeSize: ether(13.2),
+    exchange: exchanges.SUSHISWAP,
+    coolOffPeriod: BigNumber.from(600),
+    currentUnit: ZERO,
+  },
+  ENJ: {
+    address: ASSETS.ENJ.address,
+    allocation: ether(0.167),
+    maxTradeSize: ether(192),
+    exchange: exchanges.SUSHISWAP,
+    coolOffPeriod: BigNumber.from(600),
+    currentUnit: ZERO,
+  },
+  WAXE: {
+    address: ASSETS.WAXE.address,
+    allocation: ether(0.079),
+    maxTradeSize: ether(10250),
+    exchange: exchanges.SUSHISWAP,
+    coolOffPeriod: BigNumber.from(600),
+    currentUnit: ZERO,
+  },
+  AXS: {
+    address: ASSETS.AXS.address,
+    allocation: ether(0.079),
+    maxTradeSize: ether(40),
+    exchange: exchanges.UNISWAP,
+    coolOffPeriod: BigNumber.from(600),
+    currentUnit: ZERO,
+  },
+  SAND: {
+    address: ASSETS.SAND.address,
+    allocation: ether(0.096),
+    maxTradeSize: ether(55000),
+    exchange: exchanges.SUSHISWAP,
+    coolOffPeriod: BigNumber.from(900),
+    currentUnit: ZERO,
+  },
+  RFOX: {
+    address: ASSETS.RFOX.address,
+    allocation: ether(0.065),
+    maxTradeSize: ether(2100),
+    exchange: exchanges.UNISWAP,
+    coolOffPeriod: BigNumber.from(600),
+    currentUnit: ZERO,
+  },
+  AUDIO: {
+    address: ASSETS.AUDIO.address,
+    allocation: ether(0.068),
+    maxTradeSize: ether(14000),
+    exchange: exchanges.UNISWAP,
+    coolOffPeriod: BigNumber.from(900),
+    currentUnit: ZERO,
+  },
+  DG: {
+    address: ASSETS.DG.address,
+    allocation: ether(0.045),
+    maxTradeSize: ether(9900),
+    exchange: exchanges.BALANCER,
+    coolOffPeriod: BigNumber.from(900),
+    currentUnit: ZERO,
+  },
+  NFTX: {
+    address: ASSETS.NFTX.address,
+    allocation: ether(0.048),
+    maxTradeSize: ether(17000),
+    exchange: exchanges.UNISWAP,
+    coolOffPeriod: BigNumber.from(900),
+    currentUnit: ZERO,
+  },
+  WHALE: {
+    address: ASSETS.WHALE.address,
+    allocation: ether(0.047),
+    maxTradeSize: ether(1200),
+    exchange: exchanges.SUSHISWAP,
+    coolOffPeriod: BigNumber.from(600),
+    currentUnit: ZERO,
+  },
+  MEME: {
+    address: ASSETS.MEME.address,
+    allocation: ether(0.031),
+    maxTradeSize: ether(5000),
+    exchange: exchanges.UNISWAP,
+    coolOffPeriod: BigNumber.from(600),
+    currentUnit: ZERO,
+  },
+  TVK: {
+    address: ASSETS.TVK.address,
+    allocation: ether(0.035),
+    maxTradeSize: ether(72000),
+    exchange: exchanges.SUSHISWAP,
+    coolOffPeriod: BigNumber.from(600),
+    currentUnit: ZERO,
+  },
+  RARI: {
+    address: ASSETS.RARI.address,
+    allocation: ether(0.039),
+    maxTradeSize: ether(135),
+    exchange: exchanges.SUSHISWAP,
+    coolOffPeriod: BigNumber.from(600),
+    currentUnit: ZERO,
+  },
+  REVV: {
+    address: ASSETS.REVV.address,
+    allocation: ether(0.032),
+    maxTradeSize: ether(125),
+    exchange: exchanges.UNISWAP,
+    coolOffPeriod: BigNumber.from(600),
+    currentUnit: ZERO,
+  },
+  MUSE: {
+    address: ASSETS.MUSE.address,
+    allocation: ether(0.025),
+    maxTradeSize: ether(125),
+    exchange: exchanges.UNISWAP,
+    coolOffPeriod: BigNumber.from(600),
+    currentUnit: ZERO,
+  }
+};
