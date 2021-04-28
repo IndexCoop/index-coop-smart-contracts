@@ -605,7 +605,7 @@ describe("FLIRebalanceViewer", () => {
       });
     });
 
-    context.only("when there is a multihop trade", async () => {
+    context("when there is a multihop trade", async () => {
       describe("when above max leverage ratio but below incentivized leverage ratio", async () => {
         beforeEach(async () => {
           await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(850));
