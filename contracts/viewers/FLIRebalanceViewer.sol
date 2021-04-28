@@ -32,8 +32,12 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  * @title FLIRebalanceViewer
  * @author Set Protocol
  *
- * ETHFLI Rebalance viewer that returns whether a Compound oracle update should be forced before a rebalance goes through, if no
+ * FLI Rebalance viewer that returns whether a Compound oracle update should be forced before a rebalance goes through, if no
  * oracle update the type of rebalance transaction will be returned adhering to the enum specified in FlexibleLeverageStrategyAdapter
+ *
+ * CHANGELOG: 4/28/2021
+ * - Enables calculating Uniswap price with any multihop route
+ * - Lever and delever exchange data is read directly from strategy adapter and if not empty, calculate price based on encoded route
  */
 contract FLIRebalanceViewer {
     using PreciseUnitMath for uint256;
@@ -163,9 +167,16 @@ contract FLIRebalanceViewer {
         view
         returns (uint256)
     {
-        address[] memory path = new address[](2);
-        path[0] = _sellAsset;
-        path[1] = _buyAsset;
+        bytes memory pathCalldata = _isBuyingCollateral ? strategyAdapter.getExecution().leverExchangeData : strategyAdapter.getExecution().deleverExchangeData;
+
+        address[] memory path;
+        if(pathCalldata.length == 0){
+            path = new address[](2);
+            path[0] = _sellAsset;
+            path[1] = _buyAsset;
+        } else {
+            path = abi.decode(pathCalldata, (address[]));
+        }
 
         // Returned [sellAmount, buyAmount]
         uint256[] memory flows = _isBuyingCollateral ? uniswapRouter.getAmountsIn(_tradeSize, path) : uniswapRouter.getAmountsOut(_tradeSize, path);
@@ -173,7 +184,8 @@ contract FLIRebalanceViewer {
         uint256 buyDecimals = uint256(10)**ERC20(_buyAsset).decimals();
         uint256 sellDecimals = uint256(10)**ERC20(_sellAsset).decimals();
 
-        return flows[0].preciseDiv(sellDecimals).preciseDiv(flows[1].preciseDiv(buyDecimals));
+        uint256 lastIndex = path.length.sub(1);
+        return flows[0].preciseDiv(sellDecimals).preciseDiv(flows[lastIndex].preciseDiv(buyDecimals));
     }
 
     /**
