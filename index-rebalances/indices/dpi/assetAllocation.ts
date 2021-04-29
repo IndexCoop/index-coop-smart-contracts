@@ -5,6 +5,8 @@ import { BigNumber } from 'ethers';
 import { RebalanceSummary, StrategyObject } from "../../types";
 import { SetToken } from "../../../utils/contracts/setV2";
 
+import { calculateNotionalInToken, calculateNotionalInUSD } from "../../utils";
+
 export async function calculateNewAllocations(
   dpi: SetToken,
   strategyConstants: StrategyObject,
@@ -16,7 +18,7 @@ export async function calculateNewAllocations(
   let cappedAssets: string[] = [];
 
   const divisor = Object.entries(strategyConstants).map(([, obj]) => {
-    return obj.supply.mul(obj.price);
+    return obj.input.mul(obj.price);
   }).reduce((a, b) => a.add(b), ZERO).div(dpiValue);
 
   const totalSupply = await dpi.totalSupply();
@@ -24,7 +26,7 @@ export async function calculateNewAllocations(
     const key = Object.keys(strategyConstants)[i];
     const assetObj = strategyConstants[key];
 
-    let newUnit = assetObj.supply.mul(PRECISE_UNIT).div(divisor);
+    let newUnit = assetObj.input.mul(PRECISE_UNIT).div(divisor);
 
     let allocation: BigNumber = strategyConstants[key].price.mul(newUnit).div(dpiValue);
     if (allocation.gt(ether(.25))) {
@@ -63,12 +65,12 @@ export async function calculateNewAllocations(
     }
 
     const currentUnit = assetObj.currentUnit;
-    const notionalInToken = finalNewUnit.sub(currentUnit).mul(totalSupply).div(PRECISE_UNIT);
+    const notionalInToken = calculateNotionalInToken(currentUnit, finalNewUnit, totalSupply);
 
     rebalanceData[i].newUnit = finalNewUnit;
     rebalanceData[i].currentUnit = currentUnit;
     rebalanceData[i].notionalInToken = notionalInToken;
-    rebalanceData[i].notionalInUSD = notionalInToken.mul(assetObj.price).div(PRECISE_UNIT).div(PRECISE_UNIT);
+    rebalanceData[i].notionalInUSD = calculateNotionalInUSD(notionalInToken, assetObj.decimals, assetObj.price);
     rebalanceData[i].tradeCount = notionalInToken.div(assetObj.maxTradeSize).abs().add(1);
   }
   return rebalanceData;
