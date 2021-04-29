@@ -12,19 +12,10 @@ export interface IndexInfo {
   strategyInfo: StrategyInfo;
   path: string;
   calculateAssetAllocation(
-    owner: Signer,
     setToken: SetToken,
     strategyConstants: StrategyObject,
     setTokenValue: BigNumber
   ): Promise<RebalanceSummary[]>,
-}
-
-export interface DPIAssetInfo extends AssetInfo {
-  supply: BigNumber;
-}
-
-export interface MVIAssetInfo extends AssetInfo {
-  allocation: BigNumber;
 }
 
 export interface AssetInfo {
@@ -33,10 +24,11 @@ export interface AssetInfo {
   exchange: string;
   coolOffPeriod: BigNumber;
   currentUnit: BigNumber;
+  input: BigNumber;
 }
 
 export interface StrategyInfo {
-  [symbol: string]: DPIAssetInfo | MVIAssetInfo;
+  [symbol: string]: AssetInfo;
 }
 
 export interface Exchanges {
@@ -52,11 +44,11 @@ export let exchanges: Exchanges = {
 
 export interface AssetStrategy {
   address: Address;
-  supply: BigNumber;
-  allocation: BigNumber;
+  decimals: BigNumber;
+  input: BigNumber;
   maxTradeSize: BigNumber;
   coolOffPeriod: BigNumber;
-  exchange: Exchanges;
+  exchange: string;
   currentUnit: BigNumber;
   price: BigNumber;
 }
@@ -72,7 +64,7 @@ export interface RebalanceSummary {
   notionalInToken: BigNumber;
   notionalInUSD: BigNumber;
   isBuy: boolean | undefined;
-  exchange: Exchanges;
+  exchange: string;
   maxTradeSize: BigNumber;
   coolOffPeriod: BigNumber;
   tradeCount: BigNumber;
