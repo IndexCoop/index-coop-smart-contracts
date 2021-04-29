@@ -16,7 +16,6 @@ export const indices: Indices = {
     "strategyInfo": dpiStrategyInfo,
     "path": buildPath("dpi"),
     calculateAssetAllocation(
-      owner: Signer,
       setToken: SetToken,
       strategyConstants: StrategyObject,
       setTokenValue: BigNumber
@@ -29,12 +28,11 @@ export const indices: Indices = {
     strategyInfo: mviStrategyInfo,
     path: buildPath("mvi"),
     calculateAssetAllocation(
-      owner: Signer,
       setToken: SetToken,
       strategyConstants: StrategyObject,
       setTokenValue: BigNumber
     ): Promise<RebalanceSummary[]> {
-      return mviAssetAllocation(owner, setToken, strategyConstants, setTokenValue);
+      return mviAssetAllocation(setToken, strategyConstants, setTokenValue);
     }
   } as IndexInfo
 }

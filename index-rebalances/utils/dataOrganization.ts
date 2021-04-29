@@ -6,32 +6,48 @@ import { Address } from "../../utils/types";
 
 import { ASSETS } from "../assetInfo";
 import { PRECISE_UNIT, ZERO } from "../../utils/constants";
-import DEPENDENCY from "../dependencies";
 
-import { RebalanceReport, RebalanceSummary, StrategyInfo } from "index-rebalances/types";
+import { RebalanceReport, RebalanceSummary, StrategyInfo, StrategyObject, AssetStrategy } from "index-rebalances/types";
 import {
   GeneralIndexModule,
   SetToken,
 } from "../../utils/contracts/setV2";
+import { Signer, BigNumber } from "ethers";
 
-const {
-  GENERAL_INDEX_MODULE,
-} = DEPENDENCY;
+import DeployHelper from "../../utils/deploys";
 
 export async function createStrategyObject(
   setToken: SetToken,
-  strategyInfo: StrategyInfo
-): Promise<any> {
+  strategyInfo: StrategyInfo,
+  owner: Signer
+): Promise<StrategyObject> {
+  let strategyObject: StrategyObject = {};
 
   const currentPositions: any[] = await setToken.getPositions();
+
+  let deployHelper: DeployHelper = new DeployHelper(owner);
 
   const filteredConstants = _.pick(_.merge(ASSETS, strategyInfo), Object.keys(strategyInfo));
   const keys = Object.keys(filteredConstants);
   for (let i = 0; i < keys.length; i++) {
-    const position = currentPositions.filter(obj => obj.component.toLowerCase() == filteredConstants[keys[i]].address.toLowerCase())[0];
-    if (position) { filteredConstants[keys[i]].currentUnit = position.unit; }
+    const key = keys[i];
+    const component = await deployHelper.setV2.getTokenMock(filteredConstants[key].address);
+
+    const position = currentPositions.filter(obj => obj.component.toLowerCase() == filteredConstants[key].address.toLowerCase())[0];
+    if (position) { filteredConstants[key].currentUnit = position.unit; }
+
+    strategyObject[key] = {} as AssetStrategy;
+    strategyObject[key].address = filteredConstants[key].address;
+    strategyObject[key].price = filteredConstants[key].price;
+    strategyObject[key].maxTradeSize = filteredConstants[key].maxTradeSize;
+    strategyObject[key].exchange = filteredConstants[key].exchange;
+    strategyObject[key].coolOffPeriod = filteredConstants[key].coolOffPeriod;
+    strategyObject[key].input = filteredConstants[key].input;
+    strategyObject[key].currentUnit = position ? position.unit : ZERO;
+    strategyObject[key].decimals = BigNumber.from(10).pow(await component.decimals());
   }
-  return filteredConstants;
+
+  return strategyObject;
 }
 
 export async function generateReports(

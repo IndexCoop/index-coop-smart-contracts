@@ -9,5 +9,7 @@ export {
 } from "./rebalanceSchedule";
 
 export {
+  calculateNotionalInToken,
+  calculateNotionalInUSD,
   calculateSetValue,
 } from "./setMath"
