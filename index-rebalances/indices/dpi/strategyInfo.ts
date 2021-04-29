@@ -7,7 +7,7 @@ import { exchanges, StrategyInfo } from "../../types";
 export const strategyInfo: StrategyInfo = {
   YFI: {
     address: ASSETS.YFI.address,
-    supply: BigNumber.from(36096),
+    input: BigNumber.from(36096),
     // maxTradeSize: ether(13.2),
     maxTradeSize: ether(1),
     exchange: exchanges.SUSHISWAP,
@@ -16,7 +16,7 @@ export const strategyInfo: StrategyInfo = {
   },
   COMP: {
     address: ASSETS.COMP.address,
-    supply: BigNumber.from(5048104),
+    input: BigNumber.from(5048104),
     // maxTradeSize: ether(192),
     maxTradeSize: ether(0.03),
     exchange: exchanges.SUSHISWAP,
@@ -25,7 +25,7 @@ export const strategyInfo: StrategyInfo = {
   },
   SNX: {
     address: ASSETS.SNX.address,
-    supply: BigNumber.from(151684080),
+    input: BigNumber.from(151684080),
     // maxTradeSize: ether(10250),
     maxTradeSize: ether(1),
     exchange: exchanges.SUSHISWAP,
@@ -34,7 +34,7 @@ export const strategyInfo: StrategyInfo = {
   },
   MKR: {
     address: ASSETS.MKR.address,
-    supply: BigNumber.from(901683),
+    input: BigNumber.from(901683),
     // maxTradeSize: ether(40),
     maxTradeSize: ether(1),
     exchange: exchanges.UNISWAP,
@@ -43,7 +43,7 @@ export const strategyInfo: StrategyInfo = {
   },
   REN: {
     address: ASSETS.REN.address,
-    supply: BigNumber.from(881153018),
+    input: BigNumber.from(881153018),
     // maxTradeSize: ether(55000),
     maxTradeSize: ether(1),
     exchange: exchanges.SUSHISWAP,
@@ -52,7 +52,7 @@ export const strategyInfo: StrategyInfo = {
   },
   KNC: {
     address: ASSETS.KNC.address,
-    supply: BigNumber.from(204614446),
+    input: BigNumber.from(204614446),
     // maxTradeSize: ether(2100),
     maxTradeSize: ether(12),
     exchange: exchanges.UNISWAP,
@@ -61,7 +61,7 @@ export const strategyInfo: StrategyInfo = {
   },
   LRC: {
     address: ASSETS.LRC.address,
-    supply: BigNumber.from(1245991468),
+    input: BigNumber.from(1245991468),
     // maxTradeSize: ether(14000),
     maxTradeSize: ether(20),
     exchange: exchanges.UNISWAP,
@@ -70,7 +70,7 @@ export const strategyInfo: StrategyInfo = {
   },
   BAL: {
     address: ASSETS.BAL.address,
-    supply: BigNumber.from(10799858),
+    input: BigNumber.from(10799858),
     // maxTradeSize: ether(9900),
     maxTradeSize: ether(1),
     exchange: exchanges.BALANCER,
@@ -79,7 +79,7 @@ export const strategyInfo: StrategyInfo = {
   },
   UNI: {
     address: ASSETS.UNI.address,
-    supply: BigNumber.from(519857388),
+    input: BigNumber.from(519857388),
     // maxTradeSize: ether(17000),
     maxTradeSize: ether(1),
     exchange: exchanges.UNISWAP,
@@ -88,7 +88,7 @@ export const strategyInfo: StrategyInfo = {
   },
   AAVE: {
     address: ASSETS.AAVE.address,
-    supply: BigNumber.from(12492713),
+    input: BigNumber.from(12492713),
     // maxTradeSize: ether(1200),
     maxTradeSize: ether(1),
     exchange: exchanges.SUSHISWAP,
@@ -97,7 +97,7 @@ export const strategyInfo: StrategyInfo = {
   },
   MTA: {
     address: ASSETS.MTA.address,
-    supply: BigNumber.from(24894863),
+    input: BigNumber.from(24894863),
     // maxTradeSize: ether(5000),
     maxTradeSize: ether(10),
     exchange: exchanges.UNISWAP,
@@ -106,7 +106,7 @@ export const strategyInfo: StrategyInfo = {
   },
   SUSHI: {
     address: ASSETS.SUSHI.address,
-    supply: BigNumber.from(148978846),
+    input: BigNumber.from(148978846),
     // maxTradeSize: ether(72000),
     maxTradeSize: ether(2),
     exchange: exchanges.SUSHISWAP,
@@ -115,7 +115,7 @@ export const strategyInfo: StrategyInfo = {
   },
   CREAM: {
     address: ASSETS.CREAM.address,
-    supply: BigNumber.from(685568),
+    input: BigNumber.from(685568),
     // maxTradeSize: ether(135),
     maxTradeSize: ether(1),
     exchange: exchanges.SUSHISWAP,
@@ -124,7 +124,7 @@ export const strategyInfo: StrategyInfo = {
   },
   FARM: {
     address: ASSETS.FARM.address,
-    supply: BigNumber.from(528505),
+    input: BigNumber.from(528505),
     // maxTradeSize: ether(125),
     maxTradeSize: ether(1),
     exchange: exchanges.UNISWAP,

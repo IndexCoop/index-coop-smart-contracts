@@ -17,12 +17,10 @@ export function createRebalanceSchedule(
 
   const totalRounds: BigNumber = Object.entries(rebalanceData).map(([, obj]) => obj.tradeCount).reduce((a, b) => { return  a.gt(b) ? a : b; }, ZERO);
   for (let i = 0; i < totalRounds.toNumber(); i++) {
-    [sellAssets, ethBalance] = doSellTrades(sellAssets, strategyInfo, tradeOrder, ethBalance);
-    [buyAssets, ethBalance] = doBuyTrades(buyAssets, strategyInfo, tradeOrder, ethBalance);
+    [sellAssets, ethBalance, tradeOrder] = doSellTrades(sellAssets, strategyInfo, tradeOrder, ethBalance);
+    [buyAssets, ethBalance, tradeOrder] = doBuyTrades(buyAssets, strategyInfo, tradeOrder, ethBalance);
   }
-  cleanupTrades(buyAssets, tradeOrder);
-
-  return tradeOrder;
+  return cleanupTrades(buyAssets, tradeOrder);
 }
 
 function doSellTrades(
@@ -30,8 +28,9 @@ function doSellTrades(
   strategyInfo: StrategyInfo,
   tradeOrder: string,
   ethBalance: BigNumber,
-): [RebalanceSummary[], BigNumber] {
-  let newEthBalance = ethBalance
+): [RebalanceSummary[], BigNumber, string] {
+  let newEthBalance = ethBalance;
+  let newTradeOrder = tradeOrder;
   for (let i = 0; i < sellAssets.length; i++) {
     if (sellAssets[i].tradeCount.gt(0)) {
       const asset = sellAssets[i].asset;
@@ -39,11 +38,11 @@ function doSellTrades(
       sellAssets[i].notionalInToken = sellAssets[i].notionalInToken.add(tradeSize);
       sellAssets[i].tradeCount = sellAssets[i].tradeCount.sub(1);
       newEthBalance = newEthBalance.add(tradeSize.mul(ASSETS[asset].price).div(ASSETS['WETH'].price));
-      tradeOrder = tradeOrder.concat(asset.concat(","));
+      newTradeOrder = newTradeOrder.concat(asset.concat(","));
     }
     sellAssets[i].isBuy = false;
   }
-  return [sellAssets, newEthBalance];
+  return [sellAssets, newEthBalance, newTradeOrder];
 }
 
 function doBuyTrades(
@@ -51,8 +50,9 @@ function doBuyTrades(
   strategyInfo: StrategyInfo,
   tradeOrder: string,
   ethBalance: BigNumber,
-): [RebalanceSummary[], BigNumber] {
-  let newEthBalance = ethBalance
+): [RebalanceSummary[], BigNumber, string] {
+  let newEthBalance = ethBalance;
+  let newTradeOrder = tradeOrder;
   for (let i = 0; i < buyAssets.length; i++) {
     const asset = buyAssets[i].asset;
     const tradeSize = strategyInfo[asset].maxTradeSize.gt(buyAssets[i].notionalInToken) ? buyAssets[i].notionalInToken : strategyInfo[asset].maxTradeSize;
@@ -62,17 +62,20 @@ function doBuyTrades(
       buyAssets[i].notionalInToken = buyAssets[i].notionalInToken.sub(tradeSize);
       buyAssets[i].tradeCount = buyAssets[i].tradeCount.sub(1);
       newEthBalance = newEthBalance.sub(tradeSizeInEth);
-      tradeOrder = tradeOrder.concat(asset.concat(","));
+      newTradeOrder = newTradeOrder.concat(asset.concat(","));
     }
     buyAssets[i].isBuy = true;
   }
-  return [buyAssets, newEthBalance];
+  return [buyAssets, newEthBalance, newTradeOrder];
 }
 
-function cleanupTrades(buyAssets: RebalanceSummary[], tradeOrder: string,) {
+function cleanupTrades(buyAssets: RebalanceSummary[], tradeOrder: string): string {
+  let newTradeOrder = tradeOrder;
   for (let i = 0; i < buyAssets.length; i++) {
     if (buyAssets[i].tradeCount.gt(0)) {
-      tradeOrder = tradeOrder.concat(buyAssets[i].asset.concat(","));
+      newTradeOrder = newTradeOrder.concat(buyAssets[i].asset.concat(","));
     }
   }
+
+  return newTradeOrder;
 }
