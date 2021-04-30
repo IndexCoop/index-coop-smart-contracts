@@ -24,7 +24,7 @@ export const indices: Indices = {
     }
   } as IndexInfo,
   "MVI": {
-    address: "0x72e364F2ABdC788b7E918bc238B21f109Cd634D7",
+    address: "0x66e3d0f4563b53d9049a241499dce6d5423c3af2",
     strategyInfo: mviStrategyInfo,
     path: buildPath("mvi"),
     calculateAssetAllocation(
