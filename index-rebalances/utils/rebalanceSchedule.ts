@@ -3,11 +3,11 @@ import { BigNumber } from 'ethers';
 import { ZERO } from "../../utils/constants";
 import { ASSETS } from "../assetInfo";
 
-import { RebalanceSummary, StrategyInfo } from "../types";
+import { RebalanceSummary, StrategyObject } from "../types";
 
 export function createRebalanceSchedule(
   rebalanceData: RebalanceSummary[],
-  strategyInfo: StrategyInfo
+  strategyInfo: StrategyObject
 ): string {
   let tradeOrder: string = "";
 
@@ -25,7 +25,7 @@ export function createRebalanceSchedule(
 
 function doSellTrades(
   sellAssets: RebalanceSummary[],
-  strategyInfo: StrategyInfo,
+  strategyInfo: StrategyObject,
   tradeOrder: string,
   ethBalance: BigNumber,
 ): [RebalanceSummary[], BigNumber, string] {
@@ -47,7 +47,7 @@ function doSellTrades(
 
 function doBuyTrades(
   buyAssets: RebalanceSummary[],
-  strategyInfo: StrategyInfo,
+  strategyInfo: StrategyObject,
   tradeOrder: string,
   ethBalance: BigNumber,
 ): [RebalanceSummary[], BigNumber, string] {
