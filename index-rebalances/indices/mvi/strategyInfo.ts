@@ -8,9 +8,10 @@ export const strategyInfo: StrategyInfo = {
   MANA: {
     address: ASSETS.MANA.address,
     input: ether(0.145),
-    maxTradeSize: ether(13425),
+    // maxTradeSize: ether(13425),
+    maxTradeSize: ether(30),
     exchange: exchanges.UNISWAP,
-    coolOffPeriod: BigNumber.from(600),
+    coolOffPeriod: BigNumber.from(60),
     currentUnit: ZERO,
   },
   ENJ: {
@@ -18,7 +19,7 @@ export const strategyInfo: StrategyInfo = {
     input: ether(0.167),
     maxTradeSize: ether(8400),
     exchange: exchanges.UNISWAP,
-    coolOffPeriod: BigNumber.from(600),
+    coolOffPeriod: BigNumber.from(60),
     currentUnit: ZERO,
   },
   WAXE: {
@@ -26,7 +27,7 @@ export const strategyInfo: StrategyInfo = {
     input: ether(0.079),
     maxTradeSize: ether(154),
     exchange: exchanges.UNISWAP,
-    coolOffPeriod: BigNumber.from(600),
+    coolOffPeriod: BigNumber.from(60),
     currentUnit: ZERO,
   },
   AXS: {
@@ -34,15 +35,16 @@ export const strategyInfo: StrategyInfo = {
     input: ether(0.079),
     maxTradeSize: ether(893),
     exchange: exchanges.SUSHISWAP,
-    coolOffPeriod: BigNumber.from(600),
+    coolOffPeriod: BigNumber.from(60),
     currentUnit: ZERO,
   },
   SAND: {
     address: ASSETS.SAND.address,
     input: ether(0.096),
-    maxTradeSize: ether(88400),
+    // maxTradeSize: ether(88400),
+    maxTradeSize: ether(40),
     exchange: exchanges.UNISWAP,
-    coolOffPeriod: BigNumber.from(900),
+    coolOffPeriod: BigNumber.from(60),
     currentUnit: ZERO,
   },
   RFOX: {
@@ -50,15 +52,15 @@ export const strategyInfo: StrategyInfo = {
     input: ether(0.065),
     maxTradeSize: ether(32300),
     exchange: exchanges.UNISWAP,
-    coolOffPeriod: BigNumber.from(600),
+    coolOffPeriod: BigNumber.from(60),
     currentUnit: ZERO,
   },
   AUDIO: {
     address: ASSETS.AUDIO.address,
     input: ether(0.068),
-    maxTradeSize: ether(8600),
+    maxTradeSize: ether(860),
     exchange: exchanges.UNISWAP,
-    coolOffPeriod: BigNumber.from(900),
+    coolOffPeriod: BigNumber.from(60),
     currentUnit: ZERO,
   },
   DG: {
@@ -66,7 +68,7 @@ export const strategyInfo: StrategyInfo = {
     input: ether(0.045),
     maxTradeSize: ether(63.2),
     exchange: exchanges.UNISWAP,
-    coolOffPeriod: BigNumber.from(900),
+    coolOffPeriod: BigNumber.from(60),
     currentUnit: ZERO,
   },
   NFTX: {
@@ -74,7 +76,7 @@ export const strategyInfo: StrategyInfo = {
     input: ether(0.048),
     maxTradeSize: ether(190),
     exchange: exchanges.SUSHISWAP,
-    coolOffPeriod: BigNumber.from(900),
+    coolOffPeriod: BigNumber.from(60),
     currentUnit: ZERO,
   },
   WHALE: {
@@ -82,7 +84,7 @@ export const strategyInfo: StrategyInfo = {
     input: ether(0.047),
     maxTradeSize: ether(795),
     exchange: exchanges.UNISWAP,
-    coolOffPeriod: BigNumber.from(600),
+    coolOffPeriod: BigNumber.from(60),
     currentUnit: ZERO,
   },
   MEME: {
@@ -90,7 +92,7 @@ export const strategyInfo: StrategyInfo = {
     input: ether(0.031),
     maxTradeSize: ether(5.75),
     exchange: exchanges.UNISWAP,
-    coolOffPeriod: BigNumber.from(600),
+    coolOffPeriod: BigNumber.from(60),
     currentUnit: ZERO,
   },
   TVK: {
@@ -98,7 +100,7 @@ export const strategyInfo: StrategyInfo = {
     input: ether(0.035),
     maxTradeSize: ether(16100),
     exchange: exchanges.UNISWAP,
-    coolOffPeriod: BigNumber.from(600),
+    coolOffPeriod: BigNumber.from(60),
     currentUnit: ZERO,
   },
   RARI: {
@@ -106,7 +108,7 @@ export const strategyInfo: StrategyInfo = {
     input: ether(0.039),
     maxTradeSize: ether(535),
     exchange: exchanges.UNISWAP,
-    coolOffPeriod: BigNumber.from(600),
+    coolOffPeriod: BigNumber.from(60),
     currentUnit: ZERO,
   },
   REVV: {
@@ -114,7 +116,7 @@ export const strategyInfo: StrategyInfo = {
     input: ether(0.032),
     maxTradeSize: ether(37700),
     exchange: exchanges.UNISWAP,
-    coolOffPeriod: BigNumber.from(600),
+    coolOffPeriod: BigNumber.from(60),
     currentUnit: ZERO,
   },
   MUSE: {
@@ -122,7 +124,7 @@ export const strategyInfo: StrategyInfo = {
     input: ether(0.025),
     maxTradeSize: ether(400),
     exchange: exchanges.UNISWAP,
-    coolOffPeriod: BigNumber.from(600),
+    coolOffPeriod: BigNumber.from(60),
     currentUnit: ZERO,
   }
 };

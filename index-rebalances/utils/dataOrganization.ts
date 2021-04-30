@@ -36,15 +36,18 @@ export async function createStrategyObject(
     const position = currentPositions.filter(obj => obj.component.toLowerCase() == filteredConstants[key].address.toLowerCase())[0];
     if (position) { filteredConstants[key].currentUnit = position.unit; }
 
+    const decimals = BigNumber.from(10).pow(await component.decimals());
+
     strategyObject[key] = {} as AssetStrategy;
     strategyObject[key].address = filteredConstants[key].address;
     strategyObject[key].price = filteredConstants[key].price;
-    strategyObject[key].maxTradeSize = filteredConstants[key].maxTradeSize;
+    strategyObject[key].maxTradeSize = filteredConstants[key].maxTradeSize.mul(decimals).div(PRECISE_UNIT);
     strategyObject[key].exchange = filteredConstants[key].exchange;
     strategyObject[key].coolOffPeriod = filteredConstants[key].coolOffPeriod;
     strategyObject[key].input = filteredConstants[key].input;
     strategyObject[key].currentUnit = position ? position.unit : ZERO;
-    strategyObject[key].decimals = BigNumber.from(10).pow(await component.decimals());
+    strategyObject[key].decimals = decimals;
+    console.log(strategyObject[key].maxTradeSize.toString());
   }
 
   return strategyObject;
