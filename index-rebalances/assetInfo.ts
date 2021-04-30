@@ -94,7 +94,7 @@ export const ASSETS: Assets = {
     price: ether(1.46) ,
   },
   ENJ: {
-    id: "enj",
+    id: "enjin",
     address: "0xf629cbd94d3791c9250152bd8dfbdf380e2a3b9c",
     price: ether(2.67),
   },
@@ -119,7 +119,7 @@ export const ASSETS: Assets = {
     price: ether(0.26),
   },
   AUDIO: {
-    id: "audio",
+    id: "audius",
     address: "0x18aaa7115705e8be94bffebde57af9bfc265b998",
     price: ether(2.28),
   },
