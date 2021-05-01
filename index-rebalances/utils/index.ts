@@ -12,4 +12,8 @@ export {
   calculateNotionalInToken,
   calculateNotionalInUSD,
   calculateSetValue,
-} from "./setMath"
+} from "./setMath";
+
+export {
+  getTokenDecimals
+} from "./tokenHelpers";

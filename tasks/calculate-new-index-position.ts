@@ -9,7 +9,7 @@ import {
   generateReports,
   writeToOutputs
 } from "../index-rebalances/utils";
-import { indices } from "../index-rebalances/indices"
+import { indices } from "../index-rebalances/indices";
 import { IndexInfo, RebalanceSummary, StrategyObject } from "../index-rebalances/types";
 import {
   SetToken,
