@@ -7,7 +7,7 @@ import { exchanges, StrategyInfo } from "../../types";
 export const strategyInfo: StrategyInfo = {
   MANA: {
     address: ASSETS.MANA.address,
-    input: ether(0.145),
+    input: ether(0.141),
     // maxTradeSize: ether(13425),
     maxTradeSize: ether(30),
     exchange: exchanges.UNISWAP,
@@ -40,7 +40,7 @@ export const strategyInfo: StrategyInfo = {
   },
   SAND: {
     address: ASSETS.SAND.address,
-    input: ether(0.096),
+    input: ether(0.1),
     // maxTradeSize: ether(88400),
     maxTradeSize: ether(40),
     exchange: exchanges.UNISWAP,
