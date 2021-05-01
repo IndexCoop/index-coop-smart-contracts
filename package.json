@@ -20,7 +20,7 @@
     "build:typechain": "yarn patch-hardhat-typechain && yarn typechain && yarn fix-typechain && yarn transpile-dist",
     "calculate-dpi-units": "npx hardhat --network production calculate-new-dpi-position",
     "calculate-index-units": "npx hardhat --network production calculate-new-index-position",
-    "validate-dpi-rebalance": "npx hardhat --network production validate-dpi-params",
+    "validate-index-rebalance": "npx hardhat --network production validate-index-params",
     "chain": "npx hardhat node --no-deploy",
     "clean": "rm -rf coverage.json .coverage_cache .coverage_contracts cache coverage typechain artifacts dist",
     "clean-dev-deployment": "rm -rf deployments/50-development.json",

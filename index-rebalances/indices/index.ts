@@ -1,4 +1,4 @@
-import { BigNumber } from "@ethersproject/bignumber";
+import { BigNumber } from "ethers";
 import { IndexInfo, Indices, StrategyObject, RebalanceSummary } from "index-rebalances/types";
 import { SetToken } from "../../utils/contracts/setV2";
 
@@ -7,8 +7,6 @@ import { strategyInfo as mviStrategyInfo } from "./mvi/strategyInfo";
 
 import { calculateNewAllocations as dpiAssetAllocation } from "./dpi/assetAllocation";
 import { calculateNewAllocations as mviAssetAllocation } from "./mvi/assetAllocation";
-
-import { Signer } from "ethers";
 
 export const indices: Indices = {
   "DPI": {
