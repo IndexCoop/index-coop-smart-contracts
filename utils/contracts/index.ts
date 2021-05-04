@@ -14,5 +14,6 @@ export { RewardsDistributionRecipient } from "../../typechain/RewardsDistributio
 export { StakingRewards } from "../../typechain/StakingRewards";
 export { StakingRewardsV2 } from "../../typechain/StakingRewardsV2";
 export { StandardTokenMock } from "../../typechain/StandardTokenMock";
+export { SimpleCompoundErc20FLIArb } from "../../typechain/SimpleCompoundErc20FLIArb";
 export { Vesting } from "../../typechain/Vesting";
 export { WETH9 } from "../../typechain/WETH9";
