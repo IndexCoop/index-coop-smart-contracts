@@ -10,7 +10,7 @@ import { calculateNewAllocations as mviAssetAllocation } from "./mvi/assetAlloca
 
 export const indices: Indices = {
   "DPI": {
-    "address": "0x73BAA8A41ddA1Cbcae8C7709A2A7B171182A1D46",
+    "address": "0x1494CA1F11D487c2bBe4543E90080AeBa4BA3C2b",
     "strategyInfo": dpiStrategyInfo,
     "path": buildPath("dpi"),
     calculateAssetAllocation(
@@ -22,7 +22,7 @@ export const indices: Indices = {
     }
   } as IndexInfo,
   "MVI": {
-    address: "0x66e3d0f4563b53d9049a241499dce6d5423c3af2",
+    address: "0x72e364f2abdc788b7e918bc238b21f109cd634d7",
     strategyInfo: mviStrategyInfo,
     path: buildPath("mvi"),
     calculateAssetAllocation(

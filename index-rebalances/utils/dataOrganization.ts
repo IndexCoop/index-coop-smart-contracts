@@ -2,6 +2,7 @@ import * as _ from "lodash";
 import * as fs from "fs";
 const handlebars = require("handlebars");
 
+import { Signer } from "ethers";
 import { Address } from "../../utils/types";
 
 import { ASSETS } from "../assetInfo";
@@ -12,7 +13,6 @@ import {
   GeneralIndexModule,
   SetToken,
 } from "../../utils/contracts/setV2";
-import { Signer } from "ethers";
 
 import DeployHelper from "../../utils/deploys";
 import { getTokenDecimals } from "./tokenHelpers";
