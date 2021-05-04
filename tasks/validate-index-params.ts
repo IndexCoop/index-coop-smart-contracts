@@ -12,7 +12,7 @@ import { IndexInfo, RebalanceReport } from "../index-rebalances/types";
 
 import { indices } from "../index-rebalances/indices";
 import { getTokenDecimals } from "../index-rebalances/utils/index";
-import { preciseMul } from "../utils/index";
+import { preciseMul } from "../utils/common";
 import DeployHelper from "../utils/deploys";
 
 import DEPENDENCY from "../index-rebalances/dependencies";
@@ -39,7 +39,6 @@ task("validate-index-params", "Validates on-chain params match generated params"
   const positionMultiplier: BigNumber = await setToken.positionMultiplier();
 
   if (!positionMultiplier.eq(BigNumber.from(expectedParams.rebalanceParams.positionMultiplier))) {
-    console.log(positionMultiplier.toString(), expectedParams.rebalanceParams.positionMultiplier.toString());
     throw Error("Different position multiplier used!")
   }
 
