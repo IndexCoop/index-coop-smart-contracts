@@ -112,7 +112,7 @@ export const strategyInfo: StrategyInfo = {
   REVV: {
     address: ASSETS.REVV.address,
     input: ether(0.032551),
-    maxTradeSize: ether(390000),
+    maxTradeSize: ether(39000),
     exchange: exchanges.UNISWAP,
     coolOffPeriod: BigNumber.from(900),
     currentUnit: ZERO,
