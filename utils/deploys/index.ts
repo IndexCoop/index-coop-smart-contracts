@@ -1,5 +1,6 @@
 import { Signer } from "ethers";
 
+import DeployBots from "./deployBots";
 import DeployManager from "./deployManager";
 import DeployMocks from "./deployMocks";
 import DeployToken from "./deployToken";
@@ -10,6 +11,7 @@ import DeployHooks from "./deployHooks";
 import DeployViewers from "./deployViewers";
 
 export default class DeployHelper {
+  public bots: DeployBots;
   public token: DeployToken;
   public setV2: DeploySetV2;
   public manager: DeployManager;
@@ -20,6 +22,7 @@ export default class DeployHelper {
   public viewers: DeployViewers;
 
   constructor(deployerSigner: Signer) {
+    this.bots = new DeployBots(deployerSigner);
     this.token = new DeployToken(deployerSigner);
     this.setV2 = new DeploySetV2(deployerSigner);
     this.manager = new DeployManager(deployerSigner);

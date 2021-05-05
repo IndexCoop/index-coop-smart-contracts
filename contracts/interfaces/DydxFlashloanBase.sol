@@ -35,7 +35,7 @@ contract DydxFlashloanBase {
 
     function _getRepaymentAmountInternal(uint256 amount)
         internal
-        view
+        pure
         returns (uint256)
     {
         // Needs to be overcollateralize

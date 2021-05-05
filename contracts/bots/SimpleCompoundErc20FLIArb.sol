@@ -103,6 +103,12 @@ contract SimpleCompoundErc20FLIArb is ICallee, DydxFlashloanBase {
         // Deposit 2 wei from deployer to contract
         weth.deposit{value: msg.value}();
 
+        // Approve to dYdX solo
+        weth.approve(address(solo), PreciseUnitMath.maxUint256());
+
+        // Approve WETH to router
+        weth.approve(address(router), PreciseUnitMath.maxUint256());
+
         // Get operations and deposit 2 wei
         uint256 marketId = _getMarketIdFromTokenAddress(address(solo), address(weth));
 
@@ -123,12 +129,6 @@ contract SimpleCompoundErc20FLIArb is ICallee, DydxFlashloanBase {
      * @param _setToken              Address of SetToken
      */
     function approveAll(ISetToken _setToken) external {
-        // Approve to dYdX solo
-        weth.approve(address(solo), PreciseUnitMath.maxUint256());
-
-        // Approve WETH to Sushiswap router
-        weth.approve(address(router), PreciseUnitMath.maxUint256());
-
         // Approve SetToken to router
         _setToken.approve(address(router), PreciseUnitMath.maxUint256());
 
@@ -159,6 +159,17 @@ contract SimpleCompoundErc20FLIArb is ICallee, DydxFlashloanBase {
      * 5) If redeem, redeem cToken
      * 6) Sell component received back from debt issuance module. For issue this is the debt and redeem is the collateral
      * 7) Unwrap WETH into ETH and refund gas to caller and send profits to treasury
+     * 
+     * IMPORTANT ASSUMPTION: Assume 1st position is cToken collateral asset and 2nd is borrow assset. Will not work with
+     * more than 2 positions (non FLI)
+     *
+     * @param _setToken              Address of SetToken
+     * @param _setTokenQuantity      Quantity of SetToken to arb
+     * @param _loanAmount            Size of ETH loan from dYdX
+     * @param _maxTradeSlippage      Max trade slippage in % (1% = 10e16)
+     * @param _poolSetReserves       Balance of SetToken in LP address to check if balance changes when our tx is executed
+     * @param _isIssueArb            Boolean indicating an issuance or redemption arb
+     * @param _setPoolToken          Address of token that FLI is paired with
      */
     function executeFlashLoanArb(
         ISetToken _setToken,
@@ -228,7 +239,7 @@ contract SimpleCompoundErc20FLIArb is ICallee, DydxFlashloanBase {
         weth.withdraw(balanceOfWeth);
 
         // Calculated gas spent
-        uint256 ethSpent = gasleft().sub(gasBeginning).mul(tx.gasprice);
+        uint256 ethSpent = gasBeginning.sub(gasleft()).mul(tx.gasprice);
 
         // Send ETH back to treasury and caller if ETH spent is less than balance of WETH
         if (ethSpent <= balanceOfWeth) {
@@ -236,10 +247,17 @@ contract SimpleCompoundErc20FLIArb is ICallee, DydxFlashloanBase {
             indexCoopTreasury.transfer(balanceOfWeth.sub(ethSpent));
         } else {
             // Else only send to caller
-            msg.sender.transfer(ethSpent); 
+            msg.sender.transfer(balanceOfWeth);
         }
     }
 
+    /**
+     * Gets the ETH denominated spread for both issuance and redemption arbs
+     *
+     * @param _setToken              Address of SetToken
+     * @param _setTokenQuantity      Quantity of SetToken to arb
+     * @param _setPoolToken          Address of token that FLI is paired with
+     */
     function getSpread(
         ISetToken _setToken,
         uint256 _setTokenQuantity,
@@ -262,8 +280,9 @@ contract SimpleCompoundErc20FLIArb is ICallee, DydxFlashloanBase {
 
     /* ============ Internal Functions ============ */
 
-    // This is the function that will be called postLoan
-    // i.e. Encode the logic to handle your flashloaned funds here
+    /**
+     * Callback function for post loan where issuance and redemption logic are implemented
+     */
     function callFunction(
         address _sender,
         Account.Info memory _account,
@@ -281,16 +300,15 @@ contract SimpleCompoundErc20FLIArb is ICallee, DydxFlashloanBase {
         }
 
         uint256 balanceOfWeth = weth.balanceOf(address(this));
-        // Note that you can ignore the line below
-        // if your dydx account (this contract in this case)
-        // has deposited at least ~2 Wei of assets into the account
-        // to balance out the collaterization ratio
         require(
             balanceOfWeth >= issueArbData.repayAmount,
             "Not enough funds to repay loan!"
         );
     }
 
+    /**
+     * Get info for components and units required for arb
+     */
     function _getCollateralAndDebtInfo(ISetToken _setToken, uint256 _setTokenQuantity) internal view returns (CollateralAndDebtInfo memory) {
         (
             address[] memory components,
@@ -318,49 +336,39 @@ contract SimpleCompoundErc20FLIArb is ICallee, DydxFlashloanBase {
         });
     }
 
+    /**
+     * Execute an issuance arb
+     */
     function _executeIssueArb(IssuanceArbData memory _issueArbData) internal {
-        // Trade WETH for collateral component
         _tradeWethForComponent(_issueArbData.collateralAsset, _issueArbData.collateralNotional, _issueArbData.tradeSlippage);
 
-        // Mint cToken
         ICErc20(_issueArbData.collateralCToken).mint(_issueArbData.collateralNotional);
 
-        // Issue Set with traded tokens from Uniswap
         debtIssuanceModule.issue(_issueArbData.setToken, _issueArbData.setTokenQuantity, address(this));
 
-        // Sell SetToken for WETH
         _sellSetTokenForWeth(_issueArbData);
 
-        // Trade debt component to WETH
         _tradeComponentForWeth(_issueArbData.debtAsset, _issueArbData.debtNotional);
     }
 
+    /**
+     * Execute a redemption arb
+     */
     function _executeRedeemArb(IssuanceArbData memory _issueArbData) internal {
-        (
-            address[] memory components,
-            uint256[] memory totalEquityUnits,
-            uint256[] memory totalDebtUnits
-        ) = debtIssuanceModule.getRequiredComponentRedemptionUnits(
-            _issueArbData.setToken,
-            _issueArbData.setTokenQuantity
-        );
-
-        // Trade borrowed WETH for debt components
         _tradeWethForComponent(_issueArbData.debtAsset, _issueArbData.debtNotional, _issueArbData.tradeSlippage);
 
-        // Buy SetToken with WETH
         _buySetTokenWithWeth(_issueArbData);
         
-        // Redeem Set with traded debt tokens
         debtIssuanceModule.redeem(_issueArbData.setToken, _issueArbData.setTokenQuantity, address(this));
 
-        // Redeem cToken into underlying
         ICErc20(_issueArbData.collateralCToken).redeemUnderlying(_issueArbData.collateralNotional);
 
-        // Trade equity components redeemed for WETH
         _tradeComponentForWeth(_issueArbData.collateralAsset, _issueArbData.collateralNotional);
     }
 
+    /**
+     * Trade WETH for exact component using Uniswap router
+     */
     function _tradeWethForComponent(
         address _component,
         uint256 _notionalSendQuantity,
@@ -384,6 +392,9 @@ contract SimpleCompoundErc20FLIArb is ICallee, DydxFlashloanBase {
         router.swapTokensForExactTokens(_notionalSendQuantity, maxWethInput, tradePath, address(this), block.timestamp);
     }
 
+    /**
+     * Trade exact component for WETH using Uniswap router
+     */
     function _tradeComponentForWeth(
         address _component,
         uint256 _notionalSendQuantity
@@ -398,43 +409,37 @@ contract SimpleCompoundErc20FLIArb is ICallee, DydxFlashloanBase {
         router.swapExactTokensForTokens(_notionalSendQuantity, 0, tradePath, address(this), block.timestamp);
     }
 
+    /**
+     * Sell SetToken for WETH
+     */
     function _sellSetTokenForWeth(IssuanceArbData memory _issueArbData) internal {
         // Construct path of trade starting with Set and ending with WETH
         address[] memory setSellPath;
-        if (_issueArbData.setPoolToken == address(weth)) {
-            setSellPath = new address[](2);
-            setSellPath[0] = address(_issueArbData.setToken);
-            setSellPath[1] = address(weth);
-        } else {
-            setSellPath = new address[](3);
-            setSellPath[0] = address(_issueArbData.setToken);
-            setSellPath[1] = _issueArbData.setPoolToken;
-            setSellPath[2] = address(weth);
-        }
+        setSellPath = new address[](3);
+        setSellPath[0] = address(_issueArbData.setToken);
+        setSellPath[1] = _issueArbData.setPoolToken;
+        setSellPath[2] = address(weth);
 
-        // No restriction of slippage on SetToken. In case price is way above NAV, we want to have transaction go through
-        // even at high slippage on SUSHI
         router.swapExactTokensForTokens(_issueArbData.setTokenQuantity, 0, setSellPath, address(this), block.timestamp);
     }
 
+    /**
+     * Buy SetToken using WETH
+     */
     function _buySetTokenWithWeth(IssuanceArbData memory _issueArbData) internal {
         // Construct path of trade starting with WETH and ending with Set
         address[] memory setBuyPath;
-        if (_issueArbData.setPoolToken == address(weth)) {
-            setBuyPath = new address[](2);
-            setBuyPath[0] = address(weth);
-            setBuyPath[1] = address(_issueArbData.setToken);
-        } else {
-            setBuyPath = new address[](3);
-            setBuyPath[0] = address(weth);
-            setBuyPath[1] = _issueArbData.setPoolToken;
-            setBuyPath[2] = address(_issueArbData.setToken);
-        }
+        setBuyPath = new address[](3);
+        setBuyPath[0] = address(weth);
+        setBuyPath[1] = _issueArbData.setPoolToken;
+        setBuyPath[2] = address(_issueArbData.setToken);
 
-        // Swap borrowed WETH for Set component on SUSHI
         router.swapTokensForExactTokens(_issueArbData.setTokenQuantity, PreciseUnitMath.maxUint256(), setBuyPath, address(this), block.timestamp);
     }
 
+    /**
+     * Get spread for issuance arbs
+     */
     function _getIssuanceSpread(
         ISetToken _setToken,
         uint256 _setTokenQuantity,
@@ -445,30 +450,18 @@ contract SimpleCompoundErc20FLIArb is ICallee, DydxFlashloanBase {
         view
         returns(uint256)
     {
-        // Calculate total WETH needed to buy equity components
         uint256 totalWethForEquity = _getTotalWethForComponent(_collateralAndDebtInfo.collateralAsset, _collateralAndDebtInfo.collateralNotional);
 
         // Calculate max WETH received from selling Set
-        uint256 totalWethFromSet;
-        if (_setPoolToken == address(weth)) {
-            address[] memory setSellPath = new address[](2);
-            setSellPath[0] = address(_setToken);
-            setSellPath[1] = address(weth);
-            uint256[] memory sellAmounts = router.getAmountsOut(_setTokenQuantity, setSellPath);
-            totalWethFromSet = sellAmounts[1];
-        } else {
-            address[] memory setSellPath = new address[](3);
-            setSellPath[0] = address(_setToken);
-            setSellPath[1] = _setPoolToken;
-            setSellPath[2] = address(weth);
-            uint256[] memory sellAmounts = router.getAmountsOut(_setTokenQuantity, setSellPath);
-            totalWethFromSet = sellAmounts[2];
-        }
+        address[] memory setSellPath = new address[](3);
+        setSellPath[0] = address(_setToken);
+        setSellPath[1] = _setPoolToken;
+        setSellPath[2] = address(weth);
+        uint256[] memory sellAmounts = router.getAmountsOut(_setTokenQuantity, setSellPath);
+        uint256 totalWethFromSet = sellAmounts[2];
 
-        // Get total WETH from selling debt components
         uint256 totalWethFromDebt = _getTotalWethFromComponent(_collateralAndDebtInfo.debtAsset, _collateralAndDebtInfo.debtNotional);
 
-        // Get issuance spread
         if (totalWethForEquity <= totalWethFromSet.add(totalWethFromDebt)) {
             return totalWethFromSet.add(totalWethFromDebt).sub(totalWethForEquity);
         } else {
@@ -476,6 +469,9 @@ contract SimpleCompoundErc20FLIArb is ICallee, DydxFlashloanBase {
         }
     }
 
+    /**
+     * Get spread for redemption arbs
+     */
     function _getRedemptionSpread(
         ISetToken _setToken,
         uint256 _setTokenQuantity,
@@ -489,25 +485,15 @@ contract SimpleCompoundErc20FLIArb is ICallee, DydxFlashloanBase {
         uint256 totalWethForDebt = _getTotalWethForComponent(_collateralAndDebtInfo.debtAsset, _collateralAndDebtInfo.debtNotional);
 
         // Calculate WETH needed to buy Set
-        uint256 totalWethForSet;
-        if (_setPoolToken == address(weth)) {
-            address[] memory setBuyPath = new address[](2);
-            setBuyPath[0] = address(weth);
-            setBuyPath[1] = address(_setToken);
-            uint256[] memory sellAmounts = router.getAmountsIn(_setTokenQuantity, setBuyPath);
-            totalWethForSet = sellAmounts[0];
-        } else {
-            address[] memory setBuyPath = new address[](3);
-            setBuyPath[0] = address(weth);
-            setBuyPath[1] = _setPoolToken;
-            setBuyPath[2] = address(_setToken);
-            uint256[] memory sellAmounts = router.getAmountsIn(_setTokenQuantity, setBuyPath);
-            totalWethForSet = sellAmounts[0];
-        }
+        address[] memory setBuyPath = new address[](3);
+        setBuyPath[0] = address(weth);
+        setBuyPath[1] = _setPoolToken;
+        setBuyPath[2] = address(_setToken);
+        uint256[] memory sellAmounts = router.getAmountsIn(_setTokenQuantity, setBuyPath);
+        uint256 totalWethForSet = sellAmounts[0];
 
         uint256 totalWethFromEquity = _getTotalWethFromComponent(_collateralAndDebtInfo.collateralAsset, _collateralAndDebtInfo.collateralNotional);
 
-        // Get redemption spread
         if (totalWethFromEquity >= totalWethForSet.add(totalWethForDebt)) {
             return totalWethFromEquity.sub(totalWethForSet).sub(totalWethForDebt);
         } else {
@@ -515,6 +501,9 @@ contract SimpleCompoundErc20FLIArb is ICallee, DydxFlashloanBase {
         }
     }
 
+    /**
+     * Get total WETH required to trade for component
+     */
     function _getTotalWethForComponent(
         address _component,
         uint256 _totalUnit
@@ -528,13 +517,15 @@ contract SimpleCompoundErc20FLIArb is ICallee, DydxFlashloanBase {
         componentBuyPath[0] = address(weth);
         componentBuyPath[1] = _component;
 
-        // Get trade info from Sushiswap / Uniswap depending on flag
         uint256[] memory componentBuyAmounts;
         componentBuyAmounts = router.getAmountsIn(_totalUnit, componentBuyPath);
 
         return componentBuyAmounts[0];
     }
 
+    /**
+     * Get total WETH from trading component to WETH
+     */
     function _getTotalWethFromComponent(
         address _component,
         uint256 _totalUnit

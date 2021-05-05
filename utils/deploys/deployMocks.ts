@@ -1,9 +1,10 @@
 import { Signer } from "ethers";
 import { Address } from "../types";
-import { BaseAdapterMock, MutualUpgradeMock, TradeAdapterMock } from "../contracts/index";
+import { BaseAdapterMock, DydxSoloMock, MutualUpgradeMock, TradeAdapterMock } from "../contracts/index";
 
 import { MutualUpgradeMock__factory } from "../../typechain/factories/MutualUpgradeMock__factory";
 import { BaseAdapterMock__factory } from "../../typechain/factories/BaseAdapterMock__factory";
+import { DydxSoloMock__factory } from "../../typechain/factories/DydxSoloMock__factory";
 import { TradeAdapterMock__factory } from "../../typechain/factories/TradeAdapterMock__factory";
 
 export default class DeployMocks {
@@ -15,6 +16,10 @@ export default class DeployMocks {
 
   public async deployBaseAdapterMock(manager: Address): Promise<BaseAdapterMock> {
     return await new BaseAdapterMock__factory(this._deployerSigner).deploy(manager);
+  }
+
+  public async deployDydxSoloMock(weth: Address): Promise<DydxSoloMock> {
+    return await new DydxSoloMock__factory(this._deployerSigner).deploy(weth);
   }
 
   public async deployTradeAdapterMock(): Promise<TradeAdapterMock> {
