@@ -40,7 +40,7 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  *
  * Smart contract that performs creation redemption arbitrage on NAV of a FLI product against market price on Uniswap V2 or Sushiswap.
  * Note: This contract only is compatible with FLI with 1 cToken position as collateral and 1 debt position. This contract only works
- * with cERC20s and not cETH.
+ * with cERC20s and not cETH. Additionally, this contract is not compatible if WETH is the debt asset or if WETH is paired in the Uniswap pool
  */
 contract SimpleCompoundErc20FLIArb is ICallee, DydxFlashloanBase {
     using PreciseUnitMath for uint256;
