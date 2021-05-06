@@ -24,7 +24,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IUniswapV2Factory } from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 
 import { Account, Actions, ISoloMargin } from "../interfaces/ISoloMargin.sol";
-import { DydxFlashloanBase } from "../interfaces/DydxFlashloanBase.sol";
+import { DydxFlashloanBase } from "../lib/DydxFlashloanBase.sol";
 import { ICallee } from "../interfaces/ICallee.sol";
 import { ICErc20 } from "../interfaces/ICErc20.sol";
 import { ICompoundLeverageModule } from "../interfaces/ICompoundLeverageModule.sol";

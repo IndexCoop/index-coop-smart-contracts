@@ -2,6 +2,7 @@
 module.exports = {
   skipFiles: [
     'mocks',
-    'interfaces'
+    'interfaces',
+    'lib/DydxFlashloanBase.sol'
   ],
 }
