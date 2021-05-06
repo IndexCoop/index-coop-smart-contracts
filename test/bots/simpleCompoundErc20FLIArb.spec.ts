@@ -22,6 +22,7 @@ import {
   getCompoundFixture,
   getUniswapFixture,
   getWaffleExpect,
+  increaseTimeAsync,
 } from "@utils/index";
 import { SetFixture, CompoundFixture, UniswapFixture } from "@utils/fixtures";
 
