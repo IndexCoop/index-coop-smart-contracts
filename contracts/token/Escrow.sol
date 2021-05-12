@@ -1,5 +1,4 @@
-//SPDX-License-Identifier: Unlicense
-pragma solidity ^0.6.8;
+pragma solidity ^0.6.10;
 
 import "deps/@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "deps/@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
@@ -7,37 +6,42 @@ import "deps/@openzeppelin/contracts/math/SafeMath.sol";
 import "deps/@openzeppelin/contracts/token/ERC20/TokenTimelock.sol";
 
 /*
-    Simple OTC Escrow contract to transfer vested bBadger in exchange for specified USDC amount
+    Simple OTC Escrow contract to transfer vested INDEX in exchange for specified USDC amount
+    Forked from BadgerDAO https://github.com/Badger-Finance/badger-system/blob/develop/contracts/badger-timelock/OtcEscrow.sol
 */
 contract OtcEscrow {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
     address constant usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    address constant bBadger = 0x19D97D8fA813EE2f51aD4B4e04EA08bAf4DFfC28;
-    address constant badgerGovernance = 0xB65cef03b9B89f99517643226d76e286ee999e77;
 
     event VestingDeployed(address vesting);
 
     address public beneficiary;
+    address public indexToken;
+    address public indexTreasuryWallet;
     uint256 public duration;
     uint256 public usdcAmount;
     uint256 public bBadgerAmount;
 
     constructor(
         address beneficiary_,
+        address indexToken_,
+        address indexTreasuryWallet_,
         uint256 duration_,
         uint256 usdcAmount_,
         uint256 bBadgerAmount_
     ) public {
         beneficiary = beneficiary_;
+        indexToken = indexToken_;
+        indexTreasuryWallet = indexTreasuryWallet_;
         duration = duration_;
         usdcAmount = usdcAmount_;
         bBadgerAmount = bBadgerAmount_;
     }
 
     modifier onlyApprovedParties() {
-        require(msg.sender == badgerGovernance || msg.sender == beneficiary);
+        require(msg.sender == badgerGovernance || msg.sender == beneficiary, "Escrow.onlyApprovedParties: unauthorized");
         _;
     }
 
