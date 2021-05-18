@@ -2,7 +2,7 @@ import "module-alias/register";
 import { BigNumber } from "@ethersproject/bignumber";
 
 import { Account } from "@utils/types";
-import { IndexToken, OtcEscrow, Vesting } from "@utils/contracts";
+import { IndexToken, OtcEscrow } from "@utils/contracts";
 import DeployHelper from "@utils/deploys";
 import {
   addSnapshotBeforeRestoreAfterEach,
@@ -14,10 +14,9 @@ import {
   getRandomAddress,
   getWaffleExpect,
 } from "@utils/index";
-import { Contract, ContractTransaction } from "ethers";
+import { ContractTransaction } from "ethers";
 import { StandardTokenMock } from "@typechain/StandardTokenMock";
 import { Vesting__factory } from "@typechain/factories/Vesting__factory";
-import { stubObject } from "lodash";
 
 const expect = getWaffleExpect();
 
