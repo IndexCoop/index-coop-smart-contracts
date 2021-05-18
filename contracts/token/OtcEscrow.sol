@@ -33,12 +33,12 @@ contract OtcEscrow {
         address _beneficiary,
         address _indexGov,
         uint256 _vestingStart,
-        uint256 _vestingEnd,
         uint256 _vestingCliff,
+        uint256 _vestingEnd,
         uint256 _usdcAmount,
         uint256 _indexAmount,
-        address _indexAddress,
-        address _usdcAddress
+        address _usdcAddress,
+        address _indexAddress
     ) public {
         beneficiary = _beneficiary;
         indexGov =  _indexGov;
@@ -50,8 +50,8 @@ contract OtcEscrow {
         usdcAmount = _usdcAmount;
         indexAmount = _indexAmount;
 
-        index = _indexAddress;
         usdc = _usdcAddress;
+        index = _indexAddress;
     }
 
     modifier onlyApprovedParties() {

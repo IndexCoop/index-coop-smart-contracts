@@ -1,11 +1,12 @@
 import { Signer } from "ethers";
 import { BigNumber } from "@ethersproject/bignumber";
 import { Address } from "../types";
-import { IndexToken, MerkleDistributor, Vesting } from "../contracts";
+import { IndexToken, MerkleDistributor, OtcEscrow, Vesting } from "../contracts";
 
 import { IndexToken__factory } from "../../typechain/factories/IndexToken__factory";
 import { MerkleDistributor__factory } from "../../typechain/factories/MerkleDistributor__factory";
 import { Vesting__factory } from "../../typechain/factories/Vesting__factory";
+import { OtcEscrow__factory } from "../../typechain/factories/OtcEscrow__factory";
 
 export default class DeployToken {
   private _deployerSigner: Signer;
@@ -37,6 +38,30 @@ export default class DeployToken {
       vestingBegin,
       vestingCliff,
       vestingEnd
+    );
+  }
+
+  public async deployOtcEscrow(
+    beneficiary: Address,
+    indexGov: Address,
+    vestingStart: BigNumber,
+    vestingCliff: BigNumber,
+    vestingEnd: BigNumber,
+    usdcAmount: BigNumber,
+    indexAmount: BigNumber,
+    usdcAddress: Address,
+    indexAddress: Address,
+  ): Promise<OtcEscrow> {
+    return await new OtcEscrow__factory(this._deployerSigner).deploy(
+      beneficiary,
+      indexGov,
+      vestingStart,
+      vestingCliff,
+      vestingEnd,
+      usdcAmount,
+      indexAmount,
+      usdcAddress,
+      indexAddress,
     );
   }
 }
