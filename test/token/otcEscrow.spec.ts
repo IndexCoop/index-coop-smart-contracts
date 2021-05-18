@@ -17,6 +17,7 @@ import {
 import { Contract, ContractTransaction } from "ethers";
 import { StandardTokenMock } from "@typechain/StandardTokenMock";
 import { Vesting__factory } from "@typechain/factories/Vesting__factory";
+import { stubObject } from "lodash";
 
 const expect = getWaffleExpect();
 
@@ -246,6 +247,52 @@ describe("OtcEscrow", () => {
       it("should revert", async () => {
         await expect(subject()).to.be.reverted;
       });
+    });
+  });
+
+  describe("#revoke", async () => {
+
+    let subjectOtcEscrow: OtcEscrow;
+    let subjectVestingStart: BigNumber;
+    let subjectVestingCliff: BigNumber;
+    let subjectVestingEnd: BigNumber;
+    let subjectUSDCAmount: BigNumber;
+    let subjectIndexAmount: BigNumber;
+
+    beforeEach(async () => {
+      const now = await getLastBlockTimestamp()
+      subjectVestingStart = now.add(10);
+      subjectVestingCliff = now.add(60 * 60 * 24 * 183);
+      subjectVestingEnd = now.add(60 * 60 * 24 * 547);
+      subjectUSDCAmount = BigNumber.from(100_000 * 10**6);
+      subjectIndexAmount = ether(100);
+
+      subjectOtcEscrow = await deployer.token.deployOtcEscrow(
+        investor.address,
+        indexGov.address,
+        subjectVestingStart,
+        subjectVestingCliff,
+        subjectVestingEnd,
+        subjectUSDCAmount,
+        subjectIndexAmount,
+        usdc.address,
+        index.address
+      );
+      
+      await index.connect(indexGov.wallet).transfer(subjectOtcEscrow.address, subjectIndexAmount);
+      await usdc.connect(investor.wallet).approve(subjectOtcEscrow.address, subjectUSDCAmount);
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return await subjectOtcEscrow.connect(indexGov.wallet).revoke();
+    }
+
+    it("should return index when revoked", async () => {
+      const initIndexBalance = await index.balanceOf(indexGov.address);
+      await subject();
+      const finalIndexBalance = await index.balanceOf(indexGov.address);
+
+      expect(finalIndexBalance.sub(initIndexBalance)).to.eq(subjectIndexAmount);
     });
   });
 });
