@@ -171,23 +171,6 @@ describe("OtcEscrow", () => {
       expect(await vesting.vestingEnd()).to.eq(subjectVestingEnd);
     });
 
-    context("when the caller is unauthorized", async () => {
-
-      let subjectCaller: Account;
-
-      beforeEach(async () => {
-        subjectCaller = await getRandomAccount();
-      });
-
-      async function subject(): Promise<ContractTransaction> {
-        return await subjectOtcEscrow.connect(subjectCaller.wallet).swap();
-      }
-
-      it("should revert", async () => {
-        await expect(subject()).to.be.reverted;
-      });
-    });
-
     context("when an inadequate amount of INDEX is sent to the escrow", async () => {
 
       beforeEach(async () => {
@@ -208,7 +191,7 @@ describe("OtcEscrow", () => {
       });
 
       it("should revert", async () => {
-        await expect(subject()).to.be.reverted;
+        await expect(subject()).to.be.revertedWith("insufficient INDEX");
       });
     });
 
@@ -292,6 +275,49 @@ describe("OtcEscrow", () => {
       const finalIndexBalance = await index.balanceOf(indexGov.address);
 
       expect(finalIndexBalance.sub(initIndexBalance)).to.eq(subjectIndexAmount);
+    });
+  });
+
+  describe("#recoverUsdc", async () => {
+    let subjectOtcEscrow: OtcEscrow;
+    let subjectVestingStart: BigNumber;
+    let subjectVestingCliff: BigNumber;
+    let subjectVestingEnd: BigNumber;
+    let subjectUSDCAmount: BigNumber;
+    let subjectIndexAmount: BigNumber;
+
+    beforeEach(async () => {
+      const now = await getLastBlockTimestamp()
+      subjectVestingStart = now.add(10);
+      subjectVestingCliff = now.add(60 * 60 * 24 * 183);
+      subjectVestingEnd = now.add(60 * 60 * 24 * 547);
+      subjectUSDCAmount = BigNumber.from(100_000 * 10**6);
+      subjectIndexAmount = ether(100);
+
+      subjectOtcEscrow = await deployer.token.deployOtcEscrow(
+        investor.address,
+        indexGov.address,
+        subjectVestingStart,
+        subjectVestingCliff,
+        subjectVestingEnd,
+        subjectUSDCAmount,
+        subjectIndexAmount,
+        usdc.address,
+        index.address
+      );
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      await usdc.connect(investor.wallet).transfer(subjectOtcEscrow.address, subjectUSDCAmount);
+      return await subjectOtcEscrow.connect(indexGov.wallet).recoverUsdc();
+    }
+
+    it("it should return usdc to the investor", async () => {
+      const initUsdcBalance = await usdc.balanceOf(investor.address);
+      await subject();
+      const finalUsdcBalance = await usdc.balanceOf(investor.address);
+
+      expect(finalUsdcBalance).to.eq(initUsdcBalance);
     });
   });
 });

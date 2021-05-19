@@ -7,6 +7,7 @@ import "@nomiclabs/hardhat-waffle";
 import "hardhat-typechain";
 import "solidity-coverage";
 import "hardhat-deploy";
+import "hardhat-gas-reporter"
 import "./tasks";
 
 const forkingConfig = {
@@ -54,6 +55,9 @@ const config: HardhatUserConfig = {
     outDir: "typechain",
     target: "ethers-v5",
   },
+  gasReporter: {
+    enabled: (process.env.REPORT_GAS) ? true : false
+  }
 };
 
 function getHardhatPrivateKeys() {
