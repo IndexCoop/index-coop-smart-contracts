@@ -247,6 +247,23 @@ describe("OtcEscrow", () => {
         await expect(subject()).to.be.revertedWith("unauthorized");
       });
     });
+
+    context("when the caller is the investor", async () => {
+
+      let subjectCaller: Account;
+
+      beforeEach(async () => {
+        subjectCaller = investor;
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await subjectOtcEscrow.connect(subjectCaller.wallet).swap();
+      }
+
+      it("should execute the swap", async () => {
+        await expect(subject()).to.emit(subjectOtcEscrow, "VestingDeployed");
+      });
+    });
   });
 
   describe("#revoke", async () => {
@@ -292,6 +309,23 @@ describe("OtcEscrow", () => {
       const finalIndexBalance = await index.balanceOf(indexGov.address);
 
       expect(finalIndexBalance.sub(initIndexBalance)).to.eq(subjectIndexAmount);
+    });
+
+    context("when the caller is unauthorized", async () => {
+
+      let subjectCaller: Account;
+
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await subjectOtcEscrow.connect(subjectCaller.wallet).revoke();
+      }
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("unauthorized");
+      });
     });
   });
 
