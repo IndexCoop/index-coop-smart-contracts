@@ -230,6 +230,23 @@ describe("OtcEscrow", () => {
         await expect(subject()).to.be.reverted;
       });
     });
+
+    context("when the caller is unauthorized", async () => {
+
+      let subjectCaller: Account;
+
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await subjectOtcEscrow.connect(subjectCaller.wallet).swap();
+      }
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("unauthorized");
+      });
+    });
   });
 
   describe("#revoke", async () => {
