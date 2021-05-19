@@ -109,14 +109,11 @@ contract OtcEscrow {
         IERC20(usdc).safeTransfer(beneficiary, usdcBalance);
     }
 
-    /* ======= Public functions ======== */
-
     /**
      * Executes the OTC deal. Sends the USDC from the beneficiary to Index Governance, and
-     * locks the INDEX in the vesting contract. Can only be called by either parties of the
-     * swap.
+     * locks the INDEX in the vesting contract.
      */
-    function swap() public {
+    function swap() external {
 
         require(IERC20(index).balanceOf(address(this)) >= indexAmount, "insufficient INDEX");
 
