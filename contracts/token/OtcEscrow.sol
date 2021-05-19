@@ -99,22 +99,6 @@ contract OtcEscrow {
     /* ======= External Functions ======= */
 
     /**
-     * Return INDEX to Index Governance to revoke the deal
-     */
-    function revoke() external onlyIndexGov {
-        uint256 indexBalance = IERC20(index).balanceOf(address(this));
-        IERC20(index).safeTransfer(indexGov, indexBalance);
-    }
-
-    /**
-     * Recovers USDC accidentally sent to the contract
-     */
-    function recoverUsdc() external {
-        uint256 usdcBalance = IERC20(usdc).balanceOf(address(this));
-        IERC20(usdc).safeTransfer(beneficiary, usdcBalance);
-    }
-
-    /**
      * Executes the OTC deal. Sends the USDC from the beneficiary to Index Governance, and
      * locks the INDEX in the vesting contract. Can only be called by approved parties.
      */
@@ -135,5 +119,21 @@ contract OtcEscrow {
         IERC20(usdc).safeTransfer(indexGov, usdcAmount);
 
         emit VestingDeployed(address(vesting));
+    }
+
+    /**
+     * Return INDEX to Index Governance to revoke the deal
+     */
+    function revoke() external onlyIndexGov {
+        uint256 indexBalance = IERC20(index).balanceOf(address(this));
+        IERC20(index).safeTransfer(indexGov, indexBalance);
+    }
+
+    /**
+     * Recovers USDC accidentally sent to the contract
+     */
+    function recoverUsdc() external {
+        uint256 usdcBalance = IERC20(usdc).balanceOf(address(this));
+        IERC20(usdc).safeTransfer(beneficiary, usdcBalance);
     }
 }

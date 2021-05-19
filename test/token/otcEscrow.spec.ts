@@ -171,6 +171,23 @@ describe("OtcEscrow", () => {
       expect(await vesting.vestingEnd()).to.eq(subjectVestingEnd);
     });
 
+    context("when the caller is the investor", async () => {
+
+      let subjectCaller: Account;
+
+      beforeEach(async () => {
+        subjectCaller = investor;
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await subjectOtcEscrow.connect(subjectCaller.wallet).swap();
+      }
+
+      it("should execute the swap", async () => {
+        await expect(subject()).to.emit(subjectOtcEscrow, "VestingDeployed");
+      });
+    });
+
     context("when an inadequate amount of INDEX is sent to the escrow", async () => {
 
       beforeEach(async () => {
@@ -245,23 +262,6 @@ describe("OtcEscrow", () => {
 
       it("should revert", async () => {
         await expect(subject()).to.be.revertedWith("unauthorized");
-      });
-    });
-
-    context("when the caller is the investor", async () => {
-
-      let subjectCaller: Account;
-
-      beforeEach(async () => {
-        subjectCaller = investor;
-      });
-
-      async function subject(): Promise<ContractTransaction> {
-        return await subjectOtcEscrow.connect(subjectCaller.wallet).swap();
-      }
-
-      it("should execute the swap", async () => {
-        await expect(subject()).to.emit(subjectOtcEscrow, "VestingDeployed");
       });
     });
   });
