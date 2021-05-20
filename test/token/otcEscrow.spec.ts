@@ -248,7 +248,7 @@ describe("OtcEscrow", () => {
       });
     });
 
-    context("when the caller is unauthorized", async () => {
+    context("when swap is called for a second time", async () => {
 
       let subjectCaller: Account;
 
@@ -261,7 +261,8 @@ describe("OtcEscrow", () => {
       }
 
       it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("unauthorized");
+        await subject();
+        await expect(subject()).to.be.revertedWith("swap already executed");
       });
     });
   });

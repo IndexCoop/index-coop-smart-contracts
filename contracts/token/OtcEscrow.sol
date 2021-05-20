@@ -34,8 +34,11 @@ contract OtcEscrow {
         _;
     }
 
-    modifier onlyApprovedParties() {
-        require(msg.sender == indexGov || msg.sender == beneficiary, "unauthorized");
+    /**
+     */
+    modifier onlyOnce() {
+        require(!hasRun, "swap already executed");
+        hasRun = true;
         _;
     }
 
@@ -53,6 +56,8 @@ contract OtcEscrow {
 
     uint256 public usdcAmount;
     uint256 public indexAmount;
+
+    bool hasRun;
 
 
 
@@ -94,6 +99,7 @@ contract OtcEscrow {
 
         usdc = _usdcAddress;
         index = _indexAddress;
+        hasRun = false;
     }
     
     /* ======= External Functions ======= */
@@ -102,7 +108,7 @@ contract OtcEscrow {
      * Executes the OTC deal. Sends the USDC from the beneficiary to Index Governance, and
      * locks the INDEX in the vesting contract. Can only be called by approved parties.
      */
-    function swap() external onlyApprovedParties {
+    function swap() external onlyOnce {
 
         require(IERC20(index).balanceOf(address(this)) >= indexAmount, "insufficient INDEX");
 
