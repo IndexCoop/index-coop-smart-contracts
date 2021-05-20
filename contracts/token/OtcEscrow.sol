@@ -35,6 +35,7 @@ contract OtcEscrow {
     }
 
     /**
+     * Throws if run more than once
      */
     modifier onlyOnce() {
         require(!hasRun, "swap already executed");
