@@ -250,18 +250,16 @@ describe("OtcEscrow", () => {
 
     context("when swap is called for a second time", async () => {
 
-      let subjectCaller: Account;
-
       beforeEach(async () => {
-        subjectCaller = await getRandomAccount();
+        await subject();
       });
 
       async function subject(): Promise<ContractTransaction> {
-        return await subjectOtcEscrow.connect(subjectCaller.wallet).swap();
+        return await subjectOtcEscrow.swap();
       }
 
       it("should revert", async () => {
-        await subject();
+        
         await expect(subject()).to.be.revertedWith("swap already executed");
       });
     });

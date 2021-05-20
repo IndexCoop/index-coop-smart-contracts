@@ -107,7 +107,7 @@ contract OtcEscrow {
 
     /**
      * Executes the OTC deal. Sends the USDC from the beneficiary to Index Governance, and
-     * locks the INDEX in the vesting contract. Can only be called by approved parties.
+     * locks the INDEX in the vesting contract. Can only be called once.
      */
     function swap() external onlyOnce {
 
