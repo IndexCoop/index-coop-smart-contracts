@@ -11,7 +11,7 @@ import {
   IncentiveSettings
 } from "@utils/types";
 import { ADDRESS_ZERO, ZERO, ONE, TWO, EMPTY_BYTES, MAX_UINT_256, PRECISE_UNIT, ONE_DAY_IN_SECONDS, ONE_HOUR_IN_SECONDS } from "@utils/constants";
-import { FlexibleLeverageStrategyAdapter, BaseManager, StandardTokenMock, WETH9 } from "@utils/contracts/index";
+import { FlexibleLeverageStrategyAdapter, BaseManager, StandardTokenMock, WETH9, ChainlinkAggregatorV3Mock } from "@utils/contracts/index";
 import { CompoundLeverageModule, SetToken } from "@utils/contracts/setV2";
 import { CEther, CERc20 } from "@utils/contracts/compound";
 import DeployHelper from "@utils/deploys";
@@ -50,6 +50,8 @@ interface FLISettings {
   name: string;
   collateralAsset: StandardTokenMock | WETH9;
   borrowAsset: StandardTokenMock | WETH9;
+  chainlinkCollateral: ChainlinkAggregatorV3Mock;
+  chainlinkBorrow: ChainlinkAggregatorV3Mock;
   collateralCToken: CEther | CERc20;
   borrowCToken: CEther | CERc20;
   uniswapPool: UniswapV2Pair[];
@@ -98,6 +100,10 @@ describe("FlexibleLeverageStrategyAdapter", () => {
   let flexibleLeverageStrategyAdapter: FlexibleLeverageStrategyAdapter;
   let compoundLeverageModule: CompoundLeverageModule;
   let baseManager: BaseManager;
+
+  let chainlinkETH: ChainlinkAggregatorV3Mock;
+  let chainlinkWBTC: ChainlinkAggregatorV3Mock;
+  let chainlinkUSDC: ChainlinkAggregatorV3Mock;
 
   let scenarios: FLISettings[];
 
@@ -218,6 +224,14 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       "DefaultIssuanceModule",
       setV2Setup.debtIssuanceModule.address,
     );
+
+    // Deploy Chainlink mocks
+    chainlinkETH = await deployer.mocks.deployChainlinkAggregatorMock();
+    await chainlinkETH.setPrice(BigNumber.from(1000).mul(10 ** 8));
+    chainlinkUSDC = await deployer.mocks.deployChainlinkAggregatorMock();
+    await chainlinkUSDC.setPrice(10 ** 8);
+    chainlinkWBTC = await deployer.mocks.deployChainlinkAggregatorMock();
+    await chainlinkWBTC.setPrice(BigNumber.from(50000).mul(10 ** 8));
   });
 
   beforeEach(async () => {
@@ -228,6 +242,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         borrowAsset: setV2Setup.usdc,
         collateralCToken: cEther,
         borrowCToken: cUSDC,
+        chainlinkCollateral: chainlinkETH,
+        chainlinkBorrow: chainlinkUSDC,
         uniswapPool: [uniswapSetup.wethUsdcPool],
         targetLeverageRatio: ether(2),
         twapMaxTradeSize: ether(5),
@@ -268,6 +284,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         borrowAsset: setV2Setup.weth,
         collateralCToken: cUSDC,
         borrowCToken: cEther,
+        chainlinkCollateral: chainlinkUSDC,
+        chainlinkBorrow: chainlinkETH,
         uniswapPool: [uniswapSetup.wethUsdcPool],
         targetLeverageRatio: ether(2),
         twapMaxTradeSize: usdc(1000),
@@ -324,6 +342,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         borrowAsset: setV2Setup.usdc,
         collateralCToken: cWBTC,
         borrowCToken: cUSDC,
+        chainlinkCollateral: chainlinkWBTC,
+        chainlinkBorrow: chainlinkUSDC,
         uniswapPool: [uniswapSetup.wethWbtcPool, uniswapSetup.wethUsdcPool],
         targetLeverageRatio: ether(2),
         twapMaxTradeSize: bitcoin(3),
@@ -506,6 +526,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       leverageModule: compoundLeverageModule.address,
       comptroller: compoundSetup.comptroller.address,
       priceOracle: compoundSetup.priceOracle.address,
+      chainlinkCollateralPriceOracle: fliSettings.chainlinkCollateral.address,
+      chainlinkBorrowPriceOracle: fliSettings.chainlinkBorrow.address,
       targetCollateralCToken: fliSettings.collateralCToken.address,
       targetBorrowCToken: fliSettings.borrowCToken.address,
       collateralAsset: fliSettings.collateralAsset.address,
@@ -629,7 +651,9 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     const scaledBorrowPrice = preciseDiv(fliSettings.checkpoints[checkpoint].borrowPrice, borrowDecimals);
 
     await compoundSetup.priceOracle.setUnderlyingPrice(fliSettings.collateralCToken.address, scaledCollateralPrice);
+    await fliSettings.chainlinkCollateral.setPrice(fliSettings.checkpoints[checkpoint].collateralPrice.div(10 ** 10));
     await compoundSetup.priceOracle.setUnderlyingPrice(fliSettings.borrowCToken.address, scaledBorrowPrice);
+    await fliSettings.chainlinkBorrow.setPrice(fliSettings.checkpoints[checkpoint].borrowPrice.div(10 ** 10));
 
     const collateralPrice = fliSettings.checkpoints[checkpoint].collateralPrice;
     const borrowPrice = fliSettings.checkpoints[checkpoint].borrowPrice;
