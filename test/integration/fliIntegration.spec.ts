@@ -525,13 +525,14 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       setToken: setToken.address,
       leverageModule: compoundLeverageModule.address,
       comptroller: compoundSetup.comptroller.address,
-      priceOracle: compoundSetup.priceOracle.address,
       chainlinkCollateralPriceOracle: fliSettings.chainlinkCollateral.address,
       chainlinkBorrowPriceOracle: fliSettings.chainlinkBorrow.address,
       targetCollateralCToken: fliSettings.collateralCToken.address,
       targetBorrowCToken: fliSettings.borrowCToken.address,
       collateralAsset: fliSettings.collateralAsset.address,
       borrowAsset: fliSettings.borrowAsset.address,
+      collateralDecimalAdjustment: BigNumber.from(28 - await fliSettings.collateralAsset.decimals()),
+      borrowDecimalAdjustment: BigNumber.from(28 - await fliSettings.borrowAsset.decimals()),
     };
     methodology = {
       targetLeverageRatio: fliSettings.targetLeverageRatio,

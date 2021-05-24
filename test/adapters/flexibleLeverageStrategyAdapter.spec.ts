@@ -209,13 +209,14 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       setToken: setToken.address,
       leverageModule: compoundLeverageModule.address,
       comptroller: compoundSetup.comptroller.address,
-      priceOracle: compoundSetup.priceOracle.address,
       chainlinkCollateralPriceOracle: chainlinkCollateralPriceMock.address,
       chainlinkBorrowPriceOracle: chainlinkBorrowPriceMock.address,
       targetCollateralCToken: customCTokenCollateralAddress || cEther.address,
       targetBorrowCToken: cUSDC.address,
       collateralAsset: setV2Setup.weth.address,
       borrowAsset: setV2Setup.usdc.address,
+      collateralDecimalAdjustment: BigNumber.from(10),
+      borrowDecimalAdjustment: BigNumber.from(22),
     };
     methodology = {
       targetLeverageRatio: targetLeverageRatio,
@@ -268,13 +269,14 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         setToken: setToken.address,
         leverageModule: compoundLeverageModule.address,
         comptroller: compoundSetup.comptroller.address,
-        priceOracle: compoundSetup.priceOracle.address,
         chainlinkCollateralPriceOracle: chainlinkCollateralPriceMock.address,
         chainlinkBorrowPriceOracle: chainlinkBorrowPriceMock.address,
         targetCollateralCToken: cEther.address,
         targetBorrowCToken: cUSDC.address,
         collateralAsset: setV2Setup.weth.address,
         borrowAsset: setV2Setup.usdc.address,
+        collateralDecimalAdjustment: BigNumber.from(10),
+        borrowDecimalAdjustment: BigNumber.from(22),
       };
       subjectMethodologySettings = {
         targetLeverageRatio: ether(2),
@@ -326,7 +328,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       expect(strategy.setToken).to.eq(subjectContractSettings.setToken);
       expect(strategy.leverageModule).to.eq(subjectContractSettings.leverageModule);
       expect(strategy.comptroller).to.eq(subjectContractSettings.comptroller);
-      expect(strategy.priceOracle).to.eq(subjectContractSettings.priceOracle);
       expect(strategy.chainlinkCollateralPriceOracle).to.eq(subjectContractSettings.chainlinkCollateralPriceOracle);
       expect(strategy.chainlinkBorrowPriceOracle).to.eq(subjectContractSettings.chainlinkBorrowPriceOracle);
       expect(strategy.targetCollateralCToken).to.eq(subjectContractSettings.targetCollateralCToken);
@@ -873,7 +874,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       cacheBeforeEach(async () => {
         destinationTokenQuantity = ether(0.1);
         await increaseTimeAsync(BigNumber.from(100000));
-        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1010));
         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1010).mul(10 ** 8));
         await setV2Setup.weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
       });
@@ -972,7 +972,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         cacheBeforeEach(async () => {
           await subject();
           // ~1.6x leverage
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1300));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1300).mul(10 ** 8));
           const newExecutionSettings = {
             unutilizedLeveragePercentage: execution.unutilizedLeveragePercentage,
@@ -1062,7 +1061,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             deleverExchangeData: EMPTY_BYTES,
           };
           await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1500));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1500).mul(10 ** 8));
           await setV2Setup.weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
         });
@@ -1147,7 +1145,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       describe("when in a TWAP rebalance", async () => {
         beforeEach(async () => {
           await increaseTimeAsync(BigNumber.from(100000));
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1200));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1200).mul(10 ** 8));
 
           const newExecutionSettings = {
@@ -1237,7 +1234,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
         await increaseTimeAsync(BigNumber.from(100000));
         // Set to $990 so need to delever
-        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(990));
         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
         await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(2500000));
       });
@@ -1326,7 +1322,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         cacheBeforeEach(async () => {
           await flexibleLeverageStrategyAdapter.connect(owner.wallet).rebalance();
           // ~2.4x leverage
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(850));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(850).mul(10 ** 8));
           const newExecutionSettings = {
             unutilizedLeveragePercentage: execution.unutilizedLeveragePercentage,
@@ -1433,7 +1428,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           };
           await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
           // ~2.4x leverage
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(850));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(850).mul(10 ** 8));
           await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(10000000));
         });
@@ -1511,7 +1505,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         beforeEach(async () => {
           await subject();
 
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(650));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(650).mul(10 ** 8));
         });
 
@@ -1585,7 +1578,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     context("when currently in the last chunk of a TWAP rebalance", async () => {
       cacheBeforeEach(async () => {
         await increaseTimeAsync(BigNumber.from(100000));
-        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1200));
         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1200).mul(10 ** 8));
 
         destinationTokenQuantity = ether(0.01);
@@ -1676,7 +1668,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       cacheBeforeEach(async () => {
         await increaseTimeAsync(BigNumber.from(100000));
-        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1200));
         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1200).mul(10 ** 8));
 
         destinationTokenQuantity = ether(0.0001);
@@ -1800,7 +1791,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       describe("when price has moved advantageously towards target leverage ratio", async () => {
         beforeEach(async () => {
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1000));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1000).mul(10 ** 8));
         });
 
@@ -1844,7 +1834,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         beforeEach(async () => {
           await subject();
 
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(650));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(650).mul(10 ** 8));
         });
 
@@ -1929,7 +1918,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       cacheBeforeEach(async () => {
         await increaseTimeAsync(BigNumber.from(100000));
-        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(900));
         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(900).mul(10 ** 8));
 
         destinationTokenQuantity = ether(0.0001);
@@ -1961,7 +1949,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       describe("when price has moved advantageously towards target leverage ratio", async () => {
         beforeEach(async () => {
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1000));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1000).mul(10 ** 8));
         });
 
@@ -2092,7 +2079,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         await increaseTimeAsync(BigNumber.from(100000));
 
         // Set to above incentivized ratio
-        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(800));
         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
         await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(450000000));
 
@@ -2287,7 +2273,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         describe("when incentivized cooldown period has not elapsed", async () => {
           beforeEach(async () => {
             await subject();
-            await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(400));
             await chainlinkCollateralPriceMock.setPrice(BigNumber.from(400).mul(10 ** 8));
           });
 
@@ -2374,7 +2359,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       describe("when below incentivized leverage ratio threshold", async () => {
         beforeEach(async () => {
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(2000));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(2000).mul(10 ** 8));
         });
 
@@ -2465,7 +2449,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         };
         await flexibleLeverageStrategyAdapter.setIncentiveSettings(newIncentiveSettings);
 
-        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(990));
         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
 
         await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
@@ -2476,7 +2459,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
 
         // Set to above incentivized ratio
-        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(800));
         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
       });
 
@@ -2711,7 +2693,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         await flexibleLeverageStrategyAdapter.setExecutionSettings(newExecutionSettings);
 
         // Set price to reduce borrowing power
-        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1000));
         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1000).mul(10 ** 8));
 
         subjectCaller = owner;
@@ -3395,7 +3376,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     describe("when above incentivized leverage ratio", async () => {
       beforeEach(async () => {
         await owner.wallet.sendTransaction({to: flexibleLeverageStrategyAdapter.address, value: ether(1)});
-        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(650));
         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(650).mul(10 ** 8));
       });
 
@@ -3422,7 +3402,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
     describe("when below incentivized leverage ratio", async () => {
       beforeEach(async () => {
-        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(2000));
         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(2000).mul(10 ** 8));
       });
 
@@ -3481,7 +3460,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
         // Set up new rebalance TWAP
         await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
-        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(990));
         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
         await increaseTimeAsync(BigNumber.from(100000));
         await flexibleLeverageStrategyAdapter.rebalance();
@@ -3490,7 +3468,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       describe("when above incentivized leverage ratio and incentivized TWAP cooldown has elapsed", async () => {
         beforeEach(async () => {
           // Set to above incentivized ratio
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(800));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
           await increaseTimeAsync(BigNumber.from(100));
         });
@@ -3505,7 +3482,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       describe("when below incentivized leverage ratio and regular TWAP cooldown has elapsed", async () => {
         beforeEach(async () => {
           // Set to below incentivized ratio
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(900));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(900).mul(10 ** 8));
           await increaseTimeAsync(BigNumber.from(4000));
         });
@@ -3520,7 +3496,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       describe("when above incentivized leverage ratio and incentivized TWAP cooldown has NOT elapsed", async () => {
         beforeEach(async () => {
           // Set to above incentivized ratio
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(800));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
         });
 
@@ -3534,7 +3509,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       describe("when below incentivized leverage ratio and regular TWAP cooldown has NOT elapsed", async () => {
         beforeEach(async () => {
           // Set to above incentivized ratio
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(900));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(900).mul(10 ** 8));
         });
 
@@ -3550,7 +3524,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       describe("when above incentivized leverage ratio and cooldown period has elapsed", async () => {
         beforeEach(async () => {
           // Set to above incentivized ratio
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(800));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
           await increaseTimeAsync(BigNumber.from(100));
         });
@@ -3564,7 +3537,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       describe("when between max and min leverage ratio and rebalance interval has elapsed", async () => {
         beforeEach(async () => {
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(990));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
           await increaseTimeAsync(BigNumber.from(100000));
         });
@@ -3578,7 +3550,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       describe("when above max leverage ratio but below incentivized leverage ratio", async () => {
         beforeEach(async () => {
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(850));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(850).mul(10 ** 8));
         });
 
@@ -3591,7 +3562,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       describe("when below min leverage ratio", async () => {
         beforeEach(async () => {
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1400));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1400).mul(10 ** 8));
         });
 
@@ -3604,7 +3574,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       describe("when above incentivized leverage ratio and incentivized TWAP cooldown has NOT elapsed", async () => {
         beforeEach(async () => {
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(800));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
         });
 
@@ -3617,7 +3586,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       describe("when between max and min leverage ratio and rebalance interval has NOT elapsed", async () => {
         beforeEach(async () => {
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(990));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
         });
 
@@ -3688,7 +3656,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
         // Set up new rebalance TWAP
         await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
-        await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(990));
         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
         await increaseTimeAsync(BigNumber.from(100000));
         await flexibleLeverageStrategyAdapter.rebalance();
@@ -3697,7 +3664,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       describe("when above incentivized leverage ratio and incentivized TWAP cooldown has elapsed", async () => {
         beforeEach(async () => {
           // Set to above incentivized ratio
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(800));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
           await increaseTimeAsync(BigNumber.from(100));
         });
@@ -3712,7 +3678,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       describe("when below incentivized leverage ratio and regular TWAP cooldown has elapsed", async () => {
         beforeEach(async () => {
           // Set to below incentivized ratio
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(900));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(900).mul(10 ** 8));
           await increaseTimeAsync(BigNumber.from(4000));
         });
@@ -3727,7 +3692,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       describe("when above incentivized leverage ratio and incentivized TWAP cooldown has NOT elapsed", async () => {
         beforeEach(async () => {
           // Set to above incentivized ratio
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(800));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
         });
 
@@ -3741,7 +3705,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       describe("when below incentivized leverage ratio and regular TWAP cooldown has NOT elapsed", async () => {
         beforeEach(async () => {
           // Set to above incentivized ratio
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(900));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(900).mul(10 ** 8));
         });
 
@@ -3757,7 +3720,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       describe("when above incentivized leverage ratio and cooldown period has elapsed", async () => {
         beforeEach(async () => {
           // Set to above incentivized ratio
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(800));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
           await increaseTimeAsync(BigNumber.from(100));
         });
@@ -3771,7 +3733,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       describe("when between max and min leverage ratio and rebalance interval has elapsed", async () => {
         beforeEach(async () => {
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(990));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
           await increaseTimeAsync(BigNumber.from(100000));
         });
@@ -3785,7 +3746,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       describe("when above max leverage ratio but below incentivized leverage ratio", async () => {
         beforeEach(async () => {
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(850));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(850).mul(10 ** 8));
         });
 
@@ -3798,7 +3758,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       describe("when below min leverage ratio", async () => {
         beforeEach(async () => {
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(1400));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1400).mul(10 ** 8));
         });
 
@@ -3811,7 +3770,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       describe("when above incentivized leverage ratio and incentivized TWAP cooldown has NOT elapsed", async () => {
         beforeEach(async () => {
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(800));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
         });
 
@@ -3824,7 +3782,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       describe("when between max and min leverage ratio and rebalance interval has NOT elapsed", async () => {
         beforeEach(async () => {
-          await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(990));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
         });
 
