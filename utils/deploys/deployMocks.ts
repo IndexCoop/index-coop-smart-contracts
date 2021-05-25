@@ -6,6 +6,7 @@ import { MutualUpgradeMock__factory } from "../../typechain/factories/MutualUpgr
 import { BaseAdapterMock__factory } from "../../typechain/factories/BaseAdapterMock__factory";
 import { TradeAdapterMock__factory } from "../../typechain/factories/TradeAdapterMock__factory";
 import { StandardTokenMock__factory  } from "../../typechain/factories/StandardTokenMock__factory";
+import { ChainlinkAggregatorV3Mock__factory  } from "../../typechain/factories/ChainlinkAggregatorV3Mock__factory";
 
 export default class DeployMocks {
   private _deployerSigner: Signer;
@@ -27,6 +28,10 @@ export default class DeployMocks {
   }
 
   public async deployStandardTokenMock(owner: Address): Promise<StandardTokenMock> {
-    return await new StandardTokenMock__factory(this._deployerSigner).deploy(owner, 1000000*10**6, "USDCoin", "USDC", 6);
+    return await new StandardTokenMock__factory(this._deployerSigner).deploy(owner, 1000000 * 10 ** 6, "USDCoin", "USDC", 6);
+  }
+
+  public async deployChainlinkAggregatorMock() {
+    return await new ChainlinkAggregatorV3Mock__factory(this._deployerSigner).deploy();
   }
 }

@@ -21,6 +21,7 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Math } from "@openzeppelin/contracts/math/Math.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
 
 import { BaseAdapter } from "../lib/BaseAdapter.sol";
 import { ICErc20 } from "../interfaces/ICErc20.sol";
@@ -30,6 +31,8 @@ import { ICompoundLeverageModule } from "../interfaces/ICompoundLeverageModule.s
 import { ICompoundPriceOracle } from "../interfaces/ICompoundPriceOracle.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
+import { IChainlinkAggregatorV3 } from "../interfaces/IChainlinkAggregatorV3.sol";
+
 
 /**
  * @title FlexibleLeverageStrategyAdapter
@@ -44,11 +47,16 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  * - Update ExecutionSettings struct to split exchangeData into leverExchangeData and deleverExchangeData
  * - Update _lever and _delever internal functions with struct changes
  * - Update setExecutionSettings to account for leverExchangeData and deleverExchangeData
+ *
+ * CHANGELOG 5/24/2021:
+ * - Update _calculateActionInfo to add chainlink prices
+ * - Update _calculateBorrowUnits and _calculateMinRepayUnits to use chainlink as an oracle in 
  */
 contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     using Address for address;
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
+    using SafeCast for int256;
 
     /* ============ Enums ============ */
 
@@ -62,12 +70,12 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     /* ============ Structs ============ */
 
     struct ActionInfo {
-        uint256 collateralPrice;                        // Price of underlying in precise units (10e18)
-        uint256 borrowPrice;                            // Price of underlying in precise units (10e18)
         uint256 collateralBalance;                      // Balance of underlying held in Compound in base units (e.g. USDC 10e6)
         uint256 borrowBalance;                          // Balance of underlying borrowed from Compound in base units
         uint256 collateralValue;                        // Valuation in USD adjusted for decimals in precise units (10e18)
         uint256 borrowValue;                            // Valuation in USD adjusted for decimals in precise units (10e18)
+        uint256 collateralPrice;                        // Price of collateral in precise units (10e18) from Chainlink
+        uint256 borrowPrice;                            // Price of borrow asset in precise units (10e18) from Chainlink
         uint256 setTotalSupply;                         // Total supply of SetToken
     }
 
@@ -79,14 +87,17 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     struct ContractSettings {
-        ISetToken setToken;                              // Instance of leverage token
-        ICompoundLeverageModule leverageModule;          // Instance of Compound leverage module
-        IComptroller comptroller;                        // Instance of Compound Comptroller
-        ICompoundPriceOracle priceOracle;                // Compound open oracle feed that returns prices accounting for decimals. e.g. USDC 6 decimals = 10^18 * 10^18 / 10^6
-        ICErc20 targetCollateralCToken;                  // Instance of target collateral cToken asset
-        ICErc20 targetBorrowCToken;                      // Instance of target borrow cToken asset
-        address collateralAsset;                         // Address of underlying collateral
-        address borrowAsset;                             // Address of underlying borrow asset
+        ISetToken setToken;                             // Instance of leverage token
+        ICompoundLeverageModule leverageModule;         // Instance of Compound leverage module
+        IComptroller comptroller;                       // Instance of Compound Comptroller
+        IChainlinkAggregatorV3 collateralPriceOracle;   // Chainlink oracle feed that returns prices in 8 decimals for collateral asset
+        IChainlinkAggregatorV3 borrowPriceOracle;       // Chainlink oracle feed that returns prices in 8 decimals for borrow asset
+        ICErc20 targetCollateralCToken;                 // Instance of target collateral cToken asset
+        ICErc20 targetBorrowCToken;                     // Instance of target borrow cToken asset
+        address collateralAsset;                        // Address of underlying collateral
+        address borrowAsset;                            // Address of underlying borrow asset
+        uint256 collateralDecimalAdjustment;            // Decimal adjustment for chainlink oracle of the collateral asset. Equal to 28-collateralDecimals (10^18 * 10^18 / 10^decimals / 10^8)
+        uint256 borrowDecimalAdjustment;                // Decimal adjustment for chainlink oracle of the borrowing asset. Equal to 28-borrowDecimals (10^18 * 10^18 / 10^decimals / 10^8)
     }
 
     struct MethodologySettings { 
@@ -671,9 +682,13 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     function _createActionInfo() internal view returns(ActionInfo memory) {
         ActionInfo memory rebalanceInfo;
 
-        // IMPORTANT: Compound oracle returns prices adjusted for decimals. USDC is 6 decimals so $1 * 10^18 * 10^18 / 10^6 = 10^30
-        rebalanceInfo.collateralPrice = strategy.priceOracle.getUnderlyingPrice(address(strategy.targetCollateralCToken));
-        rebalanceInfo.borrowPrice = strategy.priceOracle.getUnderlyingPrice(address(strategy.targetBorrowCToken));
+        // Calculate prices from chainlink. Adjusts decimals to be in line with Compound's oracles. Chainlink returns prices with 8 decimal places, but 
+        // compound expects 36 - underlyingDecimals decimal places from their oracles. This is so that when the underlying amount is multiplied by the
+        // received price, the collateral valuation is normalized to 36 decimals. To perform this adjustment, we multiply by 10^(36 - 8 - underlyingDeciamls)
+        int256 rawCollateralPrice = strategy.collateralPriceOracle.latestAnswer();
+        rebalanceInfo.collateralPrice = rawCollateralPrice.toUint256().mul(10 ** strategy.collateralDecimalAdjustment);
+        int256 rawBorrowPrice = strategy.borrowPriceOracle.latestAnswer();
+        rebalanceInfo.borrowPrice = rawBorrowPrice.toUint256().mul(10 ** strategy.borrowDecimalAdjustment);
 
         // Calculate stored exchange rate which does not trigger a state update
         uint256 cTokenBalance = strategy.targetCollateralCToken.balanceOf(address(strategy.setToken));
@@ -885,8 +900,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     /**
-     * Derive the borrow units for lever. The units are calculated by the collateral units multiplied by collateral / borrow asset price. Compound oracle prices
-     * already adjust for decimals in the token.
+     * Derive the borrow units for lever. The units are calculated by the collateral units multiplied by collateral / borrow asset price. Oracle prices
+     * have already been adjusted for the decimals in the token.
      *
      * return uint256           Position units to borrow
      */
@@ -905,7 +920,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
     /**
      * Derive the min repay units from collateral units for delever. Units are calculated as target collateral rebalance units multiplied by slippage tolerance
-     * and pair price (collateral oracle price / borrow oracle price). Compound oracle prices already adjust for decimals in the token.
+     * and pair price (collateral oracle price / borrow oracle price). Oracle prices have already been adjusted for the decimals in the token.
      *
      * return uint256           Min position units to repay in borrow asset
      */
