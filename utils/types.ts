@@ -37,8 +37,8 @@ export interface ContractSettings {
   setToken: Address;
   leverageModule: Address;
   comptroller: Address;
-  chainlinkCollateralPriceOracle: Address;
-  chainlinkBorrowPriceOracle: Address;
+  collateralPriceOracle: Address;
+  borrowPriceOracle: Address;
   targetCollateralCToken: Address;
   targetBorrowCToken: Address;
   collateralAsset: Address;

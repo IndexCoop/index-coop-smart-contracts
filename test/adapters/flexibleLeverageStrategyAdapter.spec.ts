@@ -209,8 +209,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       setToken: setToken.address,
       leverageModule: compoundLeverageModule.address,
       comptroller: compoundSetup.comptroller.address,
-      chainlinkCollateralPriceOracle: chainlinkCollateralPriceMock.address,
-      chainlinkBorrowPriceOracle: chainlinkBorrowPriceMock.address,
+      collateralPriceOracle: chainlinkCollateralPriceMock.address,
+      borrowPriceOracle: chainlinkBorrowPriceMock.address,
       targetCollateralCToken: customCTokenCollateralAddress || cEther.address,
       targetBorrowCToken: cUSDC.address,
       collateralAsset: setV2Setup.weth.address,
@@ -269,8 +269,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         setToken: setToken.address,
         leverageModule: compoundLeverageModule.address,
         comptroller: compoundSetup.comptroller.address,
-        chainlinkCollateralPriceOracle: chainlinkCollateralPriceMock.address,
-        chainlinkBorrowPriceOracle: chainlinkBorrowPriceMock.address,
+        collateralPriceOracle: chainlinkCollateralPriceMock.address,
+        borrowPriceOracle: chainlinkBorrowPriceMock.address,
         targetCollateralCToken: cEther.address,
         targetBorrowCToken: cUSDC.address,
         collateralAsset: setV2Setup.weth.address,
@@ -328,8 +328,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       expect(strategy.setToken).to.eq(subjectContractSettings.setToken);
       expect(strategy.leverageModule).to.eq(subjectContractSettings.leverageModule);
       expect(strategy.comptroller).to.eq(subjectContractSettings.comptroller);
-      expect(strategy.chainlinkCollateralPriceOracle).to.eq(subjectContractSettings.chainlinkCollateralPriceOracle);
-      expect(strategy.chainlinkBorrowPriceOracle).to.eq(subjectContractSettings.chainlinkBorrowPriceOracle);
+      expect(strategy.collateralPriceOracle).to.eq(subjectContractSettings.collateralPriceOracle);
+      expect(strategy.borrowPriceOracle).to.eq(subjectContractSettings.borrowPriceOracle);
       expect(strategy.targetCollateralCToken).to.eq(subjectContractSettings.targetCollateralCToken);
       expect(strategy.targetBorrowCToken).to.eq(subjectContractSettings.targetBorrowCToken);
       expect(strategy.collateralAsset).to.eq(subjectContractSettings.collateralAsset);
