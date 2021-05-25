@@ -683,7 +683,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         ActionInfo memory rebalanceInfo;
 
         // Calculate prices from chainlink. Adjusts decimals to be in line with Compound's oracles. Chainlink returns prices with 8 decimal places, but 
-        // compound expects 36 + underlyingDecimals decimal places from their oracles. This is so that when the underlying amount is multiplied by the
+        // compound expects 36 - underlyingDecimals decimal places from their oracles. This is so that when the underlying amount is multiplied by the
         // received price, the collateral valuation is normalized to 36 decimals. To perform this adjustment, we multiply by 10^(36 - 8 - underlyingDeciamls)
         int256 rawCollateralPrice = strategy.collateralPriceOracle.latestAnswer();
         rebalanceInfo.collateralPrice = rawCollateralPrice.toUint256().mul(10 ** strategy.collateralDecimalAdjustment);
