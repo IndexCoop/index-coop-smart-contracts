@@ -8,16 +8,10 @@ import {
   addSnapshotBeforeRestoreAfterEach,
   ether,
   getAccounts,
-  getLastBlockTimestamp,
-  getProvider,
-  getRandomAccount,
-  getRandomAddress,
   getWaffleExpect,
   increaseTimeAsync,
 } from "@utils/index";
-import { ContractTransaction } from "ethers";
 import { StandardTokenMock } from "@typechain/StandardTokenMock";
-import { formatEther } from "ethers/lib/utils";
 
 const expect = getWaffleExpect();
 
@@ -33,7 +27,7 @@ describe("IndexPowah", async () => {
 
   let dpiFarm: StakingRewardsV2;
   let mviFarm: StakingRewardsV2;
-  
+
   before(async () => {
     [ owner, voter ] = await getAccounts();
 
@@ -50,13 +44,13 @@ describe("IndexPowah", async () => {
   addSnapshotBeforeRestoreAfterEach();
 
   describe("#constructor", async () => {
-    
+
     async function subject(): Promise<IndexPowah> {
       return deployer.token.deployIndexPowah(index.address, dpiFarm.address, mviFarm.address);
     }
 
     it("should set the state variables correctly", async () => {
-      const indexPowah = await subject()
+      const indexPowah = await subject();
 
       expect(await indexPowah.indexToken()).to.eq(index.address);
       expect(await indexPowah.dpiFarm()).to.eq(dpiFarm.address);
@@ -99,21 +93,43 @@ describe("IndexPowah", async () => {
 
       beforeEach(async () => {
         subjectAmountStaked = ether(50);
-        subjectAmountRewards =  ether(250);
+        subjectAmountRewards =  ether(2500);
         await index.connect(owner.wallet).transfer(dpiFarm.address, subjectAmountRewards);
-        await dpi.connect(owner.wallet).transfer(voter.address, subjectAmountStaked)
-        await dpi.connect(voter.wallet).approve(dpiFarm.address, subjectAmountStaked)
+        await dpiFarm.connect(owner.wallet).notifyRewardAmount(subjectAmountRewards);
+        await dpi.connect(owner.wallet).transfer(voter.address, subjectAmountStaked);
+        await dpi.connect(voter.wallet).approve(dpiFarm.address, subjectAmountStaked);
         await dpiFarm.connect(voter.wallet).stake(subjectAmountStaked);
-        await increaseTimeAsync(BigNumber.from(1000));
+        await increaseTimeAsync(BigNumber.from(50));
       });
 
       it("should count votes from unclaimed index", async () => {
         const votes = await subject();
 
-        expect(votes).to.eq(subjectAmountRewards);
-      })
+        expect(votes).to.eq(await dpiFarm.earned(voter.address));
+      });
+    });
 
+    context("when the voter has unclaimed index in the MVI farm", async () => {
 
+      let subjectAmountStaked: BigNumber;
+      let subjectAmountRewards: BigNumber;
+
+      beforeEach(async () => {
+        subjectAmountStaked = ether(50);
+        subjectAmountRewards =  ether(700);
+        await index.connect(owner.wallet).transfer(mviFarm.address, subjectAmountRewards);
+        await mviFarm.connect(owner.wallet).notifyRewardAmount(subjectAmountRewards);
+        await mvi.connect(owner.wallet).transfer(voter.address, subjectAmountStaked);
+        await mvi.connect(voter.wallet).approve(mviFarm.address, subjectAmountStaked);
+        await mviFarm.connect(voter.wallet).stake(subjectAmountStaked);
+        await increaseTimeAsync(BigNumber.from(50));
+      });
+
+      it("should count votes from unclaimed index", async () => {
+        const votes = await subject();
+
+        expect(votes).to.eq(await mviFarm.earned(voter.address));
+      });
     });
   });
 
