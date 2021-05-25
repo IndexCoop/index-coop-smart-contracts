@@ -1,8 +1,9 @@
 import { Signer } from "ethers";
 import { BigNumber } from "@ethersproject/bignumber";
 import { Address } from "../types";
-import { IndexToken, MerkleDistributor, OtcEscrow, Vesting } from "../contracts";
+import { IndexPowah, IndexToken, MerkleDistributor, OtcEscrow, Vesting } from "../contracts";
 
+import { IndexPowah__factory } from "../../typechain/factories/IndexPowah__factory";
 import { IndexToken__factory } from "../../typechain/factories/IndexToken__factory";
 import { MerkleDistributor__factory } from "../../typechain/factories/MerkleDistributor__factory";
 import { Vesting__factory } from "../../typechain/factories/Vesting__factory";
@@ -62,6 +63,18 @@ export default class DeployToken {
       indexAmount,
       usdcAddress,
       indexAddress,
+    );
+  }
+
+  public async deployIndexPowah(
+    indexToken: Address,
+    dpiFarm: Address,
+    mviFarm: Address
+  ): Promise<IndexPowah> {
+    return await new IndexPowah__factory(this._deployerSigner).deploy(
+      indexToken,
+      dpiFarm,
+      mviFarm
     );
   }
 }

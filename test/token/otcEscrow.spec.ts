@@ -40,7 +40,7 @@ describe("OtcEscrow", () => {
 
     index = await deployer.token.deployIndexToken(owner.address);
     await index.transfer(indexGov.address, ether(1000));
-    usdc =  await deployer.mocks.deployStandardTokenMock(owner.address);
+    usdc =  await deployer.mocks.deployStandardTokenMock(owner.address, 6);
     await usdc.transfer(investor.address, BigNumber.from(1_000_000 * 10**6));
   });
 

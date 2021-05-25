@@ -1,4 +1,4 @@
-import { Signer } from "ethers";
+import { Signer, BigNumber } from "ethers";
 import { Address } from "../types";
 import { BaseAdapterMock, MutualUpgradeMock, StandardTokenMock, TradeAdapterMock } from "../contracts/index";
 
@@ -26,7 +26,7 @@ export default class DeployMocks {
     return await new MutualUpgradeMock__factory(this._deployerSigner).deploy(owner, methodologist);
   }
 
-  public async deployStandardTokenMock(owner: Address): Promise<StandardTokenMock> {
-    return await new StandardTokenMock__factory(this._deployerSigner).deploy(owner, 1000000*10**6, "USDCoin", "USDC", 6);
+  public async deployStandardTokenMock(owner: Address, decimals: number): Promise<StandardTokenMock> {
+    return await new StandardTokenMock__factory(this._deployerSigner).deploy(owner, BigNumber.from(1000000).mul(BigNumber.from(10).pow(decimals)), "USDCoin", "USDC", decimals);
   }
 }
