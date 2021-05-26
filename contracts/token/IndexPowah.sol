@@ -5,7 +5,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import { StakingRewardsV2 } from "../staking/StakingRewardsV2.sol";
-import { IUniswapV2Pair } from "../interfaces/IUniswapV2Pair.sol";
+import { IPair } from "../interfaces/IPair.sol";
 import { Vesting } from "./Vesting.sol";
 
 contract IndexPowah is IERC20 {
@@ -15,16 +15,16 @@ contract IndexPowah is IERC20 {
     IERC20 public indexToken;
     StakingRewardsV2 public dpiFarm;
     StakingRewardsV2 public mviFarm;
-    IUniswapV2Pair public uniPair;
-    IUniswapV2Pair public sushiPair;
+    IPair public uniPair;
+    IPair public sushiPair;
     Vesting[] public investorVesting;
 
     constructor(
         IERC20 _indexToken,
         StakingRewardsV2 _dpiFarm, 
         StakingRewardsV2 _mviFarm,
-        IUniswapV2Pair _uniPair,
-        IUniswapV2Pair _sushiPair,
+        IPair _uniPair,
+        IPair _sushiPair,
         Vesting[] memory _investorVesting
     ) 
         public
@@ -69,7 +69,7 @@ contract IndexPowah is IERC20 {
         return sum;
     }
 
-    function _getDexVotes(address account, IUniswapV2Pair pair) internal view returns (uint256) {
+    function _getDexVotes(address account, IPair pair) internal view returns (uint256) {
         uint256 lpIndex = indexToken.balanceOf(address(pair));
         uint256 lpBalance = pair.balanceOf(account);
         uint256 lpTotal = pair.totalSupply();
