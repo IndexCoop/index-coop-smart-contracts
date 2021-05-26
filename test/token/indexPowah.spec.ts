@@ -2,16 +2,22 @@ import "module-alias/register";
 import { BigNumber } from "@ethersproject/bignumber";
 
 import { Account } from "@utils/types";
-import { IndexToken, IndexPowah, StakingRewardsV2 } from "@utils/contracts";
+import { IndexToken, IndexPowah, StakingRewardsV2, Vesting } from "@utils/contracts";
 import DeployHelper from "@utils/deploys";
 import {
   addSnapshotBeforeRestoreAfterEach,
   ether,
   getAccounts,
+  getLastBlockTimestamp,
+  getSetFixture,
+  getUniswapFixture,
   getWaffleExpect,
   increaseTimeAsync,
 } from "@utils/index";
 import { StandardTokenMock } from "@typechain/StandardTokenMock";
+import { UniswapV2Pair } from "@typechain/UniswapV2Pair";
+import { SetFixture, UniswapFixture } from "@utils/fixtures";
+import { MAX_UINT_256 } from "@utils/constants";
 
 const expect = getWaffleExpect();
 
@@ -28,6 +34,14 @@ describe("IndexPowah", async () => {
   let dpiFarm: StakingRewardsV2;
   let mviFarm: StakingRewardsV2;
 
+  let setV2Setup: SetFixture;
+  let uniFixture: UniswapFixture;
+  let sushiFixture: UniswapFixture;
+  let uniPair: UniswapV2Pair;
+  let sushiPair: UniswapV2Pair;
+
+  let vesting: Vesting;
+
   before(async () => {
     [ owner, voter ] = await getAccounts();
 
@@ -39,6 +53,18 @@ describe("IndexPowah", async () => {
 
     dpiFarm = await deployer.staking.deployStakingRewardsV2(owner.address, index.address, dpi.address, BigNumber.from(100));
     mviFarm = await deployer.staking.deployStakingRewardsV2(owner.address, index.address, mvi.address, BigNumber.from(100));
+
+    const now = await getLastBlockTimestamp();
+    vesting = await deployer.token.deployVesting(index.address, voter.address, ether(77), now.add(1), now.add(1000), now.add(5000));
+
+    setV2Setup = getSetFixture(owner.address);
+    await setV2Setup.initialize();
+    uniFixture = getUniswapFixture(owner.address);
+    sushiFixture = getUniswapFixture(owner.address);
+    await uniFixture.initialize(owner.address, setV2Setup.weth.address, setV2Setup.wbtc.address, setV2Setup.usdc.address);
+    await sushiFixture.initialize(owner.address, setV2Setup.weth.address, setV2Setup.wbtc.address, setV2Setup.usdc.address);
+    uniPair = await uniFixture.createNewPair(setV2Setup.weth.address, index.address);
+    sushiPair = await sushiFixture.createNewPair(setV2Setup.weth.address, index.address);
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -46,7 +72,14 @@ describe("IndexPowah", async () => {
   describe("#constructor", async () => {
 
     async function subject(): Promise<IndexPowah> {
-      return deployer.token.deployIndexPowah(index.address, dpiFarm.address, mviFarm.address);
+      return deployer.token.deployIndexPowah(
+        index.address,
+        dpiFarm.address,
+        mviFarm.address,
+        uniPair.address,
+        sushiPair.address,
+        [vesting.address]
+      );
     }
 
     it("should set the state variables correctly", async () => {
@@ -55,6 +88,9 @@ describe("IndexPowah", async () => {
       expect(await indexPowah.indexToken()).to.eq(index.address);
       expect(await indexPowah.dpiFarm()).to.eq(dpiFarm.address);
       expect(await indexPowah.mviFarm()).to.eq(mviFarm.address);
+      expect(await indexPowah.uniPair()).to.eq(uniPair.address);
+      expect(await indexPowah.sushiPair()).to.eq(sushiPair.address);
+      expect(await indexPowah.investorVesting(0)).to.eq(vesting.address);
     });
   });
 
@@ -63,7 +99,14 @@ describe("IndexPowah", async () => {
     let indexPowah: IndexPowah;
 
     beforeEach(async () => {
-      indexPowah = await deployer.token.deployIndexPowah(index.address, dpiFarm.address, mviFarm.address);
+      indexPowah = await deployer.token.deployIndexPowah(
+        index.address,
+        dpiFarm.address,
+        mviFarm.address,
+        uniPair.address,
+        sushiPair.address,
+        [vesting.address]
+      );
     });
 
     async function subject(): Promise<BigNumber> {
@@ -131,6 +174,71 @@ describe("IndexPowah", async () => {
         expect(votes).to.eq(await mviFarm.earned(voter.address));
       });
     });
-  });
 
+    context("when the voter has vesting index", async () => {
+
+      beforeEach(async () => {
+        await index.connect(owner.wallet).transfer(vesting.address, ether(77));
+      });
+
+      it("should count the votes from the vesting contract", async () => {
+        const votes = await subject();
+
+        expect(votes).to.eq(await index.balanceOf(vesting.address));
+      });
+    });
+
+    context("when the voter owns INDEX-WETH on Uniswap", async () => {
+
+      beforeEach(async () => {
+        await index.connect(owner.wallet).approve(uniFixture.router.address, ether(1000));
+        await setV2Setup.weth.connect(owner.wallet).approve(uniFixture.router.address, ether(50));
+        await uniFixture.router.addLiquidity(
+          setV2Setup.weth.address,
+          index.address,
+          ether(50),
+          ether(1000),
+          ether(49),
+          ether(999),
+          voter.address,
+          MAX_UINT_256
+        );
+      });
+
+      it("should count the votes in the LP position", async () => {
+        const votes = await subject();
+
+        const expectedVotes = (await uniPair.balanceOf(voter.address)).mul(await index.balanceOf(uniPair.address)).div(await uniPair.totalSupply());
+        expect(votes).to.eq(expectedVotes);
+      });
+    });
+
+    context("when the voter owns INDEX-WETH on Sushiswap", async () => {
+
+      beforeEach(async () => {
+        await index.connect(owner.wallet).approve(sushiFixture.router.address, ether(1000));
+        await setV2Setup.weth.connect(owner.wallet).approve(sushiFixture.router.address, ether(50));
+        await sushiFixture.router.addLiquidity(
+          setV2Setup.weth.address,
+          index.address,
+          ether(50),
+          ether(1000),
+          ether(49),
+          ether(999),
+          voter.address,
+          MAX_UINT_256
+        );
+      });
+
+      it("should count the votes in the LP position", async () => {
+        const votes = await subject();
+
+        const expectedVotes = (await sushiPair.balanceOf(voter.address))
+          .mul(await index.balanceOf(sushiPair.address))
+          .div(await sushiPair.totalSupply());
+
+        expect(votes).to.eq(expectedVotes);
+      });
+    });
+  });
 });
