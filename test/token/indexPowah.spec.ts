@@ -59,6 +59,7 @@ describe("IndexPowah", async () => {
 
     setV2Setup = getSetFixture(owner.address);
     await setV2Setup.initialize();
+
     uniFixture = getUniswapFixture(owner.address);
     sushiFixture = getUniswapFixture(owner.address);
     await uniFixture.initialize(owner.address, setV2Setup.weth.address, setV2Setup.wbtc.address, setV2Setup.usdc.address);
