@@ -18,6 +18,7 @@ import { StandardTokenMock } from "@typechain/StandardTokenMock";
 import { UniswapV2Pair } from "@typechain/UniswapV2Pair";
 import { SetFixture, UniswapFixture } from "@utils/fixtures";
 import { MAX_UINT_256 } from "@utils/constants";
+import { MasterChefMock } from "@typechain/MasterChefMock";
 
 const expect = getWaffleExpect();
 
@@ -39,6 +40,8 @@ describe("IndexPowah", async () => {
   let sushiFixture: UniswapFixture;
   let uniPair: UniswapV2Pair;
   let sushiPair: UniswapV2Pair;
+
+  let masterChef: MasterChefMock;
 
   let vesting: Vesting;
 
@@ -66,6 +69,8 @@ describe("IndexPowah", async () => {
     await sushiFixture.initialize(owner.address, setV2Setup.weth.address, setV2Setup.wbtc.address, setV2Setup.usdc.address);
     uniPair = await uniFixture.createNewPair(setV2Setup.weth.address, index.address);
     sushiPair = await sushiFixture.createNewPair(setV2Setup.weth.address, index.address);
+
+    masterChef = await deployer.mocks.deployMasterChefMock();
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -79,6 +84,7 @@ describe("IndexPowah", async () => {
         mviFarm.address,
         uniPair.address,
         sushiPair.address,
+        masterChef.address,
         [vesting.address]
       );
     }
@@ -106,6 +112,7 @@ describe("IndexPowah", async () => {
         mviFarm.address,
         uniPair.address,
         sushiPair.address,
+        masterChef.address,
         [vesting.address]
       );
     });
@@ -235,6 +242,38 @@ describe("IndexPowah", async () => {
         const votes = await subject();
 
         const expectedVotes = (await sushiPair.balanceOf(voter.address))
+          .mul(await index.balanceOf(sushiPair.address))
+          .div(await sushiPair.totalSupply());
+
+        expect(votes).to.eq(expectedVotes);
+      });
+    });
+
+    context("when the voter has INDEX-WETH SLP tokens in MasterChef (Onsen)", async () => {
+
+      let subjectMasterChefAmount: BigNumber;
+
+      beforeEach(async () => {
+        await index.connect(owner.wallet).approve(sushiFixture.router.address, ether(1000));
+        await setV2Setup.weth.connect(owner.wallet).approve(sushiFixture.router.address, ether(60));
+        await sushiFixture.router.connect(owner.wallet).addLiquidity(
+          setV2Setup.weth.address,
+          index.address,
+          ether(60),
+          ether(1000),
+          ether(59),
+          ether(999),
+          masterChef.address,
+          MAX_UINT_256
+        );
+        subjectMasterChefAmount = await sushiPair.balanceOf(masterChef.address);
+        await masterChef.setAmount(subjectMasterChefAmount);
+      });
+
+      it("should cont the votes from the LP position in MasterChef", async () => {
+        const votes = await subject();
+
+        const expectedVotes = subjectMasterChefAmount
           .mul(await index.balanceOf(sushiPair.address))
           .div(await sushiPair.totalSupply());
 

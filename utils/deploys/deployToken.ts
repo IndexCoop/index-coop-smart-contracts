@@ -72,6 +72,7 @@ export default class DeployToken {
     mviFarm: Address,
     uniPair: Address,
     sushiPair: Address,
+    masterChef: Address,
     vesting: Address[],
   ): Promise<IndexPowah> {
     return await new IndexPowah__factory(this._deployerSigner).deploy(
@@ -80,6 +81,7 @@ export default class DeployToken {
       mviFarm,
       uniPair,
       sushiPair,
+      masterChef,
       vesting
     );
   }

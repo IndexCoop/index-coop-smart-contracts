@@ -7,6 +7,7 @@ import { BaseAdapterMock__factory } from "../../typechain/factories/BaseAdapterM
 import { TradeAdapterMock__factory } from "../../typechain/factories/TradeAdapterMock__factory";
 import { StandardTokenMock__factory  } from "../../typechain/factories/StandardTokenMock__factory";
 import { ChainlinkAggregatorV3Mock__factory  } from "../../typechain/factories/ChainlinkAggregatorV3Mock__factory";
+import { MasterChefMock__factory } from "../../typechain/factories/MasterChefMock__factory";
 
 export default class DeployMocks {
   private _deployerSigner: Signer;
@@ -33,5 +34,9 @@ export default class DeployMocks {
 
   public async deployChainlinkAggregatorMock() {
     return await new ChainlinkAggregatorV3Mock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployMasterChefMock() {
+    return await new MasterChefMock__factory(this._deployerSigner).deploy();
   }
 }
