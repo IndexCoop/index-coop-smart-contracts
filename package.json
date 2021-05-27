@@ -15,11 +15,14 @@
     "tsconfig.json"
   ],
   "scripts": {
-    "build": "yarn compile && yarn patch-hardhat-typechain && yarn typechain && yarn fix-typechain && yarn transpile-dist",
+    "build": "yarn compile && yarn build:typechain",
+    "build:npm": "yarn compile:npm && yarn build:typechain",
+    "build:typechain": "yarn patch-hardhat-typechain && yarn typechain && yarn fix-typechain && yarn transpile-dist",
     "chain": "npx hardhat node --no-deploy",
-    "clean": "rm -f coverage.json; rm -rf .coverage_cache; rm -rf .coverage_contracts; rm -rf cache; rm -rf coverage; rm -rf typechain; rm -rf artifacts",
+    "clean": "rm -rf coverage.json .coverage_cache .coverage_contracts cache coverage typechain artifacts dist",
     "clean-dev-deployment": "rm -rf deployments/50-development.json",
     "compile": "npx hardhat compile",
+    "compile:npm": "SKIP_ABI_GAS_MODS=true npx hardhat compile",
     "coverage": "yarn clean && yarn build && yarn cov:command",
     "coverage:fork": "yarn clean && yarn build && FORK=true yarn cov:command",
     "cov:command": "COVERAGE=true node --max-old-space-size=4096 ./node_modules/.bin/hardhat coverage",
@@ -31,7 +34,7 @@
     "patch-hardhat-typechain": "node scripts/patch-hardhat-typechain.js",
     "precommit": "lint-staged",
     "prepare": "yarn build",
-    "prepack": "if [[ \"$(basename \"$PWD\")\" == \"index-coop-contracts\" ]]; then echo \"CANNOT PUBLISH FROM THIS REPO\"; exit 1; fi;",
+    "prepublishOnly": "yarn clean && yarn build:npm",
     "rename-extensions": "for f in typechain/*.d.ts; do mv -- \"$f\" \"${f%.d.ts}.ts\"; done",
     "test": "npx hardhat test --network localhost",
     "test:fork": "FORK=true npx hardhat test",
@@ -89,6 +92,11 @@
     "module-alias": "^2.2.2",
     "replace-in-file": "^6.1.0",
     "typechain": "^4.0.1"
+  },
+  "peerDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.1",
+    "ethereum-waffle": "^3.2.1",
+    "hardhat": "^2.2.1"
   },
   "_moduleAliases": {
     "@utils": "utils",
