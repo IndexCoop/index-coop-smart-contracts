@@ -48,9 +48,6 @@
   "license": "MIT",
   "homepage": "https://github.com/SetProtocol",
   "devDependencies": {
-    "@ethersproject/abstract-signer": "^5.0.9",
-    "@ethersproject/bignumber": "^5.0.12",
-    "@ethersproject/providers": "^5.0.17",
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@openzeppelin/contracts": "^3.1.0",
@@ -64,7 +61,6 @@
     "coveralls": "^3.0.1",
     "dotenv": "^8.2.0",
     "ethereum-waffle": "^3.2.1",
-    "ethers": "^5.0.24",
     "globby": "^11.0.2",
     "hardhat": "^2.0.6",
     "hardhat-deploy": "^0.7.0-beta.39",
@@ -82,9 +78,13 @@
     "typescript": "^3.9.3"
   },
   "dependencies": {
+    "@ethersproject/abstract-signer": "5.0.9",
+    "@ethersproject/bignumber": "5.0.12",
+    "@ethersproject/providers": "5.0.17",
     "@uniswap/v2-core": "^1.0.1",
     "@uniswap/v2-periphery": "^1.1.0-beta.0",
     "ethereumjs-util": "^7.0.5",
+    "ethers": "5.0.24",
     "fs-extra": "^5.0.0",
     "module-alias": "^2.2.2",
     "replace-in-file": "^6.1.0",
