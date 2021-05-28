@@ -67,21 +67,21 @@ export default class DeployToken {
   }
 
   public async deployIndexPowah(
+    owner: Address,
     indexToken: Address,
-    dpiFarm: Address,
-    mviFarm: Address,
     uniPair: Address,
     sushiPair: Address,
     masterChef: Address,
+    farms: Address[],
     vesting: Address[],
   ): Promise<IndexPowah> {
     return await new IndexPowah__factory(this._deployerSigner).deploy(
+      owner,
       indexToken,
-      dpiFarm,
-      mviFarm,
       uniPair,
       sushiPair,
       masterChef,
+      farms,
       vesting
     );
   }

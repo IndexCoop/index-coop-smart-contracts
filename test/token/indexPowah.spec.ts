@@ -19,6 +19,7 @@ import { UniswapV2Pair } from "@typechain/UniswapV2Pair";
 import { SetFixture, UniswapFixture } from "@utils/fixtures";
 import { MAX_UINT_256 } from "@utils/constants";
 import { MasterChefMock } from "@typechain/MasterChefMock";
+import { ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
 
@@ -79,25 +80,26 @@ describe("IndexPowah", async () => {
 
     async function subject(): Promise<IndexPowah> {
       return deployer.token.deployIndexPowah(
+        owner.address,
         index.address,
-        dpiFarm.address,
-        mviFarm.address,
         uniPair.address,
         sushiPair.address,
         masterChef.address,
-        [vesting.address]
+        [ dpiFarm.address, mviFarm.address ],
+        [ vesting.address ]
       );
     }
 
     it("should set the state variables correctly", async () => {
       const indexPowah = await subject();
 
+      expect(await indexPowah.owner()).to.eq(owner.address);
       expect(await indexPowah.indexToken()).to.eq(index.address);
-      expect(await indexPowah.dpiFarm()).to.eq(dpiFarm.address);
-      expect(await indexPowah.mviFarm()).to.eq(mviFarm.address);
       expect(await indexPowah.uniPair()).to.eq(uniPair.address);
       expect(await indexPowah.sushiPair()).to.eq(sushiPair.address);
-      expect(await indexPowah.investorVesting(0)).to.eq(vesting.address);
+      expect(await indexPowah.farms(0)).to.eq(dpiFarm.address);
+      expect(await indexPowah.farms(1)).to.eq(mviFarm.address);
+      expect(await indexPowah.vesting(0)).to.eq(vesting.address);
     });
   });
 
@@ -107,13 +109,13 @@ describe("IndexPowah", async () => {
 
     beforeEach(async () => {
       indexPowah = await deployer.token.deployIndexPowah(
+        owner.address,
         index.address,
-        dpiFarm.address,
-        mviFarm.address,
         uniPair.address,
         sushiPair.address,
         masterChef.address,
-        [vesting.address]
+        [ dpiFarm.address, mviFarm.address ],
+        [ vesting.address ]
       );
     });
 
@@ -278,6 +280,100 @@ describe("IndexPowah", async () => {
           .div(await sushiPair.totalSupply());
 
         expect(votes).to.eq(expectedVotes);
+      });
+    });
+  });
+
+  describe("#addFarms", async () => {
+
+    let subjectNewFarm: StakingRewardsV2;
+    let subjectCaller: Account;
+    let indexPowah: IndexPowah;
+
+    beforeEach(async () => {
+      indexPowah = await deployer.token.deployIndexPowah(
+        owner.address,
+        index.address,
+        uniPair.address,
+        sushiPair.address,
+        masterChef.address,
+        [ dpiFarm.address, mviFarm.address ],
+        [ vesting.address ]
+      );
+      subjectNewFarm = await deployer.staking.deployStakingRewardsV2(owner.address, index.address, dpi.address, 1000);
+      subjectCaller = owner;
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return indexPowah.connect(subjectCaller.wallet).addFarms([ subjectNewFarm.address ]);
+    }
+
+    it("should add the new farm to the farm list", async () => {
+      await subject();
+
+      expect(await indexPowah.farms(2)).to.eq(subjectNewFarm.address);
+    });
+
+    context("when the caller is not the owner", async () => {
+
+      beforeEach(async () => {
+        subjectCaller = voter;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Ownable: caller is not the owner");
+      });
+    });
+  });
+
+  describe("#addVesting", async () => {
+
+    let subjectNewVesting: Vesting;
+    let subjectCaller: Account;
+    let indexPowah: IndexPowah;
+
+    beforeEach(async () => {
+      indexPowah = await deployer.token.deployIndexPowah(
+        owner.address,
+        index.address,
+        uniPair.address,
+        sushiPair.address,
+        masterChef.address,
+        [ dpiFarm.address, mviFarm.address ],
+        [ vesting.address ]
+      );
+
+      const now = await getLastBlockTimestamp();
+      subjectNewVesting = await deployer.token.deployVesting(
+        index.address,
+        voter.address,
+        ether(77),
+        now.add(1),
+        now.add(1000),
+        now.add(5000)
+      );
+
+      subjectCaller = owner;
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return indexPowah.connect(subjectCaller.wallet).addVesting([ subjectNewVesting.address ]);
+    }
+
+    it("should add the new farm to the farm list", async () => {
+      await subject();
+
+      expect(await indexPowah.vesting(1)).to.eq(subjectNewVesting.address);
+    });
+
+    context("when the caller is not the owner", async () => {
+
+      beforeEach(async () => {
+        subjectCaller = voter;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Ownable: caller is not the owner");
       });
     });
   });
