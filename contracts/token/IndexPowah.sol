@@ -98,7 +98,7 @@ contract IndexPowah is IERC20, Ownable {
     }
 
     /**
-     * Adds new Index farms to be tracked
+     * ONLY OWNER: Adds new Index farms to be tracked
      *
      * @param _newFarms list of new farms to be tracked
      */
@@ -109,7 +109,7 @@ contract IndexPowah is IERC20, Ownable {
     }
 
     /**
-     * Adds new Index vesting contracts to be tracked
+     * ONLY OWNER: Adds new Index vesting contracts to be tracked
      *
      * @param _newVesting   list of new vesting contracts to be tracked
      */
