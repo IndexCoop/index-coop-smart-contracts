@@ -31,8 +31,8 @@ import { Vesting } from "./Vesting.sol";
  * @title IndexPowah
  * @author Set Protocol
  * 
- * An ERC20 token used for tracking the voting power at the Index Coop. The mutative functions of
- * the ERC20 interface have been disabled, since the token is only designed to count votes for the
+ * An ERC20 token used for tracking the voting power for the Index Coop. The mutative functions of
+ * the ERC20 interface have been disabled since the token is only designed to count votes for the
  * sake of utilizing Snapshot's erc20-balance-of strategy. This contract is inspired by Sushiswap's
  * SUSHIPOWAH contract which serves the same purpose.
  */
