@@ -7,15 +7,15 @@ import { BigNumber, Signer } from 'ethers';
 import {
   GeneralIndexModule,
   SetToken,
-} from "../utils/contracts/setV2";
-import { IndexInfo, RebalanceReport } from "../index-rebalances/types";
+} from "../../utils/contracts/setV2";
+import { IndexInfo, RebalanceReport } from "../../index-rebalances/types";
 
-import { indices } from "../index-rebalances/indices";
-import { getTokenDecimals } from "../index-rebalances/utils/index";
-import { preciseMul } from "../utils/common";
-import DeployHelper from "../utils/deploys";
+import { indices } from "../../index-rebalances/indices";
+import { getTokenDecimals } from "../../index-rebalances/utils/index";
+import { preciseMul } from "../../utils/common";
+import DeployHelper from "../../utils/deploys";
 
-import DEPENDENCY from "../index-rebalances/dependencies";
+import DEPENDENCY from "../../index-rebalances/dependencies";
 
 const {
   GENERAL_INDEX_MODULE,

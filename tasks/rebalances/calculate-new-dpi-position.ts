@@ -4,18 +4,18 @@ import * as fs from "fs";
 const handlebars = require("handlebars");
 
 import { task } from 'hardhat/config';
-import { SetToken } from "../typechain/SetToken";
-import { GeneralIndexModule } from "../typechain/GeneralIndexModule";
-import { SetToken__factory } from "../typechain/factories/SetToken__factory";
-import { GeneralIndexModule__factory } from "../typechain/factories/GeneralIndexModule__factory";
-import { Address } from "../utils/types";
-import { ZERO, PRECISE_UNIT } from "../utils/constants";
-import { ether, preciseDiv, preciseMul } from "../utils/common/index";
-import { assets } from "../index-rebalances/assetInfo";
-import { strategyInfo } from "../index-rebalances/dpi/strategyInfo";
+import { SetToken } from "../../typechain/SetToken";
+import { GeneralIndexModule } from "../../typechain/GeneralIndexModule";
+import { SetToken__factory } from "../../typechain/factories/SetToken__factory";
+import { GeneralIndexModule__factory } from "../../typechain/factories/GeneralIndexModule__factory";
+import { Address } from "../../utils/types";
+import { ZERO, PRECISE_UNIT } from "../../utils/constants";
+import { ether, preciseDiv, preciseMul } from "../../utils/common/index";
+import { assets } from "../../index-rebalances/assetInfo";
+import { strategyInfo } from "../../index-rebalances/indices/dpi/strategyInfo";
 import { BigNumber } from 'ethers';
-import { RebalanceReport, RebalanceSummary, StrategyObject } from "../index-rebalances/types";
-import DEPENDENCY from "../index-rebalances/dependencies"
+import { RebalanceReport, RebalanceSummary, StrategyObject } from "../../index-rebalances/types";
+import DEPENDENCY from "../../index-rebalances/dependencies"
 
 const {
   DPI,
