@@ -22,6 +22,7 @@ export interface AssetInfo {
   address: Address;
   maxTradeSize: BigNumber;
   exchange: string;
+  exchangeData: string;
   coolOffPeriod: BigNumber;
   currentUnit: BigNumber;
   input: BigNumber;
@@ -49,6 +50,7 @@ export interface AssetStrategy {
   maxTradeSize: BigNumber;
   coolOffPeriod: BigNumber;
   exchange: string;
+  exchangeData: string;
   currentUnit: BigNumber;
   price: BigNumber;
 }
@@ -65,6 +67,7 @@ export interface RebalanceSummary {
   notionalInUSD: BigNumber;
   isBuy: boolean | undefined;
   exchange: string;
+  exchangeData: string;
   maxTradeSize: BigNumber;
   coolOffPeriod: BigNumber;
   tradeCount: BigNumber;
@@ -87,6 +90,7 @@ export interface RebalanceReport {
   summary: RebalanceSummary[];
   maxTradeSizeParams: ParamSetting;
   exchangeParams: ParamSetting;
+  exchangeDataParams: ParamSetting;
   coolOffPeriodParams: ParamSetting;
   rebalanceParams: RebalanceParams;
   tradeOrder: string;

@@ -16,6 +16,7 @@
   ],
   "scripts": {
     "build": "yarn compile && yarn patch-hardhat-typechain && yarn typechain && yarn fix-typechain && yarn transpile-dist",
+    "build:lazy": "if [ ! -d \"typechain\" ]; then yarn build; fi;",
     "calculate-index-units": "npx hardhat --network production calculate-new-index-position",
     "validate-index-rebalance": "npx hardhat --network production validate-index-params",
     "chain": "npx hardhat node --no-deploy",
@@ -34,6 +35,10 @@
     "precommit": "lint-staged",
     "prepare": "yarn build",
     "prepack": "if [[ \"$(basename \"$PWD\")\" == \"index-coop-contracts\" ]]; then echo \"CANNOT PUBLISH FROM THIS REPO\"; exit 1; fi;",
+    "rebalance:calc:dpi": "yarn build:lazy && BUILT=true hardhat calculate-new-index-position --index DPI",
+    "rebalance:calc:mvi": "yarn build:lazy && BUILT=true hardhat calculate-new-index-position --index MVI",
+    "rebalance:validate:dpi": "yarn build:lazy && BUILT=true hardhat validate-index-params -- index DPI",
+    "rebalance:validate:mvi": "yarn build:lazy && BUILT=true hardhat validate-index-params -- index MVI",
     "rename-extensions": "for f in typechain/*.d.ts; do mv -- \"$f\" \"${f%.d.ts}.ts\"; done",
     "test": "npx hardhat test --network localhost",
     "test:fork": "FORK=true npx hardhat test",

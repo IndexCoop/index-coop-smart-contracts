@@ -43,6 +43,7 @@ export async function createStrategyObject(
     strategyObject[key].price = filteredConstants[key].price;
     strategyObject[key].maxTradeSize = filteredConstants[key].maxTradeSize.mul(decimals).div(PRECISE_UNIT);
     strategyObject[key].exchange = filteredConstants[key].exchange;
+    strategyObject[key].exchangeData = filteredConstants[key].exchangeData;
     strategyObject[key].coolOffPeriod = filteredConstants[key].coolOffPeriod;
     strategyObject[key].input = filteredConstants[key].input;
     strategyObject[key].currentUnit = position ? position.unit : ZERO;
@@ -86,6 +87,8 @@ export async function generateReports(
   const tradeSizeValue: string[] = [];
   const exchangeComponents: Address[] = [];
   const exchangeValue: string[] = [];
+  const exchangeDataComponents: Address[] = [];
+  const exchangeDataValue: string[] = [];
   const coolOffComponents: Address[] = [];
   const coolOffValue: string[] = [];
   await Promise.all(Object.entries(strategyInfo).map(async ([key, obj]) => {
@@ -99,6 +102,10 @@ export async function generateReports(
     if (info.exchangeName.toString() != obj.exchange.toString()) {
       exchangeComponents.push(address);
       exchangeValue.push(obj.exchange.toString());
+    }
+    if (info.exchangeData.toString() != obj.exchangeData.toString()) {
+      exchangeDataComponents.push(address);
+      exchangeDataValue.push(obj.exchangeData.toString());
     }
     if (info.coolOffPeriod.toString() != obj.coolOffPeriod.toString()) {
       coolOffComponents.push(address);
@@ -133,6 +140,14 @@ export async function generateReports(
       data: indexModule.interface.encodeFunctionData(
         'setExchanges',
         [setToken.address, exchangeComponents, exchangeValue]
+      )
+    },
+    exchangeDataParams: {
+      components: exchangeDataComponents,
+      values: exchangeDataValue,
+      data: indexModule.interface.encodeFunctionData(
+        'setExchangeData',
+        [setToken.address, exchangeDataComponents, exchangeDataValue]
       )
     },
     coolOffPeriodParams: {

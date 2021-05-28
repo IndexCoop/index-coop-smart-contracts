@@ -44,6 +44,7 @@ export async function calculateNewAllocations(
       tradeCount: ZERO,
       isBuy: undefined,
       exchange: assetObj.exchange,
+      exchangeData: assetObj.exchangeData,
       maxTradeSize: assetObj.maxTradeSize,
       coolOffPeriod:assetObj.coolOffPeriod,
     });

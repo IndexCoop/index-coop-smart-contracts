@@ -3,6 +3,11 @@ The parameters for updating exchanges are:
     exchanges: [{{#each exchangeParams.values}}"{{this}}",{{/each}}]
     data: {{exchangeParams.data}}
 
+The parameters for updating exchange data are:
+    components: [{{#each exchangeDataParams.components}}"{{this}}",{{/each}}]
+    exchangeData: [{{#each exchangeDataParams.values}}"{{this}}",{{/each}}]
+    data: {{exchangeDataParams.data}}
+
 The parameters for updating maxTradeSizes are:
     components: [{{#each maxTradeSizeParams.components}}"{{this}}",{{/each}}]
     maxTradeSizes: [{{#each maxTradeSizeParams.values}}"{{this}}",{{/each}}]

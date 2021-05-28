@@ -24,7 +24,7 @@ const {
 
 task("calculate-new-index-position", "Calculates new rebalance details for an index")
   .addParam('index', "Index having new positions calculated")
-  .addParam('rebalance', "Rebalance month")
+  .addParam('rebalance', "Rebalance id")
   .setAction(async ({index, rebalance}, hre) => {
     const owner: Signer = (await hre.ethers.getSigners())[0];
     let deployHelper: DeployHelper = new DeployHelper(owner);

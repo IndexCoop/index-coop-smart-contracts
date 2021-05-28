@@ -10,6 +10,11 @@ import "solidity-coverage";
 import "hardhat-deploy";
 import "./tasks";
 
+// These tasks import from typechain and must be conditionally required
+if (process.env.BUILT === "true"){
+  require("./tasks/rebalances");
+}
+
 const forkingConfig = {
   url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
   blockNumber: 11649166,

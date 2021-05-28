@@ -35,6 +35,7 @@ export async function calculateNewAllocations(
       tradeCount: notionalInToken.div(assetObj.maxTradeSize).abs().add(1),
       isBuy: notionalInToken.gt(ZERO),
       exchange: assetObj.exchange,
+      exchangeData: assetObj.exchangeData,
       maxTradeSize: assetObj.maxTradeSize,
       coolOffPeriod:assetObj.coolOffPeriod,
     });
