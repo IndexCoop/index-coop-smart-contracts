@@ -72,6 +72,7 @@ export default class DeployToken {
     uniPair: Address,
     sushiPair: Address,
     masterChef: Address,
+    masterChefId: BigNumber,
     farms: Address[],
     vesting: Address[],
   ): Promise<IndexPowah> {
@@ -81,6 +82,7 @@ export default class DeployToken {
       uniPair,
       sushiPair,
       masterChef,
+      masterChefId,
       farms,
       vesting
     );

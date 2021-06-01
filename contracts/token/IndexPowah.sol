@@ -42,7 +42,8 @@ contract IndexPowah is IERC20, Ownable {
     
     IERC20 public indexToken;
     
-    IMasterChef masterChef;
+    IMasterChef public masterChef;
+    uint256 public masterChefId;
     IPair public uniPair;
     IPair public sushiPair;
 
@@ -66,6 +67,7 @@ contract IndexPowah is IERC20, Ownable {
         IPair _uniPair,
         IPair _sushiPair,
         IMasterChef _masterChef,
+        uint256 _masterChefId,
         StakingRewardsV2[] memory _farms,
         Vesting[] memory _vesting
     )
@@ -75,6 +77,7 @@ contract IndexPowah is IERC20, Ownable {
         uniPair = _uniPair;
         sushiPair = _sushiPair;
         masterChef = _masterChef;
+        masterChefId = _masterChefId;
         farms = _farms;
         vesting = _vesting;
 
@@ -119,6 +122,17 @@ contract IndexPowah is IERC20, Ownable {
         }
     }
 
+    /**
+     * ONLY OWNER: Updates the MasterChef contract and pool ID
+     * 
+     * @param _newMasterChef    address of the new MasterChef contract
+     * @param _newMasterChefId  new pool id for the index-eth MasterChef rewards
+     */
+    function updateMasterChef(IMasterChef _newMasterChef, uint256 _newMasterChefId) external onlyOwner {
+        masterChef = _newMasterChef;
+        masterChefId = _newMasterChefId;
+    }
+
     function _getFarmVotes(address _account) internal view returns (uint256) {
         uint256 sum = 0;
         for (uint256 i = 0; i < farms.length; i++) {
@@ -143,7 +157,7 @@ contract IndexPowah is IERC20, Ownable {
     }
 
     function _getMasterChefVotes(address _account) internal view returns (uint256) {
-        (uint256 lpBalance,) = masterChef.userInfo(75, _account);
+        (uint256 lpBalance,) = masterChef.userInfo(masterChefId, _account);
         return _getDexVotesFromBalance(lpBalance, sushiPair);
     }
 

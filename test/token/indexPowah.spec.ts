@@ -9,6 +9,7 @@ import {
   ether,
   getAccounts,
   getLastBlockTimestamp,
+  getRandomAddress,
   getSetFixture,
   getUniswapFixture,
   getWaffleExpect,
@@ -43,6 +44,7 @@ describe("IndexPowah", async () => {
   let sushiPair: UniswapV2Pair;
 
   let masterChef: MasterChefMock;
+  let masterChefId: BigNumber;
 
   let vesting: Vesting;
 
@@ -72,6 +74,7 @@ describe("IndexPowah", async () => {
     sushiPair = await sushiFixture.createNewPair(setV2Setup.weth.address, index.address);
 
     masterChef = await deployer.mocks.deployMasterChefMock();
+    masterChefId = BigNumber.from(75);
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -85,6 +88,7 @@ describe("IndexPowah", async () => {
         uniPair.address,
         sushiPair.address,
         masterChef.address,
+        masterChefId,
         [ dpiFarm.address, mviFarm.address ],
         [ vesting.address ]
       );
@@ -97,6 +101,8 @@ describe("IndexPowah", async () => {
       expect(await indexPowah.indexToken()).to.eq(index.address);
       expect(await indexPowah.uniPair()).to.eq(uniPair.address);
       expect(await indexPowah.sushiPair()).to.eq(sushiPair.address);
+      expect(await indexPowah.masterChef()).to.eq(masterChef.address);
+      expect(await indexPowah.masterChefId()).to.eq(masterChefId);
       expect(await indexPowah.farms(0)).to.eq(dpiFarm.address);
       expect(await indexPowah.farms(1)).to.eq(mviFarm.address);
       expect(await indexPowah.vesting(0)).to.eq(vesting.address);
@@ -114,6 +120,7 @@ describe("IndexPowah", async () => {
         uniPair.address,
         sushiPair.address,
         masterChef.address,
+        masterChefId,
         [ dpiFarm.address, mviFarm.address ],
         [ vesting.address ]
       );
@@ -297,6 +304,7 @@ describe("IndexPowah", async () => {
         uniPair.address,
         sushiPair.address,
         masterChef.address,
+        masterChefId,
         [ dpiFarm.address, mviFarm.address ],
         [ vesting.address ]
       );
@@ -339,6 +347,7 @@ describe("IndexPowah", async () => {
         uniPair.address,
         sushiPair.address,
         masterChef.address,
+        masterChefId,
         [ dpiFarm.address, mviFarm.address ],
         [ vesting.address ]
       );
@@ -364,6 +373,53 @@ describe("IndexPowah", async () => {
       await subject();
 
       expect(await indexPowah.vesting(1)).to.eq(subjectNewVesting.address);
+    });
+
+    context("when the caller is not the owner", async () => {
+
+      beforeEach(async () => {
+        subjectCaller = voter;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Ownable: caller is not the owner");
+      });
+    });
+  });
+
+  describe("#updateMasterChef", async () => {
+
+    let indexPowah: IndexPowah;
+    let subjectNewMasterChef: string;
+    let subjectNewPoolId: BigNumber;
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      subjectNewMasterChef = await getRandomAddress();
+      subjectNewPoolId = BigNumber.from(92);
+      subjectCaller = owner;
+
+      indexPowah = await deployer.token.deployIndexPowah(
+        owner.address,
+        index.address,
+        uniPair.address,
+        sushiPair.address,
+        masterChef.address,
+        masterChefId,
+        [ dpiFarm.address, mviFarm.address ],
+        [ vesting.address ]
+      );
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return indexPowah.connect(subjectCaller.wallet).updateMasterChef(subjectNewMasterChef, subjectNewPoolId);
+    }
+
+    it("should update the MasterChef contract address and pool ID", async () => {
+      await subject();
+
+      expect(await indexPowah.masterChef()).to.eq(subjectNewMasterChef);
+      expect(await indexPowah.masterChefId()).to.eq(subjectNewPoolId);
     });
 
     context("when the caller is not the owner", async () => {
