@@ -31,7 +31,6 @@ contract FTCVesting {
         uint256 vestingCliff_,
         uint256 vestingEnd_
     ) public {
-        require(vestingBegin_ >= block.timestamp, "FTCVester.constructor: vesting begin too early");
         require(vestingCliff_ >= vestingBegin_, "FTCVester.constructor: cliff is too early");
         require(vestingEnd_ > vestingCliff_, "FTCVester.constructor: end is too early");
 
@@ -88,6 +87,6 @@ contract FTCVesting {
 
     /// @notice Allows treasury to claw back funds in event of separation from recipient
     function clawback() external onlyTreasury {
-        IERC20(index).transfer(recipient, IERC20(index).balanceOf(address(this)));
+        IERC20(index).transfer(treasury, IERC20(index).balanceOf(address(this)));
     }
 }
