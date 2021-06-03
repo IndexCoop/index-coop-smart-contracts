@@ -8,7 +8,7 @@ export const strategyInfo: StrategyInfo = {
   YFI: {
     address: ASSETS.YFI.address,
     input: BigNumber.from(36096),
-    maxTradeSize: ether(15),
+    maxTradeSize: ether(12.5),
     exchange: exchanges.SUSHISWAP,
     exchangeData: '0x00',
     coolOffPeriod: BigNumber.from(600),
@@ -16,8 +16,8 @@ export const strategyInfo: StrategyInfo = {
   },
   COMP: {
     address: ASSETS.COMP.address,
-    input: BigNumber.from(5048104),
-    maxTradeSize: ether(650),
+    input: BigNumber.from(5185985),
+    maxTradeSize: ether(140),
     exchange: exchanges.SUSHISWAP,
     exchangeData: '0x00',
     coolOffPeriod: BigNumber.from(600),
@@ -25,8 +25,8 @@ export const strategyInfo: StrategyInfo = {
   },
   SNX: {
     address: ASSETS.SNX.address,
-    input: BigNumber.from(151684080),
-    maxTradeSize: ether(10000),
+    input: BigNumber.from(154047740),
+    maxTradeSize: ether(8000),
     exchange: exchanges.SUSHISWAP,
     exchangeData: '0x00',
     coolOffPeriod: BigNumber.from(600),
@@ -34,9 +34,9 @@ export const strategyInfo: StrategyInfo = {
   },
   MKR: {
     address: ASSETS.MKR.address,
-    input: BigNumber.from(901683),
-    maxTradeSize: ether(31),
-    exchange: exchanges.UNISWAP,
+    input: BigNumber.from(901310),
+    maxTradeSize: ether(25),
+    exchange: exchanges.SUSHISWAP,
     exchangeData: '0x00',
     coolOffPeriod: BigNumber.from(600),
     currentUnit: ZERO,
@@ -44,7 +44,7 @@ export const strategyInfo: StrategyInfo = {
   REN: {
     address: ASSETS.REN.address,
     input: BigNumber.from(881153018),
-    maxTradeSize: ether(36000),
+    maxTradeSize: ether(45000),
     exchange: exchanges.SUSHISWAP,
     exchangeData: '0x00',
     coolOffPeriod: BigNumber.from(900),
@@ -52,7 +52,7 @@ export const strategyInfo: StrategyInfo = {
   },
   KNC: {
     address: ASSETS.KNC.address,
-    input: BigNumber.from(204614446),
+    input: BigNumber.from(204378901),
     maxTradeSize: ether(3000),
     exchange: exchanges.UNISWAP,
     exchangeData: '0x00',
@@ -62,7 +62,7 @@ export const strategyInfo: StrategyInfo = {
   LRC: {
     address: ASSETS.LRC.address,
     input: BigNumber.from(1245991468),
-    maxTradeSize: ether(15000),
+    maxTradeSize: ether(14000),
     exchange: exchanges.UNISWAP,
     exchangeData: '0x00',
     coolOffPeriod: BigNumber.from(900),
@@ -71,7 +71,7 @@ export const strategyInfo: StrategyInfo = {
   BAL: {
     address: ASSETS.BAL.address,
     input: BigNumber.from(10799858),
-    maxTradeSize: ether(5000),
+    maxTradeSize: ether(2000),
     exchange: exchanges.BALANCER,
     exchangeData: '0x00',
     coolOffPeriod: BigNumber.from(900),
@@ -80,7 +80,7 @@ export const strategyInfo: StrategyInfo = {
   UNI: {
     address: ASSETS.UNI.address,
     input: BigNumber.from(519857388),
-    maxTradeSize: ether(16750),
+    maxTradeSize: ether(12000),
     exchange: exchanges.UNISWAP,
     exchangeData: '0x00',
     coolOffPeriod: BigNumber.from(900),
@@ -88,8 +88,8 @@ export const strategyInfo: StrategyInfo = {
   },
   AAVE: {
     address: ASSETS.AAVE.address,
-    input: BigNumber.from(12492713),
-    maxTradeSize: ether(1400),
+    input: BigNumber.from(12759824),
+    maxTradeSize: ether(1000),
     exchange: exchanges.SUSHISWAP,
     exchangeData: '0x00',
     coolOffPeriod: BigNumber.from(600),
@@ -97,8 +97,8 @@ export const strategyInfo: StrategyInfo = {
   },
   MTA: {
     address: ASSETS.MTA.address,
-    input: BigNumber.from(24894863),
-    maxTradeSize: ether(5800),
+    input: BigNumber.from(28426996),
+    maxTradeSize: ether(6000),
     exchange: exchanges.UNISWAP,
     exchangeData: '0x00',
     coolOffPeriod: BigNumber.from(600),
@@ -106,8 +106,8 @@ export const strategyInfo: StrategyInfo = {
   },
   SUSHI: {
     address: ASSETS.SUSHI.address,
-    input: BigNumber.from(148978846),
-    maxTradeSize: ether(80000),
+    input: BigNumber.from(169287429),
+    maxTradeSize: ether(100000),
     exchange: exchanges.SUSHISWAP,
     exchangeData: '0x00',
     coolOffPeriod: BigNumber.from(600),
@@ -115,8 +115,8 @@ export const strategyInfo: StrategyInfo = {
   },
   CREAM: {
     address: ASSETS.CREAM.address,
-    input: BigNumber.from(685568),
-    maxTradeSize: ether(90),
+    input: BigNumber.from(721540),
+    maxTradeSize: ether(40),
     exchange: exchanges.SUSHISWAP,
     exchangeData: '0x00',
     coolOffPeriod: BigNumber.from(600),
@@ -124,8 +124,8 @@ export const strategyInfo: StrategyInfo = {
   },
   FARM: {
     address: ASSETS.FARM.address,
-    input: BigNumber.from(528505),
-    maxTradeSize: ether(195),
+    input: BigNumber.from(546502),
+    maxTradeSize: ether(200),
     exchange: exchanges.UNISWAP,
     exchangeData: '0x00',
     coolOffPeriod: BigNumber.from(600),

@@ -8,15 +8,15 @@ import {
   createStrategyObject,
   generateReports,
   writeToOutputs
-} from "../index-rebalances/utils";
-import { indices } from "../index-rebalances/indices";
-import { IndexInfo, RebalanceSummary, StrategyObject } from "../index-rebalances/types";
+} from "../../index-rebalances/utils";
+import { indices } from "../../index-rebalances/indices";
+import { IndexInfo, RebalanceSummary, StrategyObject } from "../../index-rebalances/types";
 import {
   SetToken,
-} from "../utils/contracts/setV2";
+} from "../../utils/contracts/setV2";
 
-import DeployHelper from "../utils/deploys";
-import DEPENDENCY from "../index-rebalances/dependencies";
+import DeployHelper from "../../utils/deploys";
+import DEPENDENCY from "../../index-rebalances/dependencies";
 
 const {
   GENERAL_INDEX_MODULE

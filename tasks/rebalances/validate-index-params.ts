@@ -7,15 +7,15 @@ import { BigNumber, Signer } from 'ethers';
 import {
   GeneralIndexModule,
   SetToken,
-} from "../utils/contracts/setV2";
-import { IndexInfo, RebalanceReport } from "../index-rebalances/types";
+} from "../../utils/contracts/setV2";
+import { IndexInfo, RebalanceReport } from "../../index-rebalances/types";
 
-import { indices } from "../index-rebalances/indices";
-import { getTokenDecimals } from "../index-rebalances/utils/index";
-import { preciseMul } from "../utils/common";
-import DeployHelper from "../utils/deploys";
+import { indices } from "../../index-rebalances/indices";
+import { getTokenDecimals } from "../../index-rebalances/utils/index";
+import { preciseMul } from "../../utils/common";
+import DeployHelper from "../../utils/deploys";
 
-import DEPENDENCY from "../index-rebalances/dependencies";
+import DEPENDENCY from "../../index-rebalances/dependencies";
 
 const {
   GENERAL_INDEX_MODULE,
@@ -46,9 +46,10 @@ task("validate-index-params", "Validates on-chain params match generated params"
     const address = indexInfo.strategyInfo[obj.asset].address;
 
     const info: any = await indexModule.executionInfo(setToken.address, address);
-
-    if (!BigNumber.from(obj.newUnit).eq(info.targetUnit)) {
-      throw Error(`Target unit for ${obj.asset} is wrong should be ${obj.newUnit.toString()} instead of ${info.targetUnit}`);
+    // @ts-expect-error
+    if (!BigNumber.from(obj.newUnit.hex).eq(info.targetUnit)) {
+      // @ts-expect-error
+      throw Error(`Target unit for ${obj.asset} is wrong should be ${BigNumber.from(obj.newUnit.hex).toString()} instead of ${info.targetUnit}`);
     }
 
     const scaledMaxTradeSize = preciseMul(indexInfo.strategyInfo[obj.asset].maxTradeSize, await getTokenDecimals(deployHelper, address));
