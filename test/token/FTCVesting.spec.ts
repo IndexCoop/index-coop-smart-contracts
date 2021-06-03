@@ -7,6 +7,7 @@ import DeployHelper from "@utils/deploys";
 import {
   addSnapshotBeforeRestoreAfterEach,
   ether,
+  getAccounts,
   getLastBlockTimestamp,
   getRandomAccount,
   getWaffleExpect,
@@ -24,9 +25,7 @@ describe("FTCVesting", () => {
   let index: IndexToken;
 
   before(async () => {
-    owner = await getRandomAccount();
-    treasury = await getRandomAccount();
-    recipient = await getRandomAccount();
+    [owner, treasury , recipient] = await getAccounts();
 
     deployer = new DeployHelper(owner.wallet);
 
@@ -106,10 +105,6 @@ describe("FTCVesting", () => {
     }
 
     it("should set new recipient address", async () => {
-      const currentRecipientAddress = await subjectFtcVesting.recipient();
-
-      expect(currentRecipientAddress).to.eq(recipient.address);
-
       await subject();
 
       const newRecipientAddress = await subjectFtcVesting.recipient();

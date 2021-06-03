@@ -1,14 +1,13 @@
 import { Signer } from "ethers";
 import { BigNumber } from "@ethersproject/bignumber";
 import { Address } from "../types";
-import { IndexToken, MerkleDistributor, OtcEscrow, Vesting } from "../contracts";
+import { IndexToken, MerkleDistributor, OtcEscrow, Vesting, FTCVesting } from "../contracts";
 
 import { IndexToken__factory } from "../../typechain/factories/IndexToken__factory";
 import { MerkleDistributor__factory } from "../../typechain/factories/MerkleDistributor__factory";
 import { Vesting__factory } from "../../typechain/factories/Vesting__factory";
 import { OtcEscrow__factory } from "../../typechain/factories/OtcEscrow__factory";
-import { FTCVesting__factory } from "@typechain/factories/FTCVesting__factory";
-import { FTCVesting } from "@typechain/FTCVesting";
+import { FTCVesting__factory } from "../../typechain/factories/FTCVesting__factory";
 
 export default class DeployToken {
   private _deployerSigner: Signer;
