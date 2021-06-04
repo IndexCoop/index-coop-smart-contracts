@@ -193,19 +193,26 @@ describe("FTCVesting", () => {
     it("should make a claim", async () => {
       const initialAmount = await index.balanceOf(recipient.address);
       const amountInContract = await index.balanceOf(subjectFtcVesting.address);
+
       await subject();
+
       const claimedAmount = await index.balanceOf(recipient.address);
-      let remainingInContract = await index.balanceOf(subjectFtcVesting.address);
+      const remainingInContract = await index.balanceOf(subjectFtcVesting.address);
 
       const userHasClaimedSome = claimedAmount.gt(initialAmount);
       const contractHasLowerBalance = amountInContract.gt(remainingInContract);
 
       expect(userHasClaimedSome).to.be.true;
       expect(contractHasLowerBalance).to.be.true;
+    });
+
+    it("should claim all after 2 years time", async () => {
+      const amountInContract = await index.balanceOf(subjectFtcVesting.address);
 
       await increaseTimeAsync(ONE_YEAR_IN_SECONDS.mul(3));
       await subject();
-      remainingInContract = await index.balanceOf(subjectFtcVesting.address);
+
+      const remainingInContract = await index.balanceOf(subjectFtcVesting.address);
       const claimedByContributor = await index.balanceOf(recipient.address);
       const noIndexLeftInContract = remainingInContract.isZero();
       const allClaimedByContributor = claimedByContributor.eq(amountInContract);
