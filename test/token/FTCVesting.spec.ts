@@ -11,8 +11,10 @@ import {
   getLastBlockTimestamp,
   getRandomAccount,
   getWaffleExpect,
+  increaseTimeAsync,
 } from "@utils/index";
 import { ContractTransaction } from "ethers";
+import { ONE_YEAR_IN_SECONDS } from "@utils/constants";
 
 const expect = getWaffleExpect();
 
@@ -25,7 +27,7 @@ describe("FTCVesting", () => {
   let index: IndexToken;
 
   before(async () => {
-    [owner, treasury , recipient] = await getAccounts();
+    [owner, treasury, recipient] = await getAccounts();
 
     deployer = new DeployHelper(owner.wallet);
 
@@ -189,17 +191,43 @@ describe("FTCVesting", () => {
     }
 
     it("should make a claim", async () => {
-      const unclaimedAmount = await index.connect(recipient.wallet).balanceOf(recipient.address);
-      const preClaimBalance = await index.balanceOf(subjectFtcVesting.address);
+      const initialAmount = await index.balanceOf(recipient.address);
+      const amountInContract = await index.balanceOf(subjectFtcVesting.address);
       await subject();
-      const claimedAmount = await index.connect(recipient.wallet).balanceOf(recipient.address);
-      const postClaimBalance = await index.balanceOf(subjectFtcVesting.address);
+      const claimedAmount = await index.balanceOf(recipient.address);
+      let remainingInContract = await index.balanceOf(subjectFtcVesting.address);
 
-      const hasClaimed = claimedAmount.gt(unclaimedAmount);
-      const hasLowerBalance = preClaimBalance.gt(postClaimBalance);
+      const userHasClaimedSome = claimedAmount.gt(initialAmount);
+      const contractHasLowerBalance = amountInContract.gt(remainingInContract);
 
-      expect(hasClaimed).to.be.true;
-      expect(hasLowerBalance).to.be.true;
+      expect(userHasClaimedSome).to.be.true;
+      expect(contractHasLowerBalance).to.be.true;
+
+      await increaseTimeAsync(ONE_YEAR_IN_SECONDS.mul(3));
+      await subject();
+      remainingInContract = await index.balanceOf(subjectFtcVesting.address);
+      const claimedByContributor = await index.balanceOf(recipient.address);
+      const noIndexLeftInContract = remainingInContract.isZero();
+      const allClaimedByContributor = claimedByContributor.eq(amountInContract);
+
+      expect(noIndexLeftInContract).to.be.true;
+      expect(allClaimedByContributor).to.be.true;
+    });
+
+    context("when the caller is unauthorized", async () => {
+      let subjectCaller: Account;
+
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await subjectFtcVesting.connect(subjectCaller.wallet).claim();
+      }
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("unauthorized");
+      });
     });
   });
 
@@ -234,22 +262,32 @@ describe("FTCVesting", () => {
       return await subjectFtcVesting.connect(treasury.wallet).clawback();
     }
 
-    it("should clawback funds", async () => {
-      const unclaimedAmount = await index.connect(treasury.wallet).balanceOf(treasury.address);
+    it("should clawback remaining funds", async () => {
+      const initAmountInContract = await index.balanceOf(subjectFtcVesting.address);
       await subject();
 
-      const claimedAmount = await index.connect(treasury.wallet).balanceOf(treasury.address);
-      const hasClaimed = claimedAmount.gt(unclaimedAmount);
+      const clawedBackAmount = await index.balanceOf(treasury.address);
+      const balanceOfContract = await index.balanceOf(subjectFtcVesting.address);
+      const hasSuccessfullyClawedBackAllFunds =
+        initAmountInContract.eq(clawedBackAmount) && balanceOfContract.isZero();
 
-      expect(hasClaimed).to.be.true;
+      expect(hasSuccessfullyClawedBackAllFunds).to.be.true;
     });
 
-    it("should have no funds remaining in the contract", async () => {
-      await subject();
+    context("when the caller is unauthorized", async () => {
+      let subjectCaller: Account;
 
-      const remainingIndex = await index.balanceOf(subjectFtcVesting.address);
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
 
-      expect(remainingIndex.isZero()).to.be.true;
+      async function subject(): Promise<ContractTransaction> {
+        return await subjectFtcVesting.connect(subjectCaller.wallet).clawback();
+      }
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("unauthorized");
+      });
     });
   });
 });
