@@ -1,13 +1,21 @@
 import { Signer } from "ethers";
 import { BigNumber } from "@ethersproject/bignumber";
 import { Address } from "../types";
-import { IndexToken, MerkleDistributor, OtcEscrow, Vesting, FTCVesting } from "../contracts";
+import {
+  IndexPowah,
+  IndexToken,
+  MerkleDistributor,
+  OtcEscrow,
+  Vesting,
+  FTCVesting,
+} from "../contracts";
 
 import { IndexToken__factory } from "../../typechain/factories/IndexToken__factory";
 import { MerkleDistributor__factory } from "../../typechain/factories/MerkleDistributor__factory";
 import { Vesting__factory } from "../../typechain/factories/Vesting__factory";
 import { OtcEscrow__factory } from "../../typechain/factories/OtcEscrow__factory";
 import { FTCVesting__factory } from "../../typechain/factories/FTCVesting__factory";
+import { IndexPowah__factory } from "@typechain/factories/IndexPowah__factory";
 
 export default class DeployToken {
   private _deployerSigner: Signer;
@@ -86,6 +94,28 @@ export default class DeployToken {
       vestingBegin,
       vestingCliff,
       vestingEnd,
+    );
+  }
+
+  public async deployIndexPowah(
+    owner: Address,
+    indexToken: Address,
+    uniPair: Address,
+    sushiPair: Address,
+    masterChef: Address,
+    masterChefId: BigNumber,
+    farms: Address[],
+    vesting: Address[],
+  ): Promise<IndexPowah> {
+    return await new IndexPowah__factory(this._deployerSigner).deploy(
+      owner,
+      indexToken,
+      uniPair,
+      sushiPair,
+      masterChef,
+      masterChefId,
+      farms,
+      vesting,
     );
   }
 }
