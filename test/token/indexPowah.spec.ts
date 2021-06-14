@@ -68,8 +68,8 @@ describe("IndexPowah", async () => {
 
     uniFixture = getUniswapFixture(owner.address);
     sushiFixture = getUniswapFixture(owner.address);
-    await uniFixture.initialize(owner.address, setV2Setup.weth.address, setV2Setup.wbtc.address, setV2Setup.usdc.address);
-    await sushiFixture.initialize(owner.address, setV2Setup.weth.address, setV2Setup.wbtc.address, setV2Setup.usdc.address);
+    await uniFixture.initialize(owner, setV2Setup.weth.address, setV2Setup.wbtc.address, setV2Setup.usdc.address);
+    await sushiFixture.initialize(owner, setV2Setup.weth.address, setV2Setup.wbtc.address, setV2Setup.usdc.address);
     uniPair = await uniFixture.createNewPair(setV2Setup.weth.address, index.address);
     sushiPair = await sushiFixture.createNewPair(setV2Setup.weth.address, index.address);
 

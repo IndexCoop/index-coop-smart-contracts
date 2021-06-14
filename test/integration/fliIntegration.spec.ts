@@ -125,7 +125,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
     uniswapSetup = getUniswapFixture(owner.address);
     await uniswapSetup.initialize(
-      owner.address,
+      owner,
       setV2Setup.weth.address,
       setV2Setup.wbtc.address,
       setV2Setup.usdc.address
