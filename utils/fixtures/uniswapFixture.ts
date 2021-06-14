@@ -40,16 +40,15 @@ export class UniswapFixture {
     this._deployer = new DeployHelper(this._ownerSigner);
   }
 
-  public async initialize(_owner: Account, _weth: Address, _wbtc: Address, _usdc: Address): Promise<void> {
+  public async initialize(_owner: Account, _weth: Address, _wbtc: Address, _usdc: Address, minimumInit = false): Promise<void> {
     this.owner = _owner;
     this.factory = await this._deployer.external.deployUniswapV2Factory(this.owner.address);
     this.router = await this._deployer.external.deployUniswapV2Router02(this.factory.address, _weth);
 
-    this.wethUsdcPool = await this.createNewPair(_weth, _usdc);
-    this.wethWbtcPool = await this.createNewPair(_weth, _wbtc);
-    this.wbtcUsdcPool = await this.createNewPair(_wbtc, _usdc);
-
     this.uniswapTradeAdapter = await this._deployer.setV2.deployUniswapV2ExchangeAdapter(this.router.address);
+
+    // If we only want strict control over what pools are created, exit here.
+    if (minimumInit) return;
 
     const lastBlock = await this._provider.getBlock("latest");
     this.uni = await this._deployer.external.deployUni(
