@@ -15,6 +15,8 @@ import {
 } from "./../contracts/compound";
 
 import {
+  Uni,
+  UniswapTimelock,
   UniswapV2Factory,
   UniswapV2Pair,
   UniswapV2Router02
@@ -32,6 +34,8 @@ import { Comptroller__factory } from "../../typechain/factories/Comptroller__fac
 import { PriceOracleProxy__factory } from "../../typechain/factories/PriceOracleProxy__factory";
 import { Unitroller__factory } from "../../typechain/factories/Unitroller__factory";
 import { WhitePaperInterestRateModel__factory } from "../../typechain/factories/WhitePaperInterestRateModel__factory";
+import { Uni__factory } from "../../typechain/factories/Uni__factory";
+import { UniswapTimelock__factory } from "../../typechain/factories/UniswapTimelock__factory";
 import { UniswapV2Factory__factory } from "../../typechain/factories/UniswapV2Factory__factory";
 import { UniswapV2Pair__factory } from "../../typechain/factories/UniswapV2Pair__factory";
 import { UniswapV2Router02__factory } from "../../typechain/factories/UniswapV2Router02__factory";
@@ -134,6 +138,15 @@ export default class DeployExternalContracts {
   }
 
   // Uniswap
+  // Uniswap
+  public async deployUni(_account: Address, _minter: Address, _mintingAllowedAfter: BigNumber): Promise<Uni> {
+    return await new Uni__factory(this._deployerSigner).deploy(_account, _minter, _mintingAllowedAfter);
+  }
+
+  public async deployUniswapTimelock(_admin: Address, _delay: BigNumber): Promise<UniswapTimelock> {
+    return await new UniswapTimelock__factory(this._deployerSigner).deploy(_admin, _delay);
+  }
+
   public async deployUniswapV2Factory(_feeToSetter: string): Promise<UniswapV2Factory> {
     return await new UniswapV2Factory__factory(this._deployerSigner).deploy(_feeToSetter);
   }

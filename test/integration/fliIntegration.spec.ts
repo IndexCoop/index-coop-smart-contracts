@@ -79,6 +79,10 @@ const incentivizedSlippageTolerance = ether(0.05);
 const etherReward = ether(1);
 const incentivizedLeverageRatio = ether(2.6);
 
+// This integration test is sensitive to pool ratios and needs
+// to skip some initialization done for other suites.
+const minimumInit = true;
+
 describe("FlexibleLeverageStrategyAdapter", () => {
   let owner: Account;
   let methodologist: Account;
@@ -105,6 +109,9 @@ describe("FlexibleLeverageStrategyAdapter", () => {
   let chainlinkWBTC: ChainlinkAggregatorV3Mock;
   let chainlinkUSDC: ChainlinkAggregatorV3Mock;
 
+  let wethUsdcPool: UniswapV2Pair;
+  let wethWbtcPool: UniswapV2Pair;
+
   let scenarios: FLISettings[];
 
   before(async () => {
@@ -125,11 +132,15 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
     uniswapSetup = getUniswapFixture(owner.address);
     await uniswapSetup.initialize(
-      owner.address,
+      owner,
       setV2Setup.weth.address,
       setV2Setup.wbtc.address,
-      setV2Setup.usdc.address
+      setV2Setup.usdc.address,
+      minimumInit
     );
+
+    wethUsdcPool = await uniswapSetup.createNewPair(setV2Setup.weth.address, setV2Setup.usdc.address);
+    wethWbtcPool = await uniswapSetup.createNewPair(setV2Setup.weth.address, setV2Setup.wbtc.address);
 
     await setV2Setup.weth.connect(owner.wallet).approve(uniswapSetup.router.address, MAX_UINT_256);
     await setV2Setup.usdc.connect(owner.wallet).approve(uniswapSetup.router.address, MAX_UINT_256);
@@ -244,7 +255,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         borrowCToken: cUSDC,
         chainlinkCollateral: chainlinkETH,
         chainlinkBorrow: chainlinkUSDC,
-        uniswapPool: [uniswapSetup.wethUsdcPool],
+        uniswapPool: [wethUsdcPool],
         targetLeverageRatio: ether(2),
         twapMaxTradeSize: ether(5),
         incentivizedTwapMaxTradeSize: ether(10),
@@ -286,7 +297,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         borrowCToken: cEther,
         chainlinkCollateral: chainlinkUSDC,
         chainlinkBorrow: chainlinkETH,
-        uniswapPool: [uniswapSetup.wethUsdcPool],
+        uniswapPool: [wethUsdcPool],
         targetLeverageRatio: ether(2),
         twapMaxTradeSize: usdc(1000),
         incentivizedTwapMaxTradeSize: usdc(100000),
@@ -344,7 +355,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         borrowCToken: cUSDC,
         chainlinkCollateral: chainlinkWBTC,
         chainlinkBorrow: chainlinkUSDC,
-        uniswapPool: [uniswapSetup.wethWbtcPool, uniswapSetup.wethUsdcPool],
+        uniswapPool: [wethWbtcPool, wethUsdcPool],
         targetLeverageRatio: ether(2),
         twapMaxTradeSize: bitcoin(3),
         incentivizedTwapMaxTradeSize: bitcoin(5),
