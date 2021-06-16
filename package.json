@@ -40,6 +40,9 @@
     "transpile-dist": "tsc -p tsconfig.dist.json",
     "typechain": "npx hardhat typechain"
   },
+  "resolutions": {
+    "ganache-cli": "6.12.2"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/SetProtocol/index-coop-contracts.git"
@@ -77,8 +80,8 @@
     "solidity-coverage": "^0.7.13",
     "ts-generator": "^0.1.1",
     "ts-node": "^8.10.1",
-    "tslint": "^5.8.0",
-    "tslint-eslint-rules": "^5.3.1",
+    "tslint": "^6.1.3",
+    "tslint-eslint-rules": "^5.4.0",
     "typescript": "^3.9.3"
   },
   "dependencies": {

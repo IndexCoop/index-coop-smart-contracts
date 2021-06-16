@@ -24,7 +24,7 @@ describe("OtcEscrow", () => {
   let owner: Account;
   let indexGov: Account;
   let investor: Account;
-  
+
   let deployer: DeployHelper;
   let index: IndexToken;
   let usdc: StandardTokenMock;
@@ -33,7 +33,7 @@ describe("OtcEscrow", () => {
     [
       owner,
       indexGov,
-      investor
+      investor,
     ] = await getAccounts();
 
     deployer = new DeployHelper(owner.wallet);
@@ -41,7 +41,7 @@ describe("OtcEscrow", () => {
     index = await deployer.token.deployIndexToken(owner.address);
     await index.transfer(indexGov.address, ether(1000));
     usdc =  await deployer.mocks.deployStandardTokenMock(owner.address, 6);
-    await usdc.transfer(investor.address, BigNumber.from(1_000_000 * 10**6));
+    await usdc.transfer(investor.address, BigNumber.from(1_000_000 * 10 ** 6));
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -55,11 +55,11 @@ describe("OtcEscrow", () => {
     let subjectIndexAmount: BigNumber;
 
     beforeEach(async () => {
-      const now = await getLastBlockTimestamp()
+      const now = await getLastBlockTimestamp();
       subjectVestingStart = now;
       subjectVestingCliff = now.add(60 * 60 * 24 * 183);
       subjectVestingEnd = now.add(60 * 60 * 24 * 547);
-      subjectUSDCAmount = BigNumber.from(100_000 * 10**6);
+      subjectUSDCAmount = BigNumber.from(100_000 * 10 ** 6);
       subjectIndexAmount = ether(100);
     });
 
@@ -102,11 +102,11 @@ describe("OtcEscrow", () => {
     let subjectIndexAmount: BigNumber;
 
     beforeEach(async () => {
-      const now = await getLastBlockTimestamp()
+      const now = await getLastBlockTimestamp();
       subjectVestingStart = now.add(10);
       subjectVestingCliff = now.add(60 * 60 * 24 * 183);
       subjectVestingEnd = now.add(60 * 60 * 24 * 547);
-      subjectUSDCAmount = BigNumber.from(100_000 * 10**6);
+      subjectUSDCAmount = BigNumber.from(100_000 * 10 ** 6);
       subjectIndexAmount = ether(100);
 
       subjectOtcEscrow = await deployer.token.deployOtcEscrow(
@@ -120,7 +120,7 @@ describe("OtcEscrow", () => {
         usdc.address,
         index.address
       );
-      
+
       await index.connect(indexGov.wallet).transfer(subjectOtcEscrow.address, subjectIndexAmount);
       await usdc.connect(investor.wallet).approve(subjectOtcEscrow.address, subjectUSDCAmount);
     });
@@ -149,6 +149,7 @@ describe("OtcEscrow", () => {
     it("it should transfer index to the vesting contract", async () => {
       await subject();
 
+      // tslint:disable-next-line:no-null-keyword
       const vestingDeployed = (await subjectOtcEscrow.queryFilter(subjectOtcEscrow.filters.VestingDeployed(null)))[0];
       const vestingAddress = vestingDeployed.args?.vesting;
 
@@ -158,6 +159,7 @@ describe("OtcEscrow", () => {
     it("it should set the state variables of the vesting contract correctly", async () => {
       await subject();
 
+      // tslint:disable-next-line:no-null-keyword
       const vestingDeployed = (await subjectOtcEscrow.queryFilter(subjectOtcEscrow.filters.VestingDeployed(null)))[0];
       const vestingAddress = vestingDeployed.args?.vesting;
 
@@ -202,7 +204,7 @@ describe("OtcEscrow", () => {
           usdc.address,
           index.address
         );
-        
+
         await index.connect(indexGov.wallet).transfer(subjectOtcEscrow.address, ether(50));
         await usdc.connect(investor.wallet).approve(subjectOtcEscrow.address, subjectUSDCAmount);
       });
@@ -224,9 +226,9 @@ describe("OtcEscrow", () => {
     });
 
     context("when the sender does not have enough USDC", async () => {
- 
+
       beforeEach(async () => {
-        
+
         subjectOtcEscrow = await deployer.token.deployOtcEscrow(
           await getRandomAddress(),
           indexGov.address,
@@ -238,7 +240,7 @@ describe("OtcEscrow", () => {
           usdc.address,
           index.address
         );
-        
+
         await index.connect(indexGov.wallet).transfer(subjectOtcEscrow.address, subjectIndexAmount);
         await usdc.connect(investor.wallet).approve(subjectOtcEscrow.address, subjectUSDCAmount);
       });
@@ -259,7 +261,7 @@ describe("OtcEscrow", () => {
       }
 
       it("should revert", async () => {
-        
+
         await expect(subject()).to.be.revertedWith("swap already executed");
       });
     });
@@ -275,11 +277,11 @@ describe("OtcEscrow", () => {
     let subjectIndexAmount: BigNumber;
 
     beforeEach(async () => {
-      const now = await getLastBlockTimestamp()
+      const now = await getLastBlockTimestamp();
       subjectVestingStart = now.add(10);
       subjectVestingCliff = now.add(60 * 60 * 24 * 183);
       subjectVestingEnd = now.add(60 * 60 * 24 * 547);
-      subjectUSDCAmount = BigNumber.from(100_000 * 10**6);
+      subjectUSDCAmount = BigNumber.from(100_000 * 10 ** 6);
       subjectIndexAmount = ether(100);
 
       subjectOtcEscrow = await deployer.token.deployOtcEscrow(
@@ -293,7 +295,7 @@ describe("OtcEscrow", () => {
         usdc.address,
         index.address
       );
-      
+
       await index.connect(indexGov.wallet).transfer(subjectOtcEscrow.address, subjectIndexAmount);
       await usdc.connect(investor.wallet).approve(subjectOtcEscrow.address, subjectUSDCAmount);
     });
@@ -337,11 +339,11 @@ describe("OtcEscrow", () => {
     let subjectIndexAmount: BigNumber;
 
     beforeEach(async () => {
-      const now = await getLastBlockTimestamp()
+      const now = await getLastBlockTimestamp();
       subjectVestingStart = now.add(10);
       subjectVestingCliff = now.add(60 * 60 * 24 * 183);
       subjectVestingEnd = now.add(60 * 60 * 24 * 547);
-      subjectUSDCAmount = BigNumber.from(100_000 * 10**6);
+      subjectUSDCAmount = BigNumber.from(100_000 * 10 ** 6);
       subjectIndexAmount = ether(100);
 
       subjectOtcEscrow = await deployer.token.deployOtcEscrow(
