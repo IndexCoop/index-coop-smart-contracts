@@ -84,6 +84,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         uint256 currentLeverageRatio;                   // Current leverage ratio of Set
         uint256 slippageTolerance;                      // Allowable percent trade slippage in preciseUnits (1% = 10^16)
         uint256 twapMaxTradeSize;                       // Max trade size in collateral units allowed for rebalance action
+        string exchangeName;                            // Exchange to use for trades
     }
 
     struct ContractSettings {
@@ -110,10 +111,14 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
     struct ExecutionSettings { 
         uint256 unutilizedLeveragePercentage;            // Percent of max borrow left unutilized in precise units (1% = 10e16)
-        uint256 twapMaxTradeSize;                        // Max trade size in collateral base units
-        uint256 twapCooldownPeriod;                      // Cooldown period required since last trade timestamp in seconds
         uint256 slippageTolerance;                       // % in precise units to price min token receive amount from trade quantities
-        string exchangeName;                             // Name of exchange that is being used for leverage
+        uint256 twapCooldownPeriod;                      // Cooldown period required since last trade timestamp in seconds
+    }
+
+    struct ExchangeSettings {
+        uint256 twapMaxTradeSize;                        // Max trade size in collateral base units
+        uint256 exchangeLastTradeTimestamp;
+        uint256 incentivizedTwapMaxTradeSize;            // Max trade size for incentivized rebalances in collateral base units
         bytes leverExchangeData;                         // Arbitrary exchange data passed into rebalance function for levering up
         bytes deleverExchangeData;                       // Arbitrary exchange data passed into rebalance function for delevering
     }
@@ -123,7 +128,6 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         uint256 incentivizedLeverageRatio;               // Leverage ratio for incentivized rebalances
         uint256 incentivizedSlippageTolerance;           // Slippage tolerance percentage for incentivized rebalances
         uint256 incentivizedTwapCooldownPeriod;          // TWAP cooldown in seconds for incentivized rebalances
-        uint256 incentivizedTwapMaxTradeSize;            // Max trade size for incentivized rebalances in collateral base units
     }
 
     /* ============ Events ============ */
@@ -157,19 +161,14 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     );
     event ExecutionSettingsUpdated(
         uint256 _unutilizedLeveragePercentage,
-        uint256 _twapMaxTradeSize,
         uint256 _twapCooldownPeriod,
-        uint256 _slippageTolerance,
-        string _exchangeName,
-        bytes _leverExchangeData,
-        bytes _deleverExchangeData
+        uint256 _slippageTolerance
     );
     event IncentiveSettingsUpdated(
         uint256 _etherReward,
         uint256 _incentivizedLeverageRatio,
         uint256 _incentivizedSlippageTolerance,
-        uint256 _incentivizedTwapCooldownPeriod,
-        uint256 _incentivizedTwapMaxTradeSize
+        uint256 _incentivizedTwapCooldownPeriod
     );
 
     /* ============ Modifiers ============ */
@@ -184,12 +183,14 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
     /* ============ State Variables ============ */
 
-    ContractSettings internal strategy;             // Struct of contracts used in the strategy (SetToken, price oracles, leverage module etc)
-    MethodologySettings internal methodology;       // Struct containing methodology parameters
-    ExecutionSettings internal execution;           // Struct containing execution parameters
-    IncentiveSettings internal incentive;           // Struct containing incentive parameters for ripcord
-    uint256 public twapLeverageRatio;               // Stored leverage ratio to keep track of target between TWAP rebalances
-    uint256 public lastTradeTimestamp;              // Last rebalance timestamp. Must be past rebalance interval to rebalance
+    ContractSettings internal strategy;                             // Struct of contracts used in the strategy (SetToken, price oracles, leverage module etc)
+    MethodologySettings internal methodology;                       // Struct containing methodology parameters
+    ExecutionSettings internal execution;                           // Struct containing execution parameters
+    mapping(string => ExchangeSettings) internal exchangeSettings;  // Mapping from exchange name to exchange settings
+    IncentiveSettings internal incentive;                           // Struct containing incentive parameters for ripcord
+    string[] public enabledExchanges;                               // Array containing enabled exchanges
+    uint256 public twapLeverageRatio;                               // Stored leverage ratio to keep track of target between TWAP rebalances
+    uint256 public globalLastTradeTimestamp;                        // Last rebalance timestamp. Must be past rebalance interval to rebalance
 
     /* ============ Constructor ============ */
 
@@ -207,7 +208,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         ContractSettings memory _strategy,
         MethodologySettings memory _methodology,
         ExecutionSettings memory _execution,
-        IncentiveSettings memory _incentive
+        IncentiveSettings memory _incentive,
+        string memory _inititalExchageName,
+        ExchangeSettings memory _initialExchangeSettings
     )
         public
         BaseAdapter(_manager)
@@ -216,6 +219,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         methodology = _methodology;
         execution = _execution;
         incentive = _incentive;
+        exchangeSettings[_inititalExchageName] =  _initialExchangeSettings;
+        enabledExchanges.push(_inititalExchageName);
 
         _validateSettings(methodology, execution, incentive);
     }
@@ -227,7 +232,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * leverage ratio is above max borrow or max trade size, then TWAP is kicked off. To complete engage if TWAP, any valid caller must call iterateRebalance until target
      * is met.
      */
-    function engage() external onlyOperator {
+    function engage(string memory _exchangeName) external onlyOperator {
         ActionInfo memory engageInfo = _createActionInfo();
 
         require(engageInfo.setTotalSupply > 0, "SetToken must have > 0 supply");
@@ -238,7 +243,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             action: engageInfo,
             currentLeverageRatio: PreciseUnitMath.preciseUnit(), // 1x leverage in precise units
             slippageTolerance: execution.slippageTolerance,
-            twapMaxTradeSize: execution.twapMaxTradeSize
+            twapMaxTradeSize: exchangeSettings[_exchangeName].twapMaxTradeSize,
+            exchangeName: _exchangeName
         });
 
         // Calculate total rebalance units and kick off TWAP if above max borrow or max trade size
@@ -252,7 +258,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         _updateRebalanceState(
             chunkRebalanceNotional,
             totalRebalanceNotional,
-            methodology.targetLeverageRatio
+            methodology.targetLeverageRatio,
+            _exchangeName
         );
 
         emit Engaged(
@@ -271,10 +278,14 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * Note: If the calculated current leverage ratio is above the incentivized leverage ratio or in TWAP then rebalance cannot be called. Instead, you must call
      * ripcord() which is incentivized with a reward in Ether or iterateRebalance().
      */
-     function rebalance() external onlyEOA onlyAllowedCaller(msg.sender) {
-        LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(execution.slippageTolerance, execution.twapMaxTradeSize);
+     function rebalance(string memory _exchangeName) external onlyEOA onlyAllowedCaller(msg.sender) {
+        LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(
+            execution.slippageTolerance,
+            exchangeSettings[_exchangeName].twapMaxTradeSize,
+            _exchangeName
+        );
 
-        _validateNormalRebalance(leverageInfo, methodology.rebalanceInterval);
+        _validateNormalRebalance(leverageInfo, methodology.rebalanceInterval, globalLastTradeTimestamp);
         _validateNonTWAP();
 
         uint256 newLeverageRatio = _calculateNewLeverageRatio(leverageInfo.currentLeverageRatio);
@@ -284,7 +295,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             uint256 totalRebalanceNotional
         ) = _handleRebalance(leverageInfo, newLeverageRatio);
 
-        _updateRebalanceState(chunkRebalanceNotional, totalRebalanceNotional, newLeverageRatio);
+        _updateRebalanceState(chunkRebalanceNotional, totalRebalanceNotional, newLeverageRatio, _exchangeName);
 
         emit Rebalanced(
             leverageInfo.currentLeverageRatio,
@@ -298,10 +309,14 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * ONLY EOA AND ALLOWED CALLER: Iterate a rebalance when in TWAP. TWAP cooldown period must have elapsed. If price moves advantageously, then exit without rebalancing
      * and clear TWAP state. This function can only be called when below incentivized leverage ratio and in TWAP state.
      */
-    function iterateRebalance() external onlyEOA onlyAllowedCaller(msg.sender) {
-        LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(execution.slippageTolerance, execution.twapMaxTradeSize);
+    function iterateRebalance(string memory _exchangeName) external onlyEOA onlyAllowedCaller(msg.sender) {
+        LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(
+            execution.slippageTolerance,
+            exchangeSettings[_exchangeName].twapMaxTradeSize,
+            _exchangeName
+        );
 
-        _validateNormalRebalance(leverageInfo, execution.twapCooldownPeriod);
+        _validateNormalRebalance(leverageInfo, execution.twapCooldownPeriod, exchangeSettings[_exchangeName].exchangeLastTradeTimestamp);
         _validateTWAP();
 
         uint256 chunkRebalanceNotional;
@@ -312,7 +327,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
         // If not advantageous, then rebalance is skipped and chunk and total rebalance notional are both 0, which means TWAP state is
         // cleared
-        _updateIterateState(chunkRebalanceNotional, totalRebalanceNotional);
+        _updateIterateState(chunkRebalanceNotional, totalRebalanceNotional, _exchangeName);
 
         emit RebalanceIterated(
             leverageInfo.currentLeverageRatio,
@@ -328,19 +343,20 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * of ripcord() will receive a reward in Ether. The ripcord function uses it's own TWAP cooldown period, slippage tolerance and TWAP max trade size which are typically
      * looser than in regular rebalances.
      */
-    function ripcord() external onlyEOA {
+    function ripcord(string memory _exchangeName) external onlyEOA {
         LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(
             incentive.incentivizedSlippageTolerance, 
-            incentive.incentivizedTwapMaxTradeSize
+            exchangeSettings[_exchangeName].incentivizedTwapMaxTradeSize,
+            _exchangeName
         );
 
-        _validateRipcord(leverageInfo);
+        _validateRipcord(leverageInfo, exchangeSettings[_exchangeName].exchangeLastTradeTimestamp);
 
         ( uint256 chunkRebalanceNotional, ) = _calculateChunkRebalanceNotional(leverageInfo, methodology.maxLeverageRatio, false);
 
         _delever(leverageInfo, chunkRebalanceNotional);
 
-        _updateRipcordState();
+        _updateRipcordState(_exchangeName);
 
         uint256 etherTransferred = _transferEtherRewardToCaller(incentive.etherReward);
 
@@ -360,8 +376,12 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      *
      * Note: Delever to 0 will likely result in additional units of the borrow asset added as equity on the SetToken due to oracle price / market price mismatch
      */
-    function disengage() external onlyOperator {
-        LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(execution.slippageTolerance, execution.twapMaxTradeSize);
+    function disengage(string memory _exchangeName) external onlyOperator {
+        LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(
+            execution.slippageTolerance,
+            exchangeSettings[_exchangeName].twapMaxTradeSize,
+            _exchangeName
+        );
 
         uint256 newLeverageRatio = PreciseUnitMath.preciseUnit();
 
@@ -417,12 +437,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
         emit ExecutionSettingsUpdated(
             execution.unutilizedLeveragePercentage,
-            execution.twapMaxTradeSize,
             execution.twapCooldownPeriod,
-            execution.slippageTolerance,
-            execution.exchangeName,
-            execution.leverExchangeData,
-            execution.deleverExchangeData
+            execution.slippageTolerance
         );
     }
 
@@ -441,9 +457,28 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             incentive.etherReward,
             incentive.incentivizedLeverageRatio,
             incentive.incentivizedSlippageTolerance,
-            incentive.incentivizedTwapCooldownPeriod,
-            incentive.incentivizedTwapMaxTradeSize
+            incentive.incentivizedTwapCooldownPeriod
         );
+    }
+
+    function addEnabledExchange(string memory _exchangeName, ExchangeSettings memory _newExchangeSettings) external onlyOperator {
+        exchangeSettings[_exchangeName] = _newExchangeSettings;
+        enabledExchanges.push(_exchangeName);
+    }
+
+    function removeEnabledExchange(string memory _exchangeName) external onlyOperator {
+        delete exchangeSettings[_exchangeName];
+        
+        for(uint256 i = 0; i < enabledExchanges.length; i++) {
+            if(keccak256(bytes(enabledExchanges[i])) == keccak256(bytes(_exchangeName))) {
+                enabledExchanges[i] = enabledExchanges[enabledExchanges.length.sub(1)];
+                enabledExchanges.pop();
+            }
+        }
+    }
+
+    function updateEnabledExchange(string memory _exchangeName, ExchangeSettings memory _newExchangeSettings) external onlyOperator {
+        exchangeSettings[_exchangeName] = _newExchangeSettings;
     }
     
     /**
@@ -492,7 +527,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      *
      * return ShouldRebalance         Enum detailing whether to rebalance, iterateRebalance, ripcord or no action
      */
-    function shouldRebalance() external view returns(ShouldRebalance) {
+    function shouldRebalance() external view returns(string[] memory, ShouldRebalance[] memory) {
         uint256 currentLeverageRatio = getCurrentLeverageRatio();
 
         return _shouldRebalance(currentLeverageRatio, methodology.minLeverageRatio, methodology.maxLeverageRatio);
@@ -514,7 +549,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     )
         external
         view
-        returns(ShouldRebalance)
+        returns(string[] memory, ShouldRebalance[] memory)
     {
         require (
             _customMinLeverageRatio <= methodology.minLeverageRatio && _customMaxLeverageRatio >= methodology.maxLeverageRatio,
@@ -524,6 +559,10 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         uint256 currentLeverageRatio = getCurrentLeverageRatio();
 
         return _shouldRebalance(currentLeverageRatio, _customMinLeverageRatio, _customMaxLeverageRatio);
+    }
+
+    function getExchangeSettings(string memory _exchangeName) external view returns (ExchangeSettings memory) {
+        return exchangeSettings[_exchangeName];
     }
 
     /**
@@ -559,8 +598,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             strategy.collateralAsset,
             borrowUnits,
             minReceiveCollateralUnits,
-            execution.exchangeName,
-            execution.leverExchangeData
+            _leverageInfo.exchangeName,
+            exchangeSettings[_leverageInfo.exchangeName].leverExchangeData
         );
 
         invokeManager(address(strategy.leverageModule), leverCallData);
@@ -586,8 +625,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             strategy.borrowAsset,
             collateralRebalanceUnits,
             minRepayUnits,
-            execution.exchangeName,
-            execution.deleverExchangeData
+            _leverageInfo.exchangeName,
+            exchangeSettings[_leverageInfo.exchangeName].deleverExchangeData
         );
 
         invokeManager(address(strategy.leverageModule), deleverCallData);
@@ -613,8 +652,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             strategy.collateralAsset,
             strategy.borrowAsset,
             maxCollateralRebalanceUnits,
-            execution.exchangeName,
-            execution.deleverExchangeData
+            _leverageInfo.exchangeName,
+            exchangeSettings[_leverageInfo.exchangeName].deleverExchangeData
         );
 
         invokeManager(address(strategy.leverageModule), deleverToZeroBorrowBalanceCallData);
@@ -653,7 +692,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      *
      * return LeverageInfo                Struct containing ActionInfo and other data
      */
-    function _getAndValidateLeveragedInfo(uint256 _slippageTolerance, uint256 _maxTradeSize) internal view returns(LeverageInfo memory) {
+    function _getAndValidateLeveragedInfo(uint256 _slippageTolerance, uint256 _maxTradeSize, string memory _exchangeName) internal view returns(LeverageInfo memory) {
+        require(_maxTradeSize > 0, "Must be valid exchange");
+
         ActionInfo memory actionInfo = _createActionInfo();
 
         require(actionInfo.setTotalSupply > 0, "SetToken must have > 0 supply");
@@ -670,7 +711,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             action: actionInfo,
             currentLeverageRatio: currentLeverageRatio,
             slippageTolerance: _slippageTolerance,
-            twapMaxTradeSize: _maxTradeSize
+            twapMaxTradeSize: _maxTradeSize,
+            exchangeName: _exchangeName
         });
     }
 
@@ -748,20 +790,16 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             _execution.twapCooldownPeriod >= _incentive.incentivizedTwapCooldownPeriod,
             "TWAP cooldown must be greater than incentivized TWAP cooldown"
         );
-        require (
-            _execution.twapMaxTradeSize <= _incentive.incentivizedTwapMaxTradeSize,
-            "TWAP max trade size must be less than incentivized TWAP max trade size"
-        );
     }
 
     /**
      * Validate that current leverage is below incentivized leverage ratio and cooldown / rebalance period has elapsed or outsize max/min bounds. Used
      * in rebalance() and iterateRebalance() functions
      */
-    function _validateNormalRebalance(LeverageInfo memory _leverageInfo, uint256 _coolDown) internal view {
+    function _validateNormalRebalance(LeverageInfo memory _leverageInfo, uint256 _coolDown, uint256 _lastTradeTimestamp) internal view {
         require(_leverageInfo.currentLeverageRatio < incentive.incentivizedLeverageRatio, "Must be below incentivized leverage ratio");
         require(
-            block.timestamp.sub(lastTradeTimestamp) > _coolDown
+            block.timestamp.sub(_lastTradeTimestamp) > _coolDown
             || _leverageInfo.currentLeverageRatio > methodology.maxLeverageRatio
             || _leverageInfo.currentLeverageRatio < methodology.minLeverageRatio,
             "Cooldown not elapsed or not valid leverage ratio"
@@ -771,10 +809,10 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     /**
      * Validate that current leverage is above incentivized leverage ratio and incentivized cooldown period has elapsed in ripcord()
      */
-    function _validateRipcord(LeverageInfo memory _leverageInfo) internal view {
+    function _validateRipcord(LeverageInfo memory _leverageInfo, uint256 _lastTradeTimestamp) internal view {
         require(_leverageInfo.currentLeverageRatio >= incentive.incentivizedLeverageRatio, "Must be above incentivized leverage ratio");
         // If currently in the midst of a TWAP rebalance, ensure that the cooldown period has elapsed
-        require(lastTradeTimestamp.add(incentive.incentivizedTwapCooldownPeriod) < block.timestamp, "TWAP cooldown must have elapsed");
+        require(_lastTradeTimestamp.add(incentive.incentivizedTwapCooldownPeriod) < block.timestamp, "TWAP cooldown must have elapsed");
     }
 
     /**
@@ -938,11 +976,14 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     function _updateRebalanceState(
         uint256 _chunkRebalanceNotional,
         uint256 _totalRebalanceNotional,
-        uint256 _newLeverageRatio
+        uint256 _newLeverageRatio,
+        string memory _exchangeName
     )
         internal
     {
-        lastTradeTimestamp = block.timestamp;
+        globalLastTradeTimestamp = block.timestamp;
+        
+        exchangeSettings[_exchangeName].exchangeLastTradeTimestamp = block.timestamp;
 
         if (_chunkRebalanceNotional < _totalRebalanceNotional) {
             twapLeverageRatio = _newLeverageRatio;
@@ -953,8 +994,10 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * Update last trade timestamp and if chunk rebalance size is equal to the total rebalance notional, end TWAP by clearing state. This function is used
      * in iterateRebalance()
      */
-    function _updateIterateState(uint256 _chunkRebalanceNotional, uint256 _totalRebalanceNotional) internal {
-        lastTradeTimestamp = block.timestamp;
+    function _updateIterateState(uint256 _chunkRebalanceNotional, uint256 _totalRebalanceNotional, string memory _exchangeName) internal {
+        globalLastTradeTimestamp = block.timestamp;
+        
+        exchangeSettings[_exchangeName].exchangeLastTradeTimestamp = block.timestamp;
 
         // If the chunk size is equal to the total notional meaning that rebalances are not chunked, then clear TWAP state.
         if (_chunkRebalanceNotional == _totalRebalanceNotional) {
@@ -965,8 +1008,10 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     /**
      * Update last trade timestamp and if currently in a TWAP, delete the TWAP state. Used in the ripcord() function.
      */
-    function _updateRipcordState() internal {
-        lastTradeTimestamp = block.timestamp;
+    function _updateRipcordState(string memory _exchangeName) internal {
+        globalLastTradeTimestamp = block.timestamp;
+
+        exchangeSettings[_exchangeName].exchangeLastTradeTimestamp = block.timestamp;
 
         // If TWAP leverage ratio is stored, then clear state. This may happen if we are currently in a TWAP rebalance, and the leverage ratio moves above the
         // incentivized threshold for ripcord.
@@ -1001,33 +1046,41 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     )
         internal
         view
-        returns(ShouldRebalance)
+        returns(string[] memory, ShouldRebalance[] memory)
     {
-        // If above ripcord threshold, then check if incentivized cooldown period has elapsed
-        if (_currentLeverageRatio >= incentive.incentivizedLeverageRatio) {
-            if (lastTradeTimestamp.add(incentive.incentivizedTwapCooldownPeriod) < block.timestamp) {
-                return ShouldRebalance.RIPCORD;
-            }
-        } else {
-            // If TWAP, then check if the cooldown period has elapsed
-            if (twapLeverageRatio > 0) {
-                if (lastTradeTimestamp.add(execution.twapCooldownPeriod) < block.timestamp) {
-                    return ShouldRebalance.ITERATE_REBALANCE;
+
+        ShouldRebalance[] memory shouldRebalanceEnums = new ShouldRebalance[](enabledExchanges.length);
+
+        for (uint256 i = 0; i < enabledExchanges.length; i++) {
+            // If none of the below conditions are satisfied, then should not rebalance
+            shouldRebalanceEnums[i] = ShouldRebalance.NONE;
+
+            // If above ripcord threshold, then check if incentivized cooldown period has elapsed
+            if (_currentLeverageRatio >= incentive.incentivizedLeverageRatio) {
+                if (exchangeSettings[enabledExchanges[i]].exchangeLastTradeTimestamp.add(incentive.incentivizedTwapCooldownPeriod) < block.timestamp) {
+                    shouldRebalanceEnums[i] = ShouldRebalance.RIPCORD;
                 }
             } else {
-                // If not TWAP, then check if the rebalance interval has elapsed OR current leverage is above max leverage OR current leverage is below
-                // min leverage
-                if (
-                    block.timestamp.sub(lastTradeTimestamp) > methodology.rebalanceInterval
-                    || _currentLeverageRatio > _maxLeverageRatio
-                    || _currentLeverageRatio < _minLeverageRatio
-                ) {
-                    return ShouldRebalance.REBALANCE;
+                // If TWAP, then check if the cooldown period has elapsed
+                if (twapLeverageRatio > 0) {
+                    if (exchangeSettings[enabledExchanges[i]].exchangeLastTradeTimestamp.add(execution.twapCooldownPeriod) < block.timestamp) {
+                        shouldRebalanceEnums[i] = ShouldRebalance.ITERATE_REBALANCE;
+                    }
+                } else {
+                    // If not TWAP, then check if the rebalance interval has elapsed OR current leverage is above max leverage OR current leverage is below
+                    // min leverage
+                    if (
+                        block.timestamp.sub(globalLastTradeTimestamp) > methodology.rebalanceInterval
+                        || _currentLeverageRatio > _maxLeverageRatio
+                        || _currentLeverageRatio < _minLeverageRatio
+                    ) {
+                        shouldRebalanceEnums[i] = ShouldRebalance.REBALANCE;
+                    }
                 }
             }
         }
+        
 
-        // If none of the above conditions are satisfied, then should not rebalance
-        return ShouldRebalance.NONE;
+        return (enabledExchanges, shouldRebalanceEnums);
     }
 }

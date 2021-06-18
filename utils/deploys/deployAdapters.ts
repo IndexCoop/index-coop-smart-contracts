@@ -1,5 +1,5 @@
 import { Signer, BigNumber } from "ethers";
-import { Address, ContractSettings, MethodologySettings, ExecutionSettings, IncentiveSettings } from "../types";
+import { Address, ContractSettings, MethodologySettings, ExecutionSettings, IncentiveSettings, ExchangeSettings } from "../types";
 import { FlexibleLeverageStrategyAdapter, FeeSplitAdapter, ExchangeIssuance, ExchangeIssuanceV2 } from "../contracts/index";
 
 import { FeeSplitAdapter__factory } from "../../typechain/factories/FeeSplitAdapter__factory";
@@ -33,14 +33,18 @@ export default class DeployAdapters {
     contractSettings: ContractSettings,
     methdologySettings: MethodologySettings,
     executionSettings: ExecutionSettings,
-    incentiveSettings: IncentiveSettings
+    incentiveSettings: IncentiveSettings,
+    initialExchangeName: string,
+    initialExchangeSettings: ExchangeSettings
   ): Promise<FlexibleLeverageStrategyAdapter> {
     return await new FlexibleLeverageStrategyAdapter__factory(this._deployerSigner).deploy(
       manager,
       contractSettings,
       methdologySettings,
       executionSettings,
-      incentiveSettings
+      incentiveSettings,
+      initialExchangeName,
+      initialExchangeSettings,
     );
   }
 
