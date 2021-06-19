@@ -34,6 +34,7 @@ import { CompoundFixture, SetFixture, UniswapFixture } from "@utils/fixtures";
 import { UniswapV2Pair } from "@typechain/UniswapV2Pair";
 import { CERc20__factory } from "../../typechain/factories/CERc20__factory";
 import { CEther__factory } from "../../typechain/factories/CEther__factory";
+import { UniswapV2Router02 } from "@typechain/UniswapV2Router02";
 
 const expect = getWaffleExpect();
 
@@ -45,6 +46,8 @@ interface CheckpointSettings {
   wethPrice: BigNumber;
   elapsedTime: BigNumber;
   exchangeName: string;
+  exchangePools: UniswapV2Pair[];
+  router: UniswapV2Router02;
 }
 
 interface FLISettings {
@@ -55,7 +58,6 @@ interface FLISettings {
   chainlinkBorrow: ChainlinkAggregatorV3Mock;
   collateralCToken: CEther | CERc20;
   borrowCToken: CEther | CERc20;
-  uniswapPool: UniswapV2Pair[];
   targetLeverageRatio: BigNumber;
   collateralPerSet: BigNumber;
   exchangeNames: string[];
@@ -88,6 +90,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
   let setV2Setup: SetFixture;
   let compoundSetup: CompoundFixture;
   let uniswapSetup: UniswapFixture;
+  let sushiswapSetup: UniswapFixture;
 
   let deployer: DeployHelper;
   let setToken: SetToken;
@@ -108,8 +111,10 @@ describe("FlexibleLeverageStrategyAdapter", () => {
   let chainlinkWBTC: ChainlinkAggregatorV3Mock;
   let chainlinkUSDC: ChainlinkAggregatorV3Mock;
 
-  let wethUsdcPool: UniswapV2Pair;
-  let wethWbtcPool: UniswapV2Pair;
+  let wethUsdcPoolUni: UniswapV2Pair;
+  let wethWbtcPoolUni: UniswapV2Pair;
+  let wethUsdcPoolSushi: UniswapV2Pair;
+  let wethWbtcPoolSushi: UniswapV2Pair;
 
   let scenarios: FLISettings[];
 
@@ -138,8 +143,20 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       minimumInit
     );
 
-    wethUsdcPool = await uniswapSetup.createNewPair(setV2Setup.weth.address, setV2Setup.usdc.address);
-    wethWbtcPool = await uniswapSetup.createNewPair(setV2Setup.weth.address, setV2Setup.wbtc.address);
+    sushiswapSetup = getUniswapFixture(owner.address);
+    await sushiswapSetup.initialize(
+      owner,
+      setV2Setup.weth.address,
+      setV2Setup.wbtc.address,
+      setV2Setup.usdc.address,
+      minimumInit
+    );
+
+    wethUsdcPoolUni = await uniswapSetup.createNewPair(setV2Setup.weth.address, setV2Setup.usdc.address);
+    wethWbtcPoolUni = await uniswapSetup.createNewPair(setV2Setup.weth.address, setV2Setup.wbtc.address);
+
+    wethUsdcPoolSushi = await sushiswapSetup.createNewPair(setV2Setup.weth.address, setV2Setup.usdc.address);
+    wethWbtcPoolSushi = await sushiswapSetup.createNewPair(setV2Setup.weth.address, setV2Setup.wbtc.address);
 
     await setV2Setup.weth.connect(owner.wallet).approve(uniswapSetup.router.address, MAX_UINT_256);
     await setV2Setup.usdc.connect(owner.wallet).approve(uniswapSetup.router.address, MAX_UINT_256);
@@ -148,8 +165,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       setV2Setup.usdc.address,
       ether(10000),
       usdc(10000000),
-      ether(999),
-      usdc(999000),
+      ether(9999),
+      usdc(9990000),
       owner.address,
       MAX_UINT_256
     );
@@ -163,6 +180,32 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       ether(4000),
       bitcoin(99),
       ether(3900),
+      owner.address,
+      MAX_UINT_256
+    );
+
+    await setV2Setup.weth.connect(owner.wallet).approve(sushiswapSetup.router.address, MAX_UINT_256);
+    await setV2Setup.usdc.connect(owner.wallet).approve(sushiswapSetup.router.address, MAX_UINT_256);
+    await sushiswapSetup.router.addLiquidity(
+      setV2Setup.weth.address,
+      setV2Setup.usdc.address,
+      ether(4000),
+      usdc(4000000),
+      ether(399),
+      usdc(499000),
+      owner.address,
+      MAX_UINT_256
+    );
+
+    await setV2Setup.wbtc.connect(owner.wallet).approve(sushiswapSetup.router.address, MAX_UINT_256);
+    await setV2Setup.weth.connect(owner.wallet).approve(sushiswapSetup.router.address, MAX_UINT_256);
+    await sushiswapSetup.router.addLiquidity(
+      setV2Setup.wbtc.address,
+      setV2Setup.weth.address,
+      bitcoin(50),
+      ether(2000),
+      bitcoin(49),
+      ether(1900),
       owner.address,
       MAX_UINT_256
     );
@@ -231,6 +274,12 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
     await setV2Setup.integrationRegistry.addIntegration(
       compoundLeverageModule.address,
+      "SushiswapTradeAdapter",
+      sushiswapSetup.uniswapTradeAdapter.address,
+    );
+
+    await setV2Setup.integrationRegistry.addIntegration(
+      compoundLeverageModule.address,
       "DefaultIssuanceModule",
       setV2Setup.debtIssuanceModule.address,
     );
@@ -254,11 +303,17 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         borrowCToken: cUSDC,
         chainlinkCollateral: chainlinkETH,
         chainlinkBorrow: chainlinkUSDC,
-        uniswapPool: [wethUsdcPool],
         targetLeverageRatio: ether(2),
         collateralPerSet: ether(1),
-        exchangeNames: [ "UniswapTradeAdapter" ],
+        exchangeNames: [ "UniswapTradeAdapter", "SushiswapTradeAdapter" ],
         exchanges: [
+          {
+            exchangeLastTradeTimestamp: BigNumber.from(0),
+            twapMaxTradeSize: ether(5),
+            incentivizedTwapMaxTradeSize: ether(10),
+            leverExchangeData: EMPTY_BYTES,
+            deleverExchangeData: EMPTY_BYTES,
+          },
           {
             exchangeLastTradeTimestamp: BigNumber.from(0),
             twapMaxTradeSize: ether(5),
@@ -276,6 +331,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             elapsedTime: ONE_DAY_IN_SECONDS,
             wethPrice: ether(1000),
             exchangeName: "UniswapTradeAdapter",
+            exchangePools: [wethUsdcPoolUni],
+            router: uniswapSetup.router,
           },
           {
             issueAmount: ZERO,
@@ -284,7 +341,9 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             borrowPrice: ether(1),
             elapsedTime: ONE_DAY_IN_SECONDS,
             wethPrice: ether(1100),
-            exchangeName: "UniswapTradeAdapter",
+            exchangeName: "SushiswapTradeAdapter",
+            exchangePools: [wethUsdcPoolSushi],
+            router: sushiswapSetup.router,
           },
           {
             issueAmount: ZERO,
@@ -294,6 +353,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             elapsedTime: ONE_HOUR_IN_SECONDS.mul(12),
             wethPrice: ether(800),
             exchangeName: "UniswapTradeAdapter",
+            exchangePools: [wethUsdcPoolUni],
+            router: uniswapSetup.router,
           },
         ],
       } as FLISettings,
@@ -305,7 +366,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         borrowCToken: cEther,
         chainlinkCollateral: chainlinkUSDC,
         chainlinkBorrow: chainlinkETH,
-        uniswapPool: [wethUsdcPool],
         targetLeverageRatio: ether(2),
         collateralPerSet: ether(100),
         exchangeNames: [ "UniswapTradeAdapter" ],
@@ -327,6 +387,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             elapsedTime: ONE_DAY_IN_SECONDS,
             wethPrice: ether(1300),
             exchangeName: "UniswapTradeAdapter",
+            exchangePools: [wethUsdcPoolUni],
+            router: uniswapSetup.router,
           },
           {
             issueAmount: ether(10000),
@@ -336,6 +398,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             elapsedTime: ONE_HOUR_IN_SECONDS,
             wethPrice: ether(1300),
             exchangeName: "UniswapTradeAdapter",
+            exchangePools: [wethUsdcPoolUni],
+            router: uniswapSetup.router,
           },
           {
             issueAmount: ZERO,
@@ -345,6 +409,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             elapsedTime: ONE_HOUR_IN_SECONDS,
             wethPrice: ether(1300),
             exchangeName: "UniswapTradeAdapter",
+            exchangePools: [wethUsdcPoolUni],
+            router: uniswapSetup.router,
           },
           {
             issueAmount: ZERO,
@@ -354,6 +420,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             elapsedTime: ONE_HOUR_IN_SECONDS,
             wethPrice: ether(1700),
             exchangeName: "UniswapTradeAdapter",
+            exchangePools: [wethUsdcPoolUni],
+            router: uniswapSetup.router,
           },
           {
             issueAmount: ZERO,
@@ -363,6 +431,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             elapsedTime: ONE_DAY_IN_SECONDS,
             wethPrice: ether(1100),
             exchangeName: "UniswapTradeAdapter",
+            exchangePools: [wethUsdcPoolUni],
+            router: uniswapSetup.router,
           },
         ],
       } as FLISettings,
@@ -374,11 +444,17 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         borrowCToken: cUSDC,
         chainlinkCollateral: chainlinkWBTC,
         chainlinkBorrow: chainlinkUSDC,
-        uniswapPool: [wethWbtcPool, wethUsdcPool],
         targetLeverageRatio: ether(2),
         collateralPerSet: ether(.1),
-        exchangeNames: [ "UniswapTradeAdapter" ],
+        exchangeNames: [ "UniswapTradeAdapter", "SushiswapTradeAdapter" ],
         exchanges: [
+          {
+            exchangeLastTradeTimestamp: BigNumber.from(0),
+            twapMaxTradeSize: bitcoin(3),
+            incentivizedTwapMaxTradeSize: bitcoin(5),
+            leverExchangeData: defaultAbiCoder.encode(["address[]"], [[setV2Setup.usdc.address, setV2Setup.weth.address, setV2Setup.wbtc.address]]),
+            deleverExchangeData: defaultAbiCoder.encode(["address[]"], [[setV2Setup.wbtc.address, setV2Setup.weth.address, setV2Setup.usdc.address]]),
+          },
           {
             exchangeLastTradeTimestamp: BigNumber.from(0),
             twapMaxTradeSize: bitcoin(3),
@@ -395,7 +471,9 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             borrowPrice: ether(1),
             elapsedTime: ONE_DAY_IN_SECONDS,
             wethPrice: ether(1375),
-            exchangeName: "UniswapTradeAdapter",
+            exchangeName: "SushiswapTradeAdapter",
+            exchangePools: [wethWbtcPoolSushi, wethUsdcPoolSushi],
+            router: uniswapSetup.router,
           },
           {
             issueAmount: ether(2),
@@ -404,7 +482,9 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             borrowPrice: ether(1),
             elapsedTime: ONE_DAY_IN_SECONDS,
             wethPrice: ether(1225),
-            exchangeName: "UniswapTradeAdapter",
+            exchangeName: "SushiswapTradeAdapter",
+            exchangePools: [wethWbtcPoolSushi, wethUsdcPoolSushi],
+            router: uniswapSetup.router,
           },
           {
             issueAmount: ZERO,
@@ -414,6 +494,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             elapsedTime: ONE_DAY_IN_SECONDS,
             wethPrice: ether(875),
             exchangeName: "UniswapTradeAdapter",
+            exchangePools: [wethWbtcPoolUni, wethUsdcPoolUni],
+            router: uniswapSetup.router,
           },
         ],
       } as FLISettings,
@@ -706,30 +788,33 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       // Set collateral asset <> WETH pool
       await calculateAndSetUniswapPool(
         fliSettings,
+        fliSettings.checkpoints[checkpoint].router,
         fliSettings.collateralAsset,
         setV2Setup.weth,
         collateralPrice,
         wethPrice,
-        fliSettings.uniswapPool[0],
+        fliSettings.checkpoints[checkpoint].exchangePools[0],
       );
 
       // Set WETH <> borrow asset pool
       await calculateAndSetUniswapPool(
         fliSettings,
+        fliSettings.checkpoints[checkpoint].router,
         setV2Setup.weth,
         fliSettings.borrowAsset,
         wethPrice,
         borrowPrice,
-        fliSettings.uniswapPool[1],
+        fliSettings.checkpoints[checkpoint].exchangePools[1],
       );
     } else {
       await calculateAndSetUniswapPool(
         fliSettings,
+        fliSettings.checkpoints[checkpoint].router,
         fliSettings.collateralAsset,
         fliSettings.borrowAsset,
         collateralPrice,
         borrowPrice,
-        fliSettings.uniswapPool[0],
+        fliSettings.checkpoints[checkpoint].exchangePools[0],
       );
     }
   }
@@ -753,6 +838,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
   async function calculateAndSetUniswapPool(
     fliSettings: FLISettings,
+    router: UniswapV2Router02,
     assetOne: StandardTokenMock | WETH9,
     assetTwo: StandardTokenMock | WETH9,
     assetOnePrice: BigNumber,
@@ -769,7 +855,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     );
 
     if (buyAssetOne) {
-      await uniswapSetup.router.swapTokensForExactTokens(
+      await router.swapTokensForExactTokens(
         assetOneAmount,
         MAX_UINT_256,
         [assetTwo.address, assetOne.address],
@@ -777,7 +863,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         MAX_UINT_256
       );
     } else {
-      await uniswapSetup.router.swapExactTokensForTokens(
+      await router.swapExactTokensForTokens(
         assetOneAmount,
         ZERO,
         [assetOne.address, assetTwo.address],
