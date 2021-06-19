@@ -493,25 +493,15 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       });
     });
 
-    // describe("when TWAP cooldown period is shorter than incentivized TWAP cooldown period", async () => {
-    //   beforeEach(async () => {
-    //     subjectExecutionSettings.twapCooldownPeriod = ZERO;
-    //   });
+    describe("when TWAP cooldown period is shorter than incentivized TWAP cooldown period", async () => {
+      beforeEach(async () => {
+        subjectExecutionSettings.twapCooldownPeriod = ZERO;
+      });
 
-    //   it("should revert", async () => {
-    //     await expect(subject()).to.be.revertedWith("TWAP cooldown must be greater than incentivized TWAP cooldown");
-    //   });
-    // });
-
-    // describe("when TWAP max trade size is greater than incentivized TWAP max trade size", async () => {
-    //   beforeEach(async () => {
-    //     subjectExecutionSettings.twapMaxTradeSize = ether(3);
-    //   });
-
-    //   it("should revert", async () => {
-    //     await expect(subject()).to.be.revertedWith("TWAP max trade size must be less than incentivized TWAP max trade size");
-    //   });
-    // });
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("TWAP cooldown must be greater than incentivized TWAP cooldown");
+      });
+    });
   });
 
   describe("#engage", async () => {
