@@ -117,7 +117,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
     struct ExchangeSettings {
         uint256 twapMaxTradeSize;                        // Max trade size in collateral base units
-        uint256 exchangeLastTradeTimestamp;
+        uint256 exchangeLastTradeTimestamp;              // Timestamp of last trade made with this exchange
         uint256 incentivizedTwapMaxTradeSize;            // Max trade size for incentivized rebalances in collateral base units
         bytes leverExchangeData;                         // Arbitrary exchange data passed into rebalance function for levering up
         bytes deleverExchangeData;                       // Arbitrary exchange data passed into rebalance function for delevering
@@ -197,11 +197,13 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     /**
      * Instantiate addresses, methodology parameters, execution parameters, and incentive parameters.
      * 
-     * @param _manager              Address of IBaseManager contract
-     * @param _strategy             Struct of contract addresses
-     * @param _methodology          Struct containing methodology parameters
-     * @param _execution            Struct containing execution parameters
-     * @param _incentive            Struct containing incentive parameters for ripcord
+     * @param _manager                  Address of IBaseManager contract
+     * @param _strategy                 Struct of contract addresses
+     * @param _methodology              Struct containing methodology parameters
+     * @param _execution                Struct containing execution parameters
+     * @param _incentive                Struct containing incentive parameters for ripcord
+     * @param _inititalExchageName      Name of initial exchange
+     * @param _initialExchangeSettings  Struct containing exchange parameters for the initial exchange
      */
     constructor(
         IBaseManager _manager,
@@ -231,6 +233,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * OPERATOR ONLY: Engage to target leverage ratio for the first time. SetToken will borrow debt position from Compound and trade for collateral asset. If target
      * leverage ratio is above max borrow or max trade size, then TWAP is kicked off. To complete engage if TWAP, any valid caller must call iterateRebalance until target
      * is met.
+     *
+     * @param _exchangeName     the exchange used for trading
      */
     function engage(string memory _exchangeName) external onlyOperator {
         ActionInfo memory engageInfo = _createActionInfo();
@@ -277,6 +281,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      *
      * Note: If the calculated current leverage ratio is above the incentivized leverage ratio or in TWAP then rebalance cannot be called. Instead, you must call
      * ripcord() which is incentivized with a reward in Ether or iterateRebalance().
+     *
+     * @param _exchangeName     the exchange used for trading
      */
      function rebalance(string memory _exchangeName) external onlyEOA onlyAllowedCaller(msg.sender) {
         LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(
@@ -308,6 +314,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     /**
      * ONLY EOA AND ALLOWED CALLER: Iterate a rebalance when in TWAP. TWAP cooldown period must have elapsed. If price moves advantageously, then exit without rebalancing
      * and clear TWAP state. This function can only be called when below incentivized leverage ratio and in TWAP state.
+     *
+     * @param _exchangeName     the exchange used for trading
      */
     function iterateRebalance(string memory _exchangeName) external onlyEOA onlyAllowedCaller(msg.sender) {
         LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(
@@ -342,6 +350,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * back to the max leverage ratio. This function typically would only be called during times of high downside volatility and / or normal keeper malfunctions. The caller
      * of ripcord() will receive a reward in Ether. The ripcord function uses it's own TWAP cooldown period, slippage tolerance and TWAP max trade size which are typically
      * looser than in regular rebalances.
+     *
+     * @param _exchangeName     the exchange used for trading
      */
     function ripcord(string memory _exchangeName) external onlyEOA {
         LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(
@@ -375,6 +385,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * continue to call this function to complete repayment of loan. The function iterateRebalance will not work. 
      *
      * Note: Delever to 0 will likely result in additional units of the borrow asset added as equity on the SetToken due to oracle price / market price mismatch
+     *
+     * @param _exchangeName     the exchange used for trading
      */
     function disengage(string memory _exchangeName) external onlyOperator {
         LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(
@@ -461,9 +473,15 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         );
     }
 
+    /**
+     * OPERATOR ONLY: Add a new enabled exchange for trading during rebalances. Note: must not be in a rebalance.
+     *
+     * @param _exchangeName         Name of the exchange
+     * @param _exchangeSettings     Struct containing exchange parameters
+     */
     function addEnabledExchange(
         string memory _exchangeName,
-        ExchangeSettings memory _newExchangeSettings
+        ExchangeSettings memory _exchangeSettings
     )
         external 
         onlyOperator 
@@ -471,10 +489,15 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     {
         require(exchangeSettings[_exchangeName].twapMaxTradeSize == 0, "Exchange already enabled");
         
-        exchangeSettings[_exchangeName] = _newExchangeSettings;
+        exchangeSettings[_exchangeName] = _exchangeSettings;
         enabledExchanges.push(_exchangeName);
     }
 
+    /**
+     * OPERATOR ONLY: Removes an exchange. Reverts if the exchange is not already enabled. Note: must not be in a rebalance.
+     *
+     * @param _exchangeName     Name of exchange to remove
+     */
     function removeEnabledExchange(string memory _exchangeName) external onlyOperator noRebalanceInProgress {
         delete exchangeSettings[_exchangeName];
         
@@ -488,9 +511,16 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         revert("Exchange not enabled");
     }
 
+    /**
+     * OPERATOR ONLY: Updates the settings of an exchange. Reverts if exchange is not already addedNote: Need to pass in existing parameters if only 
+     * changing a few settings. Must not be in a rebalance.
+     *
+     * @param _exchangeName         Name of the exchange
+     * @param _exchangeSettings     Struct containing exchange parameters
+     */
     function updateEnabledExchange(
         string memory _exchangeName,
-        ExchangeSettings memory _newExchangeSettings
+        ExchangeSettings memory _exchangeSettings
     )
         external
         onlyOperator
@@ -498,7 +528,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     {
         require(exchangeSettings[_exchangeName].twapMaxTradeSize != 0, "Exchange not enabled");
 
-        exchangeSettings[_exchangeName] = _newExchangeSettings;
+        exchangeSettings[_exchangeName] = _exchangeSettings;
     }
     
     /**
@@ -524,6 +554,11 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         return _calculateCurrentLeverageRatio(currentLeverageInfo.collateralValue, currentLeverageInfo.borrowValue);
     }
 
+    /**
+     * Calculates the total notional rebalance size.
+     *
+     * @return uint256      total notional rebalance size
+     */
     function getTotalRebalanceNotional()  external view returns(uint256) {
 
         uint256 newLeverageRatio;
@@ -570,7 +605,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * Helper that checks if conditions are met for rebalance or ripcord. Returns an enum with 0 = no rebalance, 1 = call rebalance(), 2 = call iterateRebalance()
      * 3 = call ripcord()
      *
-     * return ShouldRebalance         Enum detailing whether to rebalance, iterateRebalance, ripcord or no action
+     * @return (string[] memory, ShouldRebalance[] memory)      List of exchange names and a list of enums representing whether that exchange should rebalance
      */
     function shouldRebalance() external view returns(string[] memory, ShouldRebalance[] memory) {
         uint256 currentLeverageRatio = getCurrentLeverageRatio();
@@ -586,7 +621,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * @param _customMinLeverageRatio          Min leverage ratio passed in by caller
      * @param _customMaxLeverageRatio          Max leverage ratio passed in by caller
      *
-     * return ShouldRebalance                  Enum detailing whether to rebalance, iterateRebalance, ripcord or no action
+     * @return (string[] memory, ShouldRebalance[] memory)      List of exchange names and a list of enums representing whether that exchange should rebalance
      */
     function shouldRebalanceWithBounds(
         uint256 _customMinLeverageRatio,
@@ -606,10 +641,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         return _shouldRebalance(currentLeverageRatio, _customMinLeverageRatio, _customMaxLeverageRatio);
     }
 
-    function getExchangeSettings(string memory _exchangeName) external view returns (ExchangeSettings memory) {
-        return exchangeSettings[_exchangeName];
-    }
-
+    /**
+     * Gets the list of enabled exchanges
+     */
     function getEnabledExchanges() external view returns (string[] memory) {
         return enabledExchanges;
     }
@@ -621,6 +655,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     function getMethodology() external view returns (MethodologySettings memory) { return methodology; }
     function getExecution() external view returns (ExecutionSettings memory) { return execution; }
     function getIncentive() external view returns (IncentiveSettings memory) { return incentive; }
+    function getExchangeSettings(string memory _exchangeName) external view returns (ExchangeSettings memory) {
+        return exchangeSettings[_exchangeName];
+    }
 
     /* ============ Internal Functions ============ */
 
