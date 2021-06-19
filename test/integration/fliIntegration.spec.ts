@@ -4,11 +4,11 @@ import { defaultAbiCoder } from "ethers/lib/utils";
 
 import {
   Account,
-  Bytes,
   ContractSettings,
   MethodologySettings,
   ExecutionSettings,
-  IncentiveSettings
+  IncentiveSettings,
+  ExchangeSettings
 } from "@utils/types";
 import { ADDRESS_ZERO, ZERO, ONE, TWO, EMPTY_BYTES, MAX_UINT_256, PRECISE_UNIT, ONE_DAY_IN_SECONDS, ONE_HOUR_IN_SECONDS } from "@utils/constants";
 import { FlexibleLeverageStrategyAdapter, BaseManager, StandardTokenMock, WETH9, ChainlinkAggregatorV3Mock } from "@utils/contracts/index";
@@ -44,6 +44,7 @@ interface CheckpointSettings {
   borrowPrice: BigNumber;
   wethPrice: BigNumber;
   elapsedTime: BigNumber;
+  exchangeName: string;
 }
 
 interface FLISettings {
@@ -56,11 +57,9 @@ interface FLISettings {
   borrowCToken: CEther | CERc20;
   uniswapPool: UniswapV2Pair[];
   targetLeverageRatio: BigNumber;
-  twapMaxTradeSize: BigNumber;
-  incentivizedTwapMaxTradeSize: BigNumber;
   collateralPerSet: BigNumber;
-  leverExchangeData: Bytes;
-  deleverExchangeData: Bytes;
+  exchangeNames: string[];
+  exchanges: ExchangeSettings[];
   checkpoints: CheckpointSettings[];
 }
 
@@ -257,11 +256,17 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         chainlinkBorrow: chainlinkUSDC,
         uniswapPool: [wethUsdcPool],
         targetLeverageRatio: ether(2),
-        twapMaxTradeSize: ether(5),
-        incentivizedTwapMaxTradeSize: ether(10),
         collateralPerSet: ether(1),
-        leverExchangeData: EMPTY_BYTES,
-        deleverExchangeData: EMPTY_BYTES,
+        exchangeNames: [ "UniswapTradeAdapter" ],
+        exchanges: [
+          {
+            exchangeLastTradeTimestamp: BigNumber.from(0),
+            twapMaxTradeSize: ether(5),
+            incentivizedTwapMaxTradeSize: ether(10),
+            leverExchangeData: EMPTY_BYTES,
+            deleverExchangeData: EMPTY_BYTES,
+          },
+        ],
         checkpoints: [
           {
             issueAmount: ZERO,
@@ -270,6 +275,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             borrowPrice: ether(1),
             elapsedTime: ONE_DAY_IN_SECONDS,
             wethPrice: ether(1000),
+            exchangeName: "UniswapTradeAdapter",
           },
           {
             issueAmount: ZERO,
@@ -278,6 +284,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             borrowPrice: ether(1),
             elapsedTime: ONE_DAY_IN_SECONDS,
             wethPrice: ether(1100),
+            exchangeName: "UniswapTradeAdapter",
           },
           {
             issueAmount: ZERO,
@@ -286,6 +293,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             borrowPrice: ether(1),
             elapsedTime: ONE_HOUR_IN_SECONDS.mul(12),
             wethPrice: ether(800),
+            exchangeName: "UniswapTradeAdapter",
           },
         ],
       } as FLISettings,
@@ -299,11 +307,17 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         chainlinkBorrow: chainlinkETH,
         uniswapPool: [wethUsdcPool],
         targetLeverageRatio: ether(2),
-        twapMaxTradeSize: usdc(1000),
-        incentivizedTwapMaxTradeSize: usdc(100000),
         collateralPerSet: ether(100),
-        leverExchangeData: EMPTY_BYTES,
-        deleverExchangeData: EMPTY_BYTES,
+        exchangeNames: [ "UniswapTradeAdapter" ],
+        exchanges: [
+          {
+            exchangeLastTradeTimestamp: BigNumber.from(0),
+            twapMaxTradeSize: ether(1000),
+            incentivizedTwapMaxTradeSize: ether(100000),
+            leverExchangeData: EMPTY_BYTES,
+            deleverExchangeData: EMPTY_BYTES,
+          },
+        ],
         checkpoints: [
           {
             issueAmount: ether(500),
@@ -312,6 +326,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             borrowPrice: ether(1300),
             elapsedTime: ONE_DAY_IN_SECONDS,
             wethPrice: ether(1300),
+            exchangeName: "UniswapTradeAdapter",
           },
           {
             issueAmount: ether(10000),
@@ -320,6 +335,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             borrowPrice: ether(1300),
             elapsedTime: ONE_HOUR_IN_SECONDS,
             wethPrice: ether(1300),
+            exchangeName: "UniswapTradeAdapter",
           },
           {
             issueAmount: ZERO,
@@ -328,6 +344,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             borrowPrice: ether(1300),
             elapsedTime: ONE_HOUR_IN_SECONDS,
             wethPrice: ether(1300),
+            exchangeName: "UniswapTradeAdapter",
           },
           {
             issueAmount: ZERO,
@@ -336,6 +353,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             borrowPrice: ether(1700),
             elapsedTime: ONE_HOUR_IN_SECONDS,
             wethPrice: ether(1700),
+            exchangeName: "UniswapTradeAdapter",
           },
           {
             issueAmount: ZERO,
@@ -344,6 +362,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             borrowPrice: ether(1100),
             elapsedTime: ONE_DAY_IN_SECONDS,
             wethPrice: ether(1100),
+            exchangeName: "UniswapTradeAdapter",
           },
         ],
       } as FLISettings,
@@ -357,11 +376,17 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         chainlinkBorrow: chainlinkUSDC,
         uniswapPool: [wethWbtcPool, wethUsdcPool],
         targetLeverageRatio: ether(2),
-        twapMaxTradeSize: bitcoin(3),
-        incentivizedTwapMaxTradeSize: bitcoin(5),
         collateralPerSet: ether(.1),
-        leverExchangeData: defaultAbiCoder.encode(["address[]"], [[setV2Setup.usdc.address, setV2Setup.weth.address, setV2Setup.wbtc.address]]),
-        deleverExchangeData: defaultAbiCoder.encode(["address[]"], [[setV2Setup.wbtc.address, setV2Setup.weth.address, setV2Setup.usdc.address]]),
+        exchangeNames: [ "UniswapTradeAdapter" ],
+        exchanges: [
+          {
+            exchangeLastTradeTimestamp: BigNumber.from(0),
+            twapMaxTradeSize: bitcoin(3),
+            incentivizedTwapMaxTradeSize: bitcoin(5),
+            leverExchangeData: defaultAbiCoder.encode(["address[]"], [[setV2Setup.usdc.address, setV2Setup.weth.address, setV2Setup.wbtc.address]]),
+            deleverExchangeData: defaultAbiCoder.encode(["address[]"], [[setV2Setup.wbtc.address, setV2Setup.weth.address, setV2Setup.usdc.address]]),
+          },
+        ],
         checkpoints: [
           {
             issueAmount: ether(.5),
@@ -370,6 +395,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             borrowPrice: ether(1),
             elapsedTime: ONE_DAY_IN_SECONDS,
             wethPrice: ether(1375),
+            exchangeName: "UniswapTradeAdapter",
           },
           {
             issueAmount: ether(2),
@@ -378,6 +404,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             borrowPrice: ether(1),
             elapsedTime: ONE_DAY_IN_SECONDS,
             wethPrice: ether(1225),
+            exchangeName: "UniswapTradeAdapter",
           },
           {
             issueAmount: ZERO,
@@ -386,6 +413,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
             borrowPrice: ether(1),
             elapsedTime: ONE_DAY_IN_SECONDS,
             wethPrice: ether(875),
+            exchangeName: "UniswapTradeAdapter",
           },
         ],
       } as FLISettings,
@@ -404,7 +432,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       await issueFLITokens(subjectScenario.collateralCToken, ether(10));
 
-      await engageFLI();
+      await engageFLI(subjectScenario.checkpoints[0].exchangeName);
     });
 
     async function subject(): Promise<any> {
@@ -414,7 +442,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     it("validate state", async () => {
       const [preRebalanceLeverageRatios, postRebalanceLeverageRatios] = await subject();
 
-      const lastTradeTimestamp = await flexibleLeverageStrategyAdapter.lastTradeTimestamp();
+      const lastTradeTimestamp = await flexibleLeverageStrategyAdapter.globalLastTradeTimestamp();
 
       expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
       expect(postRebalanceLeverageRatios[0]).to.lt(preRebalanceLeverageRatios[0]);
@@ -433,7 +461,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       await issueFLITokens(subjectScenario.collateralCToken, ether(10));
 
-      await engageFLI();
+      await engageFLI(subjectScenario.checkpoints[0].exchangeName);
     });
 
     async function subject(): Promise<any> {
@@ -443,7 +471,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     it("validate state", async () => {
       const [preRebalanceLeverageRatios, postRebalanceLeverageRatios] = await subject();
 
-      const lastTradeTimestamp = await flexibleLeverageStrategyAdapter.lastTradeTimestamp();
+      const lastTradeTimestamp = await flexibleLeverageStrategyAdapter.globalLastTradeTimestamp();
 
       expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
       expect(postRebalanceLeverageRatios[0]).to.lt(preRebalanceLeverageRatios[0]);
@@ -464,7 +492,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       await issueFLITokens(subjectScenario.collateralCToken, ether(10));
 
-      await engageFLI();
+      await engageFLI(subjectScenario.checkpoints[0].exchangeName);
     });
 
     async function subject(): Promise<any> {
@@ -474,7 +502,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     it("validate state", async () => {
       const [preRebalanceLeverageRatios, postRebalanceLeverageRatios] = await subject();
 
-      const lastTradeTimestamp = await flexibleLeverageStrategyAdapter.lastTradeTimestamp();
+      const lastTradeTimestamp = await flexibleLeverageStrategyAdapter.globalLastTradeTimestamp();
 
       expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
       expect(postRebalanceLeverageRatios[0]).to.gt(preRebalanceLeverageRatios[0]);
@@ -554,15 +582,10 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     };
     execution = {
       unutilizedLeveragePercentage: unutilizedLeveragePercentage,
-      twapMaxTradeSize: fliSettings.twapMaxTradeSize,
       twapCooldownPeriod: twapCooldownPeriod,
       slippageTolerance: slippageTolerance,
-      exchangeName: "UniswapTradeAdapter",
-      leverExchangeData: fliSettings.leverExchangeData,
-      deleverExchangeData: fliSettings.deleverExchangeData,
     };
     incentive = {
-      incentivizedTwapMaxTradeSize: fliSettings.incentivizedTwapMaxTradeSize,
       incentivizedTwapCooldownPeriod: incentivizedTwapCooldownPeriod,
       incentivizedSlippageTolerance: incentivizedSlippageTolerance,
       etherReward: etherReward,
@@ -574,9 +597,15 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       strategy,
       methodology,
       execution,
-      incentive
+      incentive,
+      fliSettings.exchangeNames[0],
+      fliSettings.exchanges[0]
     );
     await flexibleLeverageStrategyAdapter.updateCallerStatus([owner.address], [true]);
+
+    for (let i = 1; i < fliSettings.exchangeNames.length; i++) {
+      await flexibleLeverageStrategyAdapter.addEnabledExchange(fliSettings.exchangeNames[i], fliSettings.exchanges[i]);
+    }
 
     // Add adapter
     await baseManager.connect(owner.wallet).addAdapter(flexibleLeverageStrategyAdapter.address);
@@ -597,18 +626,18 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     }
   }
 
-  async function engageFLI(): Promise<void> {
+  async function engageFLI(exchangeName: string): Promise<void> {
     console.log("Engaging FLI...");
-    await flexibleLeverageStrategyAdapter.engage();
+    await flexibleLeverageStrategyAdapter.engage(exchangeName);
     await increaseTimeAsync(twapCooldownPeriod);
-    await flexibleLeverageStrategyAdapter.iterateRebalance();
+    await flexibleLeverageStrategyAdapter.iterateRebalance(exchangeName);
   }
 
   async function runScenarios(fliSettings: FLISettings, isMultihop: boolean): Promise<[BigNumber[], BigNumber[]]> {
     console.log(`Running Scenarios ${fliSettings.name}`);
     await increaseTimeAsync(rebalanceInterval);
 
-    await flexibleLeverageStrategyAdapter.rebalance();
+    await flexibleLeverageStrategyAdapter.rebalance(fliSettings.checkpoints[0].exchangeName);
 
     const preRebalanceLeverageRatios = [];
     const postRebalanceLeverageRatios = [];
@@ -624,13 +653,16 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       await increaseTimeAsync(fliSettings.checkpoints[i].elapsedTime);
 
-      const rebalanceType = await flexibleLeverageStrategyAdapter.shouldRebalance();
+      const rebalanceInfo = await flexibleLeverageStrategyAdapter.shouldRebalance();
 
       const preRebalanceLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
       preRebalanceLeverageRatios.push(preRebalanceLeverageRatio);
       console.log("Pre-Rebalance Leverage Ratio:", preRebalanceLeverageRatio.toString());
+
+      const rebalanceInfoIndex = rebalanceInfo[0].indexOf(fliSettings.checkpoints[i].exchangeName);
+      const rebalanceType = rebalanceInfo[1][rebalanceInfoIndex];
       if (rebalanceType != 0) {
-        await executeTrade(rebalanceType);
+        await executeTrade(rebalanceType, fliSettings.checkpoints[i].exchangeName);
       }
       console.log("RebalanceType:", rebalanceType);
       const postRebalanceLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
@@ -702,18 +734,18 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     }
   }
 
-  async function executeTrade(shouldRebalance: number): Promise<void> {
+  async function executeTrade(shouldRebalance: number, exchangeName: string): Promise<void> {
     switch (shouldRebalance) {
       case 1: {
-        await flexibleLeverageStrategyAdapter.rebalance();
+        await flexibleLeverageStrategyAdapter.rebalance(exchangeName);
         break;
       }
       case 2: {
-        await flexibleLeverageStrategyAdapter.iterateRebalance();
+        await flexibleLeverageStrategyAdapter.iterateRebalance(exchangeName);
         break;
     }
       case 3: {
-        await flexibleLeverageStrategyAdapter.ripcord();
+        await flexibleLeverageStrategyAdapter.ripcord(exchangeName);
         break;
       }
     }
