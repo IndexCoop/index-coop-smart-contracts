@@ -3385,6 +3385,264 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     });
   });
 
+  describe("#addEnabledExchange", async () => {
+    let subjectExchangeName: string;
+    let subjectExchangeSettings: ExchangeSettings;
+    let subjectCaller: Account;
+
+    const initializeSubjectVariables = () => {
+      subjectExchangeName = "NewExchange";
+      subjectExchangeSettings = {
+        twapMaxTradeSize: ether(100),
+        incentivizedTwapMaxTradeSize: ether(200),
+        exchangeLastTradeTimestamp: BigNumber.from(0),
+        leverExchangeData: EMPTY_BYTES,
+        deleverExchangeData: EMPTY_BYTES,
+      };
+      subjectCaller = owner;
+    };
+
+    async function subject(): Promise<any> {
+      flexibleLeverageStrategyAdapter = flexibleLeverageStrategyAdapter.connect(subjectCaller.wallet);
+      return flexibleLeverageStrategyAdapter.addEnabledExchange(subjectExchangeName, subjectExchangeSettings);
+    }
+
+    describe("when rebalance is not in progress", () => {
+      cacheBeforeEach(initializeRootScopeContracts);
+      beforeEach(initializeSubjectVariables);
+      it("should set the correct exchange parameters", async () => {
+        await subject();
+        const exchange = await flexibleLeverageStrategyAdapter.getExchangeSettings(subjectExchangeName);
+
+        expect(exchange.twapMaxTradeSize).to.eq(subjectExchangeSettings.twapMaxTradeSize);
+        expect(exchange.incentivizedTwapMaxTradeSize).to.eq(subjectExchangeSettings.incentivizedTwapMaxTradeSize);
+        expect(exchange.exchangeLastTradeTimestamp).to.eq(subjectExchangeSettings.exchangeLastTradeTimestamp);
+        expect(exchange.leverExchangeData).to.eq(subjectExchangeSettings.leverExchangeData);
+        expect(exchange.deleverExchangeData).to.eq(subjectExchangeSettings.deleverExchangeData);
+      });
+
+      it("should add exchange to enabledExchanges", async () => {
+        await subject();
+        const finalExchanges = await flexibleLeverageStrategyAdapter.getEnabledExchanges();
+
+        expect(finalExchanges.length).to.eq(2);
+        expect(finalExchanges[1]).to.eq(subjectExchangeName);
+      });
+
+      describe("when the caller is not the operator", async () => {
+        beforeEach(async () => {
+          subjectCaller = await getRandomAccount();
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be operator");
+        });
+      });
+
+      describe("when exchange has already been added", async () => {
+        beforeEach(() => {
+          subjectExchangeName = exchangeName;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Exchange already enabled");
+        });
+      });
+    });
+
+    describe("when rebalance is in progress", async () => {
+      beforeEach(async () => {
+        await initializeRootScopeContracts();
+        initializeSubjectVariables();
+
+        // Approve tokens to issuance module and call issue
+        await cEther.approve(setV2Setup.issuanceModule.address, ether(1000));
+
+        // Issue 1 SetToken
+        const issueQuantity = ether(1);
+        await setV2Setup.issuanceModule.issue(setToken.address, issueQuantity, owner.address);
+
+        await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+
+        // Engage to initial leverage
+        await flexibleLeverageStrategyAdapter.engage(exchangeName);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Rebalance is currently in progress");
+      });
+    });
+  });
+
+  describe("#updateEnabledExchange", async () => {
+    let subjectExchangeName: string;
+    let subjectNewExchangeSettings: ExchangeSettings;
+    let subjectCaller: Account;
+
+    const initializeSubjectVariables = () => {
+      subjectExchangeName = exchangeName;
+      subjectNewExchangeSettings = {
+        twapMaxTradeSize: ether(101),
+        incentivizedTwapMaxTradeSize: ether(201),
+        exchangeLastTradeTimestamp: BigNumber.from(1),
+        leverExchangeData: EMPTY_BYTES,
+        deleverExchangeData: EMPTY_BYTES,
+      };
+      subjectCaller = owner;
+    };
+
+    async function subject(): Promise<any> {
+      flexibleLeverageStrategyAdapter = flexibleLeverageStrategyAdapter.connect(subjectCaller.wallet);
+      return flexibleLeverageStrategyAdapter.updateEnabledExchange(subjectExchangeName, subjectNewExchangeSettings);
+    }
+
+    describe("when rebalance is not in progress", () => {
+      cacheBeforeEach(initializeRootScopeContracts);
+      beforeEach(initializeSubjectVariables);
+      it("should set the correct exchange parameters", async () => {
+        await subject();
+        const exchange = await flexibleLeverageStrategyAdapter.getExchangeSettings(subjectExchangeName);
+
+        expect(exchange.twapMaxTradeSize).to.eq(subjectNewExchangeSettings.twapMaxTradeSize);
+        expect(exchange.incentivizedTwapMaxTradeSize).to.eq(subjectNewExchangeSettings.incentivizedTwapMaxTradeSize);
+        expect(exchange.exchangeLastTradeTimestamp).to.eq(subjectNewExchangeSettings.exchangeLastTradeTimestamp);
+        expect(exchange.leverExchangeData).to.eq(subjectNewExchangeSettings.leverExchangeData);
+        expect(exchange.deleverExchangeData).to.eq(subjectNewExchangeSettings.deleverExchangeData);
+      });
+
+      it("should not add duplicate entry to enabledExchanges", async () => {
+        await subject();
+        const finalExchanges = await flexibleLeverageStrategyAdapter.getEnabledExchanges();
+
+        expect(finalExchanges.length).to.eq(1);
+        expect(finalExchanges[0]).to.eq(subjectExchangeName);
+      });
+
+      describe("when the caller is not the operator", async () => {
+        beforeEach(async () => {
+          subjectCaller = await getRandomAccount();
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be operator");
+        });
+      });
+
+      describe("when exchange has not already been added", async () => {
+        beforeEach(() => {
+          subjectExchangeName = "NewExchange";
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Exchange not enabled");
+        });
+      });
+    });
+
+    describe("when rebalance is in progress", async () => {
+      beforeEach(async () => {
+        await initializeRootScopeContracts();
+        initializeSubjectVariables();
+
+        // Approve tokens to issuance module and call issue
+        await cEther.approve(setV2Setup.issuanceModule.address, ether(1000));
+
+        // Issue 1 SetToken
+        const issueQuantity = ether(1);
+        await setV2Setup.issuanceModule.issue(setToken.address, issueQuantity, owner.address);
+
+        await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+
+        // Engage to initial leverage
+        await flexibleLeverageStrategyAdapter.engage(exchangeName);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Rebalance is currently in progress");
+      });
+    });
+  });
+
+  describe("#removeEnabledExchange", async () => {
+    let subjectExchangeName: string;
+    let subjectCaller: Account;
+
+    const initializeSubjectVariables = () => {
+      subjectExchangeName = exchangeName;
+      subjectCaller = owner;
+    };
+
+    async function subject(): Promise<any> {
+      flexibleLeverageStrategyAdapter = flexibleLeverageStrategyAdapter.connect(subjectCaller.wallet);
+      return flexibleLeverageStrategyAdapter.removeEnabledExchange(subjectExchangeName);
+    }
+
+    describe("when rebalance is not in progress", () => {
+      cacheBeforeEach(initializeRootScopeContracts);
+      beforeEach(initializeSubjectVariables);
+      it("should set the exchange parameters to their default values", async () => {
+        await subject();
+        const exchange = await flexibleLeverageStrategyAdapter.getExchangeSettings(subjectExchangeName);
+
+        expect(exchange.twapMaxTradeSize).to.eq(0);
+        expect(exchange.incentivizedTwapMaxTradeSize).to.eq(0);
+        expect(exchange.exchangeLastTradeTimestamp).to.eq(0);
+        expect(exchange.leverExchangeData).to.eq(EMPTY_BYTES);
+        expect(exchange.deleverExchangeData).to.eq(EMPTY_BYTES);
+      });
+
+      it("should remove entry from enabledExchanges list", async () => {
+        await subject();
+        const finalExchanges = await flexibleLeverageStrategyAdapter.getEnabledExchanges();
+
+        expect(finalExchanges.length).to.eq(0);
+      });
+
+      describe("when the caller is not the operator", async () => {
+        beforeEach(async () => {
+          subjectCaller = await getRandomAccount();
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be operator");
+        });
+      });
+
+      describe("when exchange has not already been added", async () => {
+        beforeEach(() => {
+          subjectExchangeName = "NewExchange";
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Exchange not enabled");
+        });
+      });
+    });
+
+    describe("when rebalance is in progress", async () => {
+      beforeEach(async () => {
+        await initializeRootScopeContracts();
+        initializeSubjectVariables();
+
+        // Approve tokens to issuance module and call issue
+        await cEther.approve(setV2Setup.issuanceModule.address, ether(1000));
+
+        // Issue 1 SetToken
+        const issueQuantity = ether(1);
+        await setV2Setup.issuanceModule.issue(setToken.address, issueQuantity, owner.address);
+
+        await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+
+        // Engage to initial leverage
+        await flexibleLeverageStrategyAdapter.engage(exchangeName);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Rebalance is currently in progress");
+      });
+    });
+  });
+
   describe("#withdrawEtherBalance", async () => {
     let etherReward: BigNumber;
     let subjectCaller: Account;

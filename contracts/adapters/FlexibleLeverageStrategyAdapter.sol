@@ -461,23 +461,43 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         );
     }
 
-    function addEnabledExchange(string memory _exchangeName, ExchangeSettings memory _newExchangeSettings) external onlyOperator {
+    function addEnabledExchange(
+        string memory _exchangeName,
+        ExchangeSettings memory _newExchangeSettings
+    )
+        external 
+        onlyOperator 
+        noRebalanceInProgress
+    {
+        require(exchangeSettings[_exchangeName].twapMaxTradeSize == 0, "Exchange already enabled");
+        
         exchangeSettings[_exchangeName] = _newExchangeSettings;
         enabledExchanges.push(_exchangeName);
     }
 
-    function removeEnabledExchange(string memory _exchangeName) external onlyOperator {
+    function removeEnabledExchange(string memory _exchangeName) external onlyOperator noRebalanceInProgress {
         delete exchangeSettings[_exchangeName];
         
         for(uint256 i = 0; i < enabledExchanges.length; i++) {
             if(keccak256(bytes(enabledExchanges[i])) == keccak256(bytes(_exchangeName))) {
                 enabledExchanges[i] = enabledExchanges[enabledExchanges.length.sub(1)];
                 enabledExchanges.pop();
+                return;
             }
         }
+        revert("Exchange not enabled");
     }
 
-    function updateEnabledExchange(string memory _exchangeName, ExchangeSettings memory _newExchangeSettings) external onlyOperator {
+    function updateEnabledExchange(
+        string memory _exchangeName,
+        ExchangeSettings memory _newExchangeSettings
+    )
+        external
+        onlyOperator
+        noRebalanceInProgress
+    {
+        require(exchangeSettings[_exchangeName].twapMaxTradeSize != 0, "Exchange not enabled");
+
         exchangeSettings[_exchangeName] = _newExchangeSettings;
     }
     
@@ -563,6 +583,10 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
     function getExchangeSettings(string memory _exchangeName) external view returns (ExchangeSettings memory) {
         return exchangeSettings[_exchangeName];
+    }
+
+    function getEnabledExchanges() external view returns (string[] memory) {
+        return enabledExchanges;
     }
 
     /**
