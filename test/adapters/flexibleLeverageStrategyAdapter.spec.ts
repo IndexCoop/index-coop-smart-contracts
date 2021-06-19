@@ -35,6 +35,7 @@ import {
   calculateMaxRedeemForDeleverToZero
 } from "@utils/index";
 import { SetFixture, CompoundFixture } from "@utils/fixtures";
+import { calculateTotalRebalanceNotional } from "@utils/flexibleLeverageUtils/flexibleLeverage";
 
 const expect = getWaffleExpect();
 const provider = ethers.provider;
@@ -4193,6 +4194,180 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("Custom bounds must be valid");
+        });
+      });
+    });
+  });
+
+  describe("#getTotalRebalanceNotional", async () => {
+    cacheBeforeEach(async () => {
+      await initializeRootScopeContracts();
+
+      // Approve tokens to issuance module and call issue
+      await cEther.approve(setV2Setup.issuanceModule.address, ether(1000));
+
+      // Issue 1 SetToken
+      const issueQuantity = ether(1);
+      await setV2Setup.issuanceModule.issue(setToken.address, issueQuantity, owner.address);
+
+      await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+
+      // Add allowed trader
+      await flexibleLeverageStrategyAdapter.updateCallerStatus([owner.address], [true]);
+
+      // Engage to initial leverage
+      await flexibleLeverageStrategyAdapter.engage(exchangeName);
+      await increaseTimeAsync(BigNumber.from(100000));
+      await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+
+      await flexibleLeverageStrategyAdapter.iterateRebalance(exchangeName);
+    });
+
+    async function subject(): Promise<BigNumber> {
+      return await flexibleLeverageStrategyAdapter.getTotalRebalanceNotional();
+    }
+
+    context("when in the midst of a TWAP rebalance", async () => {
+      beforeEach(async () => {
+        // Withdraw balance of USDC from exchange contract from engage
+        await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
+
+        // > Max trade size
+        const newExchangeSettings: ExchangeSettings = {
+          twapMaxTradeSize: ether(0.001),
+          incentivizedTwapMaxTradeSize: exchangeSettings.incentivizedTwapMaxTradeSize,
+          exchangeLastTradeTimestamp: exchangeSettings.exchangeLastTradeTimestamp,
+          leverExchangeData: EMPTY_BYTES,
+          deleverExchangeData: EMPTY_BYTES,
+        };
+        await flexibleLeverageStrategyAdapter.updateEnabledExchange(exchangeName, newExchangeSettings);
+
+        // Set up new rebalance TWAP
+        await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
+        await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
+        await increaseTimeAsync(BigNumber.from(100000));
+        await flexibleLeverageStrategyAdapter.rebalance(exchangeName);
+      });
+
+      describe("when above incentivized leverage ratio", async () => {
+        beforeEach(async () => {
+          // Set to above incentivized ratio
+          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+          await increaseTimeAsync(BigNumber.from(100));
+        });
+
+        it("should return correct total rebalance size", async () => {
+          const totalRebalance = await subject();
+
+          const newLeverageRatio = methodology.maxLeverageRatio;
+          const currentLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
+          const expectedTotalRebalance = await calculateTotalRebalanceNotional(setToken, cEther, currentLeverageRatio, newLeverageRatio);
+
+          expect(totalRebalance).to.eq(expectedTotalRebalance);
+        });
+      });
+
+      describe("when below incentivized leverage ratio", async () => {
+        beforeEach(async () => {
+          // Set to below incentivized ratio
+          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(900).mul(10 ** 8));
+          await increaseTimeAsync(BigNumber.from(4000));
+        });
+
+        it("should return correct total rebalance size", async () => {
+          const totalRebalance = await subject();
+
+          const newLeverageRatio = await flexibleLeverageStrategyAdapter.twapLeverageRatio();
+          const currentLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
+          const expectedTotalRebalance = await calculateTotalRebalanceNotional(setToken, cEther, currentLeverageRatio, newLeverageRatio);
+
+          expect(totalRebalance).to.eq(expectedTotalRebalance);
+        });
+      });
+    });
+
+    context("when not in a TWAP rebalance", async () => {
+      describe("when above incentivized leverage ratio", async () => {
+        beforeEach(async () => {
+          // Set to above incentivized ratio
+          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+          await increaseTimeAsync(BigNumber.from(100));
+        });
+
+        it("should return correct total rebalance size", async () => {
+          const totalRebalance = await subject();
+
+          const newLeverageRatio = methodology.maxLeverageRatio;
+          const currentLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
+          const expectedTotalRebalance = await calculateTotalRebalanceNotional(setToken, cEther, currentLeverageRatio, newLeverageRatio);
+
+          expect(totalRebalance).to.eq(expectedTotalRebalance);
+        });
+      });
+
+      describe("when between max and min leverage ratio", async () => {
+        beforeEach(async () => {
+          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
+        });
+
+        it("should return correct total rebalance size", async () => {
+          const totalRebalance = await subject();
+
+          const currentLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
+          const newLeverageRatio = calculateNewLeverageRatio(
+            currentLeverageRatio,
+            methodology.targetLeverageRatio,
+            methodology.minLeverageRatio,
+            methodology.maxLeverageRatio,
+            methodology.recenteringSpeed
+          );
+          const expectedTotalRebalance = await calculateTotalRebalanceNotional(setToken, cEther, currentLeverageRatio, newLeverageRatio);
+
+          expect(totalRebalance).to.eq(expectedTotalRebalance);
+        });
+      });
+
+      describe("when above max leverage ratio but below incentivized leverage ratio", async () => {
+        beforeEach(async () => {
+          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(850).mul(10 ** 8));
+        });
+
+        it("should return correct total rebalance size", async () => {
+          const totalRebalance = await subject();
+
+          const currentLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
+          const newLeverageRatio = calculateNewLeverageRatio(
+            currentLeverageRatio,
+            methodology.targetLeverageRatio,
+            methodology.minLeverageRatio,
+            methodology.maxLeverageRatio,
+            methodology.recenteringSpeed
+          );
+          const expectedTotalRebalance = await calculateTotalRebalanceNotional(setToken, cEther, currentLeverageRatio, newLeverageRatio);
+
+          expect(totalRebalance).to.eq(expectedTotalRebalance);
+        });
+      });
+
+      describe("when below min leverage ratio", async () => {
+        beforeEach(async () => {
+          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1400).mul(10 ** 8));
+        });
+
+        it("should return correct total rebalance size", async () => {
+          const totalRebalance = await subject();
+
+          const currentLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
+          const newLeverageRatio = calculateNewLeverageRatio(
+            currentLeverageRatio,
+            methodology.targetLeverageRatio,
+            methodology.minLeverageRatio,
+            methodology.maxLeverageRatio,
+            methodology.recenteringSpeed
+          );
+          const expectedTotalRebalance = await calculateTotalRebalanceNotional(setToken, cEther, currentLeverageRatio, newLeverageRatio);
+
+          expect(totalRebalance).to.eq(expectedTotalRebalance);
         });
       });
     });

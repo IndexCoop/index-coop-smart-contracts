@@ -524,6 +524,31 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         return _calculateCurrentLeverageRatio(currentLeverageInfo.collateralValue, currentLeverageInfo.borrowValue);
     }
 
+    function getTotalRebalanceNotional()  external view returns(uint256) {
+
+        uint256 newLeverageRatio;
+        uint256 currentLeverageRatio = getCurrentLeverageRatio();
+
+        if (currentLeverageRatio > incentive.incentivizedLeverageRatio) {
+            newLeverageRatio = methodology.maxLeverageRatio;
+        } else if (twapLeverageRatio > 0) {
+            if (_isAdvantageousTWAP(currentLeverageRatio)) {
+                return 0;
+            }
+            newLeverageRatio = twapLeverageRatio;
+        } else {
+            newLeverageRatio = _calculateNewLeverageRatio(currentLeverageRatio);
+        }
+
+        bool isLever = newLeverageRatio > currentLeverageRatio;
+        ActionInfo memory actionInfo = _createActionInfo();
+
+        uint256 leverageRatioDifference = isLever ? newLeverageRatio.sub(currentLeverageRatio) : currentLeverageRatio.sub(newLeverageRatio);
+        uint256 totalRebalanceNotional = leverageRatioDifference.preciseDiv(currentLeverageRatio).preciseMul(actionInfo.collateralBalance);
+
+        return totalRebalanceNotional;
+    }
+
     /**
      * Get current Ether incentive for when current leverage ratio exceeds incentivized leverage ratio and ripcord can be called. If ETH balance on the contract is 
      * below the etherReward, then return the balance of ETH instead.
