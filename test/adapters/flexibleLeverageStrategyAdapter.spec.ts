@@ -3440,6 +3440,17 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         expect(finalExchanges[1]).to.eq(subjectExchangeName);
       });
 
+      it("should emit an ExchangeAdded event", async () => {
+        await expect(subject()).to.emit(flexibleLeverageStrategyAdapter, "ExchangeAdded").withArgs(
+          subjectExchangeName,
+          subjectExchangeSettings.twapMaxTradeSize,
+          subjectExchangeSettings.exchangeLastTradeTimestamp,
+          subjectExchangeSettings.incentivizedTwapMaxTradeSize,
+          subjectExchangeSettings.leverExchangeData,
+          subjectExchangeSettings.deleverExchangeData
+        );
+      });
+
       describe("when the caller is not the operator", async () => {
         beforeEach(async () => {
           subjectCaller = await getRandomAccount();
@@ -3549,6 +3560,17 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         expect(finalExchanges[0]).to.eq(subjectExchangeName);
       });
 
+      it("should emit an ExchangeUpdated event", async () => {
+        await expect(subject()).to.emit(flexibleLeverageStrategyAdapter, "ExchangeUpdated").withArgs(
+          subjectExchangeName,
+          subjectNewExchangeSettings.twapMaxTradeSize,
+          subjectNewExchangeSettings.exchangeLastTradeTimestamp,
+          subjectNewExchangeSettings.incentivizedTwapMaxTradeSize,
+          subjectNewExchangeSettings.leverExchangeData,
+          subjectNewExchangeSettings.deleverExchangeData
+        );
+      });
+
       describe("when the caller is not the operator", async () => {
         beforeEach(async () => {
           subjectCaller = await getRandomAccount();
@@ -3647,6 +3669,12 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         const finalExchanges = await flexibleLeverageStrategyAdapter.getEnabledExchanges();
 
         expect(finalExchanges.length).to.eq(0);
+      });
+
+      it("should emit an ExchangeRemoved event", async () => {
+        await expect(subject()).to.emit(flexibleLeverageStrategyAdapter, "ExchangeRemoved").withArgs(
+          subjectExchangeName,
+        );
       });
 
       describe("when the caller is not the operator", async () => {

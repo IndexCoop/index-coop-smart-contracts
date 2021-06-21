@@ -172,6 +172,25 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         uint256 _incentivizedSlippageTolerance,
         uint256 _incentivizedTwapCooldownPeriod
     );
+    event ExchangeUpdated(
+        string _exchangeName,
+        uint256 twapMaxTradeSize,
+        uint256 exchangeLastTradeTimestamp,
+        uint256 incentivizedTwapMaxTradeSize,
+        bytes leverExchangeData,
+        bytes deleverExchangeData
+    );
+    event ExchangeAdded(
+        string _exchangeName,
+        uint256 twapMaxTradeSize,
+        uint256 exchangeLastTradeTimestamp,
+        uint256 incentivizedTwapMaxTradeSize,
+        bytes leverExchangeData,
+        bytes deleverExchangeData
+    );
+    event ExchangeRemoved(
+        string _exchangeName
+    );
 
     /* ============ Modifiers ============ */
 
@@ -501,6 +520,15 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         
         exchangeSettings[_exchangeName] = _exchangeSettings;
         enabledExchanges.push(_exchangeName);
+
+        emit ExchangeAdded(
+            _exchangeName,
+            _exchangeSettings.twapMaxTradeSize,
+            _exchangeSettings.exchangeLastTradeTimestamp,
+            _exchangeSettings.incentivizedTwapMaxTradeSize,
+            _exchangeSettings.leverExchangeData,
+            _exchangeSettings.deleverExchangeData
+        );
     }
 
     /**
@@ -513,6 +541,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
         delete exchangeSettings[_exchangeName];
         enabledExchanges.removeStorage(_exchangeName);
+
+        emit ExchangeRemoved(_exchangeName);
     }
 
     /**
@@ -534,6 +564,15 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         _validateExchangeSettings(_exchangeSettings);
 
         exchangeSettings[_exchangeName] = _exchangeSettings;
+
+        emit ExchangeUpdated(
+            _exchangeName,
+            _exchangeSettings.twapMaxTradeSize,
+            _exchangeSettings.exchangeLastTradeTimestamp,
+            _exchangeSettings.incentivizedTwapMaxTradeSize,
+            _exchangeSettings.leverExchangeData,
+            _exchangeSettings.deleverExchangeData
+        );
     }
     
     /**
