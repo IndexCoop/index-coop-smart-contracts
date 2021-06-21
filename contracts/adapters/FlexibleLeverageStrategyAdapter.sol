@@ -599,7 +599,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     /**
-     * Calculates the total notional rebalance size.
+     * Calculates the total notional rebalance size. Note: this function does not take into account timestamps, so it may return a nonzero value
+     * even when shouldRebalance would return ShouldRebalance.NONE for all exchanges (since minimum delays have not elapsed)
      *
      * @return uint256      total notional rebalance size
      */
@@ -608,21 +609,27 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         uint256 newLeverageRatio;
         uint256 currentLeverageRatio = getCurrentLeverageRatio();
 
+        // if over incentivized leverage ratio, always ripcord
         if (currentLeverageRatio > incentive.incentivizedLeverageRatio) {
             newLeverageRatio = methodology.maxLeverageRatio;
+        // if we are in an ongoing twap, use the cached twapLeverageRatio as our target leverage
         } else if (twapLeverageRatio > 0) {
+            // unless we are in an advantageous twap, it which case we do not have to rebalance
             if (_isAdvantageousTWAP(currentLeverageRatio)) {
                 return 0;
             }
             newLeverageRatio = twapLeverageRatio;
+        // if all else is false, then we would just use the normal rebalance new leverage ratio calculation
         } else {
             newLeverageRatio = _calculateNewLeverageRatio(currentLeverageRatio);
         }
 
-        bool isLever = newLeverageRatio > currentLeverageRatio;
         ActionInfo memory actionInfo = _createActionInfo();
 
-        uint256 leverageRatioDifference = isLever ? newLeverageRatio.sub(currentLeverageRatio) : currentLeverageRatio.sub(newLeverageRatio);
+        uint256 leverageRatioDifference = newLeverageRatio > currentLeverageRatio ? 
+            newLeverageRatio.sub(currentLeverageRatio) : 
+            currentLeverageRatio.sub(newLeverageRatio);
+
         uint256 totalRebalanceNotional = leverageRatioDifference.preciseDiv(currentLeverageRatio).preciseMul(actionInfo.collateralBalance);
 
         return totalRebalanceNotional;
@@ -924,7 +931,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     /**
-     * Validate an ExchangeSettings struct when adding or updating an exchange
+     * Validate an ExchangeSettings struct when adding or updating an exchange. Does not validate that twapMaxTradeSize < incentivizedMaxTradeSize since
+     * it may be useful to disable exchanges for ripcord by setting incentivizedMaxTradeSize to 0.
      */
      function _validateExchangeSettings(ExchangeSettings memory _settings) internal view {
          require(_settings.exchangeLastTradeTimestamp == 0, "Last trade timestamp must be 0");
