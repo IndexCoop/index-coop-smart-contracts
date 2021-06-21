@@ -297,6 +297,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             _exchangeName
         );
 
+        // use globalLastTradeTimestamps to prevent multiple rebalances being called with different exchanges during the daily rebalance
         _validateNormalRebalance(leverageInfo, methodology.rebalanceInterval, globalLastTradeTimestamp);
         _validateNonTWAP();
 
@@ -330,6 +331,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             _exchangeName
         );
 
+        // Use the exchangeLastTradeTimestamp so it can iterateRebalance quickly with multiple exchanges
         _validateNormalRebalance(leverageInfo, execution.twapCooldownPeriod, exchangeSettings[_exchangeName].exchangeLastTradeTimestamp);
         _validateTWAP();
 
@@ -366,6 +368,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             _exchangeName
         );
 
+        // Use the exchangeLastTradeTimestamp so it can ripcord quickly with multiple exchanges
         _validateRipcord(leverageInfo, exchangeSettings[_exchangeName].exchangeLastTradeTimestamp);
 
         ( uint256 chunkRebalanceNotional, ) = _calculateChunkRebalanceNotional(leverageInfo, methodology.maxLeverageRatio, false);
@@ -1078,9 +1081,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     )
         internal
     {
-        globalLastTradeTimestamp = block.timestamp;
-        
-        exchangeSettings[_exchangeName].exchangeLastTradeTimestamp = block.timestamp;
+
+        _updateLastTradeTimestamp(_exchangeName);
 
         if (_chunkRebalanceNotional < _totalRebalanceNotional) {
             twapLeverageRatio = _newLeverageRatio;
@@ -1092,9 +1094,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * in iterateRebalance()
      */
     function _updateIterateState(uint256 _chunkRebalanceNotional, uint256 _totalRebalanceNotional, string memory _exchangeName) internal {
-        globalLastTradeTimestamp = block.timestamp;
-        
-        exchangeSettings[_exchangeName].exchangeLastTradeTimestamp = block.timestamp;
+
+        _updateLastTradeTimestamp(_exchangeName);
 
         // If the chunk size is equal to the total notional meaning that rebalances are not chunked, then clear TWAP state.
         if (_chunkRebalanceNotional == _totalRebalanceNotional) {
@@ -1106,9 +1107,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * Update last trade timestamp and if currently in a TWAP, delete the TWAP state. Used in the ripcord() function.
      */
     function _updateRipcordState(string memory _exchangeName) internal {
-        globalLastTradeTimestamp = block.timestamp;
 
-        exchangeSettings[_exchangeName].exchangeLastTradeTimestamp = block.timestamp;
+        _updateLastTradeTimestamp(_exchangeName);
 
         // If TWAP leverage ratio is stored, then clear state. This may happen if we are currently in a TWAP rebalance, and the leverage ratio moves above the
         // incentivized threshold for ripcord.
@@ -1116,6 +1116,14 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             delete twapLeverageRatio;
         }
     }
+
+    /**
+     * Update globalLastTradeTimestamp and exchangeLastTradeTimestamp values
+     */
+     function _updateLastTradeTimestamp(string memory _exchangeName) internal {
+        globalLastTradeTimestamp = block.timestamp;
+        exchangeSettings[_exchangeName].exchangeLastTradeTimestamp = block.timestamp;
+     }
 
     /**
      * Transfer ETH reward to caller of the ripcord function. If the ETH balance on this contract is less than required 
