@@ -537,7 +537,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * @param _exchangeName     Name of exchange to remove
      */
     function removeEnabledExchange(string memory _exchangeName) external onlyOperator noRebalanceInProgress {
-        require(enabledExchanges.contains(_exchangeName), "Exchange not enabled");
+        require(exchangeSettings[_exchangeName].twapMaxTradeSize != 0, "Exchange not enabled");
 
         delete exchangeSettings[_exchangeName];
         enabledExchanges.removeStorage(_exchangeName);
