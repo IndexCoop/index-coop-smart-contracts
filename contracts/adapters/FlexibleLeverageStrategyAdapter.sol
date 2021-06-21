@@ -934,7 +934,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * Validate an ExchangeSettings struct when adding or updating an exchange. Does not validate that twapMaxTradeSize < incentivizedMaxTradeSize since
      * it may be useful to disable exchanges for ripcord by setting incentivizedMaxTradeSize to 0.
      */
-     function _validateExchangeSettings(ExchangeSettings memory _settings) internal view {
+     function _validateExchangeSettings(ExchangeSettings memory _settings) internal pure {
          require(_settings.exchangeLastTradeTimestamp == 0, "Last trade timestamp must be 0");
          require(_settings.twapMaxTradeSize != 0, "Max TWAP trade size must not be 0");
      }
