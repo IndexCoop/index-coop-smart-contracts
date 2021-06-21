@@ -19,3 +19,4 @@ export { Vesting } from "../../typechain/Vesting";
 export { WETH9 } from "../../typechain/WETH9";
 export { ChainlinkAggregatorV3Mock } from "../../typechain/ChainlinkAggregatorV3Mock";
 export { MasterChefMock } from "../../typechain/MasterChefMock";
+export { StringArrayUtilsMock } from "../../typechain/StringArrayUtilsMock";

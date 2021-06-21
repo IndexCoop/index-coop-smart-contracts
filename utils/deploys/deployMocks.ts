@@ -1,6 +1,6 @@
 import { Signer, BigNumber } from "ethers";
 import { Address } from "../types";
-import { BaseAdapterMock, MutualUpgradeMock, StandardTokenMock, TradeAdapterMock } from "../contracts/index";
+import { BaseAdapterMock, MutualUpgradeMock, StandardTokenMock, TradeAdapterMock, StringArrayUtilsMock } from "../contracts/index";
 
 import { MutualUpgradeMock__factory } from "../../typechain/factories/MutualUpgradeMock__factory";
 import { BaseAdapterMock__factory } from "../../typechain/factories/BaseAdapterMock__factory";
@@ -8,6 +8,7 @@ import { TradeAdapterMock__factory } from "../../typechain/factories/TradeAdapte
 import { StandardTokenMock__factory  } from "../../typechain/factories/StandardTokenMock__factory";
 import { ChainlinkAggregatorV3Mock__factory  } from "../../typechain/factories/ChainlinkAggregatorV3Mock__factory";
 import { MasterChefMock__factory } from "../../typechain/factories/MasterChefMock__factory";
+import { StringArrayUtilsMock__factory } from "../../typechain/factories/StringArrayUtilsMock__factory";
 
 export default class DeployMocks {
   private _deployerSigner: Signer;
@@ -38,5 +39,9 @@ export default class DeployMocks {
 
   public async deployMasterChefMock() {
     return await new MasterChefMock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployStringArrayUtilsMock(): Promise<StringArrayUtilsMock> {
+    return await new StringArrayUtilsMock__factory(this._deployerSigner).deploy();
   }
 }
