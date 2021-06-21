@@ -680,14 +680,10 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       methodology,
       execution,
       incentive,
-      fliSettings.exchangeNames[0],
-      fliSettings.exchanges[0]
+      fliSettings.exchangeNames,
+      fliSettings.exchanges
     );
     await flexibleLeverageStrategyAdapter.updateCallerStatus([owner.address], [true]);
-
-    for (let i = 1; i < fliSettings.exchangeNames.length; i++) {
-      await flexibleLeverageStrategyAdapter.addEnabledExchange(fliSettings.exchangeNames[i], fliSettings.exchanges[i]);
-    }
 
     // Add adapter
     await baseManager.connect(owner.wallet).addAdapter(flexibleLeverageStrategyAdapter.address);
