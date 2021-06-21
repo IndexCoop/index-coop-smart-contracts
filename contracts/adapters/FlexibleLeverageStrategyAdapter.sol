@@ -202,8 +202,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * @param _methodology              Struct containing methodology parameters
      * @param _execution                Struct containing execution parameters
      * @param _incentive                Struct containing incentive parameters for ripcord
-     * @param _inititalExchageName      Name of initial exchange
-     * @param _initialExchangeSettings  Struct containing exchange parameters for the initial exchange
+     * @param _exchangeNames            List of initial exchange names
+     * @param _exchangeSettings         List of structs containing exchange parameters for the initial exchanges
      */
     constructor(
         IBaseManager _manager,
@@ -211,8 +211,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         MethodologySettings memory _methodology,
         ExecutionSettings memory _execution,
         IncentiveSettings memory _incentive,
-        string memory _inititalExchageName,
-        ExchangeSettings memory _initialExchangeSettings
+        string[] memory _exchangeNames,
+        ExchangeSettings[] memory _exchangeSettings
     )
         public
         BaseAdapter(_manager)
@@ -221,8 +221,11 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         methodology = _methodology;
         execution = _execution;
         incentive = _incentive;
-        exchangeSettings[_inititalExchageName] =  _initialExchangeSettings;
-        enabledExchanges.push(_inititalExchageName);
+
+        for (uint256 i = 0; i < _exchangeNames.length; i++) {
+            exchangeSettings[_exchangeNames[i]] = _exchangeSettings[i];
+            enabledExchanges.push(_exchangeNames[i]);
+        }
 
         _validateSettings(methodology, execution, incentive);
     }

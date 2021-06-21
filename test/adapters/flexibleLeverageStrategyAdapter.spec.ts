@@ -255,8 +255,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       methodology,
       execution,
       incentive,
-      exchangeName,
-      exchangeSettings
+      [ exchangeName ],
+      [ exchangeSettings ]
     );
 
     // Add adapter
@@ -324,8 +324,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         subjectMethodologySettings,
         subjectExecutionSettings,
         subjectIncentiveSettings,
-        subjectExchangeName,
-        subjectExchangeSettings
+        [ subjectExchangeName ],
+        [ subjectExchangeSettings ]
       );
     }
 

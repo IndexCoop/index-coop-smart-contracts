@@ -34,8 +34,8 @@ export default class DeployAdapters {
     methdologySettings: MethodologySettings,
     executionSettings: ExecutionSettings,
     incentiveSettings: IncentiveSettings,
-    initialExchangeName: string,
-    initialExchangeSettings: ExchangeSettings
+    exchangeNames: string[],
+    exchangeSettings: ExchangeSettings[]
   ): Promise<FlexibleLeverageStrategyAdapter> {
     return await new FlexibleLeverageStrategyAdapter__factory(this._deployerSigner).deploy(
       manager,
@@ -43,8 +43,8 @@ export default class DeployAdapters {
       methdologySettings,
       executionSettings,
       incentiveSettings,
-      initialExchangeName,
-      initialExchangeSettings,
+      exchangeNames,
+      exchangeSettings,
     );
   }
 
