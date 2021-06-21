@@ -502,6 +502,26 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         await expect(subject()).to.be.revertedWith("TWAP cooldown must be greater than incentivized TWAP cooldown");
       });
     });
+
+    describe("when an exchange has a twapMaxTradeSize of 0", async () => {
+      beforeEach(async () => {
+        subjectExchangeSettings.twapMaxTradeSize = ZERO;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Max TWAP trade size must not be 0");
+      });
+    });
+
+    describe("when an exchange has a nonzero last trade timestamp", async () => {
+      beforeEach(async () => {
+        subjectExchangeSettings.exchangeLastTradeTimestamp = BigNumber.from(7);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Last trade timestamp must be 0");
+      });
+    });
   });
 
   describe("#engage", async () => {
@@ -3439,6 +3459,26 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           await expect(subject()).to.be.revertedWith("Exchange already enabled");
         });
       });
+
+      describe("when an exchange has a twapMaxTradeSize of 0", async () => {
+        beforeEach(async () => {
+          subjectExchangeSettings.twapMaxTradeSize = ZERO;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Max TWAP trade size must not be 0");
+        });
+      });
+
+      describe("when an exchange has a nonzero last trade timestamp", async () => {
+        beforeEach(async () => {
+          subjectExchangeSettings.exchangeLastTradeTimestamp = BigNumber.from(7);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Last trade timestamp must be 0");
+        });
+      });
     });
 
     describe("when rebalance is in progress", async () => {
@@ -3475,7 +3515,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       subjectNewExchangeSettings = {
         twapMaxTradeSize: ether(101),
         incentivizedTwapMaxTradeSize: ether(201),
-        exchangeLastTradeTimestamp: BigNumber.from(1),
+        exchangeLastTradeTimestamp: BigNumber.from(0),
         leverExchangeData: EMPTY_BYTES,
         deleverExchangeData: EMPTY_BYTES,
       };
@@ -3526,6 +3566,26 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("Exchange not enabled");
+        });
+      });
+
+      describe("when an exchange has a twapMaxTradeSize of 0", async () => {
+        beforeEach(async () => {
+          subjectNewExchangeSettings.twapMaxTradeSize = ZERO;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Max TWAP trade size must not be 0");
+        });
+      });
+
+      describe("when an exchange has a nonzero last trade timestamp", async () => {
+        beforeEach(async () => {
+          subjectNewExchangeSettings.exchangeLastTradeTimestamp = BigNumber.from(7);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Last trade timestamp must be 0");
         });
       });
     });

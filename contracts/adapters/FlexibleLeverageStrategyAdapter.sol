@@ -32,6 +32,7 @@ import { ICompoundPriceOracle } from "../interfaces/ICompoundPriceOracle.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { IChainlinkAggregatorV3 } from "../interfaces/IChainlinkAggregatorV3.sol";
+import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
 
 
 /**
@@ -57,6 +58,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
     using SafeCast for int256;
+    using StringArrayUtils for string[];
 
     /* ============ Enums ============ */
 
@@ -223,6 +225,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         incentive = _incentive;
 
         for (uint256 i = 0; i < _exchangeNames.length; i++) {
+            _validateExchangeSettings(_exchangeSettings[i]);
             exchangeSettings[_exchangeNames[i]] = _exchangeSettings[i];
             enabledExchanges.push(_exchangeNames[i]);
         }
@@ -491,6 +494,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         noRebalanceInProgress
     {
         require(exchangeSettings[_exchangeName].twapMaxTradeSize == 0, "Exchange already enabled");
+        _validateExchangeSettings(_exchangeSettings);
         
         exchangeSettings[_exchangeName] = _exchangeSettings;
         enabledExchanges.push(_exchangeName);
@@ -502,16 +506,10 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * @param _exchangeName     Name of exchange to remove
      */
     function removeEnabledExchange(string memory _exchangeName) external onlyOperator noRebalanceInProgress {
+        require(enabledExchanges.contains(_exchangeName), "Exchange not enabled");
+
         delete exchangeSettings[_exchangeName];
-        
-        for(uint256 i = 0; i < enabledExchanges.length; i++) {
-            if(keccak256(bytes(enabledExchanges[i])) == keccak256(bytes(_exchangeName))) {
-                enabledExchanges[i] = enabledExchanges[enabledExchanges.length.sub(1)];
-                enabledExchanges.pop();
-                return;
-            }
-        }
-        revert("Exchange not enabled");
+        enabledExchanges.removeStorage(_exchangeName);
     }
 
     /**
@@ -530,6 +528,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         noRebalanceInProgress
     {
         require(exchangeSettings[_exchangeName].twapMaxTradeSize != 0, "Exchange not enabled");
+        _validateExchangeSettings(_exchangeSettings);
 
         exchangeSettings[_exchangeName] = _exchangeSettings;
     }
@@ -782,6 +781,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * return LeverageInfo                Struct containing ActionInfo and other data
      */
     function _getAndValidateLeveragedInfo(uint256 _slippageTolerance, uint256 _maxTradeSize, string memory _exchangeName) internal view returns(LeverageInfo memory) {
+        // Assume if maxTradeSize is 0, then the exchange is not enabled. This is enforced by addEnabledExchange and updateEnabledExchange
         require(_maxTradeSize > 0, "Must be valid exchange");
 
         ActionInfo memory actionInfo = _createActionInfo();
@@ -880,6 +880,14 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             "TWAP cooldown must be greater than incentivized TWAP cooldown"
         );
     }
+
+    /**
+     * Validate an ExchangeSettings struct when adding or updating an exchange
+     */
+     function _validateExchangeSettings(ExchangeSettings memory _settings) internal view {
+         require(_settings.exchangeLastTradeTimestamp == 0, "Last trade timestamp must be 0");
+         require(_settings.twapMaxTradeSize != 0, "Max TWAP trade size must not be 0");
+     }
 
     /**
      * Validate that current leverage is below incentivized leverage ratio and cooldown / rebalance period has elapsed or outsize max/min bounds. Used
