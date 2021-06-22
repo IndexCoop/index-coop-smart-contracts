@@ -26,12 +26,12 @@ import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
 import { BaseAdapter } from "../lib/BaseAdapter.sol";
 import { ICErc20 } from "../interfaces/ICErc20.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
+import { IChainlinkAggregatorV3 } from "../interfaces/IChainlinkAggregatorV3.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
 import { ICompoundLeverageModule } from "../interfaces/ICompoundLeverageModule.sol";
 import { ICompoundPriceOracle } from "../interfaces/ICompoundPriceOracle.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
-import { IChainlinkAggregatorV3 } from "../interfaces/IChainlinkAggregatorV3.sol";
 import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
 
 
@@ -249,7 +249,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             enabledExchanges.push(_exchangeNames[i]);
         }
 
-        _validateSettings(methodology, execution, incentive);
+        _validateNonExchangeSettings(methodology, execution, incentive);
     }
 
     /* ============ External Functions ============ */
@@ -316,7 +316,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             _exchangeName
         );
 
-        // use globalLastTradeTimestamps to prevent multiple rebalances being called with different exchanges during the daily rebalance
+        // use globalLastTradeTimestamps to prevent multiple rebalances being called with different exchanges during the epoch rebalance
         _validateNormalRebalance(leverageInfo, methodology.rebalanceInterval, globalLastTradeTimestamp);
         _validateNonTWAP();
 
@@ -350,7 +350,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             _exchangeName
         );
 
-        // Use the exchangeLastTradeTimestamp so it can iterateRebalance quickly with multiple exchanges
+        // Use the exchangeLastTradeTimestamp since cooldown periods are measured on a per-exchange basis, allowing it to rebalance multiple time in quick 
+        // succession with different exchanges
         _validateNormalRebalance(leverageInfo, execution.twapCooldownPeriod, exchangeSettings[_exchangeName].exchangeLastTradeTimestamp);
         _validateTWAP();
 
@@ -453,7 +454,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     function setMethodologySettings(MethodologySettings memory _newMethodologySettings) external onlyOperator noRebalanceInProgress {
         methodology = _newMethodologySettings;
 
-        _validateSettings(methodology, execution, incentive);
+        _validateNonExchangeSettings(methodology, execution, incentive);
 
         emit MethodologySettingsUpdated(
             methodology.targetLeverageRatio,
@@ -473,7 +474,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     function setExecutionSettings(ExecutionSettings memory _newExecutionSettings) external onlyOperator noRebalanceInProgress {
         execution = _newExecutionSettings;
 
-        _validateSettings(methodology, execution, incentive);
+        _validateNonExchangeSettings(methodology, execution, incentive);
 
         emit ExecutionSettingsUpdated(
             execution.unutilizedLeveragePercentage,
@@ -491,7 +492,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     function setIncentiveSettings(IncentiveSettings memory _newIncentiveSettings) external onlyOperator noRebalanceInProgress {
         incentive = _newIncentiveSettings;
 
-        _validateSettings(methodology, execution, incentive);
+        _validateNonExchangeSettings(methodology, execution, incentive);
 
         emit IncentiveSettingsUpdated(
             incentive.etherReward,
@@ -882,9 +883,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     /**
-     * Validate settings in constructor and setters when updating.
+     * Validate non-exchange settings in constructor and setters when updating.
      */
-    function _validateSettings(
+    function _validateNonExchangeSettings(
         MethodologySettings memory _methodology,
         ExecutionSettings memory _execution,
         IncentiveSettings memory _incentive
