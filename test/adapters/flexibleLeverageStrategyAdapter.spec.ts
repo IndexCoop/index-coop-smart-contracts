@@ -1690,6 +1690,16 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           await expect(subject()).to.be.revertedWith("Must be below incentivized leverage ratio");
         });
       });
+
+      describe("when using an exchange that has not been added", async () => {
+        beforeEach(async () => {
+          subjectExchangeName = "NonExistentExchange";
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.revertedWith("Must be valid exchange");
+        });
+      });
     });
 
     context("when not engaged", async () => {
@@ -1699,6 +1709,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       describe("when collateral balance is zero", async () => {
         beforeEach(async () => {
+          subjectExchangeName = exchangeName;
           // Set collateral asset to cUSDC with 0 balance
           customCTokenCollateralAddress = cUSDC.address;
           ifEngaged = false;
@@ -2114,6 +2125,16 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           await expect(subject()).to.be.revertedWith("SetToken must have > 0 supply");
         });
       });
+
+      describe("when using an exchange that has not been added", async () => {
+        beforeEach(async () => {
+          subjectExchangeName = "NonExistentExchange";
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.revertedWith("Must be valid exchange");
+        });
+      });
     });
 
     context("when current leverage ratio is below target and middle of a TWAP rebalance", async () => {
@@ -2131,6 +2152,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           leverExchangeData: EMPTY_BYTES,
           deleverExchangeData: EMPTY_BYTES,
         };
+        subjectExchangeName = exchangeName;
         await flexibleLeverageStrategyAdapter.updateEnabledExchange(subjectExchangeName, newExchangeSettings);
         await setV2Setup.weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
         preTwapLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
@@ -2696,6 +2718,16 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           await expect(subject()).to.be.revertedWith("SetToken must have > 0 supply");
         });
       });
+
+      describe("when using an exchange that has not been added", async () => {
+        beforeEach(async () => {
+          subjectExchangeName = "NonExistentExchange";
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.revertedWith("Must be valid exchange");
+        });
+      });
     });
 
     context("when in the midst of a TWAP rebalance", async () => {
@@ -2717,6 +2749,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           leverExchangeData: EMPTY_BYTES,
           deleverExchangeData: EMPTY_BYTES,
         };
+        subjectExchangeName = exchangeName;
         await flexibleLeverageStrategyAdapter.updateEnabledExchange(subjectExchangeName, newExchangeSettings);
 
         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
@@ -4498,7 +4531,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         beforeEach(async () => {
           // Set to above incentivized ratio
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
-          await increaseTimeAsync(BigNumber.from(100));
         });
 
         it("should return correct total rebalance size", async () => {
@@ -4516,7 +4548,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         beforeEach(async () => {
           // Set to below incentivized ratio
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(900).mul(10 ** 8));
-          await increaseTimeAsync(BigNumber.from(4000));
         });
 
         it("should return correct total rebalance size", async () => {
@@ -4529,6 +4560,18 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           expect(totalRebalance).to.eq(expectedTotalRebalance);
         });
       });
+
+      describe("when in an advantageous TWAP", async () => {
+        beforeEach(async () => {
+          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
+        });
+
+        it("should return 0", async () => {
+          const totalRebalance = await subject();
+
+          expect(totalRebalance).to.eq(ZERO);
+        });
+      });
     });
 
     context("when not in a TWAP rebalance", async () => {
@@ -4536,7 +4579,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         beforeEach(async () => {
           // Set to above incentivized ratio
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
-          await increaseTimeAsync(BigNumber.from(100));
         });
 
         it("should return correct total rebalance size", async () => {
