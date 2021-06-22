@@ -15,8 +15,8 @@ export async function calculateNewAllocations(
 ): Promise<RebalanceSummary[]> {
   let rebalanceData: RebalanceSummary[] = [];
 
-  console.log(setValue.toString());
   const totalSupply = await setToken.totalSupply();
+  let allocationSum: BigNumber = ZERO;
   for (let i = 0; i < Object.keys(strategyConstants).length; i++) {
     const key = Object.keys(strategyConstants)[i];
     const assetObj = strategyConstants[key];
@@ -39,6 +39,8 @@ export async function calculateNewAllocations(
       maxTradeSize: assetObj.maxTradeSize,
       coolOffPeriod:assetObj.coolOffPeriod,
     });
+    allocationSum = allocationSum.add(assetObj.input);
   }
+  console.log(allocationSum.toString());
   return rebalanceData;
 }
