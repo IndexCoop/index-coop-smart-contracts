@@ -604,7 +604,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * even when shouldRebalance would return ShouldRebalance.NONE for all exchanges (since minimum delays have not elapsed)
      *
      * @return uint256      Total notional rebalance size. Measured in the asset that would be sold
-     * @return bool         Whether it would be levering or delevering. Returns false if in a advantageous TWAP
+     * @return bool         Whether it would be levering or delevering
      */
     function getTotalRebalanceNotional()  external view returns(uint256, bool) {
 
