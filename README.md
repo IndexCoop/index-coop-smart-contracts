@@ -55,7 +55,7 @@ npm install @setprotocol/index-coop-contracts
 [23]: https://www.npmjs.com/package/typechain
 
 ## Contributing
-We highly encourage participation from the community to help shape the development of Index-Coop. If you are interested in developing on `index-coop` or have any questions, please ping us on [Telegram](https://t.me/joinchat/Fx8D6wyprLUlM1jMVnaRdg).
+We highly encourage participation from the community to help shape the development of Index-Coop. If you are interested in developing on `index-coop` or have any questions, please ping us on [Discord](https://discord.com/invite/RKZ4S3b).
 
 ## Security
 
