@@ -16,14 +16,10 @@
 
 pragma solidity 0.6.10;
 
-import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
-
 import { BaseAdapter } from "../lib/BaseAdapter.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IGovernanceModule } from "../interfaces/IGovernanceModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
-import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 /**
  * @title GovernanceAdapter
@@ -37,20 +33,26 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 contract GovernanceAdapter is BaseAdapter {
 
     /* ============ State Variables ============ */
-    IGovernanceModule public governanaceModule;
+    
+    ISetToken public setToken;
+    IGovernanceModule public governanceModule;
     
     /* ============ Constructor ============ */
 
-    constructor(IBaseManager _manager, IGovernanceModule _governanceModule) public BaseManager(_manager) {
+    constructor(IBaseManager _manager, IGovernanceModule _governanceModule) public BaseAdapter(_manager) {
         governanceModule = _governanceModule;
+        setToken = manager.setToken();
     }
 
     /* ============ External Functions ============ */
 
     /**
-     * ONLY APPROVED CALLER: Updates streaming fee on StreamingFeeModule. NOTE: This will accrue streaming fees though not send to operator
-     * and methodologist.
-     */
+     * ONLY APPROVED CALLER: Submits a delegate call to the GovernanceModule. Approved caller mapping
+     * is part of BaseAdapter.
+     *
+     * @param _governanceName       Name of governance adapter being used
+    
+ */
     function delegate(
         string memory _governanceName,
         address _delegatee
@@ -58,9 +60,23 @@ contract GovernanceAdapter is BaseAdapter {
         external
         onlyAllowedCaller(msg.sender)
     {
-        
+        bytes memory callData = abi.encodeWithSelector(
+            IGovernanceModule.delegate.selector,
+            setToken,
+            _governanceName,
+            _delegatee
+        );
+
+        invokeManager(address(governanceModule), callData);
     }
 
+    /**
+     * ONLY APPROVED CALLER: Submits a proposal call to the GovernanceModule. Approved caller mapping
+     * is part of BaseAdapter.
+     *
+     * @param _governanceName       Name of governance adapter being used
+     * @param _proposalData         Byte data of proposal
+     */
     function propose(
         string memory _governanceName,
         bytes memory _proposalData
@@ -68,17 +84,57 @@ contract GovernanceAdapter is BaseAdapter {
         external
         onlyAllowedCaller(msg.sender)
     {
+        bytes memory callData = abi.encodeWithSelector(
+            IGovernanceModule.propose.selector,
+            setToken,
+            _governanceName,
+            _proposalData
+        );
 
+        invokeManager(address(governanceModule), callData);
     }
 
+    /**
+     * ONLY APPROVED CALLER: Submits a register call to the GovernanceModule. Approved caller mapping
+     * is part of BaseAdapter.
+     *
+     * @param _governanceName       Name of governance adapter being used
+     */
     function register(string memory _governanceName) external onlyAllowedCaller(msg.sender) {
+        bytes memory callData = abi.encodeWithSelector(
+            IGovernanceModule.register.selector,
+            setToken,
+            _governanceName
+        );
 
+        invokeManager(address(governanceModule), callData);
     }
 
+    /**
+     * ONLY APPROVED CALLER: Submits a revoke call to the GovernanceModule. Approved caller mapping
+     * is part of BaseAdapter.
+     *
+     * @param _governanceName       Name of governance adapter being used
+     */
     function revoke(string memory _governanceName) external onlyAllowedCaller(msg.sender) {
+        bytes memory callData = abi.encodeWithSelector(
+            IGovernanceModule.revoke.selector,
+            setToken,
+            _governanceName
+        );
 
+        invokeManager(address(governanceModule), callData);
     }
 
+    /**
+     * ONLY APPROVED CALLER: Submits a vote call to the GovernanceModule. Approved caller mapping
+     * is part of BaseAdapter.
+     *
+     * @param _governanceName       Name of governance adapter being used
+     * @param _proposalId           Id of proposal being voted on
+     * @param _support              Boolean indicating if supporting proposal
+     * @param _data                 Arbitrary bytes to be used to construct vote call data
+     */
     function vote(
         string memory _governanceName,
         uint256 _proposalId,
@@ -88,10 +144,27 @@ contract GovernanceAdapter is BaseAdapter {
         external
         onlyAllowedCaller(msg.sender)
     {
+        bytes memory callData = abi.encodeWithSelector(
+            IGovernanceModule.vote.selector,
+            setToken,
+            _governanceName,
+            _proposalId,
+            _support,
+            _data
+        );
 
+        invokeManager(address(governanceModule), callData);
     }
 
+    /**
+     * ONLY OPERATOR: Initialize GovernanceModule for Set
+     */
     function initialize() external onlyOperator {
+        bytes memory callData = abi.encodeWithSelector(
+            IGovernanceModule.initialize.selector,
+            setToken
+        );
 
+        invokeManager(address(governanceModule), callData);
     }
 }
