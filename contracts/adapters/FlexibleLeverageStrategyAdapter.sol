@@ -53,7 +53,7 @@ import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
  * - Update _calculateActionInfo to add chainlink prices
  * - Update _calculateBorrowUnits and _calculateMinRepayUnits to use chainlink as an oracle in 
  *
- * CHANGELOG 6/23/2021
+ * CHANGELOG 6/23/2021: 4eff1c0bcb721055b357cd6095eda3ed5cd6dd24
  * - Add ExchangeSettings struct that contains exchange specific information
  * - Update ExecutionSettings struct to not include exchange information
  * - Add mapping of exchange names to ExchangeSettings structs and a list of enabled exchange names
@@ -642,11 +642,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
         uint256 collateralRebalanceUnits = leverageRatioDifference.preciseDiv(currentLeverageRatio).preciseMul(actionInfo.collateralBalance);
 
-        if (isLever) {
-            return (_calculateBorrowUnits(collateralRebalanceUnits, actionInfo), isLever);
-        }
-
-        return (collateralRebalanceUnits, isLever);
+        return isLever ? (_calculateBorrowUnits(collateralRebalanceUnits, actionInfo), isLever) : (collateralRebalanceUnits, isLever);
     }
 
     /**

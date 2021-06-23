@@ -1666,7 +1666,19 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           });
         });
 
-        describe("when leverage ratio is above max and rebalance is called twice", async () => {
+        describe("when performing the epoch rebalance and rebalance is called twice with different exchanges", async () => {
+
+          beforeEach(async () => {
+            await increaseTimeAsync(BigNumber.from(100000));
+            await subject();
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("Cooldown not elapsed or not valid leverage ratio");
+          });
+        });
+
+        describe("when leverage ratio is above max and rebalance is called twice with different exchanges", async () => {
 
           beforeEach(async () => {
             await subject();
