@@ -8,6 +8,7 @@ import {
   Controller,
   DebtIssuanceModule,
   IntegrationRegistry,
+  GovernanceModule,
   SetToken,
   SetTokenCreator,
   StreamingFeeModule
@@ -43,6 +44,7 @@ export class SetFixture {
   public debtIssuanceModule: DebtIssuanceModule;
   public streamingFeeModule: StreamingFeeModule;
   public compoundLeverageModule: CompoundLeverageModule;
+  public governanceModule: GovernanceModule;
 
   public weth: WETH9;
   public usdc: StandardTokenMock;
@@ -67,6 +69,7 @@ export class SetFixture {
     this.issuanceModule = await this._deployer.setV2.deployBasicIssuanceModule(this.controller.address);
     this.streamingFeeModule = await this._deployer.setV2.deployStreamingFeeModule(this.controller.address);
     this.debtIssuanceModule = await this._deployer.setV2.deployDebtIssuanceModule(this.controller.address);
+    this.governanceModule = await this._deployer.setV2.deployGovernanceModule(this.controller.address);
 
     await this.initializeStandardComponents();
 
@@ -74,6 +77,7 @@ export class SetFixture {
       this.issuanceModule.address,
       this.streamingFeeModule.address,
       this.debtIssuanceModule.address,
+      this.governanceModule.address,
     ];
 
     await this.controller.initialize(

@@ -7,6 +7,8 @@ export { ExchangeIssuanceV2 } from "../../typechain/ExchangeIssuanceV2";
 export { FeeSplitAdapter } from "../../typechain/FeeSplitAdapter";
 export { FlexibleLeverageStrategyAdapter } from "../../typechain/FlexibleLeverageStrategyAdapter";
 export { SupplyCapIssuanceHook } from "../../typechain/SupplyCapIssuanceHook";
+export { GovernanceAdapter } from "../../typechain/GovernanceAdapter";
+export { GovernanceAdapterMock } from "../../typechain/GovernanceAdapterMock";
 export { SupplyCapAllowedCallerIssuanceHook } from "../../typechain/SupplyCapAllowedCallerIssuanceHook";
 export { IndexToken } from "../../typechain/IndexToken";
 export { MerkleDistributor } from "../../typechain/MerkleDistributor";

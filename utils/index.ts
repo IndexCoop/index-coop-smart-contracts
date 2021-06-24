@@ -29,6 +29,7 @@ export {
 } from "./test";
 
 export {
+  bigNumberToData,
   bitcoin,
   divDown,
   ether,
