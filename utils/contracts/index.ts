@@ -17,6 +17,7 @@ export { RewardsDistributionRecipient } from "../../typechain/RewardsDistributio
 export { StakingRewards } from "../../typechain/StakingRewards";
 export { StakingRewardsV2 } from "../../typechain/StakingRewardsV2";
 export { StandardTokenMock } from "../../typechain/StandardTokenMock";
+export { StreamingFeeSplitAdapter } from "../../typechain/StreamingFeeSplitAdapter";
 export { SupplyCapAllowedCallerIssuanceHook } from "../../typechain/SupplyCapAllowedCallerIssuanceHook";
 export { SupplyCapIssuanceHook } from "../../typechain/SupplyCapIssuanceHook";
 export { TradeAdapterMock } from "../../typechain/TradeAdapterMock";
