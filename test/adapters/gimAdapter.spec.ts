@@ -19,7 +19,7 @@ import { BigNumber, ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
 
-describe.only("GIMAdapter", () => {
+describe("GIMAdapter", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
@@ -209,7 +209,7 @@ describe.only("GIMAdapter", () => {
           );
         }
 
-        it.only("should correctly set the target units and positionMultiplier", async () => {
+        it("should correctly set the target units and positionMultiplier", async () => {
           const [preDaiExecInfo, preWbtcExecInfo, preWethExecInfo, preUsdcExecInfo]: any[] = await getAssetExecutionInfo();
           const prePositionMultiplier = (await setV2Setup.generalIndexModule.rebalanceInfo(setToken.address)).positionMultiplier;
 
