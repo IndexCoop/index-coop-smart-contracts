@@ -189,30 +189,27 @@ describe.only("GIMAdapter", () => {
       });
 
       describe("#startRebalanceWithUnits", async () => {
-        let subjectNewComponents: Address[];
-        let subjectNewComponentsTargetUnits: BigNumber[];
-        let subjectOldComponentsTargetUnits: BigNumber[];
+        let subjectComponents: Address[];
+        let subjectTargetUnits: BigNumber[];
         let subjectPositionMultiplier: BigNumber;
         let subjectCaller: Account;
 
         beforeEach(async () => {
-          subjectNewComponents = [setV2Setup.usdc.address];
-          subjectNewComponentsTargetUnits = [usdc(50)];
-          subjectOldComponentsTargetUnits = [ether(50), bitcoin(.005), ether(.15)];
+          subjectComponents = [setV2Setup.dai.address, setV2Setup.wbtc.address, setV2Setup.weth.address, setV2Setup.usdc.address];
+          subjectTargetUnits = [ether(50), bitcoin(.005), ether(.15), usdc(50)];
           subjectPositionMultiplier = ether(.999);
           subjectCaller = operator;
         });
 
         async function subject(): Promise<ContractTransaction> {
           return await gimAdapter.connect(subjectCaller.wallet).startRebalanceWithUnits(
-            subjectNewComponents,
-            subjectNewComponentsTargetUnits,
-            subjectOldComponentsTargetUnits,
+            subjectComponents,
+            subjectTargetUnits,
             subjectPositionMultiplier
           );
         }
 
-        it("should correctly set the target units and positionMultiplier", async () => {
+        it.only("should correctly set the target units and positionMultiplier", async () => {
           const [preDaiExecInfo, preWbtcExecInfo, preWethExecInfo, preUsdcExecInfo]: any[] = await getAssetExecutionInfo();
           const prePositionMultiplier = (await setV2Setup.generalIndexModule.rebalanceInfo(setToken.address)).positionMultiplier;
 
@@ -227,14 +224,59 @@ describe.only("GIMAdapter", () => {
           const [postDaiExecInfo, postWbtcExecInfo, postWethExecInfo, postUsdcExecInfo] = await getAssetExecutionInfo();
           const postPositionMultiplier = (await setV2Setup.generalIndexModule.rebalanceInfo(setToken.address)).positionMultiplier;
 
-          expect(postDaiExecInfo.targetUnit).to.eq(subjectOldComponentsTargetUnits[0]);
-          expect(postWbtcExecInfo.targetUnit).to.eq(subjectOldComponentsTargetUnits[1]);
-          expect(postWethExecInfo.targetUnit).to.eq(subjectOldComponentsTargetUnits[2]);
-          expect(postUsdcExecInfo.targetUnit).to.eq(subjectNewComponentsTargetUnits[0]);
+          expect(postDaiExecInfo.targetUnit).to.eq(subjectTargetUnits[0]);
+          expect(postWbtcExecInfo.targetUnit).to.eq(subjectTargetUnits[1]);
+          expect(postWethExecInfo.targetUnit).to.eq(subjectTargetUnits[2]);
+          expect(postUsdcExecInfo.targetUnit).to.eq(subjectTargetUnits[3]);
           expect(postPositionMultiplier).to.eq(subjectPositionMultiplier);
         });
 
-        describe("when the caller is an approved caller", async () => {
+        describe("when there are no new components", async () => {
+          beforeEach(async () => {
+            subjectComponents = [setV2Setup.dai.address, setV2Setup.wbtc.address, setV2Setup.weth.address];
+            subjectTargetUnits = [ether(50), bitcoin(.005), ether(.15)];
+          });
+
+          it("should correctly set the target units and positionMultiplier", async () => {
+            const [preDaiExecInfo, preWbtcExecInfo, preWethExecInfo, ]: any[] = await getAssetExecutionInfo();
+
+            expect(preDaiExecInfo.targetUnit).to.eq(ether(100));
+            expect(preWbtcExecInfo.targetUnit).to.eq(bitcoin(.01));
+            expect(preWethExecInfo.targetUnit).to.eq(ether(.1));
+
+            await subject();
+
+            const [postDaiExecInfo, postWbtcExecInfo, postWethExecInfo, ] = await getAssetExecutionInfo();
+
+            expect(postDaiExecInfo.targetUnit).to.eq(subjectTargetUnits[0]);
+            expect(postWbtcExecInfo.targetUnit).to.eq(subjectTargetUnits[1]);
+            expect(postWethExecInfo.targetUnit).to.eq(subjectTargetUnits[2]);
+          });
+        });
+
+        describe("when components array is shorter than current components array", async () => {
+          beforeEach(async () => {
+            subjectComponents = [setV2Setup.dai.address, setV2Setup.wbtc.address];
+            subjectTargetUnits = [ether(50), bitcoin(.005)];
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("Components array must be equal or longer than current components");
+          });
+        });
+
+        describe("when not all old components have an entry", async () => {
+          beforeEach(async () => {
+            subjectComponents = [setV2Setup.dai.address, setV2Setup.wbtc.address, setV2Setup.usdc.address];
+            subjectTargetUnits = [ether(50), bitcoin(.005), usdc(50)];
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("Unexpected new component added");
+          });
+        });
+
+        describe("when the caller is not the operator", async () => {
           beforeEach(async () => {
             subjectCaller = approvedCaller;
           });
@@ -273,7 +315,7 @@ describe.only("GIMAdapter", () => {
           expect(postWethExecInfo.maxSize).to.eq(subjectTradeMaximums[2]);
         });
 
-        describe("when the caller is an approved caller", async () => {
+        describe("when the caller is not the operator", async () => {
           beforeEach(async () => {
             subjectCaller = approvedCaller;
           });
@@ -302,7 +344,7 @@ describe.only("GIMAdapter", () => {
           );
         }
 
-        it("should correctly set the tradeMaximums", async () => {
+        it("should correctly set the exchanges", async () => {
           await subject();
 
           const [postDaiExecInfo, postWbtcExecInfo, ] = await getAssetExecutionInfo();
@@ -311,7 +353,7 @@ describe.only("GIMAdapter", () => {
           expect(postWbtcExecInfo.exchangeName).to.eq(subjectExchangeNames[1]);
         });
 
-        describe("when the caller is an approved caller", async () => {
+        describe("when the caller is not the operator", async () => {
           beforeEach(async () => {
             subjectCaller = approvedCaller;
           });
@@ -322,7 +364,7 @@ describe.only("GIMAdapter", () => {
         });
       });
 
-      describe("#setExchangeData", async () => {
+      describe("#setCoolOffPeriods", async () => {
         let subjectComponents: Address[];
         let subjectCoolOffPeriods: BigNumber[];
         let subjectCaller: Account;
@@ -340,7 +382,7 @@ describe.only("GIMAdapter", () => {
           );
         }
 
-        it("should correctly set the tradeMaximums", async () => {
+        it("should correctly set the cool off periods", async () => {
           await subject();
 
           const [postDaiExecInfo, postWbtcExecInfo, ] = await getAssetExecutionInfo();
@@ -349,7 +391,7 @@ describe.only("GIMAdapter", () => {
           expect(postWbtcExecInfo.coolOffPeriod).to.eq(subjectCoolOffPeriods[1]);
         });
 
-        describe("when the caller is an approved caller", async () => {
+        describe("when the caller is not the operator", async () => {
           beforeEach(async () => {
             subjectCaller = approvedCaller;
           });
@@ -378,7 +420,7 @@ describe.only("GIMAdapter", () => {
           );
         }
 
-        it("should correctly set the tradeMaximums", async () => {
+        it("should correctly set the exchangeData", async () => {
           await subject();
 
           const [postDaiExecInfo, postWbtcExecInfo, ] = await getAssetExecutionInfo();
@@ -387,7 +429,112 @@ describe.only("GIMAdapter", () => {
           expect(postWbtcExecInfo.exchangeData).to.eq(subjectExchangeData[1]);
         });
 
-        describe("when the caller is an approved caller", async () => {
+        describe("when the caller is not the operator", async () => {
+          beforeEach(async () => {
+            subjectCaller = approvedCaller;
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("Must be operator");
+          });
+        });
+      });
+
+      describe("#setRaiseTargetPercentage", async () => {
+        let subjectRaiseTargetPercentage: BigNumber;
+        let subjectCaller: Account;
+
+        beforeEach(async () => {
+          subjectRaiseTargetPercentage = ether(.001);
+          subjectCaller = operator;
+        });
+
+        async function subject(): Promise<ContractTransaction> {
+          return await gimAdapter.connect(subjectCaller.wallet).setRaiseTargetPercentage(
+            subjectRaiseTargetPercentage,
+          );
+        }
+
+        it("should correctly set the raiseTargetPercentage", async () => {
+          await subject();
+
+          const actualRaiseTargetPercentage = (await setV2Setup.generalIndexModule.rebalanceInfo(setToken.address)).raiseTargetPercentage;
+
+          expect(actualRaiseTargetPercentage).to.eq(subjectRaiseTargetPercentage);
+        });
+
+        describe("when the caller is not the operator", async () => {
+          beforeEach(async () => {
+            subjectCaller = approvedCaller;
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("Must be operator");
+          });
+        });
+      });
+
+      describe("#setTraderStatus", async () => {
+        let subjectTraders: Address[];
+        let subjectStatuses: boolean[];
+        let subjectCaller: Account;
+
+        beforeEach(async () => {
+          subjectTraders = [methodologist.address];
+          subjectStatuses = [true];
+          subjectCaller = operator;
+        });
+
+        async function subject(): Promise<ContractTransaction> {
+          return await gimAdapter.connect(subjectCaller.wallet).setTraderStatus(
+            subjectTraders,
+            subjectStatuses
+          );
+        }
+
+        it("should correctly set the trader status", async () => {
+          await subject();
+
+          const isCaller = await setV2Setup.generalIndexModule.getIsAllowedTrader(setToken.address, subjectTraders[0]);
+
+          expect(isCaller).to.be.true;
+        });
+
+        describe("when the caller is not the operator", async () => {
+          beforeEach(async () => {
+            subjectCaller = approvedCaller;
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("Must be operator");
+          });
+        });
+      });
+
+      describe("#setAnyoneTrade", async () => {
+        let subjectStatus: boolean;
+        let subjectCaller: Account;
+
+        beforeEach(async () => {
+          subjectStatus = true;
+          subjectCaller = operator;
+        });
+
+        async function subject(): Promise<ContractTransaction> {
+          return await gimAdapter.connect(subjectCaller.wallet).setAnyoneTrade(
+            subjectStatus
+          );
+        }
+
+        it("should correctly set anyone trade", async () => {
+          await subject();
+
+          const anyoneTrade = await setV2Setup.generalIndexModule.permissionInfo(setToken.address);
+
+          expect(anyoneTrade).to.be.true;
+        });
+
+        describe("when the caller is not the operator", async () => {
           beforeEach(async () => {
             subjectCaller = approvedCaller;
           });

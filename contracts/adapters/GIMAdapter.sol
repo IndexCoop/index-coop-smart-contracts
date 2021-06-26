@@ -18,11 +18,15 @@ pragma solidity 0.6.10;
 pragma experimental "ABIEncoderV2";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
+import { AddressArrayUtils } from "../lib/AddressArrayUtils.sol";
 import { BaseAdapter } from "../lib/BaseAdapter.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IGeneralIndexModule } from "../interfaces/IGeneralIndexModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
+
+import "hardhat/console.sol";
 
 /**
  * @title GIMAdapter
@@ -33,6 +37,9 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
  * on GIMAdapter. 
  */
 contract GIMAdapter is BaseAdapter {
+
+    using AddressArrayUtils for address[];
+    using SafeMath for uint256;
 
     /* ============ State Variables ============ */
     
@@ -49,27 +56,27 @@ contract GIMAdapter is BaseAdapter {
     /* ============ External Functions ============ */
 
     /**
-     * ONLY OPERATOR: Submits a startRebalance call to GeneralIndexModule. Uses internal function so that
-     * this contract can be inherited and custom startRebalance logic can be added on top. See GIM for 
-     * function specific restrictions.
-     *
-     * @param _newComponents                    Array of new components to add to allocation
-     * @param _newComponentsTargetUnits         Array of target units at end of rebalance for new components, maps to same index of _newComponents array
-     * @param _oldComponentsTargetUnits         Array of target units at end of rebalance for old component, maps to same index of
-     *                                               _setToken.getComponents() array, if component being removed set to 0.
-     * @param _positionMultiplier               Position multiplier when target units were calculated, needed in order to adjust target units
-     *                                               if fees accrued
+     * ONLY OPERATOR: Submits a startRebalance call to GeneralIndexModule. Uses internal function so that this contract can be inherited and
+     * custom startRebalance logic can be added on top. Components array is sorted in new and old components arrays in order to conform to
+     * startRebalance interface. See GIM for function specific restrictions.
+     * @param _components               Array of components involved in rebalance inclusive of components being removed from set (targetUnit = 0)
+     * @param _targetUnits              Array of target units at end of rebalance, maps to same index of _components array
+     * @param _positionMultiplier       Position multiplier when target units were calculated, needed in order to adjust target units if fees accrued
      */
     function startRebalanceWithUnits(
-        address[] calldata _newComponents,
-        uint256[] calldata _newComponentsTargetUnits,
-        uint256[] calldata _oldComponentsTargetUnits,
+        address[] calldata _components,
+        uint256[] calldata _targetUnits,
         uint256 _positionMultiplier
     )
         external
         onlyOperator
     {
-        _startRebalance(_newComponents, _newComponentsTargetUnits, _oldComponentsTargetUnits, _positionMultiplier);
+        (
+            address[] memory newComponents,
+            uint256[] memory newComponentsTargetUnits,
+            uint256[] memory oldComponentsTargetUnits
+        ) = _sortNewAndOldComponents(_components, _targetUnits);
+        _startRebalance(newComponents, newComponentsTargetUnits, oldComponentsTargetUnits, _positionMultiplier);
     }
 
     /**
@@ -242,9 +249,9 @@ contract GIMAdapter is BaseAdapter {
      *                                               if fees accrued
      */
     function _startRebalance(
-        address[] calldata _newComponents,
-        uint256[] calldata _newComponentsTargetUnits,
-        uint256[] calldata _oldComponentsTargetUnits,
+        address[] memory _newComponents,
+        uint256[] memory _newComponentsTargetUnits,
+        uint256[] memory _oldComponentsTargetUnits,
         uint256 _positionMultiplier
     )
         internal
@@ -259,5 +266,54 @@ contract GIMAdapter is BaseAdapter {
         );
 
         invokeManager(address(generalIndexModule), callData);
+    }
+
+    /**
+     * Internal function that sorts components into old and new components and builds the requisite target unit arrays. Old components target units
+     * MUST maintain the order of the components array on the SetToken. The _components array MUST contain an entry for all current components even if
+     * component is being removed (targetUnit = 0). This is validated implicitly by calculating the amount of new components that would be added as
+     * implied by the array lengths, if more than the expected amount of new components are added then it implies an old component is missing.
+     *
+     * @param _components          Array of components involved in rebalance inclusive of components being removed from set (targetUnit = 0)
+     * @param _targetUnits         Array of target units at end of rebalance, maps to same index of _components array
+     */
+    function _sortNewAndOldComponents(
+        address[] memory _components,
+        uint256[] memory _targetUnits
+    )
+        internal
+        view
+        returns (address[] memory, uint256[] memory, uint256[] memory)
+    {
+        address[] memory currentComponents = setToken.getComponents();
+
+        uint256 currentComponentsLength = currentComponents.length;
+        uint256 componentsLength = _components.length;
+
+        require(componentsLength >= currentComponentsLength, "Components array must be equal or longer than current components");
+
+        // We assume that there is an entry for each old component regardless of it it's 0 so any additional components in the array
+        // must be added as a new component. Hence we can declare the length of the new components array as the difference between
+        // componentsLength and currentComponentsLength
+        uint256[] memory oldComponentsTargetUnits = new uint256[](currentComponentsLength);
+        address[] memory newComponents = new address[](componentsLength.sub(currentComponentsLength));
+        uint256[] memory newTargetUnits = new uint256[](componentsLength.sub(currentComponentsLength));
+
+        uint256 newCounter;     // Count amount of components added to newComponents array to add new components to next index
+        for (uint256 i = 0; i < componentsLength; i++) {
+            address component = _components[i];
+            (uint256 index, bool isIn) = currentComponents.indexOf(component);
+
+            if (isIn) {
+                oldComponentsTargetUnits[index] = _targetUnits[i];  // Use index in order to map to correct component in currentComponents array
+            } else {
+                require(newCounter < newComponents.length, "Unexpected new component added");
+                newComponents[newCounter] = component;
+                newTargetUnits[newCounter] = _targetUnits[i];
+                newCounter = newCounter.add(1);
+            }
+        }
+
+        return (newComponents, newTargetUnits, oldComponentsTargetUnits);
     }
 }
