@@ -645,9 +645,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         bool isLever = newLeverageRatio > currentLeverageRatio;
         uint256 leverageRatioDifference = isLever ? newLeverageRatio.sub(currentLeverageRatio) : currentLeverageRatio.sub(newLeverageRatio);
 
-        uint256 collateralRebalanceUnits = leverageRatioDifference.preciseDiv(currentLeverageRatio).preciseMul(actionInfo.collateralBalance);
+        uint256 collateralRebalanceNotional = leverageRatioDifference.preciseDiv(currentLeverageRatio).preciseMul(actionInfo.collateralBalance);
 
-        return isLever ? (_calculateBorrowUnits(collateralRebalanceUnits, actionInfo), isLever) : (collateralRebalanceUnits, isLever);
+        return isLever ? (_calculateBorrowUnits(collateralRebalanceNotional, actionInfo), isLever) : (collateralRebalanceNotional, isLever);
     }
 
     /**
