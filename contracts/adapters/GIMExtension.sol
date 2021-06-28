@@ -27,12 +27,12 @@ import { IGeneralIndexModule } from "../interfaces/IGeneralIndexModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 
 /**
- * @title GIMAdapter
+ * @title GIMExtension
  * @author Set Protocol
  *
- * Smart contract adapter that acts as a pass-through contract for interacting with GeneralIndexModule.
- * All functions are only callable by operator. startRebalance() on GIM maps to startRebalanceWithUnits
- * on GIMAdapter. 
+ * Smart contract manager extension that acts as a pass-through contract for interacting with GeneralIndexModule.
+ * All functions are only callable by operator. startRebalance() on GIM maps to startRebalanceWithUnits on
+ * GIMExtension. 
  */
 contract GIMExtension is BaseAdapter {
 
@@ -285,20 +285,20 @@ contract GIMExtension is BaseAdapter {
     {
         address[] memory currentComponents = setToken.getComponents();
 
-        uint256 currentComponentsLength = currentComponents.length;
-        uint256 componentsLength = _components.length;
+        uint256 currentSetComponentsLength = currentComponents.length;
+        uint256 rebalanceComponentsLength = _components.length;
 
-        require(componentsLength >= currentComponentsLength, "Components array must be equal or longer than current components");
+        require(rebalanceComponentsLength >= currentSetComponentsLength, "Components array must be equal or longer than current components");
 
-        // We assume that there is an entry for each old component regardless of it it's 0 so any additional components in the array
+        // We assume that there is an entry for each old component regardless of if it's 0, so any additional components in the array
         // must be added as a new component. Hence we can declare the length of the new components array as the difference between
-        // componentsLength and currentComponentsLength
-        uint256[] memory oldComponentsTargetUnits = new uint256[](currentComponentsLength);
-        address[] memory newComponents = new address[](componentsLength.sub(currentComponentsLength));
-        uint256[] memory newTargetUnits = new uint256[](componentsLength.sub(currentComponentsLength));
+        // rebalanceComponentsLength and currentSetComponentsLength
+        uint256[] memory oldComponentsTargetUnits = new uint256[](currentSetComponentsLength);
+        address[] memory newComponents = new address[](rebalanceComponentsLength.sub(currentSetComponentsLength));
+        uint256[] memory newTargetUnits = new uint256[](rebalanceComponentsLength.sub(currentSetComponentsLength));
 
         uint256 newCounter;     // Count amount of components added to newComponents array to add new components to next index
-        for (uint256 i = 0; i < componentsLength; i++) {
+        for (uint256 i = 0; i < rebalanceComponentsLength; i++) {
             address component = _components[i];
             (uint256 index, bool isIn) = currentComponents.indexOf(component);
 

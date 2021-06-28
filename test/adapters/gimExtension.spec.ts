@@ -19,7 +19,7 @@ import { BigNumber, ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
 
-describe.only("GIMExtension", () => {
+describe("GIMExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
@@ -251,6 +251,29 @@ describe.only("GIMExtension", () => {
             expect(postDaiExecInfo.targetUnit).to.eq(subjectTargetUnits[0]);
             expect(postWbtcExecInfo.targetUnit).to.eq(subjectTargetUnits[1]);
             expect(postWethExecInfo.targetUnit).to.eq(subjectTargetUnits[2]);
+          });
+        });
+
+        describe("when old components are passed in different order", async () => {
+          beforeEach(async () => {
+            subjectComponents = [setV2Setup.dai.address, setV2Setup.weth.address, setV2Setup.wbtc.address];
+            subjectTargetUnits = [ether(50), ether(.15), bitcoin(.005)];
+          });
+
+          it("should correctly set the target units and positionMultiplier", async () => {
+            const [preDaiExecInfo, preWbtcExecInfo, preWethExecInfo, ]: any[] = await getAssetExecutionInfo();
+
+            expect(preDaiExecInfo.targetUnit).to.eq(ether(100));
+            expect(preWbtcExecInfo.targetUnit).to.eq(bitcoin(.01));
+            expect(preWethExecInfo.targetUnit).to.eq(ether(.1));
+
+            await subject();
+
+            const [postDaiExecInfo, postWbtcExecInfo, postWethExecInfo, ] = await getAssetExecutionInfo();
+
+            expect(postDaiExecInfo.targetUnit).to.eq(subjectTargetUnits[0]);
+            expect(postWbtcExecInfo.targetUnit).to.eq(subjectTargetUnits[2]);
+            expect(postWethExecInfo.targetUnit).to.eq(subjectTargetUnits[1]);
           });
         });
 
