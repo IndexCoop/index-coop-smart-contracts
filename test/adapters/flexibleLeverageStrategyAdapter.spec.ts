@@ -3621,90 +3621,66 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       return flexibleLeverageStrategyAdapter.addEnabledExchange(subjectExchangeName, subjectExchangeSettings);
     }
 
-    describe("when rebalance is not in progress", () => {
-      cacheBeforeEach(initializeRootScopeContracts);
-      beforeEach(initializeSubjectVariables);
-      it("should set the correct exchange parameters", async () => {
-        await subject();
-        const exchange = await flexibleLeverageStrategyAdapter.getExchangeSettings(subjectExchangeName);
+    cacheBeforeEach(initializeRootScopeContracts);
+    beforeEach(initializeSubjectVariables);
 
-        expect(exchange.twapMaxTradeSize).to.eq(subjectExchangeSettings.twapMaxTradeSize);
-        expect(exchange.incentivizedTwapMaxTradeSize).to.eq(subjectExchangeSettings.incentivizedTwapMaxTradeSize);
-        expect(exchange.exchangeLastTradeTimestamp).to.eq(0);
-        expect(exchange.leverExchangeData).to.eq(subjectExchangeSettings.leverExchangeData);
-        expect(exchange.deleverExchangeData).to.eq(subjectExchangeSettings.deleverExchangeData);
-      });
+    it("should set the correct exchange parameters", async () => {
+      await subject();
+      const exchange = await flexibleLeverageStrategyAdapter.getExchangeSettings(subjectExchangeName);
 
-      it("should add exchange to enabledExchanges", async () => {
-        await subject();
-        const finalExchanges = await flexibleLeverageStrategyAdapter.getEnabledExchanges();
-
-        expect(finalExchanges.length).to.eq(2);
-        expect(finalExchanges[1]).to.eq(subjectExchangeName);
-      });
-
-      it("should emit an ExchangeAdded event", async () => {
-        await expect(subject()).to.emit(flexibleLeverageStrategyAdapter, "ExchangeAdded").withArgs(
-          subjectExchangeName,
-          subjectExchangeSettings.twapMaxTradeSize,
-          subjectExchangeSettings.exchangeLastTradeTimestamp,
-          subjectExchangeSettings.incentivizedTwapMaxTradeSize,
-          subjectExchangeSettings.leverExchangeData,
-          subjectExchangeSettings.deleverExchangeData
-        );
-      });
-
-      describe("when the caller is not the operator", async () => {
-        beforeEach(async () => {
-          subjectCaller = await getRandomAccount();
-        });
-
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Must be operator");
-        });
-      });
-
-      describe("when exchange has already been added", async () => {
-        beforeEach(() => {
-          subjectExchangeName = exchangeName;
-        });
-
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Exchange already enabled");
-        });
-      });
-
-      describe("when an exchange has a twapMaxTradeSize of 0", async () => {
-        beforeEach(async () => {
-          subjectExchangeSettings.twapMaxTradeSize = ZERO;
-        });
-
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Max TWAP trade size must not be 0");
-        });
-      });
+      expect(exchange.twapMaxTradeSize).to.eq(subjectExchangeSettings.twapMaxTradeSize);
+      expect(exchange.incentivizedTwapMaxTradeSize).to.eq(subjectExchangeSettings.incentivizedTwapMaxTradeSize);
+      expect(exchange.exchangeLastTradeTimestamp).to.eq(0);
+      expect(exchange.leverExchangeData).to.eq(subjectExchangeSettings.leverExchangeData);
+      expect(exchange.deleverExchangeData).to.eq(subjectExchangeSettings.deleverExchangeData);
     });
 
-    describe("when rebalance is in progress", async () => {
+    it("should add exchange to enabledExchanges", async () => {
+      await subject();
+      const finalExchanges = await flexibleLeverageStrategyAdapter.getEnabledExchanges();
+
+      expect(finalExchanges.length).to.eq(2);
+      expect(finalExchanges[1]).to.eq(subjectExchangeName);
+    });
+
+    it("should emit an ExchangeAdded event", async () => {
+      await expect(subject()).to.emit(flexibleLeverageStrategyAdapter, "ExchangeAdded").withArgs(
+        subjectExchangeName,
+        subjectExchangeSettings.twapMaxTradeSize,
+        subjectExchangeSettings.exchangeLastTradeTimestamp,
+        subjectExchangeSettings.incentivizedTwapMaxTradeSize,
+        subjectExchangeSettings.leverExchangeData,
+        subjectExchangeSettings.deleverExchangeData
+      );
+    });
+
+    describe("when the caller is not the operator", async () => {
       beforeEach(async () => {
-        await initializeRootScopeContracts();
-        initializeSubjectVariables();
-
-        // Approve tokens to issuance module and call issue
-        await cEther.approve(setV2Setup.issuanceModule.address, ether(1000));
-
-        // Issue 1 SetToken
-        const issueQuantity = ether(1);
-        await setV2Setup.issuanceModule.issue(setToken.address, issueQuantity, owner.address);
-
-        await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-
-        // Engage to initial leverage
-        await flexibleLeverageStrategyAdapter.engage(exchangeName);
+        subjectCaller = await getRandomAccount();
       });
 
       it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Rebalance is currently in progress");
+        await expect(subject()).to.be.revertedWith("Must be operator");
+      });
+    });
+
+    describe("when exchange has already been added", async () => {
+      beforeEach(() => {
+        subjectExchangeName = exchangeName;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Exchange already enabled");
+      });
+    });
+
+    describe("when an exchange has a twapMaxTradeSize of 0", async () => {
+      beforeEach(async () => {
+        subjectExchangeSettings.twapMaxTradeSize = ZERO;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Max TWAP trade size must not be 0");
       });
     });
   });
@@ -3731,90 +3707,66 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       return flexibleLeverageStrategyAdapter.updateEnabledExchange(subjectExchangeName, subjectNewExchangeSettings);
     }
 
-    describe("when rebalance is not in progress", () => {
-      cacheBeforeEach(initializeRootScopeContracts);
-      beforeEach(initializeSubjectVariables);
-      it("should set the correct exchange parameters", async () => {
-        await subject();
-        const exchange = await flexibleLeverageStrategyAdapter.getExchangeSettings(subjectExchangeName);
+    cacheBeforeEach(initializeRootScopeContracts);
+    beforeEach(initializeSubjectVariables);
 
-        expect(exchange.twapMaxTradeSize).to.eq(subjectNewExchangeSettings.twapMaxTradeSize);
-        expect(exchange.incentivizedTwapMaxTradeSize).to.eq(subjectNewExchangeSettings.incentivizedTwapMaxTradeSize);
-        expect(exchange.exchangeLastTradeTimestamp).to.eq(subjectNewExchangeSettings.exchangeLastTradeTimestamp);
-        expect(exchange.leverExchangeData).to.eq(subjectNewExchangeSettings.leverExchangeData);
-        expect(exchange.deleverExchangeData).to.eq(subjectNewExchangeSettings.deleverExchangeData);
-      });
+    it("should set the correct exchange parameters", async () => {
+      await subject();
+      const exchange = await flexibleLeverageStrategyAdapter.getExchangeSettings(subjectExchangeName);
 
-      it("should not add duplicate entry to enabledExchanges", async () => {
-        await subject();
-        const finalExchanges = await flexibleLeverageStrategyAdapter.getEnabledExchanges();
-
-        expect(finalExchanges.length).to.eq(1);
-        expect(finalExchanges[0]).to.eq(subjectExchangeName);
-      });
-
-      it("should emit an ExchangeUpdated event", async () => {
-        await expect(subject()).to.emit(flexibleLeverageStrategyAdapter, "ExchangeUpdated").withArgs(
-          subjectExchangeName,
-          subjectNewExchangeSettings.twapMaxTradeSize,
-          subjectNewExchangeSettings.exchangeLastTradeTimestamp,
-          subjectNewExchangeSettings.incentivizedTwapMaxTradeSize,
-          subjectNewExchangeSettings.leverExchangeData,
-          subjectNewExchangeSettings.deleverExchangeData
-        );
-      });
-
-      describe("when the caller is not the operator", async () => {
-        beforeEach(async () => {
-          subjectCaller = await getRandomAccount();
-        });
-
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Must be operator");
-        });
-      });
-
-      describe("when exchange has not already been added", async () => {
-        beforeEach(() => {
-          subjectExchangeName = "NewExchange";
-        });
-
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Exchange not enabled");
-        });
-      });
-
-      describe("when an exchange has a twapMaxTradeSize of 0", async () => {
-        beforeEach(async () => {
-          subjectNewExchangeSettings.twapMaxTradeSize = ZERO;
-        });
-
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Max TWAP trade size must not be 0");
-        });
-      });
+      expect(exchange.twapMaxTradeSize).to.eq(subjectNewExchangeSettings.twapMaxTradeSize);
+      expect(exchange.incentivizedTwapMaxTradeSize).to.eq(subjectNewExchangeSettings.incentivizedTwapMaxTradeSize);
+      expect(exchange.exchangeLastTradeTimestamp).to.eq(subjectNewExchangeSettings.exchangeLastTradeTimestamp);
+      expect(exchange.leverExchangeData).to.eq(subjectNewExchangeSettings.leverExchangeData);
+      expect(exchange.deleverExchangeData).to.eq(subjectNewExchangeSettings.deleverExchangeData);
     });
 
-    describe("when rebalance is in progress", async () => {
+    it("should not add duplicate entry to enabledExchanges", async () => {
+      await subject();
+      const finalExchanges = await flexibleLeverageStrategyAdapter.getEnabledExchanges();
+
+      expect(finalExchanges.length).to.eq(1);
+      expect(finalExchanges[0]).to.eq(subjectExchangeName);
+    });
+
+    it("should emit an ExchangeUpdated event", async () => {
+      await expect(subject()).to.emit(flexibleLeverageStrategyAdapter, "ExchangeUpdated").withArgs(
+        subjectExchangeName,
+        subjectNewExchangeSettings.twapMaxTradeSize,
+        subjectNewExchangeSettings.exchangeLastTradeTimestamp,
+        subjectNewExchangeSettings.incentivizedTwapMaxTradeSize,
+        subjectNewExchangeSettings.leverExchangeData,
+        subjectNewExchangeSettings.deleverExchangeData
+      );
+    });
+
+    describe("when the caller is not the operator", async () => {
       beforeEach(async () => {
-        await initializeRootScopeContracts();
-        initializeSubjectVariables();
-
-        // Approve tokens to issuance module and call issue
-        await cEther.approve(setV2Setup.issuanceModule.address, ether(1000));
-
-        // Issue 1 SetToken
-        const issueQuantity = ether(1);
-        await setV2Setup.issuanceModule.issue(setToken.address, issueQuantity, owner.address);
-
-        await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-
-        // Engage to initial leverage
-        await flexibleLeverageStrategyAdapter.engage(exchangeName);
+        subjectCaller = await getRandomAccount();
       });
 
       it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Rebalance is currently in progress");
+        await expect(subject()).to.be.revertedWith("Must be operator");
+      });
+    });
+
+    describe("when exchange has not already been added", async () => {
+      beforeEach(() => {
+        subjectExchangeName = "NewExchange";
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Exchange not enabled");
+      });
+    });
+
+    describe("when an exchange has a twapMaxTradeSize of 0", async () => {
+      beforeEach(async () => {
+        subjectNewExchangeSettings.twapMaxTradeSize = ZERO;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Max TWAP trade size must not be 0");
       });
     });
   });
@@ -3833,74 +3785,50 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       return flexibleLeverageStrategyAdapter.removeEnabledExchange(subjectExchangeName);
     }
 
-    describe("when rebalance is not in progress", () => {
-      cacheBeforeEach(initializeRootScopeContracts);
-      beforeEach(initializeSubjectVariables);
-      it("should set the exchange parameters to their default values", async () => {
-        await subject();
-        const exchange = await flexibleLeverageStrategyAdapter.getExchangeSettings(subjectExchangeName);
+    cacheBeforeEach(initializeRootScopeContracts);
+    beforeEach(initializeSubjectVariables);
 
-        expect(exchange.twapMaxTradeSize).to.eq(0);
-        expect(exchange.incentivizedTwapMaxTradeSize).to.eq(0);
-        expect(exchange.exchangeLastTradeTimestamp).to.eq(0);
-        expect(exchange.leverExchangeData).to.eq(EMPTY_BYTES);
-        expect(exchange.deleverExchangeData).to.eq(EMPTY_BYTES);
-      });
+    it("should set the exchange parameters to their default values", async () => {
+      await subject();
+      const exchange = await flexibleLeverageStrategyAdapter.getExchangeSettings(subjectExchangeName);
 
-      it("should remove entry from enabledExchanges list", async () => {
-        await subject();
-        const finalExchanges = await flexibleLeverageStrategyAdapter.getEnabledExchanges();
-
-        expect(finalExchanges.length).to.eq(0);
-      });
-
-      it("should emit an ExchangeRemoved event", async () => {
-        await expect(subject()).to.emit(flexibleLeverageStrategyAdapter, "ExchangeRemoved").withArgs(
-          subjectExchangeName,
-        );
-      });
-
-      describe("when the caller is not the operator", async () => {
-        beforeEach(async () => {
-          subjectCaller = await getRandomAccount();
-        });
-
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Must be operator");
-        });
-      });
-
-      describe("when exchange has not already been added", async () => {
-        beforeEach(() => {
-          subjectExchangeName = "NewExchange";
-        });
-
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Exchange not enabled");
-        });
-      });
+      expect(exchange.twapMaxTradeSize).to.eq(0);
+      expect(exchange.incentivizedTwapMaxTradeSize).to.eq(0);
+      expect(exchange.exchangeLastTradeTimestamp).to.eq(0);
+      expect(exchange.leverExchangeData).to.eq(EMPTY_BYTES);
+      expect(exchange.deleverExchangeData).to.eq(EMPTY_BYTES);
     });
 
-    describe("when rebalance is in progress", async () => {
+    it("should remove entry from enabledExchanges list", async () => {
+      await subject();
+      const finalExchanges = await flexibleLeverageStrategyAdapter.getEnabledExchanges();
+
+      expect(finalExchanges.length).to.eq(0);
+    });
+
+    it("should emit an ExchangeRemoved event", async () => {
+      await expect(subject()).to.emit(flexibleLeverageStrategyAdapter, "ExchangeRemoved").withArgs(
+        subjectExchangeName,
+      );
+    });
+
+    describe("when the caller is not the operator", async () => {
       beforeEach(async () => {
-        await initializeRootScopeContracts();
-        initializeSubjectVariables();
-
-        // Approve tokens to issuance module and call issue
-        await cEther.approve(setV2Setup.issuanceModule.address, ether(1000));
-
-        // Issue 1 SetToken
-        const issueQuantity = ether(1);
-        await setV2Setup.issuanceModule.issue(setToken.address, issueQuantity, owner.address);
-
-        await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-
-        // Engage to initial leverage
-        await flexibleLeverageStrategyAdapter.engage(exchangeName);
+        subjectCaller = await getRandomAccount();
       });
 
       it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Rebalance is currently in progress");
+        await expect(subject()).to.be.revertedWith("Must be operator");
+      });
+    });
+
+    describe("when exchange has not already been added", async () => {
+      beforeEach(() => {
+        subjectExchangeName = "NewExchange";
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Exchange not enabled");
       });
     });
   });

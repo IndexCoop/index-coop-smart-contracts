@@ -516,7 +516,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     /**
-     * OPERATOR ONLY: Add a new enabled exchange for trading during rebalances. Note: must not be in a rebalance.
+     * OPERATOR ONLY: Add a new enabled exchange for trading during rebalances. New exchanges have their exchangeLastTradeTimestamp set to 0
      *
      * @param _exchangeName         Name of the exchange
      * @param _exchangeSettings     Struct containing exchange parameters
@@ -527,7 +527,6 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     )
         external 
         onlyOperator 
-        noRebalanceInProgress
     {
         require(exchangeSettings[_exchangeName].twapMaxTradeSize == 0, "Exchange already enabled");
         _validateExchangeSettings(_exchangeSettings);
@@ -548,11 +547,11 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     /**
-     * OPERATOR ONLY: Removes an exchange. Reverts if the exchange is not already enabled. Note: must not be in a rebalance.
+     * OPERATOR ONLY: Removes an exchange. Reverts if the exchange is not already enabled.
      *
      * @param _exchangeName     Name of exchange to remove
      */
-    function removeEnabledExchange(string memory _exchangeName) external onlyOperator noRebalanceInProgress {
+    function removeEnabledExchange(string memory _exchangeName) external onlyOperator {
         require(exchangeSettings[_exchangeName].twapMaxTradeSize != 0, "Exchange not enabled");
 
         delete exchangeSettings[_exchangeName];
@@ -563,7 +562,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
 
     /**
      * OPERATOR ONLY: Updates the settings of an exchange. Reverts if exchange is not already addedNote: Need to pass in existing parameters if only 
-     * changing a few settings. Must not be in a rebalance.
+     * changing a few settings. When updating an exchange, exchangeLastTradeTimestamp is preserved
      *
      * @param _exchangeName         Name of the exchange
      * @param _exchangeSettings     Struct containing exchange parameters
@@ -574,7 +573,6 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     )
         external
         onlyOperator
-        noRebalanceInProgress
     {
         require(exchangeSettings[_exchangeName].twapMaxTradeSize != 0, "Exchange not enabled");
         _validateExchangeSettings(_exchangeSettings);
