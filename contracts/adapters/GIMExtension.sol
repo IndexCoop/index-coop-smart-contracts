@@ -26,8 +26,6 @@ import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IGeneralIndexModule } from "../interfaces/IGeneralIndexModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 
-import "hardhat/console.sol";
-
 /**
  * @title GIMAdapter
  * @author Set Protocol
@@ -36,7 +34,7 @@ import "hardhat/console.sol";
  * All functions are only callable by operator. startRebalance() on GIM maps to startRebalanceWithUnits
  * on GIMAdapter. 
  */
-contract GIMAdapter is BaseAdapter {
+contract GIMExtension is BaseAdapter {
 
     using AddressArrayUtils for address[];
     using SafeMath for uint256;

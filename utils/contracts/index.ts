@@ -5,7 +5,7 @@ export { ExchangeIssuance } from "../../typechain/ExchangeIssuance";
 export { ExchangeIssuanceV2 } from "../../typechain/ExchangeIssuanceV2";
 export { FeeSplitAdapter } from "../../typechain/FeeSplitAdapter";
 export { FlexibleLeverageStrategyAdapter } from "../../typechain/FlexibleLeverageStrategyAdapter";
-export { GIMAdapter } from "../../typechain/GIMAdapter";
+export { GIMExtension } from "../../typechain/GIMExtension";
 export { GovernanceAdapter } from "../../typechain/GovernanceAdapter";
 export { GovernanceAdapterMock } from "../../typechain/GovernanceAdapterMock";
 export { ICManager } from "../../typechain/ICManager";

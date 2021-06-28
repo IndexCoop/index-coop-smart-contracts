@@ -2,7 +2,7 @@ import "module-alias/register";
 
 import { Address, Account } from "@utils/types";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
-import { GIMAdapter, BaseManager } from "@utils/contracts/index";
+import { GIMExtension, BaseManager } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -19,7 +19,7 @@ import { BigNumber, ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
 
-describe("GIMAdapter", () => {
+describe.only("GIMExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
@@ -35,7 +35,7 @@ describe("GIMAdapter", () => {
   let setToken: SetToken;
 
   let baseManagerV2: BaseManager;
-  let gimAdapter: GIMAdapter;
+  let gimExtension: GIMExtension;
 
   before(async () => {
     [
@@ -101,45 +101,45 @@ describe("GIMAdapter", () => {
       subjectGeneralIndexModule = setV2Setup.governanceModule.address;
     });
 
-    async function subject(): Promise<GIMAdapter> {
-      return await deployer.adapters.deployGIMAdapter(
+    async function subject(): Promise<GIMExtension> {
+      return await deployer.adapters.deployGIMExtension(
         subjectManager,
         subjectGeneralIndexModule
       );
     }
 
     it("should set the correct SetToken address", async () => {
-      const gimAdapter = await subject();
+      const gimExtension = await subject();
 
-      const actualToken = await gimAdapter.setToken();
+      const actualToken = await gimExtension.setToken();
       expect(actualToken).to.eq(setToken.address);
     });
 
     it("should set the correct manager address", async () => {
-      const gimAdapter = await subject();
+      const gimExtension = await subject();
 
-      const actualManager = await gimAdapter.manager();
+      const actualManager = await gimExtension.manager();
       expect(actualManager).to.eq(baseManagerV2.address);
     });
 
     it("should set the correct general index module address", async () => {
-      const gimAdapter = await subject();
+      const gimExtension = await subject();
 
-      const actualGeneralIndexModule = await gimAdapter.generalIndexModule();
+      const actualGeneralIndexModule = await gimExtension.generalIndexModule();
       expect(actualGeneralIndexModule).to.eq(subjectGeneralIndexModule);
     });
   });
 
-  context("when GIM adapter is deployed and module needs to be initialized", async () => {
+  context("when GIM extension is deployed and module needs to be initialized", async () => {
     beforeEach(async () => {
-      gimAdapter = await deployer.adapters.deployGIMAdapter(
+      gimExtension = await deployer.adapters.deployGIMExtension(
         baseManagerV2.address,
         setV2Setup.generalIndexModule.address
       );
 
-      await baseManagerV2.connect(operator.wallet).addAdapter(gimAdapter.address);
+      await baseManagerV2.connect(operator.wallet).addAdapter(gimExtension.address);
 
-      await gimAdapter.connect(operator.wallet).updateCallerStatus([approvedCaller.address], [true]);
+      await gimExtension.connect(operator.wallet).updateCallerStatus([approvedCaller.address], [true]);
 
       // Transfer ownership to BaseManager
       await setToken.setManager(baseManagerV2.address);
@@ -162,7 +162,7 @@ describe("GIMAdapter", () => {
       });
 
       async function subject(): Promise<ContractTransaction> {
-        return await gimAdapter.connect(subjectCaller.wallet).initialize();
+        return await gimExtension.connect(subjectCaller.wallet).initialize();
       }
 
       it("should initialize GeneralIndexModule", async () => {
@@ -183,9 +183,9 @@ describe("GIMAdapter", () => {
       });
     });
 
-    context("when GIM adapter is deployed and system fully set up", async () => {
+    context("when GIM extension is deployed and system fully set up", async () => {
       beforeEach(async () => {
-        await gimAdapter.connect(operator.wallet).initialize();
+        await gimExtension.connect(operator.wallet).initialize();
       });
 
       describe("#startRebalanceWithUnits", async () => {
@@ -202,7 +202,7 @@ describe("GIMAdapter", () => {
         });
 
         async function subject(): Promise<ContractTransaction> {
-          return await gimAdapter.connect(subjectCaller.wallet).startRebalanceWithUnits(
+          return await gimExtension.connect(subjectCaller.wallet).startRebalanceWithUnits(
             subjectComponents,
             subjectTargetUnits,
             subjectPositionMultiplier
@@ -299,7 +299,7 @@ describe("GIMAdapter", () => {
         });
 
         async function subject(): Promise<ContractTransaction> {
-          return await gimAdapter.connect(subjectCaller.wallet).setTradeMaximums(
+          return await gimExtension.connect(subjectCaller.wallet).setTradeMaximums(
             subjectComponents,
             subjectTradeMaximums
           );
@@ -338,7 +338,7 @@ describe("GIMAdapter", () => {
         });
 
         async function subject(): Promise<ContractTransaction> {
-          return await gimAdapter.connect(subjectCaller.wallet).setExchanges(
+          return await gimExtension.connect(subjectCaller.wallet).setExchanges(
             subjectComponents,
             subjectExchangeNames
           );
@@ -376,7 +376,7 @@ describe("GIMAdapter", () => {
         });
 
         async function subject(): Promise<ContractTransaction> {
-          return await gimAdapter.connect(subjectCaller.wallet).setCoolOffPeriods(
+          return await gimExtension.connect(subjectCaller.wallet).setCoolOffPeriods(
             subjectComponents,
             subjectCoolOffPeriods
           );
@@ -414,7 +414,7 @@ describe("GIMAdapter", () => {
         });
 
         async function subject(): Promise<ContractTransaction> {
-          return await gimAdapter.connect(subjectCaller.wallet).setExchangeData(
+          return await gimExtension.connect(subjectCaller.wallet).setExchangeData(
             subjectComponents,
             subjectExchangeData
           );
@@ -450,7 +450,7 @@ describe("GIMAdapter", () => {
         });
 
         async function subject(): Promise<ContractTransaction> {
-          return await gimAdapter.connect(subjectCaller.wallet).setRaiseTargetPercentage(
+          return await gimExtension.connect(subjectCaller.wallet).setRaiseTargetPercentage(
             subjectRaiseTargetPercentage,
           );
         }
@@ -486,7 +486,7 @@ describe("GIMAdapter", () => {
         });
 
         async function subject(): Promise<ContractTransaction> {
-          return await gimAdapter.connect(subjectCaller.wallet).setTraderStatus(
+          return await gimExtension.connect(subjectCaller.wallet).setTraderStatus(
             subjectTraders,
             subjectStatuses
           );
@@ -521,7 +521,7 @@ describe("GIMAdapter", () => {
         });
 
         async function subject(): Promise<ContractTransaction> {
-          return await gimAdapter.connect(subjectCaller.wallet).setAnyoneTrade(
+          return await gimExtension.connect(subjectCaller.wallet).setAnyoneTrade(
             subjectStatus
           );
         }

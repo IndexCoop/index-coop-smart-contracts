@@ -5,7 +5,7 @@ import {
   ExchangeIssuanceV2,
   FlexibleLeverageStrategyAdapter,
   FeeSplitAdapter,
-  GIMAdapter,
+  GIMExtension,
   GovernanceAdapter
 } from "../contracts/index";
 
@@ -13,7 +13,7 @@ import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIss
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { FeeSplitAdapter__factory } from "../../typechain/factories/FeeSplitAdapter__factory";
 import { FlexibleLeverageStrategyAdapter__factory } from "../../typechain/factories/FlexibleLeverageStrategyAdapter__factory";
-import { GIMAdapter__factory } from "../../typechain/factories/GIMAdapter__factory";
+import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
 import { GovernanceAdapter__factory } from "../../typechain/factories/GovernanceAdapter__factory";
 
 export default class DeployAdapters {
@@ -47,11 +47,11 @@ export default class DeployAdapters {
     );
   }
 
-  public async deployGIMAdapter(
+  public async deployGIMExtension(
     manager: Address,
     generalIndexModule: Address,
-  ): Promise<GIMAdapter> {
-    return await new GIMAdapter__factory(this._deployerSigner).deploy(
+  ): Promise<GIMExtension> {
+    return await new GIMExtension__factory(this._deployerSigner).deploy(
       manager,
       generalIndexModule
     );
