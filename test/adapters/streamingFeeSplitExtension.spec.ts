@@ -3,7 +3,7 @@ import "module-alias/register";
 import { solidityKeccak256 } from "ethers/lib/utils";
 import { Address, Account } from "@utils/types";
 import { ADDRESS_ZERO, ZERO, ONE_DAY_IN_SECONDS, ONE_YEAR_IN_SECONDS } from "@utils/constants";
-import { StreamingFeeSplitAdapter, BaseManager } from "@utils/contracts/index";
+import { StreamingFeeSplitExtension, BaseManager } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -24,7 +24,7 @@ import { BigNumber, ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
 
-describe("StreamingFeeSplitAdapter", () => {
+describe("StreamingFeeSplitExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
@@ -34,7 +34,7 @@ describe("StreamingFeeSplitAdapter", () => {
   let setToken: SetToken;
 
   let baseManagerV2: BaseManager;
-  let feeAdapter: StreamingFeeSplitAdapter;
+  let feeExtension: StreamingFeeSplitExtension;
 
   before(async () => {
     [
@@ -91,8 +91,8 @@ describe("StreamingFeeSplitAdapter", () => {
       subjectOperatorFeeSplit = ether(.7);
     });
 
-    async function subject(): Promise<StreamingFeeSplitAdapter> {
-      return await deployer.adapters.deployStreamingFeeSplitAdapter(
+    async function subject(): Promise<StreamingFeeSplitExtension> {
+      return await deployer.adapters.deployStreamingFeeSplitExtension(
         subjectManager,
         subjectStreamingFeeModule,
         subjectOperatorFeeSplit
@@ -100,45 +100,45 @@ describe("StreamingFeeSplitAdapter", () => {
     }
 
     it("should set the correct SetToken address", async () => {
-      const feeAdapter = await subject();
+      const feeExtension = await subject();
 
-      const actualToken = await feeAdapter.setToken();
+      const actualToken = await feeExtension.setToken();
       expect(actualToken).to.eq(setToken.address);
     });
 
     it("should set the correct manager address", async () => {
-      const feeAdapter = await subject();
+      const feeExtension = await subject();
 
-      const actualManager = await feeAdapter.manager();
+      const actualManager = await feeExtension.manager();
       expect(actualManager).to.eq(baseManagerV2.address);
     });
 
     it("should set the correct streaming fee module address", async () => {
-      const feeAdapter = await subject();
+      const feeExtension = await subject();
 
-      const actualStreamingFeeModule = await feeAdapter.streamingFeeModule();
+      const actualStreamingFeeModule = await feeExtension.streamingFeeModule();
       expect(actualStreamingFeeModule).to.eq(subjectStreamingFeeModule);
     });
 
     it("should set the correct operator fee split", async () => {
-      const feeAdapter = await subject();
+      const feeExtension = await subject();
 
-      const actualOperatorFeeSplit = await feeAdapter.operatorFeeSplit();
+      const actualOperatorFeeSplit = await feeExtension.operatorFeeSplit();
       expect(actualOperatorFeeSplit).to.eq(subjectOperatorFeeSplit);
     });
   });
 
-  context("when fee adapter is deployed and system fully set up", async () => {
+  context("when fee extension is deployed and system fully set up", async () => {
     const operatorSplit: BigNumber = ether(.7);
 
     beforeEach(async () => {
-      feeAdapter = await deployer.adapters.deployStreamingFeeSplitAdapter(
+      feeExtension = await deployer.adapters.deployStreamingFeeSplitExtension(
         baseManagerV2.address,
         setV2Setup.streamingFeeModule.address,
         operatorSplit
       );
 
-      await baseManagerV2.connect(operator.wallet).addAdapter(feeAdapter.address);
+      await baseManagerV2.connect(operator.wallet).addAdapter(feeExtension.address);
 
       // Transfer ownership to BaseManager
       await setToken.setManager(baseManagerV2.address);
@@ -157,7 +157,7 @@ describe("StreamingFeeSplitAdapter", () => {
       });
 
       async function subject(): Promise<ContractTransaction> {
-        return await feeAdapter.accrueFeesAndDistribute();
+        return await feeExtension.accrueFeesAndDistribute();
       }
 
       it("should send correct amount of fees to operator and methodologist", async () => {
@@ -186,12 +186,12 @@ describe("StreamingFeeSplitAdapter", () => {
       });
 
       it("should emit a FeesAccrued event", async () => {
-        await expect(subject()).to.emit(feeAdapter, "FeesAccrued");
+        await expect(subject()).to.emit(feeExtension, "FeesAccrued");
       });
 
       describe("when methodologist fees are 0", async () => {
         beforeEach(async () => {
-          await feeAdapter.connect(operator.wallet).updateFeeSplit(ether(1));
+          await feeExtension.connect(operator.wallet).updateFeeSplit(ether(1));
         });
 
         it("should not send fees to methodologist", async () => {
@@ -206,7 +206,7 @@ describe("StreamingFeeSplitAdapter", () => {
 
       describe("when operator fees are 0", async () => {
         beforeEach(async () => {
-          await feeAdapter.connect(operator.wallet).updateFeeSplit(ZERO);
+          await feeExtension.connect(operator.wallet).updateFeeSplit(ZERO);
         });
 
         it("should not send fees to operator", async () => {
@@ -239,7 +239,7 @@ describe("StreamingFeeSplitAdapter", () => {
       });
 
       async function subject(): Promise<ContractTransaction> {
-        return await feeAdapter.connect(subjectCaller.wallet).updateStreamingFee(subjectNewFee);
+        return await feeExtension.connect(subjectCaller.wallet).updateStreamingFee(subjectNewFee);
       }
       context("when no timelock period has been set", async () => {
         it("should update the streaming fee", async () => {
@@ -275,15 +275,15 @@ describe("StreamingFeeSplitAdapter", () => {
 
       context("when 1 day timelock period has been set", async () => {
         beforeEach(async () => {
-          await feeAdapter.connect(owner.wallet).setTimeLockPeriod(ONE_DAY_IN_SECONDS);
+          await feeExtension.connect(owner.wallet).setTimeLockPeriod(ONE_DAY_IN_SECONDS);
         });
 
         it("sets the upgradeHash", async () => {
           await subject();
           const timestamp = await getLastBlockTimestamp();
-          const calldata = feeAdapter.interface.encodeFunctionData("updateStreamingFee", [subjectNewFee]);
+          const calldata = feeExtension.interface.encodeFunctionData("updateStreamingFee", [subjectNewFee]);
           const upgradeHash = solidityKeccak256(["bytes"], [calldata]);
-          const actualTimestamp = await feeAdapter.timeLockedUpgrades(upgradeHash);
+          const actualTimestamp = await feeExtension.timeLockedUpgrades(upgradeHash);
           expect(actualTimestamp).to.eq(timestamp);
         });
 
@@ -346,7 +346,7 @@ describe("StreamingFeeSplitAdapter", () => {
       });
 
       async function subject(): Promise<ContractTransaction> {
-        return await feeAdapter.connect(subjectCaller.wallet).updateFeeRecipient(subjectNewFeeRecipient);
+        return await feeExtension.connect(subjectCaller.wallet).updateFeeRecipient(subjectNewFeeRecipient);
       }
 
       it("sets the new fee recipient", async () => {
@@ -386,7 +386,7 @@ describe("StreamingFeeSplitAdapter", () => {
       });
 
       async function subject(): Promise<ContractTransaction> {
-        return await feeAdapter.connect(subjectCaller.wallet).updateFeeSplit(subjectNewFeeSplit);
+        return await feeExtension.connect(subjectCaller.wallet).updateFeeSplit(subjectNewFeeSplit);
       }
 
       it("should accrue fees and send correct amount to operator and methodologist", async () => {
@@ -417,7 +417,7 @@ describe("StreamingFeeSplitAdapter", () => {
       it("sets the new fee split", async () => {
         await subject();
 
-        const actualFeeSplit = await feeAdapter.operatorFeeSplit();
+        const actualFeeSplit = await feeExtension.operatorFeeSplit();
 
         expect(actualFeeSplit).to.eq(subjectNewFeeSplit);
       });

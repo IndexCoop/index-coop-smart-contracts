@@ -28,13 +28,13 @@ import { TimeLockUpgrade } from "../lib/TimeLockUpgrade.sol";
 
 
 /**
- * @title StreamingFeeSplitAdapter
+ * @title StreamingFeeSplitExtension
  * @author Set Protocol
  *
- * Smart contract adapter that allows for splitting and setting streaming fees. Fee splits are updated by operator.
+ * Smart contract manager extension that allows for splitting and setting streaming fees. Fee splits are updated by operator.
  * Any fee updates are timelocked.
  */
-contract StreamingFeeSplitAdapter is BaseAdapter, TimeLockUpgrade {
+contract StreamingFeeSplitExtension is BaseAdapter, TimeLockUpgrade {
     using Address for address;
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
@@ -95,8 +95,8 @@ contract StreamingFeeSplitAdapter is BaseAdapter, TimeLockUpgrade {
     }
 
     /**
-     * ONLY OPERATOR: Updates streaming fee on StreamingFeeModule. NOTE: This will accrue streaming fees though not send to operator
-     * and methodologist.
+     * ONLY OPERATOR: Updates streaming fee on StreamingFeeModule. NOTE: This will accrue streaming fees to the manager contract
+     * but not distribute to the operator and methodologist.
      */
     function updateStreamingFee(uint256 _newFee) external onlyOperator timeLockUpgrade {
         bytes memory callData = abi.encodeWithSelector(

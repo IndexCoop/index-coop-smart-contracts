@@ -7,7 +7,7 @@ import {
   FeeSplitAdapter,
   GIMExtension,
   GovernanceAdapter,
-  StreamingFeeSplitAdapter
+  StreamingFeeSplitExtension
 } from "../contracts/index";
 
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
@@ -16,7 +16,7 @@ import { FeeSplitAdapter__factory  } from "../../typechain/factories/FeeSplitAda
 import { FlexibleLeverageStrategyAdapter__factory } from "../../typechain/factories/FlexibleLeverageStrategyAdapter__factory";
 import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
 import { GovernanceAdapter__factory } from "../../typechain/factories/GovernanceAdapter__factory";
-import { StreamingFeeSplitAdapter__factory  } from "../../typechain/factories/StreamingFeeSplitAdapter__factory";
+import { StreamingFeeSplitExtension__factory  } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 
 export default class DeployAdapters {
   private _deployerSigner: Signer;
@@ -39,12 +39,12 @@ export default class DeployAdapters {
     );
   }
 
-  public async deployStreamingFeeSplitAdapter(
+  public async deployStreamingFeeSplitExtension(
     manager: Address,
     streamingFeeModule: Address,
     operatorFeeSplit: BigNumber,
-  ): Promise<StreamingFeeSplitAdapter> {
-    return await new StreamingFeeSplitAdapter__factory(this._deployerSigner).deploy(
+  ): Promise<StreamingFeeSplitExtension> {
+    return await new StreamingFeeSplitExtension__factory(this._deployerSigner).deploy(
       manager,
       streamingFeeModule,
       operatorFeeSplit
