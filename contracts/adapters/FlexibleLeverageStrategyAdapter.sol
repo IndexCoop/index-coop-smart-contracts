@@ -60,7 +60,7 @@ import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
  * - Update constructor to take an array of exchange names and an array of ExchangeSettings
  * - Add _exchangeName parameter to rebalancing functions to select which exchange to use
  * - Add permissioned addEnabledExchange, updateEnabledExchange, and removeEnabledExchange functions
- * - Add getTotalRebalanceNotional function
+ * - Add getChunkRebalanceNotional function
  * - Update shouldRebalance and shouldRebalanceWithBounds to return an array of ShouldRebalance enums and an array of exchange names
  * - Update _shouldRebalance to use exchange specific last trade timestamps
  * - Update _validateRipcord and _validateNormalRebalance to take in a timestamp parameter (so we can pass either global or exchange specific timestamp)
@@ -516,7 +516,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     /**
-     * OPERATOR ONLY: Add a new enabled exchange for trading during rebalances. New exchanges have their exchangeLastTradeTimestamp set to 0
+     * OPERATOR ONLY: Add a new enabled exchange for trading during rebalances. New exchanges will have their exchangeLastTradeTimestamp set to 0. Adding
+     * exchanges during rebalances is allowed, as it is not possible to enter an unexpected state while doing so.
      *
      * @param _exchangeName         Name of the exchange
      * @param _exchangeSettings     Struct containing exchange parameters
@@ -547,7 +548,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     /**
-     * OPERATOR ONLY: Removes an exchange. Reverts if the exchange is not already enabled.
+     * OPERATOR ONLY: Removes an exchange. Reverts if the exchange is not already enabled. Removing exchanges during rebalances is allowed, 
+     * as it is not possible to enter an unexpected state while doing so.
      *
      * @param _exchangeName     Name of exchange to remove
      */
@@ -561,8 +563,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     /**
-     * OPERATOR ONLY: Updates the settings of an exchange. Reverts if exchange is not already addedNote: Need to pass in existing parameters if only 
-     * changing a few settings. When updating an exchange, exchangeLastTradeTimestamp is preserved
+     * OPERATOR ONLY: Updates the settings of an exchange. Reverts if exchange is not already added. When updating an exchange, exchangeLastTradeTimestamp 
+     * is preserved. Updating exchanges during rebalances is allowed, as it is not possible to enter an unexpected state while doing so. Note: Need to 
+     * pass in all existing parameters even if only changing a few settings. 
      *
      * @param _exchangeName         Name of the exchange
      * @param _exchangeSettings     Struct containing exchange parameters
@@ -653,7 +656,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             bool isLever = newLeverageRatio > currentLeverageRatio;
             LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(slippageTolerance, maxTradeSize, _exchangeNames[i]);
 
-            (uint256 collateralNotional,) = _calculateChunkRebalanceNotional(leverageInfo, newLeverageRatio, isLever);
+            (uint256 collateralNotional, ) = _calculateChunkRebalanceNotional(leverageInfo, newLeverageRatio, isLever);
 
             if (isLever) {
                 ActionInfo memory actionInfo = _createActionInfo();
