@@ -20,3 +20,6 @@ export { ProtocolUtils } from "./protocolUtils";
 export {
   convertLibraryNameToLinkId
 } from "./libraryUtils";
+export {
+  bigNumberToData
+} from "./conversionUtils";

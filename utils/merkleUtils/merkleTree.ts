@@ -99,6 +99,7 @@ export default class MerkleTree {
     if (pairIdx < layer.length) {
       return layer[pairIdx];
     } else {
+      // tslint:disable-next-line:no-null-keyword
       return null;
     }
   }

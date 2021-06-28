@@ -3,13 +3,14 @@ import { BigNumber, BigNumberish } from "@ethersproject/bignumber";
 import { Address } from "../types";
 import { convertLibraryNameToLinkId } from "../common";
 import {
+  BasicIssuanceModule,
   Compound,
   CompoundLeverageModule,
   Controller,
   ComptrollerMock,
   ContractCallerMock,
   DebtIssuanceModule,
-  BasicIssuanceModule,
+  GovernanceModule,
   IntegrationRegistry,
   StreamingFeeModule,
   SetToken,
@@ -19,14 +20,15 @@ import {
 } from "../contracts/setV2";
 import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
+import { BasicIssuanceModule__factory } from "../../typechain/factories/BasicIssuanceModule__factory";
 import { Controller__factory } from "../../typechain/factories/Controller__factory";
 import { Compound__factory } from "../../typechain/factories/Compound__factory";
 import { CompoundLeverageModule__factory } from "../../typechain/factories/CompoundLeverageModule__factory";
 import { ComptrollerMock__factory } from "../../typechain/factories/ComptrollerMock__factory";
 import { ContractCallerMock__factory } from "../../typechain/factories/ContractCallerMock__factory";
 import { DebtIssuanceModule__factory } from "../../typechain/factories/DebtIssuanceModule__factory";
+import { GovernanceModule__factory } from "../../typechain/factories/GovernanceModule__factory";
 import { IntegrationRegistry__factory } from "../../typechain/factories/IntegrationRegistry__factory";
-import { BasicIssuanceModule__factory } from "../../typechain/factories/BasicIssuanceModule__factory";
 import { SingleIndexModule__factory } from "../../typechain/factories/SingleIndexModule__factory";
 import { StreamingFeeModule__factory } from "../../typechain/factories/StreamingFeeModule__factory";
 import { SetToken__factory } from "../../typechain/factories/SetToken__factory";
@@ -150,6 +152,10 @@ export default class DeploySetV2 {
       cEther,
       weth,
     );
+  }
+
+  public async deployGovernanceModule(controller: Address): Promise<GovernanceModule> {
+    return await new GovernanceModule__factory(this._deployerSigner).deploy(controller);
   }
 
   public async deployUniswapV2ExchangeAdapter(

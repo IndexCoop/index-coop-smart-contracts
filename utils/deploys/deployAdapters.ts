@@ -1,11 +1,18 @@
 import { Signer, BigNumber } from "ethers";
 import { Address, ContractSettings, MethodologySettings, ExecutionSettings, IncentiveSettings, ExchangeSettings } from "../types";
-import { FlexibleLeverageStrategyAdapter, FeeSplitAdapter, ExchangeIssuance, ExchangeIssuanceV2 } from "../contracts/index";
+import {
+  ExchangeIssuance,
+  ExchangeIssuanceV2,
+  FlexibleLeverageStrategyAdapter,
+  FeeSplitAdapter,
+  GovernanceAdapter
+} from "../contracts/index";
 
-import { FeeSplitAdapter__factory } from "../../typechain/factories/FeeSplitAdapter__factory";
-import { FlexibleLeverageStrategyAdapter__factory } from "../../typechain/factories/FlexibleLeverageStrategyAdapter__factory";
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
+import { FeeSplitAdapter__factory } from "../../typechain/factories/FeeSplitAdapter__factory";
+import { FlexibleLeverageStrategyAdapter__factory } from "../../typechain/factories/FlexibleLeverageStrategyAdapter__factory";
+import { GovernanceAdapter__factory } from "../../typechain/factories/GovernanceAdapter__factory";
 
 export default class DeployAdapters {
   private _deployerSigner: Signer;
@@ -25,6 +32,16 @@ export default class DeployAdapters {
       streamingFeeModule,
       debtIssuanceModule,
       operatorFeeSplit
+    );
+  }
+
+  public async deployGovernanceAdapter(
+    manager: Address,
+    governanceModule: Address,
+  ): Promise<GovernanceAdapter> {
+    return await new GovernanceAdapter__factory(this._deployerSigner).deploy(
+      manager,
+      governanceModule
     );
   }
 
