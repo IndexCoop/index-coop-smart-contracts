@@ -58,10 +58,10 @@ import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
  * - Update ExecutionSettings struct to not include exchange information
  * - Add mapping of exchange names to ExchangeSettings structs and a list of enabled exchange names
  * - Update constructor to take an array of exchange names and an array of ExchangeSettings
- * - Add _exhchangeName parameter to rebalancing functions to select which exchange to use
+ * - Add _exchangeName parameter to rebalancing functions to select which exchange to use
  * - Add permissioned addEnabledExchange, updateEnabledExchange, and removeEnabledExchange functions
  * - Add getTotalRebalanceNotional function
- * - Update shouldRebalance and shouldRebalanceWithBounds to reutrn an array of ShouldRebalance enums and an array of exchange names
+ * - Update shouldRebalance and shouldRebalanceWithBounds to return an array of ShouldRebalance enums and an array of exchange names
  * - Update _shouldRebalance to use exchange specific last trade timestamps
  * - Update _validateRipcord and _validateNormalRebalance to take in a timestamp parameter (so we can pass either global or exchange specific timestamp)
  * - Add _updateLastTradeTimestamp function to update global and exchange specific timestamp
@@ -99,7 +99,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         uint256 currentLeverageRatio;                   // Current leverage ratio of Set
         uint256 slippageTolerance;                      // Allowable percent trade slippage in preciseUnits (1% = 10^16)
         uint256 twapMaxTradeSize;                       // Max trade size in collateral units allowed for rebalance action
-        string exchangeName;                            // Exchange to use for trades
+        string exchangeName;                            // Exchange to use for trade
     }
 
     struct ContractSettings {
@@ -224,7 +224,7 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     IncentiveSettings internal incentive;                           // Struct containing incentive parameters for ripcord
     string[] public enabledExchanges;                               // Array containing enabled exchanges
     uint256 public twapLeverageRatio;                               // Stored leverage ratio to keep track of target between TWAP rebalances
-    uint256 public globalLastTradeTimestamp;                        // Last rebalance timestamp. Must be past rebalance interval to rebalance
+    uint256 public globalLastTradeTimestamp;                        // Last rebalance timestamp. Current timestamp must be greater than this variable + rebalance interval to rebalance
 
     /* ============ Constructor ============ */
 
@@ -613,8 +613,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     /**
-     * Calculates the total notional rebalance size. Note: this function does not take into account timestamps, so it may return a nonzero value
-     * even when shouldRebalance would return ShouldRebalance.NONE for all exchanges (since minimum delays have not elapsed)
+     * Calculates the total notional rebalance size. This can be used by external contracts and keeper bots to calculate the optimal exchange to rebalance with.
+     * Note: this function does not take into account timestamps, so it may return a nonzero value even when shouldRebalance would return ShouldRebalance.NONE for 
+     * all exchanges (since minimum delays have not elapsed)
      *
      * @return uint256      Total notional rebalance size. Measured in the asset that would be sold
      * @return bool         Whether it would be levering or delevering
@@ -1175,7 +1176,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     /**
-     * Update globalLastTradeTimestamp and exchangeLastTradeTimestamp values
+     * Update globalLastTradeTimestamp and exchangeLastTradeTimestamp values. This function updates both the exchange-specific and global timestamp so that the
+     * epoch rebalance can use the global timestamp (since the global timestamp is always  equal to the most recently used exchange timestamp). This allows for
+     * multiple rebalances to occur simultaneously since only the exchange-specific timestamp is checked for non-epoch rebalances.
      */
      function _updateLastTradeTimestamp(string memory _exchangeName) internal {
         globalLastTradeTimestamp = block.timestamp;
