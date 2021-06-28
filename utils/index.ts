@@ -29,6 +29,7 @@ export {
 } from "./test";
 
 export {
+  bigNumberToData,
   bitcoin,
   divDown,
   ether,
@@ -44,7 +45,8 @@ export {
   preciseMulCeilInt,
   preciseDivCeilInt,
   sqrt,
-  usdc
+  usdc,
+  wbtc,
 } from "./common";
 
 export {

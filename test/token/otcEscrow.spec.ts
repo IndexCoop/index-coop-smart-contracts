@@ -143,8 +143,10 @@ describe("OtcEscrow", () => {
     it("it should transfer index to the vesting contract", async () => {
       await subject();
 
-      const vestingDeployed = // tslint:disable-next-line:no-null-keyword
-      (await subjectOtcEscrow.queryFilter(subjectOtcEscrow.filters.VestingDeployed(null)))[0];
+      // tslint:disable-next-line:no-null-keyword
+      const vestingDeployed = (
+        await subjectOtcEscrow.queryFilter(subjectOtcEscrow.filters.VestingDeployed(undefined))
+      )[0];
       const vestingAddress = vestingDeployed.args?.vesting;
 
       expect(await index.balanceOf(vestingAddress)).to.eq(subjectIndexAmount);
@@ -153,8 +155,10 @@ describe("OtcEscrow", () => {
     it("it should set the state variables of the vesting contract correctly", async () => {
       await subject();
 
-      const vestingDeployed = // tslint:disable-next-line:no-null-keyword
-      (await subjectOtcEscrow.queryFilter(subjectOtcEscrow.filters.VestingDeployed(null)))[0];
+      // tslint:disable-next-line:no-null-keyword
+      const vestingDeployed = (
+        await subjectOtcEscrow.queryFilter(subjectOtcEscrow.filters.VestingDeployed(undefined))
+      )[0];
       const vestingAddress = vestingDeployed.args?.vesting;
 
       const vesting = Vesting__factory.connect(vestingAddress, getProvider());

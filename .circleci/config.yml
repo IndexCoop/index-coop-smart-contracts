@@ -24,6 +24,9 @@ jobs:
       - run:
           name: Transpile Contracts
           command: yarn build
+      - run:
+          name: Lint
+          command: yarn lint
       - save_cache:
           key: compiled-env-{{ .Environment.CIRCLE_SHA1 }}
           paths:

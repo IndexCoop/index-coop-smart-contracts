@@ -14,9 +14,12 @@ export {
   preciseDivCeilInt,
   sqrt
 } from "./mathUtils";
-export { bitcoin, ether, gWei, usdc } from "./unitsUtils";
+export { bitcoin, ether, gWei, usdc, wbtc } from "./unitsUtils";
 export { Blockchain } from "./blockchainUtils";
 export { ProtocolUtils } from "./protocolUtils";
 export {
   convertLibraryNameToLinkId
 } from "./libraryUtils";
+export {
+  bigNumberToData
+} from "./conversionUtils";

@@ -30,7 +30,6 @@ import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { UniSushiV2Library } from "../../external/contracts/UniSushiV2Library.sol";
 
-
 /**
  * @title ExchangeIssuance
  * @author Index Coop
@@ -39,7 +38,7 @@ import { UniSushiV2Library } from "../../external/contracts/UniSushiV2Library.so
  * All swaps are done using the best price found on Uniswap or Sushiswap.
  *
  */
-contract ExchangeIssuance is ReentrancyGuard {
+contract ExchangeIssuanceV2 is ReentrancyGuard {
 
     using Address for address payable;
     using SafeMath for uint256;
@@ -142,11 +141,6 @@ contract ExchangeIssuance is ReentrancyGuard {
 
     /* ============ External Functions ============ */
 
-    receive() external payable {
-        // required for weth.withdraw() to work properly
-        require(msg.sender == WETH, "ExchangeIssuance: Direct deposits not allowed");
-    }
-
     /**
      * Runs all the necessary approval functions required for a list of ERC20 tokens.
      *
@@ -214,34 +208,6 @@ contract ExchangeIssuance is ReentrancyGuard {
     }
 
     /**
-     * Issues SetTokens for an exact amount of input ether.
-     *
-     * @param _setToken         Address of the SetToken to be issued
-     * @param _minSetReceive    Minimum amount of SetTokens to receive. Prevents unnecessary slippage.
-     *
-     * @return setTokenAmount   Amount of SetTokens issued to the caller
-     */
-    function issueSetForExactETH(
-        ISetToken _setToken,
-        uint256 _minSetReceive
-    )
-        isSetToken(_setToken)
-        external
-        payable
-        nonReentrant
-        returns(uint256)
-    {
-        require(msg.value > 0, "ExchangeIssuance: INVALID INPUTS");
-
-        IWETH(WETH).deposit{value: msg.value}();
-
-        uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive, msg.value);
-
-        emit ExchangeIssue(msg.sender, _setToken, IERC20(ETH_ADDRESS), msg.value, setTokenAmount);
-        return setTokenAmount;
-    }
-
-    /**
     * Issues an exact amount of SetTokens for given amount of input ERC20 tokens.
     * The excess amount of tokens is returned in an equivalent amount of ether.
     *
@@ -276,49 +242,11 @@ contract ExchangeIssuance is ReentrancyGuard {
 
         uint256 amountEthReturn = initETHAmount.sub(amountEthSpent);
         if (amountEthReturn > 0) {
-            IWETH(WETH).withdraw(amountEthReturn);
-            (payable(msg.sender)).sendValue(amountEthReturn);
+            IERC20(WETH).safeTransfer(msg.sender,  amountEthReturn);
         }
 
         emit Refund(msg.sender, amountEthReturn);
         emit ExchangeIssue(msg.sender, _setToken, _inputToken, _maxAmountInputToken, _amountSetToken);
-        return amountEthReturn;
-    }
-
-    /**
-    * Issues an exact amount of SetTokens using a given amount of ether.
-    * The excess ether is returned back.
-    *
-    * @param _setToken          Address of the SetToken being issued
-    * @param _amountSetToken    Amount of SetTokens to issue
-    *
-    * @return amountEthReturn   Amount of ether returned to the caller
-    */
-    function issueExactSetFromETH(
-        ISetToken _setToken,
-        uint256 _amountSetToken
-    )
-        isSetToken(_setToken)
-        external
-        payable
-        nonReentrant
-        returns (uint256)
-    {
-        require(msg.value > 0 && _amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-
-        IWETH(WETH).deposit{value: msg.value}();
-
-        uint256 amountEth = _issueExactSetFromWETH(_setToken, _amountSetToken, msg.value);
-
-        uint256 amountEthReturn = msg.value.sub(amountEth);
-
-        if (amountEthReturn > 0) {
-            IWETH(WETH).withdraw(amountEthReturn);
-            (payable(msg.sender)).sendValue(amountEthReturn);
-        }
-
-        emit Refund(msg.sender, amountEthReturn);
-        emit ExchangeIssue(msg.sender, _setToken, IERC20(ETH_ADDRESS), amountEth, _amountSetToken);
         return amountEthReturn;
     }
 
@@ -371,47 +299,6 @@ contract ExchangeIssuance is ReentrancyGuard {
         return outputAmount;
     }
 
-    /**
-     * Redeems an exact amount of SetTokens for ETH.
-     * The SetToken must be approved by the sender to this contract.
-     *
-     * @param _setToken             Address of the SetToken to be redeemed
-     * @param _amountSetToken       Amount of SetTokens to redeem
-     * @param _minEthOut            Minimum amount of ETH to receive
-     *
-     * @return amountEthOut         Amount of ether sent to the caller
-     */
-    function redeemExactSetForETH(
-        ISetToken _setToken,
-        uint256 _amountSetToken,
-        uint256 _minEthOut
-    )
-        isSetToken(_setToken)
-        external
-        nonReentrant
-        returns (uint256)
-    {
-        require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-
-        address[] memory components = _setToken.getComponents();
-        (
-            uint256 totalEth,
-            uint256[] memory amountComponents,
-            Exchange[] memory exchanges
-        ) =  _getAmountETHForRedemption(_setToken, components, _amountSetToken);
-
-        require(totalEth > _minEthOut, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
-
-        _redeemExactSet(_setToken, _amountSetToken);
-
-        uint256 amountEthOut = _liquidateComponentsForWETH(components, amountComponents, exchanges);
-
-        IWETH(WETH).withdraw(amountEthOut);
-        (payable(msg.sender)).sendValue(amountEthOut);
-
-        emit ExchangeRedeem(msg.sender, _setToken, IERC20(ETH_ADDRESS), _amountSetToken, amountEthOut);
-        return amountEthOut;
-    }
 
     /**
      * Returns an estimated amount of SetToken that can be issued given an amount of input ERC20 token.

@@ -1,9 +1,18 @@
 import { Signer, BigNumber } from "ethers";
 import { Address, ContractSettings, MethodologySettings, ExecutionSettings, IncentiveSettings } from "../types";
-import { FlexibleLeverageStrategyAdapter, FeeSplitAdapter } from "../contracts/index";
+import {
+  ExchangeIssuance,
+  ExchangeIssuanceV2,
+  FlexibleLeverageStrategyAdapter,
+  FeeSplitAdapter,
+  GovernanceAdapter
+} from "../contracts/index";
 
+import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
+import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { FeeSplitAdapter__factory } from "../../typechain/factories/FeeSplitAdapter__factory";
 import { FlexibleLeverageStrategyAdapter__factory } from "../../typechain/factories/FlexibleLeverageStrategyAdapter__factory";
+import { GovernanceAdapter__factory } from "../../typechain/factories/GovernanceAdapter__factory";
 
 export default class DeployAdapters {
   private _deployerSigner: Signer;
@@ -26,6 +35,16 @@ export default class DeployAdapters {
     );
   }
 
+  public async deployGovernanceAdapter(
+    manager: Address,
+    governanceModule: Address,
+  ): Promise<GovernanceAdapter> {
+    return await new GovernanceAdapter__factory(this._deployerSigner).deploy(
+      manager,
+      governanceModule
+    );
+  }
+
   public async deployFlexibleLeverageStrategyAdapter(
     manager: Address,
     contractSettings: ContractSettings,
@@ -39,6 +58,46 @@ export default class DeployAdapters {
       methdologySettings,
       executionSettings,
       incentiveSettings
+    );
+  }
+
+  public async deployExchangeIssuance(
+    wethAddress: Address,
+    uniFactoryAddress: Address,
+    uniRouterAddress: Address,
+    sushiFactoryAddress: Address,
+    sushiRouterAddress: Address,
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+  ): Promise<ExchangeIssuance> {
+    return await new ExchangeIssuance__factory(this._deployerSigner).deploy(
+      wethAddress,
+      uniFactoryAddress,
+      uniRouterAddress,
+      sushiFactoryAddress,
+      sushiRouterAddress,
+      setControllerAddress,
+      basicIssuanceModuleAddress
+    );
+  }
+
+  public async deployExchangeIssuanceV2(
+    wethAddress: Address,
+    uniFactoryAddress: Address,
+    uniRouterAddress: Address,
+    sushiFactoryAddress: Address,
+    sushiRouterAddress: Address,
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+  ): Promise<ExchangeIssuanceV2> {
+    return await new ExchangeIssuanceV2__factory(this._deployerSigner).deploy(
+      wethAddress,
+      uniFactoryAddress,
+      uniRouterAddress,
+      sushiFactoryAddress,
+      sushiRouterAddress,
+      setControllerAddress,
+      basicIssuanceModuleAddress
     );
   }
 }
