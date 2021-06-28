@@ -645,8 +645,12 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             newLeverageRatio = _calculateNewLeverageRatio(currentLeverageRatio);
         }
 
+
+        ActionInfo memory actionInfo = _createActionInfo();
+
         sizes = new uint256[](_exchangeNames.length);
         isLevers = new bool[](_exchangeNames.length);
+        
         for (uint256 i = 0; i < _exchangeNames.length; i++) {
 
             ExchangeSettings memory settings = exchangeSettings[_exchangeNames[i]];
@@ -654,17 +658,18 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             uint256 slippageTolerance = isRipcord ? incentive.incentivizedSlippageTolerance : execution.slippageTolerance;
         
             bool isLever = newLeverageRatio > currentLeverageRatio;
-            LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(slippageTolerance, maxTradeSize, _exchangeNames[i]);
+    
+            LeverageInfo memory leverageInfo = LeverageInfo({
+                action: actionInfo,
+                currentLeverageRatio: currentLeverageRatio,
+                slippageTolerance: slippageTolerance,
+                twapMaxTradeSize: maxTradeSize,
+                exchangeName: _exchangeNames[i]
+            });
 
             (uint256 collateralNotional, ) = _calculateChunkRebalanceNotional(leverageInfo, newLeverageRatio, isLever);
 
-            if (isLever) {
-                ActionInfo memory actionInfo = _createActionInfo();
-                sizes[i] = _calculateBorrowUnits(collateralNotional, actionInfo);
-            } else {
-                sizes[i] = collateralNotional;
-            }
-
+            sizes[i] = isLever ? _calculateBorrowUnits(collateralNotional, leverageInfo.action) : collateralNotional;
             isLevers[i] = isLever;
         }
     }
