@@ -524,16 +524,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         await expect(subject()).to.be.revertedWith("Max TWAP trade size must not be 0");
       });
     });
-
-    describe("when an exchange has a nonzero last trade timestamp", async () => {
-      beforeEach(async () => {
-        subjectExchangeSettings.exchangeLastTradeTimestamp = BigNumber.from(7);
-      });
-
-      it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Last trade timestamp must be 0");
-      });
-    });
   });
 
   describe("#engage", async () => {
@@ -2823,6 +2813,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
         await flexibleLeverageStrategyAdapter.updateEnabledExchange(exchangeName, exchangeSettings);
         await flexibleLeverageStrategyAdapter.addEnabledExchange(exchangeName2, exchangeSettings);
+        await increaseTimeAsync(BigNumber.from(100000));
       });
 
       beforeEach(() => {
@@ -3639,7 +3630,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
         expect(exchange.twapMaxTradeSize).to.eq(subjectExchangeSettings.twapMaxTradeSize);
         expect(exchange.incentivizedTwapMaxTradeSize).to.eq(subjectExchangeSettings.incentivizedTwapMaxTradeSize);
-        expect(exchange.exchangeLastTradeTimestamp).to.eq(subjectExchangeSettings.exchangeLastTradeTimestamp);
+        expect(exchange.exchangeLastTradeTimestamp).to.eq(0);
         expect(exchange.leverExchangeData).to.eq(subjectExchangeSettings.leverExchangeData);
         expect(exchange.deleverExchangeData).to.eq(subjectExchangeSettings.deleverExchangeData);
       });
@@ -3690,16 +3681,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("Max TWAP trade size must not be 0");
-        });
-      });
-
-      describe("when an exchange has a nonzero last trade timestamp", async () => {
-        beforeEach(async () => {
-          subjectExchangeSettings.exchangeLastTradeTimestamp = BigNumber.from(7);
-        });
-
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Last trade timestamp must be 0");
         });
       });
     });
@@ -3810,16 +3791,6 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("Max TWAP trade size must not be 0");
-        });
-      });
-
-      describe("when an exchange has a nonzero last trade timestamp", async () => {
-        beforeEach(async () => {
-          subjectNewExchangeSettings.exchangeLastTradeTimestamp = BigNumber.from(7);
-        });
-
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Last trade timestamp must be 0");
         });
       });
     });

@@ -533,6 +533,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         _validateExchangeSettings(_exchangeSettings);
         
         exchangeSettings[_exchangeName] = _exchangeSettings;
+        exchangeSettings[_exchangeName].exchangeLastTradeTimestamp = 0;
+        
         enabledExchanges.push(_exchangeName);
 
         emit ExchangeAdded(
@@ -577,7 +579,9 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         require(exchangeSettings[_exchangeName].twapMaxTradeSize != 0, "Exchange not enabled");
         _validateExchangeSettings(_exchangeSettings);
 
+        uint256 lastTrade = exchangeSettings[_exchangeName].exchangeLastTradeTimestamp;
         exchangeSettings[_exchangeName] = _exchangeSettings;
+        exchangeSettings[_exchangeName].exchangeLastTradeTimestamp = lastTrade;
 
         emit ExchangeUpdated(
             _exchangeName,
@@ -946,7 +950,6 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      * it may be useful to disable exchanges for ripcord by setting incentivizedMaxTradeSize to 0.
      */
      function _validateExchangeSettings(ExchangeSettings memory _settings) internal pure {
-         require(_settings.exchangeLastTradeTimestamp == 0, "Last trade timestamp must be 0");
          require(_settings.twapMaxTradeSize != 0, "Max TWAP trade size must not be 0");
      }
 
