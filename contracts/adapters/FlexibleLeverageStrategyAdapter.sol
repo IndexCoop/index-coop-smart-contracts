@@ -615,21 +615,25 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     }
 
     /**
-     * Calculates the total notional rebalance size. This can be used by external contracts and keeper bots to calculate the optimal exchange to rebalance with.
+     * Calculates the chunk rebalance size. This can be used by external contracts and keeper bots to calculate the optimal exchange to rebalance with.
      * Note: this function does not take into account timestamps, so it may return a nonzero value even when shouldRebalance would return ShouldRebalance.NONE for 
      * all exchanges (since minimum delays have not elapsed)
      *
-     * @return uint256      Total notional rebalance size. Measured in the asset that would be sold
-     * @return bool         Whether it would be levering or delevering
+     * @param _exchangeNames    Array of exchange names to get rebalance sizes for
+     *
+     * @return sizes            Array of total notional rebalance size. Measured in the asset that would be sold
+     * @return isLevers         Array of whether it would be levering or delevering
      */
-    function getTotalRebalanceNotional()  external view returns(uint256, bool) {
+    function getChunkRebalanceNotional(string[] calldata _exchangeNames)  external view returns(uint256[] memory sizes, bool[] memory isLevers) {
 
         uint256 newLeverageRatio;
         uint256 currentLeverageRatio = getCurrentLeverageRatio();
+        bool isRipcord = false;
 
         // if over incentivized leverage ratio, always ripcord
         if (currentLeverageRatio > incentive.incentivizedLeverageRatio) {
             newLeverageRatio = methodology.maxLeverageRatio;
+            isRipcord = true;
         // if we are in an ongoing twap, use the cached twapLeverageRatio as our target leverage
         } else if (twapLeverageRatio > 0) {
             newLeverageRatio = twapLeverageRatio;
@@ -638,14 +642,28 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             newLeverageRatio = _calculateNewLeverageRatio(currentLeverageRatio);
         }
 
-        ActionInfo memory actionInfo = _createActionInfo();
+        sizes = new uint256[](_exchangeNames.length);
+        isLevers = new bool[](_exchangeNames.length);
+        for (uint256 i = 0; i < _exchangeNames.length; i++) {
 
-        bool isLever = newLeverageRatio > currentLeverageRatio;
-        uint256 leverageRatioDifference = isLever ? newLeverageRatio.sub(currentLeverageRatio) : currentLeverageRatio.sub(newLeverageRatio);
+            ExchangeSettings memory settings = exchangeSettings[_exchangeNames[i]];
+            uint256 maxTradeSize = isRipcord ? settings.incentivizedTwapMaxTradeSize : settings.twapMaxTradeSize;
+            uint256 slippageTolerance = isRipcord ? incentive.incentivizedSlippageTolerance : execution.slippageTolerance;
+        
+            bool isLever = newLeverageRatio > currentLeverageRatio;
+            LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(slippageTolerance, maxTradeSize, _exchangeNames[i]);
 
-        uint256 collateralRebalanceNotional = leverageRatioDifference.preciseDiv(currentLeverageRatio).preciseMul(actionInfo.collateralBalance);
+            (uint256 collateralNotional,) = _calculateChunkRebalanceNotional(leverageInfo, newLeverageRatio, isLever);
 
-        return isLever ? (_calculateBorrowUnits(collateralRebalanceNotional, actionInfo), isLever) : (collateralRebalanceNotional, isLever);
+            if (isLever) {
+                ActionInfo memory actionInfo = _createActionInfo();
+                sizes[i] = _calculateBorrowUnits(collateralNotional, actionInfo);
+            } else {
+                sizes[i] = collateralNotional;
+            }
+
+            isLevers[i] = isLever;
+        }
     }
 
     /**
