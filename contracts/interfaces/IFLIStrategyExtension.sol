@@ -27,12 +27,19 @@ interface IFLIStrategyExtension {
 
     function getCurrentLeverageRatio() external view returns (uint256);
 
-    function shouldRebalance() external view returns (FlexibleLeverageStrategyExtension.ShouldRebalance);
+    function getChunkRebalanceNotional(
+        string[] calldata _exchangeNames
+    ) 
+        external
+        view
+        returns(uint256[] memory sizes, address sellAsset, address buyAsset);
+
+    function shouldRebalance() external view returns(string[] memory, FlexibleLeverageStrategyExtension.ShouldRebalance[] memory);
     function shouldRebalanceWithBounds(
         uint256 _customMinLeverageRatio,
         uint256 _customMaxLeverageRatio
     )
         external
         view
-        returns(FlexibleLeverageStrategyExtension.ShouldRebalance);
+        returns(string[] memory, FlexibleLeverageStrategyExtension.ShouldRebalance[] memory);
 }
