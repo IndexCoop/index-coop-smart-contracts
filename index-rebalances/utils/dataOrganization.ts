@@ -8,7 +8,14 @@ import { Address } from "../../utils/types";
 import { ASSETS } from "../assetInfo";
 import { PRECISE_UNIT, ZERO } from "../../utils/constants";
 
-import { RebalanceReport, RebalanceSummary, StrategyInfo, StrategyObject, AssetStrategy } from "index-rebalances/types";
+import {
+  RebalanceReport,
+  RebalanceSummary,
+  StrategyInfo,
+  StrategyObject,
+  AssetStrategy
+} from "index-rebalances/types";
+
 import {
   GeneralIndexModule,
   SetToken,
@@ -52,6 +59,38 @@ export async function createStrategyObject(
   return strategyObject;
 }
 
+export async function createStrategyObjectMultisig (
+  currentPositions: any,
+  strategyInfo: StrategyInfo
+) : Promise<StrategyObject> {
+  let strategyObject: StrategyObject = {};
+
+  const filteredConstants = _.pick(_.merge(ASSETS, strategyInfo), Object.keys(strategyInfo));
+
+  const keys = Object.keys(filteredConstants);
+
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+
+    const position = currentPositions.filter((obj: any) =>
+      obj.component.toLowerCase() == filteredConstants[key].address.toLowerCase()
+    )[0];
+
+    if (position) { filteredConstants[key].currentUnit = position.unit; }
+
+    const decimals = filteredConstants[key].decimals!
+
+    strategyObject[key] = {} as AssetStrategy;
+    strategyObject[key].address = filteredConstants[key].address;
+    strategyObject[key].price = filteredConstants[key].price;
+    strategyObject[key].input = filteredConstants[key].input;
+    strategyObject[key].currentUnit = position ? position.unit : ZERO;
+    strategyObject[key].decimals = decimals;
+  }
+
+  return strategyObject;
+}
+
 export async function generateReports(
   rebalanceData: RebalanceSummary[],
   tradeOrder: string,
@@ -77,8 +116,13 @@ export async function generateReports(
   const components = await setToken.getComponents();
 
   for (let j = 0; j < components.length; j++) {
-    const [[asset,]] = Object.entries(ASSETS).filter(([key, obj]) => obj.address.toLowerCase() == components[j].toLowerCase());
-    oldComponentsTargetUnits.push(rebalanceData.filter(obj => obj.asset == asset)[0].newUnit.toString());
+    const [[asset,]] = Object.entries(ASSETS).filter(([key, obj]) =>
+      obj.address.toLowerCase() == components[j].toLowerCase()
+    );
+
+    oldComponentsTargetUnits.push(
+      rebalanceData.filter(obj => obj.asset == asset)[0].newUnit.toString()
+    );
   }
 
   // Generate params for setAssetMaximums and setAssetExchanges
@@ -109,7 +153,9 @@ export async function generateReports(
   // Refill fields in rebalanceData altered during trade scheduling
   const totalSupply = await setToken.totalSupply();
   for (let k = 0; k < rebalanceData.length; k++) {
-    rebalanceData[k].notionalInToken = rebalanceData[k].newUnit.sub(rebalanceData[k].currentUnit).mul(totalSupply).div(PRECISE_UNIT);
+    rebalanceData[k].notionalInToken =
+      rebalanceData[k].newUnit.sub(rebalanceData[k].currentUnit).mul(totalSupply).div(PRECISE_UNIT);
+
     rebalanceData[k].tradeCount = rebalanceData[k].notionalInToken.div(
       strategyInfo[rebalanceData[k].asset].maxTradeSize
     ).abs().add(1);
@@ -150,7 +196,13 @@ export async function generateReports(
       positionMultiplier: positionMultiplier,
       data: indexModule.interface.encodeFunctionData(
         'startRebalance',
-        [setToken.address, newComponents, newComponentsTargetUnits, oldComponentsTargetUnits, positionMultiplier]
+        [
+          setToken.address,
+          newComponents,
+          newComponentsTargetUnits,
+          oldComponentsTargetUnits,
+          positionMultiplier
+        ]
       )
     },
     tradeOrder
