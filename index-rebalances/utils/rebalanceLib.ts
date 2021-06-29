@@ -18,7 +18,7 @@ import {
   AssetStrategy
 } from "../types";
 
-function getRebalanceInputs(
+export function getRebalanceInputs(
   currentPositions: any,
   strategyInfo: StrategyInfo,
   assets: any
