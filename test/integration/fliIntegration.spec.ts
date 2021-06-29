@@ -11,7 +11,7 @@ import {
   ExchangeSettings
 } from "@utils/types";
 import { ADDRESS_ZERO, ZERO, ONE, TWO, EMPTY_BYTES, MAX_UINT_256, PRECISE_UNIT, ONE_DAY_IN_SECONDS, ONE_HOUR_IN_SECONDS } from "@utils/constants";
-import { FlexibleLeverageStrategyAdapter, BaseManager, StandardTokenMock, WETH9, ChainlinkAggregatorV3Mock } from "@utils/contracts/index";
+import { FlexibleLeverageStrategyExtension, BaseManager, StandardTokenMock, WETH9, ChainlinkAggregatorV3Mock } from "@utils/contracts/index";
 import { CompoundLeverageModule, SetToken } from "@utils/contracts/setV2";
 import { CEther, CERc20 } from "@utils/contracts/compound";
 import DeployHelper from "@utils/deploys";
@@ -84,7 +84,7 @@ const incentivizedLeverageRatio = ether(2.6);
 // to skip some initialization done for other suites.
 const minimumInit = true;
 
-describe("FlexibleLeverageStrategyAdapter", () => {
+describe("FlexibleLeverageStrategyExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let setV2Setup: SetFixture;
@@ -103,7 +103,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
   let execution: ExecutionSettings;
   let incentive: IncentiveSettings;
 
-  let flexibleLeverageStrategyAdapter: FlexibleLeverageStrategyAdapter;
+  let flexibleLeverageStrategyExtension: FlexibleLeverageStrategyExtension;
   let compoundLeverageModule: CompoundLeverageModule;
   let baseManager: BaseManager;
 
@@ -524,7 +524,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     it("validate state", async () => {
       const [preRebalanceLeverageRatios, postRebalanceLeverageRatios] = await subject();
 
-      const lastTradeTimestamp = await flexibleLeverageStrategyAdapter.globalLastTradeTimestamp();
+      const lastTradeTimestamp = await flexibleLeverageStrategyExtension.globalLastTradeTimestamp();
 
       expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
       expect(postRebalanceLeverageRatios[0]).to.lt(preRebalanceLeverageRatios[0]);
@@ -553,7 +553,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     it("validate state", async () => {
       const [preRebalanceLeverageRatios, postRebalanceLeverageRatios] = await subject();
 
-      const lastTradeTimestamp = await flexibleLeverageStrategyAdapter.globalLastTradeTimestamp();
+      const lastTradeTimestamp = await flexibleLeverageStrategyExtension.globalLastTradeTimestamp();
 
       expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
       expect(postRebalanceLeverageRatios[0]).to.lt(preRebalanceLeverageRatios[0]);
@@ -584,7 +584,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
     it("validate state", async () => {
       const [preRebalanceLeverageRatios, postRebalanceLeverageRatios] = await subject();
 
-      const lastTradeTimestamp = await flexibleLeverageStrategyAdapter.globalLastTradeTimestamp();
+      const lastTradeTimestamp = await flexibleLeverageStrategyExtension.globalLastTradeTimestamp();
 
       expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
       expect(postRebalanceLeverageRatios[0]).to.gt(preRebalanceLeverageRatios[0]);
@@ -674,7 +674,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       incentivizedLeverageRatio: incentivizedLeverageRatio,
     };
 
-    flexibleLeverageStrategyAdapter = await deployer.adapters.deployFlexibleLeverageStrategyAdapter(
+    flexibleLeverageStrategyExtension = await deployer.adapters.deployFlexibleLeverageStrategyExtension(
       baseManager.address,
       strategy,
       methodology,
@@ -683,10 +683,10 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       fliSettings.exchangeNames,
       fliSettings.exchanges
     );
-    await flexibleLeverageStrategyAdapter.updateCallerStatus([owner.address], [true]);
+    await flexibleLeverageStrategyExtension.updateCallerStatus([owner.address], [true]);
 
     // Add adapter
-    await baseManager.connect(owner.wallet).addAdapter(flexibleLeverageStrategyAdapter.address);
+    await baseManager.connect(owner.wallet).addAdapter(flexibleLeverageStrategyExtension.address);
   }
 
   async function issueFLITokens(collateralCToken: CERc20 | CEther, amount: BigNumber): Promise<void> {
@@ -706,16 +706,16 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
   async function engageFLI(exchangeName: string): Promise<void> {
     console.log("Engaging FLI...");
-    await flexibleLeverageStrategyAdapter.engage(exchangeName);
+    await flexibleLeverageStrategyExtension.engage(exchangeName);
     await increaseTimeAsync(twapCooldownPeriod);
-    await flexibleLeverageStrategyAdapter.iterateRebalance(exchangeName);
+    await flexibleLeverageStrategyExtension.iterateRebalance(exchangeName);
   }
 
   async function runScenarios(fliSettings: FLISettings, isMultihop: boolean): Promise<[BigNumber[], BigNumber[]]> {
     console.log(`Running Scenarios ${fliSettings.name}`);
     await increaseTimeAsync(rebalanceInterval);
 
-    await flexibleLeverageStrategyAdapter.rebalance(fliSettings.checkpoints[0].exchangeName);
+    await flexibleLeverageStrategyExtension.rebalance(fliSettings.checkpoints[0].exchangeName);
 
     const preRebalanceLeverageRatios = [];
     const postRebalanceLeverageRatios = [];
@@ -731,9 +731,9 @@ describe("FlexibleLeverageStrategyAdapter", () => {
 
       await increaseTimeAsync(fliSettings.checkpoints[i].elapsedTime);
 
-      const rebalanceInfo = await flexibleLeverageStrategyAdapter.shouldRebalance();
+      const rebalanceInfo = await flexibleLeverageStrategyExtension.shouldRebalance();
 
-      const preRebalanceLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
+      const preRebalanceLeverageRatio = await flexibleLeverageStrategyExtension.getCurrentLeverageRatio();
       preRebalanceLeverageRatios.push(preRebalanceLeverageRatio);
       console.log("Pre-Rebalance Leverage Ratio:", preRebalanceLeverageRatio.toString());
 
@@ -743,7 +743,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         await executeTrade(rebalanceType, fliSettings.checkpoints[i].exchangeName);
       }
       console.log("RebalanceType:", rebalanceType);
-      const postRebalanceLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
+      const postRebalanceLeverageRatio = await flexibleLeverageStrategyExtension.getCurrentLeverageRatio();
       postRebalanceLeverageRatios.push(postRebalanceLeverageRatio);
       console.log("Leverage Ratio:", postRebalanceLeverageRatio.toString());
       console.log(
@@ -818,15 +818,15 @@ describe("FlexibleLeverageStrategyAdapter", () => {
   async function executeTrade(shouldRebalance: number, exchangeName: string): Promise<void> {
     switch (shouldRebalance) {
       case 1: {
-        await flexibleLeverageStrategyAdapter.rebalance(exchangeName);
+        await flexibleLeverageStrategyExtension.rebalance(exchangeName);
         break;
       }
       case 2: {
-        await flexibleLeverageStrategyAdapter.iterateRebalance(exchangeName);
+        await flexibleLeverageStrategyExtension.iterateRebalance(exchangeName);
         break;
     }
       case 3: {
-        await flexibleLeverageStrategyAdapter.ripcord(exchangeName);
+        await flexibleLeverageStrategyExtension.ripcord(exchangeName);
         break;
       }
     }

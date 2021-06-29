@@ -5,7 +5,7 @@ export { TradeAdapterMock } from "../../typechain/TradeAdapterMock";
 export { ExchangeIssuance } from "../../typechain/ExchangeIssuance";
 export { ExchangeIssuanceV2 } from "../../typechain/ExchangeIssuanceV2";
 export { FeeSplitAdapter } from "../../typechain/FeeSplitAdapter";
-export { FlexibleLeverageStrategyAdapter } from "../../typechain/FlexibleLeverageStrategyAdapter";
+export { FlexibleLeverageStrategyExtension } from "../../typechain/FlexibleLeverageStrategyExtension";
 export { SupplyCapIssuanceHook } from "../../typechain/SupplyCapIssuanceHook";
 export { GovernanceAdapter } from "../../typechain/GovernanceAdapter";
 export { GovernanceAdapterMock } from "../../typechain/GovernanceAdapterMock";

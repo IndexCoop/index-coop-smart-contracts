@@ -3,7 +3,7 @@ import { Address, ContractSettings, MethodologySettings, ExecutionSettings, Ince
 import {
   ExchangeIssuance,
   ExchangeIssuanceV2,
-  FlexibleLeverageStrategyAdapter,
+  FlexibleLeverageStrategyExtension,
   FeeSplitAdapter,
   GovernanceAdapter
 } from "../contracts/index";
@@ -11,7 +11,7 @@ import {
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { FeeSplitAdapter__factory } from "../../typechain/factories/FeeSplitAdapter__factory";
-import { FlexibleLeverageStrategyAdapter__factory } from "../../typechain/factories/FlexibleLeverageStrategyAdapter__factory";
+import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtension__factory";
 import { GovernanceAdapter__factory } from "../../typechain/factories/GovernanceAdapter__factory";
 
 export default class DeployAdapters {
@@ -45,7 +45,7 @@ export default class DeployAdapters {
     );
   }
 
-  public async deployFlexibleLeverageStrategyAdapter(
+  public async deployFlexibleLeverageStrategyExtension(
     manager: Address,
     contractSettings: ContractSettings,
     methdologySettings: MethodologySettings,
@@ -53,8 +53,8 @@ export default class DeployAdapters {
     incentiveSettings: IncentiveSettings,
     exchangeNames: string[],
     exchangeSettings: ExchangeSettings[]
-  ): Promise<FlexibleLeverageStrategyAdapter> {
-    return await new FlexibleLeverageStrategyAdapter__factory(this._deployerSigner).deploy(
+  ): Promise<FlexibleLeverageStrategyExtension> {
+    return await new FlexibleLeverageStrategyExtension__factory(this._deployerSigner).deploy(
       manager,
       contractSettings,
       methdologySettings,

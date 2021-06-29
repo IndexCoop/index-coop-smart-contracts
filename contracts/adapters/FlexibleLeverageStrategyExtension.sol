@@ -36,7 +36,7 @@ import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
 
 
 /**
- * @title FlexibleLeverageStrategyAdapter
+ * @title FlexibleLeverageStrategyExtension
  * @author Set Protocol
  *
  * Smart contract that enables trustless leverage tokens using the flexible leverage methodology. This adapter is paired with the CompoundLeverageModule from Set
@@ -66,7 +66,7 @@ import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
  * - Update _validateRipcord and _validateNormalRebalance to take in a timestamp parameter (so we can pass either global or exchange specific timestamp)
  * - Add _updateLastTradeTimestamp function to update global and exchange specific timestamp
  */
-contract FlexibleLeverageStrategyAdapter is BaseAdapter {
+contract FlexibleLeverageStrategyExtension is BaseAdapter {
     using Address for address;
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
