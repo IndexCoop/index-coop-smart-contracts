@@ -25,6 +25,7 @@ export interface AssetInfo {
   coolOffPeriod: BigNumber;
   currentUnit: BigNumber;
   input: BigNumber;
+  decimals?: BigNumber;
 }
 
 export interface StrategyInfo {
@@ -51,6 +52,7 @@ export interface AssetStrategy {
   exchange: string;
   currentUnit: BigNumber;
   price: BigNumber;
+  supply?: BigNumber;
 }
 
 export interface StrategyObject {

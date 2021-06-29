@@ -5,7 +5,8 @@ import { ether } from "../utils/common/index";
 interface AssetInfo {
   id: string,
   address: Address,
-  price: BigNumber
+  price: BigNumber,
+  supply?: BigNumber
 }
 
 export interface Assets {
@@ -16,7 +17,7 @@ export const ASSETS: Assets = {
   YFI: {
     id: "yfi",
     address: "0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e",
-    price: ether(52363.00) ,
+    price: ether(52363.00)
   },
   COMP: {
     id: "compound",
