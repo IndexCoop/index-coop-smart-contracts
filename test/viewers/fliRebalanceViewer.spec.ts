@@ -20,20 +20,37 @@ describe("FLIRebalanceViewer", async () => {
   describe("#constructor", async () => {
 
     let subjectFLIStrategyExtension: Address;
+    let subjectUniV3Quoter: Address;
+    let subjectUniV2Router: Address;
+    let subjectUniV3Name: string;
+    let subjectUniV2Name: string;
 
     beforeEach(async () => {
       subjectFLIStrategyExtension = await getRandomAddress();
+      subjectUniV3Quoter = await getRandomAddress();
+      subjectUniV2Router =  await getRandomAddress();
+      subjectUniV3Name = "UniswapV3ExchangeAdapter";
+      subjectUniV2Name = "SushiswapExchangeAdapter";
     });
 
     async function subject(): Promise<FLIRebalanceViewer> {
-      return deployer.viewers.deployFLIRebalanceViewer(subjectFLIStrategyExtension);
+      return deployer.viewers.deployFLIRebalanceViewer(
+        subjectFLIStrategyExtension,
+        subjectUniV3Quoter,
+        subjectUniV2Router,
+        subjectUniV3Name,
+        subjectUniV2Name
+      );
     }
 
     it("should set the correct state variables", async () => {
       const viewer = await subject();
-      const strategyExtension = await viewer.fliStrategyExtension();
 
-      expect(strategyExtension).to.eq(subjectFLIStrategyExtension);
+      expect(await viewer.fliStrategyExtension()).to.eq(subjectFLIStrategyExtension);
+      expect(await viewer.uniswapV3Quoter()).to.eq(subjectUniV3Quoter);
+      expect(await viewer.uniswapV2Router()).to.eq(subjectUniV2Router);
+      expect(await viewer.uniswapV3ExchangeName()).to.eq(subjectUniV3Name);
+      expect(await viewer.uniswapV2ExchangeName()).to.eq(subjectUniV2Name);
     });
   });
 });

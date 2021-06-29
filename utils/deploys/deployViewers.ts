@@ -11,7 +11,19 @@ export default class DeployViewers {
     this._deployerSigner = deployerSigner;
   }
 
-  public async deployFLIRebalanceViewer(fliStrategyExtension: Address): Promise<FLIRebalanceViewer> {
-    return await new FLIRebalanceViewer__factory(this._deployerSigner).deploy(fliStrategyExtension);
+  public async deployFLIRebalanceViewer(
+    fliStrategyExtension: Address,
+    uniswapV3Quoter: Address,
+    uniswapV2Router: Address,
+    uniswapV3Name: string,
+    uniswapV2Name: string
+  ): Promise<FLIRebalanceViewer> {
+    return await new FLIRebalanceViewer__factory(this._deployerSigner).deploy(
+      fliStrategyExtension,
+      uniswapV3Quoter,
+      uniswapV2Router,
+      uniswapV3Name,
+      uniswapV2Name
+    );
   }
 }
