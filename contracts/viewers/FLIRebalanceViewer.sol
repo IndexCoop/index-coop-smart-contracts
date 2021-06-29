@@ -10,6 +10,8 @@ import { IQuoter } from "../interfaces/IQuoter.sol";
 import { IUniswapV2Router } from "../interfaces/IUniswapV2Router.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
+import { console } from "hardhat/console.sol";
+
 contract FLIRebalanceViewer {
 
     using StringArrayUtils for string[];
@@ -60,7 +62,7 @@ contract FLIRebalanceViewer {
         exchangeNames[0] = uniswapV3ExchangeName;
         exchangeNames[1] = uniswapV2ExchangeName;
 
-        (uint256[] memory chunkSendQuantity, address sellAsset, ) = fliStrategyExtension.getChunkRebalanceNotional(exchangeNames);
+        (uint256[] memory chunkSendQuantity, address sellAsset, address buyAsset) = fliStrategyExtension.getChunkRebalanceNotional(exchangeNames);
         uint256 uniswapV3ChunkSendQuantity = chunkSendQuantity[0];
         uint256 uniswapV2ChunkSendQuantity = chunkSendQuantity[1];
 
@@ -79,10 +81,25 @@ contract FLIRebalanceViewer {
             fliStrategyExtension.getExchangeSettings(uniswapV2ExchangeName).leverExchangeData : 
             fliStrategyExtension.getExchangeSettings(uniswapV2ExchangeName).deleverExchangeData;
 
-        address[] memory uniswapV2TradePath = abi.decode(uniswapV2TradePathRaw, (address[]));
+        address[] memory uniswapV2TradePath;
+        if (keccak256(bytes(uniswapV2TradePathRaw)) == keccak256(bytes(""))) {
+            uniswapV2TradePath = new address[](2);
+            uniswapV2TradePath[0] = sellAsset;
+            uniswapV2TradePath[1] = buyAsset;
+        } else {
+            uniswapV2TradePath = abi.decode(uniswapV2TradePathRaw, (address[]));
+        }
         
         // Get quote from Uniswap V2 Router
         uint256 uniswapV2ReceiveQuantity = uniswapV2Router.getAmountsOut(uniswapV2ChunkSendQuantity, uniswapV2TradePath)[uniswapV2TradePath.length.sub(1)];
+
+        console.logBytes(uniswapV3TradePath);
+
+        console.log(uniswapV3ReceiveQuantity);
+        console.log(uniswapV3ChunkSendQuantity);
+
+        console.log(uniswapV2ReceiveQuantity);
+        console.log(uniswapV2ChunkSendQuantity);
 
         // Divide to get ratio of quote / base asset. Don't care about decimals here. Standardizes to 10e18 with preciseDiv
         uniswapV3Price = uniswapV3ReceiveQuantity.preciseDiv(uniswapV3ChunkSendQuantity);
@@ -124,7 +141,9 @@ contract FLIRebalanceViewer {
     }
 
     function _getUniswapV3Quote(bytes memory _path, uint256 _sellQuantity) internal view returns (uint256) {
-        bytes memory uniswapV3Calldata = abi.encodeWithSelector(IQuoter.quoteExactInput.selector, _path, _sellQuantity);
+        ///bytes memory uniswapV3Calldata = abi.encodeWithSelector(IQuoter.quoteExactInput.selector, _path, _sellQuantity);
+
+        bytes memory uniswapV3Calldata = abi.encodeWithSignature("quoteExactInput(bytes,uint256)", _path, _sellQuantity);
         (, bytes memory returnData) = address(uniswapV3Quoter).staticcall(uniswapV3Calldata);
 
         return abi.decode(returnData, (uint256));
