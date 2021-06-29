@@ -4418,7 +4418,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
       await flexibleLeverageStrategyAdapter.iterateRebalance(exchangeName);
     });
 
-    async function subject(): Promise<[BigNumber[], boolean[]]> {
+    async function subject(): Promise<[BigNumber[], Address, Address]> {
       return await flexibleLeverageStrategyAdapter.getChunkRebalanceNotional([ exchangeName, exchangeName2 ]);
     }
 
@@ -4451,14 +4451,14 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         });
 
         it("should return correct total rebalance size and isLever boolean", async () => {
-          const [ chunkRebalances, isLevers ] = await subject();
+          const [ chunkRebalances, sellAsset, buyAsset ] = await subject();
 
           const newLeverageRatio = methodology.maxLeverageRatio;
           const currentLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
           const expectedTotalRebalance = await calculateTotalRebalanceNotional(setToken, cEther, currentLeverageRatio, newLeverageRatio);
 
-          expect(isLevers[0]).to.be.false;
-          expect(isLevers[1]).to.be.false;
+          expect(sellAsset).to.eq(strategy.collateralAsset);
+          expect(buyAsset).to.eq(strategy.borrowAsset);
           expect(chunkRebalances[0]).to.eq(ether(0.002));
           expect(chunkRebalances[1]).to.eq(expectedTotalRebalance);
         });
@@ -4471,14 +4471,14 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         });
 
         it("should return correct total rebalance size and isLever boolean", async () => {
-          const [ chunkRebalances, isLevers ] = await subject();
+          const [ chunkRebalances, sellAsset, buyAsset ] = await subject();
 
           const currentLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
           const newLeverageRatio = await flexibleLeverageStrategyAdapter.twapLeverageRatio();
           const expectedTotalRebalance = await calculateTotalRebalanceNotional(setToken, cEther, currentLeverageRatio, newLeverageRatio);
 
-          expect(isLevers[0]).to.be.false;
-          expect(isLevers[1]).to.be.false;
+          expect(sellAsset).to.eq(strategy.collateralAsset);
+          expect(buyAsset).to.eq(strategy.borrowAsset);
           expect(chunkRebalances[0]).to.eq(ether(0.001));
           expect(chunkRebalances[1]).to.eq(expectedTotalRebalance);
         });
@@ -4501,14 +4501,14 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         });
 
         it("should return correct total rebalance size and isLever boolean", async () => {
-          const [ chunkRebalances, isLevers ] = await subject();
+          const [ chunkRebalances, sellAsset, buyAsset ] = await subject();
 
           const newLeverageRatio = methodology.maxLeverageRatio;
           const currentLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
           const expectedTotalRebalance = await calculateTotalRebalanceNotional(setToken, cEther, currentLeverageRatio, newLeverageRatio);
 
-          expect(isLevers[0]).to.be.false;
-          expect(isLevers[1]).to.be.false;
+          expect(sellAsset).to.eq(strategy.collateralAsset);
+          expect(buyAsset).to.eq(strategy.borrowAsset);
           expect(chunkRebalances[0]).to.eq(expectedTotalRebalance);
           expect(chunkRebalances[1]).to.eq(ether(0.002));
         });
@@ -4520,7 +4520,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         });
 
         it("should return correct total rebalance size and isLever boolean", async () => {
-          const [ chunkRebalances, isLevers ] = await subject();
+          const [ chunkRebalances, sellAsset, buyAsset ] = await subject();
 
           const currentLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
           const newLeverageRatio = calculateNewLeverageRatio(
@@ -4532,8 +4532,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           );
           const expectedTotalRebalance = await calculateTotalRebalanceNotional(setToken, cEther, currentLeverageRatio, newLeverageRatio);
 
-          expect(isLevers[0]).to.be.false;
-          expect(isLevers[1]).to.be.false;
+          expect(sellAsset).to.eq(strategy.collateralAsset);
+          expect(buyAsset).to.eq(strategy.borrowAsset);
           expect(chunkRebalances[0]).to.eq(expectedTotalRebalance);
           expect(chunkRebalances[1]).to.eq(ether(0.001));
         });
@@ -4545,7 +4545,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         });
 
         it("should return correct total rebalance size and isLever boolean", async () => {
-          const [ chunkRebalances, isLevers ] = await subject();
+          const [ chunkRebalances, sellAsset, buyAsset ] = await subject();
 
           const currentLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
           const newLeverageRatio = calculateNewLeverageRatio(
@@ -4557,8 +4557,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           );
           const expectedTotalRebalance = await calculateTotalRebalanceNotional(setToken, cEther, currentLeverageRatio, newLeverageRatio);
 
-          expect(isLevers[0]).to.be.false;
-          expect(isLevers[1]).to.be.false;
+          expect(sellAsset).to.eq(strategy.collateralAsset);
+          expect(buyAsset).to.eq(strategy.borrowAsset);
           expect(chunkRebalances[0]).to.eq(expectedTotalRebalance);
           expect(chunkRebalances[1]).to.eq(ether(0.001));
         });
@@ -4570,7 +4570,7 @@ describe("FlexibleLeverageStrategyAdapter", () => {
         });
 
         it("should return correct total rebalance size and isLever boolean", async () => {
-          const [ chunkRebalances, isLevers ] = await subject();
+          const [ chunkRebalances, sellAsset, buyAsset ] = await subject();
 
           const currentLeverageRatio = await flexibleLeverageStrategyAdapter.getCurrentLeverageRatio();
           const newLeverageRatio = calculateNewLeverageRatio(
@@ -4584,8 +4584,8 @@ describe("FlexibleLeverageStrategyAdapter", () => {
           // Multiply collateral by conversion rate (1400 USDC per ETH) and adjust for decimals
           const expectedTotalRebalance = preciseMul(totalCollateralRebalance, ether(1400)).div(BigNumber.from(10).pow(12));
 
-          expect(isLevers[0]).to.be.true;
-          expect(isLevers[1]).to.be.true;
+          expect(sellAsset).to.eq(strategy.borrowAsset);
+          expect(buyAsset).to.eq(strategy.collateralAsset);
           expect(chunkRebalances[0]).to.eq(expectedTotalRebalance);
           expect(chunkRebalances[1]).to.eq(preciseMul(ether(0.001), ether(1400)).div(BigNumber.from(10).pow(12)));
         });

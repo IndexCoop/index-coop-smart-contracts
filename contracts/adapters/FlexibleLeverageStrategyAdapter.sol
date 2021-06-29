@@ -531,8 +531,11 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
     {
         require(exchangeSettings[_exchangeName].twapMaxTradeSize == 0, "Exchange already enabled");
         _validateExchangeSettings(_exchangeSettings);
-        
-        exchangeSettings[_exchangeName] = _exchangeSettings;
+
+        exchangeSettings[_exchangeName].twapMaxTradeSize = _exchangeSettings.twapMaxTradeSize;
+        exchangeSettings[_exchangeName].incentivizedTwapMaxTradeSize = _exchangeSettings.incentivizedTwapMaxTradeSize;
+        exchangeSettings[_exchangeName].leverExchangeData = _exchangeSettings.leverExchangeData;
+        exchangeSettings[_exchangeName].deleverExchangeData = _exchangeSettings.deleverExchangeData;
         exchangeSettings[_exchangeName].exchangeLastTradeTimestamp = 0;
         
         enabledExchanges.push(_exchangeName);
@@ -580,9 +583,10 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
         require(exchangeSettings[_exchangeName].twapMaxTradeSize != 0, "Exchange not enabled");
         _validateExchangeSettings(_exchangeSettings);
 
-        uint256 lastTrade = exchangeSettings[_exchangeName].exchangeLastTradeTimestamp;
-        exchangeSettings[_exchangeName] = _exchangeSettings;
-        exchangeSettings[_exchangeName].exchangeLastTradeTimestamp = lastTrade;
+        exchangeSettings[_exchangeName].twapMaxTradeSize = _exchangeSettings.twapMaxTradeSize;
+        exchangeSettings[_exchangeName].incentivizedTwapMaxTradeSize = _exchangeSettings.incentivizedTwapMaxTradeSize;
+        exchangeSettings[_exchangeName].leverExchangeData = _exchangeSettings.leverExchangeData;
+        exchangeSettings[_exchangeName].deleverExchangeData = _exchangeSettings.deleverExchangeData;
 
         emit ExchangeUpdated(
             _exchangeName,
@@ -624,10 +628,17 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
      *
      * @param _exchangeNames    Array of exchange names to get rebalance sizes for
      *
-     * @return sizes            Array of total notional rebalance size. Measured in the asset that would be sold
-     * @return isLevers         Array of whether it would be levering or delevering
+     * @return sizes            Array of total notional chunk size. Measured in the asset that would be sold
+     * @return sellAsset        Asset that would be sold during a rebalance
+     * @return buyAsset         Asset that would be purchased during a rebalance
      */
-    function getChunkRebalanceNotional(string[] calldata _exchangeNames)  external view returns(uint256[] memory sizes, bool[] memory isLevers) {
+    function getChunkRebalanceNotional(
+        string[] calldata _exchangeNames
+    ) 
+        external
+        view
+        returns(uint256[] memory sizes, address sellAsset, address buyAsset)
+    {
 
         uint256 newLeverageRatio;
         uint256 currentLeverageRatio = getCurrentLeverageRatio();
@@ -645,16 +656,16 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             newLeverageRatio = _calculateNewLeverageRatio(currentLeverageRatio);
         }
 
-
         ActionInfo memory actionInfo = _createActionInfo();
 
         sizes = new uint256[](_exchangeNames.length);
-        isLevers = new bool[](_exchangeNames.length);
-        
+
         for (uint256 i = 0; i < _exchangeNames.length; i++) {
 
-            ExchangeSettings memory settings = exchangeSettings[_exchangeNames[i]];
-            uint256 maxTradeSize = isRipcord ? settings.incentivizedTwapMaxTradeSize : settings.twapMaxTradeSize;
+            uint256 maxTradeSize = isRipcord ? 
+                exchangeSettings[_exchangeNames[i]].incentivizedTwapMaxTradeSize : 
+                exchangeSettings[_exchangeNames[i]].twapMaxTradeSize;
+                
             uint256 slippageTolerance = isRipcord ? incentive.incentivizedSlippageTolerance : execution.slippageTolerance;
         
             bool isLever = newLeverageRatio > currentLeverageRatio;
@@ -670,7 +681,8 @@ contract FlexibleLeverageStrategyAdapter is BaseAdapter {
             (uint256 collateralNotional, ) = _calculateChunkRebalanceNotional(leverageInfo, newLeverageRatio, isLever);
 
             sizes[i] = isLever ? _calculateBorrowUnits(collateralNotional, leverageInfo.action) : collateralNotional;
-            isLevers[i] = isLever;
+            sellAsset = isLever ? strategy.borrowAsset : strategy.collateralAsset;
+            buyAsset = isLever ? strategy.collateralAsset : strategy.borrowAsset;
         }
     }
 
