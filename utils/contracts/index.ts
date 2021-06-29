@@ -4,7 +4,7 @@ export { ChainlinkAggregatorV3Mock } from "../../typechain/ChainlinkAggregatorV3
 export { ExchangeIssuance } from "../../typechain/ExchangeIssuance";
 export { ExchangeIssuanceV2 } from "../../typechain/ExchangeIssuanceV2";
 export { FeeSplitAdapter } from "../../typechain/FeeSplitAdapter";
-export { FlexibleLeverageStrategyAdapter } from "../../typechain/FlexibleLeverageStrategyAdapter";
+export { FlexibleLeverageStrategyExtension } from "../../typechain/FlexibleLeverageStrategyExtension";
 export { GIMExtension } from "../../typechain/GIMExtension";
 export { GovernanceAdapter } from "../../typechain/GovernanceAdapter";
 export { GovernanceAdapterMock } from "../../typechain/GovernanceAdapterMock";
@@ -18,6 +18,7 @@ export { StakingRewards } from "../../typechain/StakingRewards";
 export { StakingRewardsV2 } from "../../typechain/StakingRewardsV2";
 export { StandardTokenMock } from "../../typechain/StandardTokenMock";
 export { StreamingFeeSplitExtension } from "../../typechain/StreamingFeeSplitExtension";
+export { StringArrayUtilsMock } from "../../typechain/StringArrayUtilsMock";
 export { SupplyCapAllowedCallerIssuanceHook } from "../../typechain/SupplyCapAllowedCallerIssuanceHook";
 export { SupplyCapIssuanceHook } from "../../typechain/SupplyCapIssuanceHook";
 export { TradeAdapterMock } from "../../typechain/TradeAdapterMock";

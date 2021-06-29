@@ -1,4 +1,6 @@
 import { BigNumber } from "@ethersproject/bignumber";
+import { CEther } from "@typechain/CEther";
+import { SetToken } from "@typechain/SetToken";
 import { ether, preciseMul, preciseDiv } from "../common";
 
 export function calculateNewLeverageRatio(
@@ -26,6 +28,21 @@ export function calculateCollateralRebalanceUnits(
   const c = preciseMul(b, collateralBalance);
 
   return preciseDiv(c, totalSupply);
+}
+
+export async function calculateTotalRebalanceNotional(
+  setToken: SetToken,
+  cEther: CEther,
+  currentLeverageRatio: BigNumber,
+  newLeverageRatio: BigNumber
+): Promise<BigNumber> {
+
+  const collateralCTokenExchangeRate = await cEther.exchangeRateStored();
+  const collateralCTokenBalance = await cEther.balanceOf(setToken.address);
+  const collateralBalance = preciseMul(collateralCTokenBalance, collateralCTokenExchangeRate);
+  const a = currentLeverageRatio.gt(newLeverageRatio) ? currentLeverageRatio.sub(newLeverageRatio) : newLeverageRatio.sub(currentLeverageRatio);
+  const b = preciseDiv(a, currentLeverageRatio);
+  return preciseMul(b, collateralBalance);
 }
 
 export function calculateMaxBorrowForDelever(

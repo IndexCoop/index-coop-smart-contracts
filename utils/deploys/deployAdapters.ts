@@ -1,9 +1,9 @@
 import { Signer, BigNumber } from "ethers";
-import { Address, ContractSettings, MethodologySettings, ExecutionSettings, IncentiveSettings } from "../types";
+import { Address, ContractSettings, MethodologySettings, ExecutionSettings, IncentiveSettings, ExchangeSettings } from "../types";
 import {
   ExchangeIssuance,
   ExchangeIssuanceV2,
-  FlexibleLeverageStrategyAdapter,
+  FlexibleLeverageStrategyExtension,
   FeeSplitAdapter,
   GIMExtension,
   GovernanceAdapter,
@@ -13,7 +13,7 @@ import {
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { FeeSplitAdapter__factory } from "../../typechain/factories/FeeSplitAdapter__factory";
-import { FlexibleLeverageStrategyAdapter__factory } from "../../typechain/factories/FlexibleLeverageStrategyAdapter__factory";
+import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtension__factory";
 import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
 import { GovernanceAdapter__factory } from "../../typechain/factories/GovernanceAdapter__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
@@ -71,19 +71,23 @@ export default class DeployAdapters {
     );
   }
 
-  public async deployFlexibleLeverageStrategyAdapter(
+  public async deployFlexibleLeverageStrategyExtension(
     manager: Address,
     contractSettings: ContractSettings,
     methdologySettings: MethodologySettings,
     executionSettings: ExecutionSettings,
-    incentiveSettings: IncentiveSettings
-  ): Promise<FlexibleLeverageStrategyAdapter> {
-    return await new FlexibleLeverageStrategyAdapter__factory(this._deployerSigner).deploy(
+    incentiveSettings: IncentiveSettings,
+    exchangeNames: string[],
+    exchangeSettings: ExchangeSettings[]
+  ): Promise<FlexibleLeverageStrategyExtension> {
+    return await new FlexibleLeverageStrategyExtension__factory(this._deployerSigner).deploy(
       manager,
       contractSettings,
       methdologySettings,
       executionSettings,
-      incentiveSettings
+      incentiveSettings,
+      exchangeNames,
+      exchangeSettings,
     );
   }
 
