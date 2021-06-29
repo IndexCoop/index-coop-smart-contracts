@@ -39,9 +39,9 @@ import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
  * @title FlexibleLeverageStrategyExtension
  * @author Set Protocol
  *
- * Smart contract that enables trustless leverage tokens using the flexible leverage methodology. This adapter is paired with the CompoundLeverageModule from Set
+ * Smart contract that enables trustless leverage tokens using the flexible leverage methodology. This extension is paired with the CompoundLeverageModule from Set
  * protocol where module interactions are invoked via the IBaseManager contract. Any leveraged token can be constructed as long as the collateral and borrow
- * asset is available on Compound. This adapter contract also allows the operator to set an ETH reward to incentivize keepers calling the rebalance function at
+ * asset is available on Compound. This extension contract also allows the operator to set an ETH reward to incentivize keepers calling the rebalance function at
  * different leverage thresholds.
  *
  * CHANGELOG 4/14/2021:
@@ -658,33 +658,30 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
         }
 
         ActionInfo memory actionInfo = _createActionInfo();
+        bool isLever = newLeverageRatio > currentLeverageRatio;
 
         sizes = new uint256[](_exchangeNames.length);
 
         for (uint256 i = 0; i < _exchangeNames.length; i++) {
-
-            uint256 maxTradeSize = isRipcord ? 
-                exchangeSettings[_exchangeNames[i]].incentivizedTwapMaxTradeSize : 
-                exchangeSettings[_exchangeNames[i]].twapMaxTradeSize;
-                
-            uint256 slippageTolerance = isRipcord ? incentive.incentivizedSlippageTolerance : execution.slippageTolerance;
-        
-            bool isLever = newLeverageRatio > currentLeverageRatio;
     
             LeverageInfo memory leverageInfo = LeverageInfo({
                 action: actionInfo,
                 currentLeverageRatio: currentLeverageRatio,
-                slippageTolerance: slippageTolerance,
-                twapMaxTradeSize: maxTradeSize,
+                slippageTolerance: isRipcord ? incentive.incentivizedSlippageTolerance : execution.slippageTolerance,
+                twapMaxTradeSize: isRipcord ? 
+                    exchangeSettings[_exchangeNames[i]].incentivizedTwapMaxTradeSize : 
+                    exchangeSettings[_exchangeNames[i]].twapMaxTradeSize,
                 exchangeName: _exchangeNames[i]
             });
 
             (uint256 collateralNotional, ) = _calculateChunkRebalanceNotional(leverageInfo, newLeverageRatio, isLever);
 
+            // _calculateBorrowUnits can convert both unit and notional values
             sizes[i] = isLever ? _calculateBorrowUnits(collateralNotional, leverageInfo.action) : collateralNotional;
-            sellAsset = isLever ? strategy.borrowAsset : strategy.collateralAsset;
-            buyAsset = isLever ? strategy.collateralAsset : strategy.borrowAsset;
         }
+
+        sellAsset = isLever ? strategy.borrowAsset : strategy.collateralAsset;
+        buyAsset = isLever ? strategy.collateralAsset : strategy.borrowAsset;
     }
 
     /**
