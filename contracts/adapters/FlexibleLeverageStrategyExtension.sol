@@ -53,7 +53,7 @@ import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
  * - Update _calculateActionInfo to add chainlink prices
  * - Update _calculateBorrowUnits and _calculateMinRepayUnits to use chainlink as an oracle in 
  *
- * CHANGELOG 6/23/2021: 4eff1c0bcb721055b357cd6095eda3ed5cd6dd24
+ * CHANGELOG 6/29/2021: c55bd3cdb0fd43c03da9904493dcc23771ef0f71
  * - Add ExchangeSettings struct that contains exchange specific information
  * - Update ExecutionSettings struct to not include exchange information
  * - Add mapping of exchange names to ExchangeSettings structs and a list of enabled exchange names
@@ -65,6 +65,7 @@ import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
  * - Update _shouldRebalance to use exchange specific last trade timestamps
  * - Update _validateRipcord and _validateNormalRebalance to take in a timestamp parameter (so we can pass either global or exchange specific timestamp)
  * - Add _updateLastTradeTimestamp function to update global and exchange specific timestamp
+ * - Change contract name to FlexibleLeverageStrategyExtension
  */
 contract FlexibleLeverageStrategyExtension is BaseAdapter {
     using Address for address;
