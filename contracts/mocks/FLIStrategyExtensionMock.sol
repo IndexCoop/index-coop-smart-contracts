@@ -12,6 +12,10 @@ contract FLIStrategyExtensionMock {
     uint256[] internal chunkRebalanceSizes;
     address internal chunkRebalanceSellAsset;
     address internal chunkRebalanceBuyAsset;
+
+    FlexibleLeverageStrategyExtension.ContractSettings internal strategy;
+
+    mapping(string => FlexibleLeverageStrategyExtension.ExchangeSettings) internal exchangeSettings;
     
 
     function shouldRebalanceWithBounds(
@@ -37,6 +41,16 @@ contract FLIStrategyExtensionMock {
         buyAsset = chunkRebalanceBuyAsset;
     }
 
+    function getStrategy() external view returns (FlexibleLeverageStrategyExtension.ContractSettings memory) {
+        return strategy;
+    }
+
+    function getExchangeSettings(string memory _exchangeName) external view returns (FlexibleLeverageStrategyExtension.ExchangeSettings memory) {
+        return exchangeSettings[_exchangeName];
+    }
+
+    /* =========== Functions for setting mock state =========== */
+
     function setShouldRebalanceWithBounds(
         string[] memory _shouldRebalanceNames,
         FlexibleLeverageStrategyExtension.ShouldRebalance[] memory _shouldRebalancesEnums
@@ -57,5 +71,13 @@ contract FLIStrategyExtensionMock {
         chunkRebalanceSizes = _chunkRebalanceSizes;
         chunkRebalanceSellAsset = _chunkRebalanceSellAsset;
         chunkRebalanceBuyAsset = _chunkRebalanceBuyAsset;
+    }
+
+    function setStrategy(FlexibleLeverageStrategyExtension.ContractSettings memory _strategy) external {
+        strategy = _strategy;
+    }
+
+    function setExchangeSettings(string memory _exchangeName, FlexibleLeverageStrategyExtension.ExchangeSettings memory _settings) external {
+        exchangeSettings[_exchangeName] = _settings;
     }
 }
