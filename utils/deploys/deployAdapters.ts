@@ -1,6 +1,7 @@
 import { Signer, BigNumber } from "ethers";
-import { Address, ContractSettings, MethodologySettings, ExecutionSettings, IncentiveSettings } from "../types";
+import { Address, ContractSettings, MethodologySettings, ExecutionSettings, IncentiveSettings, ModuleSettings } from "../types";
 import {
+  COMPReinvestmentExtension,
   ExchangeIssuance,
   ExchangeIssuanceV2,
   FlexibleLeverageStrategyAdapter,
@@ -10,6 +11,7 @@ import {
   StreamingFeeSplitExtension
 } from "../contracts/index";
 
+import { COMPReinvestmentExtension__factory } from "../../typechain/factories/COMPReinvestmentExtension__factory";
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { FeeSplitAdapter__factory } from "../../typechain/factories/FeeSplitAdapter__factory";
@@ -23,6 +25,26 @@ export default class DeployAdapters {
 
   constructor(deployerSigner: Signer) {
     this._deployerSigner = deployerSigner;
+  }
+
+  public async deployCOMPReinvestmentExtension(
+    manager: Address,
+    collateralAsset: Address,
+    collateralCToken: Address,
+    comptroller: Address,
+    compToken: Address,
+    cEther: Address,
+    moduleSettings: ModuleSettings,
+  ): Promise<COMPReinvestmentExtension> {
+    return await new COMPReinvestmentExtension__factory(this._deployerSigner).deploy(
+      manager,
+      collateralAsset,
+      collateralCToken,
+      comptroller,
+      compToken,
+      cEther,
+      moduleSettings,
+    );
   }
 
   public async deployFeeSplitAdapter(

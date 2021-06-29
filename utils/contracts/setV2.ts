@@ -1,6 +1,10 @@
 // External Set Protocol Contracts
+export { AirdropModule } from "../../typechain/AirdropModule";
 export { BasicIssuanceModule } from "../../typechain/BasicIssuanceModule";
+export { ClaimModule } from "../../typechain/ClaimModule";
+export { CompClaimAdapter } from "../../typechain/CompClaimAdapter";
 export { Compound } from "../../typechain/Compound";
+export { CompoundWrapAdapter } from "../../typechain/CompoundWrapAdapter";
 export { Controller } from "../../typechain/Controller";
 export { ContractCallerMock } from "../../typechain/ContractCallerMock";
 export { ComptrollerMock } from "../../typechain/ComptrollerMock";
@@ -13,4 +17,6 @@ export { SetToken } from "../../typechain/SetToken";
 export { SetTokenCreator } from "../../typechain/SetTokenCreator";
 export { SingleIndexModule } from "../../typechain/SingleIndexModule";
 export { StreamingFeeModule } from "../../typechain/StreamingFeeModule";
+export { TradeModule } from "../../typechain/TradeModule";
 export { UniswapV2ExchangeAdapter } from "../../typechain/UniswapV2ExchangeAdapter";
+export { WrapModule } from "../../typechain/WrapModule";

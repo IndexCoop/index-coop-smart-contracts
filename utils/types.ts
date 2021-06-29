@@ -72,3 +72,14 @@ export interface IncentiveSettings {
   etherReward: BigNumber;
   incentivizedLeverageRatio: BigNumber;
 }
+
+export interface ModuleSettings {
+  claimModule: Address;
+  claimAdapterName: string;
+  airdropModule: Address;
+  wrapModule: Address;
+  wrapAdapterName: string;
+  tradeModule: Address;
+  exchangeAdapterName: string;
+  exchangeData: Bytes;
+}

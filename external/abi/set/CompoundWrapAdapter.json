@@ -1,0 +1,164 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "CompoundWrapAdapter",
+  "sourceName": "contracts/protocol/integration/wrap/CompoundWrapAdapter.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "ETH_TOKEN_ADDRESS",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "gas": "0xaeb690"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_wrappedToken",
+          "type": "address"
+        }
+      ],
+      "name": "getSpenderAddress",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "gas": "0xaeb690"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_underlyingToken",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_wrappedToken",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_wrappedTokenUnits",
+          "type": "uint256"
+        }
+      ],
+      "name": "getUnwrapCallData",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes",
+          "name": "",
+          "type": "bytes"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "gas": "0xaeb690"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_underlyingToken",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_wrappedToken",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_underlyingUnits",
+          "type": "uint256"
+        }
+      ],
+      "name": "getWrapCallData",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes",
+          "name": "",
+          "type": "bytes"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function",
+      "gas": "0xaeb690"
+    }
+  ],
+  "bytecode": "0x608060405234801561001057600080fd5b50610522806100206000396000f3fe608060405234801561001057600080fd5b506004361061004c5760003560e01c80631878d1f11461005157806377b1aaf81461006f578063a22fe98e14610091578063de68a3da146100a4575b600080fd5b6100596100b7565b604051610066919061042e565b60405180910390f35b61008261007d366004610334565b6100cf565b60405161006693929190610442565b61008261009f366004610334565b610249565b6100596100b23660046102fc565b6102f7565b73eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee81565b600080606081816001600160a01b03881673eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee141561019e57604051636d4aada560e01b815286925073__$059b1e3c35e6526bf44b3e0b6a2a76e329$__90636d4aada590610140906001600160a01b038b1690869060040161048b565b60006040518083038186803b15801561015857600080fd5b505af415801561016c573d6000803e3d6000fd5b505050506040513d6000823e601f3d908101601f191682016040526101949190810190610374565b925061023d915050565b604051639653f87960e01b81526000925073__$059b1e3c35e6526bf44b3e0b6a2a76e329$__90639653f879906101e4906001600160a01b038b16908a9060040161048b565b60006040518083038186803b1580156101fc57600080fd5b505af4158015610210573d6000803e3d6000fd5b505050506040513d6000823e601f3d908101601f191682016040526102389190810190610374565b925050505b95979096509350505050565b600080606080856001600160a01b031673__$059b1e3c35e6526bf44b3e0b6a2a76e329$__63a2f976589091876040518363ffffffff1660e01b815260040161029392919061048b565b60006040518083038186803b1580156102ab57600080fd5b505af41580156102bf573d6000803e3d6000fd5b505050506040513d6000823e601f3d908101601f191682016040526102e79190810190610374565b9799600099509650505050505050565b919050565b6000806040838503121561030e578182fd5b8235610319816104d4565b91506020830135610329816104d4565b809150509250929050565b600080600060608486031215610348578081fd5b8335610353816104d4565b92506020840135610363816104d4565b929592945050506040919091013590565b600080600060608486031215610388578283fd5b8351610393816104d4565b60208501516040860151919450925067ffffffffffffffff808211156103b7578283fd5b81860187601f8201126103c8578384fd5b80519250818311156103d8578384fd5b604051601f8401601f1916810160200183811182821017156103f8578586fd5b60405283815281840160200189101561040f578485fd5b6104208460208301602085016104a4565b809450505050509250925092565b6001600160a01b0391909116815260200190565b600060018060a01b03851682528360208301526060604083015282518060608401526104758160808501602087016104a4565b601f01601f191691909101608001949350505050565b6001600160a01b03929092168252602082015260400190565b60005b838110156104bf5781810151838201526020016104a7565b838111156104ce576000848401525b50505050565b6001600160a01b03811681146104e957600080fd5b5056fea26469706673582212206991a3c148717da25c84609b044876005d70fe53d77ad6781e437d240362d7b164736f6c634300060a0033",
+  "deployedBytecode": "",
+  "linkReferences": {
+    "contracts/protocol/integration/lib/Compound.sol": {
+      "Compound": [
+        {
+          "length": 20,
+          "start": 301
+        },
+        {
+          "length": 20,
+          "start": 465
+        },
+        {
+          "length": 20,
+          "start": 635
+        }
+      ]
+    }
+  },
+  "deployedLinkReferences": {
+    "contracts/protocol/integration/lib/Compound.sol": {
+      "Compound": [
+        {
+          "length": 20,
+          "start": 269
+        },
+        {
+          "length": 20,
+          "start": 433
+        },
+        {
+          "length": 20,
+          "start": 603
+        }
+      ]
+    }
+  }
+}

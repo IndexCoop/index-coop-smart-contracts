@@ -3,7 +3,9 @@ import { ContractTransaction, Signer } from "ethers";
 import { BigNumber } from "@ethersproject/bignumber";
 
 import {
+  AirdropModule,
   BasicIssuanceModule,
+  ClaimModule,
   CompoundLeverageModule,
   Controller,
   DebtIssuanceModule,
@@ -12,7 +14,9 @@ import {
   IntegrationRegistry,
   SetToken,
   SetTokenCreator,
-  StreamingFeeModule
+  StreamingFeeModule,
+  TradeModule,
+  WrapModule,
 } from "../contracts/setV2";
 import { WETH9, StandardTokenMock } from "../contracts/index";
 import DeployHelper from "../deploys";
@@ -47,6 +51,10 @@ export class SetFixture {
   public compoundLeverageModule: CompoundLeverageModule;
   public governanceModule: GovernanceModule;
   public generalIndexModule: GeneralIndexModule;
+  public wrapModule: WrapModule;
+  public tradeModule: TradeModule;
+  public airdropModule: AirdropModule;
+  public claimModule: ClaimModule;
 
   public weth: WETH9;
   public usdc: StandardTokenMock;
@@ -72,9 +80,13 @@ export class SetFixture {
     this.streamingFeeModule = await this._deployer.setV2.deployStreamingFeeModule(this.controller.address);
     this.debtIssuanceModule = await this._deployer.setV2.deployDebtIssuanceModule(this.controller.address);
     this.governanceModule = await this._deployer.setV2.deployGovernanceModule(this.controller.address);
+    this.tradeModule = await this._deployer.setV2.deployTradeModule(this.controller.address);
+    this.airdropModule = await this._deployer.setV2.deployAirdropModule(this.controller.address);
+    this.claimModule = await this._deployer.setV2.deployClaimModule(this.controller.address);
 
     await this.initializeStandardComponents();
 
+    this.wrapModule = await this._deployer.setV2.deployWrapModule(this.controller.address, this.weth.address);
     this.generalIndexModule = await this._deployer.setV2.deployGeneralIndexModule(
       this.controller.address,
       this.weth.address
@@ -86,6 +98,10 @@ export class SetFixture {
       this.debtIssuanceModule.address,
       this.governanceModule.address,
       this.generalIndexModule.address,
+      this.tradeModule.address,
+      this.airdropModule.address,
+      this.claimModule.address,
+      this.wrapModule.address,
     ];
 
     await this.controller.initialize(

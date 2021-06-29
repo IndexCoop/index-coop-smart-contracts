@@ -3,7 +3,11 @@ import { BigNumber, BigNumberish } from "@ethersproject/bignumber";
 import { Address } from "../types";
 import { convertLibraryNameToLinkId } from "../common";
 import {
+  AirdropModule,
   BasicIssuanceModule,
+  ClaimModule,
+  CompClaimAdapter,
+  CompoundWrapAdapter,
   Compound,
   CompoundLeverageModule,
   Controller,
@@ -17,12 +21,18 @@ import {
   SetToken,
   SetTokenCreator,
   SingleIndexModule,
+  TradeModule,
+  WrapModule,
   UniswapV2ExchangeAdapter
 } from "../contracts/setV2";
 import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
+import { AirdropModule__factory } from "../../typechain/factories/AirdropModule__factory";
 import { BasicIssuanceModule__factory } from "../../typechain/factories/BasicIssuanceModule__factory";
+import { ClaimModule__factory } from "../../typechain/factories/ClaimModule__factory";
 import { Controller__factory } from "../../typechain/factories/Controller__factory";
+import { CompClaimAdapter__factory } from "../../typechain/factories/CompClaimAdapter__factory";
+import { CompoundWrapAdapter__factory } from "../../typechain/factories/CompoundWrapAdapter__factory";
 import { Compound__factory } from "../../typechain/factories/Compound__factory";
 import { CompoundLeverageModule__factory } from "../../typechain/factories/CompoundLeverageModule__factory";
 import { ComptrollerMock__factory } from "../../typechain/factories/ComptrollerMock__factory";
@@ -36,7 +46,9 @@ import { StreamingFeeModule__factory } from "../../typechain/factories/Streaming
 import { SetToken__factory } from "../../typechain/factories/SetToken__factory";
 import { SetTokenCreator__factory } from "../../typechain/factories/SetTokenCreator__factory";
 import { StandardTokenMock__factory } from "../../typechain/factories/StandardTokenMock__factory";
+import { TradeModule__factory } from "../../typechain/factories/TradeModule__factory";
 import { UniswapV2ExchangeAdapter__factory } from "../../typechain/factories/UniswapV2ExchangeAdapter__factory";
+import { WrapModule__factory } from "../../typechain/factories/WrapModule__factory";
 import { WETH9__factory } from "../../typechain/factories/WETH9__factory";
 
 export default class DeploySetV2 {
@@ -78,8 +90,16 @@ export default class DeploySetV2 {
     );
   }
 
+  public async deployAirdropModule(controller: Address): Promise<AirdropModule> {
+    return await new AirdropModule__factory(this._deployerSigner).deploy(controller);
+  }
+
   public async deployBasicIssuanceModule(controller: Address): Promise<BasicIssuanceModule> {
     return await new BasicIssuanceModule__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployClaimModule(controller: Address): Promise<ClaimModule> {
+    return await new ClaimModule__factory(this._deployerSigner).deploy(controller);
   }
 
   public async deployContractCallerMock(): Promise<ContractCallerMock> {
@@ -96,6 +116,10 @@ export default class DeploySetV2 {
       compAmount,
       cToken
     );
+  }
+
+  public async deployCompClaimAdapter(comptroller: Address): Promise<CompClaimAdapter> {
+    return await new CompClaimAdapter__factory(this._deployerSigner).deploy(comptroller);
   }
 
   public async deployDebtIssuanceModule(controller: Address): Promise<DebtIssuanceModule> {
@@ -140,6 +164,20 @@ export default class DeploySetV2 {
     return await new IntegrationRegistry__factory(this._deployerSigner).deploy(controller);
   }
 
+  public async deployCompoundWrapAdapter(): Promise<CompoundWrapAdapter> {
+    const compoundLib = await this.deployCompoundLib();
+    const linkId = convertLibraryNameToLinkId("Compound");
+
+    return await new CompoundWrapAdapter__factory(
+      // @ts-ignore
+      {
+        [linkId]: compoundLib.address,
+      },
+      // @ts-ignore
+      this._deployerSigner
+    ).deploy();
+  }
+
   public async deployCompoundLeverageModule(
     controller: Address,
     compToken: Address,
@@ -168,6 +206,14 @@ export default class DeploySetV2 {
 
   public async deployGovernanceModule(controller: Address): Promise<GovernanceModule> {
     return await new GovernanceModule__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployTradeModule(controller: Address): Promise<TradeModule> {
+    return await new TradeModule__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployWrapModule(controller: Address, weth: Address): Promise<WrapModule> {
+    return await new WrapModule__factory(this._deployerSigner).deploy(controller, weth);
   }
 
   public async deployUniswapV2ExchangeAdapter(
