@@ -16,11 +16,11 @@ import {
   StrategyInfo
 } from "../types";
 
-async function getRebalanceInputs(
+function getRebalanceInputs(
   currentPositions: any,
   strategyInfo: StrategyInfo
 ) {
-  const strategyConstants: StrategyObject = await createStrategyObjectMultisig(
+  const strategyConstants: StrategyObject = createStrategyObjectMultisig(
     currentPositions,
     strategyInfo
   );
@@ -33,11 +33,11 @@ async function getRebalanceInputs(
   }
 }
 
-export async function calculateNewDPIAllocations(
+export function calculateNewDPIAllocations(
   totalSupply: BigNumber,
   strategyConstants: StrategyObject,
   dpiValue: BigNumber,
-): Promise<RebalanceSummaryLight[]> {
+): RebalanceSummaryLight[] {
   let rebalanceData: RebalanceSummaryLight[] = [];
 
   let sumOfCappedAllocations = ZERO;
@@ -105,11 +105,11 @@ export async function calculateNewDPIAllocations(
   return rebalanceData;
 }
 
-export async function calculateNewMVIAllocations(
+export function calculateNewMVIAllocations(
   totalSupply: BigNumber,
   strategyConstants: StrategyObject,
   setValue: BigNumber,
-): Promise<RebalanceSummaryLight[]> {
+): RebalanceSummaryLight[] {
   let rebalanceData: RebalanceSummaryLight[] = [];
 
   for (let i = 0; i < Object.keys(strategyConstants).length; i++) {

@@ -59,10 +59,10 @@ export async function createStrategyObject(
   return strategyObject;
 }
 
-export async function createStrategyObjectMultisig (
+export function createStrategyObjectMultisig (
   currentPositions: any,
   strategyInfo: StrategyInfo
-) : Promise<StrategyObject> {
+) : StrategyObject {
   let strategyObject: StrategyObject = {};
 
   const filteredConstants = _.pick(_.merge(ASSETS, strategyInfo), Object.keys(strategyInfo));
