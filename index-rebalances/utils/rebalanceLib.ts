@@ -1,4 +1,5 @@
-import { createStrategyObjectMultisig } from './dataOrganization';
+import * as _ from "lodash";
+
 import {
   calculateSetValue,
   calculateNotionalInToken,
@@ -13,16 +14,19 @@ import {
   IndexInfo,
   RebalanceSummaryLight,
   StrategyObject,
-  StrategyInfo
+  StrategyInfo,
+  AssetStrategy
 } from "../types";
 
 function getRebalanceInputs(
   currentPositions: any,
-  strategyInfo: StrategyInfo
+  strategyInfo: StrategyInfo,
+  assets: any
 ) {
-  const strategyConstants: StrategyObject = createStrategyObjectMultisig(
+  const strategyConstants: StrategyObject = createStrategyObject(
     currentPositions,
-    strategyInfo
+    strategyInfo,
+    assets
   );
 
   const setTokenValue = calculateSetValue(strategyConstants);
@@ -131,4 +135,37 @@ export function calculateNewMVIAllocations(
     });
   }
   return rebalanceData;
+}
+
+export function createStrategyObject (
+  currentPositions: any,
+  strategyInfo: StrategyInfo,
+  assets: any
+) : StrategyObject {
+  let strategyObject: StrategyObject = {};
+
+  const filteredConstants = _.pick(_.merge(assets, strategyInfo), Object.keys(strategyInfo));
+
+  const keys = Object.keys(filteredConstants);
+
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+
+    const position = currentPositions.filter((obj: any) =>
+      obj.component.toLowerCase() == filteredConstants[key].address.toLowerCase()
+    )[0];
+
+    if (position) { filteredConstants[key].currentUnit = position.unit; }
+
+    const decimals = filteredConstants[key].decimals!
+
+    strategyObject[key] = {} as AssetStrategy;
+    strategyObject[key].address = filteredConstants[key].address;
+    strategyObject[key].price = filteredConstants[key].price;
+    strategyObject[key].input = filteredConstants[key].input;
+    strategyObject[key].currentUnit = position ? position.unit : ZERO;
+    strategyObject[key].decimals = decimals;
+  }
+
+  return strategyObject;
 }
