@@ -33,11 +33,19 @@ task("calculate-new-index-position", "Calculates new rebalance details for an in
 
     const setToken: SetToken = await deployHelper.setV2.getSetToken(indexInfo.address);
 
-    const strategyConstants: StrategyObject = await createStrategyObject(setToken, indexInfo.strategyInfo, owner);
+    const strategyConstants: StrategyObject = await createStrategyObject(
+      setToken,
+      indexInfo.strategyInfo,
+      owner
+    );
 
     const setTokenValue = calculateSetValue(strategyConstants);
 
-    let rebalanceData: RebalanceSummary[] = await indexInfo.calculateAssetAllocation(setToken, strategyConstants, setTokenValue);
+    let rebalanceData: RebalanceSummary[] = await indexInfo.calculateAssetAllocation(
+      setToken,
+      strategyConstants,
+      setTokenValue
+    );
 
     const tradeOrder = createRebalanceSchedule(rebalanceData, strategyConstants);
 

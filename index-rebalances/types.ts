@@ -72,6 +72,15 @@ export interface RebalanceSummary {
   tradeCount: BigNumber;
 }
 
+export interface RebalanceSummaryLight {
+  asset: string;
+  currentUnit: BigNumber;
+  newUnit: BigNumber;
+  notionalInToken: BigNumber;
+  notionalInUSD: BigNumber;
+  isBuy: boolean | undefined;
+}
+
 export interface ParamSetting {
   components: Address[];
   values: string[];
