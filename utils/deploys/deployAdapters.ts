@@ -5,14 +5,18 @@ import {
   ExchangeIssuanceV2,
   FlexibleLeverageStrategyExtension,
   FeeSplitAdapter,
-  GovernanceAdapter
+  GIMExtension,
+  GovernanceAdapter,
+  StreamingFeeSplitExtension
 } from "../contracts/index";
 
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { FeeSplitAdapter__factory } from "../../typechain/factories/FeeSplitAdapter__factory";
 import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtension__factory";
+import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
 import { GovernanceAdapter__factory } from "../../typechain/factories/GovernanceAdapter__factory";
+import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 
 export default class DeployAdapters {
   private _deployerSigner: Signer;
@@ -35,6 +39,18 @@ export default class DeployAdapters {
     );
   }
 
+  public async deployStreamingFeeSplitExtension(
+    manager: Address,
+    streamingFeeModule: Address,
+    operatorFeeSplit: BigNumber,
+  ): Promise<StreamingFeeSplitExtension> {
+    return await new StreamingFeeSplitExtension__factory(this._deployerSigner).deploy(
+      manager,
+      streamingFeeModule,
+      operatorFeeSplit
+    );
+  }
+
   public async deployGovernanceAdapter(
     manager: Address,
     governanceModule: Address,
@@ -42,6 +58,16 @@ export default class DeployAdapters {
     return await new GovernanceAdapter__factory(this._deployerSigner).deploy(
       manager,
       governanceModule
+    );
+  }
+
+  public async deployGIMExtension(
+    manager: Address,
+    generalIndexModule: Address,
+  ): Promise<GIMExtension> {
+    return await new GIMExtension__factory(this._deployerSigner).deploy(
+      manager,
+      generalIndexModule
     );
   }
 

@@ -51,8 +51,7 @@ contract GovernanceAdapter is BaseAdapter {
      * is part of BaseAdapter.
      *
      * @param _governanceName       Name of governance adapter being used
-    
- */
+     */
     function delegate(
         string memory _governanceName,
         address _delegatee
