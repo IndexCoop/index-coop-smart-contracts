@@ -1,6 +1,6 @@
 import "module-alias/register";
 
-import { Address, Account, AirdropSettings, ModuleSettings } from "@utils/types";
+import { Address, Account, ReapSettings } from "@utils/types";
 import { ADDRESS_ZERO, EMPTY_BYTES, ZERO } from "@utils/constants";
 import { COMPReinvestmentExtension, BaseManager, TradeAdapterMock } from "@utils/contracts/index";
 import { CompoundWrapAdapter, ComptrollerMock, CompClaimAdapter, ContractCallerMock, SetToken } from "@utils/contracts/setV2";
@@ -11,6 +11,8 @@ import {
   ether,
   getAccounts,
   getCompoundFixture,
+  getRandomAccount,
+  getRandomAddress,
   getSetFixture,
   getWaffleExpect,
   preciseMul,
@@ -21,7 +23,7 @@ import { BigNumber, ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
 
-describe.only("COMPReinvestmentExtension", () => {
+describe("COMPReinvestmentExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
@@ -37,8 +39,6 @@ describe.only("COMPReinvestmentExtension", () => {
   let compoundWrapAdapter: CompoundWrapAdapter;
   let tradeAdapterMock: TradeAdapterMock;
   let comptrollerMock: ComptrollerMock;
-
-  let airdropSettings: AirdropSettings;
 
   let baseManagerV2: BaseManager;
   let compReinvestmentExtension: COMPReinvestmentExtension;
@@ -132,13 +132,6 @@ describe.only("COMPReinvestmentExtension", () => {
       methodologist.address
     );
 
-    airdropSettings = {
-      airdrops: [compoundSetup.comp.address],
-      feeRecipient: baseManagerV2.address,
-      airdropFee: ether(0.5), // 50%
-      anyoneAbsorb: false,
-    };
-
     await setV2Setup.debtIssuanceModule.initialize(
       setToken.address,
       ether(.1),
@@ -147,10 +140,9 @@ describe.only("COMPReinvestmentExtension", () => {
       baseManagerV2.address,
       ADDRESS_ZERO
     );
-    await setV2Setup.tradeModule.initialize(setToken.address, { gasLimit: 200000 });
-    await setV2Setup.wrapModule.initialize(setToken.address, { gasLimit: 200000 });
-    await setV2Setup.airdropModule.initialize(setToken.address, airdropSettings, { gasLimit: 500000 });
-    await setV2Setup.claimModule.initialize(setToken.address, false, [comptrollerMock.address], ["CompClaimAdapter"], { gasLimit: 500000 });
+
+    // Transfer ownership to BaseManager
+    await setToken.setManager(baseManagerV2.address);
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -162,7 +154,7 @@ describe.only("COMPReinvestmentExtension", () => {
     let subjectComptroller: Address;
     let subjectCompToken: Address;
     let subjectCEther: Address;
-    let subjectModuleSettings: ModuleSettings;
+    let subjectReapSettings: ReapSettings;
 
     beforeEach(async () => {
       subjectManager = baseManagerV2.address;
@@ -171,7 +163,7 @@ describe.only("COMPReinvestmentExtension", () => {
       subjectComptroller = compoundSetup.comptroller.address;
       subjectCompToken = compoundSetup.comp.address;
       subjectCEther = cEther.address;
-      subjectModuleSettings = {
+      subjectReapSettings = {
         claimModule: setV2Setup.claimModule.address,
         claimAdapterName: "CompClaimAdapter",
         airdropModule: setV2Setup.airdropModule.address,
@@ -180,7 +172,7 @@ describe.only("COMPReinvestmentExtension", () => {
         tradeModule: setV2Setup.tradeModule.address,
         exchangeAdapterName: "MockTradeAdapter",
         exchangeData: EMPTY_BYTES,
-      } as ModuleSettings;
+      } as ReapSettings;
     });
 
     async function subject(): Promise<COMPReinvestmentExtension> {
@@ -191,7 +183,7 @@ describe.only("COMPReinvestmentExtension", () => {
         subjectComptroller,
         subjectCompToken,
         subjectCEther,
-        subjectModuleSettings,
+        subjectReapSettings,
       );
     }
 
@@ -244,30 +236,31 @@ describe.only("COMPReinvestmentExtension", () => {
       expect(actualCEther).to.eq(subjectCEther);
     });
 
-    it("should set the correct module settings", async () => {
+    it("should set the correct reap settings", async () => {
       const returnedCompReinvestmentExtension = await subject();
 
-      const actualModuleSettings = await returnedCompReinvestmentExtension.moduleSettings();
+      const actualReapSettings = await returnedCompReinvestmentExtension.reapSettings();
 
-      expect(actualModuleSettings.claimModule).to.eq(subjectModuleSettings.claimModule);
-      expect(actualModuleSettings.claimAdapterName).to.eq(subjectModuleSettings.claimAdapterName);
-      expect(actualModuleSettings.wrapModule).to.eq(subjectModuleSettings.wrapModule);
-      expect(actualModuleSettings.wrapAdapterName).to.eq(subjectModuleSettings.wrapAdapterName);
-      expect(actualModuleSettings.airdropModule).to.eq(subjectModuleSettings.airdropModule);
-      expect(actualModuleSettings.tradeModule).to.eq(subjectModuleSettings.tradeModule);
-      expect(actualModuleSettings.exchangeAdapterName).to.eq(subjectModuleSettings.exchangeAdapterName);
-      expect(actualModuleSettings.exchangeData).to.eq(subjectModuleSettings.exchangeData);
+      expect(actualReapSettings.claimModule).to.eq(subjectReapSettings.claimModule);
+      expect(actualReapSettings.claimAdapterName).to.eq(subjectReapSettings.claimAdapterName);
+      expect(actualReapSettings.wrapModule).to.eq(subjectReapSettings.wrapModule);
+      expect(actualReapSettings.wrapAdapterName).to.eq(subjectReapSettings.wrapAdapterName);
+      expect(actualReapSettings.airdropModule).to.eq(subjectReapSettings.airdropModule);
+      expect(actualReapSettings.tradeModule).to.eq(subjectReapSettings.tradeModule);
+      expect(actualReapSettings.exchangeAdapterName).to.eq(subjectReapSettings.exchangeAdapterName);
+      expect(actualReapSettings.exchangeData).to.eq(subjectReapSettings.exchangeData);
     });
   });
 
-  describe.only("#reap", async () => {
+  describe("#reap", async () => {
     context("when collateral cToken is cEther", async () => {
-      let moduleSettings: ModuleSettings;
+      let reapSettings: ReapSettings;
       let collateralAssetNotional: BigNumber;
       let compAccrued: BigNumber;
+      let airdropFee: BigNumber;
 
       beforeEach(async () => {
-        moduleSettings = {
+        reapSettings = {
           claimModule: setV2Setup.claimModule.address,
           claimAdapterName: "CompClaimAdapter",
           airdropModule: setV2Setup.airdropModule.address,
@@ -285,13 +278,15 @@ describe.only("COMPReinvestmentExtension", () => {
           comptrollerMock.address, // Use Comptroller Mock which allows us to specify COMP amount
           compoundSetup.comp.address,
           cEther.address,
-          moduleSettings
+          reapSettings
         );
 
         await baseManagerV2.connect(operator.wallet).addAdapter(compReinvestmentExtension.address);
 
-        // Transfer ownership to BaseManager
-        await setToken.setManager(baseManagerV2.address);
+        // Initialize modules
+        airdropFee = ether(0.5);
+        await compReinvestmentExtension.connect(operator.wallet).initializeModules(airdropFee);
+
         await setV2Setup.weth.approve(setV2Setup.debtIssuanceModule.address, ether(1));
         await cEther.approve(setV2Setup.debtIssuanceModule.address, ether(1));
         await cComp.approve(setV2Setup.debtIssuanceModule.address, ether(1));
@@ -313,15 +308,15 @@ describe.only("COMPReinvestmentExtension", () => {
       }
 
       it("should accrue the correct amount of COMP to the fee recipient", async () => {
-        const previousManagerCOMPBalance = await compoundSetup.comp.balanceOf(baseManagerV2.address);
+        const previousOperatorCOMPBalance = await compoundSetup.comp.balanceOf(operator.address);
 
         await subject();
 
-        const currentManagerCOMPBalance = await compoundSetup.comp.balanceOf(baseManagerV2.address);
-        const expectedManagerCOMPBalance = preciseMul(compAccrued, airdropSettings.airdropFee);
+        const currentOperatorCOMPBalance = await compoundSetup.comp.balanceOf(operator.address);
+        const expectedOperatoCOMPBalance = preciseMul(compAccrued, airdropFee);
 
-        expect(previousManagerCOMPBalance).to.eq(ZERO);
-        expect(expectedManagerCOMPBalance).to.eq(currentManagerCOMPBalance);
+        expect(previousOperatorCOMPBalance).to.eq(ZERO);
+        expect(expectedOperatoCOMPBalance).to.eq(currentOperatorCOMPBalance);
       });
 
       it("should update the units correctly on the SetToken", async () => {
@@ -345,7 +340,7 @@ describe.only("COMPReinvestmentExtension", () => {
 
       it("should emit COMPReaped event", async () => {
         await expect(subject()).to.emit(compReinvestmentExtension, "COMPReaped").withArgs(
-          preciseMul(compAccrued, airdropSettings.airdropFee),
+          preciseMul(compAccrued, airdropFee),
           collateralAssetNotional,
           owner.address,
         );
@@ -357,13 +352,13 @@ describe.only("COMPReinvestmentExtension", () => {
         });
 
         it("should accrue the correct amount of COMP to the fee recipient", async () => {
-          const previousManagerCOMPBalance = await compoundSetup.comp.balanceOf(setToken.address);
+          const previousOperatorCOMPBalance = await compoundSetup.comp.balanceOf(operator.address);
           await subject();
 
-          const currentManagerCOMPBalance = await compoundSetup.comp.balanceOf(baseManagerV2.address);
+          const currentOperatorCOMPBalance = await compoundSetup.comp.balanceOf(operator.address);
 
-          expect(previousManagerCOMPBalance).to.eq(ZERO);
-          expect(compAccrued).to.eq(currentManagerCOMPBalance);
+          expect(previousOperatorCOMPBalance).to.eq(ZERO);
+          expect(compAccrued).to.eq(currentOperatorCOMPBalance);
         });
 
         it("should update the units correctly on the SetToken", async () => {
@@ -409,6 +404,382 @@ describe.only("COMPReinvestmentExtension", () => {
         it("the trade reverts", async () => {
           await expect(subjectContractCaller()).to.be.revertedWith("Caller must be EOA Address");
         });
+      });
+    });
+
+    context("when collateral cToken is cCOMP", async () => {
+      let reapSettings: ReapSettings;
+
+      beforeEach(async () => {
+        reapSettings = {
+          claimModule: setV2Setup.claimModule.address,
+          claimAdapterName: "CompClaimAdapter",
+          airdropModule: setV2Setup.airdropModule.address,
+          wrapModule: setV2Setup.wrapModule.address,
+          wrapAdapterName: "CompoundWrapAdapter",
+          tradeModule: setV2Setup.tradeModule.address,
+          exchangeAdapterName: "MockTradeAdapter",
+          exchangeData: EMPTY_BYTES,
+        };
+
+        compReinvestmentExtension = await deployer.adapters.deployCOMPReinvestmentExtension(
+          baseManagerV2.address,
+          compoundSetup.comp.address,
+          cComp.address,
+          comptrollerMock.address, // Use Comptroller Mock which allows us to specify COMP amount
+          compoundSetup.comp.address,
+          cEther.address,
+          reapSettings
+        );
+
+        await baseManagerV2.connect(operator.wallet).addAdapter(compReinvestmentExtension.address);
+
+        // Initialize modules
+        airdropFee = ether(0.5);
+        await compReinvestmentExtension.connect(operator.wallet).initializeModules(airdropFee);
+
+        await setV2Setup.weth.approve(setV2Setup.debtIssuanceModule.address, ether(1));
+        await cEther.approve(setV2Setup.debtIssuanceModule.address, ether(1));
+        await cComp.approve(setV2Setup.debtIssuanceModule.address, ether(1));
+        await setV2Setup.debtIssuanceModule.issue(setToken.address, ether(1), owner.address);
+
+        // Set up Comptroller Mock
+        compAccrued = ether(1);
+        await comptrollerMock.addSetTokenAddress(setToken.address, { gasLimit: 500000 });
+        await comptrollerMock.setCompAccrued(setToken.address, compAccrued, { gasLimit: 500000 });
+        await compoundSetup.comp.transfer(comptrollerMock.address, compAccrued);
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await compReinvestmentExtension.reap();
+      }
+
+      it("should accrue the correct amount of COMP to the fee recipient", async () => {
+        const previousOperatorCOMPBalance = await compoundSetup.comp.balanceOf(operator.address);
+
+        await subject();
+
+        const currentOperatorCOMPBalance = await compoundSetup.comp.balanceOf(operator.address);
+        const expectedOperatoCOMPBalance = preciseMul(compAccrued, airdropFee);
+
+        expect(previousOperatorCOMPBalance).to.eq(ZERO);
+        expect(expectedOperatoCOMPBalance).to.eq(currentOperatorCOMPBalance);
+      });
+
+      it("should update the units correctly on the SetToken", async () => {
+        const previousCollateralCTokenUnits = await setToken.getDefaultPositionRealUnit(cComp.address);
+        const previousCollateralUnderlyingUnits = await setToken.getDefaultPositionRealUnit(compoundSetup.comp.address);
+
+        await subject();
+
+        const currentCollateralCTokenUnits = await setToken.getDefaultPositionRealUnit(cComp.address);
+        const exchangeRate = await cComp.exchangeRateStored();
+        // New units is calculated by total accrued COMP (net of fees) divded by the cCOMP exchange rate
+        const newUnits = preciseDiv(preciseMul(compAccrued, ether(1).sub(airdropFee)), exchangeRate);
+        const expectedCollateralCTokenUnits = previousCollateralCTokenUnits.add(newUnits);
+        const currentCollateralUnderlyingUnits = await setToken.getDefaultPositionRealUnit(compoundSetup.comp.address);
+
+        expect(currentCollateralCTokenUnits).to.eq(expectedCollateralCTokenUnits);
+        expect(previousCollateralUnderlyingUnits).to.eq(currentCollateralUnderlyingUnits);
+      });
+
+      describe("when mint returns a nonzero value on Compound. Will be a transaction success but returns an error code", async () => {
+        beforeEach(async () => {
+          const newComptroller = await deployer.external.deployComptroller();
+
+          await cComp._setComptroller(newComptroller.address);
+        });
+
+        afterEach(async () => {
+          await cComp._setComptroller(compoundSetup.comptroller.address);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Wrap failed on Compound");
+        });
+      });
+    });
+  });
+
+  describe("#initializeModules", async () => {
+    context("when collateral cToken is cEther", async () => {
+      let reapSettings: ReapSettings;
+
+      let subjectAirdropFee: BigNumber;
+      let subjectCaller: Account;
+
+      beforeEach(async () => {
+        reapSettings = {
+          claimModule: setV2Setup.claimModule.address,
+          claimAdapterName: "CompClaimAdapter",
+          airdropModule: setV2Setup.airdropModule.address,
+          wrapModule: setV2Setup.wrapModule.address,
+          wrapAdapterName: "CompoundWrapAdapter",
+          tradeModule: setV2Setup.tradeModule.address,
+          exchangeAdapterName: "MockTradeAdapter",
+          exchangeData: EMPTY_BYTES,
+        };
+
+        compReinvestmentExtension = await deployer.adapters.deployCOMPReinvestmentExtension(
+          baseManagerV2.address,
+          setV2Setup.weth.address,
+          cEther.address,
+          comptrollerMock.address, // Use Comptroller Mock which allows us to specify COMP amount
+          compoundSetup.comp.address,
+          cEther.address,
+          reapSettings
+        );
+
+        await baseManagerV2.connect(operator.wallet).addAdapter(compReinvestmentExtension.address);
+
+        subjectAirdropFee = ether(0.5); // 50%
+        subjectCaller = operator;
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await compReinvestmentExtension.connect(subjectCaller.wallet).initializeModules(subjectAirdropFee);
+      }
+
+      it("should initialize the AirdropModule on the SetToken", async () => {
+        await subject();
+        const isAirdropModuleInitialized = await setToken.isInitializedModule(setV2Setup.airdropModule.address);
+
+        expect(isAirdropModuleInitialized).to.be.true;
+      });
+
+      it("should initialize the TradeModule on the SetToken", async () => {
+        await subject();
+        const isTradeModuleInitialized = await setToken.isInitializedModule(setV2Setup.tradeModule.address);
+
+        expect(isTradeModuleInitialized).to.be.true;
+      });
+
+      it("should initialize the WrapModule on the SetToken", async () => {
+        await subject();
+        const isWrapModuleInitialized = await setToken.isInitializedModule(setV2Setup.wrapModule.address);
+
+        expect(isWrapModuleInitialized).to.be.true;
+      });
+
+      it("should initialize the ClaimModule on the SetToken", async () => {
+        await subject();
+        const isClaimModuleInitialized = await setToken.isInitializedModule(setV2Setup.claimModule.address);
+
+        expect(isClaimModuleInitialized).to.be.true;
+      });
+
+      it("should set the AirdropModule fee correctly", async () => {
+        await subject();
+        const actualAirdropSettings = await setV2Setup.airdropModule.airdropSettings(setToken.address);
+
+        expect(actualAirdropSettings.airdropFee).to.eq(subjectAirdropFee);
+      });
+
+      describe("when the caller is not the operator", async () => {
+        beforeEach(async () => {
+          subjectCaller = await getRandomAccount();
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be operator");
+        });
+      });
+    });
+  });
+
+  describe("#setReapSettings", async () => {
+    let subjectReapSettings: ReapSettings;
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      const initialReapSettings = {
+        claimModule: setV2Setup.claimModule.address,
+        claimAdapterName: "CompClaimAdapter",
+        airdropModule: setV2Setup.airdropModule.address,
+        wrapModule: setV2Setup.wrapModule.address,
+        wrapAdapterName: "CompoundWrapAdapter",
+        tradeModule: setV2Setup.tradeModule.address,
+        exchangeAdapterName: "MockTradeAdapter",
+        exchangeData: EMPTY_BYTES,
+      };
+
+      compReinvestmentExtension = await deployer.adapters.deployCOMPReinvestmentExtension(
+        baseManagerV2.address,
+        setV2Setup.weth.address,
+        cEther.address,
+        comptrollerMock.address, // Use Comptroller Mock which allows us to specify COMP amount
+        compoundSetup.comp.address,
+        cEther.address,
+        initialReapSettings
+      );
+
+      await baseManagerV2.connect(operator.wallet).addAdapter(compReinvestmentExtension.address);
+
+      subjectReapSettings = {
+        claimModule: await getRandomAddress(),
+        claimAdapterName: "CompClaimAdapter2",
+        airdropModule: await getRandomAddress(),
+        wrapModule: await getRandomAddress(),
+        wrapAdapterName: "CompoundWrapAdapter2",
+        tradeModule: await getRandomAddress(),
+        exchangeAdapterName: "MockTradeAdapter2",
+        exchangeData: "0x01",
+      };
+      subjectCaller = operator;
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return await compReinvestmentExtension.connect(subjectCaller.wallet).setReapSettings(subjectReapSettings);
+    }
+
+    it("should set the correct reap settings", async () => {
+      await subject();
+      const actualReapSettings = await compReinvestmentExtension.reapSettings();
+
+      expect(actualReapSettings.claimModule).to.eq(subjectReapSettings.claimModule);
+      expect(actualReapSettings.claimAdapterName).to.eq(subjectReapSettings.claimAdapterName);
+      expect(actualReapSettings.wrapModule).to.eq(subjectReapSettings.wrapModule);
+      expect(actualReapSettings.wrapAdapterName).to.eq(subjectReapSettings.wrapAdapterName);
+      expect(actualReapSettings.airdropModule).to.eq(subjectReapSettings.airdropModule);
+      expect(actualReapSettings.tradeModule).to.eq(subjectReapSettings.tradeModule);
+      expect(actualReapSettings.exchangeAdapterName).to.eq(subjectReapSettings.exchangeAdapterName);
+      expect(actualReapSettings.exchangeData).to.eq(subjectReapSettings.exchangeData);
+    });
+
+    it("should emit ReapSettingsUpdated event", async () => {
+      await expect(subject()).to.emit(compReinvestmentExtension, "ReapSettingsUpdated").withArgs(
+        subjectReapSettings.claimModule,
+        subjectReapSettings.claimAdapterName,
+        subjectReapSettings.airdropModule,
+        subjectReapSettings.wrapModule,
+        subjectReapSettings.wrapAdapterName,
+        subjectReapSettings.tradeModule,
+        subjectReapSettings.exchangeAdapterName,
+        subjectReapSettings.exchangeData,
+      );
+    });
+
+    describe("when the caller is not the operator", async () => {
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be operator");
+      });
+    });
+  });
+
+  describe("#updateAirdropFee", async () => {
+    let subjectAirdropFee: BigNumber;
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      const initialReapSettings = {
+        claimModule: setV2Setup.claimModule.address,
+        claimAdapterName: "CompClaimAdapter",
+        airdropModule: setV2Setup.airdropModule.address,
+        wrapModule: setV2Setup.wrapModule.address,
+        wrapAdapterName: "CompoundWrapAdapter",
+        tradeModule: setV2Setup.tradeModule.address,
+        exchangeAdapterName: "MockTradeAdapter",
+        exchangeData: EMPTY_BYTES,
+      };
+
+      compReinvestmentExtension = await deployer.adapters.deployCOMPReinvestmentExtension(
+        baseManagerV2.address,
+        setV2Setup.weth.address,
+        cEther.address,
+        comptrollerMock.address, // Use Comptroller Mock which allows us to specify COMP amount
+        compoundSetup.comp.address,
+        cEther.address,
+        initialReapSettings
+      );
+
+      await baseManagerV2.connect(operator.wallet).addAdapter(compReinvestmentExtension.address);
+
+      // Initialize modules
+      await compReinvestmentExtension.connect(operator.wallet).initializeModules(ether(0.5));
+
+      subjectAirdropFee = ether(0);
+      subjectCaller = operator;
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return await compReinvestmentExtension.connect(subjectCaller.wallet).updateAirdropFee(subjectAirdropFee);
+    }
+
+    it("should set the AirdropModule fee correctly", async () => {
+      await subject();
+      const actualAirdropSettings = await setV2Setup.airdropModule.airdropSettings(setToken.address);
+
+      expect(actualAirdropSettings.airdropFee).to.eq(subjectAirdropFee);
+    });
+
+    describe("when the caller is not the operator", async () => {
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be operator");
+      });
+    });
+  });
+
+  describe("#updateAirdropFeeRecipient", async () => {
+    let subjectAirdropFeeRecipient: Address;
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      const initialReapSettings = {
+        claimModule: setV2Setup.claimModule.address,
+        claimAdapterName: "CompClaimAdapter",
+        airdropModule: setV2Setup.airdropModule.address,
+        wrapModule: setV2Setup.wrapModule.address,
+        wrapAdapterName: "CompoundWrapAdapter",
+        tradeModule: setV2Setup.tradeModule.address,
+        exchangeAdapterName: "MockTradeAdapter",
+        exchangeData: EMPTY_BYTES,
+      };
+
+      compReinvestmentExtension = await deployer.adapters.deployCOMPReinvestmentExtension(
+        baseManagerV2.address,
+        setV2Setup.weth.address,
+        cEther.address,
+        comptrollerMock.address, // Use Comptroller Mock which allows us to specify COMP amount
+        compoundSetup.comp.address,
+        cEther.address,
+        initialReapSettings
+      );
+
+      await baseManagerV2.connect(operator.wallet).addAdapter(compReinvestmentExtension.address);
+
+      // Initialize modules
+      await compReinvestmentExtension.connect(operator.wallet).initializeModules(ether(0.5));
+
+      subjectAirdropFeeRecipient = await getRandomAddress();
+      subjectCaller = operator;
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return await compReinvestmentExtension.connect(subjectCaller.wallet).updateAirdropFeeRecipient(subjectAirdropFeeRecipient);
+    }
+
+    it("should set the AirdropModule fee recipient correctly", async () => {
+      await subject();
+      const actualAirdropSettings = await setV2Setup.airdropModule.airdropSettings(setToken.address);
+
+      expect(actualAirdropSettings.feeRecipient).to.eq(subjectAirdropFeeRecipient);
+    });
+
+    describe("when the caller is not the operator", async () => {
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be operator");
       });
     });
   });

@@ -1,5 +1,5 @@
 import { Signer, BigNumber } from "ethers";
-import { Address, ContractSettings, MethodologySettings, ExecutionSettings, IncentiveSettings, ModuleSettings } from "../types";
+import { Address, ContractSettings, MethodologySettings, ExecutionSettings, IncentiveSettings, ReapSettings } from "../types";
 import {
   COMPReinvestmentExtension,
   ExchangeIssuance,
@@ -34,7 +34,7 @@ export default class DeployAdapters {
     comptroller: Address,
     compToken: Address,
     cEther: Address,
-    moduleSettings: ModuleSettings,
+    reapSettings: ReapSettings,
   ): Promise<COMPReinvestmentExtension> {
     return await new COMPReinvestmentExtension__factory(this._deployerSigner).deploy(
       manager,
@@ -43,7 +43,7 @@ export default class DeployAdapters {
       comptroller,
       compToken,
       cEther,
-      moduleSettings,
+      reapSettings,
     );
   }
 

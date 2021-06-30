@@ -73,7 +73,7 @@ export interface IncentiveSettings {
   incentivizedLeverageRatio: BigNumber;
 }
 
-export interface ModuleSettings {
+export interface ReapSettings {
   claimModule: Address;
   claimAdapterName: string;
   airdropModule: Address;
@@ -82,11 +82,4 @@ export interface ModuleSettings {
   tradeModule: Address;
   exchangeAdapterName: string;
   exchangeData: Bytes;
-}
-
-export interface AirdropSettings {
-  airdrops: Address[];
-  feeRecipient: Address;
-  airdropFee: BigNumber;
-  anyoneAbsorb: boolean;
 }
