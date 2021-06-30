@@ -1,9 +1,9 @@
 import "module-alias/register";
 
-import { Address, Account, ModuleSettings } from "@utils/types";
-import { ADDRESS_ZERO, EMPTY_BYTES } from "@utils/constants";
+import { Address, Account, AirdropSettings, ModuleSettings } from "@utils/types";
+import { ADDRESS_ZERO, EMPTY_BYTES, ZERO } from "@utils/constants";
 import { COMPReinvestmentExtension, BaseManager, TradeAdapterMock } from "@utils/contracts/index";
-import { CompoundWrapAdapter, CompClaimAdapter, SetToken } from "@utils/contracts/setV2";
+import { CompoundWrapAdapter, ComptrollerMock, CompClaimAdapter, ContractCallerMock, SetToken } from "@utils/contracts/setV2";
 import { CEther, CERc20 } from "@utils/contracts/compound";
 import DeployHelper from "@utils/deploys";
 import {
@@ -13,8 +13,11 @@ import {
   getCompoundFixture,
   getSetFixture,
   getWaffleExpect,
+  preciseMul,
+  preciseDiv,
 } from "@utils/index";
 import { CompoundFixture, SetFixture } from "@utils/fixtures";
+import { BigNumber, ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
 
@@ -29,13 +32,16 @@ describe.only("COMPReinvestmentExtension", () => {
   let setToken: SetToken;
 
   let cEther: CEther;
-  let cUSDC: CERc20;
+  let cComp: CERc20;
   let compClaimAdapter: CompClaimAdapter;
   let compoundWrapAdapter: CompoundWrapAdapter;
   let tradeAdapterMock: TradeAdapterMock;
+  let comptrollerMock: ComptrollerMock;
+
+  let airdropSettings: AirdropSettings;
 
   let baseManagerV2: BaseManager;
-  // let compReinvestmentExtension: COMPReinvestmentExtension;
+  let compReinvestmentExtension: COMPReinvestmentExtension;
 
   before(async () => {
     [
@@ -62,24 +68,24 @@ describe.only("COMPReinvestmentExtension", () => {
       ether(1000)   // $1000
     );
 
-    cUSDC = await compoundSetup.createAndEnableCToken(
-      setV2Setup.usdc.address,
-      200000000000000,
+    cComp = await compoundSetup.createAndEnableCToken(
+      compoundSetup.comp.address,
+      ether(200000000),
       compoundSetup.comptroller.address,
       compoundSetup.interestRateModel.address,
-      "Compound USDC",
-      "cUSDC",
+      "Compound COMP",
+      "cComp",
       8,
       ether(0.75), // 75% collateral factor
-      ether(1000000000000) // IMPORTANT: Compound oracles account for decimals scaled by 10e18. For USDC, this is $1 * 10^18 * 10^18 / 10^6 = 10^30
+      ether(300) // $300
     );
 
     await compoundSetup.comptroller._setCompRate(ether(1));
-    await compoundSetup.comptroller._addCompMarkets([cEther.address, cUSDC.address]);
+    await compoundSetup.comptroller._addCompMarkets([cEther.address, cComp.address]);
 
     // Mint cTokens
-    await setV2Setup.usdc.approve(cUSDC.address, ether(100000));
-    await cUSDC.mint(ether(1));
+    await compoundSetup.comp.approve(cComp.address, ether(100000));
+    await cComp.mint(ether(1));
     await cEther.mint({value: ether(1000)});
 
     // Deploy mock trade adapter
@@ -90,7 +96,10 @@ describe.only("COMPReinvestmentExtension", () => {
       tradeAdapterMock.address,
     );
 
-    compClaimAdapter = await deployer.setV2.deployCompClaimAdapter(compoundSetup.comptroller.address);
+    // Deploy Comptroller Mock
+    comptrollerMock = await deployer.setV2.deployComptrollerMock(compoundSetup.comp.address, ether(1), cEther.address);
+
+    compClaimAdapter = await deployer.setV2.deployCompClaimAdapter(comptrollerMock.address);
     await setV2Setup.integrationRegistry.addIntegration(
       setV2Setup.claimModule.address,
       "CompClaimAdapter",
@@ -105,8 +114,8 @@ describe.only("COMPReinvestmentExtension", () => {
     );
 
     setToken = await setV2Setup.createSetToken(
-      [setV2Setup.weth.address],
-      [ether(1)],
+      [setV2Setup.weth.address, cEther.address, cComp.address],
+      [ether(1), BigNumber.from(5000000000), BigNumber.from(5000000000)],
       [
         setV2Setup.debtIssuanceModule.address,
         setV2Setup.tradeModule.address,
@@ -123,25 +132,25 @@ describe.only("COMPReinvestmentExtension", () => {
       methodologist.address
     );
 
-    const airdropSettings = {
+    airdropSettings = {
       airdrops: [compoundSetup.comp.address],
       feeRecipient: baseManagerV2.address,
-      airdropFee: ether(1),
-      anyoneAbsorb: true,
+      airdropFee: ether(0.5), // 50%
+      anyoneAbsorb: false,
     };
 
     await setV2Setup.debtIssuanceModule.initialize(
       setToken.address,
       ether(.1),
-      ether(.01),
-      ether(.005),
+      ZERO,
+      ZERO,
       baseManagerV2.address,
       ADDRESS_ZERO
     );
     await setV2Setup.tradeModule.initialize(setToken.address, { gasLimit: 200000 });
     await setV2Setup.wrapModule.initialize(setToken.address, { gasLimit: 200000 });
     await setV2Setup.airdropModule.initialize(setToken.address, airdropSettings, { gasLimit: 500000 });
-    await setV2Setup.claimModule.initialize(setToken.address, true, [compoundSetup.comptroller.address], ["CompClaimAdapter"], { gasLimit: 500000 });
+    await setV2Setup.claimModule.initialize(setToken.address, false, [comptrollerMock.address], ["CompClaimAdapter"], { gasLimit: 500000 });
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -169,7 +178,7 @@ describe.only("COMPReinvestmentExtension", () => {
         wrapModule: setV2Setup.wrapModule.address,
         wrapAdapterName: "CompoundWrapAdapter",
         tradeModule: setV2Setup.tradeModule.address,
-        exchangeAdapterName: "TradeAdapterMock",
+        exchangeAdapterName: "MockTradeAdapter",
         exchangeData: EMPTY_BYTES,
       } as ModuleSettings;
     });
@@ -187,61 +196,61 @@ describe.only("COMPReinvestmentExtension", () => {
     }
 
     it("should set the correct SetToken address", async () => {
-      const compReinvestmentExtension = await subject();
+      const returnedCompReinvestmentExtension = await subject();
 
-      const actualToken = await compReinvestmentExtension.setToken();
+      const actualToken = await returnedCompReinvestmentExtension.setToken();
       expect(actualToken).to.eq(setToken.address);
     });
 
     it("should set the correct manager address", async () => {
-      const compReinvestmentExtension = await subject();
+      const returnedCompReinvestmentExtension = await subject();
 
-      const actualManager = await compReinvestmentExtension.manager();
+      const actualManager = await returnedCompReinvestmentExtension.manager();
       expect(actualManager).to.eq(baseManagerV2.address);
     });
 
     it("should set the correct collateral asset address", async () => {
-      const compReinvestmentExtension = await subject();
+      const returnedCompReinvestmentExtension = await subject();
 
-      const actualCollateralAsset = await compReinvestmentExtension.collateralAsset();
+      const actualCollateralAsset = await returnedCompReinvestmentExtension.collateralAsset();
       expect(actualCollateralAsset).to.eq(subjectCollateralAsset);
     });
 
     it("should set the correct collateral cToken address", async () => {
-      const compReinvestmentExtension = await subject();
+      const returnedCompReinvestmentExtension = await subject();
 
-      const actualCollateralCToken = await compReinvestmentExtension.collateralCToken();
+      const actualCollateralCToken = await returnedCompReinvestmentExtension.collateralCToken();
       expect(actualCollateralCToken).to.eq(subjectCollateralCToken);
     });
 
     it("should set the correct comptroller address", async () => {
-      const compReinvestmentExtension = await subject();
+      const returnedCompReinvestmentExtension = await subject();
 
-      const actualComptroller = await compReinvestmentExtension.comptroller();
+      const actualComptroller = await returnedCompReinvestmentExtension.comptroller();
       expect(actualComptroller).to.eq(subjectComptroller);
     });
 
     it("should set the correct COMP address", async () => {
-      const compReinvestmentExtension = await subject();
+      const returnedCompReinvestmentExtension = await subject();
 
-      const actualCompToken = await compReinvestmentExtension.compToken();
+      const actualCompToken = await returnedCompReinvestmentExtension.compToken();
       expect(actualCompToken).to.eq(subjectCompToken);
     });
 
     it("should set the correct cETH address", async () => {
-      const compReinvestmentExtension = await subject();
+      const returnedCompReinvestmentExtension = await subject();
 
-      const actualCEther = await compReinvestmentExtension.cEther();
+      const actualCEther = await returnedCompReinvestmentExtension.cEther();
       expect(actualCEther).to.eq(subjectCEther);
     });
 
     it("should set the correct module settings", async () => {
-      const compReinvestmentExtension = await subject();
+      const returnedCompReinvestmentExtension = await subject();
 
-      const actualModuleSettings = await compReinvestmentExtension.moduleSettings();
+      const actualModuleSettings = await returnedCompReinvestmentExtension.moduleSettings();
 
       expect(actualModuleSettings.claimModule).to.eq(subjectModuleSettings.claimModule);
-      expect(actualModuleSettings.claimAdapterName).to.eq(subjectModuleSettings.claimModule);
+      expect(actualModuleSettings.claimAdapterName).to.eq(subjectModuleSettings.claimAdapterName);
       expect(actualModuleSettings.wrapModule).to.eq(subjectModuleSettings.wrapModule);
       expect(actualModuleSettings.wrapAdapterName).to.eq(subjectModuleSettings.wrapAdapterName);
       expect(actualModuleSettings.airdropModule).to.eq(subjectModuleSettings.airdropModule);
@@ -251,358 +260,156 @@ describe.only("COMPReinvestmentExtension", () => {
     });
   });
 
-  // context("when reinvestment adapter is deployed and system fully set up", async () => {
-  //   const operatorSplit: BigNumber = ether(.7);
-
-  //   beforeEach(async () => {
-  //     compReinvestmentExtension = await deployer.adapters.deployCOMPReinvestmentExtension(
-  //       baseManagerV2.address,
-  //       setV2Setup.streamingFeeModule.address,
-  //       setV2Setup.debtIssuanceModule.address,
-  //       operatorSplit
-  //     );
-
-  //     await baseManagerV2.connect(operator.wallet).addAdapter(compReinvestmentExtension.address);
-
-  //     // Transfer ownership to BaseManager
-  //     await setToken.setManager(baseManagerV2.address);
-  //   });
-
-  //   describe("#accrueFeesAndDistribute", async () => {
-  //     let mintedTokens: BigNumber;
-  //     const timeFastForward: BigNumber = ONE_YEAR_IN_SECONDS;
-
-  //     beforeEach(async () => {
-  //       mintedTokens = ether(2);
-  //       await setV2Setup.dai.approve(setV2Setup.debtIssuanceModule.address, ether(3));
-  //       await setV2Setup.debtIssuanceModule.issue(setToken.address, mintedTokens, owner.address);
-
-  //       await increaseTimeAsync(timeFastForward);
-  //     });
-
-  //     async function subject(): Promise<ContractTransaction> {
-  //       return await compReinvestmentExtension.accrueFeesAndDistribute();
-  //     }
-
-  //     it("should send correct amount of fees to operator and methodologist", async () => {
-  //       const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
-  //       const totalSupply = await setToken.totalSupply();
-
-  //       const txnTimestamp = await getTransactionTimestamp(subject());
-
-  //       const expectedFeeInflation = await getStreamingFee(
-  //         setV2Setup.streamingFeeModule,
-  //         setToken.address,
-  //         feeState.lastStreamingFeeTimestamp,
-  //         txnTimestamp
-  //       );
-
-  //       const feeInflation = getStreamingFeeInflationAmount(expectedFeeInflation, totalSupply);
-
-  //       const expectedMintRedeemFees = preciseMul(mintedTokens, ether(.01));
-  //       const expectedOperatorTake = preciseMul(feeInflation.add(expectedMintRedeemFees), operatorSplit);
-  //       const expectedMethodologistTake = feeInflation.add(expectedMintRedeemFees).sub(expectedOperatorTake);
-
-  //       const operatorBalance = await setToken.balanceOf(operator.address);
-  //       const methodologistBalance = await setToken.balanceOf(methodologist.address);
-
-  //       expect(operatorBalance).to.eq(expectedOperatorTake);
-  //       expect(methodologistBalance).to.eq(expectedMethodologistTake);
-  //     });
-
-  //     it("should emit a FeesAccrued event", async () => {
-  //       await expect(subject()).to.emit(compReinvestmentExtension, "FeesAccrued");
-  //     });
-
-  //     describe("when methodologist fees are 0", async () => {
-  //       beforeEach(async () => {
-  //         await compReinvestmentExtension.connect(operator.wallet).updateFeeSplit(ether(1));
-  //       });
-
-  //       it("should not send fees to methodologist", async () => {
-  //         const preMethodologistBalance = await setToken.balanceOf(methodologist.address);
-
-  //         await subject();
-
-  //         const postMethodologistBalance = await setToken.balanceOf(methodologist.address);
-  //         expect(postMethodologistBalance.sub(preMethodologistBalance)).to.eq(ZERO);
-  //       });
-  //     });
-
-  //     describe("when operator fees are 0", async () => {
-  //       beforeEach(async () => {
-  //         await compReinvestmentExtension.connect(operator.wallet).updateFeeSplit(ZERO);
-  //       });
-
-  //       it("should not send fees to operator", async () => {
-  //         const preOperatorBalance = await setToken.balanceOf(operator.address);
-
-  //         await subject();
-
-  //         const postOperatorBalance = await setToken.balanceOf(operator.address);
-  //         expect(postOperatorBalance.sub(preOperatorBalance)).to.eq(ZERO);
-  //       });
-  //     });
-  //   });
-
-  //   describe("#updateStreamingFee", async () => {
-  //     let mintedTokens: BigNumber;
-  //     const timeFastForward: BigNumber = ONE_YEAR_IN_SECONDS;
-
-  //     let subjectNewFee: BigNumber;
-  //     let subjectCaller: Account;
-
-  //     beforeEach(async () => {
-  //       mintedTokens = ether(2);
-  //       await setV2Setup.dai.approve(setV2Setup.debtIssuanceModule.address, ether(3));
-  //       await setV2Setup.debtIssuanceModule.issue(setToken.address, mintedTokens, owner.address);
-
-  //       await increaseTimeAsync(timeFastForward);
-
-  //       subjectNewFee = ether(.01);
-  //       subjectCaller = operator;
-  //     });
-
-  //     async function subject(): Promise<ContractTransaction> {
-  //       return await compReinvestmentExtension.connect(subjectCaller.wallet).updateStreamingFee(subjectNewFee);
-  //     }
-  //     context("when no timelock period has been set", async () => {
-  //       it("should update the streaming fee", async () => {
-  //         await subject();
-
-  //         const feeState = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
-
-  //         expect(feeState.streamingFeePercentage).to.eq(subjectNewFee);
-  //       });
-
-  //       it("should send correct amount of fees to operator and methodologist", async () => {
-  //         const preManagerBalance = await setToken.balanceOf(baseManagerV2.address);
-  //         const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
-  //         const totalSupply = await setToken.totalSupply();
-
-  //         const txnTimestamp = await getTransactionTimestamp(subject());
-
-  //         const expectedFeeInflation = await getStreamingFee(
-  //           setV2Setup.streamingFeeModule,
-  //           setToken.address,
-  //           feeState.lastStreamingFeeTimestamp,
-  //           txnTimestamp,
-  //           ether(.02)
-  //         );
-
-  //         const feeInflation = getStreamingFeeInflationAmount(expectedFeeInflation, totalSupply);
-
-  //         const postManagerBalance = await setToken.balanceOf(baseManagerV2.address);
-
-  //         expect(postManagerBalance.sub(preManagerBalance)).to.eq(feeInflation);
-  //       });
-  //     });
-
-  //     context("when 1 day timelock period has been set", async () => {
-  //       beforeEach(async () => {
-  //         await compReinvestmentExtension.connect(owner.wallet).setTimeLockPeriod(ONE_DAY_IN_SECONDS);
-  //       });
-
-  //       it("sets the upgradeHash", async () => {
-  //         await subject();
-  //         const timestamp = await getLastBlockTimestamp();
-  //         const calldata = compReinvestmentExtension.interface.encodeFunctionData("updateStreamingFee", [subjectNewFee]);
-  //         const upgradeHash = solidityKeccak256(["bytes"], [calldata]);
-  //         const actualTimestamp = await compReinvestmentExtension.timeLockedUpgrades(upgradeHash);
-  //         expect(actualTimestamp).to.eq(timestamp);
-  //       });
-
-  //       context("when 1 day timelock has elapsed", async () => {
-  //         beforeEach(async () => {
-  //           await subject();
-  //           await increaseTimeAsync(ONE_DAY_IN_SECONDS.add(1));
-  //         });
-
-  //         it("should update the streaming fee", async () => {
-  //           await subject();
-
-  //           const feeState = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
-
-  //           expect(feeState.streamingFeePercentage).to.eq(subjectNewFee);
-  //         });
-
-  //         it("should send correct amount of fees to operator and methodologist", async () => {
-  //           const preManagerBalance = await setToken.balanceOf(baseManagerV2.address);
-  //           const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
-  //           const totalSupply = await setToken.totalSupply();
-
-  //           const txnTimestamp = await getTransactionTimestamp(subject());
-
-  //           const expectedFeeInflation = await getStreamingFee(
-  //             setV2Setup.streamingFeeModule,
-  //             setToken.address,
-  //             feeState.lastStreamingFeeTimestamp,
-  //             txnTimestamp,
-  //             ether(.02)
-  //           );
-
-  //           const feeInflation = getStreamingFeeInflationAmount(expectedFeeInflation, totalSupply);
-
-  //           const postManagerBalance = await setToken.balanceOf(baseManagerV2.address);
-
-  //           expect(postManagerBalance.sub(preManagerBalance)).to.eq(feeInflation);
-  //         });
-  //       });
-  //     });
-
-  //     describe("when the caller is not the operator", async () => {
-  //       beforeEach(async () => {
-  //         subjectCaller = methodologist;
-  //       });
-
-  //       it("should revert", async () => {
-  //         await expect(subject()).to.be.revertedWith("Must be operator");
-  //       });
-  //     });
-  //   });
-
-  //   describe("#updateIssueFee", async () => {
-  //     let subjectNewFee: BigNumber;
-  //     let subjectCaller: Account;
-
-  //     beforeEach(async () => {
-  //       subjectNewFee = ether(.02);
-  //       subjectCaller = operator;
-  //     });
-
-  //     async function subject(): Promise<ContractTransaction> {
-  //       return await compReinvestmentExtension.connect(subjectCaller.wallet).updateIssueFee(subjectNewFee);
-  //     }
-
-  //     context("when no timelock period has been set", async () => {
-  //       it("should update the issue fee", async () => {
-  //         await subject();
-
-  //         const issueState: any = await setV2Setup.debtIssuanceModule.issuanceSettings(setToken.address);
-
-  //         expect(issueState.managerIssueFee).to.eq(subjectNewFee);
-  //       });
-  //     });
-
-  //     context("when 1 day timelock period has been set", async () => {
-  //       beforeEach(async () => {
-  //         await compReinvestmentExtension.connect(owner.wallet).setTimeLockPeriod(ONE_DAY_IN_SECONDS);
-  //       });
-
-  //       it("sets the upgradeHash", async () => {
-  //         await subject();
-  //         const timestamp = await getLastBlockTimestamp();
-  //         const calldata = compReinvestmentExtension.interface.encodeFunctionData("updateIssueFee", [subjectNewFee]);
-  //         const upgradeHash = solidityKeccak256(["bytes"], [calldata]);
-  //         const actualTimestamp = await compReinvestmentExtension.timeLockedUpgrades(upgradeHash);
-  //         expect(actualTimestamp).to.eq(timestamp);
-  //       });
-
-  //       context("when 1 day timelock has elapsed", async () => {
-  //         beforeEach(async () => {
-  //           await subject();
-  //           await increaseTimeAsync(ONE_DAY_IN_SECONDS.add(1));
-  //         });
-
-  //         it("sets the new streaming fee", async () => {
-  //           await subject();
-  //           const feeStates = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
-  //           const newStreamingFee = feeStates.streamingFeePercentage;
-
-  //           expect(newStreamingFee).to.eq(subjectNewFee);
-  //         });
-
-  //         it("sets the upgradeHash to 0", async () => {
-  //           await subject();
-  //           const calldata = compReinvestmentExtension.interface.encodeFunctionData("updateIssueFee", [subjectNewFee]);
-  //           const upgradeHash = solidityKeccak256(["bytes"], [calldata]);
-  //           const actualTimestamp = await compReinvestmentExtension.timeLockedUpgrades(upgradeHash);
-  //           expect(actualTimestamp).to.eq(ZERO);
-  //         });
-  //       });
-  //     });
-
-  //     describe("when the caller is not the operator", async () => {
-  //       beforeEach(async () => {
-  //         subjectCaller = methodologist;
-  //       });
-
-  //       it("should revert", async () => {
-  //         await expect(subject()).to.be.revertedWith("Must be operator");
-  //       });
-  //     });
-  //   });
-
-  //   describe("#updateRedeemFee", async () => {
-  //     let subjectNewFee: BigNumber;
-  //     let subjectCaller: Account;
-
-  //     beforeEach(async () => {
-  //       subjectNewFee = ether(.02);
-  //       subjectCaller = operator;
-  //     });
-
-  //     async function subject(): Promise<ContractTransaction> {
-  //       return await compReinvestmentExtension.connect(subjectCaller.wallet).updateRedeemFee(subjectNewFee);
-  //     }
-
-  //     context("when no timelock period has been set", async () => {
-  //       it("should update the redeem fee", async () => {
-  //         await subject();
-
-  //         const issuanceState: any = await setV2Setup.debtIssuanceModule.issuanceSettings(setToken.address);
-
-  //         expect(issuanceState.managerRedeemFee).to.eq(subjectNewFee);
-  //       });
-  //     });
-
-  //     context("when 1 day timelock period has been set", async () => {
-  //       beforeEach(async () => {
-  //         await compReinvestmentExtension.connect(owner.wallet).setTimeLockPeriod(ONE_DAY_IN_SECONDS);
-  //       });
-
-  //       it("sets the upgradeHash", async () => {
-  //         await subject();
-  //         const timestamp = await getLastBlockTimestamp();
-  //         const calldata = compReinvestmentExtension.interface.encodeFunctionData("updateRedeemFee", [subjectNewFee]);
-  //         const upgradeHash = solidityKeccak256(["bytes"], [calldata]);
-  //         const actualTimestamp = await compReinvestmentExtension.timeLockedUpgrades(upgradeHash);
-  //         expect(actualTimestamp).to.eq(timestamp);
-  //       });
-
-  //       context("when 1 day timelock has elapsed", async () => {
-  //         beforeEach(async () => {
-  //           await subject();
-  //           await increaseTimeAsync(ONE_DAY_IN_SECONDS.add(1));
-  //         });
-
-  //         it("sets the new streaming fee", async () => {
-  //           await subject();
-  //           const feeStates = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
-  //           const newStreamingFee = feeStates.streamingFeePercentage;
-
-  //           expect(newStreamingFee).to.eq(subjectNewFee);
-  //         });
-
-  //         it("sets the upgradeHash to 0", async () => {
-  //           await subject();
-  //           const calldata = compReinvestmentExtension.interface.encodeFunctionData("updateRedeemFee", [subjectNewFee]);
-  //           const upgradeHash = solidityKeccak256(["bytes"], [calldata]);
-  //           const actualTimestamp = await compReinvestmentExtension.timeLockedUpgrades(upgradeHash);
-  //           expect(actualTimestamp).to.eq(ZERO);
-  //         });
-  //       });
-  //     });
-
-  //     describe("when the caller is not the operator", async () => {
-  //       beforeEach(async () => {
-  //         subjectCaller = methodologist;
-  //       });
-
-  //       it("should revert", async () => {
-  //         await expect(subject()).to.be.revertedWith("Must be operator");
-  //       });
-  //     });
-  //   });
-  // });
+  describe.only("#reap", async () => {
+    context("when collateral cToken is cEther", async () => {
+      let moduleSettings: ModuleSettings;
+      let collateralAssetNotional: BigNumber;
+      let compAccrued: BigNumber;
+
+      beforeEach(async () => {
+        moduleSettings = {
+          claimModule: setV2Setup.claimModule.address,
+          claimAdapterName: "CompClaimAdapter",
+          airdropModule: setV2Setup.airdropModule.address,
+          wrapModule: setV2Setup.wrapModule.address,
+          wrapAdapterName: "CompoundWrapAdapter",
+          tradeModule: setV2Setup.tradeModule.address,
+          exchangeAdapterName: "MockTradeAdapter",
+          exchangeData: EMPTY_BYTES,
+        };
+
+        compReinvestmentExtension = await deployer.adapters.deployCOMPReinvestmentExtension(
+          baseManagerV2.address,
+          setV2Setup.weth.address,
+          cEther.address,
+          comptrollerMock.address, // Use Comptroller Mock which allows us to specify COMP amount
+          compoundSetup.comp.address,
+          cEther.address,
+          moduleSettings
+        );
+
+        await baseManagerV2.connect(operator.wallet).addAdapter(compReinvestmentExtension.address);
+
+        // Transfer ownership to BaseManager
+        await setToken.setManager(baseManagerV2.address);
+        await setV2Setup.weth.approve(setV2Setup.debtIssuanceModule.address, ether(1));
+        await cEther.approve(setV2Setup.debtIssuanceModule.address, ether(1));
+        await cComp.approve(setV2Setup.debtIssuanceModule.address, ether(1));
+        await setV2Setup.debtIssuanceModule.issue(setToken.address, ether(1), owner.address);
+
+        // Transfer 1 WETH to exchange
+        collateralAssetNotional = ether(1);
+        await setV2Setup.weth.transfer(tradeAdapterMock.address, collateralAssetNotional);
+
+        // Set up Comptroller Mock
+        compAccrued = ether(1);
+        await comptrollerMock.addSetTokenAddress(setToken.address, { gasLimit: 500000 });
+        await comptrollerMock.setCompAccrued(setToken.address, compAccrued, { gasLimit: 500000 });
+        await compoundSetup.comp.transfer(comptrollerMock.address, compAccrued);
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await compReinvestmentExtension.reap();
+      }
+
+      it("should accrue the correct amount of COMP to the fee recipient", async () => {
+        const previousManagerCOMPBalance = await compoundSetup.comp.balanceOf(baseManagerV2.address);
+
+        await subject();
+
+        const currentManagerCOMPBalance = await compoundSetup.comp.balanceOf(baseManagerV2.address);
+        const expectedManagerCOMPBalance = preciseMul(compAccrued, airdropSettings.airdropFee);
+
+        expect(previousManagerCOMPBalance).to.eq(ZERO);
+        expect(expectedManagerCOMPBalance).to.eq(currentManagerCOMPBalance);
+      });
+
+      it("should update the units correctly on the SetToken", async () => {
+        const previousCollateralCTokenUnits = await setToken.getDefaultPositionRealUnit(cEther.address);
+        const previousCollateralUnderlyingUnits = await setToken.getDefaultPositionRealUnit(setV2Setup.weth.address);
+        const previousCOMPUnits = await setToken.getDefaultPositionRealUnit(compoundSetup.comp.address);
+
+        await subject();
+
+        const currentCollateralCTokenUnits = await setToken.getDefaultPositionRealUnit(cEther.address);
+        const exchangeRate = await cEther.exchangeRateStored();
+        const newUnits = preciseDiv(collateralAssetNotional, exchangeRate);
+        const expectedCollateralCTokenUnits = previousCollateralCTokenUnits.add(newUnits);
+        const currentCollateralUnderlyingUnits = await setToken.getDefaultPositionRealUnit(setV2Setup.weth.address);
+        const currentCOMPUnits = await setToken.getDefaultPositionRealUnit(compoundSetup.comp.address);
+
+        expect(currentCollateralCTokenUnits).to.eq(expectedCollateralCTokenUnits);
+        expect(previousCollateralUnderlyingUnits).to.eq(currentCollateralUnderlyingUnits);
+        expect(previousCOMPUnits).to.eq(currentCOMPUnits);
+      });
+
+      it("should emit COMPReaped event", async () => {
+        await expect(subject()).to.emit(compReinvestmentExtension, "COMPReaped").withArgs(
+          preciseMul(compAccrued, airdropSettings.airdropFee),
+          collateralAssetNotional,
+          owner.address,
+        );
+      });
+
+      describe("when absorb fee is 100%", async () => {
+        beforeEach(async () => {
+          await compReinvestmentExtension.connect(operator.wallet).updateAirdropFee(ether(1));
+        });
+
+        it("should accrue the correct amount of COMP to the fee recipient", async () => {
+          const previousManagerCOMPBalance = await compoundSetup.comp.balanceOf(setToken.address);
+          await subject();
+
+          const currentManagerCOMPBalance = await compoundSetup.comp.balanceOf(baseManagerV2.address);
+
+          expect(previousManagerCOMPBalance).to.eq(ZERO);
+          expect(compAccrued).to.eq(currentManagerCOMPBalance);
+        });
+
+        it("should update the units correctly on the SetToken", async () => {
+          const previousCollateralCTokenUnits = await setToken.getDefaultPositionRealUnit(cEther.address);
+          const previousCollateralUnderlyingUnits = await setToken.getDefaultPositionRealUnit(setV2Setup.weth.address);
+          const previousCOMPUnits = await setToken.getDefaultPositionRealUnit(compoundSetup.comp.address);
+
+          await subject();
+
+          const currentCollateralCTokenUnits = await setToken.getDefaultPositionRealUnit(cEther.address);
+          const currentCollateralUnderlyingUnits = await setToken.getDefaultPositionRealUnit(setV2Setup.weth.address);
+          const currentCOMPUnits = await setToken.getDefaultPositionRealUnit(compoundSetup.comp.address);
+
+          expect(previousCollateralCTokenUnits).to.eq(currentCollateralCTokenUnits);
+          expect(previousCollateralUnderlyingUnits).to.eq(currentCollateralUnderlyingUnits);
+          expect(previousCOMPUnits).to.eq(currentCOMPUnits);
+        });
+      });
+
+      describe("when caller is a contract", async () => {
+        let subjectTarget: Address;
+        let subjectCallData: string;
+        let subjectValue: BigNumber;
+
+        let contractCaller: ContractCallerMock;
+
+        beforeEach(async () => {
+          contractCaller = await deployer.setV2.deployContractCallerMock();
+
+          subjectTarget = compReinvestmentExtension.address;
+          subjectCallData = compReinvestmentExtension.interface.encodeFunctionData("reap");
+          subjectValue = ZERO;
+        });
+
+        async function subjectContractCaller(): Promise<any> {
+          return await contractCaller.invoke(
+            subjectTarget,
+            subjectValue,
+            subjectCallData
+          );
+        }
+
+        it("the trade reverts", async () => {
+          await expect(subjectContractCaller()).to.be.revertedWith("Caller must be EOA Address");
+        });
+      });
+    });
+  });
 });

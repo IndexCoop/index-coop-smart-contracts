@@ -83,3 +83,10 @@ export interface ModuleSettings {
   exchangeAdapterName: string;
   exchangeData: Bytes;
 }
+
+export interface AirdropSettings {
+  airdrops: Address[];
+  feeRecipient: Address;
+  airdropFee: BigNumber;
+  anyoneAbsorb: boolean;
+}
