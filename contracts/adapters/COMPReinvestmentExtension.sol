@@ -25,8 +25,6 @@ import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
-import "hardhat/console.sol";
-
 /**
  * @title COMPReinvestmentExtension
  * @author bronco.eth

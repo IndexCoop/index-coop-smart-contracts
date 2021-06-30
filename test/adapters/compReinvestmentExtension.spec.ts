@@ -409,6 +409,8 @@ describe("COMPReinvestmentExtension", () => {
 
     context("when collateral cToken is cCOMP", async () => {
       let reapSettings: ReapSettings;
+      let airdropFee: BigNumber;
+      let compAccrued: BigNumber;
 
       beforeEach(async () => {
         reapSettings = {
