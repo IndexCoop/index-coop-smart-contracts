@@ -6,7 +6,7 @@ import { getAccounts, getRandomAddress, getWaffleExpect } from "@utils/test";
 import { Account, Address, ContractSettings, ExchangeSettings } from "@utils/types";
 import { ether, getSetFixture, getUniswapFixture, getUniswapV3Fixture, usdc } from "@utils/index";
 import { SetFixture, UniswapFixture, UniswapV3Fixture } from "@utils/fixtures";
-import { FLIStrategyExtensionMock } from "@typechain/FLIStrategyExtensionMock";
+import { FLIStrategyExtensionMock } from "../../typechain/FLIStrategyExtensionMock";
 import { BigNumber } from "ethers";
 import { EMPTY_BYTES, MAX_UINT_256 } from "@utils/constants";
 import { solidityPack } from "ethers/lib/utils";
@@ -71,7 +71,7 @@ describe("FLIRebalanceViewer", async () => {
     const shouldRebalanceNames = [ uniswapV3ExchangeName, uniswapV2ExchangeName ];
     const shouldRebalanceEnums = [ 1, 1 ];   // ShouldRebalance.REBALANCE
 
-    const chunkRebalanceSizes = [ ether(10), ether(10) ];
+    const chunkRebalanceSizes = [ ether(5), ether(5) ];
     const chunkRebalanceSellAsset = setV2Setup.weth.address;
     const chunkRebalanceBuyAsset = setV2Setup.usdc.address;
 
@@ -188,6 +188,15 @@ describe("FLIRebalanceViewer", async () => {
       });
 
       it("should Uniswap V3 as the preferred exchange", async () => {
+
+        const path = solidityPack(["address", "uint24", "address"], [setV2Setup.weth.address, 3000, setV2Setup.usdc.address]);
+        const amountOut = await uniswapV3Setup.quoter.callStatic.quoteExactInput(path, ether(5));
+        const calldata = (await uniswapV3Setup.quoter.quoteExactInput(path, ether(5))).data;
+
+        console.log(calldata);
+        console.log(uniswapV3Setup.quoter.address);
+        console.log(amountOut.toString());
+
         const [[ exchangeName ], [ rebalanceEnum ]] = await subject();
 
         expect(exchangeName).to.eq(uniswapV3ExchangeName);
