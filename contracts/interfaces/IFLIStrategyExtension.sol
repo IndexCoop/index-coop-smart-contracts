@@ -25,6 +25,7 @@ interface IFLIStrategyExtension {
     function getIncentive() external view returns (FlexibleLeverageStrategyExtension.IncentiveSettings memory);
     function getExecution() external view returns (FlexibleLeverageStrategyExtension.ExecutionSettings memory);
     function getExchangeSettings(string memory _exchangeName) external view returns (FlexibleLeverageStrategyExtension.ExchangeSettings memory);
+    function getEnabledExchanges() external view returns (string[] memory);
 
     function getCurrentLeverageRatio() external view returns (uint256);
 

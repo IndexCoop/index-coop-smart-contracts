@@ -69,7 +69,7 @@ describe("FLIRebalanceViewer", async () => {
     };
 
     const shouldRebalanceNames = [ uniswapV3ExchangeName, uniswapV2ExchangeName ];
-    const shouldRebalanceEnums = [ 1, 1 ];   // ShouldRebalance.REBALANCE
+    const shouldRebalanceEnums = [ 1, 2 ];   // ShouldRebalance.REBALANCE, ShouldRebalance.RIPCORD
 
     const chunkRebalanceSizes = [ ether(5), ether(5) ];
     const chunkRebalanceSellAsset = setV2Setup.weth.address;
@@ -159,7 +159,7 @@ describe("FLIRebalanceViewer", async () => {
     });
 
     async function subject(): Promise<[string[], number[]]> {
-      return await fliViewer.shouldRebalanceWithBounds(subjectMinLeverageRatio, subjectMaxLeverageRatio);
+      return await fliViewer.callStatic.shouldRebalanceWithBounds(subjectMinLeverageRatio, subjectMaxLeverageRatio);
     }
 
     context("when Uniswap V3 will produce a better trade", async () => {
@@ -187,20 +187,50 @@ describe("FLIRebalanceViewer", async () => {
         );
       });
 
-      it("should Uniswap V3 as the preferred exchange", async () => {
+      it("should set Uniswap V3 as the preferred exchange", async () => {
+        const [ exchangeNames, rebalanceEnums ] = await subject();
 
-        const path = solidityPack(["address", "uint24", "address"], [setV2Setup.weth.address, 3000, setV2Setup.usdc.address]);
-        const amountOut = await uniswapV3Setup.quoter.callStatic.quoteExactInput(path, ether(5));
-        const calldata = (await uniswapV3Setup.quoter.quoteExactInput(path, ether(5))).data;
+        expect(exchangeNames[0]).to.eq(uniswapV3ExchangeName);
+        expect(rebalanceEnums[0]).to.eq(1);
 
-        console.log(calldata);
-        console.log(uniswapV3Setup.quoter.address);
-        console.log(amountOut.toString());
+        expect(exchangeNames[1]).to.eq(uniswapV2ExchangeName);
+        expect(rebalanceEnums[1]).to.eq(2);
+      });
+    });
 
-        const [[ exchangeName ], [ rebalanceEnum ]] = await subject();
+    context("when Uniswap V2 will produce a better trade", async () => {
 
-        expect(exchangeName).to.eq(uniswapV3ExchangeName);
-        expect(rebalanceEnum).to.eq(1);
+      beforeEach(async () => {
+        await uniswapV2Setup.router.addLiquidity(
+          setV2Setup.weth.address,
+          setV2Setup.usdc.address,
+          ether(1000),
+          usdc(2_000_000),
+          0,
+          0,
+          owner.address,
+          MAX_UINT_256
+        );
+
+        await uniswapV3Setup.createNewPair(setV2Setup.weth, setV2Setup.usdc, 3000, 2000);
+        await uniswapV3Setup.addLiquidityWide(
+          setV2Setup.weth,
+          setV2Setup.usdc,
+          3000,
+          ether(100),
+          usdc(200_000),
+          owner.address
+        );
+      });
+
+      it("should set Uniswap V2 as the preferred exchange", async () => {
+        const [ exchangeNames, rebalanceEnums ] = await subject();
+
+        expect(exchangeNames[0]).to.eq(uniswapV2ExchangeName);
+        expect(rebalanceEnums[0]).to.eq(2);
+
+        expect(exchangeNames[1]).to.eq(uniswapV3ExchangeName);
+        expect(rebalanceEnums[1]).to.eq(1);
       });
     });
   });

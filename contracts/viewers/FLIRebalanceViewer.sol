@@ -45,60 +45,74 @@ contract FLIRebalanceViewer {
         uint256 _customMaxLeverageRatio
     )
         external
-        view
         returns(string[] memory, FlexibleLeverageStrategyExtension.ShouldRebalance[] memory)
     {
 
         (uint256 uniswapV3Price, uint256 uniswapV2Price) = _getPrices();
         
-        return _getPriorityExchange(uniswapV3Price, uniswapV2Price, _customMinLeverageRatio, _customMaxLeverageRatio);
+        return _getExchangePriority(uniswapV3Price, uniswapV2Price, _customMinLeverageRatio, _customMaxLeverageRatio);
     }
 
     /* ================= Internal Functions ================= */
 
-    function _getPrices() internal view returns (uint256 uniswapV3Price, uint256 uniswapV2Price) {
+    function _getPrices() internal returns (uint256 uniswapV3Price, uint256 uniswapV2Price) {
+
         // Get notional to rebalance from FLI adapter for V3 and V2
         string[] memory exchangeNames = new string[](2);
         exchangeNames[0] = uniswapV3ExchangeName;
         exchangeNames[1] = uniswapV2ExchangeName;
 
+        // Assume Uniswap V2 and Uniswap V3 are enabled as exchanges
+        string[] memory enabledExchanges = fliStrategyExtension.getEnabledExchanges();
+        (uint256 uniV3Index, ) = enabledExchanges.indexOf(uniswapV3ExchangeName);
+        (uint256 uniV2Index, ) = enabledExchanges.indexOf(uniswapV2ExchangeName);
+
         (uint256[] memory chunkSendQuantity, address sellAsset, address buyAsset) = fliStrategyExtension.getChunkRebalanceNotional(exchangeNames);
-        uint256 uniswapV3ChunkSendQuantity = chunkSendQuantity[0];
-        uint256 uniswapV2ChunkSendQuantity = chunkSendQuantity[1];
+        uint256 uniswapV3ChunkSellQuantity = chunkSendQuantity[uniV3Index];
+        uint256 uniswapV2ChunkSellQuantity = chunkSendQuantity[uniV2Index];
 
         bool isLever = sellAsset == fliStrategyExtension.getStrategy().borrowAsset;
 
+        uniswapV3Price = _getV3Price(uniswapV3ChunkSellQuantity, isLever);
+        uniswapV2Price = _getV2Price(uniswapV2ChunkSellQuantity, isLever, sellAsset, buyAsset);
+    }
+
+    function _getV3Price(uint256 _sellSize, bool _isLever) internal returns (uint256) {
         // Get V3 trade path. The exchange data is the encoded path
-        bytes memory uniswapV3TradePath = isLever ? 
+        bytes memory uniswapV3TradePath = _isLever ? 
             fliStrategyExtension.getExchangeSettings(uniswapV3ExchangeName).leverExchangeData : 
             fliStrategyExtension.getExchangeSettings(uniswapV3ExchangeName).deleverExchangeData;
 
         // Get quote from Uniswap V3 SwapRouter
-        uint256 uniswapV3ReceiveQuantity = _getUniswapV3Quote(uniswapV3TradePath, uniswapV3ChunkSendQuantity);
+        uint256 outputAmount = uniswapV3Quoter.quoteExactInput(uniswapV3TradePath, _sellSize);
 
+        // Divide to get ratio of quote / base asset. Don't care about decimals here. Standardizes to 10e18 with preciseDiv
+        return outputAmount.preciseDiv(_sellSize);
+    }
+
+    function _getV2Price(uint256 _sellSize, bool _isLever, address _sellAsset, address _buyAsset) internal view returns (uint256) {
         // Get V2 trade path. The exchange data is the encoded path
-        bytes memory uniswapV2TradePathRaw = isLever ? 
+        bytes memory uniswapV2TradePathRaw = _isLever ? 
             fliStrategyExtension.getExchangeSettings(uniswapV2ExchangeName).leverExchangeData : 
             fliStrategyExtension.getExchangeSettings(uniswapV2ExchangeName).deleverExchangeData;
 
         address[] memory uniswapV2TradePath;
         if (keccak256(bytes(uniswapV2TradePathRaw)) == keccak256(bytes(""))) {
             uniswapV2TradePath = new address[](2);
-            uniswapV2TradePath[0] = sellAsset;
-            uniswapV2TradePath[1] = buyAsset;
+            uniswapV2TradePath[0] = _sellAsset;
+            uniswapV2TradePath[1] = _buyAsset;
         } else {
             uniswapV2TradePath = abi.decode(uniswapV2TradePathRaw, (address[]));
         }
         
         // Get quote from Uniswap V2 Router
-        uint256 uniswapV2ReceiveQuantity = uniswapV2Router.getAmountsOut(uniswapV2ChunkSendQuantity, uniswapV2TradePath)[uniswapV2TradePath.length.sub(1)];
-
+        uint256 outputAmount = uniswapV2Router.getAmountsOut(_sellSize, uniswapV2TradePath)[uniswapV2TradePath.length.sub(1)];
+        
         // Divide to get ratio of quote / base asset. Don't care about decimals here. Standardizes to 10e18 with preciseDiv
-        uniswapV3Price = uniswapV3ReceiveQuantity.preciseDiv(uniswapV3ChunkSendQuantity);
-        uniswapV2Price = uniswapV2ReceiveQuantity.preciseDiv(uniswapV2ChunkSendQuantity);
+        return outputAmount.preciseDiv(_sellSize);
     }
 
-    function _getPriorityExchange(
+    function _getExchangePriority(
         uint256 _uniswapV3Price,
         uint256 _uniswapV2Price,
         uint256 _customMinLeverageRatio,
@@ -114,37 +128,27 @@ contract FLIRebalanceViewer {
             _customMaxLeverageRatio
         );
 
-        // Assume Uniswap V2 and Uniswap V3 are enabled as exchanges. TBD: do we want a 3rd exchange?
+        // Assume Uniswap V2 and Uniswap V3 are enabled as exchanges
         (uint256 uniV3Index, ) = enabledExchanges.indexOf(uniswapV3ExchangeName);
         (uint256 uniV2Index, ) = enabledExchanges.indexOf(uniswapV2ExchangeName);
 
-        string[] memory exchangeNamesOrdered = new string[](1);
-        FlexibleLeverageStrategyExtension.ShouldRebalance[] memory rebalanceActionOrdered = new FlexibleLeverageStrategyExtension.ShouldRebalance[](1);
+        string[] memory exchangeNamesOrdered = new string[](2);
+        FlexibleLeverageStrategyExtension.ShouldRebalance[] memory rebalanceActionOrdered = new FlexibleLeverageStrategyExtension.ShouldRebalance[](2);
 
         if (_uniswapV3Price > _uniswapV2Price) {
             exchangeNamesOrdered[0] = uniswapV3ExchangeName;
             rebalanceActionOrdered[0] = rebalanceAction[uniV3Index];
+
+            exchangeNamesOrdered[1] = uniswapV2ExchangeName;
+            rebalanceActionOrdered[1] = rebalanceAction[uniV2Index];
         } else {
             exchangeNamesOrdered[0] = uniswapV2ExchangeName;
             rebalanceActionOrdered[0] = rebalanceAction[uniV2Index];
+
+            exchangeNamesOrdered[1] = uniswapV3ExchangeName;
+            rebalanceActionOrdered[1] = rebalanceAction[uniV3Index];
         }
 
         return (exchangeNamesOrdered, rebalanceActionOrdered);
-    }
-
-    function _getUniswapV3Quote(bytes memory _path, uint256 _sellQuantity) internal view returns (uint256) {
-        ///bytes memory uniswapV3Calldata = abi.encodeWithSelector(IQuoter.quoteExactInput.selector, _path, _sellQuantity);
-
-        bytes memory uniswapV3Calldata = abi.encodeWithSignature("quoteExactInput(bytes,uint256)", _path, _sellQuantity);
-        
-        console.logBytes(uniswapV3Calldata);
-        console.log(address(uniswapV3Quoter));
-
-        (bool works, bytes memory returnData) = address(uniswapV3Quoter).staticcall(uniswapV3Calldata);
-
-        console.logBytes(returnData);
-        console.logString(string(returnData));
-
-        return abi.decode(returnData, (uint256));
     }
 }

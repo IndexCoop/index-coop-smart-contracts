@@ -49,6 +49,10 @@ contract FLIStrategyExtensionMock {
         return exchangeSettings[_exchangeName];
     }
 
+    function getEnabledExchanges() external view returns (string[] memory) {
+        return shouldRebalanceNames;
+    }
+
     /* =========== Functions for setting mock state =========== */
 
     function setShouldRebalanceWithBounds(
