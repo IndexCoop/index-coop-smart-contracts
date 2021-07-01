@@ -10,8 +10,6 @@ import { IQuoter } from "../interfaces/IQuoter.sol";
 import { IUniswapV2Router } from "../interfaces/IUniswapV2Router.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
-import { console } from "hardhat/console.sol";
-
 contract FLIRebalanceViewer {
 
     using StringArrayUtils for string[];
@@ -48,28 +46,36 @@ contract FLIRebalanceViewer {
         returns(string[] memory, FlexibleLeverageStrategyExtension.ShouldRebalance[] memory)
     {
 
-        (uint256 uniswapV3Price, uint256 uniswapV2Price) = _getPrices();
+        string[] memory enabledExchanges = fliStrategyExtension.getEnabledExchanges();
+
+        // Assume Uniswap V2 and Uniswap V3 are enabled as exchanges
+        (uint256 uniV3Index, ) = enabledExchanges.indexOf(uniswapV3ExchangeName);
+        (uint256 uniV2Index, ) = enabledExchanges.indexOf(uniswapV2ExchangeName);
+
+        (uint256 uniswapV3Price, uint256 uniswapV2Price) = _getPrices(uniV3Index, uniV2Index);
         
-        return _getExchangePriority(uniswapV3Price, uniswapV2Price, _customMinLeverageRatio, _customMaxLeverageRatio);
+        return _getExchangePriority(
+            uniswapV3Price,
+            uniswapV2Price,
+            _customMinLeverageRatio,
+            _customMaxLeverageRatio,
+            uniV3Index,
+            uniV2Index
+        );
     }
 
     /* ================= Internal Functions ================= */
 
-    function _getPrices() internal returns (uint256 uniswapV3Price, uint256 uniswapV2Price) {
+    function _getPrices(uint256 _uniV3Index, uint256 _uniV2Index) internal returns (uint256 uniswapV3Price, uint256 uniswapV2Price) {
 
         // Get notional to rebalance from FLI adapter for V3 and V2
         string[] memory exchangeNames = new string[](2);
         exchangeNames[0] = uniswapV3ExchangeName;
         exchangeNames[1] = uniswapV2ExchangeName;
 
-        // Assume Uniswap V2 and Uniswap V3 are enabled as exchanges
-        string[] memory enabledExchanges = fliStrategyExtension.getEnabledExchanges();
-        (uint256 uniV3Index, ) = enabledExchanges.indexOf(uniswapV3ExchangeName);
-        (uint256 uniV2Index, ) = enabledExchanges.indexOf(uniswapV2ExchangeName);
-
         (uint256[] memory chunkSendQuantity, address sellAsset, address buyAsset) = fliStrategyExtension.getChunkRebalanceNotional(exchangeNames);
-        uint256 uniswapV3ChunkSellQuantity = chunkSendQuantity[uniV3Index];
-        uint256 uniswapV2ChunkSellQuantity = chunkSendQuantity[uniV2Index];
+        uint256 uniswapV3ChunkSellQuantity = chunkSendQuantity[_uniV3Index];
+        uint256 uniswapV2ChunkSellQuantity = chunkSendQuantity[_uniV2Index];
 
         bool isLever = sellAsset == fliStrategyExtension.getStrategy().borrowAsset;
 
@@ -116,37 +122,35 @@ contract FLIRebalanceViewer {
         uint256 _uniswapV3Price,
         uint256 _uniswapV2Price,
         uint256 _customMinLeverageRatio,
-        uint256 _customMaxLeverageRatio
+        uint256 _customMaxLeverageRatio,
+        uint256 _uniV3Index,
+        uint256 _uniV2Index
     )
         internal
         view returns (string[] memory, FlexibleLeverageStrategyExtension.ShouldRebalance[] memory)
     {
 
         // Check shouldRebalanceWithBounds on strategy adapter
-        (string[] memory enabledExchanges, FlexibleLeverageStrategyExtension.ShouldRebalance[] memory rebalanceAction) = fliStrategyExtension.shouldRebalanceWithBounds(
+        (, FlexibleLeverageStrategyExtension.ShouldRebalance[] memory rebalanceAction) = fliStrategyExtension.shouldRebalanceWithBounds(
             _customMinLeverageRatio,
             _customMaxLeverageRatio
         );
-
-        // Assume Uniswap V2 and Uniswap V3 are enabled as exchanges
-        (uint256 uniV3Index, ) = enabledExchanges.indexOf(uniswapV3ExchangeName);
-        (uint256 uniV2Index, ) = enabledExchanges.indexOf(uniswapV2ExchangeName);
 
         string[] memory exchangeNamesOrdered = new string[](2);
         FlexibleLeverageStrategyExtension.ShouldRebalance[] memory rebalanceActionOrdered = new FlexibleLeverageStrategyExtension.ShouldRebalance[](2);
 
         if (_uniswapV3Price > _uniswapV2Price) {
             exchangeNamesOrdered[0] = uniswapV3ExchangeName;
-            rebalanceActionOrdered[0] = rebalanceAction[uniV3Index];
+            rebalanceActionOrdered[0] = rebalanceAction[_uniV3Index];
 
             exchangeNamesOrdered[1] = uniswapV2ExchangeName;
-            rebalanceActionOrdered[1] = rebalanceAction[uniV2Index];
+            rebalanceActionOrdered[1] = rebalanceAction[_uniV2Index];
         } else {
             exchangeNamesOrdered[0] = uniswapV2ExchangeName;
-            rebalanceActionOrdered[0] = rebalanceAction[uniV2Index];
+            rebalanceActionOrdered[0] = rebalanceAction[_uniV2Index];
 
             exchangeNamesOrdered[1] = uniswapV3ExchangeName;
-            rebalanceActionOrdered[1] = rebalanceAction[uniV3Index];
+            rebalanceActionOrdered[1] = rebalanceAction[_uniV3Index];
         }
 
         return (exchangeNamesOrdered, rebalanceActionOrdered);
