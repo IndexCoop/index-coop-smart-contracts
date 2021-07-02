@@ -91,76 +91,76 @@ export const ASSETS: Assets = {
   MANA: {
     id: "mana",
     address: "0x0f5d2fb29fb7d3cfee444a200298f468908cc942",
-    price: ether(0.88) ,
+    price: ether(0.54) ,
   },
   ENJ: {
     id: "enjin",
     address: "0xf629cbd94d3791c9250152bd8dfbdf380e2a3b9c",
-    price: ether(1.62),
+    price: ether(1.10),
   },
   WAXE: {
     id: "waxe",
     address: "0x7a2bc711e19ba6aff6ce8246c546e8c4b4944dfd",
-    price: ether(121.01),
+    price: ether(115.01),
   },
   AXS: {
     id: "axs",
     address: "0xBB0E17EF65F82Ab018d8EDd776e8DD940327B28b",
-    price: ether(4.75),
+    price: ether(6.08),
   },
   SAND: {
     id: "sand",
     address: "0x3845badade8e6dff049820680d1f14bd3903a5d0",
-    price: ether(0.36),
+    price: ether(0.24),
   },
   RFOX: {
     id: "rfox",
     address: "0xa1d6df714f91debf4e0802a542e13067f31b8262",
-    price: ether(0.11),
+    price: ether(0.05),
   },
   AUDIO: {
     id: "audius",
     address: "0x18aaa7115705e8be94bffebde57af9bfc265b998",
-    price: ether(1.21),
+    price: ether(0.82),
   },
   DG: {
     id: "dg",
     address: "0xee06a81a695750e71a662b51066f2c74cf4478a0",
-    price: ether(159.69),
+    price: ether(104.04),
   },
   NFTX: {
     id: "nftx",
     address: "0x87d73e916d7057945c9bcd8cdd94e42a6f47f776",
-    price: ether(67.29),
+    price: ether(54.69),
   },
   WHALE: {
     id: "whale",
     address: "0x9355372396e3f6daf13359b7b607a3374cc638e0",
-    price: ether(12.40),
+    price: ether(7.62),
   },
   MEME: {
     id: "meme",
     address: "0xd5525d397898e5502075ea5e830d8914f6f0affe",
-    price: ether(545.74),
+    price: ether(435.89),
   },
   TVK: {
     id: "tvk",
     address: "0xd084b83c305dafd76ae3e1b4e1f1fe2ecccb3988",
-    price: ether(0.21),
+    price: ether(0.09),
   },
   RARI: {
     id: "rari",
     address: "0xfca59cd816ab1ead66534d82bc21e7515ce441cf",
-    price: ether(10.37)
+    price: ether(12.60)
   },
   REVV: {
     id: "revv",
     address: "0x557b933a7c2c45672b610f8954a3deb39a51a8ca",
-    price: ether(0.13)
+    price: ether(0.07)
   },
   MUSE: {
     id: "muse",
     address: "0xb6ca7399b4f9ca56fc27cbff44f4d2e4eef1fc81",
-    price: ether(26.29)
+    price: ether(17.38)
   },
 };
