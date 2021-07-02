@@ -40,7 +40,9 @@ export let exchanges: Exchanges = {
   NONE: "",
   UNISWAP: "UniswapV2IndexExchangeAdapter",
   SUSHISWAP: "SushiswapIndexExchangeAdapter",
-  BALANCER: "BalancerV1IndexExchangeAdapter"
+  BALANCER: "BalancerV1IndexExchangeAdapter",
+  UNISWAP_V3: "UniswapV3IndexExchangeAdapter",
+  KYBER: "KyberV3IndexExchangeAdapter"
 }
 
 export interface AssetStrategy {
