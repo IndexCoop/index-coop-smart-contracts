@@ -25,6 +25,7 @@ import { IQuoter } from "../interfaces/IQuoter.sol";
 import { IUniswapV2Router } from "../interfaces/IUniswapV2Router.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
+
 /**
  * @title FLIRebalanceViewer
  * @author Set Protocol
@@ -80,7 +81,8 @@ contract FLIRebalanceViewer {
 
     /**
      * Gets the priority order for which exchange should be used while rebalancing. Mimics the interface for
-     * shouldRebalanceWithBound of FlexibleLeverageStrategyExtension.
+     * shouldRebalanceWithBound of FlexibleLeverageStrategyExtension. Note: this function is not marked as view
+     * due to a quirk in the Uniswap V3 Quoter contract, but should be static called to save gas
      *
      * @param _customMinLeverageRatio       Min leverage ratio passed in by caller
      * @param _customMaxLeverageRatio       Max leverage ratio passed in by caller
@@ -143,7 +145,7 @@ contract FLIRebalanceViewer {
     }
 
     /**
-     * Fetches price of a Uniswap V3 trade. Prices are quoted in units of the sell asset.
+     * Fetches price of a Uniswap V3 trade
      *
      * @param _sellSize     quantity of asset to sell
      * @param _isLever      whether FLI needs to lever or delever
@@ -151,6 +153,8 @@ contract FLIRebalanceViewer {
      * @return uint256      price of trade on Uniswap V3
      */
     function _getV3Price(uint256 _sellSize, bool _isLever) internal returns (uint256) {
+
+        if (_sellSize == 0) return 0;
         
         bytes memory uniswapV3TradePath = _isLever ? 
             fliStrategyExtension.getExchangeSettings(uniswapV3ExchangeName).leverExchangeData : 
@@ -163,7 +167,7 @@ contract FLIRebalanceViewer {
     }
 
     /**
-     * Fetches price of a Uniswap V2 trade. Prices are quoted in units of the sell asset.
+     * Fetches price of a Uniswap V2 trade
      *
      * @param _sellSize     quantity of asset to sell
      * @param _isLever      whether FLI needs to lever or delever
@@ -171,6 +175,8 @@ contract FLIRebalanceViewer {
      * @return uint256      price of trade on Uniswap V2
      */
     function _getV2Price(uint256 _sellSize, bool _isLever, address _sellAsset, address _buyAsset) internal view returns (uint256) {
+
+        if (_sellSize == 0) return 0;
         
         bytes memory uniswapV2TradePathRaw = _isLever ? 
             fliStrategyExtension.getExchangeSettings(uniswapV2ExchangeName).leverExchangeData : 
@@ -220,6 +226,10 @@ contract FLIRebalanceViewer {
             _customMinLeverageRatio,
             _customMaxLeverageRatio
         );
+
+        // If no rebalance is required, set price to 0 so it is ordered last
+        if (rebalanceAction[_uniV3Index] == FlexibleLeverageStrategyExtension.ShouldRebalance.NONE) _uniswapV3Price = 0;
+        if (rebalanceAction[_uniV2Index] == FlexibleLeverageStrategyExtension.ShouldRebalance.NONE) _uniswapV2Price = 0;
 
         string[] memory exchangeNamesOrdered = new string[](2);
         FlexibleLeverageStrategyExtension.ShouldRebalance[] memory rebalanceActionOrdered = new FlexibleLeverageStrategyExtension.ShouldRebalance[](2);
