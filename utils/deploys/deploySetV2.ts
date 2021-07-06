@@ -10,6 +10,7 @@ import {
   ComptrollerMock,
   ContractCallerMock,
   DebtIssuanceModule,
+  GeneralIndexModule,
   GovernanceModule,
   IntegrationRegistry,
   StreamingFeeModule,
@@ -27,6 +28,7 @@ import { CompoundLeverageModule__factory } from "../../typechain/factories/Compo
 import { ComptrollerMock__factory } from "../../typechain/factories/ComptrollerMock__factory";
 import { ContractCallerMock__factory } from "../../typechain/factories/ContractCallerMock__factory";
 import { DebtIssuanceModule__factory } from "../../typechain/factories/DebtIssuanceModule__factory";
+import { GeneralIndexModule__factory } from "../../typechain/factories/GeneralIndexModule__factory";
 import { GovernanceModule__factory } from "../../typechain/factories/GovernanceModule__factory";
 import { IntegrationRegistry__factory } from "../../typechain/factories/IntegrationRegistry__factory";
 import { SingleIndexModule__factory } from "../../typechain/factories/SingleIndexModule__factory";
@@ -117,6 +119,16 @@ export default class DeploySetV2 {
       uniswapRouter,
       sushiswapRouter,
       balancerProxy
+    );
+  }
+
+  public async deployGeneralIndexModule(
+    controller: Address,
+    weth: Address,
+  ): Promise<GeneralIndexModule> {
+    return await new GeneralIndexModule__factory(this._deployerSigner).deploy(
+      controller,
+      weth,
     );
   }
 
