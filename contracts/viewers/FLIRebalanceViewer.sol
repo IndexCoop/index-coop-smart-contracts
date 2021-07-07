@@ -137,8 +137,9 @@ contract FLIRebalanceViewer {
      */
     function _getPrices(ActionInfo memory _actionInfo) internal returns (uint256 uniswapV3Price, uint256 uniswapV2Price) {
 
-        uint256 uniswapV3ChunkSellQuantity = _actionInfo.chunkSendQuantity[_actionInfo.uniV3Index];
-        uint256 uniswapV2ChunkSellQuantity = _actionInfo.chunkSendQuantity[_actionInfo.uniV2Index];
+        // no need to use uniV3Index or uniV2Index, as chunkSendQuantity has fixed positions for V3 and V2
+        uint256 uniswapV3ChunkSellQuantity = _actionInfo.chunkSendQuantity[0];
+        uint256 uniswapV2ChunkSellQuantity = _actionInfo.chunkSendQuantity[1];
 
         uniswapV3Price = _getV3Price(uniswapV3ChunkSellQuantity, _actionInfo.isLever);
         uniswapV2Price = _getV2Price(uniswapV2ChunkSellQuantity, _actionInfo.isLever, _actionInfo.sellAsset, _actionInfo.buyAsset);
