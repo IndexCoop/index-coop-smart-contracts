@@ -4,12 +4,12 @@ import DeployHelper from "@utils/deploys";
 import { FLIRebalanceViewer } from "@utils/contracts";
 import { addSnapshotBeforeRestoreAfterEach, getAccounts, getRandomAddress, getWaffleExpect } from "@utils/test";
 import { Account, Address, ContractSettings, ExchangeSettings } from "@utils/types";
-import { ether, getSetFixture, getUniswapFixture, getUniswapV3Fixture, usdc } from "@utils/index";
+import { bitcoin, ether, getSetFixture, getUniswapFixture, getUniswapV3Fixture, usdc } from "@utils/index";
 import { SetFixture, UniswapFixture, UniswapV3Fixture } from "@utils/fixtures";
 import { FLIStrategyExtensionMock } from "../../typechain/FLIStrategyExtensionMock";
 import { BigNumber } from "ethers";
 import { EMPTY_BYTES, MAX_UINT_256 } from "@utils/constants";
-import { solidityPack } from "ethers/lib/utils";
+import { defaultAbiCoder, solidityPack } from "ethers/lib/utils";
 
 const expect = getWaffleExpect();
 
@@ -152,6 +152,7 @@ describe("FLIRebalanceViewer", async () => {
 
       await setV2Setup.weth.approve(uniswapV2Setup.router.address, MAX_UINT_256);
       await setV2Setup.usdc.approve(uniswapV2Setup.router.address, MAX_UINT_256);
+      await setV2Setup.wbtc.approve(uniswapV2Setup.router.address, MAX_UINT_256);
       await setV2Setup.weth.approve(uniswapV3Setup.nftPositionManager.address, MAX_UINT_256);
       await setV2Setup.usdc.approve(uniswapV3Setup.nftPositionManager.address, MAX_UINT_256);
     });
@@ -402,6 +403,126 @@ describe("FLIRebalanceViewer", async () => {
 
             expect(exchangeNames[1]).to.eq(uniswapV3ExchangeName);
             expect(rebalanceEnums[1]).to.eq(0);
+          });
+        });
+      });
+
+      context("when the rebalance will execute a multi-hop trade for Uniswap V2", async () => {
+        beforeEach(async () => {
+
+          const leverExchangeData = defaultAbiCoder.encode(
+            [ "address[]" ],
+            [[setV2Setup.usdc.address, setV2Setup.wbtc.address, setV2Setup.weth.address]]
+          );
+
+          const deleverExchangeData = defaultAbiCoder.encode(
+            [ "address[]" ],
+            [[setV2Setup.weth.address, setV2Setup.wbtc.address, setV2Setup.usdc.address]]
+          );
+
+          const uniV2ExchangeSettings: ExchangeSettings = {
+            twapMaxTradeSize: ether(100),
+            incentivizedTwapMaxTradeSize: ether(100),
+            exchangeLastTradeTimestamp: BigNumber.from(0),
+            leverExchangeData: leverExchangeData,
+            deleverExchangeData: deleverExchangeData,
+          };
+
+          await fliExtensionMock.setExchangeSettings(uniswapV2ExchangeName, uniV2ExchangeSettings);
+        });
+
+        context("when Uniswap V3 will produce a better trade", async () => {
+
+          beforeEach(async () => {
+            await uniswapV2Setup.router.addLiquidity(
+              setV2Setup.weth.address,
+              setV2Setup.wbtc.address,
+              ether(1000),
+              bitcoin(20),
+              0,
+              0,
+              owner.address,
+              MAX_UINT_256
+            );
+
+            await uniswapV2Setup.router.addLiquidity(
+              setV2Setup.usdc.address,
+              setV2Setup.wbtc.address,
+              usdc(100000),
+              bitcoin(2),
+              0,
+              0,
+              owner.address,
+              MAX_UINT_256
+            );
+
+            await uniswapV3Setup.createNewPair(setV2Setup.weth, setV2Setup.usdc, 3000, 2000);
+            await uniswapV3Setup.addLiquidityWide(
+              setV2Setup.weth,
+              setV2Setup.usdc,
+              3000,
+              ether(1000),
+              usdc(2_000_000),
+              owner.address
+            );
+          });
+
+          it("should set Uniswap V3 as the preferred exchange", async () => {
+            const [ exchangeNames, rebalanceEnums ] = await subject();
+
+            expect(exchangeNames[0]).to.eq(uniswapV3ExchangeName);
+            expect(rebalanceEnums[0]).to.eq(1);
+
+            expect(exchangeNames[1]).to.eq(uniswapV2ExchangeName);
+            expect(rebalanceEnums[1]).to.eq(1);
+          });
+        });
+
+        context("when Uniswap V2 will produce a better trade", async () => {
+
+          beforeEach(async () => {
+            await uniswapV2Setup.router.addLiquidity(
+              setV2Setup.weth.address,
+              setV2Setup.wbtc.address,
+              ether(1000),
+              bitcoin(20),
+              0,
+              0,
+              owner.address,
+              MAX_UINT_256
+            );
+
+            await uniswapV2Setup.router.addLiquidity(
+              setV2Setup.usdc.address,
+              setV2Setup.wbtc.address,
+              usdc(100000),
+              bitcoin(2),
+              0,
+              0,
+              owner.address,
+              MAX_UINT_256
+            );
+
+            // very bad ETH-USDC rate
+            await uniswapV3Setup.createNewPair(setV2Setup.weth, setV2Setup.usdc, 3000, 2000);
+            await uniswapV3Setup.addLiquidityWide(
+              setV2Setup.weth,
+              setV2Setup.usdc,
+              3000,
+              ether(100),
+              usdc(2000),
+              owner.address
+            );
+          });
+
+          it("should set Uniswap V2 as the preferred exchange", async () => {
+            const [ exchangeNames, rebalanceEnums ] = await subject();
+
+            expect(exchangeNames[0]).to.eq(uniswapV2ExchangeName);
+            expect(rebalanceEnums[0]).to.eq(1);
+
+            expect(exchangeNames[1]).to.eq(uniswapV3ExchangeName);
+            expect(rebalanceEnums[1]).to.eq(1);
           });
         });
       });
