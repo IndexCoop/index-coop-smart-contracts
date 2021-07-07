@@ -2,7 +2,6 @@ import { Signer, BigNumber } from "ethers";
 import { Address } from "../types";
 import {
   BaseAdapterMock,
-  FLIStrategyExtensionMock,
   GovernanceAdapterMock,
   MutualUpgradeMock,
   StandardTokenMock,
@@ -12,7 +11,6 @@ import {
 
 import { BaseAdapterMock__factory } from "../../typechain/factories/BaseAdapterMock__factory";
 import { ChainlinkAggregatorV3Mock__factory  } from "../../typechain/factories/ChainlinkAggregatorV3Mock__factory";
-import { FLIStrategyExtensionMock__factory } from "../../typechain/factories/FLIStrategyExtensionMock__factory";
 import { GovernanceAdapterMock__factory  } from "../../typechain/factories/GovernanceAdapterMock__factory";
 import { MasterChefMock__factory } from "../../typechain/factories/MasterChefMock__factory";
 import { MutualUpgradeMock__factory } from "../../typechain/factories/MutualUpgradeMock__factory";
@@ -57,9 +55,5 @@ export default class DeployMocks {
 
   public async deployStringArrayUtilsMock(): Promise<StringArrayUtilsMock> {
     return await new StringArrayUtilsMock__factory(this._deployerSigner).deploy();
-  }
-
-  public async deployFLIStrategyExtensionMock(): Promise<FLIStrategyExtensionMock> {
-    return await new FLIStrategyExtensionMock__factory(this._deployerSigner).deploy();
   }
 }
