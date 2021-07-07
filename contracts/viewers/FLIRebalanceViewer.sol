@@ -138,11 +138,8 @@ contract FLIRebalanceViewer {
     function _getPrices(ActionInfo memory _actionInfo) internal returns (uint256 uniswapV3Price, uint256 uniswapV2Price) {
 
         // no need to use uniV3Index or uniV2Index, as chunkSendQuantity has fixed positions for V3 and V2
-        uint256 uniswapV3ChunkSellQuantity = _actionInfo.chunkSendQuantity[0];
-        uint256 uniswapV2ChunkSellQuantity = _actionInfo.chunkSendQuantity[1];
-
-        uniswapV3Price = _getV3Price(uniswapV3ChunkSellQuantity, _actionInfo.isLever);
-        uniswapV2Price = _getV2Price(uniswapV2ChunkSellQuantity, _actionInfo.isLever, _actionInfo.sellAsset, _actionInfo.buyAsset);
+        uniswapV3Price = _getV3Price(_actionInfo.chunkSendQuantity[0], _actionInfo.isLever);
+        uniswapV2Price = _getV2Price(_actionInfo.chunkSendQuantity[1], _actionInfo.isLever, _actionInfo.sellAsset, _actionInfo.buyAsset);
     }
 
     /**
@@ -229,6 +226,15 @@ contract FLIRebalanceViewer {
         }
     }
 
+    /**
+     * Creates the an ActionInfo struct containing information about the rebalancing action. Note: chunkSendQuantity is
+     * ordered [V3, V2], so there is no need to use uniV3Index or uniV2Index when accessing it.
+     *
+     * @param _minLeverage          Min leverage ratio
+     * @param _maxLeverage          Max leverage ratio
+     *
+     * @return actionInfo           Populated ActionInfo struct
+     */
     function _getActionInfo(uint256 _minLeverage, uint256 _maxLeverage) internal view returns (ActionInfo memory actionInfo) {
 
         (actionInfo.exchangeNames, actionInfo.rebalanceActions) = fliStrategyExtension.shouldRebalanceWithBounds(
