@@ -109,12 +109,6 @@ contract FLIRebalanceViewer {
         returns(string[2] memory, FlexibleLeverageStrategyExtension.ShouldRebalance[2] memory)
     {
 
-        string[] memory enabledExchanges = fliStrategyExtension.getEnabledExchanges();
-
-        // Assume Uniswap V2 and Uniswap V3 are enabled as exchanges
-        (uint256 uniV3Index, ) = enabledExchanges.indexOf(uniswapV3ExchangeName);
-        (uint256 uniV2Index, ) = enabledExchanges.indexOf(uniswapV2ExchangeName);
-
         ActionInfo memory actionInfo = _getActionInfo(_minLeverageRatio, _maxLeverageRatio);
 
         (uint256 uniswapV3Price, uint256 uniswapV2Price) = _getPrices(actionInfo);
