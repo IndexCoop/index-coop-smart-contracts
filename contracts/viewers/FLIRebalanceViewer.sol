@@ -136,10 +136,11 @@ contract FLIRebalanceViewer {
      * @return uniswapV2Price   price of rebalancing trade on Uniswap V2 (scaled by trade size)
      */
     function _getPrices(ActionInfo memory _actionInfo) internal returns (uint256 uniswapV3Price, uint256 uniswapV2Price) {
-
-        // no need to use uniV3Index or uniV2Index, as chunkSendQuantity has fixed positions for V3 and V2
-        uniswapV3Price = _getV3Price(_actionInfo.chunkSendQuantity[0], _actionInfo.isLever);
-        uniswapV2Price = _getV2Price(_actionInfo.chunkSendQuantity[1], _actionInfo.isLever, _actionInfo.sellAsset, _actionInfo.buyAsset);
+        uniswapV3Price = _getV3Price(_actionInfo.chunkSendQuantity[_actionInfo.uniV3Index], _actionInfo.isLever);
+        uniswapV2Price = _getV2Price(
+            _actionInfo.chunkSendQuantity[_actionInfo.uniV2Index],
+            _actionInfo.isLever, _actionInfo.sellAsset, _actionInfo.buyAsset
+        );
     }
 
     /**
@@ -227,8 +228,7 @@ contract FLIRebalanceViewer {
     }
 
     /**
-     * Creates the an ActionInfo struct containing information about the rebalancing action. Note: chunkSendQuantity is
-     * ordered [V3, V2], so there is no need to use uniV3Index or uniV2Index when accessing it.
+     * Creates the an ActionInfo struct containing information about the rebalancing action
      *
      * @param _minLeverage          Min leverage ratio
      * @param _maxLeverage          Max leverage ratio
@@ -248,11 +248,10 @@ contract FLIRebalanceViewer {
         actionInfo.minLeverage = _minLeverage;
         actionInfo.maxLeverage = _maxLeverage;
 
-        string[] memory exchangeNames = new string[](2);
-        exchangeNames[0] = uniswapV3ExchangeName;
-        exchangeNames[1] = uniswapV2ExchangeName;
+        (actionInfo.chunkSendQuantity, actionInfo.sellAsset, actionInfo.buyAsset) = fliStrategyExtension.getChunkRebalanceNotional(
+            actionInfo.exchangeNames
+        );
 
-        (actionInfo.chunkSendQuantity, actionInfo.sellAsset, actionInfo.buyAsset) = fliStrategyExtension.getChunkRebalanceNotional(exchangeNames);
         actionInfo.isLever = actionInfo.sellAsset == fliStrategyExtension.getStrategy().borrowAsset;
     }
 }
