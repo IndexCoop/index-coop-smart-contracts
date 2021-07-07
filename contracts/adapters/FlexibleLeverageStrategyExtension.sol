@@ -29,7 +29,6 @@ import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IChainlinkAggregatorV3 } from "../interfaces/IChainlinkAggregatorV3.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
 import { ICompoundLeverageModule } from "../interfaces/ICompoundLeverageModule.sol";
-import { ICompoundPriceOracle } from "../interfaces/ICompoundPriceOracle.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
