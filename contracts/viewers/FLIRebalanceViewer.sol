@@ -40,6 +40,17 @@ contract FLIRebalanceViewer {
     using SafeMath for uint256;
     using StringArrayUtils for string[];
 
+    /* ============ Structs ============ */
+
+    struct ActionInfo {
+        string[] exchangeNames;                                                     // List of enabled exchange names
+        FlexibleLeverageStrategyExtension.ShouldRebalance[] rebalanceActions;       // List of rebalance actions with respect to exchangeNames
+        uint256 uniV3Index;                                                         // Index of Uni V3 in both lists
+        uint256 uniV2Index;                                                         // Index of Uni V2 in both lists
+        uint256 minLeverage;                                                        // Minimum leverage ratio of strategy
+        uint256 maxLeverage;                                                        // Maximum leverage ratio of strategy
+    }
+
     /* ============ State Variables ============ */
 
     IFLIStrategyExtension public fliStrategyExtension;
@@ -84,15 +95,15 @@ contract FLIRebalanceViewer {
      * shouldRebalanceWithBound of FlexibleLeverageStrategyExtension. Note: this function is not marked as view
      * due to a quirk in the Uniswap V3 Quoter contract, but should be static called to save gas
      *
-     * @param _customMinLeverageRatio       Min leverage ratio passed in by caller
-     * @param _customMaxLeverageRatio       Max leverage ratio passed in by caller
+     * @param _minLeverageRatio       Min leverage ratio
+     * @param _maxLeverageRatio       Max leverage ratio
      *
      * @return string[] memory              Ordered array of exchange names to use. Earlier elements in the array produce the best trades
      * @return ShouldRebalance[] memory     Array of ShouldRebalance Enums. Ordered relative to returned exchange names array
      */
     function shouldRebalanceWithBounds(
-        uint256 _customMinLeverageRatio,
-        uint256 _customMaxLeverageRatio
+        uint256 _minLeverageRatio,
+        uint256 _maxLeverageRatio
     )
         external
         returns(string[2] memory, FlexibleLeverageStrategyExtension.ShouldRebalance[2] memory)
@@ -104,15 +115,14 @@ contract FLIRebalanceViewer {
         (uint256 uniV3Index, ) = enabledExchanges.indexOf(uniswapV3ExchangeName);
         (uint256 uniV2Index, ) = enabledExchanges.indexOf(uniswapV2ExchangeName);
 
-        (uint256 uniswapV3Price, uint256 uniswapV2Price) = _getPrices(uniV3Index, uniV2Index);
+        ActionInfo memory actionInfo = _getActionInfo(_minLeverageRatio, _maxLeverageRatio);
+
+        (uint256 uniswapV3Price, uint256 uniswapV2Price) = _getPrices(actionInfo);
         
         return _getExchangePriority(
             uniswapV3Price,
             uniswapV2Price,
-            _customMinLeverageRatio,
-            _customMaxLeverageRatio,
-            uniV3Index,
-            uniV2Index
+            actionInfo
         );
     }
 
@@ -122,21 +132,20 @@ contract FLIRebalanceViewer {
      * Fetches prices for rebalancing trades on Uniswap V3 and Uniswap V2. Trade sizes are determined by FlexibleLeverageStrategyExtension's
      * getChunkRebalanceNotional.
      *
-     * @param _uniV3Index       index of Uniswap V3 in the list returned by FlexibleLeverageStrategyExtension's getExchangeNames
-     * @param _uniV2Index       index of Uniswap V2 in the list returned by FlexibleLeverageStrategyExtension's getExchangeNames
+     * @param _actionInfo    ActionInfo struct
      *
      * @return uniswapV3Price   price of rebalancing trade on Uniswap V3 (scaled by trade size)
      * @return uniswapV2Price   price of rebalancing trade on Uniswap V2 (scaled by trade size)
      */
-    function _getPrices(uint256 _uniV3Index, uint256 _uniV2Index) internal returns (uint256 uniswapV3Price, uint256 uniswapV2Price) {
+    function _getPrices(ActionInfo memory _actionInfo) internal returns (uint256 uniswapV3Price, uint256 uniswapV2Price) {
 
         string[] memory exchangeNames = new string[](2);
         exchangeNames[0] = uniswapV3ExchangeName;
         exchangeNames[1] = uniswapV2ExchangeName;
 
         (uint256[] memory chunkSendQuantity, address sellAsset, address buyAsset) = fliStrategyExtension.getChunkRebalanceNotional(exchangeNames);
-        uint256 uniswapV3ChunkSellQuantity = chunkSendQuantity[_uniV3Index];
-        uint256 uniswapV2ChunkSellQuantity = chunkSendQuantity[_uniV2Index];
+        uint256 uniswapV3ChunkSellQuantity = chunkSendQuantity[_actionInfo.uniV3Index];
+        uint256 uniswapV2ChunkSellQuantity = chunkSendQuantity[_actionInfo.uniV2Index];
 
         bool isLever = sellAsset == fliStrategyExtension.getStrategy().borrowAsset;
 
@@ -200,10 +209,7 @@ contract FLIRebalanceViewer {
      *
      * @param _uniswapV3Price               price of rebalance trade on Uniswap V3
      * @param _uniswapV2Price               price of rebalance trade on Uniswap V2
-     * @param _customMinLeverageRatio       Min leverage ratio passed in by caller
-     * @param _customMaxLeverageRatio       Max leverage ratio passed in by caller
-     * @param _uniV3Index                   index of Uniswap V3 in the list returned by FlexibleLeverageStrategyExtension's getExchangeNames
-     * @param _uniV2Index                   index of Uniswap V2 in the list returned by FlexibleLeverageStrategyExtension's getExchangeNames
+     * @param _actionInfo                   ActionInfo struct
      *
      * @return string[] memory              Ordered array of exchange names to use. Earlier elements in the array produce the best trades
      * @return ShouldRebalance[] memory     Array of ShouldRebalance Enums. Ordered relative to returned exchange names array
@@ -211,29 +217,37 @@ contract FLIRebalanceViewer {
     function _getExchangePriority(
         uint256 _uniswapV3Price,
         uint256 _uniswapV2Price,
-        uint256 _customMinLeverageRatio,
-        uint256 _customMaxLeverageRatio,
-        uint256 _uniV3Index,
-        uint256 _uniV2Index
+        ActionInfo memory _actionInfo
     )
         internal
         view
         returns (string[2] memory, FlexibleLeverageStrategyExtension.ShouldRebalance[2] memory)
     {
 
-        (, FlexibleLeverageStrategyExtension.ShouldRebalance[] memory rebalanceAction) = fliStrategyExtension.shouldRebalanceWithBounds(
-            _customMinLeverageRatio,
-            _customMaxLeverageRatio
-        );
-
         // If no rebalance is required, set price to 0 so it is ordered last
-        if (rebalanceAction[_uniV3Index] == FlexibleLeverageStrategyExtension.ShouldRebalance.NONE) _uniswapV3Price = 0;
-        if (rebalanceAction[_uniV2Index] == FlexibleLeverageStrategyExtension.ShouldRebalance.NONE) _uniswapV2Price = 0;
+        if (_actionInfo.rebalanceActions[_actionInfo.uniV3Index] == FlexibleLeverageStrategyExtension.ShouldRebalance.NONE) _uniswapV3Price = 0;
+        if (_actionInfo.rebalanceActions[_actionInfo.uniV2Index] == FlexibleLeverageStrategyExtension.ShouldRebalance.NONE) _uniswapV2Price = 0;
 
         if (_uniswapV3Price > _uniswapV2Price) {
-            return ([ uniswapV3ExchangeName, uniswapV2ExchangeName ], [ rebalanceAction[_uniV3Index], rebalanceAction[_uniV2Index] ]);
+            return ([ uniswapV3ExchangeName, uniswapV2ExchangeName ],
+                    [ _actionInfo.rebalanceActions[_actionInfo.uniV3Index], _actionInfo.rebalanceActions[_actionInfo.uniV2Index] ]);
         } else {
-            return ([ uniswapV2ExchangeName, uniswapV3ExchangeName ], [ rebalanceAction[_uniV2Index], rebalanceAction[_uniV3Index] ]);
+            return ([ uniswapV2ExchangeName, uniswapV3ExchangeName ],
+                    [ _actionInfo.rebalanceActions[_actionInfo.uniV2Index], _actionInfo.rebalanceActions[_actionInfo.uniV3Index] ]);
         }
+    }
+
+    function _getActionInfo(uint256 _minLeverage, uint256 _maxLeverage) internal view returns (ActionInfo memory actionInfo) {
+
+        (actionInfo.exchangeNames, actionInfo.rebalanceActions) = fliStrategyExtension.shouldRebalanceWithBounds(
+            _minLeverage,
+            _maxLeverage
+        );
+
+        (actionInfo.uniV3Index, ) = actionInfo.exchangeNames.indexOf(uniswapV3ExchangeName);
+        (actionInfo.uniV2Index, ) = actionInfo.exchangeNames.indexOf(uniswapV2ExchangeName);
+
+        actionInfo.minLeverage = _minLeverage;
+        actionInfo.maxLeverage = _maxLeverage;
     }
 }
