@@ -330,12 +330,6 @@ describe("FLIRebalanceViewer", async () => {
           const shouldRebalanceNames = [ uniswapV3ExchangeName, uniswapV2ExchangeName ];
           const shouldRebalanceEnums = [ 0, 1 ];
 
-          // use a chunk size of zero for increased coverage
-          const chunkRebalanceSizes = [ ether(0), ether(3) ];
-          const chunkRebalanceSellAsset = setV2Setup.weth.address;
-          const chunkRebalanceBuyAsset = setV2Setup.usdc.address;
-
-          await fliExtensionMock.setGetChunkRebalanceWithBounds(chunkRebalanceSizes, chunkRebalanceSellAsset, chunkRebalanceBuyAsset);
           await fliExtensionMock.setShouldRebalanceWithBounds(shouldRebalanceNames, shouldRebalanceEnums);
         });
 

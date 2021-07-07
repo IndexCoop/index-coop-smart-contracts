@@ -19,11 +19,11 @@ pragma experimental ABIEncoderV2;
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import { FlexibleLeverageStrategyExtension } from "../adapters/FlexibleLeverageStrategyExtension.sol";
-import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
 import { IFLIStrategyExtension } from "../interfaces/IFLIStrategyExtension.sol";
 import { IQuoter } from "../interfaces/IQuoter.sol";
 import { IUniswapV2Router } from "../interfaces/IUniswapV2Router.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
+import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
 
 
 /**
@@ -36,9 +36,9 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  */
 contract FLIRebalanceViewer {
 
-    using StringArrayUtils for string[];
-    using SafeMath for uint256;
     using PreciseUnitMath  for uint256;
+    using SafeMath for uint256;
+    using StringArrayUtils for string[];
 
     /* ============ State Variables ============ */
 
@@ -95,7 +95,7 @@ contract FLIRebalanceViewer {
         uint256 _customMaxLeverageRatio
     )
         external
-        returns(string[] memory, FlexibleLeverageStrategyExtension.ShouldRebalance[] memory)
+        returns(string[2] memory, FlexibleLeverageStrategyExtension.ShouldRebalance[2] memory)
     {
 
         string[] memory enabledExchanges = fliStrategyExtension.getEnabledExchanges();
@@ -145,7 +145,9 @@ contract FLIRebalanceViewer {
     }
 
     /**
-     * Fetches price of a Uniswap V3 trade
+     * Fetches price of a Uniswap V3 trade. Uniswap V3 fetches quotes using a write function that always reverts. This means that
+     * this function cannot be view only. Additionally, the Uniswap V3 quoting function cannot be static called in solidity due to the
+     * internal revert. To save on gas, static call the top level shouldRebalanceWithBounds function when interacting with this contact
      *
      * @param _sellSize     quantity of asset to sell
      * @param _isLever      whether FLI needs to lever or delever
@@ -153,8 +155,6 @@ contract FLIRebalanceViewer {
      * @return uint256      price of trade on Uniswap V3
      */
     function _getV3Price(uint256 _sellSize, bool _isLever) internal returns (uint256) {
-
-        if (_sellSize == 0) return 0;
         
         bytes memory uniswapV3TradePath = _isLever ? 
             fliStrategyExtension.getExchangeSettings(uniswapV3ExchangeName).leverExchangeData : 
@@ -175,15 +175,13 @@ contract FLIRebalanceViewer {
      * @return uint256      price of trade on Uniswap V2
      */
     function _getV2Price(uint256 _sellSize, bool _isLever, address _sellAsset, address _buyAsset) internal view returns (uint256) {
-
-        if (_sellSize == 0) return 0;
         
         bytes memory uniswapV2TradePathRaw = _isLever ? 
             fliStrategyExtension.getExchangeSettings(uniswapV2ExchangeName).leverExchangeData : 
             fliStrategyExtension.getExchangeSettings(uniswapV2ExchangeName).deleverExchangeData;
 
         address[] memory uniswapV2TradePath;
-        if (keccak256(bytes(uniswapV2TradePathRaw)) == keccak256(bytes(""))) {
+        if (uniswapV2TradePathRaw.length == 0) {
             uniswapV2TradePath = new address[](2);
             uniswapV2TradePath[0] = _sellAsset;
             uniswapV2TradePath[1] = _buyAsset;
@@ -219,7 +217,8 @@ contract FLIRebalanceViewer {
         uint256 _uniV2Index
     )
         internal
-        view returns (string[] memory, FlexibleLeverageStrategyExtension.ShouldRebalance[] memory)
+        view
+        returns (string[2] memory, FlexibleLeverageStrategyExtension.ShouldRebalance[2] memory)
     {
 
         (, FlexibleLeverageStrategyExtension.ShouldRebalance[] memory rebalanceAction) = fliStrategyExtension.shouldRebalanceWithBounds(
@@ -231,23 +230,10 @@ contract FLIRebalanceViewer {
         if (rebalanceAction[_uniV3Index] == FlexibleLeverageStrategyExtension.ShouldRebalance.NONE) _uniswapV3Price = 0;
         if (rebalanceAction[_uniV2Index] == FlexibleLeverageStrategyExtension.ShouldRebalance.NONE) _uniswapV2Price = 0;
 
-        string[] memory exchangeNamesOrdered = new string[](2);
-        FlexibleLeverageStrategyExtension.ShouldRebalance[] memory rebalanceActionOrdered = new FlexibleLeverageStrategyExtension.ShouldRebalance[](2);
-
         if (_uniswapV3Price > _uniswapV2Price) {
-            exchangeNamesOrdered[0] = uniswapV3ExchangeName;
-            rebalanceActionOrdered[0] = rebalanceAction[_uniV3Index];
-
-            exchangeNamesOrdered[1] = uniswapV2ExchangeName;
-            rebalanceActionOrdered[1] = rebalanceAction[_uniV2Index];
+            return ([ uniswapV3ExchangeName, uniswapV2ExchangeName ], [ rebalanceAction[_uniV3Index], rebalanceAction[_uniV2Index] ]);
         } else {
-            exchangeNamesOrdered[0] = uniswapV2ExchangeName;
-            rebalanceActionOrdered[0] = rebalanceAction[_uniV2Index];
-
-            exchangeNamesOrdered[1] = uniswapV3ExchangeName;
-            rebalanceActionOrdered[1] = rebalanceAction[_uniV3Index];
+            return ([ uniswapV2ExchangeName, uniswapV3ExchangeName ], [ rebalanceAction[_uniV2Index], rebalanceAction[_uniV3Index] ]);
         }
-
-        return (exchangeNamesOrdered, rebalanceActionOrdered);
     }
 }
