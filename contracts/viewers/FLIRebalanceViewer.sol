@@ -49,6 +49,10 @@ contract FLIRebalanceViewer {
         uint256 uniV2Index;                                                         // Index of Uni V2 in both lists
         uint256 minLeverage;                                                        // Minimum leverage ratio of strategy
         uint256 maxLeverage;                                                        // Maximum leverage ratio of strategy
+        uint256[] chunkSendQuantity;                                                // Size of rebalances (quoted in sell asset units)
+        address sellAsset;                                                          // Address of asset to sell during rebalance
+        address buyAsset;                                                           // Address of asset to buy during rebalance
+        bool isLever;                                                               // Whether the rebalance is a lever or delever
     }
 
     /* ============ State Variables ============ */
@@ -133,18 +137,11 @@ contract FLIRebalanceViewer {
      */
     function _getPrices(ActionInfo memory _actionInfo) internal returns (uint256 uniswapV3Price, uint256 uniswapV2Price) {
 
-        string[] memory exchangeNames = new string[](2);
-        exchangeNames[0] = uniswapV3ExchangeName;
-        exchangeNames[1] = uniswapV2ExchangeName;
+        uint256 uniswapV3ChunkSellQuantity = _actionInfo.chunkSendQuantity[_actionInfo.uniV3Index];
+        uint256 uniswapV2ChunkSellQuantity = _actionInfo.chunkSendQuantity[_actionInfo.uniV2Index];
 
-        (uint256[] memory chunkSendQuantity, address sellAsset, address buyAsset) = fliStrategyExtension.getChunkRebalanceNotional(exchangeNames);
-        uint256 uniswapV3ChunkSellQuantity = chunkSendQuantity[_actionInfo.uniV3Index];
-        uint256 uniswapV2ChunkSellQuantity = chunkSendQuantity[_actionInfo.uniV2Index];
-
-        bool isLever = sellAsset == fliStrategyExtension.getStrategy().borrowAsset;
-
-        uniswapV3Price = _getV3Price(uniswapV3ChunkSellQuantity, isLever);
-        uniswapV2Price = _getV2Price(uniswapV2ChunkSellQuantity, isLever, sellAsset, buyAsset);
+        uniswapV3Price = _getV3Price(uniswapV3ChunkSellQuantity, _actionInfo.isLever);
+        uniswapV2Price = _getV2Price(uniswapV2ChunkSellQuantity, _actionInfo.isLever, _actionInfo.sellAsset, _actionInfo.buyAsset);
     }
 
     /**
@@ -243,5 +240,12 @@ contract FLIRebalanceViewer {
 
         actionInfo.minLeverage = _minLeverage;
         actionInfo.maxLeverage = _maxLeverage;
+
+        string[] memory exchangeNames = new string[](2);
+        exchangeNames[0] = uniswapV3ExchangeName;
+        exchangeNames[1] = uniswapV2ExchangeName;
+
+        (actionInfo.chunkSendQuantity, actionInfo.sellAsset, actionInfo.buyAsset) = fliStrategyExtension.getChunkRebalanceNotional(exchangeNames);
+        actionInfo.isLever = actionInfo.sellAsset == fliStrategyExtension.getStrategy().borrowAsset;
     }
 }
