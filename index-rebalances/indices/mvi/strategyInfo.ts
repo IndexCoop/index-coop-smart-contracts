@@ -17,7 +17,7 @@ export const strategyInfo: StrategyInfo = {
   ENJ: {
     address: ASSETS.ENJ.address,
     input: ether(0.15815),
-    maxTradeSize: ether(4146),
+    maxTradeSize: ether(10000),
     exchange: exchanges.UNISWAP_V3,
     exchangeData: '0x000bb8',
     coolOffPeriod: BigNumber.from(900),

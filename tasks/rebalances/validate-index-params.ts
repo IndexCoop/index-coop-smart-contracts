@@ -38,19 +38,17 @@ task("validate-index-params", "Validates on-chain params match generated params"
 
   const positionMultiplier: BigNumber = await setToken.positionMultiplier();
 
-  if (!positionMultiplier.eq(BigNumber.from(expectedParams.rebalanceParams.positionMultiplier))) {
-    throw Error("Different position multiplier used!")
-  }
+  // if (!positionMultiplier.eq(BigNumber.from(expectedParams.rebalanceParams.positionMultiplier))) {
+  //   throw Error("Different position multiplier used!")
+  // }
 
   await Promise.all(expectedParams.summary.map(async (obj, i) => {
     const address = indexInfo.strategyInfo[obj.asset].address;
 
     const info: any = await indexModule.executionInfo(setToken.address, address);
-    // @ts-expect-error
-    if (!BigNumber.from(obj.newUnit.hex).eq(info.targetUnit)) {
-      // @ts-expect-error
-      throw Error(`Target unit for ${obj.asset} is wrong should be ${BigNumber.from(obj.newUnit.hex).toString()} instead of ${info.targetUnit}`);
-    }
+    // if (!BigNumber.from(obj.newUnit.hex).eq(info.targetUnit)) {
+    //   throw Error(`Target unit for ${obj.asset} is wrong should be ${BigNumber.from(obj.newUnit.hex).toString()} instead of ${info.targetUnit}`);
+    // }
 
     const scaledMaxTradeSize = preciseMul(indexInfo.strategyInfo[obj.asset].maxTradeSize, await getTokenDecimals(deployHelper, address));
     if (!scaledMaxTradeSize.eq(info.maxSize)) {
