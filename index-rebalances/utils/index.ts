@@ -17,3 +17,7 @@ export {
 export {
   getTokenDecimals
 } from "./tokenHelpers";
+
+export {
+  getUniswapV2Quote
+} from "./paramDetermination";
