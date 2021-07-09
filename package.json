@@ -17,6 +17,7 @@
   ],
   "scripts": {
     "build": "yarn compile && yarn build:typechain",
+    "build:lazy": "if [ ! -d \"typechain\" ]; then yarn build; fi;",
     "build:npm": "yarn compile:npm && yarn build:typechain",
     "build:typechain": "yarn patch-hardhat-typechain && yarn typechain && yarn fix-typechain && yarn transpile-dist",
     "calculate-dpi-units": "npx hardhat --network production calculate-new-dpi-position",
@@ -97,6 +98,7 @@
     "@ethersproject/abstract-signer": "5.0.9",
     "@ethersproject/bignumber": "5.0.12",
     "@ethersproject/providers": "5.0.17",
+    "@uniswap/sdk": "^3.0.3",
     "@uniswap/v2-core": "^1.0.1",
     "@uniswap/v2-periphery": "^1.1.0-beta.0",
     "ethereumjs-util": "^7.0.5",
