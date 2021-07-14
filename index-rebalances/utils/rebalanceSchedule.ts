@@ -19,9 +19,7 @@ export function createRebalanceSchedule(
   const totalRounds: BigNumber = Object.entries(rebalanceData).map(([, obj]) => obj.tradeCount).reduce((a, b) => { return  a.gt(b) ? a : b; }, ZERO);
   for (let i = 0; i < totalRounds.toNumber(); i++) {
     [sellAssets, ethBalance, tradeOrder] = doSellTrades(sellAssets, strategyInfo, tradeOrder, ethBalance);
-    console.log(ethBalance.toString());
     [buyAssets, ethBalance, tradeOrder] = doBuyTrades(buyAssets, strategyInfo, tradeOrder, ethBalance);
-    console.log(ethBalance.toString());
   }
   return cleanupTrades(buyAssets, tradeOrder);
 }

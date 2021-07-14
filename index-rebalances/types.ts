@@ -36,6 +36,12 @@ export interface Exchanges {
   [symbol: string]: string;
 }
 
+export interface ExchangeQuote {
+  exchange: string;
+  size: string;
+  data: string;
+}
+
 export let exchanges: Exchanges = {
   NONE: "",
   UNISWAP: "UniswapV2IndexExchangeAdapter",
