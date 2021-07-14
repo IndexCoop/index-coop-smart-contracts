@@ -19,5 +19,10 @@ export {
 } from "./tokenHelpers";
 
 export {
-  getUniswapV2Quote
+  getBalancerV1Quote,
+  getBestQuote,
+  getKyberDMMQuote,
+  getSushiswapQuote,
+  getUniswapV2Quote,
+  getUniswapV3Quote,
 } from "./paramDetermination";

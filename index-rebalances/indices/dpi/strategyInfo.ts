@@ -116,5 +116,14 @@ export const strategyInfo: StrategyInfo = {
     exchange: exchanges.UNISWAP,
     coolOffPeriod: BigNumber.from(600),
     currentUnit: ZERO,
+  },
+  BADGER: {
+    address: ASSETS.BADGER.address,
+    input: BigNumber.from(0),
+    maxTradeSize: ether(220),
+    exchange: exchanges.UNISWAP,
+    exchangeData: '0x00',
+    coolOffPeriod: BigNumber.from(600),
+    currentUnit: ZERO,
   }
 };

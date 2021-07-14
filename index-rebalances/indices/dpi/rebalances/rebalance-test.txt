@@ -31,84 +31,84 @@ Trade Stats by components is as follows:
     YFI:
         currentUnit: 587360916848337
         newUnit: 587214880875632
-        notionalInToken: -63161007993192872
-        notionalInUSD: -2035
+        notionalInToken: -63004269518864157
+        notionalInUSD: -2030
         tradeCount: 1
     COMP:
         currentUnit: 86786789961168895
         newUnit: 86765212098348257
-        notionalInToken: -9332492130849302437
-        notionalInUSD: -3124
+        notionalInToken: -9309332896619986321
+        notionalInUSD: -3116
         tradeCount: 1
     SNX:
         currentUnit: 2564804666786305510
         newUnit: 2564166977533293521
-        notionalInToken: -275802566043266519286
-        notionalInUSD: -1872
+        notionalInToken: -275118142618259982027
+        notionalInUSD: -1868
         tradeCount: 1
     MKR:
         currentUnit: 14666286235720739
         newUnit: 14662639746288141
-        notionalInToken: -1577117910972972419
-        notionalInUSD: -3981
+        notionalInToken: -1573204182185917031
+        notionalInUSD: -3971
         tradeCount: 1
     REN:
         currentUnit: 14338288024605507382
         newUnit: 14334723085607116386
-        notionalInToken: -1541847096998926317453
-        notionalInUSD: -539
+        notionalInToken: -1538020895212250970161
+        notionalInUSD: -538
         tradeCount: 1
     KNC:
         currentUnit: 3328397925255967769
         newUnit: 3327570383254750541
-        notionalInToken: -357914464398226938990
-        notionalInUSD: -547
+        notionalInToken: -357026274534379240266
+        notionalInUSD: -546
         tradeCount: 1
     LRC:
         currentUnit: 20275008062657553763
         newUnit: 20269967072630625616
-        notionalInToken: -2180243713154060619822
-        notionalInUSD: -545
+        notionalInToken: -2174833285358143078716
+        notionalInUSD: -543
         tradeCount: 1
     BAL:
         currentUnit: 175737325374331264
         newUnit: 175693631675081783
-        notionalInToken: -18897659504233552152
-        notionalInUSD: -379
+        notionalInToken: -18850763635830116603
+        notionalInUSD: -378
         tradeCount: 1
     UNI:
         currentUnit: 3650879607384020711
         newUnit: 3649971886527217162
-        notionalInToken: -392592066394295197225
-        notionalInUSD: -6980
+        notionalInToken: -391617821627225752283
+        notionalInUSD: -6962
         tradeCount: 1
     AAVE:
         currentUnit: 208286893244154855
         newUnit: 208235106722130360
-        notionalInToken: -22397830280736016764
-        notionalInUSD: -5226
+        notionalInToken: -22342248492889084093
+        notionalInUSD: -5214
         tradeCount: 1
     MTA:
         currentUnit: 463847699762496022
         newUnit: 463732372970946065
-        notionalInToken: -49879192557784951412
+        notionalInToken: -49755413840651462938
         notionalInUSD: -36
         tradeCount: 1
     SUSHI:
         currentUnit: 3071040139077051903
         newUnit: 3079117824740025458
-        notionalInToken: 3493623928921891277953
-        notionalInUSD: 25503
+        notionalInToken: 3484954255940159811622
+        notionalInUSD: 25440
         tradeCount: 1
     CREAM:
         currentUnit: 12026920985451528
         newUnit: 12023930723324140
-        notionalInToken: -1293297580255915285
-        notionalInUSD: -181
+        notionalInToken: -1290088171539636116
+        notionalInUSD: -180
         tradeCount: 1
     FARM:
         currentUnit: 9137208114789156
         newUnit: 9134936324078230
-        notionalInToken: -982556479707315442
+        notionalInToken: -980118196841600005
         notionalInUSD: -53
         tradeCount: 1

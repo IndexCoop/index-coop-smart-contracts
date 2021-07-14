@@ -89,6 +89,11 @@ export const ASSETS: Assets = {
     address: "0xa0246c9032bc3a600820415ae600c6388619a14d",
     price: ether(155.02)
   },
+  BADGER: {
+    id: "badger",
+    address: "0x3472A5A71965499acd81997a54BBA8D852C6E53d",
+    price: ether(8.81)
+  },
   MANA: {
     id: "mana",
     address: "0x0f5d2fb29fb7d3cfee444a200298f468908cc942",

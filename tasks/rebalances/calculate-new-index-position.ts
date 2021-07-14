@@ -7,7 +7,6 @@ import {
   createRebalanceSchedule,
   createStrategyObject,
   generateReports,
-  getUniswapV2Quote,
   writeToOutputs
 } from "../../index-rebalances/utils";
 import { indices } from "../../index-rebalances/indices";
@@ -33,7 +32,7 @@ task("calculate-new-index-position", "Calculates new rebalance details for an in
     const indexInfo: IndexInfo = indices[index];
 
     const setToken: SetToken = await deployHelper.setV2.getSetToken(indexInfo.address);
-    console.log(await getUniswapV2Quote(deployHelper));
+
     const strategyConstants: StrategyObject = await createStrategyObject(
       setToken,
       indexInfo.strategyInfo,

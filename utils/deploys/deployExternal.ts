@@ -1,4 +1,4 @@
-import { Signer } from "ethers";
+import { Contract, Signer } from "ethers";
 import { BigNumberish, BigNumber } from "@ethersproject/bignumber";
 
 import {
@@ -53,6 +53,16 @@ import { NonfungiblePositionManager__factory } from "../../typechain/factories/N
 import { Quoter__factory } from "../../typechain/factories/Quoter__factory";
 import { NFTDescriptor__factory } from "../../typechain/factories/NFTDescriptor__factory";
 
+
+import {
+  abi as QUOTER_ABI
+} from "@uniswap/v3-periphery/artifacts/contracts/lens/Quoter.sol/Quoter.json";
+import {
+  abi as FACTORY_ABI,
+} from "@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json";
+import {
+  abi as POOL_ABI,
+} from "@uniswap/v3-core/artifacts/contracts/UniswapV3Pool.sol/UniswapV3Pool.json";
 
 export default class DeployExternalContracts {
   private _deployerSigner: Signer;
@@ -172,24 +182,43 @@ export default class DeployExternalContracts {
     return await new UniswapV2Pair__factory(this._deployerSigner).deploy();
   }
 
-    // Uniswap V3
-    public async deployUniswapV3Factory(): Promise<UniswapV3Factory> {
-      return await new UniswapV3Factory__factory(this._deployerSigner).deploy();
-    }
+  public async deployUniswapV3Factory(): Promise<UniswapV3Factory> {
+    return await new UniswapV3Factory__factory(this._deployerSigner).deploy();
+  }
 
-    public async deploySwapRouter(factory: Address, weth: Address): Promise<SwapRouter> {
-      return await new SwapRouter__factory(this._deployerSigner).deploy(factory, weth);
-    }
+  public async deploySwapRouter(factory: Address, weth: Address): Promise<SwapRouter> {
+    return await new SwapRouter__factory(this._deployerSigner).deploy(factory, weth);
+  }
 
-    public async deployNftPositionManager(factory: Address, weth: Address, nftDesc: Address): Promise<NonfungiblePositionManager> {
-      return await new NonfungiblePositionManager__factory(this._deployerSigner).deploy(factory, weth, nftDesc);
-    }
+  public async deployNftPositionManager(factory: Address, weth: Address, nftDesc: Address): Promise<NonfungiblePositionManager> {
+    return await new NonfungiblePositionManager__factory(this._deployerSigner).deploy(factory, weth, nftDesc);
+  }
 
-    public async deployQuoter(factory: Address, weth: Address): Promise<Quoter> {
-      return await new Quoter__factory(this._deployerSigner).deploy(factory, weth);
-    }
+  public async deployQuoter(factory: Address, weth: Address): Promise<Quoter> {
+    return await new Quoter__factory(this._deployerSigner).deploy(factory, weth);
+  }
 
-    public async deployNFTDescriptor(): Promise<NFTDescriptor> {
-      return await new NFTDescriptor__factory(this._deployerSigner).deploy();
-    }
+  public async deployNFTDescriptor(): Promise<NFTDescriptor> {
+    return await new NFTDescriptor__factory(this._deployerSigner).deploy();
+  }
+
+  public async getUniswapV2FactoryInstance(factory: Address): Promise<UniswapV2Factory> {
+    return await new UniswapV2Factory__factory(this._deployerSigner).attach(factory);
+  }
+
+  public async getUniswapV2PairInstance(pair: Address): Promise<UniswapV2Pair> {
+    return await new UniswapV2Pair__factory(this._deployerSigner).attach(pair);
+  }
+
+  public async getUniswapV3QuoterInstance(quoter: Address): Promise<any> {
+    return await new Contract(quoter, QUOTER_ABI, this._deployerSigner);
+  }
+
+  public async getUniswapV3FactoryInstance(factory: Address): Promise<any> {
+    return await new Contract(factory, FACTORY_ABI, this._deployerSigner);
+  }
+
+  public async getUniswapV3PoolInstance(pool: Address): Promise<any> {
+    return await new Contract(pool, POOL_ABI, this._deployerSigner);
+  }
 }
