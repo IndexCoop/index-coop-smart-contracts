@@ -1,7 +1,7 @@
 import * as _ from "lodash";
 
 import { BigNumber, Signer } from "ethers";
-import { task } from 'hardhat/config';
+import { task } from "hardhat/config";
 import {
   getBalancerV1Quote,
   getKyberDMMQuote,
@@ -19,10 +19,10 @@ const FIFTY_BPS_IN_PERCENT = ether(.5);
 const FORTY_BPS_IN_PERCENT = ether(.4);
 
 task("calculate-params", "Calculates new rebalance details for an index")
-  .addParam('index', "Index having new positions calculated")
+  .addParam("index", "Index having new positions calculated")
   .setAction(async ({index}, hre) => {
     const owner: Signer = (await hre.ethers.getSigners())[0];
-    let deployHelper: DeployHelper = new DeployHelper(owner);
+    const deployHelper: DeployHelper = new DeployHelper(owner);
 
     const info: StrategyInfo = indices[index].strategyInfo;
     const assets: string[] = Object.keys(info);
@@ -33,7 +33,7 @@ task("calculate-params", "Calculates new rebalance details for an index")
         await getUniswapV2Quote(info[assets[i]].address, FIFTY_BPS_IN_PERCENT),
         await getUniswapV3Quote(deployHelper, info[assets[i]].address, FORTY_BPS_IN_PERCENT),
         await getKyberDMMQuote(info[assets[i]].address, FIFTY_BPS_IN_PERCENT),
-        await getBalancerV1Quote(hre.ethers.provider, info[assets[i]].address, FIFTY_BPS_IN_PERCENT)
+        await getBalancerV1Quote(hre.ethers.provider, info[assets[i]].address, FIFTY_BPS_IN_PERCENT),
       ];
       console.log(quotes.reduce((p, c) => BigNumber.from(p.size).gt(BigNumber.from(c.size)) ? p : c));
     }

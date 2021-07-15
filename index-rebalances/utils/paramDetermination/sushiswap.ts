@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { BigNumber } from "ethers";
 import { Address } from "hardhat-deploy/dist/types";
 
 import {
@@ -22,7 +22,7 @@ const THIRTY_BPS_IN_PERCENT = ether(.3);
 const {
   ETH_ADDRESS,
   BTC_ADDRESS,
-  USDC_ADDRESS
+  USDC_ADDRESS,
 } = DEPENDENCY;
 
 const SUSHI_FACTORY = "0xc0aee478e3658e2610c5f7a4a2e1777ce9e4f2ac";
@@ -39,7 +39,7 @@ export async function getSushiswapQuote(deployHelper: DeployHelper, tokenAddress
     token,
     {maxNumResults: 3, maxHops: 2},
   );
-  
+
   if (trades.length != 0) {
     // Use linear approximation of price impact to find out how many 1 ETH trades add to 50 bps price impact (net of fees)
     const hops = trades[0].route.pairs.length;
@@ -57,7 +57,7 @@ export async function getSushiswapQuote(deployHelper: DeployHelper, tokenAddress
   return {
     exchange: exchanges.SUSHISWAP,
     size: ZERO.toString(),
-    data: "0x"
+    data: "0x",
   } as ExchangeQuote;
 }
 
@@ -71,11 +71,11 @@ async function fetchSushiTokenData(
 }
 
 async function getSushiswapPairs(deployHelper: DeployHelper, tokens: Token[]): Promise<Pair[]> {
-  let pairs: Pair[] = [];
+  const pairs: Pair[] = [];
   for (let i = 0; i < tokens.length - 1; i++) {
-    for (let j = 1; j <tokens.length - i - 1; j++) {
+    for (let j = 1; j < tokens.length - i - 1; j++) {
       const tokenOne = tokens[i];
-      const tokenTwo = tokens[i+j];
+      const tokenTwo = tokens[i + j];
 
       let pair;
       try {

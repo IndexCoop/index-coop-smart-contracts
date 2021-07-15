@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { BigNumber } from "ethers";
 import { BigNumber as BigNumberJS } from "bignumber.js";
 import { Address } from "hardhat-deploy/dist/types";
 
@@ -13,7 +13,7 @@ import { BaseProvider } from "@ethersproject/providers";
 import DEPENDENCY from "../../dependencies";
 
 const {
-  ETH_ADDRESS
+  ETH_ADDRESS,
 } = DEPENDENCY;
 
 export async function getBalancerV1Quote(provider: BaseProvider, tokenAddress: Address, targetPriceImpact: BigNumber): Promise<ExchangeQuote> {
@@ -31,31 +31,31 @@ export async function getBalancerV1Quote(provider: BaseProvider, tokenAddress: A
   const [
     ,
     returnAmountV1,
-    marketSpV1Scaled
+    marketSpV1Scaled,
   ] = await sor.getSwaps(
     ETH_ADDRESS.toLowerCase(),
     tokenAddress.toLowerCase(),
-    'swapExactIn',
+    "swapExactIn",
     inputAmount
   );
-  
+
   if (!returnAmountV1.eq(0)) {
     const effectivePrice = inputAmount.div(returnAmountV1);
 
     const priceImpact = ether(effectivePrice.div(marketSpV1Scaled.div(10 ** 18)).toNumber()).sub(ether(1));
     const priceImpactRatio = targetPriceImpact.div(priceImpact.mul(100));
-  
+
     return {
       exchange: exchanges.BALANCER,
       size: fromBigNumberJS(returnAmountV1).mul(priceImpactRatio).toString(),
-      data: "0x"
+      data: "0x",
     } as ExchangeQuote;
   }
 
   return {
     exchange: exchanges.KYBER,
     size: ZERO.toString(),
-    data: "0x"
+    data: "0x",
   } as ExchangeQuote;
 }
 

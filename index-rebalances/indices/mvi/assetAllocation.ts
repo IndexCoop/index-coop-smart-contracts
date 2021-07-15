@@ -1,10 +1,9 @@
 import { ZERO } from "../../../utils/constants";
 import { preciseMul } from "../../../utils/common/index";
-import { BigNumber, Signer } from 'ethers';
+import { BigNumber } from "ethers";
 
 import { RebalanceSummary, StrategyObject } from "../../types";
 import { SetToken } from "../../../utils/contracts/setV2";
-import { StandardTokenMock } from "../../../utils/contracts/index";
 
 import { calculateNotionalInToken, calculateNotionalInUSD } from "../../utils";
 
@@ -13,7 +12,7 @@ export async function calculateNewAllocations(
   strategyConstants: StrategyObject,
   setValue: BigNumber,
 ): Promise<RebalanceSummary[]> {
-  let rebalanceData: RebalanceSummary[] = [];
+  const rebalanceData: RebalanceSummary[] = [];
 
   console.log(setValue.toString());
   const totalSupply = await setToken.totalSupply();
@@ -36,7 +35,7 @@ export async function calculateNewAllocations(
       isBuy: notionalInToken.gt(ZERO),
       exchange: assetObj.exchange,
       maxTradeSize: assetObj.maxTradeSize,
-      coolOffPeriod:assetObj.coolOffPeriod,
+      coolOffPeriod: assetObj.coolOffPeriod,
     });
   }
   return rebalanceData;
@@ -47,7 +46,7 @@ export async function calculateNewAllocationsMultisig(
   strategyConstants: StrategyObject,
   setValue: BigNumber,
 ): Promise<RebalanceSummary[]> {
-  let rebalanceData: RebalanceSummary[] = [];
+  const rebalanceData: RebalanceSummary[] = [];
 
   console.log(setValue.toString());
   const totalSupply = await setToken.totalSupply();
@@ -70,7 +69,7 @@ export async function calculateNewAllocationsMultisig(
       isBuy: notionalInToken.gt(ZERO),
       exchange: assetObj.exchange,
       maxTradeSize: assetObj.maxTradeSize,
-      coolOffPeriod:assetObj.coolOffPeriod,
+      coolOffPeriod: assetObj.coolOffPeriod,
     });
   }
   return rebalanceData;

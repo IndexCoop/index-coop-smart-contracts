@@ -1,7 +1,7 @@
 import { BigNumber } from "@ethersproject/bignumber";
 import { ZERO } from "../../../utils/constants";
 import { ether } from "../../../utils/common/index";
-import { ASSETS } from "../../assetInfo"
+import { ASSETS } from "../../assetInfo";
 import { exchanges, StrategyInfo } from "../../types";
 
 export const strategyInfo: StrategyInfo = {
@@ -122,8 +122,8 @@ export const strategyInfo: StrategyInfo = {
     input: BigNumber.from(0),
     maxTradeSize: ether(220),
     exchange: exchanges.UNISWAP,
-    exchangeData: '0x00',
+    exchangeData: "0x00",
     coolOffPeriod: BigNumber.from(600),
     currentUnit: ZERO,
-  }
+  },
 };

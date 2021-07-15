@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { BigNumber } from "ethers";
 
 import { ZERO } from "../../utils/constants";
 import { ASSETS } from "../assetInfo";
@@ -34,10 +34,14 @@ function doSellTrades(
   for (let i = 0; i < sellAssets.length; i++) {
     if (sellAssets[i].tradeCount.gt(0)) {
       const asset = sellAssets[i].asset;
-      const tradeSize = strategyInfo[asset].maxTradeSize.gt(sellAssets[i].notionalInToken.mul(-1)) ? sellAssets[i].notionalInToken.mul(-1) : strategyInfo[asset].maxTradeSize;
+
+      const tradeSize = strategyInfo[asset].maxTradeSize.gt(sellAssets[i].notionalInToken.mul(-1))
+        ? sellAssets[i].notionalInToken.mul(-1)
+        : strategyInfo[asset].maxTradeSize;
+
       sellAssets[i].notionalInToken = sellAssets[i].notionalInToken.add(tradeSize);
       sellAssets[i].tradeCount = sellAssets[i].tradeCount.sub(1);
-      newEthBalance = newEthBalance.add(tradeSize.mul(ASSETS[asset].price).div(ASSETS['WETH'].price));
+      newEthBalance = newEthBalance.add(tradeSize.mul(ASSETS[asset].price).div(ASSETS["WETH"].price));
       newTradeOrder = newTradeOrder.concat(asset.concat(","));
     }
     sellAssets[i].isBuy = false;
@@ -55,8 +59,12 @@ function doBuyTrades(
   let newTradeOrder = tradeOrder;
   for (let i = 0; i < buyAssets.length; i++) {
     const asset = buyAssets[i].asset;
-    const tradeSize = strategyInfo[asset].maxTradeSize.gt(buyAssets[i].notionalInToken) ? buyAssets[i].notionalInToken : strategyInfo[asset].maxTradeSize;
-    const tradeSizeInEth = tradeSize.mul(ASSETS[asset].price).div(ASSETS['WETH'].price);
+
+    const tradeSize = strategyInfo[asset].maxTradeSize.gt(buyAssets[i].notionalInToken)
+      ? buyAssets[i].notionalInToken
+      : strategyInfo[asset].maxTradeSize;
+
+    const tradeSizeInEth = tradeSize.mul(ASSETS[asset].price).div(ASSETS["WETH"].price);
 
     if (buyAssets[i].tradeCount.gt(0) && tradeSizeInEth.lte(newEthBalance)) {
       buyAssets[i].notionalInToken = buyAssets[i].notionalInToken.sub(tradeSize);

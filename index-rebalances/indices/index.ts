@@ -19,7 +19,7 @@ export const indices: Indices = {
       setTokenValue: BigNumber
     ): Promise<RebalanceSummary[]> {
       return dpiAssetAllocation(setToken, strategyConstants, setTokenValue);
-    }
+    },
   } as IndexInfo,
   "MVI": {
     address: "0x72e364f2abdc788b7e918bc238b21f109cd634d7",
@@ -31,9 +31,9 @@ export const indices: Indices = {
       setTokenValue: BigNumber
     ): Promise<RebalanceSummary[]> {
       return mviAssetAllocation(setToken, strategyConstants, setTokenValue);
-    }
-  } as IndexInfo
-}
+    },
+  } as IndexInfo,
+};
 
 function buildPath(name: string): string {
   return `index-rebalances/indices/${name.toLowerCase()}/rebalances/rebalance-`;

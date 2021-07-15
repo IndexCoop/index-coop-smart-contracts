@@ -3,7 +3,7 @@ import * as _ from "lodash";
 import * as fs from "fs";
 const handlebars = require("handlebars");
 
-import { task } from 'hardhat/config';
+import { task } from "hardhat/config";
 import { SetToken } from "../../typechain/SetToken";
 import { GeneralIndexModule } from "../../typechain/GeneralIndexModule";
 import { SetToken__factory } from "../../typechain/factories/SetToken__factory";
@@ -13,9 +13,9 @@ import { ZERO, PRECISE_UNIT } from "../../utils/constants";
 import { ether, preciseDiv, preciseMul } from "../../utils/common/index";
 import { assets } from "../../index-rebalances/assetInfo";
 import { strategyInfo } from "../../index-rebalances/indices/dpi/strategyInfo";
-import { BigNumber } from 'ethers';
+import { BigNumber } from "ethers";
 import { RebalanceReport, RebalanceSummary, StrategyObject } from "../../index-rebalances/types";
-import DEPENDENCY from "../../index-rebalances/dependencies"
+import DEPENDENCY from "../../index-rebalances/dependencies";
 
 const {
   DPI,
@@ -25,7 +25,7 @@ const {
 let tradeOrder: string = "";
 
 task("calculate-new-dpi-position", "Calculates new rebalance details for an index")
-  .addParam('rebalance', "Rebalance month")
+  .addParam("rebalance", "Rebalance month")
   .setAction(async ({rebalance}, hre) => {
     const [owner] = await hre.ethers.getSigners();
     const dpi: SetToken = await new SetToken__factory(owner).attach(DPI);
@@ -45,14 +45,14 @@ task("calculate-new-dpi-position", "Calculates new rebalance details for an inde
       return obj.supply.mul(obj.price);
     }).reduce((a, b) => a.add(b), ZERO).div(dpiValue);
 
-    let rebalanceData: RebalanceSummary[] = await calculateNewAllocations(strategyConstants, dpiValue, divisor, dpi);
+    const rebalanceData: RebalanceSummary[] = await calculateNewAllocations(strategyConstants, dpiValue, divisor, dpi);
 
     createRebalanceSchedule(rebalanceData);
 
     const report = await generateReports(rebalanceData, dpi, indexModule);
 
-    const content = getNamedContent('index-rebalances/dpi/rebalances/report.mustache');
-    var templateScript = handlebars.compile(content);
+    const content = getNamedContent("index-rebalances/dpi/rebalances/report.mustache");
+    const templateScript = handlebars.compile(content);
     fs.writeFileSync(`index-rebalances/dpi/rebalances/rebalance-${rebalance}.txt`, templateScript(report));
     fs.writeFileSync(`index-rebalances/dpi/rebalances/rebalance-${rebalance}.json`, JSON.stringify(report));
   });
@@ -63,10 +63,10 @@ async function calculateNewAllocations(
   divisor: BigNumber,
   dpi: SetToken,
 ): Promise<RebalanceSummary[]> {
-  let rebalanceData: RebalanceSummary[] = [];
+  const rebalanceData: RebalanceSummary[] = [];
 
   let sumOfCappedAllocations = ZERO;
-  let cappedAssets: string[] = [];
+  const cappedAssets: string[] = [];
 
   const totalSupply = await dpi.totalSupply();
   for (let i = 0; i < Object.keys(strategyConstants).length; i++) {
@@ -92,7 +92,7 @@ async function calculateNewAllocations(
       isBuy: undefined,
       exchange: assetObj.exchange,
       maxTradeSize: assetObj.maxTradeSize,
-      coolOffPeriod:assetObj.coolOffPeriod,
+      coolOffPeriod: assetObj.coolOffPeriod,
     });
   }
 
@@ -102,7 +102,7 @@ async function calculateNewAllocations(
     const assetObj = strategyConstants[rebalanceData[i].asset];
 
     let finalNewUnit: BigNumber = rebalanceData[i].newUnit;
-    if(!cappedAssets.includes(rebalanceData[i].asset)) {
+    if (!cappedAssets.includes(rebalanceData[i].asset)) {
       const allocation: BigNumber = assetObj.price.mul(rebalanceData[i].newUnit).div(dpiValue);
       const allocationSansCapped = preciseDiv(allocation, sumOfCappedAllocations.sub(cappedAssetAllocationSum));
       const additionalAllocation = preciseMul(allocationSansCapped, PRECISE_UNIT.sub(sumOfCappedAllocations));
@@ -149,14 +149,18 @@ function createRebalanceSchedule(rebalanceData: RebalanceSummary[]) {
 }
 
 function doSellTrades(sellAssets: RebalanceSummary[], ethBalance: BigNumber): [RebalanceSummary[], BigNumber] {
-  let newEthBalance = ethBalance
+  let newEthBalance = ethBalance;
   for (let i = 0; i < sellAssets.length; i++) {
     if (sellAssets[i].tradeCount.gt(0)) {
       const asset = sellAssets[i].asset;
-      const tradeSize = strategyInfo[asset].maxTradeSize.gt(sellAssets[i].notionalInToken.mul(-1)) ? sellAssets[i].notionalInToken.mul(-1) : strategyInfo[asset].maxTradeSize;
+
+      const tradeSize = strategyInfo[asset].maxTradeSize.gt(sellAssets[i].notionalInToken.mul(-1))
+        ? sellAssets[i].notionalInToken.mul(-1)
+        : strategyInfo[asset].maxTradeSize;
+
       sellAssets[i].notionalInToken = sellAssets[i].notionalInToken.add(tradeSize);
       sellAssets[i].tradeCount = sellAssets[i].tradeCount.sub(1);
-      newEthBalance = newEthBalance.add(tradeSize.mul(assets[asset].price).div(assets['WETH'].price));
+      newEthBalance = newEthBalance.add(tradeSize.mul(assets[asset].price).div(assets["WETH"].price));
       tradeOrder = tradeOrder.concat(asset.concat(","));
     }
     sellAssets[i].isBuy = false;
@@ -165,11 +169,15 @@ function doSellTrades(sellAssets: RebalanceSummary[], ethBalance: BigNumber): [R
 }
 
 function doBuyTrades(buyAssets: RebalanceSummary[], ethBalance: BigNumber): [RebalanceSummary[], BigNumber] {
-  let newEthBalance = ethBalance
+  let newEthBalance = ethBalance;
   for (let i = 0; i < buyAssets.length; i++) {
     const asset = buyAssets[i].asset;
-    const tradeSize = strategyInfo[asset].maxTradeSize.gt(buyAssets[i].notionalInToken) ? buyAssets[i].notionalInToken : strategyInfo[asset].maxTradeSize;
-    const tradeSizeInEth = tradeSize.mul(assets[asset].price).div(assets['WETH'].price);
+
+    const tradeSize = strategyInfo[asset].maxTradeSize.gt(buyAssets[i].notionalInToken)
+      ? buyAssets[i].notionalInToken
+      : strategyInfo[asset].maxTradeSize;
+
+    const tradeSizeInEth = tradeSize.mul(assets[asset].price).div(assets["WETH"].price);
 
     if (buyAssets[i].tradeCount.gt(0) && tradeSizeInEth.lte(newEthBalance)) {
       buyAssets[i].notionalInToken = buyAssets[i].notionalInToken.sub(tradeSize);
@@ -196,12 +204,12 @@ async function generateReports(
   indexModule: GeneralIndexModule
 ): Promise<RebalanceReport> {
   // Generate trade order for backend and new components params for rebalance()
-  let newComponents: Address[] = [];
-  let newComponentsTargetUnits: string[] = [];
-  let oldComponentsTargetUnits: string[] = [];
+  const newComponents: Address[] = [];
+  const newComponentsTargetUnits: string[] = [];
+  const oldComponentsTargetUnits: string[] = [];
   for (let i = 0; i < rebalanceData.length; i++) {
     const asset = rebalanceData[i].asset;
-    tradeOrder = tradeOrder.replace(new RegExp(asset, 'g'), assets[asset].id);
+    tradeOrder = tradeOrder.replace(new RegExp(asset, "g"), assets[asset].id);
 
     if (rebalanceData[i].currentUnit == ZERO) {
       newComponents.push(assets[rebalanceData[i].asset].address);
@@ -213,7 +221,7 @@ async function generateReports(
   const components = await dpi.getComponents();
 
   for (let j = 0; j < components.length; j++) {
-    const [[asset,]] = Object.entries(assets).filter(([key, obj]) => obj.address.toLowerCase() == components[j].toLowerCase());
+    const [[asset, ]] = Object.entries(assets).filter(([key, obj]) => obj.address.toLowerCase() == components[j].toLowerCase());
     oldComponentsTargetUnits.push(rebalanceData.filter(obj => obj.asset == asset)[0].newUnit.toString());
   }
 
@@ -259,25 +267,25 @@ async function generateReports(
       components: tradeSizeComponents,
       values: tradeSizeValue,
       data: indexModule.interface.encodeFunctionData(
-        'setTradeMaximums',
+        "setTradeMaximums",
         [DPI, tradeSizeComponents, tradeSizeValue]
-      )
+      ),
     },
     exchangeParams: {
       components: exchangeComponents,
       values: exchangeValue,
       data: indexModule.interface.encodeFunctionData(
-        'setExchanges',
+        "setExchanges",
         [DPI, exchangeComponents, exchangeValue]
-      )
+      ),
     },
     coolOffPeriodParams: {
       components: coolOffComponents,
       values: coolOffValue,
       data: indexModule.interface.encodeFunctionData(
-        'setCoolOffPeriods',
+        "setCoolOffPeriods",
         [DPI, coolOffComponents, coolOffValue]
-      )
+      ),
     },
     rebalanceParams: {
       newComponents,
@@ -285,11 +293,11 @@ async function generateReports(
       oldComponentUnits: oldComponentsTargetUnits,
       positionMultiplier: positionMultiplier,
       data: indexModule.interface.encodeFunctionData(
-        'startRebalance',
+        "startRebalance",
         [DPI, newComponents, newComponentsTargetUnits, oldComponentsTargetUnits, positionMultiplier]
-      )
+      ),
     },
-    tradeOrder
+    tradeOrder,
   } as RebalanceReport;
 }
 

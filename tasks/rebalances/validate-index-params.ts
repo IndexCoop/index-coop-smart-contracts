@@ -1,8 +1,8 @@
 import * as _ from "lodash";
 import * as fs from "fs";
 
-import { task } from 'hardhat/config';
-import { BigNumber, Signer } from 'ethers';
+import { task } from "hardhat/config";
+import { Signer } from "ethers";
 
 import {
   GeneralIndexModule,
@@ -22,11 +22,11 @@ const {
 } = DEPENDENCY;
 
 task("validate-index-params", "Validates on-chain params match generated params")
-.addParam('index', "Index having new positions calculated")
-.addParam('rebalance', "Rebalance month")
+.addParam("index", "Index having new positions calculated")
+.addParam("rebalance", "Rebalance month")
 .setAction(async ({index, rebalance}, hre) => {
   const owner: Signer = (await hre.ethers.getSigners())[0];
-  let deployHelper: DeployHelper = new DeployHelper(owner);
+  const deployHelper: DeployHelper = new DeployHelper(owner);
 
   const indexInfo: IndexInfo = indices[index];
 
@@ -34,9 +34,9 @@ task("validate-index-params", "Validates on-chain params match generated params"
   const indexModule: GeneralIndexModule = await deployHelper.setV2.getGeneralIndexModule(GENERAL_INDEX_MODULE);
 
   const filepath = indexInfo.path + `${rebalance}.json`;
-  const expectedParams: RebalanceReport = JSON.parse(fs.readFileSync(filepath, 'utf8'));
+  const expectedParams: RebalanceReport = JSON.parse(fs.readFileSync(filepath, "utf8"));
 
-  const positionMultiplier: BigNumber = await setToken.positionMultiplier();
+  // const positionMultiplier: BigNumber = await setToken.positionMultiplier();
 
   // if (!positionMultiplier.eq(BigNumber.from(expectedParams.rebalanceParams.positionMultiplier))) {
   //   throw Error("Different position multiplier used!")

@@ -1,7 +1,6 @@
 import { BigNumber } from "@ethersproject/bignumber";
 import { Address } from "../utils/types";
 import { SetToken } from "../utils/contracts/setV2";
-import { Signer } from "ethers";
 
 export interface Indices {
   [symbol: string]: IndexInfo;
@@ -15,13 +14,14 @@ export interface IndexInfo {
     setToken: SetToken,
     strategyConstants: StrategyObject,
     setTokenValue: BigNumber
-  ): Promise<RebalanceSummary[]>,
+  ): Promise<RebalanceSummary[]>;
 }
 
 export interface AssetInfo {
   address: Address;
   maxTradeSize: BigNumber;
   exchange: string;
+  exchangeData?: string;
   coolOffPeriod: BigNumber;
   currentUnit: BigNumber;
   input: BigNumber;
@@ -46,8 +46,8 @@ export let exchanges: Exchanges = {
   NONE: "",
   UNISWAP: "UniswapV2IndexExchangeAdapter",
   SUSHISWAP: "SushiswapIndexExchangeAdapter",
-  BALANCER: "BalancerV1IndexExchangeAdapter"
-}
+  BALANCER: ";B;alancerV1IndexExchangeAdapter",
+};
 
 export interface AssetStrategy {
   address: Address;

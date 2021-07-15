@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { BigNumber } from "ethers";
 import { Address } from "hardhat-deploy/dist/types";
 
 import {
@@ -12,7 +12,7 @@ import {
 
 import { ExchangeQuote, exchanges } from "../../types";
 import { ether, preciseDiv, preciseMul } from "../../../utils/common";
-import {ZERO } from "../../../utils/constants";
+import { ZERO } from "../../../utils/constants";
 
 import DEPENDENCY from "../../dependencies";
 
@@ -22,7 +22,7 @@ const THIRTY_BPS_IN_PERCENT = ether(.3);
 const {
   ETH_ADDRESS,
   BTC_ADDRESS,
-  USDC_ADDRESS
+  USDC_ADDRESS,
 } = DEPENDENCY;
 
 export async function getUniswapV2Quote(tokenAddress: Address, targetPriceImpact: BigNumber): Promise<ExchangeQuote> {
@@ -49,22 +49,22 @@ export async function getUniswapV2Quote(tokenAddress: Address, targetPriceImpact
       exchange: exchanges.UNISWAP,
       size: preciseMul(ether(parseFloat(trades[0].outputAmount.toExact())), priceImpactRatio).toString(),
       data: hops > 1 ? trades[0].route.path[1].address : "0x",
-    } as ExchangeQuote
+    } as ExchangeQuote;
   }
 
   return {
     exchange: exchanges.UNISWAP,
     size: ZERO.toString(),
-    data: "0x"
+    data: "0x",
   } as ExchangeQuote;
 }
 
 async function getUniswapV2Pairs(tokens: Token[]): Promise<Pair[]> {
-  let pairs: Pair[] = [];
+  const pairs: Pair[] = [];
   for (let i = 0; i < tokens.length - 1; i++) {
-    for (let j = 1; j <tokens.length - i - 1; j++) {
+    for (let j = 1; j < tokens.length - i - 1; j++) {
       const tokenOne = tokens[i];
-      const tokenTwo = tokens[i+j];
+      const tokenTwo = tokens[i + j];
 
       let pair;
       try {
@@ -76,6 +76,6 @@ async function getUniswapV2Pairs(tokens: Token[]): Promise<Pair[]> {
       pairs.push(pair);
     }
   }
-  
+
   return pairs;
 }

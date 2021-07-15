@@ -4,14 +4,13 @@ import {
   calculateSetValue,
   calculateNotionalInToken,
   calculateNotionalInUSD
-} from './setMath';
+} from "./setMath";
 
 import { ZERO, PRECISE_UNIT } from "../../utils/constants";
 import { ether, preciseDiv, preciseMul } from "../../utils/common/index";
-import { BigNumber } from 'ethers';
+import { BigNumber } from "ethers";
 
 import {
-  IndexInfo,
   RebalanceSummaryLight,
   StrategyObject,
   StrategyInfo,
@@ -34,7 +33,7 @@ export function getRebalanceInputs(
   return {
     strategyConstants,
     setTokenValue,
-  }
+  };
 }
 
 export function calculateNewDPIAllocations(
@@ -42,10 +41,10 @@ export function calculateNewDPIAllocations(
   strategyConstants: StrategyObject,
   dpiValue: BigNumber,
 ): RebalanceSummaryLight[] {
-  let rebalanceData: RebalanceSummaryLight[] = [];
+  const rebalanceData: RebalanceSummaryLight[] = [];
 
   let sumOfCappedAllocations = ZERO;
-  let cappedAssets: string[] = [];
+  const cappedAssets: string[] = [];
 
   const divisor = Object.entries(strategyConstants).map(([, obj]) => {
     return obj.input.mul(obj.price);
@@ -80,7 +79,7 @@ export function calculateNewDPIAllocations(
     const assetObj = strategyConstants[rebalanceData[i].asset];
 
     let finalNewUnit: BigNumber = rebalanceData[i].newUnit;
-    if(!cappedAssets.includes(rebalanceData[i].asset)) {
+    if (!cappedAssets.includes(rebalanceData[i].asset)) {
       const allocation: BigNumber = assetObj.price.mul(rebalanceData[i].newUnit).div(dpiValue);
 
       const allocationSansCapped = preciseDiv(
@@ -114,7 +113,7 @@ export function calculateNewMVIAllocations(
   strategyConstants: StrategyObject,
   setValue: BigNumber,
 ): RebalanceSummaryLight[] {
-  let rebalanceData: RebalanceSummaryLight[] = [];
+  const rebalanceData: RebalanceSummaryLight[] = [];
 
   for (let i = 0; i < Object.keys(strategyConstants).length; i++) {
     const key = Object.keys(strategyConstants)[i];
@@ -141,8 +140,8 @@ export function createStrategyObject (
   currentPositions: any,
   strategyInfo: StrategyInfo,
   assets: any
-) : StrategyObject {
-  let strategyObject: StrategyObject = {};
+): StrategyObject {
+  const strategyObject: StrategyObject = {};
 
   const filteredConstants = _.pick(_.merge(assets, strategyInfo), Object.keys(strategyInfo));
 
@@ -157,7 +156,7 @@ export function createStrategyObject (
 
     if (position) { filteredConstants[key].currentUnit = position.unit; }
 
-    const decimals = filteredConstants[key].decimals!
+    const decimals = filteredConstants[key].decimals!;
 
     strategyObject[key] = {} as AssetStrategy;
     strategyObject[key].address = filteredConstants[key].address;

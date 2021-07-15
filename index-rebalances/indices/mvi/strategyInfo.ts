@@ -18,7 +18,7 @@ export const strategyInfo: StrategyInfo = {
     input: ether(0.15815),
     maxTradeSize: ether(10000),
     exchange: exchanges.UNISWAP_V3,
-    exchangeData: '0x000bb8',
+    exchangeData: "0x000bb8",
     coolOffPeriod: BigNumber.from(900),
     currentUnit: ZERO,
   },
@@ -125,5 +125,5 @@ export const strategyInfo: StrategyInfo = {
     exchange: exchanges.UNISWAP,
     coolOffPeriod: BigNumber.from(900),
     currentUnit: ZERO,
-  }
+  },
 };

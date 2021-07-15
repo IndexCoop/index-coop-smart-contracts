@@ -3,10 +3,10 @@ import { Address } from "../utils/types";
 import { ether } from "../utils/common/index";
 
 interface AssetInfo {
-  id: string,
-  address: Address,
-  price: BigNumber,
-  supply?: BigNumber
+  id: string;
+  address: Address;
+  price: BigNumber;
+  supply?: BigNumber;
 }
 
 export interface Assets {
@@ -18,7 +18,7 @@ export const ASSETS: Assets = {
     id: "yfi",
     address: "0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e",
     price: ether(52363.00)
-  },
+,  },
   COMP: {
     id: "compound",
     address: "0xc00e94Cb662C3520282E6f5717214004A7f26888",
@@ -78,22 +78,22 @@ export const ASSETS: Assets = {
     id: "sushi",
     address: "0x6b3595068778dd592e39a122f4f5a5cf09c90fe2",
     price: ether(14.25)
-  },
+,  },
   CREAM: {
     id: "cream",
     address: "0x2ba592f78db6436527729929aaf6c908497cb200",
     price: ether(164.81)
-  },
+,  },
   FARM: {
     id: "farm",
     address: "0xa0246c9032bc3a600820415ae600c6388619a14d",
     price: ether(155.02)
-  },
+,  },
   BADGER: {
     id: "badger",
     address: "0x3472A5A71965499acd81997a54BBA8D852C6E53d",
     price: ether(8.81)
-  },
+,  },
   MANA: {
     id: "mana",
     address: "0x0f5d2fb29fb7d3cfee444a200298f468908cc942",
@@ -157,16 +157,16 @@ export const ASSETS: Assets = {
   RARI: {
     id: "rari",
     address: "0xfca59cd816ab1ead66534d82bc21e7515ce441cf",
-    price: ether(19.91)
+    price: ether(19.91),
   },
   REVV: {
     id: "revv",
     address: "0x557b933a7c2c45672b610f8954a3deb39a51a8ca",
-    price: ether(0.24)
+    price: ether(0.24),
   },
   MUSE: {
     id: "muse",
     address: "0xb6ca7399b4f9ca56fc27cbff44f4d2e4eef1fc81",
-    price: ether(17.38)
-  }
+    price: ether(17.38),
+  },
 };

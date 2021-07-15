@@ -1,7 +1,7 @@
 import * as _ from "lodash";
 
 import { Signer } from "ethers";
-import { task } from 'hardhat/config';
+import { task } from "hardhat/config";
 import {
   calculateSetValue,
   createRebalanceSchedule,
@@ -19,15 +19,15 @@ import DeployHelper from "../../utils/deploys";
 import DEPENDENCY from "../../index-rebalances/dependencies";
 
 const {
-  GENERAL_INDEX_MODULE
+  GENERAL_INDEX_MODULE,
 } = DEPENDENCY;
 
 task("calculate-new-index-position", "Calculates new rebalance details for an index")
-  .addParam('index', "Index having new positions calculated")
-  .addParam('rebalance', "Rebalance month")
+  .addParam("index", "Index having new positions calculated")
+  .addParam("rebalance", "Rebalance month")
   .setAction(async ({index, rebalance}, hre) => {
     const owner: Signer = (await hre.ethers.getSigners())[0];
-    let deployHelper: DeployHelper = new DeployHelper(owner);
+    const deployHelper: DeployHelper = new DeployHelper(owner);
 
     const indexInfo: IndexInfo = indices[index];
 
@@ -41,7 +41,7 @@ task("calculate-new-index-position", "Calculates new rebalance details for an in
 
     const setTokenValue = calculateSetValue(strategyConstants);
 
-    let rebalanceData: RebalanceSummary[] = await indexInfo.calculateAssetAllocation(
+    const rebalanceData: RebalanceSummary[] = await indexInfo.calculateAssetAllocation(
       setToken,
       strategyConstants,
       setTokenValue

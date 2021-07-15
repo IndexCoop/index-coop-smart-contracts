@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers';
+import { BigNumber } from "ethers";
 import { Address } from "hardhat-deploy/dist/types";
 
 import {
@@ -21,12 +21,15 @@ import DEPENDENCY from "../../dependencies";
 const {
   ETH_ADDRESS,
   BTC_ADDRESS,
-  USDC_ADDRESS
+  USDC_ADDRESS,
 } = DEPENDENCY;
 
 const KYBER_FACTORY = "0x833e4083B7ae46CeA85695c4f7ed25CDAd8886dE";
 
-export async function getKyberDMMQuote(tokenAddress: Address, targetPriceImpact: BigNumber): Promise<ExchangeQuote> {
+export async function getKyberDMMQuote(
+  tokenAddress: Address,
+  targetPriceImpact: BigNumber
+): Promise<ExchangeQuote> {
   const token: kyberToken = await kyberFetcher.fetchTokenData(ChainId.MAINNET, tokenAddress);
   const weth: kyberToken = await kyberFetcher.fetchTokenData(ChainId.MAINNET, ETH_ADDRESS);
   const wbtc: kyberToken = await kyberFetcher.fetchTokenData(ChainId.MAINNET, BTC_ADDRESS);
@@ -40,11 +43,13 @@ export async function getKyberDMMQuote(tokenAddress: Address, targetPriceImpact:
   );
 
   if (trades.length != 0) {
-    // Use linear approximation of price impact to find out how many 1 ETH trades add to 50 bps price impact (net of fees)
+    // Use linear approximation of price impact to find out how many 1 ETH trades add to 50 bps price
+    // impact (net of fees)
     const fee: BigNumber = BigNumber.from(trades[0].route.pairs[0].fee.toString());
     const priceImpactRatio = preciseDiv(
       targetPriceImpact,
-      ether(parseFloat(trades[0].priceImpact.toSignificant(18)) - fee.toNumber() / 10 ** 16)  // Price impact measured in percent so fee must be as well
+      // Price impact measured in percent so fee must be as well
+      ether(parseFloat(trades[0].priceImpact.toSignificant(18)) - fee.toNumber() / 10 ** 16)
     );
 
     return {
@@ -57,16 +62,16 @@ export async function getKyberDMMQuote(tokenAddress: Address, targetPriceImpact:
   return {
     exchange: exchanges.KYBER,
     size: ZERO.toString(),
-    data: "0x"
+    data: "0x",
   } as ExchangeQuote;
 }
 
 async function getKyberDMMPairs(tokens: kyberToken[]): Promise<kyberPair[][]> {
-  let pairs: kyberPair[][] = [];
+  const pairs: kyberPair[][] = [];
   for (let i = 0; i < tokens.length - 1; i++) {
-    for (let j = 1; j <tokens.length - i - 1; j++) {
+    for (let j = 1; j < tokens.length - i - 1; j++) {
       const tokenOne = tokens[i];
-      const tokenTwo = tokens[i+j];
+      const tokenTwo = tokens[i + j];
 
       let assetPairs;
       try {

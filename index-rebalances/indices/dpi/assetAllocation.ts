@@ -1,6 +1,6 @@
 import { ZERO, PRECISE_UNIT } from "../../../utils/constants";
 import { ether, preciseDiv, preciseMul } from "../../../utils/common/index";
-import { BigNumber } from 'ethers';
+import { BigNumber } from "ethers";
 
 import { RebalanceSummary, StrategyObject } from "../../types";
 import { SetToken } from "../../../utils/contracts/setV2";
@@ -12,10 +12,10 @@ export async function calculateNewAllocations(
   strategyConstants: StrategyObject,
   dpiValue: BigNumber,
 ): Promise<RebalanceSummary[]> {
-  let rebalanceData: RebalanceSummary[] = [];
+  const rebalanceData: RebalanceSummary[] = [];
 
   let sumOfCappedAllocations = ZERO;
-  let cappedAssets: string[] = [];
+  const cappedAssets: string[] = [];
 
   const divisor = Object.entries(strategyConstants).map(([, obj]) => {
     return obj.input.mul(obj.price);
@@ -45,7 +45,7 @@ export async function calculateNewAllocations(
       isBuy: undefined,
       exchange: assetObj.exchange,
       maxTradeSize: assetObj.maxTradeSize,
-      coolOffPeriod:assetObj.coolOffPeriod,
+      coolOffPeriod: assetObj.coolOffPeriod,
     });
   }
 
@@ -55,7 +55,7 @@ export async function calculateNewAllocations(
     const assetObj = strategyConstants[rebalanceData[i].asset];
 
     let finalNewUnit: BigNumber = rebalanceData[i].newUnit;
-    if(!cappedAssets.includes(rebalanceData[i].asset)) {
+    if (!cappedAssets.includes(rebalanceData[i].asset)) {
       const allocation: BigNumber = assetObj.price.mul(rebalanceData[i].newUnit).div(dpiValue);
       const allocationSansCapped = preciseDiv(allocation, sumOfCappedAllocations.sub(cappedAssetAllocationSum));
       const additionalAllocation = preciseMul(allocationSansCapped, PRECISE_UNIT.sub(sumOfCappedAllocations));

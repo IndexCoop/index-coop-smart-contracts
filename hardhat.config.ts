@@ -11,7 +11,7 @@ import "hardhat-deploy";
 import "./tasks";
 
 // These tasks import from typechain and must be conditionally required
-if (process.env.BUILT === "true"){
+if (process.env.BUILT === "true") {
   require("./tasks/rebalances");
 }
 

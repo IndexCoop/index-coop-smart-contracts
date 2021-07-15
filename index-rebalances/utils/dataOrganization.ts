@@ -29,11 +29,11 @@ export async function createStrategyObject(
   strategyInfo: StrategyInfo,
   owner: Signer
 ): Promise<StrategyObject> {
-  let strategyObject: StrategyObject = {};
+  const strategyObject: StrategyObject = {};
 
   const currentPositions: any[] = await setToken.getPositions();
 
-  let deployHelper: DeployHelper = new DeployHelper(owner);
+  const deployHelper: DeployHelper = new DeployHelper(owner);
 
   const filteredConstants = _.pick(_.merge(ASSETS, strategyInfo), Object.keys(strategyInfo));
   const keys = Object.keys(filteredConstants);
@@ -43,7 +43,7 @@ export async function createStrategyObject(
     const position = currentPositions.filter(obj => obj.component.toLowerCase() == filteredConstants[key].address.toLowerCase())[0];
     if (position) { filteredConstants[key].currentUnit = position.unit; }
 
-    const decimals = await getTokenDecimals(deployHelper, filteredConstants[key].address)
+    const decimals = await getTokenDecimals(deployHelper, filteredConstants[key].address);
 
     strategyObject[key] = {} as AssetStrategy;
     strategyObject[key].address = filteredConstants[key].address;
@@ -67,12 +67,12 @@ export async function generateReports(
   indexModule: GeneralIndexModule
 ): Promise<RebalanceReport> {
   // Generate trade order for backend and new components params for rebalance()
-  let newComponents: Address[] = [];
-  let newComponentsTargetUnits: string[] = [];
-  let oldComponentsTargetUnits: string[] = [];
+  const newComponents: Address[] = [];
+  const newComponentsTargetUnits: string[] = [];
+  const oldComponentsTargetUnits: string[] = [];
   for (let i = 0; i < rebalanceData.length; i++) {
     const asset = rebalanceData[i].asset;
-    tradeOrder = tradeOrder.replace(new RegExp(asset, 'g'), ASSETS[asset].id);
+    tradeOrder = tradeOrder.replace(new RegExp(asset, "g"), ASSETS[asset].id);
 
     if (rebalanceData[i].currentUnit == ZERO) {
       newComponents.push(ASSETS[rebalanceData[i].asset].address);
@@ -84,7 +84,7 @@ export async function generateReports(
   const components = await setToken.getComponents();
 
   for (let j = 0; j < components.length; j++) {
-    const [[asset,]] = Object.entries(ASSETS).filter(([key, obj]) =>
+    const [[asset, ]] = Object.entries(ASSETS).filter(([key, obj]) =>
       obj.address.toLowerCase() == components[j].toLowerCase()
     );
 
@@ -137,25 +137,25 @@ export async function generateReports(
       components: tradeSizeComponents,
       values: tradeSizeValue,
       data: indexModule.interface.encodeFunctionData(
-        'setTradeMaximums',
+        "setTradeMaximums",
         [setToken.address, tradeSizeComponents, tradeSizeValue]
-      )
+      ),
     },
     exchangeParams: {
       components: exchangeComponents,
       values: exchangeValue,
       data: indexModule.interface.encodeFunctionData(
-        'setExchanges',
+        "setExchanges",
         [setToken.address, exchangeComponents, exchangeValue]
-      )
+      ),
     },
     coolOffPeriodParams: {
       components: coolOffComponents,
       values: coolOffValue,
       data: indexModule.interface.encodeFunctionData(
-        'setCoolOffPeriods',
+        "setCoolOffPeriods",
         [setToken.address, coolOffComponents, coolOffValue]
-      )
+      ),
     },
     rebalanceParams: {
       newComponents,
@@ -163,24 +163,24 @@ export async function generateReports(
       oldComponentUnits: oldComponentsTargetUnits,
       positionMultiplier: positionMultiplier,
       data: indexModule.interface.encodeFunctionData(
-        'startRebalance',
+        "startRebalance",
         [
           setToken.address,
           newComponents,
           newComponentsTargetUnits,
           oldComponentsTargetUnits,
-          positionMultiplier
+          positionMultiplier,
         ]
-      )
+      ),
     },
-    tradeOrder
+    tradeOrder,
   } as RebalanceReport;
 }
 
-export function writeToOutputs(report:RebalanceReport, path: string) {
-  const content = getNamedContent('index-rebalances/report.mustache');
+export function writeToOutputs(report: RebalanceReport, path: string) {
+  const content = getNamedContent("index-rebalances/report.mustache");
 
-  var templateScript = handlebars.compile(content);
+  const templateScript = handlebars.compile(content);
 
   fs.writeFileSync(path + ".txt", templateScript(report));
   fs.writeFileSync(path + ".json", JSON.stringify(report));
