@@ -1,6 +1,6 @@
 {
   "name": "@setprotocol/index-coop-contracts",
-  "version": "0.0.24-ui.0",
+  "version": "0.0.25-ui.0",
   "description": "",
   "main": "dist",
   "types": "dist/types",
