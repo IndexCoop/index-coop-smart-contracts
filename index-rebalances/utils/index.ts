@@ -20,7 +20,6 @@ export {
 
 export {
   getBalancerV1Quote,
-  getBestQuote,
   getKyberDMMQuote,
   getSushiswapQuote,
   getUniswapV2Quote,

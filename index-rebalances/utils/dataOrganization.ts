@@ -16,7 +16,6 @@ import {
 
 import DeployHelper from "../../utils/deploys";
 import { getTokenDecimals } from "./tokenHelpers";
-import { getSushiswapQuote, getUniswapV2Quote, getUniswapV3Quote } from "./paramDetermination";
 
 export async function createStrategyObject(
   setToken: SetToken,
