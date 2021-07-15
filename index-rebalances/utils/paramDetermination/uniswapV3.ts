@@ -1,12 +1,11 @@
 import { BigNumber } from "ethers";
-import { Address } from "hardhat-deploy/dist/types";
 import { hexlify, hexZeroPad } from "ethers/lib/utils";
 
 import {
   FeeAmount,
 } from "@uniswap/v3-sdk";
 
-import { ExchangeQuote, exchanges } from "../../types";
+import { ExchangeQuote, exchanges, Address } from "../../types";
 import { ether, preciseDiv, preciseMul, sqrt } from "../../../utils/common";
 import { ADDRESS_ZERO, ZERO } from "../../../utils/constants";
 import DEPENDENCY from "../../dependencies";

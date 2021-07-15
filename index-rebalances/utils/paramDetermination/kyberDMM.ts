@@ -1,5 +1,4 @@
 import { BigNumber } from "ethers";
-import { Address } from "hardhat-deploy/dist/types";
 
 import {
   ChainId,
@@ -15,7 +14,7 @@ import {
 
 import { ether, preciseDiv, preciseMul } from "../../../utils/common";
 import { ZERO } from "../../../utils/constants";
-import { ExchangeQuote, exchanges } from "../../types";
+import { ExchangeQuote, exchanges, Address } from "../../types";
 import DEPENDENCY from "../../dependencies";
 
 const {

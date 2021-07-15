@@ -1,6 +1,7 @@
 import { BigNumber } from "@ethersproject/bignumber";
-import { Address } from "../utils/types";
 import { SetToken } from "../utils/contracts/setV2";
+
+export type Address = string;
 
 export interface Indices {
   [symbol: string]: IndexInfo;

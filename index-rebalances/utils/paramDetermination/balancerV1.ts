@@ -1,6 +1,5 @@
 import { BigNumber } from "ethers";
 import { BigNumber as BigNumberJS } from "bignumber.js";
-import { Address } from "hardhat-deploy/dist/types";
 
 import {
   SOR,
@@ -8,7 +7,7 @@ import {
 
 import { ether, gWei } from "../../../utils/common";
 import { ZERO } from "../../../utils/constants";
-import { ExchangeQuote, exchanges } from "../../types";
+import { ExchangeQuote, exchanges, Address } from "../../types";
 import { BaseProvider } from "@ethersproject/providers";
 import DEPENDENCY from "../../dependencies";
 

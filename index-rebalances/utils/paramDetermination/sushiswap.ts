@@ -1,5 +1,4 @@
 import { BigNumber } from "ethers";
-import { Address } from "hardhat-deploy/dist/types";
 
 import {
   ChainId,
@@ -9,7 +8,7 @@ import {
   Trade,
 } from "@sushiswap/sdk";
 
-import { ExchangeQuote, exchanges } from "../../types";
+import { ExchangeQuote, exchanges, Address } from "../../types";
 import { ether, preciseDiv, preciseMul } from "../../../utils/common";
 import { ADDRESS_ZERO, ZERO } from "../../../utils/constants";
 import DEPENDENCY from "../../dependencies";
