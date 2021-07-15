@@ -143,6 +143,12 @@
     ],
     "utils/**/*.ts": [
       "yarn lint-ts --fix"
+    ],
+    "tasks/**/*.ts": [
+      "yarn lint-ts --fix"
+    ],
+    "index-rebalances/**/*.ts": [
+      "yarn lint-ts --fix"
     ]
   }
 }
