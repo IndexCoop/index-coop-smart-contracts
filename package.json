@@ -43,6 +43,7 @@
     "prepublishOnly": "yarn clean && yarn build:npm",
     "prepack": "if [[ \"$(basename \"$PWD\")\" == \"index-coop-contracts\" ]]; then echo \"CANNOT PUBLISH FROM THIS REPO\"; exit 1; fi;",
     "params:calc:dpi": "yarn build:lazy && BUILT=true yarn calculate-params --index DPI",
+    "params:calc:mvi": "yarn build:lazy && BUILT=true yarn calculate-params --index MVI",
     "rebalance:calc:dpi": "yarn build:lazy && BUILT=true yarn calculate-index-units --index DPI",
     "rebalance:calc:mvi": "yarn build:lazy && BUILT=true yarn calculate-index-units --index MVI",
     "rebalance:validate:dpi": "yarn build:lazy && BUILT=true yarn validate-index-rebalance --index DPI",

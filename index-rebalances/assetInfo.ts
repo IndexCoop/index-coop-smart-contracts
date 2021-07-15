@@ -167,6 +167,6 @@ export const ASSETS: Assets = {
   MUSE: {
     id: "muse",
     address: "0xb6ca7399b4f9ca56fc27cbff44f4d2e4eef1fc81",
-    price: ether(37.45)
-  },
+    price: ether(17.38)
+  }
 };
