@@ -49,7 +49,7 @@ export async function getSushiswapQuote(deployHelper: DeployHelper, tokenAddress
     return {
       exchange: exchanges.SUSHISWAP,
       size: preciseMul(
-        ether(parseFloat(trades[0].outputAmount.toExact())).div(ether(1).div(10 ** token.decimals)),
+        ether(parseFloat(trades[0].outputAmount.toExact())).div(BigNumber.from(10).pow(18 - token.decimals)),
         priceImpactRatio).toString(),
       data: hops > 1 ? trades[0].route.path[1].address : "0x",
     } as ExchangeQuote;

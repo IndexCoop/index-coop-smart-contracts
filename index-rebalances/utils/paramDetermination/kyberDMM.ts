@@ -54,7 +54,7 @@ export async function getKyberDMMQuote(
     return {
       exchange: exchanges.KYBER,
       size: preciseMul(
-        ether(parseFloat(trades[0].outputAmount.toExact())).div(ether(1).div(10 ** token.decimals)),
+        ether(parseFloat(trades[0].outputAmount.toExact())).div(BigNumber.from(10).pow(18 - token.decimals)),
         priceImpactRatio).toString(),
       data: trades[0].route.pairs[0].address,
     } as ExchangeQuote;
