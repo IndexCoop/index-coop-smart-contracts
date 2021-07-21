@@ -148,7 +148,10 @@ export default class DeploySetV2 {
     weth: Address,
   ): Promise<CompoundLeverageModule> {
     const compoundLib = await this.deployCompoundLib();
-    const linkId = convertLibraryNameToLinkId("Compound");
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/protocol/integration/lib/Compound.sol:Compound"
+    );
 
     return await new CompoundLeverageModule__factory(
       // @ts-ignore
