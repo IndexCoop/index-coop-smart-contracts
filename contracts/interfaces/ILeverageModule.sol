@@ -3,7 +3,7 @@ pragma experimental "ABIEncoderV2";
 
 import { ISetToken } from "./ISetToken.sol";
 
-interface ICompoundLeverageModule {
+interface ILeverageModule {
     function sync(
         ISetToken _setToken
     ) external;
