@@ -24,7 +24,6 @@ import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
 
 import { BaseAdapter } from "../lib/BaseAdapter.sol";
-import { ICErc20 } from "../interfaces/ICErc20.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IChainlinkAggregatorV3 } from "../interfaces/IChainlinkAggregatorV3.sol";
 import { ILeverageModule } from "../interfaces/ILeverageModule.sol";
