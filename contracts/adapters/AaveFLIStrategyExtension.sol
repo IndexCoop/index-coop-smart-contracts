@@ -32,6 +32,8 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
 
+import { console } from "hardhat/console.sol";
+
 
 /**
  * @title AaveFLIStrategyExtension
@@ -89,8 +91,8 @@ contract AaveFLIStrategyExtension is BaseAdapter {
         IERC20 targetBorrowDebtToken;                   // Instance of target borrow variable debt token asset
         address collateralAsset;                        // Address of underlying collateral
         address borrowAsset;                            // Address of underlying borrow asset
-        uint256 collateralDecimalAdjustment;            // Decimal adjustment for chainlink oracle of the collateral asset. Equal to 28-collateralDecimals (10^18 * 10^18 / 10^decimals / 10^8)
-        uint256 borrowDecimalAdjustment;                // Decimal adjustment for chainlink oracle of the borrowing asset. Equal to 28-borrowDecimals (10^18 * 10^18 / 10^decimals / 10^8)
+        uint256 collateralDecimals;                     // Decimals of collateral asset
+        uint256 borrowDecimals;                         // Decimals of borrow asset
     }
 
     struct MethodologySettings { 
@@ -891,12 +893,12 @@ contract AaveFLIStrategyExtension is BaseAdapter {
         // This is so that when the underlying amount is multiplied by the received price, the collateral valuation is normalized to 36 decimals.
         // To perform this adjustment, we multiply by 10^(36 - 8 - underlyingDeciamls)
         int256 rawCollateralPrice = strategy.collateralPriceOracle.latestAnswer();
-        rebalanceInfo.collateralPrice = rawCollateralPrice.toUint256().mul(10 ** strategy.collateralDecimalAdjustment);
+        rebalanceInfo.collateralPrice = rawCollateralPrice.toUint256().mul(10 ** 10);
         int256 rawBorrowPrice = strategy.borrowPriceOracle.latestAnswer();
-        rebalanceInfo.borrowPrice = rawBorrowPrice.toUint256().mul(10 ** strategy.borrowDecimalAdjustment);
+        rebalanceInfo.borrowPrice = rawBorrowPrice.toUint256().mul(10 ** 10);
 
-        rebalanceInfo.collateralBalance = strategy.targetCollateralAToken.balanceOf(address(strategy.setToken));
-        rebalanceInfo.borrowBalance = strategy.targetBorrowDebtToken.balanceOf(address(strategy.setToken));
+        rebalanceInfo.collateralBalance = strategy.targetCollateralAToken.balanceOf(address(strategy.setToken)).mul(10 ** (18 - strategy.collateralDecimals));
+        rebalanceInfo.borrowBalance = strategy.targetBorrowDebtToken.balanceOf(address(strategy.setToken)).mul(10 ** (18 - strategy.borrowDecimals));
         rebalanceInfo.collateralValue = rebalanceInfo.collateralPrice.preciseMul(rebalanceInfo.collateralBalance);
         rebalanceInfo.borrowValue = rebalanceInfo.borrowPrice.preciseMul(rebalanceInfo.borrowBalance);
         rebalanceInfo.setTotalSupply = strategy.setToken.totalSupply();
@@ -1093,7 +1095,11 @@ contract AaveFLIStrategyExtension is BaseAdapter {
     function _calculateMaxBorrowCollateral(ActionInfo memory _actionInfo, bool _isLever) internal view returns(uint256) {
         
         // Retrieve collateral factor and liquidation threshold for the collateral asset in precise units (1e16 = 1%)
-        ( , uint256 maxLtv, uint256 liquidationThreshold, , , , , , ,) = strategy.aaveProtocolDataProvider.getReserveConfigurationData(address(strategy.collateralAsset));
+        ( , uint256 maxLtvRaw, uint256 liquidationThresholdRaw, , , , , , ,) = strategy.aaveProtocolDataProvider.getReserveConfigurationData(address(strategy.collateralAsset));
+
+        // normalize LTV and liquidation threshold to precise units
+        uint256 maxLtv = maxLtvRaw * 10 ** 14;
+        uint256 liquidationThreshold = liquidationThresholdRaw * 10 ** 14;
 
         if (_isLever) {
             uint256 netBorrowLimit = _actionInfo.collateralValue
@@ -1120,8 +1126,8 @@ contract AaveFLIStrategyExtension is BaseAdapter {
      *
      * return uint256           Position units to borrow
      */
-    function _calculateBorrowUnits(uint256 _collateralRebalanceUnits, ActionInfo memory _actionInfo) internal pure returns (uint256) {
-        return _collateralRebalanceUnits.preciseMul(_actionInfo.collateralPrice).preciseDiv(_actionInfo.borrowPrice);
+    function _calculateBorrowUnits(uint256 _collateralRebalanceUnits, ActionInfo memory _actionInfo) internal view returns (uint256) {
+        return _collateralRebalanceUnits.preciseMul(_actionInfo.collateralPrice).preciseDiv(_actionInfo.borrowPrice).div(10 ** (18 - strategy.borrowDecimals));
     }
 
     /**

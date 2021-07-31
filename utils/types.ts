@@ -57,8 +57,8 @@ export interface AaveContractSettings {
   targetBorrowDebtToken: Address;
   collateralAsset: Address;
   borrowAsset: Address;
-  collateralDecimalAdjustment: BigNumber;
-  borrowDecimalAdjustment: BigNumber;
+  collateralDecimals: BigNumber;
+  borrowDecimals: BigNumber;
 }
 
 export interface MethodologySettings {
