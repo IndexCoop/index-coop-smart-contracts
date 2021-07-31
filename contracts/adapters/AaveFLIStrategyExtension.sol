@@ -43,7 +43,7 @@ import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
  * different leverage thresholds.
  *
  */
-contract AaaveFLIStrategyExtension is BaseAdapter {
+contract AaveFLIStrategyExtension is BaseAdapter {
     using Address for address;
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
