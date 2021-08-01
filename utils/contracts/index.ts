@@ -3,6 +3,7 @@ export { BaseManager } from "../../typechain/BaseManager";
 export { ChainlinkAggregatorV3Mock } from "../../typechain/ChainlinkAggregatorV3Mock";
 export { ExchangeIssuance } from "../../typechain/ExchangeIssuance";
 export { ExchangeIssuanceV2 } from "../../typechain/ExchangeIssuanceV2";
+export { FeeClaimKeeper } from "../../typechain/FeeClaimKeeper";
 export { FeeSplitAdapter } from "../../typechain/FeeSplitAdapter";
 export { FlexibleLeverageStrategyExtension } from "../../typechain/FlexibleLeverageStrategyExtension";
 export { GIMExtension } from "../../typechain/GIMExtension";
