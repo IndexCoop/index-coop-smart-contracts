@@ -1,6 +1,6 @@
 import "module-alias/register";
 
-import { BaseManager, StreamingFeeSplitExtension, FeeClaimKeeper } from "@utils/contracts/index";
+import { BaseManager, StreamingFeeSplitExtension, FeeClaimKeeper, ChainlinkAggregatorV3Mock } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -15,7 +15,7 @@ import { SetFixture } from "@utils/fixtures";
 import { ContractTransaction } from "ethers";
 import { Account } from "@utils/types";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
-import { defaultAbiCoder } from "ethers/lib/utils";
+import { defaultAbiCoder, parseUnits } from "ethers/lib/utils";
 
 const expect = getWaffleExpect();
 
@@ -31,6 +31,8 @@ describe("FeeClaimKeeper", () => {
 
   let baseManager: BaseManager;
   let feeExtension: StreamingFeeSplitExtension;
+
+  let gasPriceFeed: ChainlinkAggregatorV3Mock;
 
   let feeClaimKeeper: FeeClaimKeeper;
 
@@ -91,8 +93,12 @@ describe("FeeClaimKeeper", () => {
     await setV2Setup.dai.approve(setV2Setup.issuanceModule.address, ether(3));
     await setV2Setup.issuanceModule.issue(setToken.address, ether(2), owner.address);
 
+    // Deploy mock gas price oracle
+    gasPriceFeed = await deployer.mocks.deployChainlinkAggregatorMock();
+    await gasPriceFeed.setPrice(parseUnits("50", 9));
+
     // Deploy keeper
-    feeClaimKeeper = await deployer.keepers.deployFeeClaimKeeper();
+    feeClaimKeeper = await deployer.keepers.deployFeeClaimKeeper(gasPriceFeed.address);
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -102,7 +108,7 @@ describe("FeeClaimKeeper", () => {
     let subjectCheckData: string;
 
     beforeEach(() => {
-      subjectCheckData = defaultAbiCoder.encode(["address", "uint256"], [feeExtension.address, 60 * 60 * 24]);
+      subjectCheckData = defaultAbiCoder.encode(["address", "uint256", "uint256"], [feeExtension.address, 60 * 60 * 24, parseUnits("60", 9)]);
     });
 
     async function subject(): Promise<[boolean, string]> {
@@ -114,6 +120,18 @@ describe("FeeClaimKeeper", () => {
 
       expect(upkeepNeeded).to.be.true;
       expect(performData).to.eq(defaultAbiCoder.encode(["address"], [feeExtension.address]));
+    });
+
+    context("when gas price is above max", async () => {
+      beforeEach(async () => {
+        gasPriceFeed.setPrice(parseUnits("100", 9));
+      });
+
+      it("should return false for upkeepNeeded", async () => {
+        const [ upkeepNeeded ] = await subject();
+
+        expect(upkeepNeeded).to.eq(false);
+      });
     });
   });
 

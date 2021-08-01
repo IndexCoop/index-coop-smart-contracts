@@ -11,7 +11,7 @@ export default class DeployKeepers {
     this._deployerSigner = deployerSigner;
   }
 
-  public async deployFeeClaimKeeper(): Promise<FeeClaimKeeper> {
-    return await new FeeClaimKeeper__factory(this._deployerSigner).deploy();
+  public async deployFeeClaimKeeper(gasPriceFeed: string): Promise<FeeClaimKeeper> {
+    return await new FeeClaimKeeper__factory(this._deployerSigner).deploy(gasPriceFeed);
   }
 }

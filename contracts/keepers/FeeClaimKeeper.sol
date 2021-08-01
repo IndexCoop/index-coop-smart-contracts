@@ -16,17 +16,29 @@
 
 pragma solidity 0.6.10;
 
+import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
+
+import { IChainlinkAggregatorV3 } from "../interfaces/IChainlinkAggregatorV3.sol";
 import { IStreamingFeeSplitExtension } from "../interfaces/IStreamingFeeSplitExtension.sol";
 
 contract FeeClaimKeeper {
 
+    using SafeCast for int256;
+
+    IChainlinkAggregatorV3 public gasPriceFeed;
     mapping(address => uint256) public lastUpkeeps;
+
+    constructor(IChainlinkAggregatorV3 _gasPriceFeed) public {
+        gasPriceFeed = _gasPriceFeed;
+    }
 
     function checkUpkeep(bytes calldata _checkData) external view returns (bool upkeepNeeded, bytes memory performData) {
 
-        (address streamingFeeExtension, uint256 delay) = abi.decode(_checkData, (address, uint256));
+        (address streamingFeeExtension, uint256 delay, uint256 maxGasPrice) = abi.decode(_checkData, (address, uint256, uint256));
 
-        upkeepNeeded = block.timestamp > lastUpkeeps[streamingFeeExtension] + delay;
+        uint256 gasPrice = gasPriceFeed.latestAnswer().toUint256();
+
+        upkeepNeeded = block.timestamp > lastUpkeeps[streamingFeeExtension] + delay && gasPrice <= maxGasPrice;
         performData = abi.encode(streamingFeeExtension);
     }
 
