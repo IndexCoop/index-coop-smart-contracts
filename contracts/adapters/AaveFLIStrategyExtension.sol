@@ -1145,11 +1145,12 @@ contract AaveFLIStrategyExtension is BaseAdapter {
      *
      * return uint256           Min position units to repay in borrow asset
      */
-    function _calculateMinRepayUnits(uint256 _collateralRebalanceUnits, uint256 _slippageTolerance, ActionInfo memory _actionInfo) internal pure returns (uint256) {
+    function _calculateMinRepayUnits(uint256 _collateralRebalanceUnits, uint256 _slippageTolerance, ActionInfo memory _actionInfo) internal view returns (uint256) {
         return _collateralRebalanceUnits
             .preciseMul(_actionInfo.collateralPrice)
             .preciseDiv(_actionInfo.borrowPrice)
-            .preciseMul(PreciseUnitMath.preciseUnit().sub(_slippageTolerance));
+            .preciseMul(PreciseUnitMath.preciseUnit().sub(_slippageTolerance))
+            .div(10 ** (18 - strategy.borrowDecimals));
     }
 
     /**
