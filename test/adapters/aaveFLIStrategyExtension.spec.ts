@@ -11,10 +11,9 @@ import {
   IncentiveSettings,
   ExchangeSettings
 } from "@utils/types";
-import { ADDRESS_ZERO, ONE, TWO, THREE, ZERO, EMPTY_BYTES, MAX_UINT_256 } from "@utils/constants";
-import { FlexibleLeverageStrategyExtension, BaseManager, TradeAdapterMock, ChainlinkAggregatorV3Mock, AaveFLIStrategyExtension } from "@utils/contracts/index";
-import { AaveLeverageModule, CompoundLeverageModule, ContractCallerMock, DebtIssuanceModule, SetToken } from "@utils/contracts/setV2";
-import { CEther, CERc20 } from "@utils/contracts/compound";
+import { ADDRESS_ZERO, ZERO, EMPTY_BYTES, MAX_UINT_256 } from "@utils/constants";
+import { BaseManager, TradeAdapterMock, ChainlinkAggregatorV3Mock, AaveFLIStrategyExtension } from "@utils/contracts/index";
+import { AaveLeverageModule, ContractCallerMock, DebtIssuanceModule, SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
   cacheBeforeEach,
@@ -32,11 +31,9 @@ import {
   calculateNewLeverageRatio,
   calculateCollateralRebalanceUnits,
   calculateMaxBorrowForDelever,
-  calculateMaxRedeemForDeleverToZero,
   usdc
 } from "@utils/index";
 import { SetFixture, AaveV2Fixture } from "@utils/fixtures";
-import { calculateTotalRebalanceNotional } from "@utils/flexibleLeverageUtils/flexibleLeverage";
 import { AaveV2AToken } from "@typechain/AaveV2AToken";
 import { AaveV2VariableDebtToken } from "@typechain/AaveV2VariableDebtToken";
 
@@ -102,7 +99,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
     ));
 
     usdcVariableDebtToken = usdcReserveTokens.variableDebtToken;
-    
+
     aUsdc = usdcReserveTokens.aToken;
     aWeth = aaveSetup.wethReserveTokens.aToken;
 
@@ -1307,7 +1304,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
         await increaseTimeAsync(BigNumber.from(100000));
         // Set to $990 so need to delever
         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
-        await aaveSetup.setAssetPriceInOracle(setV2Setup.usdc.address, ether(1/990));
+        await aaveSetup.setAssetPriceInOracle(setV2Setup.usdc.address, ether(1 / 990));
         await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(2500000));
       });
 
@@ -2296,559 +2293,554 @@ describe("FlexibleLeverageStrategyExtension", () => {
     });
   });
 
-  // describe("#ripcord", async () => {
-  //   let transferredEth: BigNumber;
-  //   let subjectCaller: Account;
-  //   let subjectExchangeName: string;
-  //   let ifEngaged: boolean;
+  describe("#ripcord", async () => {
+    let transferredEth: BigNumber;
+    let subjectCaller: Account;
+    let subjectExchangeName: string;
+    let ifEngaged: boolean;
 
-  //   before(async () => {
-  //     ifEngaged = true;
-  //     subjectExchangeName = exchangeName;
-  //   });
-
-  //   const intializeContracts = async () => {
-  //     await initializeRootScopeContracts();
-
-  //     // Approve tokens to issuance module and call issue
-  //     await cEther.approve(setV2Setup.issuanceModule.address, ether(1000));
+    before(async () => {
+      ifEngaged = true;
+      subjectExchangeName = exchangeName;
+    });
+
+    const intializeContracts = async () => {
+      await initializeRootScopeContracts();
+
+      // Approve tokens to issuance module and call issue
+      await aWeth.approve(setV2Setup.issuanceModule.address, ether(1000));
 
-  //     // Issue 1 SetToken
-  //     const issueQuantity = ether(1);
-  //     await setV2Setup.issuanceModule.issue(setToken.address, issueQuantity, owner.address);
-
-  //     await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-
-  //     // Add allowed trader
-  //     await flexibleLeverageStrategyExtension.updateCallerStatus([owner.address], [true]);
-
-  //     if (ifEngaged) {
-  //       // Engage to initial leverage
-  //       await flexibleLeverageStrategyExtension.engage(subjectExchangeName);
-  //       await increaseTimeAsync(BigNumber.from(100000));
-  //       await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
-  //       await flexibleLeverageStrategyExtension.iterateRebalance(subjectExchangeName);
-  //     }
-  //   };
+      // Issue 1 SetToken
+      const issueQuantity = ether(1);
+      await setV2Setup.issuanceModule.issue(setToken.address, issueQuantity, owner.address);
+
+      await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+
+      // Add allowed trader
+      await flexibleLeverageStrategyExtension.updateCallerStatus([owner.address], [true]);
+
+      if (ifEngaged) {
+        // Engage to initial leverage
+        await flexibleLeverageStrategyExtension.engage(subjectExchangeName);
+        await increaseTimeAsync(BigNumber.from(100000));
+        await setV2Setup.weth.transfer(tradeAdapterMock.address, ether(0.5));
+        await flexibleLeverageStrategyExtension.iterateRebalance(subjectExchangeName);
+      }
+    };
 
-  //   const initializeSubjectVariables = () => {
-  //     subjectCaller = owner;
-  //   };
-
-  //   cacheBeforeEach(intializeContracts);
-  //   beforeEach(initializeSubjectVariables);
-
-  //   // increaseTime
-  //   context("when not in a TWAP rebalance", async () => {
-  //     cacheBeforeEach(async () => {
-  //       // Withdraw balance of USDC from exchange contract from engage
-  //       await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
-  //       await increaseTimeAsync(BigNumber.from(100000));
-
-  //       // Set to above incentivized ratio
-  //       await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
-  //       await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(450000000));
-
-  //       transferredEth = ether(1);
-  //       await owner.wallet.sendTransaction({to: flexibleLeverageStrategyExtension.address, value: transferredEth});
-  //     });
-
-  //     async function subject(): Promise<any> {
-  //       return flexibleLeverageStrategyExtension.connect(subjectCaller.wallet).ripcord(subjectExchangeName);
-  //     }
-
-  //     it("should set the global last trade timestamp", async () => {
-  //       await subject();
-
-  //       const lastTradeTimestamp = await flexibleLeverageStrategyExtension.globalLastTradeTimestamp();
-
-  //       expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
-  //     });
-
-  //     it("should set the exchange's last trade timestamp", async () => {
-  //       await subject();
-
-  //       const exchangeSettings = await flexibleLeverageStrategyExtension.getExchangeSettings(exchangeName);
-  //       const lastTradeTimestamp = exchangeSettings.exchangeLastTradeTimestamp;
-
-  //       expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
-  //     });
-
-  //     it("should not set the TWAP leverage ratio", async () => {
-  //       await subject();
-
-  //       const twapLeverageRatio = await flexibleLeverageStrategyExtension.twapLeverageRatio();
-
-  //       expect(twapLeverageRatio).to.eq(ZERO);
-  //     });
-
-  //     it("should update the collateral position on the SetToken correctly", async () => {
-  //       const initialPositions = await setToken.getPositions();
-  //       const currentLeverageRatio = await flexibleLeverageStrategyExtension.getCurrentLeverageRatio();
-
-  //       const previousCTokenBalance = await cEther.balanceOf(setToken.address);
-
-  //       await subject();
-
-  //       // cEther position is decreased
-  //       const currentPositions = await setToken.getPositions();
-  //       const newFirstPosition = (await setToken.getPositions())[0];
-
-  //       const expectedNewLeverageRatio = calculateNewLeverageRatio(
-  //         currentLeverageRatio,
-  //         methodology.targetLeverageRatio,
-  //         methodology.minLeverageRatio,
-  //         methodology.maxLeverageRatio,
-  //         methodology.recenteringSpeed
-  //       );
-  //       // Get expected cTokens redeemed
-  //       const expectedCollateralAssetsRedeemed = calculateCollateralRebalanceUnits(
-  //         currentLeverageRatio,
-  //         expectedNewLeverageRatio,
-  //         previousCTokenBalance,
-  //         ether(1) // Total supply
-  //       );
-
-  //       const expectedFirstPositionUnit = initialPositions[0].unit.sub(expectedCollateralAssetsRedeemed);
-
-  //       expect(initialPositions.length).to.eq(2);
-  //       expect(currentPositions.length).to.eq(2);
-  //       expect(newFirstPosition.component).to.eq(cEther.address);
-  //       expect(newFirstPosition.positionState).to.eq(0); // Default
-  //       expect(newFirstPosition.unit).to.eq(expectedFirstPositionUnit);
-  //       expect(newFirstPosition.module).to.eq(ADDRESS_ZERO);
-  //     });
-
-  //     it("should update the borrow position on the SetToken correctly", async () => {
-  //       const initialPositions = await setToken.getPositions();
-
-  //       await subject();
-
-  //       // cEther position is increased
-  //       const currentPositions = await setToken.getPositions();
-  //       const newSecondPosition = (await setToken.getPositions())[1];
-
-  //       const expectedSecondPositionUnit = (await cUSDC.borrowBalanceStored(setToken.address)).mul(-1);
-
-  //       expect(initialPositions.length).to.eq(2);
-  //       expect(currentPositions.length).to.eq(2);
-  //       expect(newSecondPosition.component).to.eq(setV2Setup.usdc.address);
-  //       expect(newSecondPosition.positionState).to.eq(1); // External
-  //       expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
-  //       expect(newSecondPosition.module).to.eq(compoundLeverageModule.address);
-  //     });
-
-  //     it("should transfer incentive", async () => {
-  //       const previousContractEthBalance = await getEthBalance(flexibleLeverageStrategyExtension.address);
-  //       const previousOwnerEthBalance = await getEthBalance(owner.address);
-
-  //       const txHash = await subject();
-  //       const txReceipt = await provider.getTransactionReceipt(txHash.hash);
-  //       const currentContractEthBalance = await getEthBalance(flexibleLeverageStrategyExtension.address);
-  //       const currentOwnerEthBalance = await getEthBalance(owner.address);
-  //       const expectedOwnerEthBalance = previousOwnerEthBalance.add(incentive.etherReward).sub(txReceipt.gasUsed.mul(txHash.gasPrice));
-
-  //       expect(previousContractEthBalance).to.eq(transferredEth);
-  //       expect(currentContractEthBalance).to.eq(transferredEth.sub(incentive.etherReward));
-  //       expect(expectedOwnerEthBalance).to.eq(currentOwnerEthBalance);
-  //     });
-
-  //     it("should emit RipcordCalled event", async () => {
-  //       const currentLeverageRatio = await flexibleLeverageStrategyExtension.getCurrentLeverageRatio();
-  //       const exchangeRate = await cEther.exchangeRateStored();
-  //       const cEtherBalance = await cEther.balanceOf(setToken.address);
-  //       const collateralBalance = preciseMul(exchangeRate, cEtherBalance);
-  //       const chunkRebalanceNotional = preciseMul(
-  //         preciseDiv(currentLeverageRatio.sub(methodology.maxLeverageRatio), currentLeverageRatio),
-  //         collateralBalance
-  //       );
-
-  //       await expect(subject()).to.emit(flexibleLeverageStrategyExtension, "RipcordCalled").withArgs(
-  //         currentLeverageRatio,
-  //         methodology.maxLeverageRatio,
-  //         chunkRebalanceNotional,
-  //         incentive.etherReward,
-  //       );
-  //     });
-
-  //     describe("when greater than incentivized max trade size", async () => {
-  //       let newIncentivizedMaxTradeSize: BigNumber;
-
-  //       cacheBeforeEach(async () => {
-
-  //         newIncentivizedMaxTradeSize = ether(0.01);
-  //         const newExchangeSettings: ExchangeSettings = {
-  //           twapMaxTradeSize: ether(0.001),
-  //           incentivizedTwapMaxTradeSize: newIncentivizedMaxTradeSize,
-  //           exchangeLastTradeTimestamp: exchangeSettings.exchangeLastTradeTimestamp,
-  //           leverExchangeData: EMPTY_BYTES,
-  //           deleverExchangeData: EMPTY_BYTES,
-  //         };
-  //         await flexibleLeverageStrategyExtension.updateEnabledExchange(subjectExchangeName, newExchangeSettings);
-  //       });
-
-  //       it("should set the global last trade timestamp", async () => {
-  //         await subject();
-
-  //         const lastTradeTimestamp = await flexibleLeverageStrategyExtension.globalLastTradeTimestamp();
-
-  //         expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
-  //       });
-
-  //       it("should set the exchange's last trade timestamp", async () => {
-  //         await subject();
-
-  //         const exchangeSettings = await flexibleLeverageStrategyExtension.getExchangeSettings(exchangeName);
-  //         const lastTradeTimestamp = exchangeSettings.exchangeLastTradeTimestamp;
-
-  //         expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
-  //       });
-
-  //       it("should update the collateral position on the SetToken correctly", async () => {
-  //         const initialPositions = await setToken.getPositions();
-
-  //         await subject();
-
-  //         // cEther position is decreased
-  //         const currentPositions = await setToken.getPositions();
-  //         const newFirstPosition = (await setToken.getPositions())[0];
-
-  //         // Max TWAP collateral units
-  //         const exchangeRate = await cEther.exchangeRateStored();
-  //         const newUnits = preciseDiv(newIncentivizedMaxTradeSize, exchangeRate);
-  //         const expectedFirstPositionUnit = initialPositions[0].unit.sub(newUnits);
-
-  //         expect(initialPositions.length).to.eq(2);
-  //         expect(currentPositions.length).to.eq(2);
-  //         expect(newFirstPosition.component).to.eq(cEther.address);
-  //         expect(newFirstPosition.positionState).to.eq(0); // Default
-  //         expect(newFirstPosition.unit).to.eq(expectedFirstPositionUnit);
-  //         expect(newFirstPosition.module).to.eq(ADDRESS_ZERO);
-  //       });
-
-  //       it("should update the borrow position on the SetToken correctly", async () => {
-  //         const initialPositions = await setToken.getPositions();
-
-  //         await subject();
-
-  //         // cEther position is increased
-  //         const currentPositions = await setToken.getPositions();
-  //         const newSecondPosition = (await setToken.getPositions())[1];
-
-  //         const expectedSecondPositionUnit = (await cUSDC.borrowBalanceStored(setToken.address)).mul(-1);
-
-  //         expect(initialPositions.length).to.eq(2);
-  //         expect(currentPositions.length).to.eq(2);
-  //         expect(newSecondPosition.component).to.eq(setV2Setup.usdc.address);
-  //         expect(newSecondPosition.positionState).to.eq(1); // External
-  //         expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
-  //         expect(newSecondPosition.module).to.eq(compoundLeverageModule.address);
-  //       });
-
-  //       describe("when incentivized cooldown period has not elapsed", async () => {
-  //         beforeEach(async () => {
-  //           await subject();
-  //           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(400).mul(10 ** 8));
-  //         });
-
-  //         it("should revert", async () => {
-  //           await expect(subject()).to.be.revertedWith("TWAP cooldown must have elapsed");
-  //         });
-  //       });
-  //     });
-
-  //     describe("when greater than max borrow", async () => {
-  //       beforeEach(async () => {
-  //         // Set to above max borrow
-  //         await compoundSetup.priceOracle.setUnderlyingPrice(cEther.address, ether(750));
-  //         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(750).mul(10 ** 8));
-  //       });
-
-  //       it("should set the global last trade timestamp", async () => {
-  //         await subject();
-
-  //         const lastTradeTimestamp = await flexibleLeverageStrategyExtension.globalLastTradeTimestamp();
-
-  //         expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
-  //       });
-
-  //       it("should set the exchange's last trade timestamp", async () => {
-  //         await subject();
-
-  //         const exchangeSettings = await flexibleLeverageStrategyExtension.getExchangeSettings(exchangeName);
-  //         const lastTradeTimestamp = exchangeSettings.exchangeLastTradeTimestamp;
-
-  //         expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
-  //       });
-
-  //       it("should update the collateral position on the SetToken correctly", async () => {
-  //         const initialPositions = await setToken.getPositions();
-
-  //         // Get max borrow
-  //         const previousCTokenBalance = await cEther.balanceOf(setToken.address);
-  //         const exchangeRate = await cEther.exchangeRateStored();
-  //         const previousCollateralBalance = preciseMul(previousCTokenBalance, exchangeRate);
-
-  //         const previousBorrowBalance = await cUSDC.borrowBalanceStored(setToken.address);
-
-  //         const collateralPrice = await compoundSetup.priceOracle.getUnderlyingPrice(cEther.address);
-  //         const borrowPrice = await compoundSetup.priceOracle.getUnderlyingPrice(cUSDC.address);
-  //         const collateralFactor = (await compoundSetup.comptroller.markets(cEther.address))[1];
-
-  //         await subject();
-
-  //         // cEther position is decreased
-  //         const currentPositions = await setToken.getPositions();
-  //         const newFirstPosition = (await setToken.getPositions())[0];
-
-  //         const maxRedeemCollateral = calculateMaxBorrowForDelever(
-  //           previousCollateralBalance,
-  //           collateralFactor,
-  //           execution.unutilizedLeveragePercentage,
-  //           collateralPrice,
-  //           borrowPrice,
-  //           previousBorrowBalance,
-  //         );
-
-  //         const maxRedeemCToken = preciseDiv(maxRedeemCollateral, exchangeRate);
-  //         const expectedFirstPositionUnit = initialPositions[0].unit.sub(maxRedeemCToken);
-
-  //         expect(initialPositions.length).to.eq(2);
-  //         expect(currentPositions.length).to.eq(2);
-  //         expect(newFirstPosition.component).to.eq(cEther.address);
-  //         expect(newFirstPosition.positionState).to.eq(0); // Default
-  //         expect(newFirstPosition.unit).to.eq(expectedFirstPositionUnit);
-  //         expect(newFirstPosition.module).to.eq(ADDRESS_ZERO);
-  //       });
-
-  //       it("should update the borrow position on the SetToken correctly", async () => {
-  //         const initialPositions = await setToken.getPositions();
-
-  //         await subject();
-
-  //         // cEther position is increased
-  //         const currentPositions = await setToken.getPositions();
-  //         const newSecondPosition = (await setToken.getPositions())[1];
-
-  //         const expectedSecondPositionUnit = (await cUSDC.borrowBalanceStored(setToken.address)).mul(-1);
-
-  //         expect(initialPositions.length).to.eq(2);
-  //         expect(currentPositions.length).to.eq(2);
-  //         expect(newSecondPosition.component).to.eq(setV2Setup.usdc.address);
-  //         expect(newSecondPosition.positionState).to.eq(1); // External
-  //         expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
-  //         expect(newSecondPosition.module).to.eq(compoundLeverageModule.address);
-  //       });
-  //     });
-
-  //     describe("when below incentivized leverage ratio threshold", async () => {
-  //       beforeEach(async () => {
-  //         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(2000).mul(10 ** 8));
-  //       });
-
-  //       it("should revert", async () => {
-  //         await expect(subject()).to.be.revertedWith("Must be above incentivized leverage ratio");
-  //       });
-  //     });
-
-  //     describe("when borrow balance is 0", async () => {
-  //       beforeEach(async () => {
-  //         // Repay entire balance of cUSDC on behalf of SetToken
-  //         await cUSDC.repayBorrowBehalf(setToken.address, MAX_UINT_256);
-  //       });
-
-  //       it("should revert", async () => {
-  //         await expect(subject()).to.be.revertedWith("Borrow balance must exist");
-  //       });
-  //     });
-
-  //     describe("when caller is a contract", async () => {
-  //       let subjectTarget: Address;
-  //       let subjectCallData: string;
-  //       let subjectValue: BigNumber;
-
-  //       let contractCaller: ContractCallerMock;
-
-  //       beforeEach(async () => {
-  //         contractCaller = await deployer.setV2.deployContractCallerMock();
-
-  //         subjectTarget = flexibleLeverageStrategyExtension.address;
-  //         subjectCallData = flexibleLeverageStrategyExtension.interface.encodeFunctionData("ripcord", [ subjectExchangeName ]);
-  //         subjectValue = ZERO;
-  //       });
-
-  //       async function subjectContractCaller(): Promise<any> {
-  //         return await contractCaller.invoke(
-  //           subjectTarget,
-  //           subjectValue,
-  //           subjectCallData
-  //         );
-  //       }
-
-  //       it("the trade reverts", async () => {
-  //         await expect(subjectContractCaller()).to.be.revertedWith("Caller must be EOA Address");
-  //       });
-  //     });
-
-  //     describe("when SetToken has 0 supply", async () => {
-  //       beforeEach(async () => {
-  //         await setV2Setup.usdc.approve(debtIssuanceModule.address, MAX_UINT_256);
-  //         await debtIssuanceModule.redeem(setToken.address, ether(1), owner.address);
-  //       });
-
-  //       it("should revert", async () => {
-  //         await expect(subject()).to.be.revertedWith("SetToken must have > 0 supply");
-  //       });
-  //     });
-
-  //     describe("when using an exchange that has not been added", async () => {
-  //       beforeEach(async () => {
-  //         subjectExchangeName = "NonExistentExchange";
-  //       });
-
-  //       it("should revert", async () => {
-  //         await expect(subject()).to.revertedWith("Must be valid exchange");
-  //       });
-  //     });
-  //   });
-
-  //   context("when in the midst of a TWAP rebalance", async () => {
-  //     let newIncentivizedMaxTradeSize: BigNumber;
-
-  //     cacheBeforeEach(async () => {
-  //       // Withdraw balance of USDC from exchange contract from engage
-  //       await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
-  //       await increaseTimeAsync(BigNumber.from(100000));
-  //       transferredEth = ether(1);
-  //       await owner.wallet.sendTransaction({to: flexibleLeverageStrategyExtension.address, value: transferredEth});
-
-  //       // > Max trade size
-  //       newIncentivizedMaxTradeSize = ether(0.001);
-  //       const newExchangeSettings: ExchangeSettings = {
-  //         twapMaxTradeSize: ether(0.001),
-  //         incentivizedTwapMaxTradeSize: newIncentivizedMaxTradeSize,
-  //         exchangeLastTradeTimestamp: exchangeSettings.exchangeLastTradeTimestamp,
-  //         leverExchangeData: EMPTY_BYTES,
-  //         deleverExchangeData: EMPTY_BYTES,
-  //       };
-  //       subjectExchangeName = exchangeName;
-  //       await flexibleLeverageStrategyExtension.updateEnabledExchange(subjectExchangeName, newExchangeSettings);
-
-  //       await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
-
-  //       await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
-
-  //       // Start TWAP rebalance
-  //       await flexibleLeverageStrategyExtension.rebalance(subjectExchangeName);
-  //       await increaseTimeAsync(BigNumber.from(100));
-  //       await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
-
-  //       // Set to above incentivized ratio
-  //       await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
-  //     });
-
-  //     async function subject(): Promise<any> {
-  //       return flexibleLeverageStrategyExtension.connect(subjectCaller.wallet).ripcord(subjectExchangeName);
-  //     }
-
-  //     it("should set the global last trade timestamp", async () => {
-  //       await subject();
-
-  //       const lastTradeTimestamp = await flexibleLeverageStrategyExtension.globalLastTradeTimestamp();
-
-  //       expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
-  //     });
-
-  //     it("should set the exchange's last trade timestamp", async () => {
-  //       await subject();
-
-  //       const exchangeSettings = await flexibleLeverageStrategyExtension.getExchangeSettings(exchangeName);
-  //       const lastTradeTimestamp = exchangeSettings.exchangeLastTradeTimestamp;
-
-  //       expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
-  //     });
-
-  //     it("should set the TWAP leverage ratio to 0", async () => {
-  //       await subject();
-
-  //       const twapLeverageRatio = await flexibleLeverageStrategyExtension.twapLeverageRatio();
-
-  //       expect(twapLeverageRatio).to.eq(ZERO);
-  //     });
-  //   });
-
-  //   context("when using two exchanges", async () => {
-  //     let subjectExchangeToUse: string;
-
-  //     cacheBeforeEach(async () => {
-
-  //       // Withdraw balance of USDC from exchange contract from engage
-  //       await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
-  //       await increaseTimeAsync(BigNumber.from(100000));
-
-  //       // Set to above incentivized ratio
-  //       await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
-  //       await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(300000000));
-  //       await setV2Setup.usdc.transfer(tradeAdapterMock2.address, BigNumber.from(300000000));
-
-  //       await flexibleLeverageStrategyExtension.updateEnabledExchange(exchangeName, exchangeSettings);
-  //       await flexibleLeverageStrategyExtension.addEnabledExchange(exchangeName2, exchangeSettings);
-  //       await increaseTimeAsync(BigNumber.from(100000));
-  //     });
-
-  //     beforeEach(() => {
-  //       subjectCaller = owner;
-  //       subjectExchangeToUse = exchangeName;
-  //     });
-
-  //     async function subject(): Promise<any> {
-  //       return flexibleLeverageStrategyExtension.connect(subjectCaller.wallet).ripcord(subjectExchangeToUse);
-  //     }
-
-  //     describe("when leverage ratio is above max and it drops further between ripcords", async () => {
-  //       it("should set the global and exchange timestamps correctly", async () => {
-  //         await subject();
-  //         const timestamp1 = await getLastBlockTimestamp();
-
-  //         subjectExchangeToUse = exchangeName2;
-  //         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(600).mul(10 ** 8));
-
-  //         await subject();
-  //         const timestamp2 = await getLastBlockTimestamp();
-
-  //         expect(await flexibleLeverageStrategyExtension.globalLastTradeTimestamp()).to.eq(timestamp2);
-  //         expect((await flexibleLeverageStrategyExtension.getExchangeSettings(exchangeName)).exchangeLastTradeTimestamp).to.eq(timestamp1);
-  //         expect((await flexibleLeverageStrategyExtension.getExchangeSettings(exchangeName2)).exchangeLastTradeTimestamp).to.eq(timestamp2);
-  //       });
-  //     });
-  //   });
-
-  //   context("when not engaged", async () => {
-  //     async function subject(): Promise<any> {
-  //       return flexibleLeverageStrategyExtension.ripcord(subjectExchangeName);
-  //     }
-
-  //     describe("when collateral balance is zero", async () => {
-  //       beforeEach(async () => {
-  //         // Set collateral asset to cUSDC with 0 balance
-  //         customCTokenCollateralAddress = cUSDC.address;
-  //         ifEngaged = false;
-
-  //         await intializeContracts();
-  //         initializeSubjectVariables();
-  //       });
-
-  //       after(async () => {
-  //         customCTokenCollateralAddress = undefined;
-  //         ifEngaged = true;
-  //       });
-
-  //       it("should revert", async () => {
-  //         await expect(subject()).to.be.revertedWith("Collateral balance must be > 0");
-  //       });
-  //     });
-  //   });
-  // });
+    const initializeSubjectVariables = () => {
+      subjectCaller = owner;
+    };
+
+    cacheBeforeEach(intializeContracts);
+    beforeEach(initializeSubjectVariables);
+
+    // increaseTime
+    context("when not in a TWAP rebalance", async () => {
+      cacheBeforeEach(async () => {
+        // Withdraw balance of USDC from exchange contract from engage
+        await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
+        await increaseTimeAsync(BigNumber.from(100000));
+
+        // Set to above incentivized ratio
+        await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+        await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(450000000));
+
+        transferredEth = ether(1);
+        await owner.wallet.sendTransaction({to: flexibleLeverageStrategyExtension.address, value: transferredEth});
+      });
+
+      async function subject(): Promise<any> {
+        return flexibleLeverageStrategyExtension.connect(subjectCaller.wallet).ripcord(subjectExchangeName);
+      }
+
+      it("should set the global last trade timestamp", async () => {
+        await subject();
+
+        const lastTradeTimestamp = await flexibleLeverageStrategyExtension.globalLastTradeTimestamp();
+
+        expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
+      });
+
+      it("should set the exchange's last trade timestamp", async () => {
+        await subject();
+
+        const exchangeSettings = await flexibleLeverageStrategyExtension.getExchangeSettings(exchangeName);
+        const lastTradeTimestamp = exchangeSettings.exchangeLastTradeTimestamp;
+
+        expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
+      });
+
+      it("should not set the TWAP leverage ratio", async () => {
+        await subject();
+
+        const twapLeverageRatio = await flexibleLeverageStrategyExtension.twapLeverageRatio();
+
+        expect(twapLeverageRatio).to.eq(ZERO);
+      });
+
+      it("should update the collateral position on the SetToken correctly", async () => {
+        const initialPositions = await setToken.getPositions();
+        const currentLeverageRatio = await flexibleLeverageStrategyExtension.getCurrentLeverageRatio();
+
+        const previousATokenBalance = await aWeth.balanceOf(setToken.address);
+
+        await subject();
+
+        // aWeth position is decreased
+        const currentPositions = await setToken.getPositions();
+        const newFirstPosition = (await setToken.getPositions())[0];
+
+        const expectedNewLeverageRatio = calculateNewLeverageRatio(
+          currentLeverageRatio,
+          methodology.targetLeverageRatio,
+          methodology.minLeverageRatio,
+          methodology.maxLeverageRatio,
+          methodology.recenteringSpeed
+        );
+        // Get expected USDC redeemed
+        const expectedCollateralAssetsRedeemed = calculateCollateralRebalanceUnits(
+          currentLeverageRatio,
+          expectedNewLeverageRatio,
+          previousATokenBalance,
+          ether(1) // Total supply
+        );
+
+        const expectedFirstPositionUnit = initialPositions[0].unit.sub(expectedCollateralAssetsRedeemed);
+
+        expect(initialPositions.length).to.eq(2);
+        expect(currentPositions.length).to.eq(2);
+        expect(newFirstPosition.component).to.eq(aWeth.address);
+        expect(newFirstPosition.positionState).to.eq(0); // Default
+        expect(newFirstPosition.unit).to.eq(expectedFirstPositionUnit);
+        expect(newFirstPosition.module).to.eq(ADDRESS_ZERO);
+      });
+
+      it("should update the borrow position on the SetToken correctly", async () => {
+        const initialPositions = await setToken.getPositions();
+
+        await subject();
+
+        // aWeth position is increased
+        const currentPositions = await setToken.getPositions();
+        const newSecondPosition = (await setToken.getPositions())[1];
+
+        const expectedSecondPositionUnit = (await usdcVariableDebtToken.balanceOf(setToken.address)).mul(-1);
+
+        expect(initialPositions.length).to.eq(2);
+        expect(currentPositions.length).to.eq(2);
+        expect(newSecondPosition.component).to.eq(setV2Setup.usdc.address);
+        expect(newSecondPosition.positionState).to.eq(1); // External
+        expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
+        expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
+      });
+
+      it("should transfer incentive", async () => {
+        const previousContractEthBalance = await getEthBalance(flexibleLeverageStrategyExtension.address);
+        const previousOwnerEthBalance = await getEthBalance(owner.address);
+
+        const txHash = await subject();
+        const txReceipt = await provider.getTransactionReceipt(txHash.hash);
+        const currentContractEthBalance = await getEthBalance(flexibleLeverageStrategyExtension.address);
+        const currentOwnerEthBalance = await getEthBalance(owner.address);
+        const expectedOwnerEthBalance = previousOwnerEthBalance.add(incentive.etherReward).sub(txReceipt.gasUsed.mul(txHash.gasPrice));
+
+        expect(previousContractEthBalance).to.eq(transferredEth);
+        expect(currentContractEthBalance).to.eq(transferredEth.sub(incentive.etherReward));
+        expect(expectedOwnerEthBalance).to.eq(currentOwnerEthBalance);
+      });
+
+      it("should emit RipcordCalled event", async () => {
+        const currentLeverageRatio = await flexibleLeverageStrategyExtension.getCurrentLeverageRatio();
+        const collateralBalance = await aWeth.balanceOf(setToken.address);
+        const chunkRebalanceNotional = preciseMul(
+          preciseDiv(currentLeverageRatio.sub(methodology.maxLeverageRatio), currentLeverageRatio),
+          collateralBalance
+        );
+
+        await expect(subject()).to.emit(flexibleLeverageStrategyExtension, "RipcordCalled").withArgs(
+          currentLeverageRatio,
+          methodology.maxLeverageRatio,
+          chunkRebalanceNotional,
+          incentive.etherReward,
+        );
+      });
+
+      describe("when greater than incentivized max trade size", async () => {
+        let newIncentivizedMaxTradeSize: BigNumber;
+
+        cacheBeforeEach(async () => {
+
+          newIncentivizedMaxTradeSize = ether(0.01);
+          const newExchangeSettings: ExchangeSettings = {
+            twapMaxTradeSize: ether(0.001),
+            incentivizedTwapMaxTradeSize: newIncentivizedMaxTradeSize,
+            exchangeLastTradeTimestamp: exchangeSettings.exchangeLastTradeTimestamp,
+            leverExchangeData: EMPTY_BYTES,
+            deleverExchangeData: EMPTY_BYTES,
+          };
+          await flexibleLeverageStrategyExtension.updateEnabledExchange(subjectExchangeName, newExchangeSettings);
+        });
+
+        it("should set the global last trade timestamp", async () => {
+          await subject();
+
+          const lastTradeTimestamp = await flexibleLeverageStrategyExtension.globalLastTradeTimestamp();
+
+          expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
+        });
+
+        it("should set the exchange's last trade timestamp", async () => {
+          await subject();
+
+          const exchangeSettings = await flexibleLeverageStrategyExtension.getExchangeSettings(exchangeName);
+          const lastTradeTimestamp = exchangeSettings.exchangeLastTradeTimestamp;
+
+          expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
+        });
+
+        it("should update the collateral position on the SetToken correctly", async () => {
+          const initialPositions = await setToken.getPositions();
+
+          await subject();
+
+          // aWeth position is decreased
+          const currentPositions = await setToken.getPositions();
+          const newFirstPosition = (await setToken.getPositions())[0];
+
+          // Max TWAP collateral units
+          const expectedFirstPositionUnit = initialPositions[0].unit.sub(newIncentivizedMaxTradeSize);
+
+          expect(initialPositions.length).to.eq(2);
+          expect(currentPositions.length).to.eq(2);
+          expect(newFirstPosition.component).to.eq(aWeth.address);
+          expect(newFirstPosition.positionState).to.eq(0); // Default
+          expect(newFirstPosition.unit).to.eq(expectedFirstPositionUnit);
+          expect(newFirstPosition.module).to.eq(ADDRESS_ZERO);
+        });
+
+        it("should update the borrow position on the SetToken correctly", async () => {
+          const initialPositions = await setToken.getPositions();
+
+          await subject();
+
+          // aWeth position is increased
+          const currentPositions = await setToken.getPositions();
+          const newSecondPosition = (await setToken.getPositions())[1];
+
+          const expectedSecondPositionUnit = (await usdcVariableDebtToken.balanceOf(setToken.address)).mul(-1);
+
+          expect(initialPositions.length).to.eq(2);
+          expect(currentPositions.length).to.eq(2);
+          expect(newSecondPosition.component).to.eq(setV2Setup.usdc.address);
+          expect(newSecondPosition.positionState).to.eq(1); // External
+          expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
+          expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
+        });
+
+        describe("when incentivized cooldown period has not elapsed", async () => {
+          beforeEach(async () => {
+            await subject();
+            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(400).mul(10 ** 8));
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("TWAP cooldown must have elapsed");
+          });
+        });
+      });
+
+      describe("when greater than max borrow", async () => {
+        beforeEach(async () => {
+          // Set to above max borrow
+          await aaveSetup.setAssetPriceInOracle(setV2Setup.usdc.address, preciseDiv(ether(1), ether(650)));
+          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(650).mul(10 ** 8));
+        });
+
+        it("should set the global last trade timestamp", async () => {
+          await subject();
+
+          const lastTradeTimestamp = await flexibleLeverageStrategyExtension.globalLastTradeTimestamp();
+
+          expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
+        });
+
+        it("should set the exchange's last trade timestamp", async () => {
+          await subject();
+
+          const exchangeSettings = await flexibleLeverageStrategyExtension.getExchangeSettings(exchangeName);
+          const lastTradeTimestamp = exchangeSettings.exchangeLastTradeTimestamp;
+
+          expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
+        });
+
+        it("should update the collateral position on the SetToken correctly", async () => {
+          const initialPositions = await setToken.getPositions();
+
+          // Get max borrow
+          const previousCollateralBalance = await aWeth.balanceOf(setToken.address);
+
+          const previousBorrowBalance = (await usdcVariableDebtToken.balanceOf(setToken.address)).mul(BigNumber.from(10).pow(12));
+
+          const collateralPrice = ether(650);
+          const borrowPrice = ether(1);
+          const reserveConfig = await aaveSetup.protocolDataProvider.getReserveConfigurationData(setV2Setup.weth.address);
+          const collateralFactor = reserveConfig.liquidationThreshold.mul(BigNumber.from(10).pow(14));
+
+          await subject();
+
+          // aWeth position is decreased
+          const currentPositions = await setToken.getPositions();
+          const newFirstPosition = (await setToken.getPositions())[0];
+
+          const maxRedeemCollateral = calculateMaxBorrowForDelever(
+            previousCollateralBalance,
+            collateralFactor,
+            execution.unutilizedLeveragePercentage,
+            collateralPrice,
+            borrowPrice,
+            previousBorrowBalance,
+          );
+
+          // const maxRedeemCToken = preciseDiv(maxRedeemCollateral, exchangeRate);
+          const expectedFirstPositionUnit = initialPositions[0].unit.sub(maxRedeemCollateral);
+
+          expect(initialPositions.length).to.eq(2);
+          expect(currentPositions.length).to.eq(2);
+          expect(newFirstPosition.component).to.eq(aWeth.address);
+          expect(newFirstPosition.positionState).to.eq(0); // Default
+          expect(newFirstPosition.unit).to.eq(expectedFirstPositionUnit);
+          expect(newFirstPosition.module).to.eq(ADDRESS_ZERO);
+        });
+
+        it("should update the borrow position on the SetToken correctly", async () => {
+          const initialPositions = await setToken.getPositions();
+
+          await subject();
+
+          // aWeth position is increased
+          const currentPositions = await setToken.getPositions();
+          const newSecondPosition = (await setToken.getPositions())[1];
+
+          const expectedSecondPositionUnit = (await usdcVariableDebtToken.balanceOf(setToken.address)).mul(-1);
+
+          expect(initialPositions.length).to.eq(2);
+          expect(currentPositions.length).to.eq(2);
+          expect(newSecondPosition.component).to.eq(setV2Setup.usdc.address);
+          expect(newSecondPosition.positionState).to.eq(1); // External
+          expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
+          expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
+        });
+      });
+
+      describe("when below incentivized leverage ratio threshold", async () => {
+        beforeEach(async () => {
+          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(2000).mul(10 ** 8));
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be above incentivized leverage ratio");
+        });
+      });
+
+      describe("when borrow balance is 0", async () => {
+        beforeEach(async () => {
+          // Repay entire balance of USDC on behalf of SetToken
+          await aaveSetup.lendingPool.repay(setV2Setup.usdc.address, await usdcVariableDebtToken.balanceOf(setToken.address), 2, setToken.address);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Borrow balance must exist");
+        });
+      });
+
+      describe("when caller is a contract", async () => {
+        let subjectTarget: Address;
+        let subjectCallData: string;
+        let subjectValue: BigNumber;
+
+        let contractCaller: ContractCallerMock;
+
+        beforeEach(async () => {
+          contractCaller = await deployer.setV2.deployContractCallerMock();
+
+          subjectTarget = flexibleLeverageStrategyExtension.address;
+          subjectCallData = flexibleLeverageStrategyExtension.interface.encodeFunctionData("ripcord", [ subjectExchangeName ]);
+          subjectValue = ZERO;
+        });
+
+        async function subjectContractCaller(): Promise<any> {
+          return await contractCaller.invoke(
+            subjectTarget,
+            subjectValue,
+            subjectCallData
+          );
+        }
+
+        it("the trade reverts", async () => {
+          await expect(subjectContractCaller()).to.be.revertedWith("Caller must be EOA Address");
+        });
+      });
+
+      describe("when SetToken has 0 supply", async () => {
+        beforeEach(async () => {
+          await setV2Setup.usdc.approve(debtIssuanceModule.address, MAX_UINT_256);
+          await debtIssuanceModule.redeem(setToken.address, ether(1), owner.address);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("SetToken must have > 0 supply");
+        });
+      });
+
+      describe("when using an exchange that has not been added", async () => {
+        beforeEach(async () => {
+          subjectExchangeName = "NonExistentExchange";
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.revertedWith("Must be valid exchange");
+        });
+      });
+    });
+
+    context("when in the midst of a TWAP rebalance", async () => {
+      let newIncentivizedMaxTradeSize: BigNumber;
+
+      cacheBeforeEach(async () => {
+        // Withdraw balance of USDC from exchange contract from engage
+        await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
+        await increaseTimeAsync(BigNumber.from(100000));
+        transferredEth = ether(1);
+        await owner.wallet.sendTransaction({to: flexibleLeverageStrategyExtension.address, value: transferredEth});
+
+        // > Max trade size
+        newIncentivizedMaxTradeSize = ether(0.001);
+        const newExchangeSettings: ExchangeSettings = {
+          twapMaxTradeSize: ether(0.001),
+          incentivizedTwapMaxTradeSize: newIncentivizedMaxTradeSize,
+          exchangeLastTradeTimestamp: exchangeSettings.exchangeLastTradeTimestamp,
+          leverExchangeData: EMPTY_BYTES,
+          deleverExchangeData: EMPTY_BYTES,
+        };
+        subjectExchangeName = exchangeName;
+        await flexibleLeverageStrategyExtension.updateEnabledExchange(subjectExchangeName, newExchangeSettings);
+
+        await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
+
+        await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
+
+        // Start TWAP rebalance
+        await flexibleLeverageStrategyExtension.rebalance(subjectExchangeName);
+        await increaseTimeAsync(BigNumber.from(100));
+        await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
+
+        // Set to above incentivized ratio
+        await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+      });
+
+      async function subject(): Promise<any> {
+        return flexibleLeverageStrategyExtension.connect(subjectCaller.wallet).ripcord(subjectExchangeName);
+      }
+
+      it("should set the global last trade timestamp", async () => {
+        await subject();
+
+        const lastTradeTimestamp = await flexibleLeverageStrategyExtension.globalLastTradeTimestamp();
+
+        expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
+      });
+
+      it("should set the exchange's last trade timestamp", async () => {
+        await subject();
+
+        const exchangeSettings = await flexibleLeverageStrategyExtension.getExchangeSettings(exchangeName);
+        const lastTradeTimestamp = exchangeSettings.exchangeLastTradeTimestamp;
+
+        expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
+      });
+
+      it("should set the TWAP leverage ratio to 0", async () => {
+        await subject();
+
+        const twapLeverageRatio = await flexibleLeverageStrategyExtension.twapLeverageRatio();
+
+        expect(twapLeverageRatio).to.eq(ZERO);
+      });
+    });
+
+    context("when using two exchanges", async () => {
+      let subjectExchangeToUse: string;
+
+      cacheBeforeEach(async () => {
+
+        // Withdraw balance of USDC from exchange contract from engage
+        await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
+        await increaseTimeAsync(BigNumber.from(100000));
+
+        // Set to above incentivized ratio
+        await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+        await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(300000000));
+        await setV2Setup.usdc.transfer(tradeAdapterMock2.address, BigNumber.from(300000000));
+
+        await flexibleLeverageStrategyExtension.updateEnabledExchange(exchangeName, exchangeSettings);
+        await flexibleLeverageStrategyExtension.addEnabledExchange(exchangeName2, exchangeSettings);
+        await increaseTimeAsync(BigNumber.from(100000));
+      });
+
+      beforeEach(() => {
+        subjectCaller = owner;
+        subjectExchangeToUse = exchangeName;
+      });
+
+      async function subject(): Promise<any> {
+        return flexibleLeverageStrategyExtension.connect(subjectCaller.wallet).ripcord(subjectExchangeToUse);
+      }
+
+      describe("when leverage ratio is above max and it drops further between ripcords", async () => {
+        it("should set the global and exchange timestamps correctly", async () => {
+          await subject();
+          const timestamp1 = await getLastBlockTimestamp();
+
+          subjectExchangeToUse = exchangeName2;
+          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(600).mul(10 ** 8));
+
+          await subject();
+          const timestamp2 = await getLastBlockTimestamp();
+
+          expect(await flexibleLeverageStrategyExtension.globalLastTradeTimestamp()).to.eq(timestamp2);
+          expect((await flexibleLeverageStrategyExtension.getExchangeSettings(exchangeName)).exchangeLastTradeTimestamp).to.eq(timestamp1);
+          expect((await flexibleLeverageStrategyExtension.getExchangeSettings(exchangeName2)).exchangeLastTradeTimestamp).to.eq(timestamp2);
+        });
+      });
+    });
+
+    context("when not engaged", async () => {
+      async function subject(): Promise<any> {
+        return flexibleLeverageStrategyExtension.ripcord(subjectExchangeName);
+      }
+
+      describe("when collateral balance is zero", async () => {
+        beforeEach(async () => {
+          // Set collateral asset to aUSDC with 0 balance
+          customATokenCollateralAddress = aUsdc.address;
+          ifEngaged = false;
+
+          await intializeContracts();
+          initializeSubjectVariables();
+        });
+
+        after(async () => {
+          customATokenCollateralAddress = undefined;
+          ifEngaged = true;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Collateral balance must be > 0");
+        });
+      });
+    });
+  });
 
   // describe("#disengage", async () => {
   //   let subjectCaller: Account;
