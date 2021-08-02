@@ -31,7 +31,7 @@ export function calculateCollateralRebalanceUnits(
   return preciseDiv(c, totalSupply);
 }
 
-export async function calculateTotalRebalanceNotional(
+export async function calculateTotalRebalanceNotionalCompound(
   setToken: SetToken,
   cEther: CEther,
   currentLeverageRatio: BigNumber,

@@ -36,7 +36,7 @@ import {
   usdc
 } from "@utils/index";
 import { SetFixture, CompoundFixture } from "@utils/fixtures";
-import { calculateTotalRebalanceNotional } from "@utils/flexibleLeverageUtils/flexibleLeverage";
+import { calculateTotalRebalanceNotionalCompound } from "@utils/flexibleLeverageUtils/flexibleLeverage";
 
 const expect = getWaffleExpect();
 const provider = ethers.provider;
@@ -4455,7 +4455,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
 
           const newLeverageRatio = methodology.maxLeverageRatio;
           const currentLeverageRatio = await flexibleLeverageStrategyExtension.getCurrentLeverageRatio();
-          const expectedTotalRebalance = await calculateTotalRebalanceNotional(setToken, cEther, currentLeverageRatio, newLeverageRatio);
+          const expectedTotalRebalance = await calculateTotalRebalanceNotionalCompound(setToken, cEther, currentLeverageRatio, newLeverageRatio);
 
           expect(sellAsset).to.eq(strategy.collateralAsset);
           expect(buyAsset).to.eq(strategy.borrowAsset);
@@ -4475,7 +4475,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
 
           const currentLeverageRatio = await flexibleLeverageStrategyExtension.getCurrentLeverageRatio();
           const newLeverageRatio = await flexibleLeverageStrategyExtension.twapLeverageRatio();
-          const expectedTotalRebalance = await calculateTotalRebalanceNotional(setToken, cEther, currentLeverageRatio, newLeverageRatio);
+          const expectedTotalRebalance = await calculateTotalRebalanceNotionalCompound(setToken, cEther, currentLeverageRatio, newLeverageRatio);
 
           expect(sellAsset).to.eq(strategy.collateralAsset);
           expect(buyAsset).to.eq(strategy.borrowAsset);
@@ -4505,7 +4505,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
 
           const newLeverageRatio = methodology.maxLeverageRatio;
           const currentLeverageRatio = await flexibleLeverageStrategyExtension.getCurrentLeverageRatio();
-          const expectedTotalRebalance = await calculateTotalRebalanceNotional(setToken, cEther, currentLeverageRatio, newLeverageRatio);
+          const expectedTotalRebalance = await calculateTotalRebalanceNotionalCompound(setToken, cEther, currentLeverageRatio, newLeverageRatio);
 
           expect(sellAsset).to.eq(strategy.collateralAsset);
           expect(buyAsset).to.eq(strategy.borrowAsset);
@@ -4530,7 +4530,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
             methodology.maxLeverageRatio,
             methodology.recenteringSpeed
           );
-          const expectedTotalRebalance = await calculateTotalRebalanceNotional(setToken, cEther, currentLeverageRatio, newLeverageRatio);
+          const expectedTotalRebalance = await calculateTotalRebalanceNotionalCompound(setToken, cEther, currentLeverageRatio, newLeverageRatio);
 
           expect(sellAsset).to.eq(strategy.collateralAsset);
           expect(buyAsset).to.eq(strategy.borrowAsset);
@@ -4555,7 +4555,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
             methodology.maxLeverageRatio,
             methodology.recenteringSpeed
           );
-          const expectedTotalRebalance = await calculateTotalRebalanceNotional(setToken, cEther, currentLeverageRatio, newLeverageRatio);
+          const expectedTotalRebalance = await calculateTotalRebalanceNotionalCompound(setToken, cEther, currentLeverageRatio, newLeverageRatio);
 
           expect(sellAsset).to.eq(strategy.collateralAsset);
           expect(buyAsset).to.eq(strategy.borrowAsset);
@@ -4580,7 +4580,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
             methodology.maxLeverageRatio,
             methodology.recenteringSpeed
           );
-          const totalCollateralRebalance = await calculateTotalRebalanceNotional(setToken, cEther, currentLeverageRatio, newLeverageRatio);
+          const totalCollateralRebalance = await calculateTotalRebalanceNotionalCompound(setToken, cEther, currentLeverageRatio, newLeverageRatio);
           // Multiply collateral by conversion rate (1400 USDC per ETH) and adjust for decimals
           const expectedTotalRebalance = preciseMul(totalCollateralRebalance, ether(1400)).div(BigNumber.from(10).pow(12));
 
