@@ -32,8 +32,6 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
 
-import { console } from "hardhat/console.sol";
-
 
 /**
  * @title AaveFLIStrategyExtension
@@ -655,7 +653,9 @@ contract AaveFLIStrategyExtension is BaseAdapter {
             (uint256 collateralNotional, ) = _calculateChunkRebalanceNotional(leverageInfo, newLeverageRatio, isLever);
 
             // _calculateBorrowUnits can convert both unit and notional values
-            sizes[i] = isLever ? _calculateBorrowUnits(collateralNotional, leverageInfo.action) : collateralNotional;
+            sizes[i] = isLever ? 
+                _calculateBorrowUnits(collateralNotional, leverageInfo.action).div(10 ** (18 - strategy.borrowDecimals))
+                : collateralNotional.div(10 ** (18 - strategy.collateralDecimals));
         }
 
         sellAsset = isLever ? strategy.borrowAsset : strategy.collateralAsset;
@@ -750,7 +750,7 @@ contract AaveFLIStrategyExtension is BaseAdapter {
         internal
     {
         uint256 collateralRebalanceUnits = _chunkRebalanceNotional.preciseDiv(_leverageInfo.action.setTotalSupply);
-
+        
         uint256 borrowUnits = _calculateBorrowUnits(collateralRebalanceUnits, _leverageInfo.action);
 
         uint256 minReceiveCollateralUnits = _calculateMinCollateralReceiveUnits(collateralRebalanceUnits, _leverageInfo.slippageTolerance);
@@ -760,8 +760,8 @@ contract AaveFLIStrategyExtension is BaseAdapter {
             address(strategy.setToken),
             strategy.borrowAsset,
             strategy.collateralAsset,
-            borrowUnits,
-            minReceiveCollateralUnits,
+            borrowUnits.div(10 ** (18 - strategy.borrowDecimals)),
+            minReceiveCollateralUnits.div(10 ** (18 - strategy.collateralDecimals)),
             _leverageInfo.exchangeName,
             exchangeSettings[_leverageInfo.exchangeName].leverExchangeData
         );
@@ -787,8 +787,8 @@ contract AaveFLIStrategyExtension is BaseAdapter {
             address(strategy.setToken),
             strategy.collateralAsset,
             strategy.borrowAsset,
-            collateralRebalanceUnits,
-            minRepayUnits,
+            collateralRebalanceUnits.div(10 ** (18 - strategy.collateralDecimals)),
+            minRepayUnits.div(10 ** (18 - strategy.borrowDecimals)),
             _leverageInfo.exchangeName,
             exchangeSettings[_leverageInfo.exchangeName].deleverExchangeData
         );
@@ -815,7 +815,7 @@ contract AaveFLIStrategyExtension is BaseAdapter {
             address(strategy.setToken),
             strategy.collateralAsset,
             strategy.borrowAsset,
-            maxCollateralRebalanceUnits,
+            maxCollateralRebalanceUnits.div(10 ** (18 - strategy.collateralDecimals)),
             _leverageInfo.exchangeName,
             exchangeSettings[_leverageInfo.exchangeName].deleverExchangeData
         );
@@ -1069,7 +1069,7 @@ contract AaveFLIStrategyExtension is BaseAdapter {
 
         uint256 maxBorrow = _calculateMaxBorrowCollateral(_leverageInfo.action, _isLever);
 
-        uint256 chunkRebalanceNotional = Math.min(Math.min(maxBorrow, totalRebalanceNotional), _leverageInfo.twapMaxTradeSize);
+        uint256 chunkRebalanceNotional = Math.min(Math.min(maxBorrow, totalRebalanceNotional), _leverageInfo.twapMaxTradeSize.mul(10 ** (18 - strategy.collateralDecimals)));
 
         return (chunkRebalanceNotional, totalRebalanceNotional);
     }
@@ -1126,8 +1126,8 @@ contract AaveFLIStrategyExtension is BaseAdapter {
      *
      * return uint256           Position units to borrow
      */
-    function _calculateBorrowUnits(uint256 _collateralRebalanceUnits, ActionInfo memory _actionInfo) internal view returns (uint256) {
-        return _collateralRebalanceUnits.preciseMul(_actionInfo.collateralPrice).preciseDiv(_actionInfo.borrowPrice).div(10 ** (18 - strategy.borrowDecimals));
+    function _calculateBorrowUnits(uint256 _collateralRebalanceUnits, ActionInfo memory _actionInfo) internal pure returns (uint256) {
+        return _collateralRebalanceUnits.preciseMul(_actionInfo.collateralPrice).preciseDiv(_actionInfo.borrowPrice);
     }
 
     /**
@@ -1145,12 +1145,11 @@ contract AaveFLIStrategyExtension is BaseAdapter {
      *
      * return uint256           Min position units to repay in borrow asset
      */
-    function _calculateMinRepayUnits(uint256 _collateralRebalanceUnits, uint256 _slippageTolerance, ActionInfo memory _actionInfo) internal view returns (uint256) {
+    function _calculateMinRepayUnits(uint256 _collateralRebalanceUnits, uint256 _slippageTolerance, ActionInfo memory _actionInfo) internal pure returns (uint256) {
         return _collateralRebalanceUnits
             .preciseMul(_actionInfo.collateralPrice)
             .preciseDiv(_actionInfo.borrowPrice)
-            .preciseMul(PreciseUnitMath.preciseUnit().sub(_slippageTolerance))
-            .div(10 ** (18 - strategy.borrowDecimals));
+            .preciseMul(PreciseUnitMath.preciseUnit().sub(_slippageTolerance));
     }
 
     /**

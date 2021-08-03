@@ -88,7 +88,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
     aaveSetup = getAaveV2Fixture(owner.address);
     await aaveSetup.initialize(setV2Setup.weth.address, setV2Setup.dai.address);
 
-    const usdcReserveTokens = (await aaveSetup.createAndEnableReserve(
+    const usdcReserveTokens = await aaveSetup.createAndEnableReserve(
       setV2Setup.usdc.address,
       "USDC",
       6,
@@ -98,7 +98,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       BigNumber.from(1000),   // reserve factor: 10%
       true,					          // enable borrowing on reserve
       true					          // enable stable debts
-    ));
+    );
 
     usdcVariableDebtToken = usdcReserveTokens.variableDebtToken;
 
