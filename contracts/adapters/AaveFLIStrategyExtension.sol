@@ -1048,7 +1048,7 @@ contract AaveFLIStrategyExtension is BaseAdapter {
     }
 
     /**
-     * Calculate total notional rebalance quantity and chunked rebalance quantity in collateral units. 
+     * Calculate total notional rebalance quantity and chunked rebalance quantity in precise (18 decimal) units. 
      *
      * return uint256          Chunked rebalance notional in collateral units
      * return uint256          Total rebalance notional in collateral units
@@ -1075,14 +1075,14 @@ contract AaveFLIStrategyExtension is BaseAdapter {
     }
 
     /**
-     * Calculate the max borrow / repay amount allowed in collateral units for lever / delever. This is due to overcollateralization requirements on
+     * Calculate the max borrow / repay amount allowed in precise units for lever / delever. This is due to overcollateralization requirements on
      * assets deposited in lending protocols for borrowing.
      * 
      * For lever, max borrow is calculated as:
      * (Net borrow limit in USD - existing borrow value in USD) / collateral asset price adjusted for decimals
      *
      * For delever, max borrow is calculated as:
-     * Collateral balance in base units * (net borrow limit in USD - existing borrow value in USD) / net borrow limit in USD
+     * Collateral balance in precise units * (net borrow limit in USD - existing borrow value in USD) / net borrow limit in USD
      *
      * Net borrow limit for levering is calculated as:
      * The collateral value in USD * Aave collateral factor * (1 - unutilized leverage %)
@@ -1121,8 +1121,8 @@ contract AaveFLIStrategyExtension is BaseAdapter {
     }
 
     /**
-     * Derive the borrow units for lever. The units are calculated by the collateral units multiplied by collateral / borrow asset price. Oracle prices
-     * have already been adjusted for the decimals in the token.
+     * Derive the borrow units for lever. The units are calculated by the collateral units multiplied by collateral / borrow asset price.
+     * Output is measured to 18 decimals.
      *
      * return uint256           Position units to borrow
      */
@@ -1132,6 +1132,7 @@ contract AaveFLIStrategyExtension is BaseAdapter {
 
     /**
      * Calculate the min receive units in collateral units for lever. Units are calculated as target collateral rebalance units multiplied by slippage tolerance
+     * Output is measured to 18 decimals.
      *
      * return uint256           Min position units to receive after lever trade
      */
@@ -1141,7 +1142,7 @@ contract AaveFLIStrategyExtension is BaseAdapter {
 
     /**
      * Derive the min repay units from collateral units for delever. Units are calculated as target collateral rebalance units multiplied by slippage tolerance
-     * and pair price (collateral oracle price / borrow oracle price). Oracle prices have already been adjusted for the decimals in the token.
+     * and pair price (collateral oracle price / borrow oracle price). Output is measured to 18 decimals.
      *
      * return uint256           Min position units to repay in borrow asset
      */
@@ -1213,7 +1214,7 @@ contract AaveFLIStrategyExtension is BaseAdapter {
     /**
      * Transfer ETH reward to caller of the ripcord function. If the ETH balance on this contract is less than required 
      * incentive quantity, then transfer contract balance instead to prevent reverts.
-     *
+     *70
      * return uint256           Amount of ETH transferred to caller
      */
     function _transferEtherRewardToCaller(uint256 _etherReward) internal returns(uint256) {
