@@ -57,16 +57,19 @@ export interface MethodologySettings {
 
 export interface ExecutionSettings {
   unutilizedLeveragePercentage: BigNumber;
-  twapMaxTradeSize: BigNumber;
   twapCooldownPeriod: BigNumber;
   slippageTolerance: BigNumber;
-  exchangeName: string;
+}
+
+export interface ExchangeSettings {
+  twapMaxTradeSize: BigNumber;
+  exchangeLastTradeTimestamp: BigNumber;
+  incentivizedTwapMaxTradeSize: BigNumber;
   leverExchangeData: Bytes;
   deleverExchangeData: Bytes;
 }
 
 export interface IncentiveSettings {
-  incentivizedTwapMaxTradeSize: BigNumber;
   incentivizedTwapCooldownPeriod: BigNumber;
   incentivizedSlippageTolerance: BigNumber;
   etherReward: BigNumber;

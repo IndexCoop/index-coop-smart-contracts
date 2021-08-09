@@ -7,8 +7,9 @@ import {
   CompoundLeverageModule,
   Controller,
   DebtIssuanceModule,
-  IntegrationRegistry,
+  GeneralIndexModule,
   GovernanceModule,
+  IntegrationRegistry,
   SetToken,
   SetTokenCreator,
   StreamingFeeModule
@@ -45,6 +46,7 @@ export class SetFixture {
   public streamingFeeModule: StreamingFeeModule;
   public compoundLeverageModule: CompoundLeverageModule;
   public governanceModule: GovernanceModule;
+  public generalIndexModule: GeneralIndexModule;
 
   public weth: WETH9;
   public usdc: StandardTokenMock;
@@ -73,11 +75,17 @@ export class SetFixture {
 
     await this.initializeStandardComponents();
 
+    this.generalIndexModule = await this._deployer.setV2.deployGeneralIndexModule(
+      this.controller.address,
+      this.weth.address
+    );
+
     const modules = [
       this.issuanceModule.address,
       this.streamingFeeModule.address,
       this.debtIssuanceModule.address,
       this.governanceModule.address,
+      this.generalIndexModule.address,
     ];
 
     await this.controller.initialize(
@@ -90,11 +98,11 @@ export class SetFixture {
 
   public async initializeStandardComponents(): Promise<void> {
     this.weth = await this._deployer.setV2.deployWETH();
-    this.usdc = await this._deployer.setV2.deployTokenMock(this._ownerAddress, ether(10000), 6);
-    this.wbtc = await this._deployer.setV2.deployTokenMock(this._ownerAddress, ether(10000), 8);
+    this.usdc = await this._deployer.setV2.deployTokenMock(this._ownerAddress, ether(100000), 6);
+    this.wbtc = await this._deployer.setV2.deployTokenMock(this._ownerAddress, ether(100000), 8);
     this.dai = await this._deployer.setV2.deployTokenMock(this._ownerAddress, ether(1000000), 18);
 
-    await this.weth.deposit({ value: ether(20000) });
+    await this.weth.deposit({ value: ether(200000) });
     await this.weth.approve(this.issuanceModule.address, ether(10000));
     await this.usdc.approve(this.issuanceModule.address, ether(10000));
     await this.wbtc.approve(this.issuanceModule.address, ether(10000));

@@ -8,6 +8,7 @@ import DeployAdapter from "./deployAdapters";
 import DeployExternalContracts from "./deployExternal";
 import DeployHooks from "./deployHooks";
 import DeployStaking from "./deployStaking";
+import DeployViewers from "./deployViewers";
 
 export default class DeployHelper {
   public token: DeployToken;
@@ -18,6 +19,7 @@ export default class DeployHelper {
   public external: DeployExternalContracts;
   public hooks: DeployHooks;
   public staking: DeployStaking;
+  public viewers: DeployViewers;
 
   constructor(deployerSigner: Signer) {
     this.token = new DeployToken(deployerSigner);
@@ -28,5 +30,6 @@ export default class DeployHelper {
     this.external = new DeployExternalContracts(deployerSigner);
     this.hooks = new DeployHooks(deployerSigner);
     this.staking = new DeployStaking(deployerSigner);
+    this.viewers = new DeployViewers(deployerSigner);
   }
 }
