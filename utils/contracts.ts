@@ -6,4 +6,5 @@ export { StakingRewardsV2 } from "../typechain/StakingRewardsV2";
 export { Vesting } from "../typechain/Vesting";
 export { OtcEscrow } from "../typechain/OtcEscrow";
 export { IndexPowah } from "../typechain/IndexPowah";
+export { FTCVesting } from "../typechain/FTCVesting";
 export { FLIRebalanceViewer } from "../typechain/FLIRebalanceViewer";

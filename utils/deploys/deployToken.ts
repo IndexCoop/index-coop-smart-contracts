@@ -1,13 +1,21 @@
 import { Signer } from "ethers";
 import { BigNumber } from "@ethersproject/bignumber";
 import { Address } from "../types";
-import { IndexPowah, IndexToken, MerkleDistributor, OtcEscrow, Vesting } from "../contracts";
+import {
+  IndexPowah,
+  IndexToken,
+  MerkleDistributor,
+  OtcEscrow,
+  Vesting,
+  FTCVesting,
+} from "../contracts";
 
-import { IndexPowah__factory } from "../../typechain/factories/IndexPowah__factory";
 import { IndexToken__factory } from "../../typechain/factories/IndexToken__factory";
 import { MerkleDistributor__factory } from "../../typechain/factories/MerkleDistributor__factory";
 import { Vesting__factory } from "../../typechain/factories/Vesting__factory";
 import { OtcEscrow__factory } from "../../typechain/factories/OtcEscrow__factory";
+import { FTCVesting__factory } from "../../typechain/factories/FTCVesting__factory";
+import { IndexPowah__factory } from "@typechain/factories/IndexPowah__factory";
 
 export default class DeployToken {
   private _deployerSigner: Signer;
@@ -20,7 +28,10 @@ export default class DeployToken {
     return await new IndexToken__factory(this._deployerSigner).deploy(initialAccount);
   }
 
-  public async deployMerkleDistributor(token: Address, merkleRoot: string): Promise<MerkleDistributor> {
+  public async deployMerkleDistributor(
+    token: Address,
+    merkleRoot: string,
+  ): Promise<MerkleDistributor> {
     return await new MerkleDistributor__factory(this._deployerSigner).deploy(token, merkleRoot);
   }
 
@@ -30,7 +41,7 @@ export default class DeployToken {
     vestingAmount: BigNumber,
     vestingBegin: BigNumber,
     vestingCliff: BigNumber,
-    vestingEnd: BigNumber
+    vestingEnd: BigNumber,
   ): Promise<Vesting> {
     return await new Vesting__factory(this._deployerSigner).deploy(
       token,
@@ -38,7 +49,7 @@ export default class DeployToken {
       vestingAmount,
       vestingBegin,
       vestingCliff,
-      vestingEnd
+      vestingEnd,
     );
   }
 
@@ -66,6 +77,26 @@ export default class DeployToken {
     );
   }
 
+  public async deployFtcVesting(
+    index: Address,
+    recipient: Address,
+    treasury: Address,
+    vestingAmount: BigNumber,
+    vestingBegin: BigNumber,
+    vestingCliff: BigNumber,
+    vestingEnd: BigNumber,
+  ): Promise<FTCVesting> {
+    return await new FTCVesting__factory(this._deployerSigner).deploy(
+      index,
+      recipient,
+      treasury,
+      vestingAmount,
+      vestingBegin,
+      vestingCliff,
+      vestingEnd,
+    );
+  }
+
   public async deployIndexPowah(
     owner: Address,
     indexToken: Address,
@@ -84,7 +115,7 @@ export default class DeployToken {
       masterChef,
       masterChefId,
       farms,
-      vesting
+      vesting,
     );
   }
 }
