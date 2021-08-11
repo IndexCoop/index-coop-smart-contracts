@@ -96,8 +96,9 @@ contract StreamingFeeSplitExtension is BaseAdapter, TimeLockUpgrade, MutualUpgra
     }
 
     /**
-     * MUTUAL UPGRADE: Updates streaming fee on StreamingFeeModule. NOTE: This will accrue streaming fees to the manager contract
-     * but not distribute to the operator and methodologist.
+     * MUTUAL UPGRADE: Updates streaming fee on StreamingFeeModule. Fees are distributed to ensure
+     * that the accrual triggered in the StreamingFeeModule doesn't stay with the BaseManager
+     * where it might be poached by another extension.
      */
     function updateStreamingFee(uint256 _newFee)
         external
@@ -111,6 +112,7 @@ contract StreamingFeeSplitExtension is BaseAdapter, TimeLockUpgrade, MutualUpgra
         );
 
         invokeManager(address(streamingFeeModule), callData);
+        accrueFeesAndDistribute();
     }
 
     /**

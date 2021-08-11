@@ -276,7 +276,6 @@ describe("StreamingFeeSplitExtension", () => {
           });
 
           it("should send correct amount of fees to operator and methodologist", async () => {
-            const preManagerBalance = await setToken.balanceOf(baseManagerV2.address);
             const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
             const totalSupply = await setToken.totalSupply();
 
@@ -293,9 +292,17 @@ describe("StreamingFeeSplitExtension", () => {
 
             const feeInflation = getStreamingFeeInflationAmount(expectedFeeInflation, totalSupply);
 
+            const expectedOperatorTake = preciseMul(feeInflation, operatorSplit);
+            const expectedMethodologistTake = feeInflation.sub(expectedOperatorTake);
+
+            const operatorBalance = await setToken.balanceOf(operator.address);
+            const methodologistBalance = await setToken.balanceOf(methodologist.address);
             const postManagerBalance = await setToken.balanceOf(baseManagerV2.address);
 
-            expect(postManagerBalance.sub(preManagerBalance)).to.eq(feeInflation);
+
+            expect(operatorBalance).to.eq(expectedOperatorTake);
+            expect(methodologistBalance).to.eq(expectedMethodologistTake);
+            expect(postManagerBalance).to.eq(ZERO);
           });
         });
       });
@@ -333,7 +340,6 @@ describe("StreamingFeeSplitExtension", () => {
           });
 
           it("should send correct amount of fees to operator and methodologist", async () => {
-            const preManagerBalance = await setToken.balanceOf(baseManagerV2.address);
             const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
             const totalSupply = await setToken.totalSupply();
 
@@ -350,9 +356,16 @@ describe("StreamingFeeSplitExtension", () => {
 
             const feeInflation = getStreamingFeeInflationAmount(expectedFeeInflation, totalSupply);
 
+            const expectedOperatorTake = preciseMul(feeInflation, operatorSplit);
+            const expectedMethodologistTake = feeInflation.sub(expectedOperatorTake);
+
+            const operatorBalance = await setToken.balanceOf(operator.address);
+            const methodologistBalance = await setToken.balanceOf(methodologist.address);
             const postManagerBalance = await setToken.balanceOf(baseManagerV2.address);
 
-            expect(postManagerBalance.sub(preManagerBalance)).to.eq(feeInflation);
+            expect(operatorBalance).to.eq(expectedOperatorTake);
+            expect(methodologistBalance).to.eq(expectedMethodologistTake);
+            expect(postManagerBalance).to.eq(ZERO);
           });
         });
       });

@@ -100,8 +100,9 @@ contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade, MutualUpgrade {
     }
 
     /**
-     * MUTUAL UPGRADE: Updates streaming fee on StreamingFeeModule. NOTE: This will accrue streaming fees though not send to operator
-     * and methodologist.
+     * MUTUAL UPGRADE: Updates streaming fee on StreamingFeeModule. Fees are distributed to ensure
+     * that the accrual triggered in the StreamingFeeModule doesn't stay with the BaseManager
+     * where it might be poached by another extension.
      */
     function updateStreamingFee(uint256 _newFee)
         external
@@ -110,6 +111,7 @@ contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade, MutualUpgrade {
     {
         bytes memory callData = abi.encodeWithSignature("updateStreamingFee(address,uint256)", manager.setToken(), _newFee);
         invokeManager(address(streamingFeeModule), callData);
+        accrueFeesAndDistribute();
     }
 
     /**
