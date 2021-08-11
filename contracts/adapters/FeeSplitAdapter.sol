@@ -26,15 +26,16 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IStreamingFeeModule } from "../interfaces/IStreamingFeeModule.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { TimeLockUpgrade } from "../lib/TimeLockUpgrade.sol";
+import { MutualUpgrade } from "../lib/MutualUpgrade.sol";
 
 
 /**
  * @title FeeSplitAdapter
  * @author Set Protocol
  *
- * Smart contract adapter that allows for splitting and setting streaming and mint/redeem fees. 
+ * Smart contract adapter that allows for splitting and setting streaming and mint/redeem fees.
  */
-contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade {
+contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade, MutualUpgrade {
     using Address for address;
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
@@ -42,7 +43,7 @@ contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade {
     /* ============ Events ============ */
 
     event FeesAccrued(address indexed _operator, address indexed _methodologist, uint256 _operatorTake, uint256 _methodologistTake);
-    
+
     /* ============ State Variables ============ */
 
     ISetToken public setToken;
@@ -78,9 +79,9 @@ contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade {
      */
     function accrueFeesAndDistribute() public {
         streamingFeeModule.accrueFee(setToken);
-        
+
         uint256 totalFees = setToken.balanceOf(address(manager));
-        
+
         address operator = manager.operator();
         address methodologist = manager.methodologist();
 
@@ -99,43 +100,61 @@ contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade {
     }
 
     /**
-     * ONLY OPERATOR: Updates streaming fee on StreamingFeeModule. NOTE: This will accrue streaming fees though not send to operator
+     * MUTUAL UPGRADE: Updates streaming fee on StreamingFeeModule. NOTE: This will accrue streaming fees though not send to operator
      * and methodologist.
      */
-    function updateStreamingFee(uint256 _newFee) external onlyOperator timeLockUpgrade {
+    function updateStreamingFee(uint256 _newFee)
+        external
+        mutualUpgrade(manager.operator(), manager.methodologist())
+        timeLockUpgrade
+    {
         bytes memory callData = abi.encodeWithSignature("updateStreamingFee(address,uint256)", manager.setToken(), _newFee);
         invokeManager(address(streamingFeeModule), callData);
     }
 
     /**
-     * ONLY OPERATOR: Updates issue fee on IssuanceModule. Only is executed once time lock has passed.
+     * MUTUAL UPGRADE: Updates issue fee on IssuanceModule. Only is executed once time lock has passed.
      */
-    function updateIssueFee(uint256 _newFee) external onlyOperator timeLockUpgrade {
+    function updateIssueFee(uint256 _newFee)
+        external
+        mutualUpgrade(manager.operator(), manager.methodologist())
+        timeLockUpgrade
+    {
         bytes memory callData = abi.encodeWithSignature("updateIssueFee(address,uint256)", manager.setToken(), _newFee);
         invokeManager(address(issuanceModule), callData);
     }
 
     /**
-     * ONLY OPERATOR: Updates redeem fee on IssuanceModule. Only is executed once time lock has passed.
+     * MUTUAL UPGRADE: Updates redeem fee on IssuanceModule. Only is executed once time lock has passed.
      */
-    function updateRedeemFee(uint256 _newFee) external onlyOperator timeLockUpgrade {
+    function updateRedeemFee(uint256 _newFee)
+        external
+        mutualUpgrade(manager.operator(), manager.methodologist())
+        timeLockUpgrade
+    {
         bytes memory callData = abi.encodeWithSignature("updateRedeemFee(address,uint256)", manager.setToken(), _newFee);
         invokeManager(address(issuanceModule), callData);
     }
 
     /**
-     * ONLY OPERATOR: Updates fee recipient on both streaming fee and issuance modules.
+     * MUTUAL UPGRADE: Updates fee recipient on both streaming fee and issuance modules.
      */
-    function updateFeeRecipient(address _newFeeRecipient) external onlyOperator {
+    function updateFeeRecipient(address _newFeeRecipient)
+        external
+        mutualUpgrade(manager.operator(), manager.methodologist())
+    {
         bytes memory callData = abi.encodeWithSignature("updateFeeRecipient(address,address)", manager.setToken(), _newFeeRecipient);
         invokeManager(address(streamingFeeModule), callData);
         invokeManager(address(issuanceModule), callData);
     }
 
     /**
-     * ONLY OPERATOR: Updates fee split between operator and methodologist. Split defined in precise units (1% = 10^16).
+     * MUTUAL UPGRADE: Updates fee split between operator and methodologist. Split defined in precise units (1% = 10^16).
      */
-    function updateFeeSplit(uint256 _newFeeSplit) external onlyOperator {
+    function updateFeeSplit(uint256 _newFeeSplit)
+        external
+        mutualUpgrade(manager.operator(), manager.methodologist())
+    {
         require(_newFeeSplit <= PreciseUnitMath.preciseUnit(), "Fee must be less than 100%");
         accrueFeesAndDistribute();
         operatorFeeSplit = _newFeeSplit;

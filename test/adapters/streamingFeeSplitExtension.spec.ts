@@ -18,6 +18,7 @@ import {
   getWaffleExpect,
   increaseTimeAsync,
   preciseMul,
+  getRandomAccount
 } from "@utils/index";
 import { SetFixture } from "@utils/fixtures";
 import { BigNumber, ContractTransaction } from "ethers";
@@ -192,6 +193,7 @@ describe("StreamingFeeSplitExtension", () => {
       describe("when methodologist fees are 0", async () => {
         beforeEach(async () => {
           await feeExtension.connect(operator.wallet).updateFeeSplit(ether(1));
+          await feeExtension.connect(methodologist.wallet).updateFeeSplit(ether(1));
         });
 
         it("should not send fees to methodologist", async () => {
@@ -207,6 +209,7 @@ describe("StreamingFeeSplitExtension", () => {
       describe("when operator fees are 0", async () => {
         beforeEach(async () => {
           await feeExtension.connect(operator.wallet).updateFeeSplit(ZERO);
+          await feeExtension.connect(methodologist.wallet).updateFeeSplit(ZERO);
         });
 
         it("should not send fees to operator", async () => {
@@ -225,7 +228,8 @@ describe("StreamingFeeSplitExtension", () => {
       const timeFastForward: BigNumber = ONE_YEAR_IN_SECONDS;
 
       let subjectNewFee: BigNumber;
-      let subjectCaller: Account;
+      let subjectOperatorCaller: Account;
+      let subjectMethodologistCaller: Account;
 
       beforeEach(async () => {
         mintedTokens = ether(2);
@@ -235,66 +239,36 @@ describe("StreamingFeeSplitExtension", () => {
         await increaseTimeAsync(timeFastForward);
 
         subjectNewFee = ether(.01);
-        subjectCaller = operator;
+        subjectOperatorCaller = operator;
+        subjectMethodologistCaller = methodologist;
       });
 
-      async function subject(): Promise<ContractTransaction> {
-        return await feeExtension.connect(subjectCaller.wallet).updateStreamingFee(subjectNewFee);
+      async function subject(caller: Account): Promise<ContractTransaction> {
+        return await feeExtension.connect(caller.wallet).updateStreamingFee(subjectNewFee);
       }
+
       context("when no timelock period has been set", async () => {
-        it("should update the streaming fee", async () => {
-          await subject();
 
-          const feeState = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
+        context("when only one mutual upgrade party has called the method", () => {
+          it("should log the proposed streaming fee hash in the mutualUpgrades mapping", async () => {
+            const txHash = await subject(subjectOperatorCaller);
 
-          expect(feeState.streamingFeePercentage).to.eq(subjectNewFee);
-        });
+            const expectedHash = solidityKeccak256(
+              ["bytes", "address"],
+              [txHash.data, subjectOperatorCaller.address]
+            );
 
-        it("should send correct amount of fees to operator and methodologist", async () => {
-          const preManagerBalance = await setToken.balanceOf(baseManagerV2.address);
-          const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
-          const totalSupply = await setToken.totalSupply();
+            const isLogged = await feeExtension.mutualUpgrades(expectedHash);
 
-          const txnTimestamp = await getTransactionTimestamp(subject());
-
-          const expectedFeeInflation = await getStreamingFee(
-            setV2Setup.streamingFeeModule,
-            setToken.address,
-            feeState.lastStreamingFeeTimestamp,
-            txnTimestamp,
-            ether(.02)
-          );
-
-          const feeInflation = getStreamingFeeInflationAmount(expectedFeeInflation, totalSupply);
-
-          const postManagerBalance = await setToken.balanceOf(baseManagerV2.address);
-
-          expect(postManagerBalance.sub(preManagerBalance)).to.eq(feeInflation);
-        });
-      });
-
-      context("when 1 day timelock period has been set", async () => {
-        beforeEach(async () => {
-          await feeExtension.connect(owner.wallet).setTimeLockPeriod(ONE_DAY_IN_SECONDS);
-        });
-
-        it("sets the upgradeHash", async () => {
-          await subject();
-          const timestamp = await getLastBlockTimestamp();
-          const calldata = feeExtension.interface.encodeFunctionData("updateStreamingFee", [subjectNewFee]);
-          const upgradeHash = solidityKeccak256(["bytes"], [calldata]);
-          const actualTimestamp = await feeExtension.timeLockedUpgrades(upgradeHash);
-          expect(actualTimestamp).to.eq(timestamp);
-        });
-
-        context("when 1 day timelock has elapsed", async () => {
-          beforeEach(async () => {
-            await subject();
-            await increaseTimeAsync(ONE_DAY_IN_SECONDS.add(1));
+            expect(isLogged).to.be.true;
           });
+        });
+
+        context("when both upgrade parties have called the method", () => {
 
           it("should update the streaming fee", async () => {
-            await subject();
+            await subject(subjectOperatorCaller);
+            await subject(subjectMethodologistCaller);
 
             const feeState = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
 
@@ -306,7 +280,8 @@ describe("StreamingFeeSplitExtension", () => {
             const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
             const totalSupply = await setToken.totalSupply();
 
-            const txnTimestamp = await getTransactionTimestamp(subject());
+            await subject(subjectOperatorCaller);
+            const txnTimestamp = await getTransactionTimestamp(subject(subjectMethodologistCaller));
 
             const expectedFeeInflation = await getStreamingFee(
               setV2Setup.streamingFeeModule,
@@ -325,52 +300,130 @@ describe("StreamingFeeSplitExtension", () => {
         });
       });
 
-      describe("when the caller is not the operator", async () => {
+      context("when 1 day timelock period has been set", async () => {
         beforeEach(async () => {
-          subjectCaller = methodologist;
+          await feeExtension.connect(owner.wallet).setTimeLockPeriod(ONE_DAY_IN_SECONDS);
+        });
+
+        it("sets the upgradeHash", async () => {
+          await subject(subjectOperatorCaller);
+          await subject(subjectMethodologistCaller);
+
+          const timestamp = await getLastBlockTimestamp();
+          const calldata = feeExtension.interface.encodeFunctionData("updateStreamingFee", [subjectNewFee]);
+          const upgradeHash = solidityKeccak256(["bytes"], [calldata]);
+          const actualTimestamp = await feeExtension.timeLockedUpgrades(upgradeHash);
+          expect(actualTimestamp).to.eq(timestamp);
+        });
+
+        context("when 1 day timelock has elapsed", async () => {
+          beforeEach(async () => {
+            await subject(subjectOperatorCaller);
+            await subject(subjectMethodologistCaller);
+            await increaseTimeAsync(ONE_DAY_IN_SECONDS.add(1));
+          });
+
+          it("should update the streaming fee", async () => {
+            await subject(subjectOperatorCaller);
+            await subject(subjectMethodologistCaller);
+
+            const feeState = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
+
+            expect(feeState.streamingFeePercentage).to.eq(subjectNewFee);
+          });
+
+          it("should send correct amount of fees to operator and methodologist", async () => {
+            const preManagerBalance = await setToken.balanceOf(baseManagerV2.address);
+            const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
+            const totalSupply = await setToken.totalSupply();
+
+            await subject(subjectOperatorCaller);
+            const txnTimestamp = await getTransactionTimestamp(subject(subjectMethodologistCaller));
+
+            const expectedFeeInflation = await getStreamingFee(
+              setV2Setup.streamingFeeModule,
+              setToken.address,
+              feeState.lastStreamingFeeTimestamp,
+              txnTimestamp,
+              ether(.02)
+            );
+
+            const feeInflation = getStreamingFeeInflationAmount(expectedFeeInflation, totalSupply);
+
+            const postManagerBalance = await setToken.balanceOf(baseManagerV2.address);
+
+            expect(postManagerBalance.sub(preManagerBalance)).to.eq(feeInflation);
+          });
+        });
+      });
+
+      describe("when the caller is not the operator or methodologist", async () => {
+        beforeEach(async () => {
+          subjectOperatorCaller = await getRandomAccount();
         });
 
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Must be operator");
+          await expect(subject(subjectOperatorCaller)).to.be.revertedWith("Must be authorized address");
         });
       });
     });
 
     describe("#updateFeeRecipient", async () => {
       let subjectNewFeeRecipient: Address;
-      let subjectCaller: Account;
+      let subjectOperatorCaller: Account;
+      let subjectMethodologistCaller: Account;
 
       beforeEach(async () => {
         subjectNewFeeRecipient = owner.address;
-        subjectCaller = operator;
+        subjectOperatorCaller = operator;
+        subjectMethodologistCaller = methodologist;
       });
 
-      async function subject(): Promise<ContractTransaction> {
-        return await feeExtension.connect(subjectCaller.wallet).updateFeeRecipient(subjectNewFeeRecipient);
+      async function subject(caller: Account): Promise<ContractTransaction> {
+        return await feeExtension.connect(caller.wallet).updateFeeRecipient(subjectNewFeeRecipient);
       }
 
       it("sets the new fee recipient", async () => {
-        await subject();
+        await subject(subjectOperatorCaller);
+        await subject(subjectMethodologistCaller);
 
         const streamingFeeState = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
 
         expect(streamingFeeState.feeRecipient).to.eq(subjectNewFeeRecipient);
       });
 
-      describe("when the caller is not the operator", async () => {
+      context("when a single mutual upgrade party has called the method", async () => {
+        afterEach(async () => await subject(subjectMethodologistCaller));
+
+        it("should log the proposed streaming fee hash in the mutualUpgrades mapping", async () => {
+          const txHash = await subject(subjectOperatorCaller);
+
+          const expectedHash = solidityKeccak256(
+            ["bytes", "address"],
+            [txHash.data, subjectOperatorCaller.address]
+          );
+
+          const isLogged = await feeExtension.mutualUpgrades(expectedHash);
+
+          expect(isLogged).to.be.true;
+        });
+      });
+
+      describe("when the caller is not the operator or methodologist", async () => {
         beforeEach(async () => {
-          subjectCaller = methodologist;
+          subjectOperatorCaller = await getRandomAccount();
         });
 
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Must be operator");
+          await expect(subject(subjectOperatorCaller)).to.be.revertedWith("Must be authorized address");
         });
       });
     });
 
     describe("#updateFeeSplit", async () => {
       let subjectNewFeeSplit: BigNumber;
-      let subjectCaller: Account;
+      let subjectOperatorCaller: Account;
+      let subjectMethodologistCaller: Account;
 
       const mintedTokens: BigNumber = ether(2);
       const timeFastForward: BigNumber = ONE_YEAR_IN_SECONDS;
@@ -382,18 +435,20 @@ describe("StreamingFeeSplitExtension", () => {
         await increaseTimeAsync(timeFastForward);
 
         subjectNewFeeSplit = ether(.5);
-        subjectCaller = operator;
+        subjectOperatorCaller = operator;
+        subjectMethodologistCaller = methodologist;
       });
 
-      async function subject(): Promise<ContractTransaction> {
-        return await feeExtension.connect(subjectCaller.wallet).updateFeeSplit(subjectNewFeeSplit);
+      async function subject(caller: Account): Promise<ContractTransaction> {
+        return await feeExtension.connect(caller.wallet).updateFeeSplit(subjectNewFeeSplit);
       }
 
       it("should accrue fees and send correct amount to operator and methodologist", async () => {
         const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
         const totalSupply = await setToken.totalSupply();
 
-        const txnTimestamp = await getTransactionTimestamp(subject());
+        await subject(subjectOperatorCaller);
+        const txnTimestamp = await getTransactionTimestamp(subject(subjectMethodologistCaller));
 
         const expectedFeeInflation = await getStreamingFee(
           setV2Setup.streamingFeeModule,
@@ -415,7 +470,8 @@ describe("StreamingFeeSplitExtension", () => {
       });
 
       it("sets the new fee split", async () => {
-        await subject();
+        await subject(subjectOperatorCaller);
+        await subject(subjectMethodologistCaller);
 
         const actualFeeSplit = await feeExtension.operatorFeeSplit();
 
@@ -428,17 +484,33 @@ describe("StreamingFeeSplitExtension", () => {
         });
 
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Fee must be less than 100%");
+          await subject(subjectOperatorCaller);
+          await expect(subject(subjectMethodologistCaller)).to.be.revertedWith("Fee must be less than 100%");
         });
       });
 
-      describe("when the caller is not the operator", async () => {
+      context("when a single mutual upgrade party has called the method", async () => {
+        it("should log the proposed streaming fee hash in the mutualUpgrades mapping", async () => {
+          const txHash = await subject(subjectOperatorCaller);
+
+          const expectedHash = solidityKeccak256(
+            ["bytes", "address"],
+            [txHash.data, subjectOperatorCaller.address]
+          );
+
+          const isLogged = await feeExtension.mutualUpgrades(expectedHash);
+
+          expect(isLogged).to.be.true;
+        });
+      });
+
+      describe("when the caller is not the operator or methodologist", async () => {
         beforeEach(async () => {
-          subjectCaller = owner;
+          subjectOperatorCaller = await getRandomAccount();
         });
 
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Must be operator");
+          await expect(subject(subjectOperatorCaller)).to.be.revertedWith("Must be authorized address");
         });
       });
     });
