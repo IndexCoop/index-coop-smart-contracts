@@ -18,7 +18,6 @@ pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { Initializable } from "@openzeppelin/contracts/proxy/Initializable.sol";
 
 import { AddressArrayUtils } from "../lib/AddressArrayUtils.sol";
 import { IAdapter } from "../interfaces/IAdapter.sol";
@@ -32,7 +31,7 @@ import { MutualUpgrade } from "../lib/MutualUpgrade.sol";
  *
  * Smart contract manager that contains permissions and admin functionality
  */
-contract BaseManager is Initializable, MutualUpgrade {
+contract BaseManager is MutualUpgrade {
     using Address for address;
     using AddressArrayUtils for address[];
 
@@ -62,6 +61,40 @@ contract BaseManager is Initializable, MutualUpgrade {
     event OperatorChanged(
         address _oldOperator,
         address _newOperator
+    );
+
+    event AdapterAuthorized(
+        address _module,
+        address _adapter
+    );
+
+    event AdapterAuthorizationRevoked(
+        address _module,
+        address _adapter
+    );
+
+    event ModuleProtected(
+        address _module,
+        address[] _adapters
+    );
+
+    event ModuleUnprotected(
+        address _module
+    );
+
+    event ReplacedProtectedModule(
+        address _oldModule,
+        address _newModule,
+        address[] _newAdapters
+    );
+
+    event EmergencyReplacedProtectedModule(
+        address _module,
+        address[] _adapters
+    );
+
+    event EmergencyRemovedProtectedModule(
+        address _module
     );
 
     /* ============ Modifiers ============ */
@@ -128,6 +161,10 @@ contract BaseManager is Initializable, MutualUpgrade {
     // removal does not require methodologist consent
     address[] public protectedModulesList;
 
+    // Boolean set when methodologist authorizes initialization after contract deployment.
+    // `interactManager` reverts unless this is true.
+    bool public initialized;
+
     /* ============ Constructor ============ */
 
     constructor(
@@ -144,7 +181,7 @@ contract BaseManager is Initializable, MutualUpgrade {
         methodologist = _methodologist;
 
         for (uint256 i = 0; i < _protectedModules.length; i++) {
-            _addProtectedModule(_protectedModules[i], _authorizedAdapters[i]);
+            _protectModule(_protectedModules[i], _authorizedAdapters[i]);
         }
     }
 
@@ -155,7 +192,9 @@ contract BaseManager is Initializable, MutualUpgrade {
      * calls revert until this is invoked. Lets methodologist review and authorize initial protected
      * module settings.
      */
-    function authorizeInitialization() external initializer onlyMethodologist {}
+    function authorizeInitialization() external onlyMethodologist {
+        initialized = true;
+    }
 
     /**
      * MUTUAL UPGRADE: Update the SetToken manager address. Operator and Methodologist must each call
@@ -163,7 +202,7 @@ contract BaseManager is Initializable, MutualUpgrade {
      *
      * @param _newManager           New manager address
      */
-    function setManager(address _newManager) external onlyOperator {
+    function setManager(address _newManager) external mutualUpgrade(operator, methodologist) {
         require(_newManager != address(0), "Zero address not valid");
         setToken.setManager(_newManager);
     }
@@ -198,6 +237,9 @@ contract BaseManager is Initializable, MutualUpgrade {
 
     /**
      * MUTUAL UPGRADE**: Authorizes an adapter for a protected module
+     *
+     * @param _module           Module to authorize adapter for
+     * @param _adapter          Adapter to authorize for module
      */
     function authorizeAdapter(address _module, address _adapter)
         external
@@ -209,10 +251,15 @@ contract BaseManager is Initializable, MutualUpgrade {
 
         protectedModules[_module].authorizedAdapters[_adapter] = true;
         protectedModules[_module].authorizedAdaptersList.push(_adapter);
+
+        emit AdapterAuthorized(_module, _adapter);
     }
 
     /**
      * MUTUAL UPGRADE**: Revokes adapter authorization for a protected module
+     *
+     * @param _module           Module to revoke adapter authorization for
+     * @param _adapter          Adapter to revoke authorization of
      */
     function revokeAdapterAuthorization(address _module, address _adapter)
         external
@@ -224,6 +271,8 @@ contract BaseManager is Initializable, MutualUpgrade {
 
         protectedModules[_module].authorizedAdapters[_adapter] = false;
         protectedModules[_module].authorizedAdaptersList.removeStorage(_adapter);
+
+        emit AdapterAuthorizationRevoked(_module, _adapter);
     }
 
     /**
@@ -235,7 +284,7 @@ contract BaseManager is Initializable, MutualUpgrade {
      * @param _data             Byte data of function to call in module
      */
     function interactManager(address _module, bytes memory _data) external onlyAdapter {
-        require(_initialized, "Manager not initialized");
+        require(initialized, "Manager not initialized");
         require(_senderAuthorizedForModule(_module, msg.sender), "Adapter not authorized for module");
 
         // Invoke call to module, assume value will always be 0
@@ -262,25 +311,71 @@ contract BaseManager is Initializable, MutualUpgrade {
     }
 
     /**
+     * OPERATOR ONLY: The operator uses this when they're adding new functionality and want to
+     * assure the methodologist that these new features won't be unilaterally changed in the
+     * future. Cannot be called during an emergency because methodologist needs to explicitly
+     * approve protection arrangements under those conditions.
+     *
+     * Marks an existing module as protected and authorizes existing adapters for
+     * it. Adds module to the protected modules list
+     *
+     * @param  _module          Module to protect
+     * @param  _adapters        Array of adapters to authorize for protected module
+     */
+    function protectModule(address _module, address[] memory _adapters)
+        external
+        upgradesPermitted
+        onlyOperator
+    {
+        require(setToken.isInitializedModule(_module), "Module not valid");
+        _protectModule(_module, _adapters);
+
+        emit ModuleProtected(_module, _adapters);
+    }
+
+    /**
+     * METHODOLOGIST ONLY: Called by the methodologist when they want to cede control over a
+     * protected module without triggering an emergency (for example, to remove it because its dead).
+     *
+     * Marks a currently protected module as unprotected and deletes its authorized adapter registries.
+     * Removes old module from the protected modules list.
+     *
+     * @param  _module          Module to revoke protections for
+     */
+    function unProtectModule(address _module) external onlyMethodologist {
+        _unProtectModule(_module);
+
+        emit ModuleUnprotected(_module);
+    }
+
+    /**
      * OPERATOR ONLY: Called by operator when a module must be removed immediately for security
-     * reasons and it's unsafe to wait for the `replaceProtectedModule` mutual upgrade process to
-     * play out.  Marks a currently protected module as unprotected and deletes it from
-     * authorized adapter registries. Removes module from the SetToken. Increments the `emergencies`
-     * counter, prohibiting any further operator-only module or extension additions until
-     * `emergencyReplaceProtectedModule` decrements `emergencies` back to zero.
+     * reasons and it's unsafe to wait for a `mutualUpgrade` process to play out.
+     *
+     * Marks a currently protected module as unprotected and deletes its authorized adapter registries.
+     * Removes module from the SetToken. Increments the `emergencies` counter, prohibiting any further
+     * operator-only module or extension additions until `emergencyReplaceProtectedModule` decrements
+     * `emergencies` back to zero.
      *
      * @param _module           Module to remove
      */
     function emergencyRemoveProtectedModule(address _module) external onlyOperator {
-        _removeProtectedModule(_module);
+        _unProtectModule(_module);
+        setToken.removeModule(_module);
         emergencies += 1;
+
+        EmergencyRemovedProtectedModule(_module);
     }
 
+
     /**
-     * MUTUAL UPGRADE  Marks a currently protected module as unprotected and deletes it from authorized
-     * adapter registries. Removes `_oldModule` from the `protectedModulesList`. Removes old module
-     * from SetToken. Adds new module to SetToken. Marks `_newModule` as protected and authorizes
-     * new adapters for it. Adds `_newModule` module to protectedModules list.
+     * MUTUAL UPGRADE: Used when methodologists wants to guarantee that an existing protection
+     * arrangement is replaced with a suitable substitute (ex: upgrading a StreamingFeeSplitExtension).
+     *
+     * Marks a currently protected module as unprotected and deletes its authorized adapter
+     * registries. Removes `_oldModule` from the  `protectedModulesList`. Removes old module from
+     * SetToken. Adds new module to SetToken. Marks `_newModule` as protected and authorizes new
+     * adapters for it. Adds `_newModule` module to protectedModules list.
      *
      * @param _oldModule        Module to remove
      * @param _newModule        Module to add in place of removed module
@@ -289,39 +384,56 @@ contract BaseManager is Initializable, MutualUpgrade {
         external
         mutualUpgrade(operator, methodologist)
     {
-        require(!protectedModules[_newModule].isProtected, "New module already protected");
+        _unProtectModule(_oldModule);
 
-        _removeProtectedModule(_oldModule);
+        setToken.removeModule(_oldModule);
+        setToken.addModule(_newModule);
 
-        _addProtectedModule(_newModule, _newAdapters);
+        _protectModule(_newModule, _newAdapters);
+
+        ReplacedProtectedModule(_oldModule, _newModule, _newAdapters);
+    }
+
+    // edge cases:
+    // + operator emergency removed a module that has no viable replacement,
+    // +
+
+    /**
+     * MUTUAL UPGRADE: Replaces a module the operator has removed with `emergencyRemoveProtectedModule`.
+     * Adds new module to SetToken. Marks `_newModule` as protected and authorizes new adapters for it.
+     * Adds `_newModule` to protectedModules list. Decrements the emergencies counter, restoring
+     * operator's ability to add module or adapters unilaterally (if this is the only emergency.)
+     *
+     * @param _module        Module to add in place of removed module
+     * @param _adapters      Array of adapters to authorize for replacement module
+     */
+    function emergencyReplaceProtectedModule(
+        address _module,
+        address[] memory _adapters
+    )
+        external
+        mutualUpgrade(operator, methodologist)
+    {
+        require(emergencies > 0, "Not in emergency");
+
+        setToken.addModule(_module);
+        _protectModule(_module, _adapters);
+
+        emergencies -= 1;
+
+        EmergencyReplacedProtectedModule(_module, _adapters);
     }
 
     /**
-     * METHODOLOGIST ONLY: Called by methodologist to replace a module the operator has removed with
-     * `emergencyRemoveProtectedModule`. Adds new module to SetToken. Marks `_newModule` as protected
-     * and authorizes new adapters for it. Adds `_newModule` to protectedModules list.
-     * Sets the `upgradesPaused` flag to false, re-enabling operator-only module or extension
-     * additions until `emergencyReplaceProtectedModule` is successfully executed.
-     *
-     * @param _oldModule        Module to remove
-     * @param _newModule        Module to add in place of removed module
-     * @param _newAdapters      Adapters to authorize for replacement module
+     * METHODOLOGIST ONLY: Allows a methodologist to exit a state of emergency without replacing a
+     * protected module that was unilaterally removed. This could happen if the module has no viable
+     * substitute or operator and methodologist agree that restoring normal operations is the
+     * best way forward.
      */
-    function emergencyReplaceProtectedModule(
-        address _newModule,
-        address[] memory _newAdapters
-    )
-        external
-        onlyMethodologist
-    {
+    function resolveEmergency() external onlyMethodologist {
         require(emergencies > 0, "Not in emergency");
-        require(!protectedModules[_newModule].isProtected, "New module already protected");
-
-        _addProtectedModule(_newModule, _newAdapters);
-
         emergencies -= 1;
     }
-
 
     /**
      * METHODOLOGIST ONLY: Update the methodologist address
@@ -371,7 +483,7 @@ contract BaseManager is Initializable, MutualUpgrade {
      * Marks a currently protected module as unprotected and deletes it from authorized adapter
      * registries. Removes module from the SetToken.
      */
-    function _removeProtectedModule(address _module) internal {
+    function _unProtectModule(address _module) internal {
         require(protectedModules[_module].isProtected, "Module not protected");
 
         // Clear mapping and array entries in struct before deleting mapping entry
@@ -384,7 +496,6 @@ contract BaseManager is Initializable, MutualUpgrade {
         delete protectedModules[_module];
 
         protectedModulesList.removeStorage(_module);
-        setToken.removeModule(_module);
     }
 
     /**
@@ -394,8 +505,9 @@ contract BaseManager is Initializable, MutualUpgrade {
      * @param _module    Module to add
      * @param _adapters  Adapters to authorize for new module
      */
-    function _addProtectedModule(address _module, address[] memory _adapters) internal {
-        setToken.addModule(_module);
+    function _protectModule(address _module, address[] memory _adapters) internal {
+        require(!protectedModules[_module].isProtected, "Module already protected");
+
         protectedModules[_module].isProtected = true;
         protectedModulesList.push(_module);
 
