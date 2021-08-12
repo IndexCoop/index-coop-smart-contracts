@@ -21,7 +21,6 @@ import { ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
 
-
 describe("BaseManager", () => {
   let operator: Account;
   let methodologist: Account;
@@ -492,7 +491,7 @@ describe("BaseManager", () => {
     });
   });
 
-  describe.skip("#authorizeAdapter", () => {
+  describe("#authorizeAdapter", () => {
     let subjectModule: Address;
     let subjectAdapter: Address;
     let subjectCaller: Account;
@@ -507,20 +506,65 @@ describe("BaseManager", () => {
       return baseManager.connect(caller.wallet).authorizeAdapter(subjectModule, subjectAdapter);
     }
 
-    describe.skip("when adapter is not authorized and already added", () => {
+    describe("when adapter is not authorized and already added", () => {
+      beforeEach(async () => {
+        await baseManager.connect(operator.wallet).addAdapter(subjectAdapter);
+        await baseManager.connect(operator.wallet).protectModule(subjectModule, []);
+      });
 
+      it("should authorize the adapter", async () => {
+        const initialAuthorization = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
+
+        await subject(operator);
+        await subject(methodologist);
+
+        const finalAuthorization = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
+
+        expect(initialAuthorization).to.be.false;
+        expect(finalAuthorization).to.be.true;
+      });
     });
 
-    describe.skip("when adapter is not already added", () => {
-      it("should revert", () => {});
+    describe("when adapter is not already added to the manager", () => {
+      beforeEach(async () => {
+        await baseManager.connect(operator.wallet).protectModule(subjectModule, []);
+      });
+
+      it("should revert", async () => {
+        const initialAdapterStatus = await baseManager.connect(operator.wallet).isAdapter(subjectAdapter);
+
+        await subject(operator);
+
+        await expect(initialAdapterStatus).to.be.false;
+        await expect(subject(methodologist)).to.be.revertedWith("Adapter does not exist");
+      });
     });
 
-    describe.skip("when the adapter is already authorized for target module", () => {
-      it("should revert", () => {});
+    describe("when the adapter is already authorized for target module", () => {
+      beforeEach(async () => {
+        await baseManager.connect(operator.wallet).addAdapter(subjectAdapter);
+        await baseManager.connect(operator.wallet).protectModule(subjectModule, [subjectAdapter]);
+      });
+
+      it("should revert", async () => {
+        await subject(operator);
+        await expect(subject(methodologist)).to.be.revertedWith("Adapter already authorized");
+      });
     });
 
-    describe.skip("when target module is not protected", () => {
-      it("should revert", () => {});
+    describe("when target module is not protected", () => {
+      beforeEach(async () => {
+        await baseManager.connect(operator.wallet).addAdapter(subjectAdapter);
+      });
+
+      it("should revert", async () => {
+        const isProtected = await baseManager.protectedModules(subjectModule);
+
+        await subject(operator);
+
+        await expect(isProtected).to.be.false;
+        await expect(subject(methodologist)).to.be.revertedWith("Module not protected");
+      });
     });
 
     describe("when a single mutual upgrade party calls", () => {
@@ -541,7 +585,7 @@ describe("BaseManager", () => {
     });
   });
 
-  describe.skip("#revokeAdapterAuthorization", () => {
+  describe("#revokeAdapterAuthorization", () => {
     let subjectModule: Address;
     let subjectAdapter: Address;
     let subjectCaller: Account;
@@ -556,20 +600,69 @@ describe("BaseManager", () => {
       return baseManager.connect(caller.wallet).revokeAdapterAuthorization(subjectModule, subjectAdapter);
     }
 
-    describe.skip("when adapter is authorized", () => {
+    describe("when adapter is authorized", () => {
+      beforeEach(async () => {
+        await baseManager.connect(operator.wallet).addAdapter(subjectAdapter);
+        await baseManager.connect(operator.wallet).protectModule(subjectModule, [subjectAdapter]);
+      });
 
+      it("should revoke adapter authorization", async () => {
+        const initialAuthorization = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
+
+        await subject(operator);
+        await subject(methodologist);
+
+        const finalAuthorization = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
+
+        expect(initialAuthorization).to.be.true;
+        expect(finalAuthorization).to.be.false;
+      });
     });
 
-    describe.skip("when adapter is not added to the manager", () => {
-      it("should revert", () => {});
+    describe("when adapter is not added to the manager", () => {
+      beforeEach(async () => {
+        await baseManager.connect(operator.wallet).protectModule(subjectModule, []);
+      });
+
+      it("should revert", async () => {
+        const initialAdapterStatus = await baseManager.connect(operator.wallet).isAdapter(subjectAdapter);
+
+        await subject(operator);
+
+        await expect(initialAdapterStatus).to.be.false;
+        await expect(subject(methodologist)).to.be.revertedWith("Adapter does not exist");
+      });
     });
 
-    describe.skip("when the adapter is not authorized for target module", () => {
-      it("should revert", () => {});
+    describe("when the adapter is not authorized for target module", () => {
+      beforeEach(async () => {
+        await baseManager.connect(operator.wallet).addAdapter(subjectAdapter);
+        await baseManager.connect(operator.wallet).protectModule(subjectModule, []);
+      });
+
+      it("should revert", async () => {
+        const initialAuthorization = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
+
+
+        await subject(operator);
+        await expect(initialAuthorization).to.be.false;
+        await expect(subject(methodologist)).to.be.revertedWith("Adapter not authorized");
+      });
     });
 
-    describe.skip("when target module is not protected", () => {
-      it("should revert", () => {});
+    describe("when target module is not protected", () => {
+      beforeEach(async () => {
+        await baseManager.connect(operator.wallet).addAdapter(subjectAdapter);
+      });
+
+      it("should revert", async () => {
+        const isProtected = await baseManager.protectedModules(subjectModule);
+
+        await subject(operator);
+
+        await expect(isProtected).to.be.false;
+        await expect(subject(methodologist)).to.be.revertedWith("Module not protected");
+      });
     });
 
     describe("when a single mutual upgrade party calls", () => {
@@ -611,8 +704,16 @@ describe("BaseManager", () => {
       expect(isModule).to.eq(true);
     });
 
-    describe.skip("when an emergency is in progress", async () => {
-      it("should revert", async () => {});
+    describe("when an emergency is in progress", async () => {
+      beforeEach(async () => {
+        subjectModule = setV2Setup.streamingFeeModule.address;
+        await baseManager.protectModule(subjectModule, []);
+        await baseManager.emergencyRemoveProtectedModule(subjectModule);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Upgrades paused by emergency");
+      });
     });
 
     describe("when the caller is not the operator", async () => {
