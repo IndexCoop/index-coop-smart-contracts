@@ -93,20 +93,24 @@ describe("BaseManager", () => {
   describe("#constructor", async () => {
     let subjectSetToken: Address;
     let subjectAdapter: Address;
+    let subjectModule: Address;
+    let subjectAdditionalModule: Address;
     let subjectAdditionalAdapter: Address;
     let subjectOperator: Address;
     let subjectMethodologist: Address;
     let subjectProtectedModules: Address[];
-    let subjectAuthorizedExtensions: Address[][];
+    let subjectAuthorizedAdapters: Address[][];
 
     beforeEach(async () => {
       subjectSetToken = setToken.address;
+      subjectModule = setV2Setup.streamingFeeModule.address;
+      subjectAdditionalModule = setV2Setup.issuanceModule.address;
       subjectAdapter = baseAdapter.address;
       subjectAdditionalAdapter = ADDRESS_ZERO; // Deploy as needed
       subjectOperator = operator.address;
       subjectMethodologist = methodologist.address;
-      subjectProtectedModules = [setV2Setup.streamingFeeModule.address];
-      subjectAuthorizedExtensions = [[]];
+      subjectProtectedModules = [subjectModule];
+      subjectAuthorizedAdapters = [[]];
     });
 
     async function subject(): Promise<BaseManager> {
@@ -115,7 +119,7 @@ describe("BaseManager", () => {
         subjectOperator,
         subjectMethodologist,
         subjectProtectedModules,
-        subjectAuthorizedExtensions
+        subjectAuthorizedAdapters
       );
     }
 
@@ -147,65 +151,118 @@ describe("BaseManager", () => {
       expect(initialized).to.be.false;
     });
 
-    describe.skip("protectedModules: single, no extensions", () => {
+    describe("protectedModules: single, no extensions", () => {
       beforeEach(() => {
-        subjectProtectedModules = [setV2Setup.streamingFeeModule.address];
+        subjectProtectedModules = [subjectModule];
       });
 
-      it("should add module to setToken", () => {
+      // This test is borked... module initialized in before block..
+      it("should add module to setToken", async () => {
+        await subject();
 
+        const initialized = await setToken.isInitializedModule(subjectModule);
+
+        expect(initialized).to.be.true;
       });
 
-      it("should protect the module", () => {
+      it("should protect the module", async () => {
+        const retrievedICManager = await subject();
 
-      });
-    });
-
-    describe.skip("protectedModules: single, with multiple extension", () => {
-      beforeEach(async () => {
-        subjectAdditionalAdapter = (await deployer.mocks.deployBaseAdapterMock(baseManager.address)).address;
-        subjectProtectedModules = [setV2Setup.streamingFeeModule.address];
-        subjectAuthorizedExtensions = [[subjectAdapter, subjectAdditionalAdapter]];
+        const isProtected = await retrievedICManager.protectedModules(subjectModule);
+        expect(isProtected).to.be.true;
       });
 
-      it("should add module to setToken", () => {
+      it("should be added to the protectedModules list", async () => {
+        const retrievedICManager = await subject();
 
-      });
-
-      it("should protect the module", () => {
-
-      });
-
-      it("should add the extensions", () => {
-
-      });
-
-      it("should authorize the extensions", () => {
-
+        const protectedModules = await retrievedICManager.getProtectedModules();
+        expect(protectedModules.includes(subjectModule)).to.be.true;
       });
     });
 
-    describe.skip("protectedModules: multiple, with extensions", () => {
+    describe("protectedModules: single, with multiple extension", () => {
       beforeEach(async () => {
         subjectAdditionalAdapter = (await deployer.mocks.deployBaseAdapterMock(baseManager.address)).address;
-        subjectProtectedModules = [setV2Setup.streamingFeeModule.address, setV2Setup.issuanceModule.address];
-        subjectAuthorizedExtensions = [ [subjectAdapter], [subjectAdditionalAdapter] ];
+        subjectProtectedModules = [subjectModule];
+        subjectAuthorizedAdapters = [[subjectAdapter, subjectAdditionalAdapter]];
       });
 
-      it("should add module to setToken", () => {
+      it("should protect the module", async () => {
+        const retrievedICManager = await subject();
 
+        const isProtected = await retrievedICManager.protectedModules(subjectModule);
+        expect(isProtected).to.be.true;
       });
 
-      it("should protect the module", () => {
+      it("should add the extensions", async () => {
+        const retrievedICManager = await subject();
 
+        const isSubjectAdapter = await retrievedICManager.isAdapter(subjectAdapter);
+        const isSubjectAdditionalAdapter = await retrievedICManager.isAdapter(subjectAdditionalAdapter);
+
+        expect(isSubjectAdapter).to.be.true;
+        expect(isSubjectAdditionalAdapter).to.be.true;
       });
 
-      it("should add the extensions", () => {
+      it("should authorize the extensions for the module", async () => {
+        const retrievedICManager = await subject();
 
+        const isAuthorizedSubjectAdapter = await retrievedICManager
+          .isAuthorizedAdapter(subjectModule, subjectAdapter);
+
+        const isAuthorizedSubjectAdditionalAdapter = await retrievedICManager
+          .isAuthorizedAdapter(subjectModule, subjectAdditionalAdapter);
+
+        expect(isAuthorizedSubjectAdapter).to.be.true;
+        expect(isAuthorizedSubjectAdditionalAdapter).to.be.true;
+      });
+    });
+
+    describe("protectedModules: multiple, with extensions", () => {
+      beforeEach(async () => {
+        subjectAdditionalAdapter = (await deployer.mocks.deployBaseAdapterMock(baseManager.address)).address;
+        subjectProtectedModules = [subjectModule, subjectAdditionalModule];
+        subjectAuthorizedAdapters = [ [subjectAdapter], [subjectAdditionalAdapter] ];
       });
 
-      it("should authorize the extensions", () => {
+      it("should protect the module", async () => {
+        const retrievedICManager = await subject();
 
+        const isProtectedSubjectModule = await retrievedICManager
+          .protectedModules(subjectModule);
+
+        const isProtectedSubjectAdditionalModule = await retrievedICManager
+          .protectedModules(subjectAdditionalModule);
+
+        expect(isProtectedSubjectModule).to.be.true;
+        expect(isProtectedSubjectAdditionalModule).to.be.true;
+      });
+
+      it("should add the adapters", async () => {
+        const retrievedICManager = await subject();
+
+        const isSubjectAdapter = await retrievedICManager.isAdapter(subjectAdapter);
+        const isSubjectAdditionalAdapter = await retrievedICManager.isAdapter(subjectAdditionalAdapter);
+
+        expect(isSubjectAdapter).to.be.true;
+        expect(isSubjectAdditionalAdapter).to.be.true;
+      });
+
+      it("should authorize the adapters correctly", async () => {
+        const retrievedICManager = await subject();
+
+        const isAuthorizedSubjectAdapter = await retrievedICManager
+          .isAuthorizedAdapter(subjectModule, subjectAdapter);
+
+        const isAuthorizedSubjectAdditionalAdapter = await retrievedICManager
+          .isAuthorizedAdapter(subjectAdditionalModule, subjectAdditionalAdapter);
+
+        const transposedAdapterIsAuthorized = await retrievedICManager
+          .isAuthorizedAdapter(subjectModule, subjectAdditionalAdapter);
+
+        expect(isAuthorizedSubjectAdapter).to.be.true;
+        expect(isAuthorizedSubjectAdditionalAdapter).to.be.true;
+        expect(transposedAdapterIsAuthorized).to.be.false;
       });
     });
   });
@@ -294,10 +351,12 @@ describe("BaseManager", () => {
   });
 
   describe("#addAdapter", async () => {
+    let subjectModule: Address;
     let subjectAdapter: Address;
     let subjectCaller: Account;
 
     beforeEach(async () => {
+      subjectModule = setV2Setup.streamingFeeModule.address;
       subjectAdapter = baseAdapter.address;
       subjectCaller = operator;
     });
@@ -344,8 +403,16 @@ describe("BaseManager", () => {
       });
     });
 
-    describe.skip("when an emergency is in progress", async () => {
-      it("should revert", async () => {});
+    describe("when an emergency is in progress", async () => {
+      beforeEach(async () => {
+        baseManager.connect(operator.wallet);
+        await baseManager.protectModule(subjectModule, []);
+        await baseManager.emergencyRemoveProtectedModule(subjectModule);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Upgrades paused by emergency");
+      });
     });
 
     describe("when the caller is not the operator", async () => {
@@ -437,7 +504,7 @@ describe("BaseManager", () => {
     });
 
     async function subject(caller: Account): Promise<any> {
-      return baseManager.connect(caller.wallet).protectAuthorizeAdapter(subjectModule, [subjectAdapter]);
+      return baseManager.connect(caller.wallet).authorizeAdapter(subjectModule, subjectAdapter);
     }
 
     describe.skip("when adapter is not authorized and already added", () => {

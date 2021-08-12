@@ -463,6 +463,18 @@ contract BaseManager is MutualUpgrade {
         return adapters;
     }
 
+    function getAuthorizedAdapters(address _module) external view returns (address[] memory) {
+        return protectedModules[_module].authorizedAdaptersList;
+    }
+
+    function isAuthorizedAdapter(address _module, address _adapter) external view returns (bool) {
+        return protectedModules[_module].authorizedAdapters[_adapter];
+    }
+
+    function getProtectedModules() external view returns (address[] memory) {
+        return protectedModulesList;
+    }
+
     /* ============ Internal ============ */
 
 
