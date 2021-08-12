@@ -68,7 +68,10 @@ describe("BaseAdapter", () => {
       setToken.address,
       owner.address,
       methodologist.address,
+      [],
+      [[]]
     );
+    await baseManagerV2.connect(methodologist.wallet).authorizeInitialization();
 
     baseAdapterMock = await deployer.mocks.deployBaseAdapterMock(baseManagerV2.address);
 

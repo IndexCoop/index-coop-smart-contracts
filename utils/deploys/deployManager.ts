@@ -35,11 +35,15 @@ export default class DeployToken {
     set: Address,
     operator: Address,
     methodologist: Address,
+    protectedModules: Address[],
+    authorizedExtensions: Address[][]
   ): Promise<BaseManager> {
     return await new BaseManager__factory(this._deployerSigner).deploy(
       set,
       operator,
       methodologist,
+      protectedModules,
+      authorizedExtensions
     );
   }
 }

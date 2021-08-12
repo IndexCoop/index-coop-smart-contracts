@@ -379,6 +379,7 @@ contract BaseManager is MutualUpgrade {
      *
      * @param _oldModule        Module to remove
      * @param _newModule        Module to add in place of removed module
+     * @param _newAdapters      Adapters to authorize for new module
      */
     function replaceProtectedModule(address _oldModule, address _newModule, address[] memory _newAdapters)
         external
@@ -550,6 +551,6 @@ contract BaseManager is MutualUpgrade {
             return protectedModules[_module].authorizedAdapters[_sender];
         }
 
-        return false;
+        return true;
     }
 }

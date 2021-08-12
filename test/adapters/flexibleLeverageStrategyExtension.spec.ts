@@ -195,7 +195,10 @@ describe("FlexibleLeverageStrategyExtension", () => {
       setToken.address,
       owner.address,
       methodologist.address,
+      [],
+      [[]]
     );
+    await baseManagerV2.connect(methodologist.wallet).authorizeInitialization();
 
     // Transfer ownership to ic manager
     if ((await setToken.manager()) == owner.address) {

@@ -16,10 +16,14 @@ import {
 } from "@utils/index";
 import { SetFixture } from "@utils/fixtures";
 
+import { solidityKeccak256 } from "ethers/lib/utils";
+import { ContractTransaction } from "ethers";
+
 const expect = getWaffleExpect();
 
+
 describe("BaseManager", () => {
-  let owner: Account;
+  let operator: Account;
   let methodologist: Account;
   let otherAccount: Account;
   let newManager: Account;
@@ -31,17 +35,23 @@ describe("BaseManager", () => {
   let baseManager: BaseManager;
   let baseAdapter: BaseAdapterMock;
 
+  async function validateMutualUprade(txHash: ContractTransaction, caller: Address) {
+    const expectedHash = solidityKeccak256(["bytes", "address"], [txHash.data, caller]);
+    const isLogged = await baseManager.mutualUpgrades(expectedHash);
+    expect(isLogged).to.be.true;
+  }
+
   before(async () => {
     [
-      owner,
+      operator,
       otherAccount,
       newManager,
       methodologist,
     ] = await getAccounts();
 
-    deployer = new DeployHelper(owner.wallet);
+    deployer = new DeployHelper(operator.wallet);
 
-    setV2Setup = getSetFixture(owner.address);
+    setV2Setup = getSetFixture(operator.address);
     await setV2Setup.initialize();
 
     setToken = await setV2Setup.createSetToken(
@@ -52,7 +62,7 @@ describe("BaseManager", () => {
 
     // Initialize modules
     await setV2Setup.issuanceModule.initialize(setToken.address, ADDRESS_ZERO);
-    const feeRecipient = owner.address;
+    const feeRecipient = operator.address;
     const maxStreamingFeePercentage = ether(.1);
     const streamingFeePercentage = ether(.02);
     const streamingFeeSettings = {
@@ -66,11 +76,13 @@ describe("BaseManager", () => {
     // Deploy BaseManager
     baseManager = await deployer.manager.deployBaseManager(
       setToken.address,
-      owner.address,
+      operator.address,
       methodologist.address,
+      [],
+      [[]]
     );
 
-    // Transfer ownership to BaseManager
+    // Transfer operatorship to BaseManager
     await setToken.setManager(baseManager.address);
 
     baseAdapter = await deployer.mocks.deployBaseAdapterMock(baseManager.address);
@@ -82,11 +94,15 @@ describe("BaseManager", () => {
     let subjectSetToken: Address;
     let subjectOperator: Address;
     let subjectMethodologist: Address;
+    let subjectProtectedModules: Address[];
+    let subjectAuthorizedExtensions: Address[][];
 
     beforeEach(async () => {
       subjectSetToken = setToken.address;
-      subjectOperator = owner.address;
+      subjectOperator = operator.address;
       subjectMethodologist = methodologist.address;
+      subjectProtectedModules = [setV2Setup.streamingFeeModule.address];
+      subjectAuthorizedExtensions = [[]];
     });
 
     async function subject(): Promise<BaseManager> {
@@ -94,6 +110,8 @@ describe("BaseManager", () => {
         subjectSetToken,
         subjectOperator,
         subjectMethodologist,
+        subjectProtectedModules,
+        subjectAuthorizedExtensions
       );
     }
 
@@ -125,18 +143,26 @@ describe("BaseManager", () => {
 
     beforeEach(async () => {
       subjectNewManager = newManager.address;
-      subjectCaller = owner;
+      subjectCaller = operator;
     });
 
-    async function subject(): Promise<any> {
-      return baseManager.connect(subjectCaller.wallet).setManager(subjectNewManager);
+    async function subject(caller: Account): Promise<any> {
+      return baseManager.connect(caller.wallet).setManager(subjectNewManager);
     }
 
     it("should change the manager address", async () => {
-      await subject();
+      await subject(operator);
+      await subject(methodologist);
       const manager = await setToken.manager();
 
       expect(manager).to.eq(newManager.address);
+    });
+
+    describe("when a single mutual upgrade party calls", () => {
+      it("should log the proposed streaming fee hash in the mutualUpgrades mapping", async () => {
+        const txHash = await subject(operator);
+        await validateMutualUprade(txHash, operator.address);
+      });
     });
 
     describe("when passed manager is the zero address", async () => {
@@ -145,17 +171,18 @@ describe("BaseManager", () => {
       });
 
       it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Zero address not valid");
+        await subject(operator);
+        await expect(subject(methodologist)).to.be.revertedWith("Zero address not valid");
       });
     });
 
-    describe("when the caller is not the operator", async () => {
+    describe("when the caller is not the operator or the methodologist", async () => {
       beforeEach(async () => {
-        subjectCaller = methodologist;
+        subjectCaller = await getRandomAccount();
       });
 
       it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Must be operator");
+        await expect(subject(subjectCaller)).to.be.revertedWith("Must be authorized address");
       });
     });
   });
@@ -166,7 +193,7 @@ describe("BaseManager", () => {
 
     beforeEach(async () => {
       subjectAdapter = baseAdapter.address;
-      subjectCaller = owner;
+      subjectCaller = operator;
     });
 
     async function subject(): Promise<any> {
@@ -227,10 +254,10 @@ describe("BaseManager", () => {
     let subjectCaller: Account;
 
     beforeEach(async () => {
-      await baseManager.connect(owner.wallet).addAdapter(baseAdapter.address);
+      await baseManager.connect(operator.wallet).addAdapter(baseAdapter.address);
 
       subjectAdapter = baseAdapter.address;
-      subjectCaller = owner;
+      subjectCaller = operator;
     });
 
     async function subject(): Promise<any> {
@@ -284,7 +311,7 @@ describe("BaseManager", () => {
       await setV2Setup.controller.addModule(otherAccount.address);
 
       subjectModule = otherAccount.address;
-      subjectCaller = owner;
+      subjectCaller = operator;
     });
 
     async function subject(): Promise<any> {
@@ -310,12 +337,14 @@ describe("BaseManager", () => {
 
   describe("#interactManager", async () => {
     let subjectModule: Address;
+    let subjectAdapter: Address;
     let subjectCallData: Bytes;
 
     beforeEach(async () => {
-      await baseManager.connect(owner.wallet).addAdapter(baseAdapter.address);
+      await baseManager.connect(operator.wallet).addAdapter(baseAdapter.address);
 
       subjectModule = setV2Setup.streamingFeeModule.address;
+      subjectAdapter = baseAdapter.address;
 
       // Invoke update fee recipient
       subjectCallData = setV2Setup.streamingFeeModule.interface.encodeFunctionData("updateFeeRecipient", [
@@ -328,19 +357,55 @@ describe("BaseManager", () => {
       return baseAdapter.interactManager(subjectModule, subjectCallData);
     }
 
-    it("should call updateFeeRecipient on the streaming fee module from the SetToken", async () => {
-      await subject();
-      const feeStates = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
-      expect(feeStates.feeRecipient).to.eq(otherAccount.address);
+    context("when the manager is initialized", () => {
+      beforeEach(async() => {
+        await baseManager.connect(methodologist.wallet).authorizeInitialization();
+      });
+
+      it("should call updateFeeRecipient on the streaming fee module from the SetToken", async () => {
+        await subject();
+        const feeStates = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
+        expect(feeStates.feeRecipient).to.eq(otherAccount.address);
+      });
+
+      describe("when the caller is not an adapter", async () => {
+        beforeEach(async () => {
+          await baseManager.connect(operator.wallet).removeAdapter(baseAdapter.address);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be adapter");
+        });
+      });
     });
 
-    describe("when the caller is not an adapter", async () => {
+    context("when the manager is not initialized", () => {
+      it("updateFeeRecipient should revert", async () => {
+        expect(subject()).to.be.revertedWith("Manager not initialized");
+      });
+    });
+
+    context("when the module is protected and adapter is authorized", () => {
       beforeEach(async () => {
-        await baseManager.connect(owner.wallet).removeAdapter(baseAdapter.address);
+        await baseManager.connect(methodologist.wallet).authorizeInitialization();
+        await baseManager.connect(operator.wallet).protectModule(subjectModule, [subjectAdapter]);
+      });
+
+      it("updateFeeRecipient should succeed", async () => {
+        await subject();
+        const feeStates = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
+        expect(feeStates.feeRecipient).to.eq(otherAccount.address);
+      });
+    });
+
+    context("when the module is protected and adapter is not authorized", () => {
+      beforeEach(async () => {
+        await baseManager.connect(methodologist.wallet).authorizeInitialization();
+        await baseManager.connect(operator.wallet).protectModule(subjectModule, []);
       });
 
       it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Must be adapter");
+        await expect(subject()).to.be.revertedWith("Adapter not authorized for module");
       });
     });
   });
@@ -351,7 +416,7 @@ describe("BaseManager", () => {
 
     beforeEach(async () => {
       subjectModule = setV2Setup.streamingFeeModule.address;
-      subjectCaller = owner;
+      subjectCaller = operator;
     });
 
     async function subject(): Promise<any> {
@@ -415,7 +480,7 @@ describe("BaseManager", () => {
 
     beforeEach(async () => {
       subjectNewOperator = await getRandomAddress();
-      subjectCaller = owner;
+      subjectCaller = operator;
     });
 
     async function subject(): Promise<any> {
@@ -429,7 +494,7 @@ describe("BaseManager", () => {
     });
 
     it("should emit the correct OperatorChanged event", async () => {
-      await expect(subject()).to.emit(baseManager, "OperatorChanged").withArgs(owner.address, subjectNewOperator);
+      await expect(subject()).to.emit(baseManager, "OperatorChanged").withArgs(operator.address, subjectNewOperator);
     });
 
     describe("when the caller is not the operator", async () => {

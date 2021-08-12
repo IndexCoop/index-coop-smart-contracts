@@ -86,8 +86,11 @@ describe("GIMExtension", () => {
     baseManagerV2 = await deployer.manager.deployBaseManager(
       setToken.address,
       operator.address,
-      methodologist.address
+      methodologist.address,
+      [],
+      [[]]
     );
+    await baseManagerV2.connect(methodologist.wallet).authorizeInitialization();
   });
 
   addSnapshotBeforeRestoreAfterEach();
