@@ -92,6 +92,8 @@ describe("BaseManager", () => {
 
   describe("#constructor", async () => {
     let subjectSetToken: Address;
+    let subjectAdapter: Address;
+    let subjectAdditionalAdapter: Address;
     let subjectOperator: Address;
     let subjectMethodologist: Address;
     let subjectProtectedModules: Address[];
@@ -99,6 +101,8 @@ describe("BaseManager", () => {
 
     beforeEach(async () => {
       subjectSetToken = setToken.address;
+      subjectAdapter = baseAdapter.address;
+      subjectAdditionalAdapter = ADDRESS_ZERO; // Deploy as needed
       subjectOperator = operator.address;
       subjectMethodologist = methodologist.address;
       subjectProtectedModules = [setV2Setup.streamingFeeModule.address];
@@ -134,6 +138,108 @@ describe("BaseManager", () => {
 
       const actualMethodologist = await retrievedICManager.methodologist();
       expect (actualMethodologist).to.eq(subjectMethodologist);
+    });
+
+    it("should not be initialized by default", async () => {
+      const retrievedICManager = await subject();
+
+      const initialized = await retrievedICManager.initialized();
+      expect(initialized).to.be.false;
+    });
+
+    describe("protectedModules: single, no extensions", () => {
+      beforeEach(() => {
+        subjectProtectedModules = [setV2Setup.streamingFeeModule.address];
+      });
+
+      it("should add module to setToken", () => {
+
+      });
+
+      it("should protect the module", () => {
+
+      });
+    });
+
+    describe("protectedModules: single, with multiple extension", () => {
+      beforeEach(async () => {
+        subjectAdditionalAdapter = (await deployer.mocks.deployBaseAdapterMock(baseManager.address)).address;
+        subjectProtectedModules = [setV2Setup.streamingFeeModule.address];
+        subjectAuthorizedExtensions = [[subjectAdapter, subjectAdditionalAdapter]];
+      });
+
+      it("should add module to setToken", () => {
+
+      });
+
+      it("should protect the module", () => {
+
+      });
+
+      it("should add the extensions", () => {
+
+      });
+
+      it("should authorize the extensions", () => {
+
+      });
+    });
+
+    describe("protectedModules: multiple, with extensions", () => {
+      beforeEach(async () => {
+        subjectAdditionalAdapter = (await deployer.mocks.deployBaseAdapterMock(baseManager.address)).address;
+        subjectProtectedModules = [setV2Setup.streamingFeeModule.address, setV2Setup.issuanceModule.address];
+        subjectAuthorizedExtensions = [ [subjectAdapter], [subjectAdditionalAdapter] ];
+      });
+
+      it("should add module to setToken", () => {
+
+      });
+
+      it("should protect the module", () => {
+
+      });
+
+      it("should add the extensions", () => {
+
+      });
+
+      it("should authorize the extensions", () => {
+
+      });
+    });
+  });
+
+  describe("#authorizeInitialization", () => {
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      subjectCaller = methodologist;
+    });
+
+    async function subject(): Promise<any> {
+      return baseManager.connect(subjectCaller.wallet).authorizeInitialization();
+    }
+
+    it("sets initialized to true", async() => {
+      const defaultInitialized = await baseManager.initialized();
+
+      await subject();
+
+      const updatedInitialized = await baseManager.initialized();
+
+      expect(defaultInitialized).to.be.false;
+      expect(updatedInitialized).to.be.true;
+    });
+
+    describe("when the caller is not the methodologist", async () => {
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be methodologist");
+      });
     });
   });
 
@@ -250,12 +356,14 @@ describe("BaseManager", () => {
   });
 
   describe("#removeAdapter", async () => {
+    let subjectModule: Address;
     let subjectAdapter: Address;
     let subjectCaller: Account;
 
     beforeEach(async () => {
       await baseManager.connect(operator.wallet).addAdapter(baseAdapter.address);
 
+      subjectModule = setV2Setup.streamingFeeModule.address;
       subjectAdapter = baseAdapter.address;
       subjectCaller = operator;
     });
@@ -301,6 +409,24 @@ describe("BaseManager", () => {
         await expect(subject()).to.be.revertedWith("Must be operator");
       });
     });
+
+    describe("when the adapter is authorized for a protected module", () => {
+      beforeEach(() => {
+        baseManager.connect(operator.wallet).protectModule(subjectModule, [subjectAdapter]);
+      });
+
+      it("should revert", async() => {
+        await expect(subject()).to.be.revertedWith("Adapter used by protected module");
+      });
+    });
+  });
+
+  describe("#authorizeAdapter", () => {
+
+  });
+
+  describe("#revokeAdapterAuthorization", () => {
+
   });
 
   describe("#addModule", async () => {
@@ -326,13 +452,138 @@ describe("BaseManager", () => {
 
     describe("when the caller is not the operator", async () => {
       beforeEach(async () => {
-        subjectCaller = await getRandomAccount();
+        subjectCaller = methodologist;
       });
 
       it("should revert", async () => {
         await expect(subject()).to.be.revertedWith("Must be operator");
       });
     });
+  });
+
+  describe("#emergencyRemoveProtectedModule", () => {
+    let subjectModule: Address;
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      subjectCaller = operator;
+      subjectModule = setV2Setup.streamingFeeModule.address;
+    });
+
+    async function subject(): Promise<any> {
+      return baseManager.connect(subjectCaller.wallet).emergencyRemoveProtectedModule(subjectModule);
+    }
+
+    describe("when module is protected", () => {
+      it("should remove the module from the set token", async () => {});
+      it("should unprotect the module", () => {});
+      it("should clear the protected modules authorized extension registries", () => {});
+      it("should increment the emergencies counter", async () => {});
+    });
+
+    describe("when module is not protected", () => {
+      it("should revert", async () => {});
+    });
+
+    describe("when the caller is not the operator", async () => {
+      beforeEach(async () => {
+        subjectCaller = methodologist;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be operator");
+      });
+    });
+  });
+
+  describe("#protectModule", () => {
+    let subjectModule: Address;
+    let subjectAdapter: Address;
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      subjectCaller = operator;
+      subjectModule = setV2Setup.streamingFeeModule.address;
+      subjectAdapter = baseAdapter.address;
+    });
+
+    async function subject(): Promise<any> {
+      return baseManager.connect(subjectCaller.wallet).protectModule(subjectModule, [subjectAdapter]);
+    }
+
+    describe("when module already added, no extensions", () => {
+
+    });
+
+    describe("when module already added, with non-added extension", () => {
+
+    });
+
+    describe("when module already added, with added extension", () => {
+
+    });
+
+    describe("when module not added", () => {
+
+    });
+
+    describe("when module already protected", () => {
+
+    });
+
+    describe("when the caller is not the operator", async () => {
+      beforeEach(async () => {
+        subjectCaller = methodologist;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be operator");
+      });
+    });
+  });
+
+  describe("#unProtectModule", () => {
+    let subjectModule: Address;
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      subjectCaller = operator;
+      subjectModule = setV2Setup.streamingFeeModule.address;
+    });
+
+    async function subject(): Promise<any> {
+      return baseManager.connect(subjectCaller.wallet).unProtectModule(subjectModule);
+    }
+
+    describe("when module is protected", () => {
+
+    });
+
+    describe("when module is not protected", () => {
+
+    });
+
+    describe("when the caller is not the methodologist", async () => {
+      beforeEach(async () => {
+        subjectCaller = operator;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be methodologist");
+      });
+    });
+  });
+
+  describe("#replaceProtectedModule", () => {
+
+  });
+
+  describe("#emergencyReplaceProtectedModule", () => {
+
+  });
+
+  describe("#resolveEmergency", () => {
+
   });
 
   describe("#interactManager", async () => {
@@ -412,10 +663,12 @@ describe("BaseManager", () => {
 
   describe("#removeModule", async () => {
     let subjectModule: Address;
+    let subjectAdapter: Address;
     let subjectCaller: Account;
 
     beforeEach(async () => {
       subjectModule = setV2Setup.streamingFeeModule.address;
+      subjectAdapter = baseAdapter.address;
       subjectCaller = operator;
     });
 
@@ -436,6 +689,16 @@ describe("BaseManager", () => {
 
       it("should revert", async () => {
         await expect(subject()).to.be.revertedWith("Must be operator");
+      });
+    });
+
+    describe("when the module is protected module", () => {
+      beforeEach(() => {
+        baseManager.connect(operator.wallet).protectModule(subjectModule, [subjectAdapter]);
+      });
+
+      it("should revert", async() => {
+        await expect(subject()).to.be.revertedWith("Module protected");
       });
     });
   });

@@ -311,6 +311,25 @@ contract BaseManager is MutualUpgrade {
     }
 
     /**
+     * OPERATOR ONLY: Called by operator when a module must be removed immediately for security
+     * reasons and it's unsafe to wait for a `mutualUpgrade` process to play out.
+     *
+     * Marks a currently protected module as unprotected and deletes its authorized adapter registries.
+     * Removes module from the SetToken. Increments the `emergencies` counter, prohibiting any further
+     * operator-only module or extension additions until `emergencyReplaceProtectedModule` decrements
+     * `emergencies` back to zero.
+     *
+     * @param _module           Module to remove
+     */
+    function emergencyRemoveProtectedModule(address _module) external onlyOperator {
+        _unProtectModule(_module);
+        setToken.removeModule(_module);
+        emergencies += 1;
+
+        EmergencyRemovedProtectedModule(_module);
+    }
+
+    /**
      * OPERATOR ONLY: The operator uses this when they're adding new functionality and want to
      * assure the methodologist that these new features won't be unilaterally changed in the
      * future. Cannot be called during an emergency because methodologist needs to explicitly
@@ -347,26 +366,6 @@ contract BaseManager is MutualUpgrade {
 
         emit ModuleUnprotected(_module);
     }
-
-    /**
-     * OPERATOR ONLY: Called by operator when a module must be removed immediately for security
-     * reasons and it's unsafe to wait for a `mutualUpgrade` process to play out.
-     *
-     * Marks a currently protected module as unprotected and deletes its authorized adapter registries.
-     * Removes module from the SetToken. Increments the `emergencies` counter, prohibiting any further
-     * operator-only module or extension additions until `emergencyReplaceProtectedModule` decrements
-     * `emergencies` back to zero.
-     *
-     * @param _module           Module to remove
-     */
-    function emergencyRemoveProtectedModule(address _module) external onlyOperator {
-        _unProtectModule(_module);
-        setToken.removeModule(_module);
-        emergencies += 1;
-
-        EmergencyRemovedProtectedModule(_module);
-    }
-
 
     /**
      * MUTUAL UPGRADE: Used when methodologists wants to guarantee that an existing protection
