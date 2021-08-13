@@ -601,12 +601,14 @@ describe("BaseManager", () => {
 
   describe("#revokeAdapterAuthorization", () => {
     let subjectModule: Address;
+    let subjectAdditionalModule: Address;
     let subjectAdapter: Address;
     let subjectCaller: Account;
 
     beforeEach(async () => {
       subjectCaller = operator;
       subjectModule = setV2Setup.streamingFeeModule.address;
+      subjectAdditionalModule = setV2Setup.issuanceModule.address;
       subjectAdapter = baseAdapter.address;
     });
 
@@ -638,6 +640,30 @@ describe("BaseManager", () => {
         await expect(subject(methodologist)).to
           .emit(baseManager, "AdapterAuthorizationRevoked")
           .withArgs(subjectModule, subjectAdapter);
+      });
+    });
+
+    describe("when an adapter is shared by protected modules", () => {
+      beforeEach(async () => {
+        await baseManager.connect(operator.wallet).addAdapter(subjectAdapter);
+        await baseManager.connect(operator.wallet).protectModule(subjectAdditionalModule, [subjectAdapter]);
+        await baseManager.connect(operator.wallet).protectModule(subjectModule, [subjectAdapter]);
+      });
+
+      it("should only revoke authorization for the specified module", async () => {
+        const initialAuth = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
+        const initialAdditionalAuth = await baseManager.isAuthorizedAdapter(subjectAdditionalModule, subjectAdapter);
+
+        await subject(operator);
+        await subject(methodologist);
+
+        const finalAuth = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
+        const finalAdditionalAuth = await baseManager.isAuthorizedAdapter(subjectAdditionalModule, subjectAdapter);
+
+        expect(initialAuth).to.be.true;
+        expect(initialAdditionalAuth).to.be.true;
+        expect(finalAuth).to.be.false;
+        expect(finalAdditionalAuth).to.be.true;
       });
     });
 
@@ -1447,7 +1473,9 @@ describe("BaseManager", () => {
     });
 
     describe("when an emergency is *not* in progress", async () => {
-      it("should revert", async () => {});
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Not in emergency");
+      });
     });
 
     describe("when the caller is not the methodologist", async () => {
