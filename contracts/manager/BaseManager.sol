@@ -346,7 +346,7 @@ contract BaseManager is MutualUpgrade {
         upgradesPermitted
         onlyOperator
     {
-        require(setToken.isInitializedModule(_module), "Module not added yet");
+        require(setToken.getModules().contains(_module), "Module not added yet");
         _protectModule(_module, _adapters);
 
         emit ModuleProtected(_module, _adapters);
