@@ -150,19 +150,19 @@ contract BaseManager is MutualUpgrade {
     address public methodologist;
 
     // Counter incremented when the operator "emergency removes" a protected module. Decremented
-    // when methodologist executes an "emergency replacement". Operator is only allowed to unilaterally
-    // add modules and extension when `emergencies` equals 0
+    // when methodologist executes an "emergency replacement". Operator can only add modules and
+    // adapters when `emergencies` is zero.
     uint256 public emergencies;
 
     // Mapping of protected modules. These cannot be called or removed except by mutual upgrade.
     mapping(address => ProtectedModule) public protectedModules;
 
-    // Allows iteration over the set of protected modules. Used when verifying that an adapter
-    // removal does not require methodologist consent
+    // List of protected modules, for iteration. Used when checking that an adapter removal
+    // can happen without methodologist approval
     address[] public protectedModulesList;
 
     // Boolean set when methodologist authorizes initialization after contract deployment.
-    // `interactManager` reverts unless this is true.
+    // Must be true to call via `interactManager`.
     bool public initialized;
 
     /* ============ Constructor ============ */
@@ -236,7 +236,8 @@ contract BaseManager is MutualUpgrade {
     }
 
     /**
-     * MUTUAL UPGRADE**: Authorizes an adapter for a protected module
+     * MUTUAL UPGRADE**: Authorizes an adapter for a protected module. Operator and Methodologist must
+     * each call this function to execute the update.
      *
      * @param _module           Module to authorize adapter for
      * @param _adapter          Adapter to authorize for module
@@ -256,7 +257,8 @@ contract BaseManager is MutualUpgrade {
     }
 
     /**
-     * MUTUAL UPGRADE**: Revokes adapter authorization for a protected module
+     * MUTUAL UPGRADE**: Revokes adapter authorization for a protected module. Operator and Methodologist
+     * must each call this function to execute the update.
      *
      * @param _module           Module to revoke adapter authorization for
      * @param _adapter          Adapter to revoke authorization of
@@ -276,9 +278,9 @@ contract BaseManager is MutualUpgrade {
     }
 
     /**
-     * ADAPTER ONLY: Interact with a module registered on the SetToken. Manager must have been
-     * initialized after deployment by Methodologist. Adapter making this call must be authorized
-     * to call module if module is protected
+     * ADAPTER ONLY: Interact with a module registered on the SetToken. Manager initialization must
+     * have been authorized by methodologist. Adapter making this call must be authorized
+     * to call module if module is protected.
      *
      * @param _module           Module to interact with
      * @param _data             Byte data of function to call in module
@@ -311,13 +313,13 @@ contract BaseManager is MutualUpgrade {
     }
 
     /**
-     * OPERATOR ONLY: Called by operator when a module must be removed immediately for security
-     * reasons and it's unsafe to wait for a `mutualUpgrade` process to play out.
+     * OPERATOR ONLY: Marks a currently protected module as unprotected and deletes its authorized
+     * adapter registries. Removes module from the SetToken. Increments the `emergencies` counter,
+     * prohibiting any operator-only module or extension additions until `emergencyReplaceProtectedModule`
+     * is executed.
      *
-     * Marks a currently protected module as unprotected and deletes its authorized adapter registries.
-     * Removes module from the SetToken. Increments the `emergencies` counter, prohibiting any further
-     * operator-only module or extension additions until `emergencyReplaceProtectedModule` decrements
-     * `emergencies` back to zero.
+     * Called by operator when a module must be removed immediately for security reasons and it's unsafe
+     * to wait for a `mutualUpgrade` process to play out.
      *
      * @param _module           Module to remove
      */
@@ -330,13 +332,12 @@ contract BaseManager is MutualUpgrade {
     }
 
     /**
-     * OPERATOR ONLY: The operator uses this when they're adding new functionality and want to
-     * assure the methodologist that these new features won't be unilaterally changed in the
-     * future. Cannot be called during an emergency because methodologist needs to explicitly
-     * approve protection arrangements under those conditions.
-     *
-     * Marks an existing module as protected and authorizes existing adapters for
+     * OPERATOR ONLY: Marks an existing module as protected and authorizes existing adapters for
      * it. Adds module to the protected modules list
+     *
+     * The operator uses this when they're adding new features and want to assure the methodologist
+     * they won't be unilaterally changed in the future. Cannot be called during an emergency because
+     * methodologist needs to explicitly approve protection arrangements under those conditions.
      *
      * @param  _module          Module to protect
      * @param  _adapters        Array of adapters to authorize for protected module
@@ -353,11 +354,11 @@ contract BaseManager is MutualUpgrade {
     }
 
     /**
-     * METHODOLOGIST ONLY: Called by the methodologist when they want to cede control over a
-     * protected module without triggering an emergency (for example, to remove it because its dead).
+     * METHODOLOGIST ONLY: Marks a currently protected module as unprotected and deletes its authorized
+     * adapter registries. Removes old module from the protected modules list.
      *
-     * Marks a currently protected module as unprotected and deletes its authorized adapter registries.
-     * Removes old module from the protected modules list.
+     * Called by the methodologist when they want to cede control over a protected module without triggering
+     * an emergency (for example, to remove it because its dead).
      *
      * @param  _module          Module to revoke protections for
      */
@@ -368,13 +369,17 @@ contract BaseManager is MutualUpgrade {
     }
 
     /**
-     * MUTUAL UPGRADE: Used when methodologists wants to guarantee that an existing protection
-     * arrangement is replaced with a suitable substitute (ex: upgrading a StreamingFeeSplitExtension).
+     * MUTUAL UPGRADE: Replaces a protected module. Operator and Methodologist must each call this
+     * function to execute the update.
      *
-     * Marks a currently protected module as unprotected and deletes its authorized adapter
-     * registries. Removes `_oldModule` from the  `protectedModulesList`. Removes old module from
-     * SetToken. Adds new module to SetToken. Marks `_newModule` as protected and authorizes new
-     * adapters for it. Adds `_newModule` module to protectedModules list.
+     * > Marks a currently protected module as unprotected
+     * > Deletes its authorized adapter registries.
+     * > Removes old module from SetToken.
+     * > Adds new module to SetToken.
+     * > Marks `_newModule` as protected and authorizes new adapters for it.
+     *
+     * Used when methodologists wants to guarantee that an existing protection arrangement is replaced
+     * with a suitable substitute (ex: upgrading a StreamingFeeSplitExtension).
      *
      * @param _oldModule        Module to remove
      * @param _newModule        Module to add in place of removed module
@@ -394,15 +399,18 @@ contract BaseManager is MutualUpgrade {
         ReplacedProtectedModule(_oldModule, _newModule, _newAdapters);
     }
 
-    // edge cases:
-    // + operator emergency removed a module that has no viable replacement,
-    // +
-
     /**
      * MUTUAL UPGRADE: Replaces a module the operator has removed with `emergencyRemoveProtectedModule`.
-     * Adds new module to SetToken. Marks `_newModule` as protected and authorizes new adapters for it.
-     * Adds `_newModule` to protectedModules list. Decrements the emergencies counter, restoring
-     * operator's ability to add module or adapters unilaterally (if this is the only emergency.)
+     * Operator and Methodologist must each call this function to execute the update.
+     *
+     * > Adds new module to SetToken.
+     * > Marks `_newModule` as protected and authorizes new adapters for it.
+     * > Adds `_newModule` to protectedModules list.
+     * > Decrements the emergencies counter,
+     *
+     * Used when methodologists wants to guarantee that an existing protection arrangement which was
+     * removed in an emergency is replaced with a suitable substitute. Operator's ability to add module
+     * or adapters is restored after invoking this method (if this is the only emergency.)
      *
      * @param _module        Module to add in place of removed module
      * @param _adapters      Array of adapters to authorize for replacement module
@@ -425,10 +433,11 @@ contract BaseManager is MutualUpgrade {
     }
 
     /**
-     * METHODOLOGIST ONLY: Allows a methodologist to exit a state of emergency without replacing a
-     * protected module that was unilaterally removed. This could happen if the module has no viable
-     * substitute or operator and methodologist agree that restoring normal operations is the
-     * best way forward.
+     * METHODOLOGIST ONLY: Decrements the emergencies counter.
+     *
+     * Allows a methodologist to exit a state of emergency without replacing a protected module that
+     * was removed in an emergency. This could happen if the module has no viable substitute or operator
+     * and methodologist agree that restoring normal operations is the best way forward.
      */
     function resolveEmergency() external onlyMethodologist {
         require(emergencies > 0, "Not in emergency");
@@ -480,8 +489,6 @@ contract BaseManager is MutualUpgrade {
 
     /**
      * Add a new adapter that the BaseManager can call.
-     *
-     * @param _adapter           New adapter to add
      */
     function _addAdapter(address _adapter) internal {
         adapters.push(_adapter);
@@ -513,9 +520,6 @@ contract BaseManager is MutualUpgrade {
     /**
      * Adds new module to SetToken. Marks `_newModule` as protected and authorizes
      * new adapters for it. Adds `_newModule` module to protectedModules list.
-     *
-     * @param _module    Module to add
-     * @param _adapters  Adapters to authorize for new module
      */
     function _protectModule(address _module, address[] memory _adapters) internal {
         require(!protectedModules[_module].isProtected, "Module already protected");
@@ -536,9 +540,6 @@ contract BaseManager is MutualUpgrade {
      * Searches the adapter mappings of each protected modules to determine if an extension
      * is authorized by any of them. Authorized extensions cannot be unilaterally removed by
      * the operator.
-     *
-     * @param  _adapter            Adapter to evaluate
-     * @return                     `true` if adapter is authorized for an extension, false otherwise
      */
     function _isAuthorizedAdapter(address _adapter) internal view returns (bool) {
         for (uint256 i = 0; i < protectedModulesList.length; i++) {
@@ -552,10 +553,6 @@ contract BaseManager is MutualUpgrade {
 
     /**
      * Checks if `_sender` (an adapter) is allowed to call a module (which may be protected)
-     *
-     * @param  _module              Address of module receiving call from sender
-     * @param  _sender              Address of adapter sending call to module
-     * @return                      True if sender allowed to call module, false otherwise
      */
     function _senderAuthorizedForModule(address _module, address _sender) internal view returns (bool) {
         if (protectedModules[_module].isProtected) {
