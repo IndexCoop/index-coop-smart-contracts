@@ -529,6 +529,14 @@ describe("BaseManager", () => {
         expect(initialAuthorization).to.be.false;
         expect(finalAuthorization).to.be.true;
       });
+
+      it("should emit the correct AdapterAuthorized event", async () => {
+        await subject(operator);
+
+        await expect(subject(methodologist)).to
+          .emit(baseManager, "AdapterAuthorized")
+          .withArgs(subjectModule, subjectAdapter);
+      });
     });
 
     describe("when adapter is not already added to the manager", () => {
@@ -622,6 +630,14 @@ describe("BaseManager", () => {
 
         expect(initialAuthorization).to.be.true;
         expect(finalAuthorization).to.be.false;
+      });
+
+      it("should emit the correct AdapterAuthorizationRevoked event", async () => {
+        await subject(operator);
+
+        await expect(subject(methodologist)).to
+          .emit(baseManager, "AdapterAuthorizationRevoked")
+          .withArgs(subjectModule, subjectAdapter);
       });
     });
 
@@ -824,6 +840,12 @@ describe("BaseManager", () => {
         expect(initialEmergencies.toNumber()).equals(0);
         expect(finalEmergencies.toNumber()).equals(1);
       });
+
+      it("should emit the correct EmergencyRemovedProtectedModule event", async () => {
+        await expect(subject()).to
+          .emit(baseManager, "EmergencyRemovedProtectedModule")
+          .withArgs(subjectModule);
+      });
     });
 
     describe("when an emergency is already in progress", async () => {
@@ -919,6 +941,13 @@ describe("BaseManager", () => {
         expect(finalIsAdapter).to.be.true;
         expect(initialIsAuthorizedAdapter).to.be.false;
         expect(finalIsAuthorizedAdapter).to.be.true;
+      });
+
+      // With adapters...
+      it("should emit the correct ModuleProtected event", async () => {
+        await expect(subject()).to
+          .emit(baseManager, "ModuleProtected")
+          .withArgs(subjectModule, subjectAuthorizedAdapters);
       });
     });
 
@@ -1042,6 +1071,12 @@ describe("BaseManager", () => {
 
         expect(authorizedAdaptersList.length).equals(0);
         expect(isAuthorized).to.be.false;
+      });
+
+      it("should emit the correct ModuleUnprotected event", async () => {
+        await expect(subject()).to
+          .emit(baseManager, "ModuleUnprotected")
+          .withArgs(subjectModule);
       });
     });
 
@@ -1175,6 +1210,14 @@ describe("BaseManager", () => {
           expect(initialIsAuthorizedAdapter).to.be.false;
           expect(finalIsAuthorizedAdapter).to.be.true;
         });
+
+        it("should emit the correct ReplacedProtectedModule event", async () => {
+          await subject(operator);
+
+          await expect(subject(methodologist)).to
+            .emit(baseManager, "ReplacedProtectedModule")
+            .withArgs(subjectOldModule, subjectNewModule, [subjectNewAdapter]);
+        });
       });
 
       describe("when the new module is already added", async () => {
@@ -1300,6 +1343,14 @@ describe("BaseManager", () => {
 
         expect(initialEmergencies.toNumber()).equals(1);
         expect(finalEmergencies.toNumber()).equals(0);
+      });
+
+      it("should emit the correct EmergencyReplacedProtectedModule event", async () => {
+        await subject(operator);
+
+        await expect(subject(methodologist)).to
+          .emit(baseManager, "EmergencyReplacedProtectedModule")
+          .withArgs(subjectNewModule, [subjectNewAdapter]);
       });
     });
 
