@@ -124,11 +124,20 @@ contract BaseManager is MutualUpgrade {
     }
 
     /**
-      Throws if contract is in an emergency state following a unilateral operator removal of a
-      protected module.
+     * Throws if contract is in an emergency state following a unilateral operator removal of a
+     * protected module.
      */
     modifier upgradesPermitted() {
         require(emergencies == 0, "Upgrades paused by emergency");
+        _;
+    }
+
+    /**
+     * Throws if contract is *not* in an emergency state. Emergency replacement and resolution
+     * can only happen in an emergency
+     */
+    modifier onlyEmergency() {
+        require(emergencies > 0, "Not in emergency");
         _;
     }
 
@@ -400,16 +409,17 @@ contract BaseManager is MutualUpgrade {
     }
 
     /**
-     * MUTUAL UPGRADE: Replaces a module the operator has removed with `emergencyRemoveProtectedModule`.
-     * Operator and Methodologist must each call this function to execute the update.
+     * MUTUAL UPGRADE & ONLY EMERGENCY: Replaces a module the operator has removed with
+     * `emergencyRemoveProtectedModule`. Operator and Methodologist must each call this function to
+     *  execute the update.
      *
      * > Adds new module to SetToken.
      * > Marks `_newModule` as protected and authorizes new adapters for it.
      * > Adds `_newModule` to protectedModules list.
      * > Decrements the emergencies counter,
      *
-     * Used when methodologists wants to guarantee that an existing protection arrangement which was
-     * removed in an emergency is replaced with a suitable substitute. Operator's ability to add module
+     * Used when methodologist wants to guarantee that a protection arrangement which was
+     * removed in an emergency is replaced with a suitable substitute. Operator's ability to add modules
      * or adapters is restored after invoking this method (if this is the only emergency.)
      *
      * @param _module        Module to add in place of removed module
@@ -421,9 +431,8 @@ contract BaseManager is MutualUpgrade {
     )
         external
         mutualUpgrade(operator, methodologist)
+        onlyEmergency
     {
-        require(emergencies > 0, "Not in emergency");
-
         setToken.addModule(_module);
         _protectModule(_module, _adapters);
 
@@ -433,14 +442,13 @@ contract BaseManager is MutualUpgrade {
     }
 
     /**
-     * METHODOLOGIST ONLY: Decrements the emergencies counter.
+     * METHODOLOGIST ONLY & EMERGENCY ONLY: Decrements the emergencies counter.
      *
      * Allows a methodologist to exit a state of emergency without replacing a protected module that
-     * was removed in an emergency. This could happen if the module has no viable substitute or operator
-     * and methodologist agree that restoring normal operations is the best way forward.
+     * was removed. This could happen if the module has no viable substitute or operator and methodologist
+     * agree that restoring normal operations is the best way forward.
      */
-    function resolveEmergency() external onlyMethodologist {
-        require(emergencies > 0, "Not in emergency");
+    function resolveEmergency() external onlyMethodologist onlyEmergency {
         emergencies -= 1;
     }
 
