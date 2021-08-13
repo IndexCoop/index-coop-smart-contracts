@@ -433,14 +433,18 @@ describe("BaseManager", () => {
 
   describe("#removeAdapter", async () => {
     let subjectModule: Address;
+    let subjectAdditionalModule: Address;
     let subjectAdapter: Address;
+    let subjectAdditionalAdapter: Address;
     let subjectCaller: Account;
 
     beforeEach(async () => {
       await baseManager.connect(operator.wallet).addAdapter(baseAdapter.address);
 
       subjectModule = setV2Setup.streamingFeeModule.address;
+      subjectAdditionalModule = setV2Setup.issuanceModule.address;
       subjectAdapter = baseAdapter.address;
+      subjectAdditionalAdapter = (await deployer.mocks.deployBaseAdapterMock(baseManager.address)).address;
       subjectCaller = operator;
     });
 
@@ -489,6 +493,19 @@ describe("BaseManager", () => {
     describe("when the adapter is authorized for a protected module", () => {
       beforeEach(() => {
         baseManager.connect(operator.wallet).protectModule(subjectModule, [subjectAdapter]);
+      });
+
+      it("should revert", async() => {
+        await expect(subject()).to.be.revertedWith("Adapter used by protected module");
+      });
+    });
+
+    // This test for the coverage report - hits an alternate branch condition the authorized
+    // adapters search method....
+    describe("when multiple adaptersa are authorized for multiple protected modules", () => {
+      beforeEach(async () => {
+        await baseManager.connect(operator.wallet).protectModule(subjectAdditionalModule, [subjectAdditionalAdapter]);
+        await baseManager.connect(operator.wallet).protectModule(subjectModule, [subjectAdapter]);
       });
 
       it("should revert", async() => {
@@ -603,7 +620,6 @@ describe("BaseManager", () => {
     let subjectModule: Address;
     let subjectAdditionalModule: Address;
     let subjectAdapter: Address;
-    let subjectAdditionalAdapter: Address;
     let subjectCaller: Account;
 
     beforeEach(async () => {
@@ -611,7 +627,6 @@ describe("BaseManager", () => {
       subjectModule = setV2Setup.streamingFeeModule.address;
       subjectAdditionalModule = setV2Setup.issuanceModule.address;
       subjectAdapter = baseAdapter.address;
-      subjectAdditionalAdapter = (await deployer.mocks.deployBaseAdapterMock(baseManager.address)).address;
     });
 
     async function subject(caller: Account): Promise<any> {
@@ -661,32 +676,6 @@ describe("BaseManager", () => {
 
         const finalAuth = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
         const finalAdditionalAuth = await baseManager.isAuthorizedAdapter(subjectAdditionalModule, subjectAdapter);
-
-        expect(initialAuth).to.be.true;
-        expect(initialAdditionalAuth).to.be.true;
-        expect(finalAuth).to.be.false;
-        expect(finalAdditionalAuth).to.be.true;
-      });
-    });
-
-    // This test for the coverage report - hits an alternate branch condition the authorized
-    // adapters search method....
-    describe("when an adapter is unique and there are multiple protected modules", () => {
-      beforeEach(async () => {
-        await baseManager.connect(operator.wallet).addAdapter(subjectAdapter);
-        await baseManager.connect(operator.wallet).protectModule(subjectAdditionalModule, [subjectAdditionalAdapter]);
-        await baseManager.connect(operator.wallet).protectModule(subjectModule, [subjectAdapter]);
-      });
-
-      it("should only revoke authorization for the specified module", async () => {
-        const initialAuth = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
-        const initialAdditionalAuth = await baseManager.isAuthorizedAdapter(subjectAdditionalModule, subjectAdditionalAdapter);
-
-        await subject(operator);
-        await subject(methodologist);
-
-        const finalAuth = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
-        const finalAdditionalAuth = await baseManager.isAuthorizedAdapter(subjectAdditionalModule, subjectAdditionalAdapter);
 
         expect(initialAuth).to.be.true;
         expect(initialAdditionalAuth).to.be.true;
