@@ -56,11 +56,17 @@ describe("BaseManager", () => {
     setToken = await setV2Setup.createSetToken(
       [setV2Setup.dai.address],
       [ether(1)],
-      [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address]
+      [
+        setV2Setup.issuanceModule.address,
+        setV2Setup.streamingFeeModule.address,
+        setV2Setup.governanceModule.address,
+      ]
     );
 
     // Initialize modules
     await setV2Setup.issuanceModule.initialize(setToken.address, ADDRESS_ZERO);
+    await setV2Setup.governanceModule.initialize(setToken.address);
+
     const feeRecipient = operator.address;
     const maxStreamingFeePercentage = ether(.1);
     const streamingFeePercentage = ether(.02);
@@ -643,7 +649,6 @@ describe("BaseManager", () => {
       it("should revert", async () => {
         const initialAuthorization = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
 
-
         await subject(operator);
         await expect(initialAuthorization).to.be.false;
         await expect(subject(methodologist)).to.be.revertedWith("Adapter not authorized");
@@ -729,32 +734,123 @@ describe("BaseManager", () => {
 
   describe("#emergencyRemoveProtectedModule", () => {
     let subjectModule: Address;
+    let subjectAdditionalModule: Address;
+    let subjectAdapter: Address;
     let subjectCaller: Account;
 
     beforeEach(async () => {
       subjectCaller = operator;
       subjectModule = setV2Setup.streamingFeeModule.address;
+      subjectAdditionalModule = setV2Setup.governanceModule.address; // Removable
+      subjectAdapter = baseAdapter.address;
     });
 
     async function subject(): Promise<any> {
       return baseManager.connect(subjectCaller.wallet).emergencyRemoveProtectedModule(subjectModule);
     }
 
-    describe("when module is protected", () => {
-      it.skip("should remove the module from the set token", async () => {});
-      it.skip("should unprotect the module", () => {});
-      it.skip("should clear the protected modules authorized extension registries", () => {});
-      it.skip("should increment the emergencies counter", async () => {});
+    describe("when module is protected", async () => {
+      beforeEach(async () => {
+        await baseManager.connect(operator.wallet).protectModule(subjectModule, [subjectAdapter]);
+      });
+
+      it("should remove the module from the set token", async () => {
+        await subject();
+        const isModule = await setToken.isInitializedModule(subjectModule);
+        expect(isModule).to.eq(false);
+      });
+
+      it("should unprotect the module", async () => {
+        await subject();
+        const isProtected = await baseManager.protectedModules(subjectModule);
+        expect(isProtected).to.be.false;
+      });
+
+      it("should clear the protected modules authorized extension registries", async () => {
+        const initialAuthorizedAdaptersList = await baseManager.getAuthorizedAdapters(subjectModule);
+        const initialIsAuthorized = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
+
+        await subject();
+
+        const finalAuthorizedAdaptersList = await baseManager.getAuthorizedAdapters(subjectModule);
+        const finalIsAuthorized = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
+
+        expect(initialAuthorizedAdaptersList.length).equals(1);
+        expect(initialIsAuthorized).to.be.true;
+        expect(finalAuthorizedAdaptersList.length).equals(0);
+        expect(finalIsAuthorized).to.be.false;
+      });
+
+      it("should not preserve any settings if same module is removed and restored", async () => {
+        await subject();
+
+        await baseManager.connect(methodologist.wallet).resolveEmergency();
+        await baseManager.connect(operator.wallet).addModule(subjectModule);
+
+        // Invoke initialize on streamingFeeModule
+        const feeRecipient = operator.address;
+        const maxStreamingFeePercentage = ether(.1);
+        const streamingFeePercentage = ether(.02);
+        const streamingFeeSettings = {
+          feeRecipient,
+          maxStreamingFeePercentage,
+          streamingFeePercentage,
+          lastStreamingFeeTimestamp: ZERO,
+        };
+
+        const initializeData = setV2Setup
+          .streamingFeeModule
+          .interface
+          .encodeFunctionData("initialize", [setToken.address, streamingFeeSettings]);
+
+        await baseManager.connect(methodologist.wallet).authorizeInitialization();
+        await baseAdapter.interactManager(subjectModule, initializeData);
+        await baseManager.connect(operator.wallet).protectModule(subjectModule, []);
+
+        const authorizedAdaptersList = await baseManager.getAuthorizedAdapters(subjectModule);
+        const isAuthorized = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
+
+        expect(authorizedAdaptersList.length).equals(0);
+        expect(isAuthorized).to.be.false;
+      });
+
+      it("should increment the emergencies counter", async () => {
+        const initialEmergencies = await baseManager.emergencies();
+
+        await subject();
+
+        const finalEmergencies = await baseManager.emergencies();
+
+        expect(initialEmergencies.toNumber()).equals(0);
+        expect(finalEmergencies.toNumber()).equals(1);
+      });
     });
 
     describe("when an emergency is already in progress", async () => {
-      it.skip("should increment the emergencies counter", async () => {
+      beforeEach(async () => {
+        baseManager.connect(operator.wallet);
 
+        await baseManager.protectModule(subjectModule, []);
+        await baseManager.protectModule(subjectAdditionalModule, []);
+        await baseManager.emergencyRemoveProtectedModule(subjectAdditionalModule);
+      });
+
+      it("should increment the emergencies counter", async () => {
+        const initialEmergencies = await baseManager.emergencies();
+
+        await subject();
+
+        const finalEmergencies = await baseManager.emergencies();
+
+        expect(initialEmergencies.toNumber()).equals(1);
+        expect(finalEmergencies.toNumber()).equals(2);
       });
     });
 
     describe("when module is not protected", () => {
-      it.skip("should revert", async () => {});
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Module not protected");
+      });
     });
 
     describe("when the caller is not the operator", async () => {
@@ -770,41 +866,111 @@ describe("BaseManager", () => {
 
   describe("#protectModule", () => {
     let subjectModule: Address;
+    let subjectAdditionalModule: Address;
     let subjectAdapter: Address;
+    let subjectAuthorizedAdapters: Address[];
     let subjectCaller: Account;
 
     beforeEach(async () => {
       subjectCaller = operator;
       subjectModule = setV2Setup.streamingFeeModule.address;
       subjectAdapter = baseAdapter.address;
+      subjectAdditionalModule = setV2Setup.governanceModule.address; // Removable
+      subjectAuthorizedAdapters = [];
     });
 
     async function subject(): Promise<any> {
-      return baseManager.connect(subjectCaller.wallet).protectModule(subjectModule, [subjectAdapter]);
+      return baseManager
+        .connect(subjectCaller.wallet)
+        .protectModule(subjectModule, subjectAuthorizedAdapters);
     }
 
-    describe.skip("when module already added, no extensions", () => {
+    describe("when module already added, no extensions", () => {
+      it("should protect the module", async () => {
+        const initialIsProtected = await baseManager.protectedModules(subjectModule);
+        const initialProtectedModulesList = await baseManager.getProtectedModules();
 
+        await subject();
+
+        const finalIsProtected = await baseManager.protectedModules(subjectModule);
+        const finalProtectedModulesList = await baseManager.getProtectedModules();
+
+        expect(initialIsProtected).to.be.false;
+        expect(finalIsProtected).to.be.true;
+        expect(initialProtectedModulesList.length).equals(0);
+        expect(finalProtectedModulesList.length).equals(1);
+      });
     });
 
-    describe.skip("when module already added, with non-added extension", () => {
+    describe("when module already added, with non-added adapter", () => {
+      beforeEach(() => {
+        subjectAuthorizedAdapters = [subjectAdapter];
+      });
+      it("should add and authorize the adapter", async () => {
+        const initialIsAdapter = await baseManager.isAdapter(subjectAdapter);
+        const initialIsAuthorizedAdapter = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
 
+        await subject();
+
+        const finalIsAdapter = await baseManager.isAdapter(subjectAdapter);
+        const finalIsAuthorizedAdapter = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
+
+        expect(initialIsAdapter).to.be.false;
+        expect(finalIsAdapter).to.be.true;
+        expect(initialIsAuthorizedAdapter).to.be.false;
+        expect(finalIsAuthorizedAdapter).to.be.true;
+      });
     });
 
-    describe.skip("when module already added, with added extension", () => {
+    describe("when module and adapter already added", () => {
+      beforeEach(async () => {
+        await baseManager.connect(operator.wallet).addAdapter(subjectAdapter);
+        subjectAuthorizedAdapters = [subjectAdapter];
+      });
 
+      it("should authorize the adapter", async () => {
+        const initialIsAdapter = await baseManager.isAdapter(subjectAdapter);
+        const initialIsAuthorizedAdapter = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
+
+        await subject();
+
+        const finalIsAuthorizedAdapter = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
+
+        expect(initialIsAdapter).to.be.true;
+        expect(initialIsAuthorizedAdapter).to.be.false;
+        expect(finalIsAuthorizedAdapter).to.be.true;
+      });
     });
 
-    describe.skip("when module not added", () => {
+    describe("when module not added", () => {
+      beforeEach(async () => {
+        await baseManager.removeModule(subjectModule);
+      });
 
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Module not added yet");
+      });
     });
 
-    describe.skip("when module already protected", () => {
+    describe("when module already protected", () => {
+      beforeEach(async () => {
+        await baseManager.protectModule(subjectModule, []);
+      });
 
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Module already protected");
+      });
     });
 
-    describe.skip("when an emergency is in progress", async () => {
-      it("should revert", async () => {});
+    describe("when an emergency is in progress", async () => {
+      beforeEach(async () => {
+        await baseManager.protectModule(subjectAdditionalModule, []);
+        await baseManager.emergencyRemoveProtectedModule(subjectAdditionalModule);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Upgrades paused by emergency");
+      });
     });
 
     describe("when the caller is not the operator", async () => {
@@ -820,24 +986,69 @@ describe("BaseManager", () => {
 
   describe("#unProtectModule", () => {
     let subjectModule: Address;
+    let subjectAdapter: Address;
     let subjectCaller: Account;
 
     beforeEach(async () => {
-      subjectCaller = operator;
+      subjectCaller = methodologist;
       subjectModule = setV2Setup.streamingFeeModule.address;
+      subjectAdapter = baseAdapter.address;
     });
 
     async function subject(): Promise<any> {
       return baseManager.connect(subjectCaller.wallet).unProtectModule(subjectModule);
     }
 
-    describe.skip("when module is protected", () => {
-      it.skip("should unprotect the module", () => {});
-      it.skip("should clear the protected modules authorized extension registries", () => {});
+    describe("when module is protected", () => {
+      beforeEach(async () => {
+        await baseManager.connect(operator.wallet).protectModule(subjectModule, [subjectAdapter]);
+      });
+
+      it("should *not* remove the module from the set token", async () => {
+        await subject();
+        const isModule = await setToken.isInitializedModule(subjectModule);
+        expect(isModule).to.be.true;
+      });
+
+      it("should unprotect the module", async () => {
+        await subject();
+        const isProtected = await baseManager.protectedModules(subjectModule);
+        expect(isProtected).to.be.false;
+      });
+
+      it("should clear the protected modules authorized extension registries", async () => {
+        const initialAuthorizedAdaptersList = await baseManager.getAuthorizedAdapters(subjectModule);
+        const initialIsAuthorized = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
+
+        await subject();
+
+        const finalAuthorizedAdaptersList = await baseManager.getAuthorizedAdapters(subjectModule);
+        const finalIsAuthorized = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
+
+        expect(initialAuthorizedAdaptersList.length).equals(1);
+        expect(initialIsAuthorized).to.be.true;
+        expect(finalAuthorizedAdaptersList.length).equals(0);
+        expect(finalIsAuthorized).to.be.false;
+      });
+
+      it("should not preserve any settings if same module is removed and restored", async () => {
+        await subject();
+
+        // Restore without adapter
+        await baseManager.protectModule(subjectModule, []);
+
+        const authorizedAdaptersList = await baseManager.getAuthorizedAdapters(subjectModule);
+        const isAuthorized = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
+
+        expect(authorizedAdaptersList.length).equals(0);
+        expect(isAuthorized).to.be.false;
+      });
     });
 
-    describe.skip("when module is not protected", () => {
-
+    describe("when module is not protected", () => {
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Module not protected");
+      });
     });
 
     describe("when the caller is not the methodologist", async () => {
@@ -858,9 +1069,11 @@ describe("BaseManager", () => {
     let subjectCaller: Account;
 
     beforeEach(async () => {
+      await setV2Setup.controller.addModule(otherAccount.address);
+
       subjectCaller = operator;
-      subjectOldModule = setV2Setup.issuanceModule.address;
-      subjectNewModule = setV2Setup.streamingFeeModule.address;
+      subjectOldModule = setV2Setup.streamingFeeModule.address;
+      subjectNewModule = otherAccount.address;
       subjectAdapter = baseAdapter.address;
     });
 
@@ -871,40 +1084,128 @@ describe("BaseManager", () => {
     }
 
     describe("when old module is protected", () => {
-      describe.skip("when new module is not added", () => {
-        it("should add module to setToken", () => {
+      beforeEach(async () => {
+        await baseManager.connect(operator.wallet).protectModule(subjectOldModule, [subjectAdapter]);
+      });
 
+      describe("when new module is not added", () => {
+        // TEST IS WRONG
+        it.skip("should add new module to setToken", async () => {
+          const initialModuleAdded = await setToken.isInitializedModule(subjectNewModule);
+
+          await subject(operator);
+          await subject(methodologist);
+
+          const finalModuleAdded = await setToken.isPendingModule(subjectNewModule);
+
+          expect(initialModuleAdded).to.be.false;
+          expect(finalModuleAdded).to.be.true;
+        });
+
+        it("should remove old module from setToken", async () => {
+          const initialModuleAdded = await setToken.isInitializedModule(subjectOldModule);
+
+          await subject(operator);
+          await subject(methodologist);
+
+          const finalModuleAdded = await setToken.isInitializedModule(subjectOldModule);
+
+          expect(initialModuleAdded).to.be.true;
+          expect(finalModuleAdded).to.be.false;
         });
 
         it("should protect the module", async () => {
+          const initialIsProtected = await baseManager.protectedModules(subjectNewModule);
+          const initialProtectedModulesList = await baseManager.getProtectedModules();
 
+          await subject(operator);
+          await subject(methodologist);
+
+          const finalIsProtected = await baseManager.protectedModules(subjectNewModule);
+          const finalProtectedModulesList = await baseManager.getProtectedModules();
+
+          expect(initialIsProtected).to.be.false;
+          expect(finalIsProtected).to.be.true;
+          expect(initialProtectedModulesList[0]).equals(subjectOldModule);
+          expect(finalProtectedModulesList[0]).equals(subjectNewModule);
         });
 
-        it("should add extensions which aren't already added", async() => {
+        it("should unprotect the old module", async () => {
+          await subject(operator);
+          await subject(methodologist);
 
+          const isProtected = await baseManager.protectedModules(subjectOldModule);
+          expect(isProtected).to.be.false;
         });
 
-        it("should authorize the extensions", async() => {
+        it("should clear the old modules authorized adapter registries", async () => {
+          const initialAuthorizedAdaptersList = await baseManager.getAuthorizedAdapters(subjectOldModule);
+          const initialIsAuthorized = await baseManager.isAuthorizedAdapter(subjectOldModule, subjectAdapter);
 
+          await subject(operator);
+          await subject(methodologist);
+
+          const finalAuthorizedAdaptersList = await baseManager.getAuthorizedAdapters(subjectOldModule);
+          const finalIsAuthorized = await baseManager.isAuthorizedAdapter(subjectOldModule, subjectAdapter);
+
+          expect(initialAuthorizedAdaptersList.length).equals(1);
+          expect(initialIsAuthorized).to.be.true;
+          expect(finalAuthorizedAdaptersList.length).equals(0);
+          expect(finalIsAuthorized).to.be.false;
+        });
+
+        // Need to deploy additional adapter for setup
+        it.skip("should add and authorize the new module adapter", async () => {
+          const initialIsAdapter = await baseManager.isAdapter(subjectAdapter);
+          const initialIsAuthorizedAdapter = await baseManager.isAuthorizedAdapter(
+            subjectNewModule, subjectAdapter
+          );
+
+          await subject(operator);
+          await subject(methodologist);
+
+          const finalIsAdapter = await baseManager.isAdapter(subjectAdapter);
+          const finalIsAuthorizedAdapter = await baseManager.isAuthorizedAdapter(
+            subjectNewModule,
+            subjectAdapter
+          );
+
+          expect(initialIsAdapter).to.be.false;
+          expect(finalIsAdapter).to.be.true;
+          expect(initialIsAuthorizedAdapter).to.be.false;
+          expect(finalIsAuthorizedAdapter).to.be.true;
         });
       });
 
+      // TEST IS WRONG
       describe.skip("when the new module is already added", async () => {
-        it("should revert", async () => {
+        beforeEach(async () => {
+          await baseManager.addModule(subjectNewModule);
+        });
 
+        it("should revert", async () => {
+          await subject(operator);
+          await expect(subject(methodologist)).to.be.revertedWith("Module already added");
         });
       });
 
+      // TEST IS WRONG
       describe.skip("when the new module is already protected", async () => {
-        it("should revert", async () => {
+        beforeEach(async () => {
+          await baseManager.connect(operator.wallet).protectModule(subjectNewModule, []);
+        });
 
+        it("should revert", async () => {
+          await subject(operator);
+          await expect(subject(methodologist)).to.be.revertedWith("Module already protected");
         });
       });
     });
 
-    describe.skip("when old module is not protected", () => {
-      it("should revert", () => {
-
+    describe("when old module is not protected", () => {
+      it("should revert", async () => {
+        await subject(operator);
+        await expect(subject(methodologist)).to.be.revertedWith("Module not protected");
       });
     });
 
@@ -942,7 +1243,6 @@ describe("BaseManager", () => {
         .connect(caller.wallet)
         .emergencyReplaceProtectedModule(subjectNewModule, [subjectAdapter]);
     }
-
 
     describe.skip("when new module is not added", () => {
       it("should add module to setToken", () => {
