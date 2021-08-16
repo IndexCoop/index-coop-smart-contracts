@@ -303,6 +303,16 @@ describe("BaseManager", () => {
         await expect(subject()).to.be.revertedWith("Must be methodologist");
       });
     });
+
+    describe("when the manager is already initialized", async () => {
+      beforeEach(async () => {
+        await subject();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Initialization authorized");
+      });
+    });
   });
 
   describe("#setManager", async () => {
