@@ -53,13 +53,17 @@ contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade, MutualUpgrade {
     // Percent of fees in precise units (10^16 = 1%) sent to operator, rest to methodologist
     uint256 public operatorFeeSplit;
 
+    // Address which receives operator's share of fees when they're distributed. (See IIP-72)
+    address public operatorFeeRecipient;
+
     /* ============ Constructor ============ */
 
     constructor(
         IBaseManager _manager,
         IStreamingFeeModule _streamingFeeModule,
         IIssuanceModule _issuanceModule,
-        uint256 _operatorFeeSplit
+        uint256 _operatorFeeSplit,
+        address _operatorFeeRecipient
     )
         public
         BaseAdapter(_manager)
@@ -67,6 +71,7 @@ contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade, MutualUpgrade {
         streamingFeeModule = _streamingFeeModule;
         issuanceModule = _issuanceModule;
         operatorFeeSplit = _operatorFeeSplit;
+        operatorFeeRecipient = _operatorFeeRecipient;
         setToken = manager.setToken();
     }
 
@@ -74,29 +79,29 @@ contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade, MutualUpgrade {
 
     /**
      * ANYONE CALLABLE: Accrues fees from streaming fee module. Gets resulting balance after fee accrual, calculates fees for
-     * operator and methodologist, and sends to each. NOTE: mint/redeem fees will automatically be sent to this address so reading
-     * the balance of the SetToken in the contract after accrual is sufficient for accounting for all collected fees.
+     * operator and methodologist, and sends to operator and methodologist, and sends to operatorFeeRecipient and methodlogist
+     * respectively. NOTE: mint/redeem fees will automatically be sent to this address so reading the balance of the SetToken
+     * in the contract after accrual is sufficient for accounting for all collected fees.
      */
     function accrueFeesAndDistribute() public {
         streamingFeeModule.accrueFee(setToken);
 
         uint256 totalFees = setToken.balanceOf(address(manager));
 
-        address operator = manager.operator();
         address methodologist = manager.methodologist();
 
         uint256 operatorTake = totalFees.preciseMul(operatorFeeSplit);
         uint256 methodologistTake = totalFees.sub(operatorTake);
 
         if (operatorTake > 0) {
-            invokeManagerTransfer(address(setToken), operator, operatorTake);
+            invokeManagerTransfer(address(setToken), operatorFeeRecipient, operatorTake);
         }
 
         if (methodologistTake > 0) {
             invokeManagerTransfer(address(setToken), methodologist, methodologistTake);
         }
 
-        emit FeesAccrued(operator, methodologist, operatorTake, methodologistTake);
+        emit FeesAccrued(operatorFeeRecipient, methodologist, operatorTake, methodologistTake);
     }
 
     /**
@@ -160,5 +165,16 @@ contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade, MutualUpgrade {
         require(_newFeeSplit <= PreciseUnitMath.preciseUnit(), "Fee must be less than 100%");
         accrueFeesAndDistribute();
         operatorFeeSplit = _newFeeSplit;
+    }
+
+    /**
+     * OPERATOR ONLY: Updates the address that receives the operator's share of the fees (see IIP-72)
+     */
+    function updateOperatorFeeRecipient(address _newOperatorFeeRecipient)
+        external
+        onlyOperator
+    {
+        require(_newOperatorFeeRecipient != address(0), "Zero address not valid");
+        operatorFeeRecipient = _newOperatorFeeRecipient;
     }
 }

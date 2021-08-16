@@ -29,6 +29,7 @@ describe("FeeSplitAdapter", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
+  let operatorFeeRecipient: Account;
   let setV2Setup: SetFixture;
 
   let deployer: DeployHelper;
@@ -42,6 +43,7 @@ describe("FeeSplitAdapter", () => {
       owner,
       methodologist,
       operator,
+      operatorFeeRecipient,
     ] = await getAccounts();
 
     deployer = new DeployHelper(owner.wallet);
@@ -93,12 +95,14 @@ describe("FeeSplitAdapter", () => {
     let subjectStreamingFeeModule: Address;
     let subjectDebtIssuanceModule: Address;
     let subjectOperatorFeeSplit: BigNumber;
+    let subjectOperatorFeeRecipient: Address;
 
     beforeEach(async () => {
       subjectManager = baseManagerV2.address;
       subjectStreamingFeeModule = setV2Setup.streamingFeeModule.address;
       subjectDebtIssuanceModule = setV2Setup.debtIssuanceModule.address;
       subjectOperatorFeeSplit = ether(.7);
+      subjectOperatorFeeRecipient = operatorFeeRecipient.address;
     });
 
     async function subject(): Promise<FeeSplitAdapter> {
@@ -106,7 +110,8 @@ describe("FeeSplitAdapter", () => {
         subjectManager,
         subjectStreamingFeeModule,
         subjectDebtIssuanceModule,
-        subjectOperatorFeeSplit
+        subjectOperatorFeeSplit,
+        subjectOperatorFeeRecipient
       );
     }
 
@@ -144,6 +149,13 @@ describe("FeeSplitAdapter", () => {
       const actualOperatorFeeSplit = await feeAdapter.operatorFeeSplit();
       expect(actualOperatorFeeSplit).to.eq(subjectOperatorFeeSplit);
     });
+
+    it("should set the correct operator fee recipient", async () => {
+      const feeAdapter = await subject();
+
+      const actualOperatorFeeRecipient = await feeAdapter.operatorFeeRecipient();
+      expect(actualOperatorFeeRecipient).to.eq(subjectOperatorFeeRecipient);
+    });
   });
 
   context("when fee adapter is deployed and system fully set up", async () => {
@@ -154,7 +166,8 @@ describe("FeeSplitAdapter", () => {
         baseManagerV2.address,
         setV2Setup.streamingFeeModule.address,
         setV2Setup.debtIssuanceModule.address,
-        operatorSplit
+        operatorSplit,
+        operatorFeeRecipient.address
       );
 
       await baseManagerV2.connect(operator.wallet).addAdapter(feeAdapter.address);
@@ -179,7 +192,7 @@ describe("FeeSplitAdapter", () => {
         return await feeAdapter.accrueFeesAndDistribute();
       }
 
-      it("should send correct amount of fees to operator and methodologist", async () => {
+      it("should send correct amount of fees to operator fee recipient and methodologist", async () => {
         const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
         const totalSupply = await setToken.totalSupply();
 
@@ -198,10 +211,10 @@ describe("FeeSplitAdapter", () => {
         const expectedOperatorTake = preciseMul(feeInflation.add(expectedMintRedeemFees), operatorSplit);
         const expectedMethodologistTake = feeInflation.add(expectedMintRedeemFees).sub(expectedOperatorTake);
 
-        const operatorBalance = await setToken.balanceOf(operator.address);
+        const operatorFeeRecipientBalance = await setToken.balanceOf(operatorFeeRecipient.address);
         const methodologistBalance = await setToken.balanceOf(methodologist.address);
 
-        expect(operatorBalance).to.eq(expectedOperatorTake);
+        expect(operatorFeeRecipientBalance).to.eq(expectedOperatorTake);
         expect(methodologistBalance).to.eq(expectedMethodologistTake);
       });
 
@@ -231,13 +244,13 @@ describe("FeeSplitAdapter", () => {
           await feeAdapter.connect(methodologist.wallet).updateFeeSplit(ZERO);
         });
 
-        it("should not send fees to operator", async () => {
-          const preOperatorBalance = await setToken.balanceOf(operator.address);
+        it("should not send fees to operator fee recipient", async () => {
+          const preOperatorFeeRecipientBalance = await setToken.balanceOf(operatorFeeRecipient.address);
 
           await subject();
 
-          const postOperatorBalance = await setToken.balanceOf(operator.address);
-          expect(postOperatorBalance.sub(preOperatorBalance)).to.eq(ZERO);
+          const postOperatorFeeRecipientBalance = await setToken.balanceOf(operatorFeeRecipient.address);
+          expect(postOperatorFeeRecipientBalance.sub(preOperatorFeeRecipientBalance)).to.eq(ZERO);
         });
       });
     });
@@ -296,7 +309,7 @@ describe("FeeSplitAdapter", () => {
 
           });
 
-          it("should send correct amount of fees to operator and methodologist", async () => {
+          it("should send correct amount of fees to operator fee recipeint and methodologist", async () => {
             const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
             const totalSupply = await setToken.totalSupply();
 
@@ -317,11 +330,11 @@ describe("FeeSplitAdapter", () => {
             const expectedOperatorTake = preciseMul(feeInflation.add(expectedMintRedeemFees), operatorSplit);
             const expectedMethodologistTake = feeInflation.add(expectedMintRedeemFees).sub(expectedOperatorTake);
 
-            const operatorBalance = await setToken.balanceOf(operator.address);
+            const operatorFeeRecipientBalance = await setToken.balanceOf(operatorFeeRecipient.address);
             const methodologistBalance = await setToken.balanceOf(methodologist.address);
             const postManagerBalance = await setToken.balanceOf(baseManagerV2.address);
 
-            expect(operatorBalance).to.eq(expectedOperatorTake);
+            expect(operatorFeeRecipientBalance).to.eq(expectedOperatorTake);
             expect(methodologistBalance).to.eq(expectedMethodologistTake);
             expect(postManagerBalance).to.eq(ZERO);
           });
@@ -359,7 +372,7 @@ describe("FeeSplitAdapter", () => {
             expect(feeState.streamingFeePercentage).to.eq(subjectNewFee);
           });
 
-          it("should send correct amount of fees to operator and methodologist", async () => {
+          it("should send correct amount of fees to operator fee recipient and methodologist", async () => {
             const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
             const totalSupply = await setToken.totalSupply();
 
@@ -380,12 +393,12 @@ describe("FeeSplitAdapter", () => {
             const expectedOperatorTake = preciseMul(feeInflation.add(expectedMintRedeemFees), operatorSplit);
             const expectedMethodologistTake = feeInflation.add(expectedMintRedeemFees).sub(expectedOperatorTake);
 
-            const operatorBalance = await setToken.balanceOf(operator.address);
+            const operatorFeeRecipientBalance = await setToken.balanceOf(operatorFeeRecipient.address);
             const methodologistBalance = await setToken.balanceOf(methodologist.address);
             const postManagerBalance = await setToken.balanceOf(baseManagerV2.address);
 
 
-            expect(operatorBalance).to.eq(expectedOperatorTake);
+            expect(operatorFeeRecipientBalance).to.eq(expectedOperatorTake);
             expect(methodologistBalance).to.eq(expectedMethodologistTake);
             expect(postManagerBalance).to.eq(ZERO);
           });
@@ -675,7 +688,7 @@ describe("FeeSplitAdapter", () => {
       }
 
       context("when operator and methodologist both execute update", () => {
-        it("should accrue fees and send correct amount to operator and methodologist", async () => {
+        it("should accrue fees and send correct amount to operator fee recipient and methodologist", async () => {
           const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
           const totalSupply = await setToken.totalSupply();
 
@@ -695,10 +708,10 @@ describe("FeeSplitAdapter", () => {
           const expectedOperatorTake = preciseMul(feeInflation.add(expectedMintRedeemFees), operatorSplit);
           const expectedMethodologistTake = feeInflation.add(expectedMintRedeemFees).sub(expectedOperatorTake);
 
-          const operatorBalance = await setToken.balanceOf(operator.address);
+          const operatorFeeRecipientBalance = await setToken.balanceOf(operatorFeeRecipient.address);
           const methodologistBalance = await setToken.balanceOf(methodologist.address);
 
-          expect(operatorBalance).to.eq(expectedOperatorTake);
+          expect(operatorFeeRecipientBalance).to.eq(expectedOperatorTake);
           expect(methodologistBalance).to.eq(expectedMethodologistTake);
         });
 
@@ -747,6 +760,49 @@ describe("FeeSplitAdapter", () => {
 
         it("should revert", async () => {
           await expect(subject(subjectOperatorCaller)).to.be.revertedWith("Must be authorized address");
+        });
+      });
+    });
+
+    describe("#updateOperatorFeeRecipient", async () => {
+      let subjectCaller: Account;
+      let subjectOperatorFeeRecipient: Address;
+
+      beforeEach(async () => {
+        subjectCaller = operator;
+        subjectOperatorFeeRecipient = (await getRandomAccount()).address;
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await feeAdapter
+          .connect(subjectCaller.wallet)
+          .updateOperatorFeeRecipient(subjectOperatorFeeRecipient);
+      }
+
+      it("sets the new operator fee recipient", async () => {
+        await subject();
+
+        const newOperatorFeeRecipient = await feeAdapter.operatorFeeRecipient();
+        expect(newOperatorFeeRecipient).to.eq(subjectOperatorFeeRecipient);
+      });
+
+      describe("when the new operator fee recipient is address zero", async () => {
+        beforeEach(async () => {
+          subjectOperatorFeeRecipient = ADDRESS_ZERO;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Zero address not valid");
+        });
+      });
+
+      describe("when the caller is not the operator", async () => {
+        beforeEach(async () => {
+          subjectCaller = methodologist;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be operator");
         });
       });
     });

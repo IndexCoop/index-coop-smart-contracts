@@ -30,12 +30,14 @@ export default class DeployAdapters {
     streamingFeeModule: Address,
     debtIssuanceModule: Address,
     operatorFeeSplit: BigNumber,
+    operatorFeeRecipient: Address
   ): Promise<FeeSplitAdapter> {
     return await new FeeSplitAdapter__factory(this._deployerSigner).deploy(
       manager,
       streamingFeeModule,
       debtIssuanceModule,
-      operatorFeeSplit
+      operatorFeeSplit,
+      operatorFeeRecipient
     );
   }
 
