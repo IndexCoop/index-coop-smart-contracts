@@ -571,13 +571,20 @@ describe("BaseManager", () => {
         await baseManager.connect(operator.wallet).protectModule(subjectModule, []);
       });
 
-      it("should revert", async () => {
-        const initialAdapterStatus = await baseManager.connect(operator.wallet).isAdapter(subjectAdapter);
+      it("should add and authorize the adapter", async () => {
+        const initialIsAdapter = await baseManager.isAdapter(subjectAdapter);
+        const initialAuthorization = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
 
         await subject(operator);
+        await subject(methodologist);
 
-        await expect(initialAdapterStatus).to.be.false;
-        await expect(subject(methodologist)).to.be.revertedWith("Adapter does not exist");
+        const finalIsAdapter = await baseManager.isAdapter(subjectAdapter);
+        const finalAuthorization = await baseManager.isAuthorizedAdapter(subjectModule, subjectAdapter);
+
+        expect(initialIsAdapter).to.be.false;
+        expect(initialAuthorization).to.be.false;
+        expect(finalIsAdapter).to.be.true;
+        expect(finalAuthorization).to.be.true;
       });
     });
 

@@ -248,7 +248,7 @@ contract BaseManager is MutualUpgrade {
 
     /**
      * MUTUAL UPGRADE: Authorizes an adapter for a protected module. Operator and Methodologist must
-     * each call this function to execute the update.
+     * each call this function to execute the update. Adds adapter to manager if not already present.
      *
      * @param _module           Module to authorize adapter for
      * @param _adapter          Adapter to authorize for module
@@ -258,8 +258,11 @@ contract BaseManager is MutualUpgrade {
         mutualUpgrade(operator, methodologist)
     {
         require(protectedModules[_module].isProtected, "Module not protected");
-        require(isAdapter[_adapter], "Adapter does not exist");
         require(!protectedModules[_module].authorizedAdapters[_adapter], "Adapter already authorized");
+
+        if (!isAdapter[_adapter]) {
+            _addAdapter(_adapter);
+        }
 
         protectedModules[_module].authorizedAdapters[_adapter] = true;
         protectedModules[_module].authorizedAdaptersList.push(_adapter);
