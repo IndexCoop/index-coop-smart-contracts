@@ -247,7 +247,7 @@ contract BaseManager is MutualUpgrade {
     }
 
     /**
-     * MUTUAL UPGRADE**: Authorizes an adapter for a protected module. Operator and Methodologist must
+     * MUTUAL UPGRADE: Authorizes an adapter for a protected module. Operator and Methodologist must
      * each call this function to execute the update.
      *
      * @param _module           Module to authorize adapter for
@@ -268,8 +268,9 @@ contract BaseManager is MutualUpgrade {
     }
 
     /**
-     * MUTUAL UPGRADE**: Revokes adapter authorization for a protected module. Operator and Methodologist
-     * must each call this function to execute the update.
+     * MUTUAL UPGRADE: Revokes adapter authorization for a protected module. Operator and Methodologist
+     * must each call this function to execute the update. In order to remove the extension completely
+     * from the contract removeAdapter must be called by the operator.
      *
      * @param _module           Module to revoke adapter authorization for
      * @param _adapter          Adapter to revoke authorization of
@@ -314,7 +315,8 @@ contract BaseManager is MutualUpgrade {
     }
 
     /**
-     * OPERATOR ONLY: Remove a new module from the SetToken.
+     * OPERATOR ONLY: Remove a new module from the SetToken. Any adapters associated with this
+     * module need to be removed in separate transactions via removeAdapter.
      *
      * @param _module           Module to remove
      */
@@ -327,7 +329,7 @@ contract BaseManager is MutualUpgrade {
      * OPERATOR ONLY: Marks a currently protected module as unprotected and deletes its authorized
      * adapter registries. Removes module from the SetToken. Increments the `emergencies` counter,
      * prohibiting any operator-only module or extension additions until `emergencyReplaceProtectedModule`
-     * is executed.
+     * is executed or `resolveEmergency` is called by the methodologist.
      *
      * Called by operator when a module must be removed immediately for security reasons and it's unsafe
      * to wait for a `mutualUpgrade` process to play out.
@@ -411,7 +413,7 @@ contract BaseManager is MutualUpgrade {
     }
 
     /**
-     * MUTUAL UPGRADE & ONLY EMERGENCY: Replaces a module the operator has removed with
+     * MUTUAL UPGRADE & EMERGENCY ONLY: Replaces a module the operator has removed with
      * `emergencyRemoveProtectedModule`. Operator and Methodologist must each call this function to
      *  execute the update.
      *
