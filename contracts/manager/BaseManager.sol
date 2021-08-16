@@ -160,7 +160,8 @@ contract BaseManager is MutualUpgrade {
 
     // Counter incremented when the operator "emergency removes" a protected module. Decremented
     // when methodologist executes an "emergency replacement". Operator can only add modules and
-    // adapters when `emergencies` is zero.
+    // adapters when `emergencies` is zero. Emergencies can only be declared "over" by mutual agreement
+    // between operator and methodologist OR by the methodologist alone via `resolveEmergency`
     uint256 public emergencies;
 
     // Mapping of protected modules. These cannot be called or removed except by mutual upgrade.
