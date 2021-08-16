@@ -43,11 +43,13 @@ export default class DeployAdapters {
     manager: Address,
     streamingFeeModule: Address,
     operatorFeeSplit: BigNumber,
+    operatorFeeRecipient: Address,
   ): Promise<StreamingFeeSplitExtension> {
     return await new StreamingFeeSplitExtension__factory(this._deployerSigner).deploy(
       manager,
       streamingFeeModule,
-      operatorFeeSplit
+      operatorFeeSplit,
+      operatorFeeRecipient
     );
   }
 

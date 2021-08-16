@@ -29,6 +29,7 @@ describe("StreamingFeeSplitExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
+  let operatorFeeRecipient: Account;
   let setV2Setup: SetFixture;
 
   let deployer: DeployHelper;
@@ -42,6 +43,7 @@ describe("StreamingFeeSplitExtension", () => {
       owner,
       methodologist,
       operator,
+      operatorFeeRecipient,
     ] = await getAccounts();
 
     deployer = new DeployHelper(owner.wallet);
@@ -88,18 +90,21 @@ describe("StreamingFeeSplitExtension", () => {
     let subjectManager: Address;
     let subjectStreamingFeeModule: Address;
     let subjectOperatorFeeSplit: BigNumber;
+    let subjectOperatorFeeRecipient: Address;
 
     beforeEach(async () => {
       subjectManager = baseManagerV2.address;
       subjectStreamingFeeModule = setV2Setup.streamingFeeModule.address;
       subjectOperatorFeeSplit = ether(.7);
+      subjectOperatorFeeRecipient = operatorFeeRecipient.address;
     });
 
     async function subject(): Promise<StreamingFeeSplitExtension> {
       return await deployer.adapters.deployStreamingFeeSplitExtension(
         subjectManager,
         subjectStreamingFeeModule,
-        subjectOperatorFeeSplit
+        subjectOperatorFeeSplit,
+        subjectOperatorFeeRecipient,
       );
     }
 
@@ -130,6 +135,13 @@ describe("StreamingFeeSplitExtension", () => {
       const actualOperatorFeeSplit = await feeExtension.operatorFeeSplit();
       expect(actualOperatorFeeSplit).to.eq(subjectOperatorFeeSplit);
     });
+
+    it("should set the correct operator fee recipient", async () => {
+      const feeExtension = await subject();
+
+      const actualOperatorFeeRecipient = await feeExtension.operatorFeeRecipient();
+      expect(actualOperatorFeeRecipient).to.eq(subjectOperatorFeeRecipient);
+    });
   });
 
   context("when fee extension is deployed and system fully set up", async () => {
@@ -139,7 +151,8 @@ describe("StreamingFeeSplitExtension", () => {
       feeExtension = await deployer.adapters.deployStreamingFeeSplitExtension(
         baseManagerV2.address,
         setV2Setup.streamingFeeModule.address,
-        operatorSplit
+        operatorSplit,
+        operatorFeeRecipient.address
       );
 
       await baseManagerV2.connect(operator.wallet).addAdapter(feeExtension.address);
@@ -164,7 +177,7 @@ describe("StreamingFeeSplitExtension", () => {
         return await feeExtension.accrueFeesAndDistribute();
       }
 
-      it("should send correct amount of fees to operator and methodologist", async () => {
+      it("should send correct amount of fees to operator fee recipient and methodologist", async () => {
         const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
         const totalSupply = await setToken.totalSupply();
 
@@ -182,10 +195,10 @@ describe("StreamingFeeSplitExtension", () => {
         const expectedOperatorTake = preciseMul(feeInflation, operatorSplit);
         const expectedMethodologistTake = feeInflation.sub(expectedOperatorTake);
 
-        const operatorBalance = await setToken.balanceOf(operator.address);
+        const operatorFeeRecipientBalance = await setToken.balanceOf(operatorFeeRecipient.address);
         const methodologistBalance = await setToken.balanceOf(methodologist.address);
 
-        expect(operatorBalance).to.eq(expectedOperatorTake);
+        expect(operatorFeeRecipientBalance).to.eq(expectedOperatorTake);
         expect(methodologistBalance).to.eq(expectedMethodologistTake);
       });
 
@@ -215,13 +228,13 @@ describe("StreamingFeeSplitExtension", () => {
           await feeExtension.connect(methodologist.wallet).updateFeeSplit(ZERO);
         });
 
-        it("should not send fees to operator", async () => {
-          const preOperatorBalance = await setToken.balanceOf(operator.address);
+        it("should not send fees to operator fee recipient", async () => {
+          const preOperatorFeeRecipientBalance = await setToken.balanceOf(operatorFeeRecipient.address);
 
           await subject();
 
-          const postOperatorBalance = await setToken.balanceOf(operator.address);
-          expect(postOperatorBalance.sub(preOperatorBalance)).to.eq(ZERO);
+          const postOperatorFeeRecipientBalance = await setToken.balanceOf(operatorFeeRecipient.address);
+          expect(postOperatorFeeRecipientBalance.sub(preOperatorFeeRecipientBalance)).to.eq(ZERO);
         });
       });
     });
@@ -278,7 +291,7 @@ describe("StreamingFeeSplitExtension", () => {
             expect(feeState.streamingFeePercentage).to.eq(subjectNewFee);
           });
 
-          it("should send correct amount of fees to operator and methodologist", async () => {
+          it("should send correct amount of fees to operator fee recipient and methodologist", async () => {
             const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
             const totalSupply = await setToken.totalSupply();
 
@@ -298,12 +311,11 @@ describe("StreamingFeeSplitExtension", () => {
             const expectedOperatorTake = preciseMul(feeInflation, operatorSplit);
             const expectedMethodologistTake = feeInflation.sub(expectedOperatorTake);
 
-            const operatorBalance = await setToken.balanceOf(operator.address);
+            const operatorFeeRecipientBalance = await setToken.balanceOf(operatorFeeRecipient.address);
             const methodologistBalance = await setToken.balanceOf(methodologist.address);
             const postManagerBalance = await setToken.balanceOf(baseManagerV2.address);
 
-
-            expect(operatorBalance).to.eq(expectedOperatorTake);
+            expect(operatorFeeRecipientBalance).to.eq(expectedOperatorTake);
             expect(methodologistBalance).to.eq(expectedMethodologistTake);
             expect(postManagerBalance).to.eq(ZERO);
           });
@@ -342,7 +354,7 @@ describe("StreamingFeeSplitExtension", () => {
             expect(feeState.streamingFeePercentage).to.eq(subjectNewFee);
           });
 
-          it("should send correct amount of fees to operator and methodologist", async () => {
+          it("should send correct amount of fees to operator fee recipient and methodologist", async () => {
             const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
             const totalSupply = await setToken.totalSupply();
 
@@ -362,11 +374,11 @@ describe("StreamingFeeSplitExtension", () => {
             const expectedOperatorTake = preciseMul(feeInflation, operatorSplit);
             const expectedMethodologistTake = feeInflation.sub(expectedOperatorTake);
 
-            const operatorBalance = await setToken.balanceOf(operator.address);
+            const operatorFeeRecipientBalance = await setToken.balanceOf(operatorFeeRecipient.address);
             const methodologistBalance = await setToken.balanceOf(methodologist.address);
             const postManagerBalance = await setToken.balanceOf(baseManagerV2.address);
 
-            expect(operatorBalance).to.eq(expectedOperatorTake);
+            expect(operatorFeeRecipientBalance).to.eq(expectedOperatorTake);
             expect(methodologistBalance).to.eq(expectedMethodologistTake);
             expect(postManagerBalance).to.eq(ZERO);
           });
@@ -459,7 +471,7 @@ describe("StreamingFeeSplitExtension", () => {
         return await feeExtension.connect(caller.wallet).updateFeeSplit(subjectNewFeeSplit);
       }
 
-      it("should accrue fees and send correct amount to operator and methodologist", async () => {
+      it("should accrue fees and send correct amount to operator fee recipient and methodologist", async () => {
         const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
         const totalSupply = await setToken.totalSupply();
 
@@ -478,10 +490,10 @@ describe("StreamingFeeSplitExtension", () => {
         const expectedOperatorTake = preciseMul(feeInflation, operatorSplit);
         const expectedMethodologistTake = feeInflation.sub(expectedOperatorTake);
 
-        const operatorBalance = await setToken.balanceOf(operator.address);
+        const operatorFeeRecipientBalance = await setToken.balanceOf(operatorFeeRecipient.address);
         const methodologistBalance = await setToken.balanceOf(methodologist.address);
 
-        expect(operatorBalance).to.eq(expectedOperatorTake);
+        expect(operatorFeeRecipientBalance).to.eq(expectedOperatorTake);
         expect(methodologistBalance).to.eq(expectedMethodologistTake);
       });
 
@@ -527,6 +539,49 @@ describe("StreamingFeeSplitExtension", () => {
 
         it("should revert", async () => {
           await expect(subject(subjectOperatorCaller)).to.be.revertedWith("Must be authorized address");
+        });
+      });
+    });
+
+    describe("#updateOperatorFeeRecipient", async () => {
+      let subjectCaller: Account;
+      let subjectOperatorFeeRecipient: Address;
+
+      beforeEach(async () => {
+        subjectCaller = operator;
+        subjectOperatorFeeRecipient = (await getRandomAccount()).address;
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await feeExtension
+          .connect(subjectCaller.wallet)
+          .updateOperatorFeeRecipient(subjectOperatorFeeRecipient);
+      }
+
+      it("sets the new operator fee recipient", async () => {
+        await subject();
+
+        const newOperatorFeeRecipient = await feeExtension.operatorFeeRecipient();
+        expect(newOperatorFeeRecipient).to.eq(subjectOperatorFeeRecipient);
+      });
+
+      describe("when the new operator fee recipient is address zero", async () => {
+        beforeEach(async () => {
+          subjectOperatorFeeRecipient = ADDRESS_ZERO;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Zero address not valid");
+        });
+      });
+
+      describe("when the caller is not the operator", async () => {
+        beforeEach(async () => {
+          subjectCaller = methodologist;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be operator");
         });
       });
     });
