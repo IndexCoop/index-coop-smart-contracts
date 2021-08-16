@@ -20,8 +20,8 @@ pragma experimental ABIEncoderV2;
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Math } from "@openzeppelin/contracts/math/Math.sol";
-import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
+import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import { BaseAdapter } from "../lib/BaseAdapter.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
@@ -34,16 +34,16 @@ import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
 
 
 /**
- * @title AaveFLIStrategyExtension
+ * @title AaveLeverageStrategyExtension
  * @author Set Protocol
  *
- * Smart contract that enables trustless leverage tokens using the flexible leverage methodology. This extension is paired with the AaveLeverageModule from Set
- * protocol where module interactions are invoked via the IBaseManager contract. Any leveraged token can be constructed as long as the collateral and borrow
- * asset is available on Aave. This extension contract also allows the operator to set an ETH reward to incentivize keepers calling the rebalance function at
- * different leverage thresholds.
+ * Smart contract that enables trustless leverage tokens. This extension is paired with the AaveLeverageModule from Set protocol where module 
+ * interactions are invoked via the IBaseManager contract. Any leveraged token can be constructed as long as the collateral and borrow asset 
+ * is available on Aave. This extension contract also allows the operator to set an ETH reward to incentivize keepers calling the rebalance
+ * function at different leverage thresholds.
  *
  */
-contract AaveFLIStrategyExtension is BaseAdapter {
+contract AaveLeverageStrategyExtension is BaseAdapter {
     using Address for address;
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
@@ -290,7 +290,7 @@ contract AaveFLIStrategyExtension is BaseAdapter {
     }
 
     /**
-     * ONLY EOA AND ALLOWED CALLER: Rebalance according to flexible leverage methodology. If current leverage ratio is between the max and min bounds, then rebalance 
+     * ONLY EOA AND ALLOWED CALLER: Rebalance product. If current leverage ratio is between the max and min bounds, then rebalance 
      * can only be called once the rebalance interval has elapsed since last timestamp. If outside the max and min, rebalance can be called anytime to bring leverage
      * ratio back to the max or min bounds. The methodology will determine whether to delever or lever.
      *
@@ -889,9 +889,7 @@ contract AaveFLIStrategyExtension is BaseAdapter {
     function _createActionInfo() internal view returns(ActionInfo memory) {
         ActionInfo memory rebalanceInfo;
 
-        // Calculate prices from chainlink. Chainlink returns prices with 8 decimal places, but we need 36 - underlyingDecimals decimal places 
-        // This is so that when the underlying amount is multiplied by the received price, the collateral valuation is normalized to 36 decimals.
-        // To perform this adjustment, we multiply by 10^(36 - 8 - underlyingDeciamls)
+        // Calculate prices from chainlink. Chainlink returns prices with 8 decimal places but we need prices in 18 decimals so we multiply by 1e10
         int256 rawCollateralPrice = strategy.collateralPriceOracle.latestAnswer();
         rebalanceInfo.collateralPrice = rawCollateralPrice.toUint256().mul(10 ** 10);
         int256 rawBorrowPrice = strategy.borrowPriceOracle.latestAnswer();
@@ -1028,11 +1026,11 @@ contract AaveFLIStrategyExtension is BaseAdapter {
     }
 
     /**
-     * Calculate the new leverage ratio using the flexible leverage methodology. The methodology reduces the size of each rebalance by weighting
+     * Calculate the new leverage ratio. The methodology reduces the size of each rebalance by weighting
      * the current leverage ratio against the target leverage ratio by the recentering speed percentage. The lower the recentering speed, the slower
      * the leverage token will move towards the target leverage each rebalance.
      *
-     * return uint256          New leverage ratio based on the flexible leverage methodology
+     * return uint256          New leverage ratio
      */
     function _calculateNewLeverageRatio(uint256 _currentLeverageRatio) internal view returns(uint256) {
         // CLRt+1 = max(MINLR, min(MAXLR, CLRt * (1 - RS) + TLR * RS))
@@ -1097,9 +1095,9 @@ contract AaveFLIStrategyExtension is BaseAdapter {
         // Retrieve collateral factor and liquidation threshold for the collateral asset in precise units (1e16 = 1%)
         ( , uint256 maxLtvRaw, uint256 liquidationThresholdRaw, , , , , , ,) = strategy.aaveProtocolDataProvider.getReserveConfigurationData(address(strategy.collateralAsset));
 
-        // normalize LTV and liquidation threshold to precise units
-        uint256 maxLtv = maxLtvRaw * 10 ** 14;
-        uint256 liquidationThreshold = liquidationThresholdRaw * 10 ** 14;
+        // Normalize LTV and liquidation threshold to precise units. LTV is measured in 4 decimals in Aave which is why we must multiply by 1e14
+        uint256 maxLtv = maxLtvRaw.mul(10 ** 14);
+        uint256 liquidationThreshold = liquidationThresholdRaw.mul(10 ** 14);
 
         if (_isLever) {
             uint256 netBorrowLimit = _actionInfo.collateralValue
@@ -1214,7 +1212,7 @@ contract AaveFLIStrategyExtension is BaseAdapter {
     /**
      * Transfer ETH reward to caller of the ripcord function. If the ETH balance on this contract is less than required 
      * incentive quantity, then transfer contract balance instead to prevent reverts.
-     *70
+     *
      * return uint256           Amount of ETH transferred to caller
      */
     function _transferEtherRewardToCaller(uint256 _etherReward) internal returns(uint256) {

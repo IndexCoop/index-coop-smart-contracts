@@ -1,7 +1,7 @@
 import { Signer, BigNumber } from "ethers";
 import { Address, ContractSettings, MethodologySettings, ExecutionSettings, IncentiveSettings, ExchangeSettings, AaveContractSettings } from "../types";
 import {
-  AaveFLIStrategyExtension,
+  AaveLeverageStrategyExtension,
   ExchangeIssuance,
   ExchangeIssuanceV2,
   FlexibleLeverageStrategyExtension,
@@ -11,7 +11,7 @@ import {
   StreamingFeeSplitExtension
 } from "../contracts/index";
 
-import { AaveFLIStrategyExtension__factory } from "../../typechain/factories/AaveFLIStrategyExtension__factory";
+import { AaveLeverageStrategyExtension__factory } from "../../typechain/factories/AaveLeverageStrategyExtension__factory";
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { FeeSplitAdapter__factory } from "../../typechain/factories/FeeSplitAdapter__factory";
@@ -133,7 +133,7 @@ export default class DeployAdapters {
     );
   }
 
-  public async deployAaveFLIStrategyExtension(
+  public async deployAaveLeverageStrategyExtension(
     manager: Address,
     contractSettings: AaveContractSettings,
     methdologySettings: MethodologySettings,
@@ -141,8 +141,8 @@ export default class DeployAdapters {
     incentiveSettings: IncentiveSettings,
     exchangeNames: string[],
     exchangeSettings: ExchangeSettings[]
-  ): Promise<AaveFLIStrategyExtension> {
-    return await new AaveFLIStrategyExtension__factory(this._deployerSigner).deploy(
+  ): Promise<AaveLeverageStrategyExtension> {
+    return await new AaveLeverageStrategyExtension__factory(this._deployerSigner).deploy(
       manager,
       contractSettings,
       methdologySettings,

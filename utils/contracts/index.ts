@@ -1,4 +1,4 @@
-export { AaveFLIStrategyExtension } from "../../typechain/AaveFLIStrategyExtension"
+export { AaveLeverageStrategyExtension } from "../../typechain/AaveLeverageStrategyExtension";
 export { BaseAdapterMock } from "../../typechain/BaseAdapterMock";
 export { BaseManager } from "../../typechain/BaseManager";
 export { ChainlinkAggregatorV3Mock } from "../../typechain/ChainlinkAggregatorV3Mock";
