@@ -523,7 +523,6 @@ contract BaseManager is MutualUpgrade {
             protectedModules[_module].authorizedAdapters[adapter] = false;
         }
 
-        delete protectedModules[_module].authorizedAdaptersList;
         delete protectedModules[_module];
 
         protectedModulesList.removeStorage(_module);
