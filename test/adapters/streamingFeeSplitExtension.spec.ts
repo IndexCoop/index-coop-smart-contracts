@@ -3,7 +3,7 @@ import "module-alias/register";
 import { solidityKeccak256 } from "ethers/lib/utils";
 import { Address, Account } from "@utils/types";
 import { ADDRESS_ZERO, ZERO, ONE_DAY_IN_SECONDS, ONE_YEAR_IN_SECONDS } from "@utils/constants";
-import { StreamingFeeSplitExtension, BaseManager } from "@utils/contracts/index";
+import { StreamingFeeSplitExtension, BaseManagerV2 } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -35,7 +35,7 @@ describe("StreamingFeeSplitExtension", () => {
   let deployer: DeployHelper;
   let setToken: SetToken;
 
-  let baseManagerV2: BaseManager;
+  let baseManagerV2: BaseManagerV2;
   let feeExtension: StreamingFeeSplitExtension;
 
   before(async () => {
@@ -58,7 +58,7 @@ describe("StreamingFeeSplitExtension", () => {
     );
 
     // Deploy BaseManager
-    baseManagerV2 = await deployer.manager.deployBaseManager(
+    baseManagerV2 = await deployer.manager.deployBaseManagerV2(
       setToken.address,
       operator.address,
       methodologist.address,
@@ -155,7 +155,7 @@ describe("StreamingFeeSplitExtension", () => {
         operatorFeeRecipient.address
       );
 
-      await baseManagerV2.connect(operator.wallet).addAdapter(feeExtension.address);
+      await baseManagerV2.connect(operator.wallet).addExtension(feeExtension.address);
 
       // Transfer ownership to BaseManager
       await setToken.setManager(baseManagerV2.address);
@@ -274,18 +274,18 @@ describe("StreamingFeeSplitExtension", () => {
           await feeExtension.connect(methodologist.wallet).updateFeeRecipient(baseManagerV2.address);
 
           // Revoke extension authorization
-          await baseManagerV2.connect(operator.wallet).revokeAdapterAuthorization(
+          await baseManagerV2.connect(operator.wallet).revokeExtensionAuthorization(
             setV2Setup.streamingFeeModule.address,
             feeExtension.address
           );
 
-          await baseManagerV2.connect(methodologist.wallet).revokeAdapterAuthorization(
+          await baseManagerV2.connect(methodologist.wallet).revokeExtensionAuthorization(
             setV2Setup.streamingFeeModule.address,
             feeExtension.address
           );
 
-          // Remove adapter
-          await baseManagerV2.connect(operator.wallet).removeAdapter(feeExtension.address);
+          // Remove extension
+          await baseManagerV2.connect(operator.wallet).removeExtension(feeExtension.address);
         });
 
         it("should send residual fees to operator fee recipient and methodologist", async () => {

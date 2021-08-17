@@ -12,7 +12,7 @@ import {
   ExchangeSettings
 } from "@utils/types";
 import { ADDRESS_ZERO, ONE, TWO, THREE, ZERO, EMPTY_BYTES, MAX_UINT_256 } from "@utils/constants";
-import { FlexibleLeverageStrategyExtension, BaseManager, TradeAdapterMock, ChainlinkAggregatorV3Mock } from "@utils/contracts/index";
+import { FlexibleLeverageStrategyExtension, BaseManagerV2, TradeAdapterMock, ChainlinkAggregatorV3Mock } from "@utils/contracts/index";
 import { CompoundLeverageModule, ContractCallerMock, DebtIssuanceModule, SetToken } from "@utils/contracts/setV2";
 import { CEther, CERc20 } from "@utils/contracts/compound";
 import DeployHelper from "@utils/deploys";
@@ -68,7 +68,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
   let flexibleLeverageStrategyExtension: FlexibleLeverageStrategyExtension;
   let compoundLeverageModule: CompoundLeverageModule;
   let debtIssuanceModule: DebtIssuanceModule;
-  let baseManagerV2: BaseManager;
+  let baseManagerV2: BaseManagerV2;
 
   let chainlinkCollateralPriceMock: ChainlinkAggregatorV3Mock;
   let chainlinkBorrowPriceMock: ChainlinkAggregatorV3Mock;
@@ -191,7 +191,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       [setV2Setup.usdc.address]
     );
 
-    baseManagerV2 = await deployer.manager.deployBaseManager(
+    baseManagerV2 = await deployer.manager.deployBaseManagerV2(
       setToken.address,
       owner.address,
       methodologist.address,

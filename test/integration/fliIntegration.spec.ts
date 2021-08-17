@@ -11,7 +11,7 @@ import {
   ExchangeSettings
 } from "@utils/types";
 import { ADDRESS_ZERO, ZERO, ONE, TWO, EMPTY_BYTES, MAX_UINT_256, PRECISE_UNIT, ONE_DAY_IN_SECONDS, ONE_HOUR_IN_SECONDS } from "@utils/constants";
-import { FlexibleLeverageStrategyExtension, BaseManager, StandardTokenMock, WETH9, ChainlinkAggregatorV3Mock } from "@utils/contracts/index";
+import { FlexibleLeverageStrategyExtension, BaseManagerV2, StandardTokenMock, WETH9, ChainlinkAggregatorV3Mock } from "@utils/contracts/index";
 import { CompoundLeverageModule, SetToken } from "@utils/contracts/setV2";
 import { CEther, CERc20 } from "@utils/contracts/compound";
 import DeployHelper from "@utils/deploys";
@@ -105,7 +105,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
 
   let flexibleLeverageStrategyExtension: FlexibleLeverageStrategyExtension;
   let compoundLeverageModule: CompoundLeverageModule;
-  let baseManager: BaseManager;
+  let baseManager: BaseManagerV2;
 
   let chainlinkETH: ChainlinkAggregatorV3Mock;
   let chainlinkWBTC: ChainlinkAggregatorV3Mock;
@@ -633,7 +633,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       [fliSettings.borrowAsset.address]
     );
 
-    baseManager = await deployer.manager.deployBaseManager(
+    baseManager = await deployer.manager.deployBaseManagerV2(
       setToken.address,
       owner.address,
       methodologist.address,

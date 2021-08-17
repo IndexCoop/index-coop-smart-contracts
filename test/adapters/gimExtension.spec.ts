@@ -2,7 +2,7 @@ import "module-alias/register";
 
 import { Address, Account } from "@utils/types";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
-import { GIMExtension, BaseManager } from "@utils/contracts/index";
+import { GIMExtension, BaseManagerV2 } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -34,7 +34,7 @@ describe("GIMExtension", () => {
   let deployer: DeployHelper;
   let setToken: SetToken;
 
-  let baseManagerV2: BaseManager;
+  let baseManagerV2: BaseManagerV2;
   let gimExtension: GIMExtension;
 
   before(async () => {
@@ -83,7 +83,7 @@ describe("GIMExtension", () => {
     );
 
     // Deploy BaseManager
-    baseManagerV2 = await deployer.manager.deployBaseManager(
+    baseManagerV2 = await deployer.manager.deployBaseManagerV2(
       setToken.address,
       operator.address,
       methodologist.address,

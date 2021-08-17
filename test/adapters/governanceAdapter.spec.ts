@@ -2,7 +2,7 @@ import "module-alias/register";
 
 import { Address, Account } from "@utils/types";
 import { ADDRESS_ZERO, EMPTY_BYTES, ONE, TWO } from "@utils/constants";
-import { GovernanceAdapter, BaseManager, GovernanceAdapterMock } from "@utils/contracts/index";
+import { GovernanceAdapter, BaseManagerV2, GovernanceAdapterMock } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -30,7 +30,7 @@ describe("GovernanceAdapter", () => {
   let deployer: DeployHelper;
   let setToken: SetToken;
 
-  let baseManagerV2: BaseManager;
+  let baseManagerV2: BaseManagerV2;
   let governanceAdapter: GovernanceAdapter;
   let governanceMock: GovernanceAdapterMock;
 
@@ -64,7 +64,7 @@ describe("GovernanceAdapter", () => {
     );
 
     // Deploy BaseManager
-    baseManagerV2 = await deployer.manager.deployBaseManager(
+    baseManagerV2 = await deployer.manager.deployBaseManagerV2(
       setToken.address,
       operator.address,
       methodologist.address,

@@ -3,7 +3,7 @@ import "module-alias/register";
 import { BigNumber } from "@ethersproject/bignumber";
 import { Account, Address, Bytes } from "@utils/types";
 import { ZERO, ADDRESS_ZERO } from "@utils/constants";
-import { BaseAdapterMock, BaseManager } from "@utils/contracts/index";
+import { BaseAdapterMock, BaseManagerV2 } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import { ContractCallerMock } from "@utils/contracts/setV2";
 
@@ -29,7 +29,7 @@ describe("BaseAdapter", () => {
   let setToken: SetToken;
   let setV2Setup: SetFixture;
 
-  let baseManagerV2: BaseManager;
+  let baseManagerV2: BaseManagerV2;
   let baseAdapterMock: BaseAdapterMock;
 
   before(async () => {
@@ -64,7 +64,7 @@ describe("BaseAdapter", () => {
     await setV2Setup.streamingFeeModule.initialize(setToken.address, streamingFeeSettings);
 
     // Deploy BaseManager
-    baseManagerV2 = await deployer.manager.deployBaseManager(
+    baseManagerV2 = await deployer.manager.deployBaseManagerV2(
       setToken.address,
       owner.address,
       methodologist.address,
