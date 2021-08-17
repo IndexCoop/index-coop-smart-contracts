@@ -4,7 +4,7 @@ export { BaseManagerV2 } from "../../typechain/BaseManagerV2";
 export { ChainlinkAggregatorV3Mock } from "../../typechain/ChainlinkAggregatorV3Mock";
 export { ExchangeIssuance } from "../../typechain/ExchangeIssuance";
 export { ExchangeIssuanceV2 } from "../../typechain/ExchangeIssuanceV2";
-export { FeeSplitAdapter } from "../../typechain/FeeSplitAdapter";
+export { FeeSplitExtension } from "../../typechain/FeeSplitExtension";
 export { FlexibleLeverageStrategyExtension } from "../../typechain/FlexibleLeverageStrategyExtension";
 export { GIMExtension } from "../../typechain/GIMExtension";
 export { GovernanceAdapter } from "../../typechain/GovernanceAdapter";

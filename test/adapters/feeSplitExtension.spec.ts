@@ -3,7 +3,7 @@ import "module-alias/register";
 import { solidityKeccak256 } from "ethers/lib/utils";
 import { Address, Account } from "@utils/types";
 import { ADDRESS_ZERO, ZERO, ONE_DAY_IN_SECONDS, ONE_YEAR_IN_SECONDS } from "@utils/constants";
-import { FeeSplitAdapter, BaseManagerV2 } from "@utils/contracts/index";
+import { FeeSplitExtension, BaseManagerV2 } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -25,7 +25,7 @@ import { BigNumber, ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
 
-describe("FeeSplitAdapter", () => {
+describe("FeeSplitExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
@@ -36,7 +36,7 @@ describe("FeeSplitAdapter", () => {
   let setToken: SetToken;
 
   let baseManagerV2: BaseManagerV2;
-  let feeExtension: FeeSplitAdapter;
+  let feeExtension: FeeSplitExtension;
 
   before(async () => {
     [
@@ -105,8 +105,8 @@ describe("FeeSplitAdapter", () => {
       subjectOperatorFeeRecipient = operatorFeeRecipient.address;
     });
 
-    async function subject(): Promise<FeeSplitAdapter> {
-      return await deployer.adapters.deployFeeSplitAdapter(
+    async function subject(): Promise<FeeSplitExtension> {
+      return await deployer.adapters.deployFeeSplitExtension(
         subjectManager,
         subjectStreamingFeeModule,
         subjectDebtIssuanceModule,
@@ -162,7 +162,7 @@ describe("FeeSplitAdapter", () => {
     const operatorSplit: BigNumber = ether(.7);
 
     beforeEach(async () => {
-      feeExtension = await deployer.adapters.deployFeeSplitAdapter(
+      feeExtension = await deployer.adapters.deployFeeSplitExtension(
         baseManagerV2.address,
         setV2Setup.streamingFeeModule.address,
         setV2Setup.debtIssuanceModule.address,

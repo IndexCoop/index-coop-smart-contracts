@@ -30,12 +30,12 @@ import { MutualUpgrade } from "../lib/MutualUpgrade.sol";
 
 
 /**
- * @title FeeSplitAdapter
+ * @title FeeSplitExtension
  * @author Set Protocol
  *
- * Smart contract adapter that allows for splitting and setting streaming and mint/redeem fees.
+ * Smart contract extension that allows for splitting and setting streaming and mint/redeem fees.
  */
-contract FeeSplitAdapter is BaseAdapter, TimeLockUpgrade, MutualUpgrade {
+contract FeeSplitExtension is BaseAdapter, TimeLockUpgrade, MutualUpgrade {
     using Address for address;
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
