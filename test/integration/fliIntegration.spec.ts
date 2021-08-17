@@ -689,7 +689,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
     await flexibleLeverageStrategyExtension.updateCallerStatus([owner.address], [true]);
 
     // Add adapter
-    await baseManager.connect(owner.wallet).addAdapter(flexibleLeverageStrategyExtension.address);
+    await baseManager.connect(owner.wallet).addExtension(flexibleLeverageStrategyExtension.address);
   }
 
   async function issueFLITokens(collateralCToken: CERc20 | CEther, amount: BigNumber): Promise<void> {

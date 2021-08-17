@@ -121,7 +121,7 @@ describe("GovernanceAdapter", () => {
         setV2Setup.governanceModule.address
       );
 
-      await baseManagerV2.connect(operator.wallet).addAdapter(governanceAdapter.address);
+      await baseManagerV2.connect(operator.wallet).addExtension(governanceAdapter.address);
 
       await governanceAdapter.connect(operator.wallet).updateCallerStatus([approvedCaller.address], [true]);
 

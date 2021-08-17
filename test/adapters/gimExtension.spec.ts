@@ -140,7 +140,7 @@ describe("GIMExtension", () => {
         setV2Setup.generalIndexModule.address
       );
 
-      await baseManagerV2.connect(operator.wallet).addAdapter(gimExtension.address);
+      await baseManagerV2.connect(operator.wallet).addExtension(gimExtension.address);
 
       await gimExtension.connect(operator.wallet).updateCallerStatus([approvedCaller.address], [true]);
 

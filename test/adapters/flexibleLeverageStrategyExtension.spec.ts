@@ -275,7 +275,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
     );
 
     // Add adapter
-    await baseManagerV2.connect(owner.wallet).addAdapter(flexibleLeverageStrategyExtension.address);
+    await baseManagerV2.connect(owner.wallet).addExtension(flexibleLeverageStrategyExtension.address);
   };
 
   describe("#constructor", async () => {

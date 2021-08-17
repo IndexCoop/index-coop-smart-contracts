@@ -77,7 +77,7 @@ describe("BaseAdapter", () => {
 
     // Transfer ownership to BaseManager
     await setToken.setManager(baseManagerV2.address);
-    await baseManagerV2.addAdapter(baseAdapterMock.address);
+    await baseManagerV2.addExtension(baseAdapterMock.address);
 
     await baseAdapterMock.updateCallerStatus([owner.address], [true]);
   });
