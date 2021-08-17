@@ -692,7 +692,7 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
     /**
      * Helper that checks if conditions are met for rebalance or ripcord with custom max and min bounds specified by caller. This function simplifies the
      * logic for off-chain keeper bots to determine what threshold to call rebalance when leverage exceeds max or drops below min. Returns an enum with
-     * 0 = no rebalance, 1 = call rebalance(), 2 = call iterateRebalance()3 = call ripcord()
+     * 0 = no rebalance, 1 = call rebalance(), 2 = call iterateRebalance(), 3 = call ripcord()
      *
      * @param _customMinLeverageRatio          Min leverage ratio passed in by caller
      * @param _customMaxLeverageRatio          Max leverage ratio passed in by caller
@@ -887,7 +887,7 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
     function _createActionInfo() internal view returns(ActionInfo memory) {
         ActionInfo memory rebalanceInfo;
 
-        // Calculate prices from chainlink. . Chainlink returns prices with 8 decimal places, but we need 36 - underlyingDecimals decimal places.
+        // Calculate prices from chainlink. Chainlink returns prices with 8 decimal places, but we need 36 - underlyingDecimals decimal places.
         // This is so that when the underlying amount is multiplied by the received price, the collateral valuation is normalized to 36 decimals. 
         // To perform this adjustment, we multiply by 10^(36 - 8 - underlyingDeciamls)
         int256 rawCollateralPrice = strategy.collateralPriceOracle.latestAnswer();
@@ -1046,7 +1046,7 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
     }
 
     /**
-     * Calculate total notional rebalance quantity and chunked rebalance quantity in precise (18 decimal) units. 
+     * Calculate total notional rebalance quantity and chunked rebalance quantity in collateral units. 
      *
      * return uint256          Chunked rebalance notional in collateral units
      * return uint256          Total rebalance notional in collateral units
@@ -1079,13 +1079,13 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
      * For lever, max borrow is calculated as:
      * (Net borrow limit in USD - existing borrow value in USD) / collateral asset price adjusted for decimals
      *
-     * For delever, max borrow is calculated as:
+     * For delever, max repay is calculated as:
      * Collateral balance in precise units * (net borrow limit in USD - existing borrow value in USD) / net borrow limit in USD
      *
      * Net borrow limit for levering is calculated as:
      * The collateral value in USD * Aave collateral factor * (1 - unutilized leverage %)
      *
-     * Net borrow limit for delevering is calculated as:
+     * Net repay limit for delevering is calculated as:
      * The collateral value in USD * Aave liquiditon threshold * (1 - unutilized leverage %)
      *
      * return uint256          Max borrow notional denominated in collateral asset
@@ -1108,19 +1108,19 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
                 .sub(_actionInfo.borrowValue)
                 .preciseDiv(_actionInfo.collateralPrice);
         } else {
-            uint256 netRedeemLimit = _actionInfo.collateralValue
+            uint256 netRepayLimit = _actionInfo.collateralValue
                 .preciseMul(liquidationThreshold)
                 .preciseMul(PreciseUnitMath.preciseUnit().sub(execution.unutilizedLeveragePercentage));
 
             return _actionInfo.collateralBalance
-                .preciseMul(netRedeemLimit.sub(_actionInfo.borrowValue))
-                .preciseDiv(netRedeemLimit);
+                .preciseMul(netRepayLimit.sub(_actionInfo.borrowValue))
+                .preciseDiv(netRepayLimit);
         }
     }
 
     /**
      * Derive the borrow units for lever. The units are calculated by the collateral units multiplied by collateral / borrow asset price.
-     * Output is measured to 18 decimals.
+     * Output is measured to borrow unit decimals.
      *
      * return uint256           Position units to borrow
      */
@@ -1130,7 +1130,7 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
 
     /**
      * Calculate the min receive units in collateral units for lever. Units are calculated as target collateral rebalance units multiplied by slippage tolerance
-     * Output is measured to 18 decimals.
+     * Output is measured in collateral asset decimals.
      *
      * return uint256           Min position units to receive after lever trade
      */
@@ -1140,7 +1140,7 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
 
     /**
      * Derive the min repay units from collateral units for delever. Units are calculated as target collateral rebalance units multiplied by slippage tolerance
-     * and pair price (collateral oracle price / borrow oracle price). Output is measured to 18 decimals.
+     * and pair price (collateral oracle price / borrow oracle price). Output is measured in borrow unit decimals.
      *
      * return uint256           Min position units to repay in borrow asset
      */
