@@ -89,8 +89,8 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
         IERC20 targetBorrowDebtToken;                   // Instance of target borrow variable debt token asset
         address collateralAsset;                        // Address of underlying collateral
         address borrowAsset;                            // Address of underlying borrow asset
-        uint256 collateralDecimals;                     // Decimals of collateral asset
-        uint256 borrowDecimals;                         // Decimals of borrow asset
+        uint256 collateralDecimalAdjustment;            // Decimal adjustment for chainlink oracle of the collateral asset. Equal to 28-collateralDecimals (10^18 * 10^18 / 10^decimals / 10^8)
+        uint256 borrowDecimalAdjustment;                // Decimal adjustment for chainlink oracle of the borrowing asset. Equal to 28-borrowDecimals (10^18 * 10^18 / 10^decimals / 10^8)
     }
 
     struct MethodologySettings { 
@@ -653,9 +653,7 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
             (uint256 collateralNotional, ) = _calculateChunkRebalanceNotional(leverageInfo, newLeverageRatio, isLever);
 
             // _calculateBorrowUnits can convert both unit and notional values
-            sizes[i] = isLever ? 
-                _calculateBorrowUnits(collateralNotional, leverageInfo.action).div(10 ** (18 - strategy.borrowDecimals))
-                : collateralNotional.div(10 ** (18 - strategy.collateralDecimals));
+            sizes[i] = isLever ? _calculateBorrowUnits(collateralNotional, leverageInfo.action) : collateralNotional;
         }
 
         sellAsset = isLever ? strategy.borrowAsset : strategy.collateralAsset;
@@ -760,8 +758,8 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
             address(strategy.setToken),
             strategy.borrowAsset,
             strategy.collateralAsset,
-            borrowUnits.div(10 ** (18 - strategy.borrowDecimals)),
-            minReceiveCollateralUnits.div(10 ** (18 - strategy.collateralDecimals)),
+            borrowUnits,
+            minReceiveCollateralUnits,
             _leverageInfo.exchangeName,
             exchangeSettings[_leverageInfo.exchangeName].leverExchangeData
         );
@@ -787,8 +785,8 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
             address(strategy.setToken),
             strategy.collateralAsset,
             strategy.borrowAsset,
-            collateralRebalanceUnits.div(10 ** (18 - strategy.collateralDecimals)),
-            minRepayUnits.div(10 ** (18 - strategy.borrowDecimals)),
+            collateralRebalanceUnits,
+            minRepayUnits,
             _leverageInfo.exchangeName,
             exchangeSettings[_leverageInfo.exchangeName].deleverExchangeData
         );
@@ -815,7 +813,7 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
             address(strategy.setToken),
             strategy.collateralAsset,
             strategy.borrowAsset,
-            maxCollateralRebalanceUnits.div(10 ** (18 - strategy.collateralDecimals)),
+            maxCollateralRebalanceUnits,
             _leverageInfo.exchangeName,
             exchangeSettings[_leverageInfo.exchangeName].deleverExchangeData
         );
@@ -889,14 +887,16 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
     function _createActionInfo() internal view returns(ActionInfo memory) {
         ActionInfo memory rebalanceInfo;
 
-        // Calculate prices from chainlink. Chainlink returns prices with 8 decimal places but we need prices in 18 decimals so we multiply by 1e10
+        // Calculate prices from chainlink. . Chainlink returns prices with 8 decimal places, but we need 36 - underlyingDecimals decimal places.
+        // This is so that when the underlying amount is multiplied by the received price, the collateral valuation is normalized to 36 decimals. 
+        // To perform this adjustment, we multiply by 10^(36 - 8 - underlyingDeciamls)
         int256 rawCollateralPrice = strategy.collateralPriceOracle.latestAnswer();
-        rebalanceInfo.collateralPrice = rawCollateralPrice.toUint256().mul(10 ** 10);
+        rebalanceInfo.collateralPrice = rawCollateralPrice.toUint256().mul(10 ** strategy.collateralDecimalAdjustment);
         int256 rawBorrowPrice = strategy.borrowPriceOracle.latestAnswer();
-        rebalanceInfo.borrowPrice = rawBorrowPrice.toUint256().mul(10 ** 10);
+        rebalanceInfo.borrowPrice = rawBorrowPrice.toUint256().mul(10 ** strategy.borrowDecimalAdjustment);
 
-        rebalanceInfo.collateralBalance = strategy.targetCollateralAToken.balanceOf(address(strategy.setToken)).mul(10 ** (18 - strategy.collateralDecimals));
-        rebalanceInfo.borrowBalance = strategy.targetBorrowDebtToken.balanceOf(address(strategy.setToken)).mul(10 ** (18 - strategy.borrowDecimals));
+        rebalanceInfo.collateralBalance = strategy.targetCollateralAToken.balanceOf(address(strategy.setToken));
+        rebalanceInfo.borrowBalance = strategy.targetBorrowDebtToken.balanceOf(address(strategy.setToken));
         rebalanceInfo.collateralValue = rebalanceInfo.collateralPrice.preciseMul(rebalanceInfo.collateralBalance);
         rebalanceInfo.borrowValue = rebalanceInfo.borrowPrice.preciseMul(rebalanceInfo.borrowBalance);
         rebalanceInfo.setTotalSupply = strategy.setToken.totalSupply();
@@ -1067,7 +1067,7 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
 
         uint256 maxBorrow = _calculateMaxBorrowCollateral(_leverageInfo.action, _isLever);
 
-        uint256 chunkRebalanceNotional = Math.min(Math.min(maxBorrow, totalRebalanceNotional), _leverageInfo.twapMaxTradeSize.mul(10 ** (18 - strategy.collateralDecimals)));
+        uint256 chunkRebalanceNotional = Math.min(Math.min(maxBorrow, totalRebalanceNotional), _leverageInfo.twapMaxTradeSize);
 
         return (chunkRebalanceNotional, totalRebalanceNotional);
     }

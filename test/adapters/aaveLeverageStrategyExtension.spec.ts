@@ -226,8 +226,8 @@ describe("LeverageStrategyExtension", () => {
       targetBorrowDebtToken: usdcVariableDebtToken.address,
       collateralAsset: setV2Setup.weth.address,
       borrowAsset: setV2Setup.usdc.address,
-      collateralDecimals: BigNumber.from(18),
-      borrowDecimals: BigNumber.from(6),
+      collateralDecimalAdjustment: BigNumber.from(10),
+      borrowDecimalAdjustment: BigNumber.from(22),
     };
     methodology = {
       targetLeverageRatio: targetLeverageRatio,
@@ -294,8 +294,8 @@ describe("LeverageStrategyExtension", () => {
         targetBorrowDebtToken: usdcVariableDebtToken.address,
         collateralAsset: setV2Setup.weth.address,
         borrowAsset: setV2Setup.usdc.address,
-        collateralDecimals: BigNumber.from(18),
-        borrowDecimals: BigNumber.from(6),
+        collateralDecimalAdjustment: BigNumber.from(10),
+        borrowDecimalAdjustment: BigNumber.from(22),
       };
       subjectMethodologySettings = {
         targetLeverageRatio: ether(2),

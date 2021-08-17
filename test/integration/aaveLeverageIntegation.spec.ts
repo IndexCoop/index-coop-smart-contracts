@@ -651,8 +651,8 @@ describe("LeverageStrategyExtension", () => {
       targetBorrowDebtToken: fliSettings.borrowDebtToken.address,
       collateralAsset: fliSettings.collateralAsset.address,
       borrowAsset: fliSettings.borrowAsset.address,
-      collateralDecimals: BigNumber.from(await fliSettings.collateralAsset.decimals()),
-      borrowDecimals: BigNumber.from(await fliSettings.borrowAsset.decimals()),
+      collateralDecimalAdjustment: BigNumber.from(28 - await fliSettings.collateralAsset.decimals()),
+      borrowDecimalAdjustment: BigNumber.from(28 - await fliSettings.borrowAsset.decimals()),
     };
     methodology = {
       targetLeverageRatio: fliSettings.targetLeverageRatio,
