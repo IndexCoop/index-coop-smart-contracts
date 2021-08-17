@@ -19,7 +19,7 @@ pragma solidity 0.6.10;
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
-import { BaseAdapter } from "../lib/BaseAdapter.sol";
+import { BaseExtension } from "../lib/BaseExtension.sol";
 import { IIssuanceModule } from "../interfaces/IIssuanceModule.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
@@ -35,7 +35,7 @@ import { MutualUpgrade } from "../lib/MutualUpgrade.sol";
  *
  * Smart contract extension that allows for splitting and setting streaming and mint/redeem fees.
  */
-contract FeeSplitExtension is BaseAdapter, TimeLockUpgrade, MutualUpgrade {
+contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
     using Address for address;
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
@@ -71,7 +71,7 @@ contract FeeSplitExtension is BaseAdapter, TimeLockUpgrade, MutualUpgrade {
         address _operatorFeeRecipient
     )
         public
-        BaseAdapter(_manager)
+        BaseExtension(_manager)
     {
         streamingFeeModule = _streamingFeeModule;
         issuanceModule = _issuanceModule;

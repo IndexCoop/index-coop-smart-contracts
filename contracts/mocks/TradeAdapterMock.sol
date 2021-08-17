@@ -16,7 +16,7 @@ contract TradeAdapterMock {
         uint256 balance = ERC20(_token).balanceOf(address(this));
         require(ERC20(_token).transfer(msg.sender, balance), "ERC20 transfer failed");
     }
-    
+
     /* ============ Trade Functions ============ */
 
     function trade(

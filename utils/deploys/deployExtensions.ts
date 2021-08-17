@@ -6,7 +6,7 @@ import {
   FlexibleLeverageStrategyExtension,
   FeeSplitExtension,
   GIMExtension,
-  GovernanceAdapter,
+  GovernanceExtension,
   StreamingFeeSplitExtension
 } from "../contracts/index";
 
@@ -15,10 +15,10 @@ import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeI
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
 import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtension__factory";
 import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
-import { GovernanceAdapter__factory } from "../../typechain/factories/GovernanceAdapter__factory";
+import { GovernanceExtension__factory } from "../../typechain/factories/GovernanceExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 
-export default class DeployAdapters {
+export default class DeployExtensions {
   private _deployerSigner: Signer;
 
   constructor(deployerSigner: Signer) {
@@ -55,11 +55,11 @@ export default class DeployAdapters {
     );
   }
 
-  public async deployGovernanceAdapter(
+  public async deployGovernanceExtension(
     manager: Address,
     governanceModule: Address,
-  ): Promise<GovernanceAdapter> {
-    return await new GovernanceAdapter__factory(this._deployerSigner).deploy(
+  ): Promise<GovernanceExtension> {
+    return await new GovernanceExtension__factory(this._deployerSigner).deploy(
       manager,
       governanceModule
     );

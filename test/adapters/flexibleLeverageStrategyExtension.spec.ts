@@ -130,7 +130,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
     debtIssuanceModule = await deployer.setV2.deployDebtIssuanceModule(setV2Setup.controller.address);
     await setV2Setup.controller.addModule(debtIssuanceModule.address);
 
-    // Deploy mock trade adapter
+    // Deploy mock trade extension
     tradeAdapterMock = await deployer.mocks.deployTradeAdapterMock();
     await setV2Setup.integrationRegistry.addIntegration(
       compoundLeverageModule.address,
@@ -138,7 +138,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       tradeAdapterMock.address,
     );
 
-    // Deploy mock trade adapter 2
+    // Deploy mock trade extension 2
     tradeAdapterMock2 = await deployer.mocks.deployTradeAdapterMock();
     await setV2Setup.integrationRegistry.addIntegration(
       compoundLeverageModule.address,
@@ -205,7 +205,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       await setToken.connect(owner.wallet).setManager(baseManagerV2.address);
     }
 
-    // Deploy adapter
+    // Deploy extension
     const targetLeverageRatio = customTargetLeverageRatio || ether(2);
     const minLeverageRatio = customMinLeverageRatio || ether(1.7);
     const maxLeverageRatio = ether(2.3);
@@ -264,7 +264,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       deleverExchangeData: EMPTY_BYTES,
     };
 
-    flexibleLeverageStrategyExtension = await deployer.adapters.deployFlexibleLeverageStrategyExtension(
+    flexibleLeverageStrategyExtension = await deployer.extensions.deployFlexibleLeverageStrategyExtension(
       baseManagerV2.address,
       strategy,
       methodology,
@@ -274,7 +274,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       [ exchangeSettings ]
     );
 
-    // Add adapter
+    // Add extension
     await baseManagerV2.connect(owner.wallet).addExtension(flexibleLeverageStrategyExtension.address);
   };
 
@@ -333,7 +333,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
     });
 
     async function subject(): Promise<FlexibleLeverageStrategyExtension> {
-      return await deployer.adapters.deployFlexibleLeverageStrategyExtension(
+      return await deployer.extensions.deployFlexibleLeverageStrategyExtension(
         subjectManagerAddress,
         subjectContractSettings,
         subjectMethodologySettings,

@@ -21,7 +21,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import { AddressArrayUtils } from "../lib/AddressArrayUtils.sol";
-import { BaseAdapter } from "../lib/BaseAdapter.sol";
+import { BaseExtension } from "../lib/BaseExtension.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IGeneralIndexModule } from "../interfaces/IGeneralIndexModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
@@ -32,21 +32,21 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
  *
  * Smart contract manager extension that acts as a pass-through contract for interacting with GeneralIndexModule.
  * All functions are only callable by operator. startRebalance() on GIM maps to startRebalanceWithUnits on
- * GIMExtension. 
+ * GIMExtension.
  */
-contract GIMExtension is BaseAdapter {
+contract GIMExtension is BaseExtension {
 
     using AddressArrayUtils for address[];
     using SafeMath for uint256;
 
     /* ============ State Variables ============ */
-    
+
     ISetToken public setToken;
     IGeneralIndexModule public generalIndexModule;  // GIM
 
     /* ============ Constructor ============ */
 
-    constructor(IBaseManager _manager, IGeneralIndexModule _generalIndexModule) public BaseAdapter(_manager) {
+    constructor(IBaseManager _manager, IGeneralIndexModule _generalIndexModule) public BaseExtension(_manager) {
         generalIndexModule = _generalIndexModule;
         setToken = manager.setToken();
     }
@@ -97,7 +97,7 @@ contract GIMExtension is BaseAdapter {
             _tradeMaximums
         );
 
-        invokeManager(address(generalIndexModule), callData);   
+        invokeManager(address(generalIndexModule), callData);
     }
 
     /**
@@ -120,7 +120,7 @@ contract GIMExtension is BaseAdapter {
             _exchangeNames
         );
 
-        invokeManager(address(generalIndexModule), callData);  
+        invokeManager(address(generalIndexModule), callData);
     }
 
     /**
@@ -143,7 +143,7 @@ contract GIMExtension is BaseAdapter {
             _coolOffPeriods
         );
 
-        invokeManager(address(generalIndexModule), callData);  
+        invokeManager(address(generalIndexModule), callData);
     }
 
     /**
@@ -166,7 +166,7 @@ contract GIMExtension is BaseAdapter {
             _exchangeData
         );
 
-        invokeManager(address(generalIndexModule), callData); 
+        invokeManager(address(generalIndexModule), callData);
     }
 
     /**
@@ -181,7 +181,7 @@ contract GIMExtension is BaseAdapter {
             _raiseTargetPercentage
         );
 
-        invokeManager(address(generalIndexModule), callData); 
+        invokeManager(address(generalIndexModule), callData);
     }
 
     /**
@@ -204,7 +204,7 @@ contract GIMExtension is BaseAdapter {
             _statuses
         );
 
-        invokeManager(address(generalIndexModule), callData); 
+        invokeManager(address(generalIndexModule), callData);
     }
 
     /**
@@ -219,7 +219,7 @@ contract GIMExtension is BaseAdapter {
             _status
         );
 
-        invokeManager(address(generalIndexModule), callData); 
+        invokeManager(address(generalIndexModule), callData);
     }
 
     /**
@@ -231,7 +231,7 @@ contract GIMExtension is BaseAdapter {
             setToken
         );
 
-        invokeManager(address(generalIndexModule), callData);    
+        invokeManager(address(generalIndexModule), callData);
     }
 
     /* ============ Internal Functions ============ */

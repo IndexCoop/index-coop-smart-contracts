@@ -19,7 +19,7 @@ pragma solidity 0.6.10;
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
-import { BaseAdapter } from "../lib/BaseAdapter.sol";
+import { BaseExtension } from "../lib/BaseExtension.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IStreamingFeeModule } from "../interfaces/IStreamingFeeModule.sol";
@@ -35,7 +35,7 @@ import { MutualUpgrade } from "../lib/MutualUpgrade.sol";
  * Smart contract manager extension that allows for splitting and setting streaming fees. Fee splits are updated by operator.
  * Any fee updates are timelocked.
  */
-contract StreamingFeeSplitExtension is BaseAdapter, TimeLockUpgrade, MutualUpgrade {
+contract StreamingFeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
     using Address for address;
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
@@ -69,7 +69,7 @@ contract StreamingFeeSplitExtension is BaseAdapter, TimeLockUpgrade, MutualUpgra
         address _operatorFeeRecipient
     )
         public
-        BaseAdapter(_manager)
+        BaseExtension(_manager)
     {
         streamingFeeModule = _streamingFeeModule;
         operatorFeeSplit = _operatorFeeSplit;

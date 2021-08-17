@@ -2,7 +2,7 @@ import "module-alias/register";
 
 import { Address, Account, Bytes } from "@utils/types";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
-import { BaseManagerV2, BaseAdapterMock } from "@utils/contracts/index";
+import { BaseManagerV2, BaseExtensionMock } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -32,7 +32,7 @@ describe("BaseManagerV2", () => {
   let setToken: SetToken;
 
   let baseManager: BaseManagerV2;
-  let baseExtension: BaseAdapterMock;
+  let baseExtension: BaseExtensionMock;
 
   async function validateMutualUprade(txHash: ContractTransaction, caller: Address) {
     const expectedHash = solidityKeccak256(["bytes", "address"], [txHash.data, caller]);
@@ -90,7 +90,7 @@ describe("BaseManagerV2", () => {
     // Transfer operatorship to BaseManager
     await setToken.setManager(baseManager.address);
 
-    baseExtension = await deployer.mocks.deployBaseAdapterMock(baseManager.address);
+    baseExtension = await deployer.mocks.deployBaseExtensionMock(baseManager.address);
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -187,7 +187,7 @@ describe("BaseManagerV2", () => {
 
     describe("protectedModules: single, with multiple extension", () => {
       beforeEach(async () => {
-        subjectAdditionalExtension = (await deployer.mocks.deployBaseAdapterMock(baseManager.address)).address;
+        subjectAdditionalExtension = (await deployer.mocks.deployBaseExtensionMock(baseManager.address)).address;
         subjectProtectedModules = [subjectModule];
         subjectAuthorizedExtensions = [[subjectExtension, subjectAdditionalExtension]];
       });
@@ -225,7 +225,7 @@ describe("BaseManagerV2", () => {
 
     describe("protectedModules: multiple, with extensions", () => {
       beforeEach(async () => {
-        subjectAdditionalExtension = (await deployer.mocks.deployBaseAdapterMock(baseManager.address)).address;
+        subjectAdditionalExtension = (await deployer.mocks.deployBaseExtensionMock(baseManager.address)).address;
         subjectProtectedModules = [subjectModule, subjectAdditionalModule];
         subjectAuthorizedExtensions = [ [subjectExtension], [subjectAdditionalExtension] ];
       });
@@ -410,7 +410,7 @@ describe("BaseManagerV2", () => {
 
     describe("when extension has different manager address", async () => {
       beforeEach(async () => {
-        subjectExtension = (await deployer.mocks.deployBaseAdapterMock(await getRandomAddress())).address;
+        subjectExtension = (await deployer.mocks.deployBaseExtensionMock(await getRandomAddress())).address;
       });
 
       it("should revert", async () => {
@@ -454,7 +454,7 @@ describe("BaseManagerV2", () => {
       subjectModule = setV2Setup.streamingFeeModule.address;
       subjectAdditionalModule = setV2Setup.issuanceModule.address;
       subjectExtension = baseExtension.address;
-      subjectAdditionalExtension = (await deployer.mocks.deployBaseAdapterMock(baseManager.address)).address;
+      subjectAdditionalExtension = (await deployer.mocks.deployBaseExtensionMock(baseManager.address)).address;
       subjectCaller = operator;
     });
 
@@ -1171,7 +1171,7 @@ describe("BaseManagerV2", () => {
       subjectOldModule = setV2Setup.streamingFeeModule.address;
       subjectNewModule = otherAccount.address;
       subjectOldExtension = baseExtension.address;
-      subjectNewExtension = (await deployer.mocks.deployBaseAdapterMock(baseManager.address)).address;
+      subjectNewExtension = (await deployer.mocks.deployBaseExtensionMock(baseManager.address)).address;
     });
 
     async function subject(caller: Account): Promise<any> {
@@ -1331,7 +1331,7 @@ describe("BaseManagerV2", () => {
       subjectOldModule = setV2Setup.streamingFeeModule.address;
       subjectAdditionalOldModule = setV2Setup.governanceModule.address; // Removable
       subjectNewModule = otherAccount.address;
-      subjectNewExtension = (await deployer.mocks.deployBaseAdapterMock(baseManager.address)).address;
+      subjectNewExtension = (await deployer.mocks.deployBaseExtensionMock(baseManager.address)).address;
     });
 
     async function subject(caller: Account): Promise<any> {

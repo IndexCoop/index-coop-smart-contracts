@@ -2,7 +2,7 @@ import "module-alias/register";
 
 import { Address, Account, Bytes } from "@utils/types";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
-import { BaseManager, BaseAdapterMock } from "@utils/contracts/index";
+import { BaseManager, BaseExtensionMock } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -29,7 +29,7 @@ describe("BaseManager", () => {
   let setToken: SetToken;
 
   let baseManager: BaseManager;
-  let baseAdapter: BaseAdapterMock;
+  let baseAdapter: BaseExtensionMock;
 
   before(async () => {
     [
@@ -73,7 +73,7 @@ describe("BaseManager", () => {
     // Transfer ownership to BaseManager
     await setToken.setManager(baseManager.address);
 
-    baseAdapter = await deployer.mocks.deployBaseAdapterMock(baseManager.address);
+    baseAdapter = await deployer.mocks.deployBaseExtensionMock(baseManager.address);
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -203,7 +203,7 @@ describe("BaseManager", () => {
 
     describe("when adapter has different manager address", async () => {
       beforeEach(async () => {
-        subjectAdapter = (await deployer.mocks.deployBaseAdapterMock(await getRandomAddress())).address;
+        subjectAdapter = (await deployer.mocks.deployBaseExtensionMock(await getRandomAddress())).address;
       });
 
       it("should revert", async () => {

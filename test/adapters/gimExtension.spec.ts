@@ -105,7 +105,7 @@ describe("GIMExtension", () => {
     });
 
     async function subject(): Promise<GIMExtension> {
-      return await deployer.adapters.deployGIMExtension(
+      return await deployer.extensions.deployGIMExtension(
         subjectManager,
         subjectGeneralIndexModule
       );
@@ -135,7 +135,7 @@ describe("GIMExtension", () => {
 
   context("when GIM extension is deployed and module needs to be initialized", async () => {
     beforeEach(async () => {
-      gimExtension = await deployer.adapters.deployGIMExtension(
+      gimExtension = await deployer.extensions.deployGIMExtension(
         baseManagerV2.address,
         setV2Setup.generalIndexModule.address
       );

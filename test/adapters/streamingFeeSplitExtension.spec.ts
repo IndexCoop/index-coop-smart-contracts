@@ -100,7 +100,7 @@ describe("StreamingFeeSplitExtension", () => {
     });
 
     async function subject(): Promise<StreamingFeeSplitExtension> {
-      return await deployer.adapters.deployStreamingFeeSplitExtension(
+      return await deployer.extensions.deployStreamingFeeSplitExtension(
         subjectManager,
         subjectStreamingFeeModule,
         subjectOperatorFeeSplit,
@@ -148,7 +148,7 @@ describe("StreamingFeeSplitExtension", () => {
     const operatorSplit: BigNumber = ether(.7);
 
     beforeEach(async () => {
-      feeExtension = await deployer.adapters.deployStreamingFeeSplitExtension(
+      feeExtension = await deployer.extensions.deployStreamingFeeSplitExtension(
         baseManagerV2.address,
         setV2Setup.streamingFeeModule.address,
         operatorSplit,

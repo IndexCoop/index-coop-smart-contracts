@@ -677,7 +677,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       incentivizedLeverageRatio: incentivizedLeverageRatio,
     };
 
-    flexibleLeverageStrategyExtension = await deployer.adapters.deployFlexibleLeverageStrategyExtension(
+    flexibleLeverageStrategyExtension = await deployer.extensions.deployFlexibleLeverageStrategyExtension(
       baseManager.address,
       strategy,
       methodology,
@@ -688,7 +688,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
     );
     await flexibleLeverageStrategyExtension.updateCallerStatus([owner.address], [true]);
 
-    // Add adapter
+    // Add extension
     await baseManager.connect(owner.wallet).addExtension(flexibleLeverageStrategyExtension.address);
   }
 

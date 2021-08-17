@@ -20,12 +20,12 @@ import { AddressArrayUtils } from "../lib/AddressArrayUtils.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 
 /**
- * @title BaseAdapter
+ * @title BaseExtension
  * @author Set Protocol
  *
- * Abstract class that houses common adapter-related state and functions.
+ * Abstract class that houses common extension-related state and functions.
  */
-abstract contract BaseAdapter {
+abstract contract BaseExtension {
     using AddressArrayUtils for address[];
 
     /* ============ Events ============ */
@@ -104,7 +104,7 @@ abstract contract BaseAdapter {
     }
 
     /**
-     * OPERATOR ONLY: Toggle whether anyone can call function, bypassing the callAllowlist 
+     * OPERATOR ONLY: Toggle whether anyone can call function, bypassing the callAllowlist
      *
      * @param _status           Boolean indicating whether to allow anyone call
      */
@@ -114,7 +114,7 @@ abstract contract BaseAdapter {
     }
 
     /* ============ Internal Functions ============ */
-    
+
     /**
      * Invoke manager to transfer tokens from manager to other contract.
      *
