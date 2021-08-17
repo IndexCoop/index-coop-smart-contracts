@@ -337,6 +337,9 @@ contract BaseManager is MutualUpgrade {
      * Called by operator when a module must be removed immediately for security reasons and it's unsafe
      * to wait for a `mutualUpgrade` process to play out.
      *
+     * NOTE: If removing a fee module, you can ensure all fees are distributed by calling distribute
+     * on the module's de-authorized fee adapter after this call.
+     *
      * @param _module           Module to remove
      */
     function emergencyRemoveProtectedModule(address _module) external onlyOperator {
@@ -354,6 +357,9 @@ contract BaseManager is MutualUpgrade {
      * The operator uses this when they're adding new features and want to assure the methodologist
      * they won't be unilaterally changed in the future. Cannot be called during an emergency because
      * methodologist needs to explicitly approve protection arrangements under those conditions.
+     *
+     * NOTE: If adding a fee adapter while protecting a fee module, it's important to set the
+     * module `feeRecipient` to the new adapter's address (ideally before this call).
      *
      * @param  _module          Module to protect
      * @param  _adapters        Array of adapters to authorize for protected module
@@ -397,6 +403,10 @@ contract BaseManager is MutualUpgrade {
      * Used when methodologists wants to guarantee that an existing protection arrangement is replaced
      * with a suitable substitute (ex: upgrading a StreamingFeeSplitExtension).
      *
+     * NOTE: If replacing a fee module, it's necessary to set the module `feeRecipient` to be
+     * the new fee adapter address after this call. Any fees remaining in the old module's
+     * de-authorized adapters can be distributed by calling `distribute()` on the old adapter.
+     *
      * @param _oldModule        Module to remove
      * @param _newModule        Module to add in place of removed module
      * @param _newAdapters      Adapters to authorize for new module
@@ -428,6 +438,10 @@ contract BaseManager is MutualUpgrade {
      * Used when methodologist wants to guarantee that a protection arrangement which was
      * removed in an emergency is replaced with a suitable substitute. Operator's ability to add modules
      * or adapters is restored after invoking this method (if this is the only emergency.)
+     *
+     * NOTE: If replacing a fee module, it's necessary to set the module `feeRecipient` to be
+     * the new fee adapter address after this call. Any fees remaining in the old module's
+     * de-authorized adapters can be distributed by calling `distribute()` on the old adapter.
      *
      * @param _module        Module to add in place of removed module
      * @param _adapters      Array of adapters to authorize for replacement module

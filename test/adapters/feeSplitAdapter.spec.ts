@@ -174,6 +174,15 @@ describe("FeeSplitAdapter", () => {
 
       // Transfer ownership to BaseManager
       await setToken.setManager(baseManagerV2.address);
+
+      // Protect StreamingFeeModule
+      await baseManagerV2
+        .connect(operator.wallet)
+        .protectModule(setV2Setup.streamingFeeModule.address, [feeAdapter.address]);
+
+      // Set extension as fee recipient
+      await feeAdapter.connect(operator.wallet).updateFeeRecipient(feeAdapter.address);
+      await feeAdapter.connect(methodologist.wallet).updateFeeRecipient(feeAdapter.address);
     });
 
     describe("#accrueFeesAndDistribute", async () => {
@@ -218,8 +227,8 @@ describe("FeeSplitAdapter", () => {
         expect(methodologistBalance).to.eq(expectedMethodologistTake);
       });
 
-      it("should emit a FeesAccrued event", async () => {
-        await expect(subject()).to.emit(feeAdapter, "FeesAccrued");
+      it("should emit a FeesDistributed event", async () => {
+        await expect(subject()).to.emit(feeAdapter, "FeesDistributed");
       });
 
       describe("when methodologist fees are 0", async () => {
@@ -251,6 +260,64 @@ describe("FeeSplitAdapter", () => {
 
           const postOperatorFeeRecipientBalance = await setToken.balanceOf(operatorFeeRecipient.address);
           expect(postOperatorFeeRecipientBalance.sub(preOperatorFeeRecipientBalance)).to.eq(ZERO);
+        });
+      });
+
+      describe("when extension has fees accrued, is removed and no longer the feeRecipient", () => {
+        let txnTimestamp: BigNumber;
+        let feeState: any;
+        let expectedFeeInflation: BigNumber;
+        let totalSupply: BigNumber;
+
+        beforeEach(async () => {
+          feeState = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
+          totalSupply = await setToken.totalSupply();
+
+          // Accrue fees to extension by StreamingFeeModule by direct call
+          txnTimestamp = await getTransactionTimestamp(
+            setV2Setup.streamingFeeModule.accrueFee(setToken.address)
+          );
+
+          expectedFeeInflation = await getStreamingFee(
+            setV2Setup.streamingFeeModule,
+            setToken.address,
+            feeState.lastStreamingFeeTimestamp,
+            txnTimestamp
+          );
+
+          // Change fee recipient to baseManagerV2;
+          await feeAdapter.connect(operator.wallet).updateFeeRecipient(baseManagerV2.address);
+          await feeAdapter.connect(methodologist.wallet).updateFeeRecipient(baseManagerV2.address);
+
+          // Revoke extension authorization
+          await baseManagerV2.connect(operator.wallet).revokeAdapterAuthorization(
+            setV2Setup.streamingFeeModule.address,
+            feeAdapter.address
+          );
+
+          await baseManagerV2.connect(methodologist.wallet).revokeAdapterAuthorization(
+            setV2Setup.streamingFeeModule.address,
+            feeAdapter.address
+          );
+
+          // Remove adapter
+          await baseManagerV2.connect(operator.wallet).removeAdapter(feeAdapter.address);
+        });
+
+        it("should send residual fees to operator fee recipient and methodologist", async () => {
+          await subject();
+
+          const feeInflation = getStreamingFeeInflationAmount(expectedFeeInflation, totalSupply);
+
+          const expectedMintRedeemFees = preciseMul(mintedTokens, ether(.01));
+          const expectedOperatorTake = preciseMul(feeInflation.add(expectedMintRedeemFees), operatorSplit);
+          const expectedMethodologistTake = feeInflation.add(expectedMintRedeemFees).sub(expectedOperatorTake);
+
+          const operatorFeeRecipientBalance = await setToken.balanceOf(operatorFeeRecipient.address);
+          const methodologistBalance = await setToken.balanceOf(methodologist.address);
+
+          expect(operatorFeeRecipientBalance).to.eq(expectedOperatorTake);
+          expect(methodologistBalance).to.eq(expectedMethodologistTake);
         });
       });
     });
@@ -305,11 +372,8 @@ describe("FeeSplitAdapter", () => {
             expect(feeState.streamingFeePercentage).to.eq(subjectNewFee);
           });
 
-          it("should not leave a SetToken balance in the manager", async() => {
-
-          });
-
-          it("should send correct amount of fees to operator fee recipeint and methodologist", async () => {
+          it("should send correct amount of fees to the fee adapter", async () => {
+            const preExtensionBalance = await setToken.balanceOf(feeAdapter.address);
             const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
             const totalSupply = await setToken.totalSupply();
 
@@ -326,17 +390,9 @@ describe("FeeSplitAdapter", () => {
 
             const feeInflation = getStreamingFeeInflationAmount(expectedFeeInflation, totalSupply);
 
-            const expectedMintRedeemFees = preciseMul(mintedTokens, ether(.01));
-            const expectedOperatorTake = preciseMul(feeInflation.add(expectedMintRedeemFees), operatorSplit);
-            const expectedMethodologistTake = feeInflation.add(expectedMintRedeemFees).sub(expectedOperatorTake);
+            const postExtensionBalance = await setToken.balanceOf(feeAdapter.address);
 
-            const operatorFeeRecipientBalance = await setToken.balanceOf(operatorFeeRecipient.address);
-            const methodologistBalance = await setToken.balanceOf(methodologist.address);
-            const postManagerBalance = await setToken.balanceOf(baseManagerV2.address);
-
-            expect(operatorFeeRecipientBalance).to.eq(expectedOperatorTake);
-            expect(methodologistBalance).to.eq(expectedMethodologistTake);
-            expect(postManagerBalance).to.eq(ZERO);
+            expect(postExtensionBalance.sub(preExtensionBalance)).to.eq(feeInflation);
           });
         });
       });
@@ -372,7 +428,8 @@ describe("FeeSplitAdapter", () => {
             expect(feeState.streamingFeePercentage).to.eq(subjectNewFee);
           });
 
-          it("should send correct amount of fees to operator fee recipient and methodologist", async () => {
+          it("should send correct amount of fees to the fee adapter", async () => {
+            const preExtensionBalance = await setToken.balanceOf(feeAdapter.address);
             const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
             const totalSupply = await setToken.totalSupply();
 
@@ -389,18 +446,9 @@ describe("FeeSplitAdapter", () => {
 
             const feeInflation = getStreamingFeeInflationAmount(expectedFeeInflation, totalSupply);
 
-            const expectedMintRedeemFees = preciseMul(mintedTokens, ether(.01));
-            const expectedOperatorTake = preciseMul(feeInflation.add(expectedMintRedeemFees), operatorSplit);
-            const expectedMethodologistTake = feeInflation.add(expectedMintRedeemFees).sub(expectedOperatorTake);
+            const postExtensionBalance = await setToken.balanceOf(feeAdapter.address);
 
-            const operatorFeeRecipientBalance = await setToken.balanceOf(operatorFeeRecipient.address);
-            const methodologistBalance = await setToken.balanceOf(methodologist.address);
-            const postManagerBalance = await setToken.balanceOf(baseManagerV2.address);
-
-
-            expect(operatorFeeRecipientBalance).to.eq(expectedOperatorTake);
-            expect(methodologistBalance).to.eq(expectedMethodologistTake);
-            expect(postManagerBalance).to.eq(ZERO);
+            expect(postExtensionBalance.sub(preExtensionBalance)).to.eq(feeInflation);
           });
         });
       });
