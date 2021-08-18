@@ -84,9 +84,9 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
 
     /**
      * ANYONE CALLABLE: Accrues fees from streaming fee module. Gets resulting balance after fee accrual, calculates fees for
-     * operator and methodologist, and sends to operator and methodologist, and sends to operatorFeeRecipient and methodlogist
-     * respectively. NOTE: mint/redeem fees will automatically be sent to this address so reading the balance of the SetToken
-     * in the contract after accrual is sufficient for accounting for all collected fees.
+     * operator and methodologist, and sends to operator fee recipient and methodologist respectively. NOTE: mint/redeem fees
+     * will automatically be sent to this address so reading the balance of the SetToken in the contract after accrual is
+     * sufficient for accounting for all collected fees.
      */
     function accrueFeesAndDistribute() public {
         // Emits a FeeActualized event
