@@ -636,9 +636,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
     baseManager = await deployer.manager.deployBaseManagerV2(
       setToken.address,
       owner.address,
-      methodologist.address,
-      [],
-      [[]]
+      methodologist.address
     );
     await baseManager.connect(methodologist.wallet).authorizeInitialization();
 

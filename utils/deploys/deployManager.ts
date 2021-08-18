@@ -47,16 +47,12 @@ export default class DeployToken {
   public async deployBaseManagerV2(
     set: Address,
     operator: Address,
-    methodologist: Address,
-    protectedModules: Address[],
-    authorizedExtensions: Address[][]
+    methodologist: Address
   ): Promise<BaseManagerV2> {
     return await new BaseManagerV2__factory(this._deployerSigner).deploy(
       set,
       operator,
-      methodologist,
-      protectedModules,
-      authorizedExtensions
+      methodologist
     );
   }
 }

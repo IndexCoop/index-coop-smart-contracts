@@ -181,19 +181,13 @@ contract BaseManagerV2 is MutualUpgrade {
     constructor(
         ISetToken _setToken,
         address _operator,
-        address _methodologist,
-        address[] memory _protectedModules,      // Modules to initialize as protected
-        address[][] memory _authorizedExtensions   // Extensions authorized for each protected module
+        address _methodologist
     )
         public
     {
         setToken = _setToken;
         operator = _operator;
         methodologist = _methodologist;
-
-        for (uint256 i = 0; i < _protectedModules.length; i++) {
-            _protectModule(_protectedModules[i], _authorizedExtensions[i]);
-        }
     }
 
     /* ============ External Functions ============ */

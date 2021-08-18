@@ -2,7 +2,7 @@ import "module-alias/register";
 
 import { Address, Account, Bytes } from "@utils/types";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
-import { BaseManagerV2, BaseExtensionMock } from "@utils/contracts/index";
+import { BaseManagerV2, BaseExtensionMock, StreamingFeeSplitExtension } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -18,6 +18,7 @@ import { SetFixture } from "@utils/fixtures";
 
 import { solidityKeccak256 } from "ethers/lib/utils";
 import { ContractTransaction } from "ethers";
+import { BigNumber } from "@ethersproject/BigNumber";
 
 const expect = getWaffleExpect();
 
@@ -82,9 +83,7 @@ describe("BaseManagerV2", () => {
     baseManager = await deployer.manager.deployBaseManagerV2(
       setToken.address,
       operator.address,
-      methodologist.address,
-      [],
-      [[]]
+      methodologist.address
     );
 
     // Transfer operatorship to BaseManager
@@ -97,34 +96,20 @@ describe("BaseManagerV2", () => {
 
   describe("#constructor", async () => {
     let subjectSetToken: Address;
-    let subjectExtension: Address;
-    let subjectModule: Address;
-    let subjectAdditionalModule: Address;
-    let subjectAdditionalExtension: Address;
     let subjectOperator: Address;
     let subjectMethodologist: Address;
-    let subjectProtectedModules: Address[];
-    let subjectAuthorizedExtensions: Address[][];
 
     beforeEach(async () => {
       subjectSetToken = setToken.address;
-      subjectModule = setV2Setup.streamingFeeModule.address;
-      subjectAdditionalModule = setV2Setup.issuanceModule.address;
-      subjectExtension = baseExtension.address;
-      subjectAdditionalExtension = ADDRESS_ZERO; // Deploy as needed
       subjectOperator = operator.address;
       subjectMethodologist = methodologist.address;
-      subjectProtectedModules = [subjectModule];
-      subjectAuthorizedExtensions = [[]];
     });
 
     async function subject(): Promise<BaseManagerV2> {
       return await deployer.manager.deployBaseManagerV2(
         subjectSetToken,
         subjectOperator,
-        subjectMethodologist,
-        subjectProtectedModules,
-        subjectAuthorizedExtensions
+        subjectMethodologist
       );
     }
 
@@ -154,134 +139,6 @@ describe("BaseManagerV2", () => {
 
       const initialized = await retrievedICManager.initialized();
       expect(initialized).to.be.false;
-    });
-
-    describe("protectedModules: single, no extensions, module already added", () => {
-      beforeEach(() => {
-        subjectProtectedModules = [subjectModule];
-      });
-
-      it("should protect the module", async () => {
-        const retrievedICManager = await subject();
-
-        const isProtected = await retrievedICManager.protectedModules(subjectModule);
-        expect(isProtected).to.be.true;
-      });
-
-      it("should be added to the protectedModules list", async () => {
-        const retrievedICManager = await subject();
-
-        const protectedModules = await retrievedICManager.getProtectedModules();
-        expect(protectedModules.includes(subjectModule)).to.be.true;
-      });
-    });
-
-    describe("protectedModules: when module is not yet added", () => {
-      beforeEach(async () => {
-        await setV2Setup.controller.addModule(otherAccount.address);
-
-        subjectModule = otherAccount.address;
-        subjectProtectedModules = [subjectModule];
-      });
-
-      it("should be possible to add protected module to setToken after deployment", async () => {
-        await subject();
-
-        const initialIsPending = await setToken.isPendingModule(subjectModule);
-
-        await baseManager.connect(operator.wallet).addModule(subjectModule);
-
-        const finalIsPending = await setToken.isPendingModule(subjectModule);
-
-        expect(initialIsPending).to.be.false;
-        expect(finalIsPending).to.be.true;
-      });
-    });
-
-    describe("protectedModules: single, with multiple extension", () => {
-      beforeEach(async () => {
-        subjectAdditionalExtension = (await deployer.mocks.deployBaseExtensionMock(baseManager.address)).address;
-        subjectProtectedModules = [subjectModule];
-        subjectAuthorizedExtensions = [[subjectExtension, subjectAdditionalExtension]];
-      });
-
-      it("should protect the module", async () => {
-        const retrievedICManager = await subject();
-
-        const isProtected = await retrievedICManager.protectedModules(subjectModule);
-        expect(isProtected).to.be.true;
-      });
-
-      it("should add the extensions", async () => {
-        const retrievedICManager = await subject();
-
-        const isSubjectExtension = await retrievedICManager.isExtension(subjectExtension);
-        const isSubjectAdditionalExtension = await retrievedICManager.isExtension(subjectAdditionalExtension);
-
-        expect(isSubjectExtension).to.be.true;
-        expect(isSubjectAdditionalExtension).to.be.true;
-      });
-
-      it("should authorize the extensions for the module", async () => {
-        const retrievedICManager = await subject();
-
-        const isAuthorizedSubjectExtension = await retrievedICManager
-          .isAuthorizedExtension(subjectModule, subjectExtension);
-
-        const isAuthorizedSubjectAdditionalExtension = await retrievedICManager
-          .isAuthorizedExtension(subjectModule, subjectAdditionalExtension);
-
-        expect(isAuthorizedSubjectExtension).to.be.true;
-        expect(isAuthorizedSubjectAdditionalExtension).to.be.true;
-      });
-    });
-
-    describe("protectedModules: multiple, with extensions", () => {
-      beforeEach(async () => {
-        subjectAdditionalExtension = (await deployer.mocks.deployBaseExtensionMock(baseManager.address)).address;
-        subjectProtectedModules = [subjectModule, subjectAdditionalModule];
-        subjectAuthorizedExtensions = [ [subjectExtension], [subjectAdditionalExtension] ];
-      });
-
-      it("should protect the module", async () => {
-        const retrievedICManager = await subject();
-
-        const isProtectedSubjectModule = await retrievedICManager
-          .protectedModules(subjectModule);
-
-        const isProtectedSubjectAdditionalModule = await retrievedICManager
-          .protectedModules(subjectAdditionalModule);
-
-        expect(isProtectedSubjectModule).to.be.true;
-        expect(isProtectedSubjectAdditionalModule).to.be.true;
-      });
-
-      it("should add the extensions", async () => {
-        const retrievedICManager = await subject();
-
-        const isSubjectExtension = await retrievedICManager.isExtension(subjectExtension);
-        const isSubjectAdditionalExtension = await retrievedICManager.isExtension(subjectAdditionalExtension);
-
-        expect(isSubjectExtension).to.be.true;
-        expect(isSubjectAdditionalExtension).to.be.true;
-      });
-
-      it("should authorize the extensions correctly", async () => {
-        const retrievedICManager = await subject();
-
-        const isAuthorizedSubjectExtension = await retrievedICManager
-          .isAuthorizedExtension(subjectModule, subjectExtension);
-
-        const isAuthorizedSubjectAdditionalExtension = await retrievedICManager
-          .isAuthorizedExtension(subjectAdditionalModule, subjectAdditionalExtension);
-
-        const transposedExtensionIsAuthorized = await retrievedICManager
-          .isAuthorizedExtension(subjectModule, subjectAdditionalExtension);
-
-        expect(isAuthorizedSubjectExtension).to.be.true;
-        expect(isAuthorizedSubjectAdditionalExtension).to.be.true;
-        expect(transposedExtensionIsAuthorized).to.be.false;
-      });
     });
   });
 
@@ -1718,6 +1575,68 @@ describe("BaseManagerV2", () => {
       it("should revert", async () => {
         await expect(subject()).to.be.revertedWith("Must be operator");
       });
+    });
+  });
+
+  describe("E2E: deployment, configuration, methodologist authorization, use", async () => {
+    let subjectSetToken: Address;
+    let subjectExtension: StreamingFeeSplitExtension;
+    let subjectModule: Address;
+    let subjectOperator: Address;
+    let subjectMethodologist: Address;
+    let subjectFeeSplit: BigNumber;
+    let subjectOperatorFeeRecipient: Address;
+    let subjectManager: BaseManagerV2;
+
+    beforeEach(async () => {
+      subjectSetToken = setToken.address;
+      subjectModule = setV2Setup.streamingFeeModule.address;
+      subjectOperator = operator.address;
+      subjectMethodologist = methodologist.address;
+      subjectFeeSplit = ether(.7);
+      subjectOperatorFeeRecipient = operator.address;
+
+      // Deploy new manager
+      subjectManager = await deployer.manager.deployBaseManagerV2(
+        subjectSetToken,
+        subjectOperator,
+        subjectMethodologist
+      );
+
+      // Deploy new fee extension
+      subjectExtension = await deployer.extensions.deployStreamingFeeSplitExtension(
+        subjectManager.address,
+        subjectModule,
+        subjectFeeSplit,
+        subjectOperatorFeeRecipient
+      );
+
+      // Operator protects module and adds extension
+      await subjectManager.connect(operator.wallet).protectModule(subjectModule, [subjectExtension.address]);
+
+      // Methodologist authorizes new manager
+      await subjectManager.connect(methodologist.wallet).authorizeInitialization();
+
+      // Transfer ownership from old to new manager
+      await baseManager.connect(operator.wallet).setManager(subjectManager.address);
+      await baseManager.connect(methodologist.wallet).setManager(subjectManager.address);
+    });
+
+    // Makes mutual upgrade call which routes call to module via interactManager
+    async function subject(): Promise<void> {
+      await subjectExtension.connect(operator.wallet).updateFeeRecipient(subjectExtension.address);
+      await subjectExtension.connect(methodologist.wallet).updateFeeRecipient(subjectExtension.address);
+    }
+
+    it("allows protected calls", async() => {
+      const initialFeeRecipient = (await setV2Setup.streamingFeeModule.feeStates(subjectSetToken)).feeRecipient;
+
+      await subject();
+
+      const finalFeeRecipient = (await setV2Setup.streamingFeeModule.feeStates(subjectSetToken)).feeRecipient;
+
+      expect(initialFeeRecipient).to.equal(operator.address);
+      expect(finalFeeRecipient).to.equal(subjectExtension.address);
     });
   });
 });

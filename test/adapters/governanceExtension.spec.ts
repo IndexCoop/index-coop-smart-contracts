@@ -67,9 +67,7 @@ describe("GovernanceExtension", () => {
     baseManagerV2 = await deployer.manager.deployBaseManagerV2(
       setToken.address,
       operator.address,
-      methodologist.address,
-      [],
-      [[]]
+      methodologist.address
     );
     await baseManagerV2.connect(methodologist.wallet).authorizeInitialization();
   });
