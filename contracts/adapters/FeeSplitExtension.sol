@@ -111,8 +111,11 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
     }
 
     /**
-     * MUTUAL UPGRADE: Updates streaming fee on StreamingFeeModule. NOTE: This will accrue streaming
-     * fees though not send to operator fee recipient and methodologist.
+     * MUTUAL UPGRADE: Updates streaming fee on StreamingFeeModule. Operator and Methodologist must each call
+     * this function to execute the update. Because the method is timelocked, each party must call it twice:
+     * once to set the lock and once to execute.
+     *
+     * NOTE: This will accrue streaming fees though not send to operator fee recipient and methodologist.
      */
     function updateStreamingFee(uint256 _newFee)
         external
@@ -125,6 +128,8 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
 
     /**
      * MUTUAL UPGRADE: Updates issue fee on IssuanceModule. Only is executed once time lock has passed.
+     * Operator and Methodologist must each call this function to execute the update. Because the method
+     * is timelocked, each party must call it twice: once to set the lock and once to execute.
      */
     function updateIssueFee(uint256 _newFee)
         external
@@ -137,6 +142,8 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
 
     /**
      * MUTUAL UPGRADE: Updates redeem fee on IssuanceModule. Only is executed once time lock has passed.
+     * Operator and Methodologist must each call this function to execute the update. Because the method is
+     * timelocked, each party must call it twice: once to set the lock and once to execute.
      */
     function updateRedeemFee(uint256 _newFee)
         external
