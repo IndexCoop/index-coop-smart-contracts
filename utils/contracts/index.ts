@@ -2,6 +2,7 @@ export { BaseExtensionMock } from "../../typechain/BaseExtensionMock";
 export { BaseManager } from "../../typechain/BaseManager";
 export { BaseManagerV2 } from "../../typechain/BaseManagerV2";
 export { ChainlinkAggregatorV3Mock } from "../../typechain/ChainlinkAggregatorV3Mock";
+export { DebtIssuanceModule } from "../../typechain/DebtIssuanceModule";
 export { ExchangeIssuance } from "../../typechain/ExchangeIssuance";
 export { ExchangeIssuanceV2 } from "../../typechain/ExchangeIssuanceV2";
 export { FeeSplitExtension } from "../../typechain/FeeSplitExtension";

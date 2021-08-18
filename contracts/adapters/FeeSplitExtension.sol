@@ -15,6 +15,7 @@
 */
 
 pragma solidity 0.6.10;
+pragma experimental ABIEncoderV2;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
@@ -108,6 +109,57 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
         }
 
         emit FeesDistributed(operatorFeeRecipient, methodologist, operatorTake, methodologistTake);
+    }
+
+    /**
+     * MUTUAL UPGRADE: Initializes the issuance module. Operator and Methodologist must each call
+     * this function to execute the update.
+     *
+     * This method is called after invoking `replaceProtectedModule` or `emergencyReplaceProtectedModule`
+     * to configure the replacement streaming fee module's fee settings.
+     */
+    function initializeIssuanceModule(
+        ISetToken _setToken,
+        uint256 _maxManagerFee,
+        uint256 _managerIssueFee,
+        uint256 _managerRedeemFee,
+        address _feeRecipient,
+        address _managerIssuanceHook
+    )
+        external
+        mutualUpgrade(manager.operator(), manager.methodologist())
+    {
+        bytes memory callData = abi.encodeWithSelector(
+            IIssuanceModule.initialize.selector,
+            manager.setToken(),
+            _maxManagerFee,
+            _managerIssueFee,
+            _managerRedeemFee,
+            _feeRecipient,
+            _managerIssuanceHook
+        );
+
+        invokeManager(address(issuanceModule), callData);
+    }
+
+    /**
+     * MUTUAL UPGRADE: Initializes the issuance module. Operator and Methodologist must each call
+     * this function to execute the update.
+     *
+     * This method is called after invoking `replaceProtectedModule` or `emergencyReplaceProtectedModule`
+     * to configure the replacement streaming fee module's fee settings.
+     */
+    function initializeStreamingFeeModule(IStreamingFeeModule.FeeState memory _settings)
+        external
+        mutualUpgrade(manager.operator(), manager.methodologist())
+    {
+        bytes memory callData = abi.encodeWithSelector(
+            IStreamingFeeModule.initialize.selector,
+            manager.setToken(),
+            _settings
+        );
+
+        invokeManager(address(streamingFeeModule), callData);
     }
 
     /**
