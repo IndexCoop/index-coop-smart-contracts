@@ -337,7 +337,7 @@ contract BaseManagerV2 is MutualUpgrade {
         setToken.removeModule(_module);
         emergencies += 1;
 
-        EmergencyRemovedProtectedModule(_module);
+        emit EmergencyRemovedProtectedModule(_module);
     }
 
     /**
@@ -412,7 +412,7 @@ contract BaseManagerV2 is MutualUpgrade {
 
         _protectModule(_newModule, _newExtensions);
 
-        ReplacedProtectedModule(_oldModule, _newModule, _newExtensions);
+        emit ReplacedProtectedModule(_oldModule, _newModule, _newExtensions);
     }
 
     /**
@@ -449,7 +449,7 @@ contract BaseManagerV2 is MutualUpgrade {
 
         emergencies -= 1;
 
-        EmergencyReplacedProtectedModule(_module, _extensions);
+        emit EmergencyReplacedProtectedModule(_module, _extensions);
     }
 
     /**
