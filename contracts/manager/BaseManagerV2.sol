@@ -261,12 +261,7 @@ contract BaseManagerV2 is MutualUpgrade {
         require(protectedModules[_module].isProtected, "Module not protected");
         require(!protectedModules[_module].authorizedExtensions[_extension], "Extension already authorized");
 
-        if (!isExtension[_extension]) {
-            _addExtension(_extension);
-        }
-
-        protectedModules[_module].authorizedExtensions[_extension] = true;
-        protectedModules[_module].authorizedExtensionsList.push(_extension);
+        _authorizeExtension(_module, _extension);
 
         emit ExtensionAuthorized(_module, _extension);
     }
@@ -557,12 +552,20 @@ contract BaseManagerV2 is MutualUpgrade {
         protectedModulesList.push(_module);
 
         for (uint i = 0; i < _extensions.length; i++) {
-            if (!isExtension[_extensions[i]]) {
-                _addExtension(_extensions[i]);
-            }
-            protectedModules[_module].authorizedExtensions[_extensions[i]] = true;
-            protectedModules[_module].authorizedExtensionsList.push(_extensions[i]);
+            _authorizeExtension(_module, _extensions[i]);
         }
+    }
+
+    /**
+     * Adds extension if not already added and marks extension as authorized for module
+     */
+    function _authorizeExtension(address _module, address _extension) internal {
+        if (!isExtension[_extension]) {
+            _addExtension(_extension);
+        }
+
+        protectedModules[_module].authorizedExtensions[_extension] = true;
+        protectedModules[_module].authorizedExtensionsList.push(_extension);
     }
 
     /**
