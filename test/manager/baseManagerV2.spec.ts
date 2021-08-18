@@ -18,7 +18,7 @@ import { SetFixture } from "@utils/fixtures";
 
 import { solidityKeccak256 } from "ethers/lib/utils";
 import { ContractTransaction } from "ethers";
-import { BigNumber } from "@ethersproject/BigNumber";
+import { BigNumber } from "@ethersproject/bignumber";
 
 const expect = getWaffleExpect();
 
