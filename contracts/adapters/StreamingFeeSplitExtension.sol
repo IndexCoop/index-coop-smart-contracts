@@ -15,6 +15,7 @@
 */
 
 pragma solidity 0.6.10;
+pragma experimental ABIEncoderV2;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
@@ -104,6 +105,26 @@ contract StreamingFeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpg
         }
 
         emit FeesDistributed(operatorFeeRecipient, methodologist, operatorTake, methodologistTake);
+    }
+
+    /**
+     * MUTUAL UPGRADE: Initializes the streaming fee module. Operator and Methodologist must each call
+     * this function to execute the update.
+     *
+     * This method is called after invoking `replaceProtectedModule` or `emergencyReplaceProtectedModule`
+     * to configure the replacement streaming fee module's fee settings.
+     */
+    function initializeModule(IStreamingFeeModule.FeeState memory _settings)
+        external
+        mutualUpgrade(manager.operator(), manager.methodologist())
+    {
+        bytes memory callData = abi.encodeWithSelector(
+            IStreamingFeeModule.initialize.selector,
+            manager.setToken(),
+            _settings
+        );
+
+        invokeManager(address(streamingFeeModule), callData);
     }
 
     /**

@@ -3,7 +3,7 @@ import "module-alias/register";
 import { solidityKeccak256 } from "ethers/lib/utils";
 import { Address, Account } from "@utils/types";
 import { ADDRESS_ZERO, ZERO, ONE_DAY_IN_SECONDS, ONE_YEAR_IN_SECONDS } from "@utils/constants";
-import { StreamingFeeSplitExtension, BaseManagerV2 } from "@utils/contracts/index";
+import { StreamingFeeSplitExtension, StreamingFeeModule, BaseManagerV2 } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -300,6 +300,111 @@ describe("StreamingFeeSplitExtension", () => {
           expect(operatorFeeRecipientBalance).to.eq(expectedOperatorTake);
           expect(methodologistBalance).to.eq(expectedMethodologistTake);
           });
+      });
+    });
+
+    describe("#initializeModule", () => {
+      let subjectSetToken: Address;
+      let subjectFeeSettings: any;
+      let subjectExtension: StreamingFeeSplitExtension;
+      let subjectModule: StreamingFeeModule;
+      let subjectManager: Address;
+      let subjectOperatorFeeSplit: BigNumber;
+      let subjectOperatorFeeRecipient: Address;
+
+      beforeEach( async () => {
+        subjectSetToken = setToken.address;
+        subjectManager = baseManagerV2.address;
+        subjectOperatorFeeSplit = ether(.7);
+        subjectOperatorFeeRecipient = operator.address;
+
+        // Deploy new fee module
+        subjectModule = await deployer.setV2.deployStreamingFeeModule(setV2Setup.controller.address);
+        await setV2Setup.controller.addModule(subjectModule.address);
+
+        // Deploy new fee extension
+        subjectExtension = await deployer.extensions.deployStreamingFeeSplitExtension(
+          subjectManager,
+          subjectModule.address,
+          subjectOperatorFeeSplit,
+          subjectOperatorFeeRecipient,
+        );
+
+        // Replace module and extension
+        await baseManagerV2.connect(operator.wallet).replaceProtectedModule(
+          setV2Setup.streamingFeeModule.address,
+          subjectModule.address,
+          [subjectExtension.address]
+        );
+
+        await baseManagerV2.connect(methodologist.wallet).replaceProtectedModule(
+          setV2Setup.streamingFeeModule.address,
+          subjectModule.address,
+          [subjectExtension.address]
+        );
+
+        subjectFeeSettings = {
+          feeRecipient: subjectExtension.address,
+          maxStreamingFeePercentage: ether(.01),
+          streamingFeePercentage: ether(.01),
+          lastStreamingFeeTimestamp: ZERO,
+        };
+      });
+
+      async function subject(caller: Account): Promise<ContractTransaction> {
+         return await subjectExtension.connect(caller.wallet).initializeModule(subjectFeeSettings);
+      }
+
+      context("when both parties call the method", async () => {
+        it("should initialize the streaming fee module", async () => {
+          const initialFeeRecipient = (await subjectModule.feeStates(subjectSetToken)).feeRecipient;
+
+          await subject(operator);
+          await subject(methodologist);
+
+          const finalFeeRecipient = (await subjectModule.feeStates(subjectSetToken)).feeRecipient;
+
+          expect(initialFeeRecipient).to.equal(ADDRESS_ZERO);
+          expect(finalFeeRecipient).to.equal(subjectExtension.address);
+        });
+
+        it("should enable calls on the protected module", async () => {
+          const newFeeRecipient = baseManagerV2.address;
+
+          await subject(operator);
+          await subject(methodologist);
+
+          // Reset fee recipient
+          await subjectExtension.connect(operator.wallet).updateFeeRecipient(newFeeRecipient);
+          await subjectExtension.connect(methodologist.wallet).updateFeeRecipient(newFeeRecipient);
+
+          const receivedFeeRecipient = (await subjectModule.feeStates(subjectSetToken)).feeRecipient;
+
+          expect(receivedFeeRecipient).to.equal(newFeeRecipient);
+        });
+      });
+
+      context("when a single mutual upgrade party has called the method", async () => {
+        afterEach(async () => await subject(methodologist));
+
+        it("should log the proposed streaming fee hash in the mutualUpgrades mapping", async () => {
+          const txHash = await subject(operator);
+
+          const expectedHash = solidityKeccak256(
+            ["bytes", "address"],
+            [txHash.data, operator.address]
+          );
+
+          const isLogged = await subjectExtension.mutualUpgrades(expectedHash);
+
+          expect(isLogged).to.be.true;
+        });
+      });
+
+      describe("when the caller is not the operator or methodologist", async () => {
+        it("should revert", async () => {
+          await expect(subject(await getRandomAccount())).to.be.revertedWith("Must be authorized address");
+        });
       });
     });
 
