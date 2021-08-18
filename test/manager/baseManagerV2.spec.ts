@@ -156,18 +156,9 @@ describe("BaseManagerV2", () => {
       expect(initialized).to.be.false;
     });
 
-    describe("protectedModules: single, no extensions", () => {
+    describe("protectedModules: single, no extensions, module already added", () => {
       beforeEach(() => {
         subjectProtectedModules = [subjectModule];
-      });
-
-      // This test is borked... module initialized in before block..
-      it("should add module to setToken", async () => {
-        await subject();
-
-        const initialized = await setToken.isInitializedModule(subjectModule);
-
-        expect(initialized).to.be.true;
       });
 
       it("should protect the module", async () => {
@@ -182,6 +173,28 @@ describe("BaseManagerV2", () => {
 
         const protectedModules = await retrievedICManager.getProtectedModules();
         expect(protectedModules.includes(subjectModule)).to.be.true;
+      });
+    });
+
+    describe("protectedModules: when module is not yet added", () => {
+      beforeEach(async () => {
+        await setV2Setup.controller.addModule(otherAccount.address);
+
+        subjectModule = otherAccount.address;
+        subjectProtectedModules = [subjectModule];
+      });
+
+      it("should be possible to add protected module to setToken after deployment", async () => {
+        await subject();
+
+        const initialIsPending = await setToken.isPendingModule(subjectModule);
+
+        await baseManager.connect(operator.wallet).addModule(subjectModule);
+
+        const finalIsPending = await setToken.isPendingModule(subjectModule);
+
+        expect(initialIsPending).to.be.false;
+        expect(finalIsPending).to.be.true;
       });
     });
 
