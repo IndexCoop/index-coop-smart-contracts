@@ -3,7 +3,7 @@ import "module-alias/register";
 import { BigNumber } from "@ethersproject/bignumber";
 import { Account, Address, Bytes } from "@utils/types";
 import { ZERO, ADDRESS_ZERO } from "@utils/constants";
-import { BaseAdapterMock, BaseManager } from "@utils/contracts/index";
+import { BaseExtensionMock, BaseManagerV2 } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import { ContractCallerMock } from "@utils/contracts/setV2";
 
@@ -21,7 +21,7 @@ import { ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
 
-describe("BaseAdapter", () => {
+describe("BaseExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let otherAccount: Account;
@@ -29,8 +29,8 @@ describe("BaseAdapter", () => {
   let setToken: SetToken;
   let setV2Setup: SetFixture;
 
-  let baseManagerV2: BaseManager;
-  let baseAdapterMock: BaseAdapterMock;
+  let baseManagerV2: BaseManagerV2;
+  let baseExtensionMock: BaseExtensionMock;
 
   before(async () => {
     [
@@ -64,19 +64,20 @@ describe("BaseAdapter", () => {
     await setV2Setup.streamingFeeModule.initialize(setToken.address, streamingFeeSettings);
 
     // Deploy BaseManager
-    baseManagerV2 = await deployer.manager.deployBaseManager(
+    baseManagerV2 = await deployer.manager.deployBaseManagerV2(
       setToken.address,
       owner.address,
-      methodologist.address,
+      methodologist.address
     );
+    await baseManagerV2.connect(methodologist.wallet).authorizeInitialization();
 
-    baseAdapterMock = await deployer.mocks.deployBaseAdapterMock(baseManagerV2.address);
+    baseExtensionMock = await deployer.mocks.deployBaseExtensionMock(baseManagerV2.address);
 
     // Transfer ownership to BaseManager
     await setToken.setManager(baseManagerV2.address);
-    await baseManagerV2.addAdapter(baseAdapterMock.address);
+    await baseManagerV2.addExtension(baseExtensionMock.address);
 
-    await baseAdapterMock.updateCallerStatus([owner.address], [true]);
+    await baseExtensionMock.updateCallerStatus([owner.address], [true]);
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -89,7 +90,7 @@ describe("BaseAdapter", () => {
     });
 
     async function subject(): Promise<ContractTransaction> {
-      return baseAdapterMock.connect(subjectCaller.wallet).testOnlyOperator();
+      return baseExtensionMock.connect(subjectCaller.wallet).testOnlyOperator();
     }
 
     it("should succeed without revert", async () => {
@@ -115,7 +116,7 @@ describe("BaseAdapter", () => {
     });
 
     async function subject(): Promise<ContractTransaction> {
-      return baseAdapterMock.connect(subjectCaller.wallet).testOnlyMethodologist();
+      return baseExtensionMock.connect(subjectCaller.wallet).testOnlyMethodologist();
     }
 
     it("should succeed without revert", async () => {
@@ -141,7 +142,7 @@ describe("BaseAdapter", () => {
     });
 
     async function subject(): Promise<ContractTransaction> {
-      return baseAdapterMock.connect(subjectCaller.wallet).testOnlyEOA();
+      return baseExtensionMock.connect(subjectCaller.wallet).testOnlyEOA();
     }
 
     it("should succeed without revert", async () => {
@@ -158,8 +159,8 @@ describe("BaseAdapter", () => {
       beforeEach(async () => {
         contractCaller = await deployer.setV2.deployContractCallerMock();
 
-        subjectTarget = baseAdapterMock.address;
-        subjectCallData = baseAdapterMock.interface.encodeFunctionData("testOnlyEOA");
+        subjectTarget = baseExtensionMock.address;
+        subjectCallData = baseExtensionMock.interface.encodeFunctionData("testOnlyEOA");
         subjectValue = ZERO;
       });
 
@@ -185,7 +186,7 @@ describe("BaseAdapter", () => {
     });
 
     async function subject(): Promise<ContractTransaction> {
-      return baseAdapterMock.connect(subjectCaller.wallet).testOnlyAllowedCaller(subjectCaller.address);
+      return baseExtensionMock.connect(subjectCaller.wallet).testOnlyAllowedCaller(subjectCaller.address);
     }
 
     it("should succeed without revert", async () => {
@@ -203,7 +204,7 @@ describe("BaseAdapter", () => {
 
       describe("when anyoneCallable is flipped to true", async () => {
         beforeEach(async () => {
-          await baseAdapterMock.updateAnyoneCallable(true);
+          await baseExtensionMock.updateAnyoneCallable(true);
         });
 
         it("should succeed without revert", async () => {
@@ -228,7 +229,7 @@ describe("BaseAdapter", () => {
     });
 
     async function subject(): Promise<ContractTransaction> {
-      return baseAdapterMock.connect(subjectCaller.wallet).testInvokeManager(subjectModule, subjectCallData);
+      return baseExtensionMock.connect(subjectCaller.wallet).testInvokeManager(subjectModule, subjectCallData);
     }
 
     it("should call updateFeeRecipient on the streaming fee module from the SetToken", async () => {
@@ -252,7 +253,7 @@ describe("BaseAdapter", () => {
     });
 
     async function subject(): Promise<ContractTransaction> {
-      return baseAdapterMock.testInvokeManagerTransfer(
+      return baseExtensionMock.testInvokeManagerTransfer(
         subjectToken,
         subjectDestination,
         subjectAmount
@@ -285,17 +286,17 @@ describe("BaseAdapter", () => {
     });
 
     async function subject(): Promise<ContractTransaction> {
-      return baseAdapterMock.connect(subjectCaller.wallet).updateCallerStatus(subjectFunctionCallers, subjectStatuses);
+      return baseExtensionMock.connect(subjectCaller.wallet).updateCallerStatus(subjectFunctionCallers, subjectStatuses);
     }
 
     it("should update the callAllowList", async () => {
       await subject();
-      const callerStatus = await baseAdapterMock.callAllowList(subjectFunctionCallers[0]);
+      const callerStatus = await baseExtensionMock.callAllowList(subjectFunctionCallers[0]);
       expect(callerStatus).to.be.true;
     });
 
     it("should emit CallerStatusUpdated event", async () => {
-      await expect(subject()).to.emit(baseAdapterMock, "CallerStatusUpdated").withArgs(
+      await expect(subject()).to.emit(baseExtensionMock, "CallerStatusUpdated").withArgs(
         subjectFunctionCallers[0],
         subjectStatuses[0]
       );
@@ -322,17 +323,17 @@ describe("BaseAdapter", () => {
     });
 
     async function subject(): Promise<ContractTransaction> {
-      return baseAdapterMock.connect(subjectCaller.wallet).updateAnyoneCallable(subjectStatus);
+      return baseExtensionMock.connect(subjectCaller.wallet).updateAnyoneCallable(subjectStatus);
     }
 
     it("should update the anyoneCallable boolean", async () => {
       await subject();
-      const callerStatus = await baseAdapterMock.anyoneCallable();
+      const callerStatus = await baseExtensionMock.anyoneCallable();
       expect(callerStatus).to.be.true;
     });
 
     it("should emit AnyoneCallableUpdated event", async () => {
-      await expect(subject()).to.emit(baseAdapterMock, "AnyoneCallableUpdated").withArgs(
+      await expect(subject()).to.emit(baseExtensionMock, "AnyoneCallableUpdated").withArgs(
         subjectStatus
       );
     });

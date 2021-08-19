@@ -1,7 +1,7 @@
 import { Signer, BigNumber } from "ethers";
 import { Address } from "../types";
 import {
-  BaseAdapterMock,
+  BaseExtensionMock,
   FLIStrategyExtensionMock,
   GovernanceAdapterMock,
   MutualUpgradeMock,
@@ -10,7 +10,7 @@ import {
   TradeAdapterMock
 } from "../contracts/index";
 
-import { BaseAdapterMock__factory } from "../../typechain/factories/BaseAdapterMock__factory";
+import { BaseExtensionMock__factory } from "../../typechain/factories/BaseExtensionMock__factory";
 import { ChainlinkAggregatorV3Mock__factory  } from "../../typechain/factories/ChainlinkAggregatorV3Mock__factory";
 import { FLIStrategyExtensionMock__factory } from "../../typechain/factories/FLIStrategyExtensionMock__factory";
 import { GovernanceAdapterMock__factory  } from "../../typechain/factories/GovernanceAdapterMock__factory";
@@ -27,8 +27,8 @@ export default class DeployMocks {
     this._deployerSigner = deployerSigner;
   }
 
-  public async deployBaseAdapterMock(manager: Address): Promise<BaseAdapterMock> {
-    return await new BaseAdapterMock__factory(this._deployerSigner).deploy(manager);
+  public async deployBaseExtensionMock(manager: Address): Promise<BaseExtensionMock> {
+    return await new BaseExtensionMock__factory(this._deployerSigner).deploy(manager);
   }
 
   public async deployTradeAdapterMock(): Promise<TradeAdapterMock> {

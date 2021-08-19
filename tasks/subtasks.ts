@@ -14,7 +14,7 @@ subtask(TASK_COMPILE_SOLIDITY_GET_ARTIFACT_FROM_COMPILATION_OUTPUT)
 
     // These changes should be skipped when publishing to npm.
     // They override ethers' gas estimation
-    if (!process.env.SKIP_ABI_GAS_MODS){
+    if (!process.env.SKIP_ABI_GAS_MODS) {
       artifact.abi = addGasToAbiMethods(network.config, artifact.abi);
     }
 

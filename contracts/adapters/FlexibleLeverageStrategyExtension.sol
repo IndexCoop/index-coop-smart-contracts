@@ -23,7 +23,7 @@ import { Math } from "@openzeppelin/contracts/math/Math.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
 
-import { BaseAdapter } from "../lib/BaseAdapter.sol";
+import { BaseExtension } from "../lib/BaseExtension.sol";
 import { ICErc20 } from "../interfaces/ICErc20.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IChainlinkAggregatorV3 } from "../interfaces/IChainlinkAggregatorV3.sol";
@@ -50,7 +50,7 @@ import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
  *
  * CHANGELOG 5/24/2021:
  * - Update _calculateActionInfo to add chainlink prices
- * - Update _calculateBorrowUnits and _calculateMinRepayUnits to use chainlink as an oracle in 
+ * - Update _calculateBorrowUnits and _calculateMinRepayUnits to use chainlink as an oracle in
  *
  * CHANGELOG 6/29/2021: c55bd3cdb0fd43c03da9904493dcc23771ef0f71
  * - Add ExchangeSettings struct that contains exchange specific information
@@ -66,7 +66,7 @@ import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
  * - Add _updateLastTradeTimestamp function to update global and exchange specific timestamp
  * - Change contract name to FlexibleLeverageStrategyExtension
  */
-contract FlexibleLeverageStrategyExtension is BaseAdapter {
+contract FlexibleLeverageStrategyExtension is BaseExtension {
     using Address for address;
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
@@ -116,7 +116,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
         uint256 borrowDecimalAdjustment;                // Decimal adjustment for chainlink oracle of the borrowing asset. Equal to 28-borrowDecimals (10^18 * 10^18 / 10^decimals / 10^8)
     }
 
-    struct MethodologySettings { 
+    struct MethodologySettings {
         uint256 targetLeverageRatio;                     // Long term target ratio in precise units (10e18)
         uint256 minLeverageRatio;                        // In precise units (10e18). If current leverage is below, rebalance target is this ratio
         uint256 maxLeverageRatio;                        // In precise units (10e18). If current leverage is above, rebalance target is this ratio
@@ -124,7 +124,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
         uint256 rebalanceInterval;                       // Period of time required since last rebalance timestamp in seconds
     }
 
-    struct ExecutionSettings { 
+    struct ExecutionSettings {
         uint256 unutilizedLeveragePercentage;            // Percent of max borrow left unutilized in precise units (1% = 10e16)
         uint256 slippageTolerance;                       // % in precise units to price min token receive amount from trade quantities
         uint256 twapCooldownPeriod;                      // Cooldown period required since last trade timestamp in seconds
@@ -230,7 +230,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
 
     /**
      * Instantiate addresses, methodology parameters, execution parameters, and incentive parameters.
-     * 
+     *
      * @param _manager                  Address of IBaseManager contract
      * @param _strategy                 Struct of contract addresses
      * @param _methodology              Struct containing methodology parameters
@@ -249,7 +249,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
         ExchangeSettings[] memory _exchangeSettings
     )
         public
-        BaseAdapter(_manager)
+        BaseExtension(_manager)
     {
         strategy = _strategy;
         methodology = _methodology;
@@ -313,7 +313,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
     }
 
     /**
-     * ONLY EOA AND ALLOWED CALLER: Rebalance according to flexible leverage methodology. If current leverage ratio is between the max and min bounds, then rebalance 
+     * ONLY EOA AND ALLOWED CALLER: Rebalance according to flexible leverage methodology. If current leverage ratio is between the max and min bounds, then rebalance
      * can only be called once the rebalance interval has elapsed since last timestamp. If outside the max and min, rebalance can be called anytime to bring leverage
      * ratio back to the max or min bounds. The methodology will determine whether to delever or lever.
      *
@@ -363,7 +363,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
             _exchangeName
         );
 
-        // Use the exchangeLastTradeTimestamp since cooldown periods are measured on a per-exchange basis, allowing it to rebalance multiple time in quick 
+        // Use the exchangeLastTradeTimestamp since cooldown periods are measured on a per-exchange basis, allowing it to rebalance multiple time in quick
         // succession with different exchanges
         _validateNormalRebalance(leverageInfo, execution.twapCooldownPeriod, exchangeSettings[_exchangeName].exchangeLastTradeTimestamp);
         _validateTWAP();
@@ -396,7 +396,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
      */
     function ripcord(string memory _exchangeName) external onlyEOA {
         LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(
-            incentive.incentivizedSlippageTolerance, 
+            incentive.incentivizedSlippageTolerance,
             exchangeSettings[_exchangeName].incentivizedTwapMaxTradeSize,
             _exchangeName
         );
@@ -424,7 +424,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
      * OPERATOR ONLY: Return leverage ratio to 1x and delever to repay loan. This can be used for upgrading or shutting down the strategy. SetToken will redeem
      * collateral position and trade for debt position to repay Compound. If the chunk rebalance size is less than the total notional size, then this function will
      * delever and repay entire borrow balance on Compound. If chunk rebalance size is above max borrow or max trade size, then operator must
-     * continue to call this function to complete repayment of loan. The function iterateRebalance will not work. 
+     * continue to call this function to complete repayment of loan. The function iterateRebalance will not work.
      *
      * Note: Delever to 0 will likely result in additional units of the borrow asset added as equity on the SetToken due to oracle price / market price mismatch
      *
@@ -526,8 +526,8 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
         string memory _exchangeName,
         ExchangeSettings memory _exchangeSettings
     )
-        external 
-        onlyOperator 
+        external
+        onlyOperator
     {
         require(exchangeSettings[_exchangeName].twapMaxTradeSize == 0, "Exchange already enabled");
         _validateExchangeSettings(_exchangeSettings);
@@ -537,7 +537,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
         exchangeSettings[_exchangeName].leverExchangeData = _exchangeSettings.leverExchangeData;
         exchangeSettings[_exchangeName].deleverExchangeData = _exchangeSettings.deleverExchangeData;
         exchangeSettings[_exchangeName].exchangeLastTradeTimestamp = 0;
-        
+
         enabledExchanges.push(_exchangeName);
 
         emit ExchangeAdded(
@@ -551,7 +551,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
     }
 
     /**
-     * OPERATOR ONLY: Removes an exchange. Reverts if the exchange is not already enabled. Removing exchanges during rebalances is allowed, 
+     * OPERATOR ONLY: Removes an exchange. Reverts if the exchange is not already enabled. Removing exchanges during rebalances is allowed,
      * as it is not possible to enter an unexpected state while doing so.
      *
      * @param _exchangeName     Name of exchange to remove
@@ -566,9 +566,9 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
     }
 
     /**
-     * OPERATOR ONLY: Updates the settings of an exchange. Reverts if exchange is not already added. When updating an exchange, exchangeLastTradeTimestamp 
-     * is preserved. Updating exchanges during rebalances is allowed, as it is not possible to enter an unexpected state while doing so. Note: Need to 
-     * pass in all existing parameters even if only changing a few settings. 
+     * OPERATOR ONLY: Updates the settings of an exchange. Reverts if exchange is not already added. When updating an exchange, exchangeLastTradeTimestamp
+     * is preserved. Updating exchanges during rebalances is allowed, as it is not possible to enter an unexpected state while doing so. Note: Need to
+     * pass in all existing parameters even if only changing a few settings.
      *
      * @param _exchangeName         Name of the exchange
      * @param _exchangeSettings     Struct containing exchange parameters
@@ -597,7 +597,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
             _exchangeSettings.deleverExchangeData
         );
     }
-    
+
     /**
      * OPERATOR ONLY: Withdraw entire balance of ETH in this contract to operator. Rebalance must not be in progress
      */
@@ -623,7 +623,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
 
     /**
      * Calculates the chunk rebalance size. This can be used by external contracts and keeper bots to calculate the optimal exchange to rebalance with.
-     * Note: this function does not take into account timestamps, so it may return a nonzero value even when shouldRebalance would return ShouldRebalance.NONE for 
+     * Note: this function does not take into account timestamps, so it may return a nonzero value even when shouldRebalance would return ShouldRebalance.NONE for
      * all exchanges (since minimum delays have not elapsed)
      *
      * @param _exchangeNames    Array of exchange names to get rebalance sizes for
@@ -634,7 +634,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
      */
     function getChunkRebalanceNotional(
         string[] calldata _exchangeNames
-    ) 
+    )
         external
         view
         returns(uint256[] memory sizes, address sellAsset, address buyAsset)
@@ -662,13 +662,13 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
         sizes = new uint256[](_exchangeNames.length);
 
         for (uint256 i = 0; i < _exchangeNames.length; i++) {
-    
+
             LeverageInfo memory leverageInfo = LeverageInfo({
                 action: actionInfo,
                 currentLeverageRatio: currentLeverageRatio,
                 slippageTolerance: isRipcord ? incentive.incentivizedSlippageTolerance : execution.slippageTolerance,
-                twapMaxTradeSize: isRipcord ? 
-                    exchangeSettings[_exchangeNames[i]].incentivizedTwapMaxTradeSize : 
+                twapMaxTradeSize: isRipcord ?
+                    exchangeSettings[_exchangeNames[i]].incentivizedTwapMaxTradeSize :
                     exchangeSettings[_exchangeNames[i]].twapMaxTradeSize,
                 exchangeName: _exchangeNames[i]
             });
@@ -684,7 +684,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
     }
 
     /**
-     * Get current Ether incentive for when current leverage ratio exceeds incentivized leverage ratio and ripcord can be called. If ETH balance on the contract is 
+     * Get current Ether incentive for when current leverage ratio exceeds incentivized leverage ratio and ripcord can be called. If ETH balance on the contract is
      * below the etherReward, then return the balance of ETH instead.
      *
      * return etherReward               Quantity of ETH reward in base units (10e18)
@@ -859,7 +859,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
                 totalRebalanceNotional
             ) = _calculateChunkRebalanceNotional(_leverageInfo, _newLeverageRatio, false);
 
-            _delever(_leverageInfo, chunkRebalanceNotional); 
+            _delever(_leverageInfo, chunkRebalanceNotional);
         } else {
             (
                 chunkRebalanceNotional,
@@ -910,7 +910,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
     function _createActionInfo() internal view returns(ActionInfo memory) {
         ActionInfo memory rebalanceInfo;
 
-        // Calculate prices from chainlink. Adjusts decimals to be in line with Compound's oracles. Chainlink returns prices with 8 decimal places, but 
+        // Calculate prices from chainlink. Adjusts decimals to be in line with Compound's oracles. Chainlink returns prices with 8 decimal places, but
         // compound expects 36 - underlyingDecimals decimal places from their oracles. This is so that when the underlying amount is multiplied by the
         // received price, the collateral valuation is normalized to 36 decimals. To perform this adjustment, we multiply by 10^(36 - 8 - underlyingDeciamls)
         int256 rawCollateralPrice = strategy.collateralPriceOracle.latestAnswer();
@@ -1029,7 +1029,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
      */
     function _isAdvantageousTWAP(uint256 _currentLeverageRatio) internal view returns (bool) {
         return (
-            (twapLeverageRatio < methodology.targetLeverageRatio && _currentLeverageRatio >= twapLeverageRatio) 
+            (twapLeverageRatio < methodology.targetLeverageRatio && _currentLeverageRatio >= twapLeverageRatio)
             || (twapLeverageRatio > methodology.targetLeverageRatio && _currentLeverageRatio <= twapLeverageRatio)
         );
     }
@@ -1071,7 +1071,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
     }
 
     /**
-     * Calculate total notional rebalance quantity and chunked rebalance quantity in collateral units. 
+     * Calculate total notional rebalance quantity and chunked rebalance quantity in collateral units.
      *
      * return uint256          Chunked rebalance notional in collateral units
      * return uint256          Total rebalance notional in collateral units
@@ -1100,7 +1100,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
     /**
      * Calculate the max borrow / repay amount allowed in collateral units for lever / delever. This is due to overcollateralization requirements on
      * assets deposited in lending protocols for borrowing.
-     * 
+     *
      * For lever, max borrow is calculated as:
      * (Net borrow limit in USD - existing borrow value in USD) / collateral asset price adjusted for decimals
      *
@@ -1194,7 +1194,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
         // If the chunk size is equal to the total notional meaning that rebalances are not chunked, then clear TWAP state.
         if (_chunkRebalanceNotional == _totalRebalanceNotional) {
             delete twapLeverageRatio;
-        }        
+        }
     }
 
     /**
@@ -1222,14 +1222,14 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
      }
 
     /**
-     * Transfer ETH reward to caller of the ripcord function. If the ETH balance on this contract is less than required 
+     * Transfer ETH reward to caller of the ripcord function. If the ETH balance on this contract is less than required
      * incentive quantity, then transfer contract balance instead to prevent reverts.
      *
      * return uint256           Amount of ETH transferred to caller
      */
     function _transferEtherRewardToCaller(uint256 _etherReward) internal returns(uint256) {
         uint256 etherToTransfer = _etherReward < address(this).balance ? _etherReward : address(this).balance;
-        
+
         msg.sender.transfer(etherToTransfer);
 
         return etherToTransfer;
@@ -1280,7 +1280,7 @@ contract FlexibleLeverageStrategyExtension is BaseAdapter {
                 }
             }
         }
-        
+
 
         return (enabledExchanges, shouldRebalanceEnums);
     }

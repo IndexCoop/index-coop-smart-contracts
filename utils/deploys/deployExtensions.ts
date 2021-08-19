@@ -4,38 +4,40 @@ import {
   ExchangeIssuance,
   ExchangeIssuanceV2,
   FlexibleLeverageStrategyExtension,
-  FeeSplitAdapter,
+  FeeSplitExtension,
   GIMExtension,
-  GovernanceAdapter,
+  GovernanceExtension,
   StreamingFeeSplitExtension
 } from "../contracts/index";
 
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
-import { FeeSplitAdapter__factory } from "../../typechain/factories/FeeSplitAdapter__factory";
+import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
 import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtension__factory";
 import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
-import { GovernanceAdapter__factory } from "../../typechain/factories/GovernanceAdapter__factory";
+import { GovernanceExtension__factory } from "../../typechain/factories/GovernanceExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 
-export default class DeployAdapters {
+export default class DeployExtensions {
   private _deployerSigner: Signer;
 
   constructor(deployerSigner: Signer) {
     this._deployerSigner = deployerSigner;
   }
 
-  public async deployFeeSplitAdapter(
+  public async deployFeeSplitExtension(
     manager: Address,
     streamingFeeModule: Address,
     debtIssuanceModule: Address,
     operatorFeeSplit: BigNumber,
-  ): Promise<FeeSplitAdapter> {
-    return await new FeeSplitAdapter__factory(this._deployerSigner).deploy(
+    operatorFeeRecipient: Address
+  ): Promise<FeeSplitExtension> {
+    return await new FeeSplitExtension__factory(this._deployerSigner).deploy(
       manager,
       streamingFeeModule,
       debtIssuanceModule,
-      operatorFeeSplit
+      operatorFeeSplit,
+      operatorFeeRecipient
     );
   }
 
@@ -43,19 +45,21 @@ export default class DeployAdapters {
     manager: Address,
     streamingFeeModule: Address,
     operatorFeeSplit: BigNumber,
+    operatorFeeRecipient: Address,
   ): Promise<StreamingFeeSplitExtension> {
     return await new StreamingFeeSplitExtension__factory(this._deployerSigner).deploy(
       manager,
       streamingFeeModule,
-      operatorFeeSplit
+      operatorFeeSplit,
+      operatorFeeRecipient
     );
   }
 
-  public async deployGovernanceAdapter(
+  public async deployGovernanceExtension(
     manager: Address,
     governanceModule: Address,
-  ): Promise<GovernanceAdapter> {
-    return await new GovernanceAdapter__factory(this._deployerSigner).deploy(
+  ): Promise<GovernanceExtension> {
+    return await new GovernanceExtension__factory(this._deployerSigner).deploy(
       manager,
       governanceModule
     );

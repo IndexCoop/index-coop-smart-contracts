@@ -2,7 +2,7 @@ import "module-alias/register";
 
 import { Address, Account } from "@utils/types";
 import { ADDRESS_ZERO, EMPTY_BYTES, ONE, TWO } from "@utils/constants";
-import { GovernanceAdapter, BaseManager, GovernanceAdapterMock } from "@utils/contracts/index";
+import { GovernanceExtension, BaseManagerV2, GovernanceAdapterMock } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -18,7 +18,7 @@ import { BigNumber, ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
 
-describe("GovernanceAdapter", () => {
+describe("GovernanceExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
@@ -30,8 +30,8 @@ describe("GovernanceAdapter", () => {
   let deployer: DeployHelper;
   let setToken: SetToken;
 
-  let baseManagerV2: BaseManager;
-  let governanceAdapter: GovernanceAdapter;
+  let baseManagerV2: BaseManagerV2;
+  let governanceExtension: GovernanceExtension;
   let governanceMock: GovernanceAdapterMock;
 
   const governanceMockName: string = "GovernanceMock";
@@ -64,11 +64,12 @@ describe("GovernanceAdapter", () => {
     );
 
     // Deploy BaseManager
-    baseManagerV2 = await deployer.manager.deployBaseManager(
+    baseManagerV2 = await deployer.manager.deployBaseManagerV2(
       setToken.address,
       operator.address,
       methodologist.address
     );
+    await baseManagerV2.connect(methodologist.wallet).authorizeInitialization();
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -82,45 +83,45 @@ describe("GovernanceAdapter", () => {
       subjectGovernanceModule = setV2Setup.governanceModule.address;
     });
 
-    async function subject(): Promise<GovernanceAdapter> {
-      return await deployer.adapters.deployGovernanceAdapter(
+    async function subject(): Promise<GovernanceExtension> {
+      return await deployer.extensions.deployGovernanceExtension(
         subjectManager,
         subjectGovernanceModule
       );
     }
 
     it("should set the correct SetToken address", async () => {
-      const governanceAdapter = await subject();
+      const governanceExtension = await subject();
 
-      const actualToken = await governanceAdapter.setToken();
+      const actualToken = await governanceExtension.setToken();
       expect(actualToken).to.eq(setToken.address);
     });
 
     it("should set the correct manager address", async () => {
-      const governanceAdapter = await subject();
+      const governanceExtension = await subject();
 
-      const actualManager = await governanceAdapter.manager();
+      const actualManager = await governanceExtension.manager();
       expect(actualManager).to.eq(baseManagerV2.address);
     });
 
     it("should set the correct governance module address", async () => {
-      const governanceAdapter = await subject();
+      const governanceExtension = await subject();
 
-      const actualStreamingFeeModule = await governanceAdapter.governanceModule();
+      const actualStreamingFeeModule = await governanceExtension.governanceModule();
       expect(actualStreamingFeeModule).to.eq(subjectGovernanceModule);
     });
   });
 
-  context("when governance adapter is deployed and module needs to be initialized", async () => {
+  context("when governance extension is deployed and module needs to be initialized", async () => {
     beforeEach(async () => {
-      governanceAdapter = await deployer.adapters.deployGovernanceAdapter(
+      governanceExtension = await deployer.extensions.deployGovernanceExtension(
         baseManagerV2.address,
         setV2Setup.governanceModule.address
       );
 
-      await baseManagerV2.connect(operator.wallet).addAdapter(governanceAdapter.address);
+      await baseManagerV2.connect(operator.wallet).addExtension(governanceExtension.address);
 
-      await governanceAdapter.connect(operator.wallet).updateCallerStatus([approvedCaller.address], [true]);
+      await governanceExtension.connect(operator.wallet).updateCallerStatus([approvedCaller.address], [true]);
 
       // Transfer ownership to BaseManager
       await setToken.setManager(baseManagerV2.address);
@@ -134,7 +135,7 @@ describe("GovernanceAdapter", () => {
       });
 
       async function subject(): Promise<ContractTransaction> {
-        return await governanceAdapter.connect(subjectCaller.wallet).initialize();
+        return await governanceExtension.connect(subjectCaller.wallet).initialize();
       }
 
       it("should initialize GovernanceModule", async () => {
@@ -155,9 +156,9 @@ describe("GovernanceAdapter", () => {
       });
     });
 
-    context("when governance adapter is deployed and system fully set up", async () => {
+    context("when governance extension is deployed and system fully set up", async () => {
       beforeEach(async () => {
-        await governanceAdapter.connect(operator.wallet).initialize();
+        await governanceExtension.connect(operator.wallet).initialize();
       });
 
       describe("#delegate", async () => {
@@ -172,7 +173,7 @@ describe("GovernanceAdapter", () => {
         });
 
         async function subject(): Promise<ContractTransaction> {
-          return await governanceAdapter.connect(subjectCaller.wallet).delegate(subjectGovernanceName, subjectDelegatee);
+          return await governanceExtension.connect(subjectCaller.wallet).delegate(subjectGovernanceName, subjectDelegatee);
         }
 
         it("should correctly delegate votes", async () => {
@@ -205,7 +206,7 @@ describe("GovernanceAdapter", () => {
         });
 
         async function subject(): Promise<ContractTransaction> {
-          return await governanceAdapter.connect(subjectCaller.wallet).propose(subjectGovernanceName, subjectProposalData);
+          return await governanceExtension.connect(subjectCaller.wallet).propose(subjectGovernanceName, subjectProposalData);
         }
 
         it("should submit a proposal", async () => {
@@ -239,7 +240,7 @@ describe("GovernanceAdapter", () => {
         });
 
         async function subject(): Promise<ContractTransaction> {
-          return await governanceAdapter.connect(subjectCaller.wallet).register(subjectGovernanceName);
+          return await governanceExtension.connect(subjectCaller.wallet).register(subjectGovernanceName);
         }
 
         it("should register the SetToken for voting", async () => {
@@ -270,7 +271,7 @@ describe("GovernanceAdapter", () => {
         });
 
         async function subject(): Promise<ContractTransaction> {
-          return await governanceAdapter.connect(subjectCaller.wallet).revoke(subjectGovernanceName);
+          return await governanceExtension.connect(subjectCaller.wallet).revoke(subjectGovernanceName);
         }
 
         it("should revoke the SetToken's voting rights", async () => {
@@ -307,7 +308,7 @@ describe("GovernanceAdapter", () => {
         });
 
         async function subject(): Promise<ContractTransaction> {
-          return await governanceAdapter.connect(subjectCaller.wallet).vote(
+          return await governanceExtension.connect(subjectCaller.wallet).vote(
             subjectGovernanceName,
             subjectProposalId,
             subjectSupport,

@@ -109,7 +109,7 @@ describe("ExchangeIssuanceV2", async () => {
     });
 
     async function subject(): Promise<ExchangeIssuanceV2> {
-      return await deployer.adapters.deployExchangeIssuanceV2(
+      return await deployer.extensions.deployExchangeIssuanceV2(
         wethAddress,
         uniswapFactory.address,
         uniswapRouter.address,
@@ -279,7 +279,7 @@ describe("ExchangeIssuanceV2", async () => {
         { value: ether(100), gasLimit: 9000000 }
       );
 
-      exchangeIssuance = await deployer.adapters.deployExchangeIssuanceV2(
+      exchangeIssuance = await deployer.extensions.deployExchangeIssuanceV2(
         subjectWethAddress,
         uniswapFactory.address,
         uniswapRouter.address,
