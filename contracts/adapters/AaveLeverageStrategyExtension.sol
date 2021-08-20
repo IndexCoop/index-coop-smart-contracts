@@ -889,7 +889,7 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
 
         // Calculate prices from chainlink. Chainlink returns prices with 8 decimal places, but we need 36 - underlyingDecimals decimal places.
         // This is so that when the underlying amount is multiplied by the received price, the collateral valuation is normalized to 36 decimals. 
-        // To perform this adjustment, we multiply by 10^(36 - 8 - underlyingDeciamls)
+        // To perform this adjustment, we multiply by 10^(36 - 8 - underlyingDecimals)
         int256 rawCollateralPrice = strategy.collateralPriceOracle.latestAnswer();
         rebalanceInfo.collateralPrice = rawCollateralPrice.toUint256().mul(10 ** strategy.collateralDecimalAdjustment);
         int256 rawBorrowPrice = strategy.borrowPriceOracle.latestAnswer();
@@ -1080,7 +1080,7 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
      * (Net borrow limit in USD - existing borrow value in USD) / collateral asset price adjusted for decimals
      *
      * For delever, max repay is calculated as:
-     * Collateral balance in precise units * (net borrow limit in USD - existing borrow value in USD) / net borrow limit in USD
+     * Collateral balance in base units * (net borrow limit in USD - existing borrow value in USD) / net borrow limit in USD
      *
      * Net borrow limit for levering is calculated as:
      * The collateral value in USD * Aave collateral factor * (1 - unutilized leverage %)
@@ -1096,12 +1096,10 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
         ( , uint256 maxLtvRaw, uint256 liquidationThresholdRaw, , , , , , ,) = strategy.aaveProtocolDataProvider.getReserveConfigurationData(address(strategy.collateralAsset));
 
         // Normalize LTV and liquidation threshold to precise units. LTV is measured in 4 decimals in Aave which is why we must multiply by 1e14
-        uint256 maxLtv = maxLtvRaw.mul(10 ** 14);
-        uint256 liquidationThreshold = liquidationThresholdRaw.mul(10 ** 14);
-
+        // for example ETH has an LTV value of 8000 which represents 80%
         if (_isLever) {
             uint256 netBorrowLimit = _actionInfo.collateralValue
-                .preciseMul(maxLtv)
+                .preciseMul(maxLtvRaw.mul(10 ** 14))
                 .preciseMul(PreciseUnitMath.preciseUnit().sub(execution.unutilizedLeveragePercentage));
 
             return netBorrowLimit
@@ -1109,7 +1107,7 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
                 .preciseDiv(_actionInfo.collateralPrice);
         } else {
             uint256 netRepayLimit = _actionInfo.collateralValue
-                .preciseMul(liquidationThreshold)
+                .preciseMul(liquidationThresholdRaw.mul(10 ** 14))
                 .preciseMul(PreciseUnitMath.preciseUnit().sub(execution.unutilizedLeveragePercentage));
 
             return _actionInfo.collateralBalance
