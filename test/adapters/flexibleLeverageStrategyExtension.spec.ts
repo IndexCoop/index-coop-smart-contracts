@@ -12,7 +12,7 @@ import {
   ExchangeSettings
 } from "@utils/types";
 import { ADDRESS_ZERO, ONE, TWO, THREE, ZERO, EMPTY_BYTES, MAX_UINT_256 } from "@utils/constants";
-import { FlexibleLeverageStrategyExtension, BaseManager, TradeAdapterMock, ChainlinkAggregatorV3Mock } from "@utils/contracts/index";
+import { FlexibleLeverageStrategyExtension, BaseManagerV2, TradeAdapterMock, ChainlinkAggregatorV3Mock } from "@utils/contracts/index";
 import { CompoundLeverageModule, ContractCallerMock, DebtIssuanceModule, SetToken } from "@utils/contracts/setV2";
 import { CEther, CERc20 } from "@utils/contracts/compound";
 import DeployHelper from "@utils/deploys";
@@ -68,7 +68,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
   let flexibleLeverageStrategyExtension: FlexibleLeverageStrategyExtension;
   let compoundLeverageModule: CompoundLeverageModule;
   let debtIssuanceModule: DebtIssuanceModule;
-  let baseManagerV2: BaseManager;
+  let baseManagerV2: BaseManagerV2;
 
   let chainlinkCollateralPriceMock: ChainlinkAggregatorV3Mock;
   let chainlinkBorrowPriceMock: ChainlinkAggregatorV3Mock;
@@ -130,7 +130,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
     debtIssuanceModule = await deployer.setV2.deployDebtIssuanceModule(setV2Setup.controller.address);
     await setV2Setup.controller.addModule(debtIssuanceModule.address);
 
-    // Deploy mock trade adapter
+    // Deploy mock trade extension
     tradeAdapterMock = await deployer.mocks.deployTradeAdapterMock();
     await setV2Setup.integrationRegistry.addIntegration(
       compoundLeverageModule.address,
@@ -138,7 +138,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       tradeAdapterMock.address,
     );
 
-    // Deploy mock trade adapter 2
+    // Deploy mock trade extension 2
     tradeAdapterMock2 = await deployer.mocks.deployTradeAdapterMock();
     await setV2Setup.integrationRegistry.addIntegration(
       compoundLeverageModule.address,
@@ -191,18 +191,19 @@ describe("FlexibleLeverageStrategyExtension", () => {
       [setV2Setup.usdc.address]
     );
 
-    baseManagerV2 = await deployer.manager.deployBaseManager(
+    baseManagerV2 = await deployer.manager.deployBaseManagerV2(
       setToken.address,
       owner.address,
-      methodologist.address,
+      methodologist.address
     );
+    await baseManagerV2.connect(methodologist.wallet).authorizeInitialization();
 
     // Transfer ownership to ic manager
     if ((await setToken.manager()) == owner.address) {
       await setToken.connect(owner.wallet).setManager(baseManagerV2.address);
     }
 
-    // Deploy adapter
+    // Deploy extension
     const targetLeverageRatio = customTargetLeverageRatio || ether(2);
     const minLeverageRatio = customMinLeverageRatio || ether(1.7);
     const maxLeverageRatio = ether(2.3);
@@ -261,7 +262,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       deleverExchangeData: EMPTY_BYTES,
     };
 
-    flexibleLeverageStrategyExtension = await deployer.adapters.deployFlexibleLeverageStrategyExtension(
+    flexibleLeverageStrategyExtension = await deployer.extensions.deployFlexibleLeverageStrategyExtension(
       baseManagerV2.address,
       strategy,
       methodology,
@@ -271,8 +272,8 @@ describe("FlexibleLeverageStrategyExtension", () => {
       [ exchangeSettings ]
     );
 
-    // Add adapter
-    await baseManagerV2.connect(owner.wallet).addAdapter(flexibleLeverageStrategyExtension.address);
+    // Add extension
+    await baseManagerV2.connect(owner.wallet).addExtension(flexibleLeverageStrategyExtension.address);
   };
 
   describe("#constructor", async () => {
@@ -330,7 +331,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
     });
 
     async function subject(): Promise<FlexibleLeverageStrategyExtension> {
-      return await deployer.adapters.deployFlexibleLeverageStrategyExtension(
+      return await deployer.extensions.deployFlexibleLeverageStrategyExtension(
         subjectManagerAddress,
         subjectContractSettings,
         subjectMethodologySettings,

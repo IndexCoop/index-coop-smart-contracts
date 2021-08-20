@@ -16,30 +16,30 @@
 
 pragma solidity 0.6.10;
 
-import { BaseAdapter } from "../lib/BaseAdapter.sol";
+import { BaseExtension } from "../lib/BaseExtension.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IGovernanceModule } from "../interfaces/IGovernanceModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 
 /**
- * @title GovernanceAdapter
+ * @title GovernanceExtension
  * @author Set Protocol
  *
- * Smart contract adapter that acts as a manager interface for interacting with the Set Protocol
+ * Smart contract extension that acts as a manager interface for interacting with the Set Protocol
  * GovernanceModule to perform meta-governance actions. All governance functions are callable only
  * by a subset of allowed callers. The operator has the power to add/remove callers from the allowed
  * callers mapping.
  */
-contract GovernanceAdapter is BaseAdapter {
+contract GovernanceExtension is BaseExtension {
 
     /* ============ State Variables ============ */
-    
+
     ISetToken public setToken;
     IGovernanceModule public governanceModule;
-    
+
     /* ============ Constructor ============ */
 
-    constructor(IBaseManager _manager, IGovernanceModule _governanceModule) public BaseAdapter(_manager) {
+    constructor(IBaseManager _manager, IGovernanceModule _governanceModule) public BaseExtension(_manager) {
         governanceModule = _governanceModule;
         setToken = manager.setToken();
     }
@@ -48,9 +48,9 @@ contract GovernanceAdapter is BaseAdapter {
 
     /**
      * ONLY APPROVED CALLER: Submits a delegate call to the GovernanceModule. Approved caller mapping
-     * is part of BaseAdapter.
+     * is part of BaseExtension.
      *
-     * @param _governanceName       Name of governance adapter being used
+     * @param _governanceName       Name of governance extension being used
      */
     function delegate(
         string memory _governanceName,
@@ -71,9 +71,9 @@ contract GovernanceAdapter is BaseAdapter {
 
     /**
      * ONLY APPROVED CALLER: Submits a proposal call to the GovernanceModule. Approved caller mapping
-     * is part of BaseAdapter.
+     * is part of BaseExtension.
      *
-     * @param _governanceName       Name of governance adapter being used
+     * @param _governanceName       Name of governance extension being used
      * @param _proposalData         Byte data of proposal
      */
     function propose(
@@ -95,9 +95,9 @@ contract GovernanceAdapter is BaseAdapter {
 
     /**
      * ONLY APPROVED CALLER: Submits a register call to the GovernanceModule. Approved caller mapping
-     * is part of BaseAdapter.
+     * is part of BaseExtension.
      *
-     * @param _governanceName       Name of governance adapter being used
+     * @param _governanceName       Name of governance extension being used
      */
     function register(string memory _governanceName) external onlyAllowedCaller(msg.sender) {
         bytes memory callData = abi.encodeWithSelector(
@@ -111,9 +111,9 @@ contract GovernanceAdapter is BaseAdapter {
 
     /**
      * ONLY APPROVED CALLER: Submits a revoke call to the GovernanceModule. Approved caller mapping
-     * is part of BaseAdapter.
+     * is part of BaseExtension.
      *
-     * @param _governanceName       Name of governance adapter being used
+     * @param _governanceName       Name of governance extension being used
      */
     function revoke(string memory _governanceName) external onlyAllowedCaller(msg.sender) {
         bytes memory callData = abi.encodeWithSelector(
@@ -127,9 +127,9 @@ contract GovernanceAdapter is BaseAdapter {
 
     /**
      * ONLY APPROVED CALLER: Submits a vote call to the GovernanceModule. Approved caller mapping
-     * is part of BaseAdapter.
+     * is part of BaseExtension.
      *
-     * @param _governanceName       Name of governance adapter being used
+     * @param _governanceName       Name of governance extension being used
      * @param _proposalId           Id of proposal being voted on
      * @param _support              Boolean indicating if supporting proposal
      * @param _data                 Arbitrary bytes to be used to construct vote call data

@@ -257,7 +257,7 @@ describe("LeverageStrategyExtension", () => {
       deleverExchangeData: EMPTY_BYTES,
     };
 
-    leverageStrategyExtension = await deployer.adapters.deployAaveLeverageStrategyExtension(
+    leverageStrategyExtension = await deployer.extensions.deployAaveLeverageStrategyExtension(
       baseManagerV2.address,
       strategy,
       methodology,
@@ -326,7 +326,7 @@ describe("LeverageStrategyExtension", () => {
     });
 
     async function subject(): Promise<AaveLeverageStrategyExtension> {
-      return await deployer.adapters.deployAaveLeverageStrategyExtension(
+      return await deployer.extensions.deployAaveLeverageStrategyExtension(
         subjectManagerAddress,
         subjectContractSettings,
         subjectMethodologySettings,

@@ -29,4 +29,13 @@ interface IIssuanceModule {
     function updateIssueFee(ISetToken _setToken, uint256 _newIssueFee) external;
     function updateRedeemFee(ISetToken _setToken, uint256 _newRedeemFee) external;
     function updateFeeRecipient(ISetToken _setToken, address _newRedeemFee) external;
+
+    function initialize(
+        ISetToken _setToken,
+        uint256 _maxManagerFee,
+        uint256 _managerIssueFee,
+        uint256 _managerRedeemFee,
+        address _feeRecipient,
+        address _managerIssuanceHook
+    ) external;
 }

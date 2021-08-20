@@ -673,7 +673,7 @@ describe("LeverageStrategyExtension", () => {
       incentivizedLeverageRatio: incentivizedLeverageRatio,
     };
 
-    leverageStrategyExtension = await deployer.adapters.deployAaveLeverageStrategyExtension(
+    leverageStrategyExtension = await deployer.extensions.deployAaveLeverageStrategyExtension(
       baseManager.address,
       strategy,
       methodology,

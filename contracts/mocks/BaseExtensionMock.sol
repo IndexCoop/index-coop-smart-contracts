@@ -18,12 +18,12 @@
 
 pragma solidity 0.6.10;
 
-import { BaseAdapter } from "../lib/BaseAdapter.sol";
+import { BaseExtension } from "../lib/BaseExtension.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 
-contract BaseAdapterMock is BaseAdapter {
+contract BaseExtensionMock is BaseExtension {
 
-    constructor(IBaseManager _manager) public BaseAdapter(_manager) {}
+    constructor(IBaseManager _manager) public BaseExtension(_manager) {}
 
     /* ============ External Functions ============ */
 

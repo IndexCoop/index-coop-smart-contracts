@@ -2,7 +2,7 @@ import "module-alias/register";
 
 import { Address, Account } from "@utils/types";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
-import { GIMExtension, BaseManager } from "@utils/contracts/index";
+import { GIMExtension, BaseManagerV2 } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -34,7 +34,7 @@ describe("GIMExtension", () => {
   let deployer: DeployHelper;
   let setToken: SetToken;
 
-  let baseManagerV2: BaseManager;
+  let baseManagerV2: BaseManagerV2;
   let gimExtension: GIMExtension;
 
   before(async () => {
@@ -83,11 +83,12 @@ describe("GIMExtension", () => {
     );
 
     // Deploy BaseManager
-    baseManagerV2 = await deployer.manager.deployBaseManager(
+    baseManagerV2 = await deployer.manager.deployBaseManagerV2(
       setToken.address,
       operator.address,
       methodologist.address
     );
+    await baseManagerV2.connect(methodologist.wallet).authorizeInitialization();
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -102,7 +103,7 @@ describe("GIMExtension", () => {
     });
 
     async function subject(): Promise<GIMExtension> {
-      return await deployer.adapters.deployGIMExtension(
+      return await deployer.extensions.deployGIMExtension(
         subjectManager,
         subjectGeneralIndexModule
       );
@@ -132,12 +133,12 @@ describe("GIMExtension", () => {
 
   context("when GIM extension is deployed and module needs to be initialized", async () => {
     beforeEach(async () => {
-      gimExtension = await deployer.adapters.deployGIMExtension(
+      gimExtension = await deployer.extensions.deployGIMExtension(
         baseManagerV2.address,
         setV2Setup.generalIndexModule.address
       );
 
-      await baseManagerV2.connect(operator.wallet).addAdapter(gimExtension.address);
+      await baseManagerV2.connect(operator.wallet).addExtension(gimExtension.address);
 
       await gimExtension.connect(operator.wallet).updateCallerStatus([approvedCaller.address], [true]);
 

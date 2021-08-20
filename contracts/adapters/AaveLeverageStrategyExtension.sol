@@ -23,7 +23,7 @@ import { Math } from "@openzeppelin/contracts/math/Math.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
-import { BaseAdapter } from "../lib/BaseAdapter.sol";
+import { BaseExtension } from "../lib/BaseExtension.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IChainlinkAggregatorV3 } from "../interfaces/IChainlinkAggregatorV3.sol";
 import { ILeverageModule } from "../interfaces/ILeverageModule.sol";
@@ -43,7 +43,7 @@ import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
  * function at different leverage thresholds.
  *
  */
-contract AaveLeverageStrategyExtension is BaseAdapter {
+contract AaveLeverageStrategyExtension is BaseExtension {
     using Address for address;
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
@@ -226,7 +226,7 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
         ExchangeSettings[] memory _exchangeSettings
     )
         public
-        BaseAdapter(_manager)
+        BaseExtension(_manager)
     {
         strategy = _strategy;
         methodology = _methodology;
