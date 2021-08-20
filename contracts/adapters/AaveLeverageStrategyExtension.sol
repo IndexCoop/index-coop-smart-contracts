@@ -1073,7 +1073,7 @@ contract AaveLeverageStrategyExtension is BaseAdapter {
     }
 
     /**
-     * Calculate the max borrow / repay amount allowed in precise units for lever / delever. This is due to overcollateralization requirements on
+     * Calculate the max borrow / repay amount allowed in base units for lever / delever. This is due to overcollateralization requirements on
      * assets deposited in lending protocols for borrowing.
      * 
      * For lever, max borrow is calculated as:
