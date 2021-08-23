@@ -1412,7 +1412,7 @@ describe("BaseManagerV2", () => {
     });
 
     async function subject(): Promise<any> {
-      return baseExtension.interactManager(subjectModule, subjectCallData);
+      return baseExtension.connect(operator.wallet).interactManager(subjectModule, subjectCallData);
     }
 
     context("when the manager is initialized", () => {
@@ -1435,11 +1435,21 @@ describe("BaseManagerV2", () => {
           await expect(subject()).to.be.revertedWith("Must be extension");
         });
       });
+
+      describe("when the extension tries to call the SetToken", async () => {
+        beforeEach(async () => {
+          subjectModule = setToken.address;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Extensions cannot call SetToken");
+        });
+      });
     });
 
     context("when the manager is not initialized", () => {
       it("updateFeeRecipient should revert", async () => {
-        expect(subject()).to.be.revertedWith("Manager not initialized");
+        await expect(subject()).to.be.revertedWith("Manager not initialized");
       });
     });
 
@@ -1464,6 +1474,53 @@ describe("BaseManagerV2", () => {
 
       it("should revert", async () => {
         await expect(subject()).to.be.revertedWith("Extension not authorized for module");
+      });
+    });
+  });
+
+  describe("#transferTokens", async () => {
+    let subjectCaller: Account;
+    let subjectToken: Address;
+    let subjectDestination: Address;
+    let subjectAmount: BigNumber;
+
+    beforeEach(async () => {
+      subjectCaller = operator;
+      subjectToken = setV2Setup.weth.address;
+      subjectDestination = otherAccount.address;
+      subjectAmount = ether(1);
+
+      await setV2Setup.weth.transfer(baseManager.address, subjectAmount);
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return baseManager.connect(subjectCaller.wallet).transferTokens(
+        subjectToken,
+        subjectDestination,
+        subjectAmount
+      );
+    }
+
+    it("should send the given amount from the manager to the address", async () => {
+      const preManagerAmount = await setV2Setup.weth.balanceOf(baseManager.address);
+      const preDestinationAmount = await setV2Setup.weth.balanceOf(subjectDestination);
+
+      await subject();
+
+      const postManagerAmount = await setV2Setup.weth.balanceOf(baseManager.address);
+      const postDestinationAmount = await setV2Setup.weth.balanceOf(subjectDestination);
+
+      expect(preManagerAmount.sub(postManagerAmount)).to.eq(subjectAmount);
+      expect(postDestinationAmount.sub(preDestinationAmount)).to.eq(subjectAmount);
+    });
+
+    describe("when the caller is not the operator", async () => {
+      beforeEach(() => {
+        subjectCaller = methodologist;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be operator");
       });
     });
   });
@@ -1500,8 +1557,8 @@ describe("BaseManagerV2", () => {
     });
 
     describe("when the module is protected module", () => {
-      beforeEach(() => {
-        baseManager.connect(operator.wallet).protectModule(subjectModule, [subjectExtension]);
+      beforeEach(async () => {
+        await baseManager.connect(operator.wallet).protectModule(subjectModule, [subjectExtension]);
       });
 
       it("should revert", async() => {
