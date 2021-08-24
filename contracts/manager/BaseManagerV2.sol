@@ -101,6 +101,8 @@ contract BaseManagerV2 is MutualUpgrade {
         address _module
     );
 
+    event EmergencyResolved();
+
     /* ============ Modifiers ============ */
 
     /**
@@ -478,6 +480,8 @@ contract BaseManagerV2 is MutualUpgrade {
      */
     function resolveEmergency() external onlyMethodologist onlyEmergency {
         emergencies -= 1;
+
+        emit EmergencyResolved();
     }
 
     /**

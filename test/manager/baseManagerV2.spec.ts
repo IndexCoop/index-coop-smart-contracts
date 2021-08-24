@@ -1374,6 +1374,10 @@ describe("BaseManagerV2", () => {
         expect(initialEmergencies.toNumber()).equals(1);
         expect(finalEmergencies.toNumber()).equals(0);
       });
+
+      it("should emit the correct EmergencyResolved event", async () => {
+        await expect(subject()).to.emit(baseManager, "EmergencyResolved");
+      });
     });
 
     describe("when an emergency is *not* in progress", async () => {
