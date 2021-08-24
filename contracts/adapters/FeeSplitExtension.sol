@@ -183,6 +183,9 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
      * this function to execute the update. Because the method is timelocked, each party must call it twice:
      * once to set the lock and once to execute.
      *
+     * Method is timelocked to protect token owners from sudden changes in fee structure which
+     * they would rather not bear. The delay gives them a chance to exit their positions without penalty.
+     *
      * NOTE: This will accrue streaming fees though not send to operator fee recipient and methodologist.
      *
      * @param _newFee       Percent of Set accruing to fee extension annually (1% = 1e16, 100% = 1e18)
@@ -201,6 +204,9 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
      * Operator and Methodologist must each call this function to execute the update. Because the method
      * is timelocked, each party must call it twice: once to set the lock and once to execute.
      *
+     * Method is timelocked to protect token owners from sudden changes in fee structure which
+     * they would rather not bear. The delay gives them a chance to exit their positions without penalty.
+     *
      * @param _newFee           New issue fee percentage in precise units (1% = 1e16, 100% = 1e18)
      */
     function updateIssueFee(uint256 _newFee)
@@ -216,6 +222,9 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
      * MUTUAL UPGRADE: Updates redeem fee on IssuanceModule. Only is executed once time lock has passed.
      * Operator and Methodologist must each call this function to execute the update. Because the method is
      * timelocked, each party must call it twice: once to set the lock and once to execute.
+     *
+     * Method is timelocked to protect token owners from sudden changes in fee structure which
+     * they would rather not bear. The delay gives them a chance to exit their positions without penalty.
      *
      * @param _newFee           New redeem fee percentage in precise units (1% = 1e16, 100% = 1e18)
      */
