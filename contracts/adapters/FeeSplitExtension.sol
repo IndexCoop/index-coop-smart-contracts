@@ -119,7 +119,6 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
      * to configure the replacement streaming fee module's fee settings.
      */
     function initializeIssuanceModule(
-        ISetToken _setToken,
         uint256 _maxManagerFee,
         uint256 _managerIssueFee,
         uint256 _managerRedeemFee,
