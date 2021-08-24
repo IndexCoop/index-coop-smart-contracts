@@ -358,8 +358,8 @@ contract BaseManagerV2 is MutualUpgrade {
     }
 
     /**
-     * OPERATOR ONLY: Marks an existing module as protected and authorizes existing extensions for
-     * it. Adds module to the protected modules list
+     * OPERATOR ONLY: Marks an existing module as protected and authorizes extensions for
+     * it, adding them if necessary. Adds module to the protected modules list
      *
      * The operator uses this when they're adding new features and want to assure the methodologist
      * they won't be unilaterally changed in the future. Cannot be called during an emergency because
@@ -448,9 +448,9 @@ contract BaseManagerV2 is MutualUpgrade {
      *
      * NOTE: If replacing a fee module, it's necessary to set the module `feeRecipient` to be
      * the new fee extension address after this call. Any fees remaining in the old module's
-     * de-authorized extensions can be distributed by calling `distribute()` on the old extension.
+     * de-authorized extensions can be distributed by calling `accrueFeesAndDistribute` on the old extension.
      *
-     * @param _module        Module to add in place of removed module
+     * @param _module          Module to add in place of removed module
      * @param _extensions      Array of extensions to authorize for replacement module
      */
     function emergencyReplaceProtectedModule(
