@@ -1,6 +1,6 @@
 {
   "name": "@setprotocol/index-coop-contracts",
-  "version": "0.0.25",
+  "version": "0.0.25-ftc.0",
   "description": "",
   "main": "dist",
   "types": "dist/types",
