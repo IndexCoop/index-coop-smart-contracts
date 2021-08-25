@@ -387,7 +387,6 @@ describe("FeeSplitExtension", () => {
 
       async function subject(caller: Account): Promise<ContractTransaction> {
          return await subjectExtension.connect(caller.wallet).initializeIssuanceModule(
-           subjectSetToken,
            subjectMaxManagerFee,
            subjectManagerIssueFee,
            subjectManagerRedeemFee,
