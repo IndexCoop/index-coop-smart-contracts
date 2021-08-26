@@ -9,7 +9,7 @@ contract MasterChefMock {
         amount = 0;
     }
 
-    function userInfo(uint256 _id, address _user) external view returns (uint256, uint256) {
+    function userInfo(uint256 _id, address /* _user */) external view returns (uint256, uint256) {
         if (_id == 75) return (amount, 0);
         return (0, 0);
     }

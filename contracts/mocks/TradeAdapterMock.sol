@@ -25,7 +25,7 @@ contract TradeAdapterMock {
         address _destinationToken,
         address _destinationAddress,
         uint256 _sourceQuantity,
-        uint256 _minDestinationQuantity
+        uint256 /* _minDestinationQuantity */
     )
         external
     {
