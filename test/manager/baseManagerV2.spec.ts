@@ -1489,6 +1489,8 @@ describe("BaseManagerV2", () => {
     let subjectAmount: BigNumber;
 
     beforeEach(async () => {
+      await baseManager.connect(operator.wallet).addExtension(baseExtension.address);
+
       subjectCaller = operator;
       subjectToken = setV2Setup.weth.address;
       subjectDestination = otherAccount.address;
@@ -1498,7 +1500,7 @@ describe("BaseManagerV2", () => {
     });
 
     async function subject(): Promise<ContractTransaction> {
-      return baseManager.connect(subjectCaller.wallet).transferTokens(
+      return baseExtension.connect(subjectCaller.wallet).testInvokeManagerTransfer(
         subjectToken,
         subjectDestination,
         subjectAmount
@@ -1518,15 +1520,15 @@ describe("BaseManagerV2", () => {
       expect(postDestinationAmount.sub(preDestinationAmount)).to.eq(subjectAmount);
     });
 
-    describe("when the caller is not the operator", async () => {
-      beforeEach(() => {
-        subjectCaller = methodologist;
-      });
+    describe("when the caller is not an extension", async () => {
+        beforeEach(async () => {
+          await baseManager.connect(operator.wallet).removeExtension(baseExtension.address);
+        });
 
-      it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Must be operator");
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be extension");
+        });
       });
-    });
   });
 
   describe("#removeModule", async () => {

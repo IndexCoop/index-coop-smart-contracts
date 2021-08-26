@@ -116,6 +116,16 @@ abstract contract BaseExtension {
     /* ============ Internal Functions ============ */
 
     /**
+     * Invoke manager to transfer tokens from manager to other contract.
+     *
+     * @param _token           Token being transferred from manager contract
+     * @param _amount          Amount of token being transferred
+     */
+    function invokeManagerTransfer(address _token, address _destination, uint256 _amount) internal {
+        manager.transferTokens(_token, _destination, _amount);
+    }
+
+    /**
      * Invoke call from manager
      *
      * @param _module           Module to interact with

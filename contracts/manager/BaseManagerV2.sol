@@ -313,7 +313,7 @@ contract BaseManagerV2 is MutualUpgrade {
      * @param _destination     Address receiving the tokens
      * @param _amount          Quantity of tokens to send
      */
-    function transferTokens(address _token, address _destination, uint256 _amount) external onlyOperator {
+    function transferTokens(address _token, address _destination, uint256 _amount) external onlyExtension {
         IERC20(_token).safeTransfer(_destination, _amount);
     }
 
