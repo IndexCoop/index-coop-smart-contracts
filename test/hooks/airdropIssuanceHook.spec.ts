@@ -141,17 +141,17 @@ describe("AirdropIssuanceHook", () => {
       });
 
       it("should absorb airdropped tokens", async () => {
-        const oldUnits = await setToken.getDefaultPositionRealUnit(setV2Setup.dai.address);
-        const oldTotalSupply = await setToken.totalSupply();
+        const initUnits = await setToken.getDefaultPositionRealUnit(setV2Setup.dai.address);
+        const totalSupply = await setToken.totalSupply();
 
         await subject();
 
-        const newUnits = await setToken.getDefaultPositionRealUnit(setV2Setup.dai.address);
+        const finalUnits = await setToken.getDefaultPositionRealUnit(setV2Setup.dai.address);
 
-        const totalComponentAmount = preciseMul(oldUnits, oldTotalSupply);
-        const expectedNewUnits = preciseDiv(totalComponentAmount.add(subjectAirdropAmount), oldTotalSupply);
+        const totalComponentAmount = preciseMul(initUnits, totalSupply);
+        const expectedNewUnits = preciseDiv(totalComponentAmount.add(subjectAirdropAmount), totalSupply);
 
-        expect(newUnits).to.eq(expectedNewUnits);
+        expect(finalUnits).to.eq(expectedNewUnits);
       });
 
       it("should issue the correct amount of set tokens", async () => {
@@ -171,6 +171,47 @@ describe("AirdropIssuanceHook", () => {
         const componentUnits = await setToken.getDefaultPositionRealUnit(setV2Setup.dai.address);
 
         expect(initComponentAmount.sub(finalComponentAmount)).to.eq(preciseMul(componentUnits, subjectQuantity));
+      });
+    });
+  });
+
+  describe("#invokePreRedeemHook", async () => {
+    let subjectSetToken: Address;
+    let subjectQuantity: BigNumber;
+    let subjectSender: Address;
+    let subjectTo: Address;
+
+    beforeEach(async () => {
+      subjectSetToken = setToken.address;
+      subjectQuantity = ether(0);
+      subjectSender = await getRandomAddress();
+      subjectTo = await getRandomAddress();
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return await issuanceHook.invokePreRedeemHook(subjectSetToken, subjectQuantity, subjectSender, subjectTo);
+    }
+
+    context("when tokens are airdropped to the set", async () => {
+      let subjectAirdropAmount: BigNumber;
+
+      beforeEach(async () => {
+        subjectAirdropAmount = ether(2);
+        await setV2Setup.dai.transfer(setToken.address, subjectAirdropAmount);
+      });
+
+      it("should absorb airdropped tokens", async () => {
+        const initUnits = await setToken.getDefaultPositionRealUnit(setV2Setup.dai.address);
+        const totalSupply = await setToken.totalSupply();
+
+        await subject();
+
+        const finalUnits = await setToken.getDefaultPositionRealUnit(setV2Setup.dai.address);
+
+        const totalComponentAmount = preciseMul(initUnits, totalSupply);
+        const expectedNewUnits = preciseDiv(totalComponentAmount.add(subjectAirdropAmount), totalSupply);
+
+        expect(finalUnits).to.eq(expectedNewUnits);
       });
     });
   });
