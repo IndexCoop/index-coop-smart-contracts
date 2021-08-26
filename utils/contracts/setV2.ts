@@ -1,4 +1,5 @@
 // External Set Protocol Contracts
+export { AirdropModule } from "../../typechain/AirdropModule";
 export { BasicIssuanceModule } from "../../typechain/BasicIssuanceModule";
 export { Compound } from "../../typechain/Compound";
 export { Controller } from "../../typechain/Controller";

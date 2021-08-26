@@ -3,6 +3,7 @@ import { ContractTransaction, Signer } from "ethers";
 import { BigNumber } from "@ethersproject/bignumber";
 
 import {
+  AirdropModule,
   BasicIssuanceModule,
   CompoundLeverageModule,
   Controller,
@@ -47,6 +48,7 @@ export class SetFixture {
   public compoundLeverageModule: CompoundLeverageModule;
   public governanceModule: GovernanceModule;
   public generalIndexModule: GeneralIndexModule;
+  public airdropModule: AirdropModule;
 
   public weth: WETH9;
   public usdc: StandardTokenMock;
@@ -72,6 +74,7 @@ export class SetFixture {
     this.streamingFeeModule = await this._deployer.setV2.deployStreamingFeeModule(this.controller.address);
     this.debtIssuanceModule = await this._deployer.setV2.deployDebtIssuanceModule(this.controller.address);
     this.governanceModule = await this._deployer.setV2.deployGovernanceModule(this.controller.address);
+    this.airdropModule = await this._deployer.setV2.deployAirdropModule(this.controller.address);
 
     await this.initializeStandardComponents();
 
@@ -86,6 +89,7 @@ export class SetFixture {
       this.debtIssuanceModule.address,
       this.governanceModule.address,
       this.generalIndexModule.address,
+      this.airdropModule.address,
     ];
 
     await this.controller.initialize(
