@@ -1,6 +1,7 @@
 import { Signer, BigNumber } from "ethers";
 import { Address, ContractSettings, MethodologySettings, ExecutionSettings, IncentiveSettings, ExchangeSettings } from "../types";
 import {
+  AirdropExtension,
   ExchangeIssuance,
   ExchangeIssuanceV2,
   FlexibleLeverageStrategyExtension,
@@ -10,6 +11,7 @@ import {
   StreamingFeeSplitExtension
 } from "../contracts/index";
 
+import { AirdropExtension__factory } from "../../typechain/factories/AirdropExtension__factory";
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
@@ -133,5 +135,9 @@ export default class DeployExtensions {
       setControllerAddress,
       basicIssuanceModuleAddress
     );
+  }
+
+  public async deployAirdropExtension(manager: Address, airdropModule: Address): Promise<AirdropExtension> {
+    return await new AirdropExtension__factory(this._deployerSigner).deploy(manager, airdropModule);
   }
 }

@@ -52,42 +52,42 @@ contract AirdropExtension is BaseExtension {
         );
     }
 
-    function batchAbsorb(address[] memory _tokens) external {
+    function batchAbsorb(address[] memory _tokens) external onlyOperator {
         invokeManager(
             address(airdropModule),
             abi.encodeWithSignature("batchAbsorb(address,address[])", setToken, _tokens)
         );
     }
 
-    function addAirdrop(address _token) external {
+    function addAirdrop(address _token) external onlyOperator {
         invokeManager(
             address(airdropModule),
             abi.encodeWithSignature("addAirdrop(address,address)", setToken, _token)
         );
     }
 
-    function removeAirdrop(address _token) external {
+    function removeAirdrop(address _token) external onlyOperator {
         invokeManager(
             address(airdropModule),
             abi.encodeWithSignature("removeAirdrop(address,address)", setToken, _token)
         );
     }
 
-    function updateAnyoneAbsorb(bool _anyoneAbsorb) external {
+    function updateAnyoneAbsorb(bool _anyoneAbsorb) external onlyOperator {
         invokeManager(
             address(airdropModule),
             abi.encodeWithSignature("updateAnyoneAbsorb(address,bool)", setToken, _anyoneAbsorb)
         );
     }
 
-    function updateFeeRecipient(address _newRecipient) external {
+    function updateFeeRecipient(address _newRecipient) external onlyOperator {
         invokeManager(
             address(airdropModule),
             abi.encodeWithSignature("updateFeeRecipient(address,address)", setToken, _newRecipient)
         );
     }
 
-    function updateAirdropFee(uint256 _newFee) external {
+    function updateAirdropFee(uint256 _newFee) external onlyOperator {
         invokeManager(
             address(airdropModule),
             abi.encodeWithSignature("updateAirdropFee(address,uint256)", setToken, _newFee)
