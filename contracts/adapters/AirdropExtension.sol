@@ -30,14 +30,34 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
  */
 contract AirdropExtension is BaseExtension {
 
+    /* ========== State Variables ========= */
+
+    // Address of AirdropModule
     IAirdropModule public airdropModule;
+
+    // Address of Set Token
     ISetToken public setToken;
 
+    /* ============ Constructor ============ */
+
+    /**
+     * Sets state variables
+     *
+     * @param _manager          Manager contract
+     * @param _airdropModule    Set Protocol AirdropModule
+     */
     constructor(IBaseManager _manager, IAirdropModule _airdropModule) public BaseExtension(_manager) {
         airdropModule = _airdropModule;
         setToken = manager.setToken();
     }
 
+    /* ========== External Functions ========== */
+
+    /**
+     * OPERATOR ONLY: initializes the AirdropModule
+     *
+     * @param _airdropSettings  Settings to initially the AirdropModule with
+     */
     function initializeAirdropModule(IAirdropModule.AirdropSettings memory _airdropSettings) external onlyOperator {
         invokeManager(
             address(airdropModule),
@@ -45,6 +65,11 @@ contract AirdropExtension is BaseExtension {
         );
     }
 
+    /**
+     * OPERATOR ONLY: absorbs airdropped tokens
+     *
+     * @param _token    Airdropped token to absorb
+     */
     function absorb(address _token) external onlyOperator {
         invokeManager(
             address(airdropModule),
@@ -52,6 +77,11 @@ contract AirdropExtension is BaseExtension {
         );
     }
 
+    /**
+     * OPERATOR ONLY: batch absorbs airdropped tokens
+     *
+     * @param _tokens   List of airdropped tokens to absorb
+     */
     function batchAbsorb(address[] memory _tokens) external onlyOperator {
         invokeManager(
             address(airdropModule),
@@ -59,6 +89,11 @@ contract AirdropExtension is BaseExtension {
         );
     }
 
+    /**
+     * OPERATOR ONLY: adds a new airdrop token
+     *
+     * @param _token    Airdropped token to add
+     */
     function addAirdrop(address _token) external onlyOperator {
         invokeManager(
             address(airdropModule),
@@ -66,6 +101,11 @@ contract AirdropExtension is BaseExtension {
         );
     }
 
+    /**
+     * OPERATOR ONLY: removes a new airdrop token
+     *
+     * @param _token    Airdropped token to remove
+     */
     function removeAirdrop(address _token) external onlyOperator {
         invokeManager(
             address(airdropModule),
@@ -73,6 +113,11 @@ contract AirdropExtension is BaseExtension {
         );
     }
 
+    /**
+     * OPERATOR ONLY: updates the anyoneAbsorb setting
+     *
+     * @param _anyoneAbsorb     new anyoneAbsorb setting value
+     */
     function updateAnyoneAbsorb(bool _anyoneAbsorb) external onlyOperator {
         invokeManager(
             address(airdropModule),
@@ -80,6 +125,11 @@ contract AirdropExtension is BaseExtension {
         );
     }
 
+    /**
+     * OPERATOR ONLY: updates the feeRecipient setting
+     *
+     * @param _newRecipient     new feeRecipient setting value
+     */
     function updateFeeRecipient(address _newRecipient) external onlyOperator {
         invokeManager(
             address(airdropModule),
@@ -87,6 +137,11 @@ contract AirdropExtension is BaseExtension {
         );
     }
 
+    /**
+     * OPERATOR ONLY: updates the airdropFee setting
+     *
+     * @param _newFee     new airdropFee setting value
+     */
     function updateAirdropFee(uint256 _newFee) external onlyOperator {
         invokeManager(
             address(airdropModule),
