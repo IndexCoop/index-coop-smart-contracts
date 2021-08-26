@@ -20,22 +20,58 @@ import { IAirdropModule } from "../interfaces/IAirdropModule.sol";
 import { IManagerIssuanceHook } from "../interfaces/IManagerIssuanceHook.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 
+/**
+ * @title AirdropIssuanceHook
+ * @author Index Coop
+ *
+ * Issuance hooks that absorbs all airdropped tokens. Useful for ensuring that rebasing tokens are fully accounted for before issuance.
+ */
 contract AirdropIssuanceHook is IManagerIssuanceHook {
 
+    /* ============ State Variables ============ */
+
+    // Address of Set Protocol AirdropModule
     IAirdropModule public airdropModule;
 
+    /* ============== Constructor ================ */
+
+    /**
+     * Sets state variables.
+     *
+     * @param   _airdropModule      address of AirdropModule
+     */
     constructor(IAirdropModule _airdropModule) public {
         airdropModule = _airdropModule;
     }
 
+    /* =========== External Functions =========== */
+
+    /**
+     * Absorbs all airdropped tokens. Called by some issuance modules before issuance.
+     *
+     * @param   _setToken           address of SetToken to absorb airdrops for
+     */
     function invokePreIssueHook(ISetToken _setToken, uint256 /* _issueQuantity */, address /* _sender */, address /* _to */) external override {
         _sync(_setToken);
     }
 
+    /**
+     * Absorbs all airdropped tokens. Called by some issuance modules before redemption.
+     *
+     * @param   _setToken           address of SetToken to absorb airdrops for
+     */
     function invokePreRedeemHook(ISetToken _setToken, uint256 /* _issueQuantity */, address /* _sender */, address /* _to */) external override {
         _sync(_setToken);
     }
 
+    /* =========== Internal Functions ========== */
+
+    /**
+     * Absorbs all airdropped tokens. AirdropModule must be added to an initialized for the SetToken. Must have anyoneAbsorb set to true on
+     * the AirdropModule.
+     *
+     * @param   _setToken           address of SetToken to absorb airdrops for
+     */
     function _sync(ISetToken _setToken) internal {
         address[] memory airdrops = airdropModule.getAirdrops(_setToken);
         airdropModule.batchAbsorb(_setToken, airdrops);
