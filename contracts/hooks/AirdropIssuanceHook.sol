@@ -24,7 +24,8 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
  * @title AirdropIssuanceHook
  * @author Index Coop
  *
- * Issuance hooks that absorbs all airdropped tokens. Useful for ensuring that rebasing tokens are fully accounted for before issuance.
+ * Issuance hooks that absorbs all airdropped tokens. Useful for ensuring that rebasing tokens are fully accounted for before issuance. Only works
+ * with tokens that strictly positively rebase such as aTokens.
  */
 contract AirdropIssuanceHook is IManagerIssuanceHook {
 
