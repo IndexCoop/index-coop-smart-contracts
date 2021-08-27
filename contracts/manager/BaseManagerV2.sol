@@ -18,6 +18,8 @@ pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import { AddressArrayUtils } from "../lib/AddressArrayUtils.sol";
 import { IExtension } from "../interfaces/IExtension.sol";
@@ -35,6 +37,7 @@ import { MutualUpgrade } from "../lib/MutualUpgrade.sol";
 contract BaseManagerV2 is MutualUpgrade {
     using Address for address;
     using AddressArrayUtils for address[];
+    using SafeERC20 for IERC20;
 
     /* ============ Struct ========== */
 
@@ -97,6 +100,8 @@ contract BaseManagerV2 is MutualUpgrade {
     event EmergencyRemovedProtectedModule(
         address _module
     );
+
+    event EmergencyResolved();
 
     /* ============ Modifiers ============ */
 
@@ -292,10 +297,24 @@ contract BaseManagerV2 is MutualUpgrade {
      */
     function interactManager(address _module, bytes memory _data) external onlyExtension {
         require(initialized, "Manager not initialized");
+        require(_module != address(setToken), "Extensions cannot call SetToken");
         require(_senderAuthorizedForModule(_module, msg.sender), "Extension not authorized for module");
 
         // Invoke call to module, assume value will always be 0
         _module.functionCallWithValue(_data, 0);
+    }
+
+    /**
+     * OPERATOR ONLY: Transfers _tokens held by the manager to _destination. Can be used to
+     * recover anything sent here accidentally. In BaseManagerV2, extensions should
+     * be the only contracts designated as `feeRecipient` in fee modules.
+     *
+     * @param _token           ERC20 token to send
+     * @param _destination     Address receiving the tokens
+     * @param _amount          Quantity of tokens to send
+     */
+    function transferTokens(address _token, address _destination, uint256 _amount) external onlyExtension {
+        IERC20(_token).safeTransfer(_destination, _amount);
     }
 
     /**
@@ -341,8 +360,8 @@ contract BaseManagerV2 is MutualUpgrade {
     }
 
     /**
-     * OPERATOR ONLY: Marks an existing module as protected and authorizes existing extensions for
-     * it. Adds module to the protected modules list
+     * OPERATOR ONLY: Marks an existing module as protected and authorizes extensions for
+     * it, adding them if necessary. Adds module to the protected modules list
      *
      * The operator uses this when they're adding new features and want to assure the methodologist
      * they won't be unilaterally changed in the future. Cannot be called during an emergency because
@@ -431,9 +450,9 @@ contract BaseManagerV2 is MutualUpgrade {
      *
      * NOTE: If replacing a fee module, it's necessary to set the module `feeRecipient` to be
      * the new fee extension address after this call. Any fees remaining in the old module's
-     * de-authorized extensions can be distributed by calling `distribute()` on the old extension.
+     * de-authorized extensions can be distributed by calling `accrueFeesAndDistribute` on the old extension.
      *
-     * @param _module        Module to add in place of removed module
+     * @param _module          Module to add in place of removed module
      * @param _extensions      Array of extensions to authorize for replacement module
      */
     function emergencyReplaceProtectedModule(
@@ -461,6 +480,8 @@ contract BaseManagerV2 is MutualUpgrade {
      */
     function resolveEmergency() external onlyMethodologist onlyEmergency {
         emergencies -= 1;
+
+        emit EmergencyResolved();
     }
 
     /**
