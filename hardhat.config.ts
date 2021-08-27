@@ -36,7 +36,6 @@ const config: HardhatUserConfig = {
       accounts: getHardhatPrivateKeys(),
       gas: 12000000,
       blockGasLimit: 12000000,
-      initialBaseFeePerGas: 0 // Fixes solidity-coverage bug
     },
     localhost: {
       url: "http://127.0.0.1:8545",
