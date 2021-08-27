@@ -3,6 +3,7 @@ import { BigNumber, BigNumberish } from "@ethersproject/bignumber";
 import { Address } from "../types";
 import { convertLibraryNameToLinkId } from "../common";
 import {
+  AirdropModule,
   BasicIssuanceModule,
   Compound,
   CompoundLeverageModule,
@@ -21,6 +22,7 @@ import {
 } from "../contracts/setV2";
 import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
+import { AirdropModule__factory } from "../../typechain/factories/AirdropModule__factory";
 import { BasicIssuanceModule__factory } from "../../typechain/factories/BasicIssuanceModule__factory";
 import { Controller__factory } from "../../typechain/factories/Controller__factory";
 import { Compound__factory } from "../../typechain/factories/Compound__factory";
@@ -194,5 +196,9 @@ export default class DeploySetV2 {
 
   public async getTokenMock(token: Address): Promise<StandardTokenMock> {
     return await new StandardTokenMock__factory(this._deployerSigner).attach(token);
+  }
+
+  public async deployAirdropModule(controller: Address): Promise<AirdropModule> {
+    return await new AirdropModule__factory(this._deployerSigner).deploy(controller);
   }
 }
