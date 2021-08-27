@@ -25,6 +25,7 @@ describe("AirdropExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
+  let allowedCaller: Account;
 
   let setV2Setup: SetFixture;
 
@@ -39,6 +40,7 @@ describe("AirdropExtension", () => {
       owner,
       methodologist,
       operator,
+      allowedCaller,
     ] = await getAccounts();
 
     deployer = new DeployHelper(owner.wallet);
@@ -199,8 +201,9 @@ describe("AirdropExtension", () => {
         beforeEach(async () => {
           subjectTokenToAbsorb = setV2Setup.dai.address;
           subjectAirdropAmount = ether(3);
-          subjectCaller = operator;
+          subjectCaller = allowedCaller;
 
+          await airdropExtension.connect(operator.wallet).updateCallerStatus([allowedCaller.address], [true]);
           await setV2Setup.dai.transfer(setToken.address, subjectAirdropAmount);
         });
 
@@ -220,13 +223,13 @@ describe("AirdropExtension", () => {
           expect(finalComponentUnits).to.eq(expectedComponentUnits);
         });
 
-        context("when the operator is not the caller", async () => {
+        context("when the caller is not an allowed caller", async () => {
           beforeEach(async () => {
             subjectCaller = await getRandomAccount();
           });
 
           it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("Must be operator");
+            await expect(subject()).to.be.revertedWith("Address not permitted to call");
           });
         });
       });
@@ -239,8 +242,9 @@ describe("AirdropExtension", () => {
         beforeEach(async () => {
           subjectTokensToAbsorb = [ setV2Setup.dai.address ];
           subjectAirdropAmount = ether(3);
-          subjectCaller = operator;
+          subjectCaller = allowedCaller;
 
+          await airdropExtension.connect(operator.wallet).updateCallerStatus([allowedCaller.address], [true]);
           await setV2Setup.dai.transfer(setToken.address, subjectAirdropAmount);
         });
 
@@ -260,13 +264,13 @@ describe("AirdropExtension", () => {
           expect(finalComponentUnits).to.eq(expectedComponentUnits);
         });
 
-        context("when the operator is not the caller", async () => {
+        context("when the caller is not an allowed caller", async () => {
           beforeEach(async () => {
             subjectCaller = await getRandomAccount();
           });
 
           it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("Must be operator");
+            await expect(subject()).to.be.revertedWith("Address not permitted to call");
           });
         });
       });

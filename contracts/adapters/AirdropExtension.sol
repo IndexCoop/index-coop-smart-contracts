@@ -70,7 +70,7 @@ contract AirdropExtension is BaseExtension {
      *
      * @param _token    Airdropped token to absorb
      */
-    function absorb(address _token) external onlyOperator {
+    function absorb(address _token) external onlyAllowedCaller(msg.sender) {
         invokeManager(
             address(airdropModule),
             abi.encodeWithSignature("absorb(address,address)", setToken, _token)
@@ -82,7 +82,7 @@ contract AirdropExtension is BaseExtension {
      *
      * @param _tokens   List of airdropped tokens to absorb
      */
-    function batchAbsorb(address[] memory _tokens) external onlyOperator {
+    function batchAbsorb(address[] memory _tokens) external onlyAllowedCaller(msg.sender) {
         invokeManager(
             address(airdropModule),
             abi.encodeWithSignature("batchAbsorb(address,address[])", setToken, _tokens)
