@@ -93,7 +93,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
         uint256 borrowDecimalAdjustment;                // Decimal adjustment for chainlink oracle of the borrowing asset. Equal to 28-borrowDecimals (10^18 * 10^18 / 10^decimals / 10^8)
     }
 
-    struct MethodologySettings { 
+    struct MethodologySettings {
         uint256 targetLeverageRatio;                     // Long term target ratio in precise units (10e18)
         uint256 minLeverageRatio;                        // In precise units (10e18). If current leverage is below, rebalance target is this ratio
         uint256 maxLeverageRatio;                        // In precise units (10e18). If current leverage is above, rebalance target is this ratio
@@ -101,7 +101,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
         uint256 rebalanceInterval;                       // Period of time required since last rebalance timestamp in seconds
     }
 
-    struct ExecutionSettings { 
+    struct ExecutionSettings {
         uint256 unutilizedLeveragePercentage;            // Percent of max borrow left unutilized in precise units (1% = 10e16)
         uint256 slippageTolerance;                       // % in precise units to price min token receive amount from trade quantities
         uint256 twapCooldownPeriod;                      // Cooldown period required since last trade timestamp in seconds
@@ -207,7 +207,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
 
     /**
      * Instantiate addresses, methodology parameters, execution parameters, and incentive parameters.
-     * 
+     *
      * @param _manager                  Address of IBaseManager contract
      * @param _strategy                 Struct of contract addresses
      * @param _methodology              Struct containing methodology parameters
@@ -340,7 +340,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
             _exchangeName
         );
 
-        // Use the exchangeLastTradeTimestamp since cooldown periods are measured on a per-exchange basis, allowing it to rebalance multiple time in quick 
+        // Use the exchangeLastTradeTimestamp since cooldown periods are measured on a per-exchange basis, allowing it to rebalance multiple time in quick
         // succession with different exchanges
         _validateNormalRebalance(leverageInfo, execution.twapCooldownPeriod, exchangeSettings[_exchangeName].exchangeLastTradeTimestamp);
         _validateTWAP();
@@ -373,7 +373,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
      */
     function ripcord(string memory _exchangeName) external onlyEOA {
         LeverageInfo memory leverageInfo = _getAndValidateLeveragedInfo(
-            incentive.incentivizedSlippageTolerance, 
+            incentive.incentivizedSlippageTolerance,
             exchangeSettings[_exchangeName].incentivizedTwapMaxTradeSize,
             _exchangeName
         );
@@ -401,7 +401,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
      * OPERATOR ONLY: Return leverage ratio to 1x and delever to repay loan. This can be used for upgrading or shutting down the strategy. SetToken will redeem
      * collateral position and trade for debt position to repay Aave. If the chunk rebalance size is less than the total notional size, then this function will
      * delever and repay entire borrow balance on Aave. If chunk rebalance size is above max borrow or max trade size, then operator must
-     * continue to call this function to complete repayment of loan. The function iterateRebalance will not work. 
+     * continue to call this function to complete repayment of loan. The function iterateRebalance will not work.
      *
      * Note: Delever to 0 will likely result in additional units of the borrow asset added as equity on the SetToken due to oracle price / market price mismatch
      *
@@ -503,8 +503,8 @@ contract AaveLeverageStrategyExtension is BaseExtension {
         string memory _exchangeName,
         ExchangeSettings memory _exchangeSettings
     )
-        external 
-        onlyOperator 
+        external
+        onlyOperator
     {
         require(exchangeSettings[_exchangeName].twapMaxTradeSize == 0, "Exchange already enabled");
         _validateExchangeSettings(_exchangeSettings);
@@ -514,7 +514,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
         exchangeSettings[_exchangeName].leverExchangeData = _exchangeSettings.leverExchangeData;
         exchangeSettings[_exchangeName].deleverExchangeData = _exchangeSettings.deleverExchangeData;
         exchangeSettings[_exchangeName].exchangeLastTradeTimestamp = 0;
-        
+
         enabledExchanges.push(_exchangeName);
 
         emit ExchangeAdded(
@@ -528,7 +528,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
     }
 
     /**
-     * OPERATOR ONLY: Removes an exchange. Reverts if the exchange is not already enabled. Removing exchanges during rebalances is allowed, 
+     * OPERATOR ONLY: Removes an exchange. Reverts if the exchange is not already enabled. Removing exchanges during rebalances is allowed,
      * as it is not possible to enter an unexpected state while doing so.
      *
      * @param _exchangeName     Name of exchange to remove
@@ -543,9 +543,9 @@ contract AaveLeverageStrategyExtension is BaseExtension {
     }
 
     /**
-     * OPERATOR ONLY: Updates the settings of an exchange. Reverts if exchange is not already added. When updating an exchange, exchangeLastTradeTimestamp 
-     * is preserved. Updating exchanges during rebalances is allowed, as it is not possible to enter an unexpected state while doing so. Note: Need to 
-     * pass in all existing parameters even if only changing a few settings. 
+     * OPERATOR ONLY: Updates the settings of an exchange. Reverts if exchange is not already added. When updating an exchange, exchangeLastTradeTimestamp
+     * is preserved. Updating exchanges during rebalances is allowed, as it is not possible to enter an unexpected state while doing so. Note: Need to
+     * pass in all existing parameters even if only changing a few settings.
      *
      * @param _exchangeName         Name of the exchange
      * @param _exchangeSettings     Struct containing exchange parameters
@@ -574,7 +574,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
             _exchangeSettings.deleverExchangeData
         );
     }
-    
+
     /**
      * OPERATOR ONLY: Withdraw entire balance of ETH in this contract to operator. Rebalance must not be in progress
      */
@@ -600,7 +600,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
 
     /**
      * Calculates the chunk rebalance size. This can be used by external contracts and keeper bots to calculate the optimal exchange to rebalance with.
-     * Note: this function does not take into account timestamps, so it may return a nonzero value even when shouldRebalance would return ShouldRebalance.NONE for 
+     * Note: this function does not take into account timestamps, so it may return a nonzero value even when shouldRebalance would return ShouldRebalance.NONE for
      * all exchanges (since minimum delays have not elapsed)
      *
      * @param _exchangeNames    Array of exchange names to get rebalance sizes for
@@ -611,7 +611,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
      */
     function getChunkRebalanceNotional(
         string[] calldata _exchangeNames
-    ) 
+    )
         external
         view
         returns(uint256[] memory sizes, address sellAsset, address buyAsset)
@@ -644,8 +644,8 @@ contract AaveLeverageStrategyExtension is BaseExtension {
                 action: actionInfo,
                 currentLeverageRatio: currentLeverageRatio,
                 slippageTolerance: isRipcord ? incentive.incentivizedSlippageTolerance : execution.slippageTolerance,
-                twapMaxTradeSize: isRipcord ? 
-                    exchangeSettings[_exchangeNames[i]].incentivizedTwapMaxTradeSize : 
+                twapMaxTradeSize: isRipcord ?
+                    exchangeSettings[_exchangeNames[i]].incentivizedTwapMaxTradeSize :
                     exchangeSettings[_exchangeNames[i]].twapMaxTradeSize,
                 exchangeName: _exchangeNames[i]
             });
@@ -661,7 +661,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
     }
 
     /**
-     * Get current Ether incentive for when current leverage ratio exceeds incentivized leverage ratio and ripcord can be called. If ETH balance on the contract is 
+     * Get current Ether incentive for when current leverage ratio exceeds incentivized leverage ratio and ripcord can be called. If ETH balance on the contract is
      * below the etherReward, then return the balance of ETH instead.
      *
      * return etherReward               Quantity of ETH reward in base units (10e18)
@@ -748,7 +748,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
         internal
     {
         uint256 collateralRebalanceUnits = _chunkRebalanceNotional.preciseDiv(_leverageInfo.action.setTotalSupply);
-        
+
         uint256 borrowUnits = _calculateBorrowUnits(collateralRebalanceUnits, _leverageInfo.action);
 
         uint256 minReceiveCollateralUnits = _calculateMinCollateralReceiveUnits(collateralRebalanceUnits, _leverageInfo.slippageTolerance);
@@ -836,7 +836,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
                 totalRebalanceNotional
             ) = _calculateChunkRebalanceNotional(_leverageInfo, _newLeverageRatio, false);
 
-            _delever(_leverageInfo, chunkRebalanceNotional); 
+            _delever(_leverageInfo, chunkRebalanceNotional);
         } else {
             (
                 chunkRebalanceNotional,
@@ -1004,7 +1004,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
      */
     function _isAdvantageousTWAP(uint256 _currentLeverageRatio) internal view returns (bool) {
         return (
-            (twapLeverageRatio < methodology.targetLeverageRatio && _currentLeverageRatio >= twapLeverageRatio) 
+            (twapLeverageRatio < methodology.targetLeverageRatio && _currentLeverageRatio >= twapLeverageRatio)
             || (twapLeverageRatio > methodology.targetLeverageRatio && _currentLeverageRatio <= twapLeverageRatio)
         );
     }
@@ -1046,7 +1046,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
     }
 
     /**
-     * Calculate total notional rebalance quantity and chunked rebalance quantity in collateral units. 
+     * Calculate total notional rebalance quantity and chunked rebalance quantity in collateral units.
      *
      * return uint256          Chunked rebalance notional in collateral units
      * return uint256          Total rebalance notional in collateral units
@@ -1075,7 +1075,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
     /**
      * Calculate the max borrow / repay amount allowed in base units for lever / delever. This is due to overcollateralization requirements on
      * assets deposited in lending protocols for borrowing.
-     * 
+     *
      * For lever, max borrow is calculated as:
      * (Net borrow limit in USD - existing borrow value in USD) / collateral asset price adjusted for decimals
      *
@@ -1180,7 +1180,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
         // If the chunk size is equal to the total notional meaning that rebalances are not chunked, then clear TWAP state.
         if (_chunkRebalanceNotional == _totalRebalanceNotional) {
             delete twapLeverageRatio;
-        }        
+        }
     }
 
     /**
@@ -1208,14 +1208,14 @@ contract AaveLeverageStrategyExtension is BaseExtension {
      }
 
     /**
-     * Transfer ETH reward to caller of the ripcord function. If the ETH balance on this contract is less than required 
+     * Transfer ETH reward to caller of the ripcord function. If the ETH balance on this contract is less than required
      * incentive quantity, then transfer contract balance instead to prevent reverts.
      *
      * return uint256           Amount of ETH transferred to caller
      */
     function _transferEtherRewardToCaller(uint256 _etherReward) internal returns(uint256) {
         uint256 etherToTransfer = _etherReward < address(this).balance ? _etherReward : address(this).balance;
-        
+
         msg.sender.transfer(etherToTransfer);
 
         return etherToTransfer;
@@ -1266,7 +1266,6 @@ contract AaveLeverageStrategyExtension is BaseExtension {
                 }
             }
         }
-        
 
         return (enabledExchanges, shouldRebalanceEnums);
     }
