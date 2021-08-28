@@ -117,9 +117,14 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
      *
      * This method is called after invoking `replaceProtectedModule` or `emergencyReplaceProtectedModule`
      * to configure the replacement streaming fee module's fee settings.
+     *
+     * @param _maxManagerFee            Max size of issuance and redeem fees in precise units (10^16 = 1%).
+     * @param _managerIssueFee          Manager issuance fees in precise units (10^16 = 1%)
+     * @param _managerRedeemFee         Manager redeem fees in precise units (10^16 = 1%)
+     * @param _feeRecipient             Address that receives all manager issue and redeem fees
+     * @param _managerIssuanceHook      Address of manager defined hook contract
      */
     function initializeIssuanceModule(
-        ISetToken _setToken,
         uint256 _maxManagerFee,
         uint256 _managerIssueFee,
         uint256 _managerRedeemFee,
@@ -148,6 +153,17 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
      *
      * This method is called after invoking `replaceProtectedModule` or `emergencyReplaceProtectedModule`
      * to configure the replacement streaming fee module's fee settings.
+     *
+     * @dev FeeState settings encode the following struct
+     * ```
+     * struct FeeState {
+     *   address feeRecipient;                // Address to accrue fees to
+     *   uint256 maxStreamingFeePercentage;   // Max streaming fee maanager commits to using (1% = 1e16, 100% = 1e18)
+     *   uint256 streamingFeePercentage;      // Percent of Set accruing to manager annually (1% = 1e16, 100% = 1e18)
+     *   uint256 lastStreamingFeeTimestamp;   // Timestamp last streaming fee was accrued
+     *}
+     *```
+     * @param _settings     FeeModule.FeeState settings
      */
     function initializeStreamingFeeModule(IStreamingFeeModule.FeeState memory _settings)
         external
@@ -167,7 +183,12 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
      * this function to execute the update. Because the method is timelocked, each party must call it twice:
      * once to set the lock and once to execute.
      *
+     * Method is timelocked to protect token owners from sudden changes in fee structure which
+     * they would rather not bear. The delay gives them a chance to exit their positions without penalty.
+     *
      * NOTE: This will accrue streaming fees though not send to operator fee recipient and methodologist.
+     *
+     * @param _newFee       Percent of Set accruing to fee extension annually (1% = 1e16, 100% = 1e18)
      */
     function updateStreamingFee(uint256 _newFee)
         external
@@ -182,6 +203,11 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
      * MUTUAL UPGRADE: Updates issue fee on IssuanceModule. Only is executed once time lock has passed.
      * Operator and Methodologist must each call this function to execute the update. Because the method
      * is timelocked, each party must call it twice: once to set the lock and once to execute.
+     *
+     * Method is timelocked to protect token owners from sudden changes in fee structure which
+     * they would rather not bear. The delay gives them a chance to exit their positions without penalty.
+     *
+     * @param _newFee           New issue fee percentage in precise units (1% = 1e16, 100% = 1e18)
      */
     function updateIssueFee(uint256 _newFee)
         external
@@ -196,6 +222,11 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
      * MUTUAL UPGRADE: Updates redeem fee on IssuanceModule. Only is executed once time lock has passed.
      * Operator and Methodologist must each call this function to execute the update. Because the method is
      * timelocked, each party must call it twice: once to set the lock and once to execute.
+     *
+     * Method is timelocked to protect token owners from sudden changes in fee structure which
+     * they would rather not bear. The delay gives them a chance to exit their positions without penalty.
+     *
+     * @param _newFee           New redeem fee percentage in precise units (1% = 1e16, 100% = 1e18)
      */
     function updateRedeemFee(uint256 _newFee)
         external
@@ -208,6 +239,8 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
 
     /**
      * MUTUAL UPGRADE: Updates fee recipient on both streaming fee and issuance modules.
+     *
+     * @param _newFeeRecipient  Address of new fee recipient. This should be the address of the fee extension itself.
      */
     function updateFeeRecipient(address _newFeeRecipient)
         external
@@ -220,6 +253,8 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
 
     /**
      * MUTUAL UPGRADE: Updates fee split between operator and methodologist. Split defined in precise units (1% = 10^16).
+     *
+     * @param _newFeeSplit      Percent of fees in precise units (10^16 = 1%) sent to operator, (rest go to the methodologist).
      */
     function updateFeeSplit(uint256 _newFeeSplit)
         external
@@ -232,6 +267,8 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
 
     /**
      * OPERATOR ONLY: Updates the address that receives the operator's share of the fees (see IIP-72)
+     *
+     * @param _newOperatorFeeRecipient  Address to send operator's fees to.
      */
     function updateOperatorFeeRecipient(address _newOperatorFeeRecipient)
         external

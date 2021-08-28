@@ -122,8 +122,7 @@ abstract contract BaseExtension {
      * @param _amount          Amount of token being transferred
      */
     function invokeManagerTransfer(address _token, address _destination, uint256 _amount) internal {
-        bytes memory callData = abi.encodeWithSignature("transfer(address,uint256)", _destination, _amount);
-        invokeManager(_token, callData);
+        manager.transferTokens(_token, _destination, _amount);
     }
 
     /**

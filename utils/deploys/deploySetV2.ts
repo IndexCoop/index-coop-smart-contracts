@@ -5,6 +5,7 @@ import { convertLibraryNameToLinkId } from "../common";
 import {
   AaveLeverageModule,
   AaveV2,
+  AirdropModule,
   BasicIssuanceModule,
   Compound,
   CompoundLeverageModule,
@@ -25,6 +26,7 @@ import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
 import { AaveLeverageModule__factory } from "../../typechain/factories/AaveLeverageModule__factory";
 import { AaveV2__factory  } from "../../typechain/factories/AaveV2__factory";
+import { AirdropModule__factory } from "../../typechain/factories/AirdropModule__factory";
 import { BasicIssuanceModule__factory } from "../../typechain/factories/BasicIssuanceModule__factory";
 import { Controller__factory } from "../../typechain/factories/Controller__factory";
 import { Compound__factory } from "../../typechain/factories/Compound__factory";
@@ -227,5 +229,9 @@ export default class DeploySetV2 {
       lendingPoolAddressesProvider,
       protocolDataProvider
     );
+  }
+
+  public async deployAirdropModule(controller: Address): Promise<AirdropModule> {
+    return await new AirdropModule__factory(this._deployerSigner).deploy(controller);
   }
 }

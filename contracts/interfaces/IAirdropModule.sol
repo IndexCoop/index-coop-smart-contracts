@@ -1,5 +1,5 @@
 /*
-    Copyright 2021 Set Labs Inc.
+    Copyright 2021 Index Cooperative.
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -15,18 +15,10 @@
 */
 
 pragma solidity 0.6.10;
-pragma experimental "ABIEncoderV2";
 
-import { ISetToken } from "./ISetToken.sol";
+import { ISetToken } from "../interfaces/ISetToken.sol";
 
-interface IBaseManager {
-    function setToken() external returns(ISetToken);
-
-    function methodologist() external returns(address);
-
-    function operator() external returns(address);
-
-    function interactManager(address _module, bytes calldata _encoded) external;
-
-    function transferTokens(address _token, address _destination, uint256 _amount) external;
+interface IAirdropModule {
+    function batchAbsorb(ISetToken _setToken, address[] memory _tokens) external;
+    function getAirdrops(ISetToken _setToken) external view returns (address[] memory);
 }

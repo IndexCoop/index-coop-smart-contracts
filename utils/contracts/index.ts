@@ -1,5 +1,5 @@
-
 export { AaveLeverageStrategyExtension } from "../../typechain/AaveLeverageStrategyExtension";
+export { AirdropIssuanceHook } from "../../typechain/AirdropIssuanceHook";
 export { BaseExtensionMock } from "../../typechain/BaseExtensionMock";
 export { BaseManager } from "../../typechain/BaseManager";
 export { BaseManagerV2 } from "../../typechain/BaseManagerV2";
