@@ -1,6 +1,7 @@
 import { Signer, BigNumber } from "ethers";
-import { Address, ContractSettings, MethodologySettings, ExecutionSettings, IncentiveSettings, ExchangeSettings } from "../types";
+import { Address, ContractSettings, MethodologySettings, ExecutionSettings, IncentiveSettings, ExchangeSettings, AaveContractSettings } from "../types";
 import {
+  AaveLeverageStrategyExtension,
   ExchangeIssuance,
   ExchangeIssuanceV2,
   FlexibleLeverageStrategyExtension,
@@ -10,6 +11,7 @@ import {
   StreamingFeeSplitExtension
 } from "../contracts/index";
 
+import { AaveLeverageStrategyExtension__factory } from "../../typechain/factories/AaveLeverageStrategyExtension__factory";
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
@@ -132,6 +134,26 @@ export default class DeployExtensions {
       sushiRouterAddress,
       setControllerAddress,
       basicIssuanceModuleAddress
+    );
+  }
+
+  public async deployAaveLeverageStrategyExtension(
+    manager: Address,
+    contractSettings: AaveContractSettings,
+    methdologySettings: MethodologySettings,
+    executionSettings: ExecutionSettings,
+    incentiveSettings: IncentiveSettings,
+    exchangeNames: string[],
+    exchangeSettings: ExchangeSettings[]
+  ): Promise<AaveLeverageStrategyExtension> {
+    return await new AaveLeverageStrategyExtension__factory(this._deployerSigner).deploy(
+      manager,
+      contractSettings,
+      methdologySettings,
+      executionSettings,
+      incentiveSettings,
+      exchangeNames,
+      exchangeSettings,
     );
   }
 }

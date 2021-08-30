@@ -18,55 +18,32 @@ pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Math } from "@openzeppelin/contracts/math/Math.sol";
-import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
+import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import { BaseExtension } from "../lib/BaseExtension.sol";
-import { ICErc20 } from "../interfaces/ICErc20.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IChainlinkAggregatorV3 } from "../interfaces/IChainlinkAggregatorV3.sol";
-import { IComptroller } from "../interfaces/IComptroller.sol";
 import { ILeverageModule } from "../interfaces/ILeverageModule.sol";
+import { IProtocolDataProvider } from "../interfaces/IProtocolDataProvider.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
 
 
 /**
- * @title FlexibleLeverageStrategyExtension
+ * @title AaveLeverageStrategyExtension
  * @author Set Protocol
  *
- * Smart contract that enables trustless leverage tokens using the flexible leverage methodology. This extension is paired with the CompoundLeverageModule from Set
- * protocol where module interactions are invoked via the IBaseManager contract. Any leveraged token can be constructed as long as the collateral and borrow
- * asset is available on Compound. This extension contract also allows the operator to set an ETH reward to incentivize keepers calling the rebalance function at
- * different leverage thresholds.
+ * Smart contract that enables trustless leverage tokens. This extension is paired with the AaveLeverageModule from Set protocol where module 
+ * interactions are invoked via the IBaseManager contract. Any leveraged token can be constructed as long as the collateral and borrow asset 
+ * is available on Aave. This extension contract also allows the operator to set an ETH reward to incentivize keepers calling the rebalance
+ * function at different leverage thresholds.
  *
- * CHANGELOG 4/14/2021:
- * - Update ExecutionSettings struct to split exchangeData into leverExchangeData and deleverExchangeData
- * - Update _lever and _delever internal functions with struct changes
- * - Update setExecutionSettings to account for leverExchangeData and deleverExchangeData
- *
- * CHANGELOG 5/24/2021:
- * - Update _calculateActionInfo to add chainlink prices
- * - Update _calculateBorrowUnits and _calculateMinRepayUnits to use chainlink as an oracle in
- *
- * CHANGELOG 6/29/2021: c55bd3cdb0fd43c03da9904493dcc23771ef0f71
- * - Add ExchangeSettings struct that contains exchange specific information
- * - Update ExecutionSettings struct to not include exchange information
- * - Add mapping of exchange names to ExchangeSettings structs and a list of enabled exchange names
- * - Update constructor to take an array of exchange names and an array of ExchangeSettings
- * - Add _exchangeName parameter to rebalancing functions to select which exchange to use
- * - Add permissioned addEnabledExchange, updateEnabledExchange, and removeEnabledExchange functions
- * - Add getChunkRebalanceNotional function
- * - Update shouldRebalance and shouldRebalanceWithBounds to return an array of ShouldRebalance enums and an array of exchange names
- * - Update _shouldRebalance to use exchange specific last trade timestamps
- * - Update _validateRipcord and _validateNormalRebalance to take in a timestamp parameter (so we can pass either global or exchange specific timestamp)
- * - Add _updateLastTradeTimestamp function to update global and exchange specific timestamp
- * - Change contract name to FlexibleLeverageStrategyExtension
  */
-contract FlexibleLeverageStrategyExtension is BaseExtension {
+contract AaveLeverageStrategyExtension is BaseExtension {
     using Address for address;
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
@@ -85,8 +62,8 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
     /* ============ Structs ============ */
 
     struct ActionInfo {
-        uint256 collateralBalance;                      // Balance of underlying held in Compound in base units (e.g. USDC 10e6)
-        uint256 borrowBalance;                          // Balance of underlying borrowed from Compound in base units
+        uint256 collateralBalance;                      // Balance of underlying held in Aave in base units (e.g. USDC 10e6)
+        uint256 borrowBalance;                          // Balance of underlying borrowed from Aave in base units
         uint256 collateralValue;                        // Valuation in USD adjusted for decimals in precise units (10e18)
         uint256 borrowValue;                            // Valuation in USD adjusted for decimals in precise units (10e18)
         uint256 collateralPrice;                        // Price of collateral in precise units (10e18) from Chainlink
@@ -104,12 +81,12 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
 
     struct ContractSettings {
         ISetToken setToken;                             // Instance of leverage token
-        ILeverageModule leverageModule;                 // Instance of Compound leverage module
-        IComptroller comptroller;                       // Instance of Compound Comptroller
+        ILeverageModule leverageModule;                 // Instance of Aave leverage module
+        IProtocolDataProvider aaveProtocolDataProvider; // Instance of Aave protocol data provider
         IChainlinkAggregatorV3 collateralPriceOracle;   // Chainlink oracle feed that returns prices in 8 decimals for collateral asset
         IChainlinkAggregatorV3 borrowPriceOracle;       // Chainlink oracle feed that returns prices in 8 decimals for borrow asset
-        ICErc20 targetCollateralCToken;                 // Instance of target collateral cToken asset
-        ICErc20 targetBorrowCToken;                     // Instance of target borrow cToken asset
+        IERC20 targetCollateralAToken;                  // Instance of target collateral aToken asset
+        IERC20 targetBorrowDebtToken;                   // Instance of target borrow variable debt token asset
         address collateralAsset;                        // Address of underlying collateral
         address borrowAsset;                            // Address of underlying borrow asset
         uint256 collateralDecimalAdjustment;            // Decimal adjustment for chainlink oracle of the collateral asset. Equal to 28-collateralDecimals (10^18 * 10^18 / 10^decimals / 10^8)
@@ -268,7 +245,7 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
     /* ============ External Functions ============ */
 
     /**
-     * OPERATOR ONLY: Engage to target leverage ratio for the first time. SetToken will borrow debt position from Compound and trade for collateral asset. If target
+     * OPERATOR ONLY: Engage to target leverage ratio for the first time. SetToken will borrow debt position from Aave and trade for collateral asset. If target
      * leverage ratio is above max borrow or max trade size, then TWAP is kicked off. To complete engage if TWAP, any valid caller must call iterateRebalance until target
      * is met.
      *
@@ -313,7 +290,7 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
     }
 
     /**
-     * ONLY EOA AND ALLOWED CALLER: Rebalance according to flexible leverage methodology. If current leverage ratio is between the max and min bounds, then rebalance
+     * ONLY EOA AND ALLOWED CALLER: Rebalance product. If current leverage ratio is between the max and min bounds, then rebalance 
      * can only be called once the rebalance interval has elapsed since last timestamp. If outside the max and min, rebalance can be called anytime to bring leverage
      * ratio back to the max or min bounds. The methodology will determine whether to delever or lever.
      *
@@ -422,8 +399,8 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
 
     /**
      * OPERATOR ONLY: Return leverage ratio to 1x and delever to repay loan. This can be used for upgrading or shutting down the strategy. SetToken will redeem
-     * collateral position and trade for debt position to repay Compound. If the chunk rebalance size is less than the total notional size, then this function will
-     * delever and repay entire borrow balance on Compound. If chunk rebalance size is above max borrow or max trade size, then operator must
+     * collateral position and trade for debt position to repay Aave. If the chunk rebalance size is less than the total notional size, then this function will
+     * delever and repay entire borrow balance on Aave. If chunk rebalance size is above max borrow or max trade size, then operator must
      * continue to call this function to complete repayment of loan. The function iterateRebalance will not work.
      *
      * Note: Delever to 0 will likely result in additional units of the borrow asset added as equity on the SetToken due to oracle price / market price mismatch
@@ -611,7 +588,7 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
 
     /**
      * Get current leverage ratio. Current leverage ratio is defined as the USD value of the collateral divided by the USD value of the SetToken. Prices for collateral
-     * and borrow asset are retrieved from the Compound Price Oracle.
+     * and borrow asset are retrieved from the Chainlink Price Oracle.
      *
      * return currentLeverageRatio         Current leverage ratio in precise units (10e18)
      */
@@ -662,7 +639,7 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
         sizes = new uint256[](_exchangeNames.length);
 
         for (uint256 i = 0; i < _exchangeNames.length; i++) {
-
+    
             LeverageInfo memory leverageInfo = LeverageInfo({
                 action: actionInfo,
                 currentLeverageRatio: currentLeverageRatio,
@@ -715,7 +692,7 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
     /**
      * Helper that checks if conditions are met for rebalance or ripcord with custom max and min bounds specified by caller. This function simplifies the
      * logic for off-chain keeper bots to determine what threshold to call rebalance when leverage exceeds max or drops below min. Returns an enum with
-     * 0 = no rebalance, 1 = call rebalance(), 2 = call iterateRebalance()3 = call ripcord()
+     * 0 = no rebalance, 1 = call rebalance(), 2 = call iterateRebalance(), 3 = call ripcord()
      *
      * @param _customMinLeverageRatio          Min leverage ratio passed in by caller
      * @param _customMaxLeverageRatio          Max leverage ratio passed in by caller
@@ -761,7 +738,7 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
     /* ============ Internal Functions ============ */
 
     /**
-     * Calculate notional rebalance quantity, whether to chunk rebalance based on max trade size and max borrow and invoke lever on CompoundLeverageModule
+     * Calculate notional rebalance quantity, whether to chunk rebalance based on max trade size and max borrow and invoke lever on AaveLeverageModule
      *
      */
      function _lever(
@@ -791,7 +768,7 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
     }
 
     /**
-     * Calculate delever units Invoke delever on CompoundLeverageModule.
+     * Calculate delever units Invoke delever on AaveLeverageModule.
      */
     function _delever(
         LeverageInfo memory _leverageInfo,
@@ -818,7 +795,7 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
     }
 
     /**
-     * Invoke deleverToZeroBorrowBalance on CompoundLeverageModule.
+     * Invoke deleverToZeroBorrowBalance on AaveLeverageModule.
      */
     function _deleverToZeroBorrowBalance(
         LeverageInfo memory _leverageInfo,
@@ -910,18 +887,16 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
     function _createActionInfo() internal view returns(ActionInfo memory) {
         ActionInfo memory rebalanceInfo;
 
-        // Calculate prices from chainlink. Adjusts decimals to be in line with Compound's oracles. Chainlink returns prices with 8 decimal places, but
-        // compound expects 36 - underlyingDecimals decimal places from their oracles. This is so that when the underlying amount is multiplied by the
-        // received price, the collateral valuation is normalized to 36 decimals. To perform this adjustment, we multiply by 10^(36 - 8 - underlyingDeciamls)
+        // Calculate prices from chainlink. Chainlink returns prices with 8 decimal places, but we need 36 - underlyingDecimals decimal places.
+        // This is so that when the underlying amount is multiplied by the received price, the collateral valuation is normalized to 36 decimals. 
+        // To perform this adjustment, we multiply by 10^(36 - 8 - underlyingDecimals)
         int256 rawCollateralPrice = strategy.collateralPriceOracle.latestAnswer();
         rebalanceInfo.collateralPrice = rawCollateralPrice.toUint256().mul(10 ** strategy.collateralDecimalAdjustment);
         int256 rawBorrowPrice = strategy.borrowPriceOracle.latestAnswer();
         rebalanceInfo.borrowPrice = rawBorrowPrice.toUint256().mul(10 ** strategy.borrowDecimalAdjustment);
 
-        // Calculate stored exchange rate which does not trigger a state update
-        uint256 cTokenBalance = strategy.targetCollateralCToken.balanceOf(address(strategy.setToken));
-        rebalanceInfo.collateralBalance = cTokenBalance.preciseMul(strategy.targetCollateralCToken.exchangeRateStored());
-        rebalanceInfo.borrowBalance = strategy.targetBorrowCToken.borrowBalanceStored(address(strategy.setToken));
+        rebalanceInfo.collateralBalance = strategy.targetCollateralAToken.balanceOf(address(strategy.setToken));
+        rebalanceInfo.borrowBalance = strategy.targetBorrowDebtToken.balanceOf(address(strategy.setToken));
         rebalanceInfo.collateralValue = rebalanceInfo.collateralPrice.preciseMul(rebalanceInfo.collateralBalance);
         rebalanceInfo.borrowValue = rebalanceInfo.borrowPrice.preciseMul(rebalanceInfo.borrowBalance);
         rebalanceInfo.setTotalSupply = strategy.setToken.totalSupply();
@@ -1051,11 +1026,11 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
     }
 
     /**
-     * Calculate the new leverage ratio using the flexible leverage methodology. The methodology reduces the size of each rebalance by weighting
+     * Calculate the new leverage ratio. The methodology reduces the size of each rebalance by weighting
      * the current leverage ratio against the target leverage ratio by the recentering speed percentage. The lower the recentering speed, the slower
      * the leverage token will move towards the target leverage each rebalance.
      *
-     * return uint256          New leverage ratio based on the flexible leverage methodology
+     * return uint256          New leverage ratio
      */
     function _calculateNewLeverageRatio(uint256 _currentLeverageRatio) internal view returns(uint256) {
         // CLRt+1 = max(MINLR, min(MAXLR, CLRt * (1 - RS) + TLR * RS))
@@ -1098,42 +1073,52 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
     }
 
     /**
-     * Calculate the max borrow / repay amount allowed in collateral units for lever / delever. This is due to overcollateralization requirements on
+     * Calculate the max borrow / repay amount allowed in base units for lever / delever. This is due to overcollateralization requirements on
      * assets deposited in lending protocols for borrowing.
      *
      * For lever, max borrow is calculated as:
      * (Net borrow limit in USD - existing borrow value in USD) / collateral asset price adjusted for decimals
      *
-     * For delever, max borrow is calculated as:
+     * For delever, max repay is calculated as:
      * Collateral balance in base units * (net borrow limit in USD - existing borrow value in USD) / net borrow limit in USD
      *
-     * Net borrow limit is calculated as:
-     * The collateral value in USD * Compound collateral factor * (1 - unutilized leverage %)
+     * Net borrow limit for levering is calculated as:
+     * The collateral value in USD * Aave collateral factor * (1 - unutilized leverage %)
+     *
+     * Net repay limit for delevering is calculated as:
+     * The collateral value in USD * Aave liquiditon threshold * (1 - unutilized leverage %)
      *
      * return uint256          Max borrow notional denominated in collateral asset
      */
     function _calculateMaxBorrowCollateral(ActionInfo memory _actionInfo, bool _isLever) internal view returns(uint256) {
-        // Retrieve collateral factor which is the % increase in borrow limit in precise units (75% = 75 * 1e16)
-        ( , uint256 collateralFactorMantissa, ) = strategy.comptroller.markets(address(strategy.targetCollateralCToken));
+        
+        // Retrieve collateral factor and liquidation threshold for the collateral asset in precise units (1e16 = 1%)
+        ( , uint256 maxLtvRaw, uint256 liquidationThresholdRaw, , , , , , ,) = strategy.aaveProtocolDataProvider.getReserveConfigurationData(address(strategy.collateralAsset));
 
-        uint256 netBorrowLimit = _actionInfo.collateralValue
-            .preciseMul(collateralFactorMantissa)
-            .preciseMul(PreciseUnitMath.preciseUnit().sub(execution.unutilizedLeveragePercentage));
-
+        // Normalize LTV and liquidation threshold to precise units. LTV is measured in 4 decimals in Aave which is why we must multiply by 1e14
+        // for example ETH has an LTV value of 8000 which represents 80%
         if (_isLever) {
+            uint256 netBorrowLimit = _actionInfo.collateralValue
+                .preciseMul(maxLtvRaw.mul(10 ** 14))
+                .preciseMul(PreciseUnitMath.preciseUnit().sub(execution.unutilizedLeveragePercentage));
+
             return netBorrowLimit
                 .sub(_actionInfo.borrowValue)
                 .preciseDiv(_actionInfo.collateralPrice);
         } else {
+            uint256 netRepayLimit = _actionInfo.collateralValue
+                .preciseMul(liquidationThresholdRaw.mul(10 ** 14))
+                .preciseMul(PreciseUnitMath.preciseUnit().sub(execution.unutilizedLeveragePercentage));
+
             return _actionInfo.collateralBalance
-                .preciseMul(netBorrowLimit.sub(_actionInfo.borrowValue))
-                .preciseDiv(netBorrowLimit);
+                .preciseMul(netRepayLimit.sub(_actionInfo.borrowValue))
+                .preciseDiv(netRepayLimit);
         }
     }
 
     /**
-     * Derive the borrow units for lever. The units are calculated by the collateral units multiplied by collateral / borrow asset price. Oracle prices
-     * have already been adjusted for the decimals in the token.
+     * Derive the borrow units for lever. The units are calculated by the collateral units multiplied by collateral / borrow asset price.
+     * Output is measured to borrow unit decimals.
      *
      * return uint256           Position units to borrow
      */
@@ -1143,6 +1128,7 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
 
     /**
      * Calculate the min receive units in collateral units for lever. Units are calculated as target collateral rebalance units multiplied by slippage tolerance
+     * Output is measured in collateral asset decimals.
      *
      * return uint256           Min position units to receive after lever trade
      */
@@ -1152,7 +1138,7 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
 
     /**
      * Derive the min repay units from collateral units for delever. Units are calculated as target collateral rebalance units multiplied by slippage tolerance
-     * and pair price (collateral oracle price / borrow oracle price). Oracle prices have already been adjusted for the decimals in the token.
+     * and pair price (collateral oracle price / borrow oracle price). Output is measured in borrow unit decimals.
      *
      * return uint256           Min position units to repay in borrow asset
      */
@@ -1280,7 +1266,6 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
                 }
             }
         }
-
 
         return (enabledExchanges, shouldRebalanceEnums);
     }

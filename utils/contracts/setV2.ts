@@ -1,4 +1,6 @@
 // External Set Protocol Contracts
+export { AaveLeverageModule } from "../../typechain/AaveLeverageModule";
+export { AaveV2 } from "../../typechain/AaveV2";
 export { AirdropModule } from "../../typechain/AirdropModule";
 export { BasicIssuanceModule } from "../../typechain/BasicIssuanceModule";
 export { Compound } from "../../typechain/Compound";
