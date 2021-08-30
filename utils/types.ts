@@ -47,20 +47,6 @@ export interface ContractSettings {
   borrowDecimalAdjustment: BigNumber;
 }
 
-export interface AaveContractSettings {
-  setToken: Address;
-  leverageModule: Address;
-  aaveProtocolDataProvider: Address;
-  collateralPriceOracle: Address;
-  borrowPriceOracle: Address;
-  targetCollateralAToken: Address;
-  targetBorrowDebtToken: Address;
-  collateralAsset: Address;
-  borrowAsset: Address;
-  collateralDecimalAdjustment: BigNumber;
-  borrowDecimalAdjustment: BigNumber;
-}
-
 export interface MethodologySettings {
   targetLeverageRatio: BigNumber;
   minLeverageRatio: BigNumber;

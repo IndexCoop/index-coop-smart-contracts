@@ -28,7 +28,7 @@ import { ICErc20 } from "../interfaces/ICErc20.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IChainlinkAggregatorV3 } from "../interfaces/IChainlinkAggregatorV3.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
-import { ILeverageModule } from "../interfaces/ILeverageModule.sol";
+import { ICompoundLeverageModule } from "../interfaces/ICompoundLeverageModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
@@ -104,7 +104,7 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
 
     struct ContractSettings {
         ISetToken setToken;                             // Instance of leverage token
-        ILeverageModule leverageModule;                 // Instance of Compound leverage module
+        ICompoundLeverageModule leverageModule;         // Instance of Compound leverage module
         IComptroller comptroller;                       // Instance of Compound Comptroller
         IChainlinkAggregatorV3 collateralPriceOracle;   // Chainlink oracle feed that returns prices in 8 decimals for collateral asset
         IChainlinkAggregatorV3 borrowPriceOracle;       // Chainlink oracle feed that returns prices in 8 decimals for borrow asset

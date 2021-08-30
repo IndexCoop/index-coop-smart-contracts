@@ -30,51 +30,8 @@ import {
   NFTDescriptor
 } from "../contracts/uniswapV3";
 
-import {
-  AaveGovernanceV2,
-  AaveTokenV2Mintable,
-  AaveV2AToken,
-  AaveV2StakedTokenIncentivesController,
-  AaveV2StableDebtToken,
-  AaveV2VariableDebtToken,
-  AaveV2ProtocolDataProvider,
-  AaveV2LendingPool,
-  AaveV2LendingPoolAddressesProvider,
-  AaveV2LendingPoolConfigurator,
-  AaveV2LendingPoolCollateralManager,
-  AaveV2DefaultReserveInterestRateStrategy,
-  AaveV2LendingRateOracle,
-  AaveV2Oracle,
-  AaveV2PriceOracle,
-  Executor,
-  GovernanceStrategy,
-  GenericLogic,
-  ReserveLogic,
-  ValidationLogic
-} from "../contracts/aaveV2";
-
 import { Address } from "./../types";
 
-import { AaveTokenV2Mintable__factory } from "../../typechain/factories/AaveTokenV2Mintable__factory";
-import { AaveV2LendingPool__factory } from "../../typechain/factories/AaveV2LendingPool__factory";
-import { AaveV2LendingPoolAddressesProvider__factory } from "../../typechain/factories/AaveV2LendingPoolAddressesProvider__factory";
-import { AaveV2ProtocolDataProvider__factory } from "../../typechain/factories/AaveV2ProtocolDataProvider__factory";
-import { AaveV2LendingPoolConfigurator__factory } from "../../typechain/factories/AaveV2LendingPoolConfigurator__factory";
-import { AaveV2LendingPoolCollateralManager__factory } from "../../typechain/factories/AaveV2LendingPoolCollateralManager__factory";
-import { AaveV2DefaultReserveInterestRateStrategy__factory } from "../../typechain/factories/AaveV2DefaultReserveInterestRateStrategy__factory";
-import { AaveV2AToken__factory } from "../../typechain/factories/AaveV2AToken__factory";
-import { AaveV2StableDebtToken__factory } from "../../typechain/factories/AaveV2StableDebtToken__factory";
-import { AaveV2VariableDebtToken__factory } from "../../typechain/factories/AaveV2VariableDebtToken__factory";
-import { AaveV2StakedTokenIncentivesController__factory } from "../../typechain/factories/AaveV2StakedTokenIncentivesController__factory";
-import { GenericLogic__factory } from "../../typechain/factories/GenericLogic__factory";
-import { ValidationLogic__factory } from "../../typechain/factories/ValidationLogic__factory";
-import { ReserveLogic__factory } from "../../typechain/factories/ReserveLogic__factory";
-import { AaveV2LendingRateOracle__factory } from "../../typechain/factories/AaveV2LendingRateOracle__factory";
-import { AaveV2Oracle__factory } from "../../typechain/factories/AaveV2Oracle__factory";
-import { AaveV2PriceOracle__factory } from "../../typechain/factories/AaveV2PriceOracle__factory";
-import { AaveGovernanceV2__factory } from "../../typechain/factories/AaveGovernanceV2__factory";
-import { Executor__factory } from "../../typechain/factories/Executor__factory";
-import { GovernanceStrategy__factory } from "../../typechain/factories/GovernanceStrategy__factory";
 import { CERc20__factory } from "../../typechain/factories/CERc20__factory";
 import { CEther__factory } from "../../typechain/factories/CEther__factory";
 import { CompoundPriceOracleMock__factory } from "../../typechain/factories/CompoundPriceOracleMock__factory";
@@ -95,7 +52,6 @@ import { SwapRouter__factory } from "../../typechain/factories/SwapRouter__facto
 import { NonfungiblePositionManager__factory } from "../../typechain/factories/NonfungiblePositionManager__factory";
 import { Quoter__factory } from "../../typechain/factories/Quoter__factory";
 import { NFTDescriptor__factory } from "../../typechain/factories/NFTDescriptor__factory";
-import { ether } from "@utils/common";
 
 
 export default class DeployExternalContracts {
@@ -236,148 +192,4 @@ export default class DeployExternalContracts {
     public async deployNFTDescriptor(): Promise<NFTDescriptor> {
       return await new NFTDescriptor__factory(this._deployerSigner).deploy();
     }
-
-      // AAVE V2
-  public async deployAaveV2LendingPoolAddressesProvider(marketId: string): Promise<AaveV2LendingPoolAddressesProvider> {
-    return await new AaveV2LendingPoolAddressesProvider__factory(this._deployerSigner).deploy(marketId);
-  }
-
-  public async deployAaveV2LendingPool(validationLogicAddress: Address, reserveLogicAddress: Address): Promise<AaveV2LendingPool> {
-    return await new AaveV2LendingPool__factory(
-      {
-        ["__$de8c0cf1a7d7c36c802af9a64fb9d86036$__"]: validationLogicAddress,
-        ["__$22cd43a9dda9ce44e9b92ba393b88fb9ac$__"]: reserveLogicAddress,
-      },
-      this._deployerSigner
-    ).deploy();
-  }
-
-  public async deployAaveV2LendingPoolConfigurator(): Promise<AaveV2LendingPoolConfigurator> {
-    return await new AaveV2LendingPoolConfigurator__factory(this._deployerSigner).deploy();
-  }
-
-  public async deployAaveV2LendingPoolCollateralManager(): Promise<AaveV2LendingPoolCollateralManager> {
-    return await new AaveV2LendingPoolCollateralManager__factory(this._deployerSigner).deploy();
-  }
-
-  public async deployAaveV2LendingRateOracle(): Promise<AaveV2LendingRateOracle> {
-    return await new AaveV2LendingRateOracle__factory(this._deployerSigner).deploy();
-  }
-
-  public async deployAaveV2Oracle(
-    assets: string[],
-    sources: [],
-    fallBackOracle: Address,
-    weth: Address): Promise<AaveV2Oracle> {
-    return await new AaveV2Oracle__factory(this._deployerSigner).deploy(assets, sources, fallBackOracle, weth);
-  }
-
-  public async deployAaveV2PriceOracle(): Promise<AaveV2PriceOracle> {
-    return await new AaveV2PriceOracle__factory(this._deployerSigner).deploy();
-  }
-
-  public async deployAaveV2DefaultReserveInterestRateStrategy(
-    _AddressesProvider: Address,
-    _optimalUtilizationRate: BigNumberish = ether(1),
-    _baseVariableBorrowRate: BigNumberish = ether(1),
-    _variableRateSlope1: BigNumberish = ether(1),
-    _variableRateSlope2: BigNumberish = ether(1),
-    _stableRateSlope1: BigNumberish = ether(1),
-    _stableRateSlope2: BigNumberish = ether(1),
-  ): Promise<AaveV2DefaultReserveInterestRateStrategy> {
-    return await new AaveV2DefaultReserveInterestRateStrategy__factory(this._deployerSigner).deploy(
-      _AddressesProvider,
-      _optimalUtilizationRate,
-      _baseVariableBorrowRate,
-      _variableRateSlope1,
-      _variableRateSlope2,
-      _stableRateSlope1,
-      _stableRateSlope2,
-    );
-  }
-
-  public async deployAaveV2ProtocolDataProvider(addressProvider: Address): Promise<AaveV2ProtocolDataProvider> {
-    return await new AaveV2ProtocolDataProvider__factory(this._deployerSigner).deploy(addressProvider);
-  }
-
-  public async deployAaveV2AToken(): Promise<AaveV2AToken> {
-    return await new AaveV2AToken__factory(this._deployerSigner).deploy();
-  }
-
-  public async deployAaveV2StableDebtToken(): Promise<AaveV2StableDebtToken> {
-    return await new AaveV2StableDebtToken__factory(this._deployerSigner).deploy();
-  }
-
-  public async deployAaveV2VariableDebtToken(): Promise<AaveV2VariableDebtToken> {
-    return await new AaveV2VariableDebtToken__factory(this._deployerSigner).deploy();
-  }
-
-  public async deployAaveV2StakedTokenIncentivesController(
-    stakeToken: Address,
-    emissionManager: Address
-  ): Promise<AaveV2StakedTokenIncentivesController> {
-    return await new AaveV2StakedTokenIncentivesController__factory(this._deployerSigner).deploy(
-      stakeToken,
-      emissionManager
-    );
-  }
-
-  // AAVE V2 LIBRARIES
-  public async deployGeneralLogic(): Promise<GenericLogic> {
-    return await new GenericLogic__factory(this._deployerSigner).deploy();
-  }
-
-  public async deployValidationLogic(genericLogicLibraryAddress: Address): Promise<ValidationLogic> {
-    return await new ValidationLogic__factory(
-      {
-        ["__$52a8a86ab43135662ff256bbc95497e8e3$__"]: genericLogicLibraryAddress,
-      },
-      this._deployerSigner).deploy();
-  }
-
-  public async deployReserveLogic(): Promise<ReserveLogic> {
-    return await new ReserveLogic__factory(this._deployerSigner).deploy();
-  }
-
-  // AAVE V2 GOVERNANCE
-  public async deployAaveGovernanceV2(
-    _governanceStrategy: Address,
-    _votingDelay: BigNumber,
-    _guardian: Address,
-    _executors: Address[]
-  ): Promise<AaveGovernanceV2> {
-    return await new AaveGovernanceV2__factory(this._deployerSigner).deploy(_governanceStrategy, _votingDelay, _guardian, _executors);
-  }
-
-  public async deployExecutor(
-    _admin: Address,
-    _delay: BigNumber,
-    _gracePeriod: BigNumber,
-    _minimumDelay: BigNumber,
-    _maximumDelay: BigNumber,
-    _propositionThreshold: BigNumber,
-    _voteDuration: BigNumber,
-    _voteDifferential: BigNumber,
-    _minmumQuorum: BigNumber
-  ): Promise<Executor> {
-    return await new Executor__factory(this._deployerSigner).deploy(
-      _admin,
-      _delay,
-      _gracePeriod,
-      _minimumDelay,
-      _maximumDelay,
-      _propositionThreshold,
-      _voteDuration,
-      _voteDifferential,
-      _minmumQuorum,
-    );
-  }
-
-  public async deployGovernanceStrategy(_aave: Address, _stkaave: Address): Promise<GovernanceStrategy> {
-    return await new GovernanceStrategy__factory(this._deployerSigner).deploy(_aave, _stkaave);
-  }
-
-  public async deployAaveTokenV2Mintable(): Promise<AaveTokenV2Mintable> {
-    return await new AaveTokenV2Mintable__factory(this._deployerSigner).deploy();
-  }
 }

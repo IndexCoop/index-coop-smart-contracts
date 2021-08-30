@@ -1,5 +1,4 @@
 import { BigNumber } from "@ethersproject/bignumber";
-import { AaveV2AToken } from "@typechain/AaveV2AToken";
 import { CEther } from "@typechain/CEther";
 import { SetToken } from "@typechain/SetToken";
 import { ether, preciseMul, preciseDiv } from "../common";
@@ -31,7 +30,7 @@ export function calculateCollateralRebalanceUnits(
   return preciseDiv(c, totalSupply);
 }
 
-export async function calculateTotalRebalanceNotionalCompound(
+export async function calculateTotalRebalanceNotional(
   setToken: SetToken,
   cEther: CEther,
   currentLeverageRatio: BigNumber,
@@ -41,19 +40,6 @@ export async function calculateTotalRebalanceNotionalCompound(
   const collateralCTokenExchangeRate = await cEther.exchangeRateStored();
   const collateralCTokenBalance = await cEther.balanceOf(setToken.address);
   const collateralBalance = preciseMul(collateralCTokenBalance, collateralCTokenExchangeRate);
-  const a = currentLeverageRatio.gt(newLeverageRatio) ? currentLeverageRatio.sub(newLeverageRatio) : newLeverageRatio.sub(currentLeverageRatio);
-  const b = preciseDiv(a, currentLeverageRatio);
-  return preciseMul(b, collateralBalance);
-}
-
-export async function calculateTotalRebalanceNotionalAave(
-  setToken: SetToken,
-  aToken: AaveV2AToken,
-  currentLeverageRatio: BigNumber,
-  newLeverageRatio: BigNumber
-): Promise<BigNumber> {
-
-  const collateralBalance = await aToken.balanceOf(setToken.address);
   const a = currentLeverageRatio.gt(newLeverageRatio) ? currentLeverageRatio.sub(newLeverageRatio) : newLeverageRatio.sub(currentLeverageRatio);
   const b = preciseDiv(a, currentLeverageRatio);
   return preciseMul(b, collateralBalance);

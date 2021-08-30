@@ -3,8 +3,6 @@ import { BigNumber, BigNumberish } from "@ethersproject/bignumber";
 import { Address } from "../types";
 import { convertLibraryNameToLinkId } from "../common";
 import {
-  AaveLeverageModule,
-  AaveV2,
   AirdropModule,
   BasicIssuanceModule,
   Compound,
@@ -24,8 +22,6 @@ import {
 } from "../contracts/setV2";
 import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
-import { AaveLeverageModule__factory } from "../../typechain/factories/AaveLeverageModule__factory";
-import { AaveV2__factory  } from "../../typechain/factories/AaveV2__factory";
 import { AirdropModule__factory } from "../../typechain/factories/AirdropModule__factory";
 import { BasicIssuanceModule__factory } from "../../typechain/factories/BasicIssuanceModule__factory";
 import { Controller__factory } from "../../typechain/factories/Controller__factory";
@@ -200,35 +196,6 @@ export default class DeploySetV2 {
 
   public async getTokenMock(token: Address): Promise<StandardTokenMock> {
     return await new StandardTokenMock__factory(this._deployerSigner).attach(token);
-  }
-
-  public async deployAaveV2Lib(): Promise<AaveV2> {
-    return await new AaveV2__factory(this._deployerSigner).deploy();
-  }
-
-  public async deployAaveLeverageModule(
-    controller: string,
-    lendingPoolAddressesProvider: string,
-    protocolDataProvider: string
-  ): Promise<AaveLeverageModule> {
-    const aaveV2Lib = await this.deployAaveV2Lib();
-
-    const linkId = convertLibraryNameToLinkId(
-      "contracts/protocol/integration/lib/AaveV2.sol:AaveV2"
-    );
-
-    return await new AaveLeverageModule__factory(
-      // @ts-ignore
-      {
-        [linkId]: aaveV2Lib.address,
-      },
-      // @ts-ignore
-      this._deployerSigner
-    ).deploy(
-      controller,
-      lendingPoolAddressesProvider,
-      protocolDataProvider
-    );
   }
 
   public async deployAirdropModule(controller: Address): Promise<AirdropModule> {
