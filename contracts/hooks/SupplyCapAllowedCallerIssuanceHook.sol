@@ -12,6 +12,8 @@
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
     See the License for the specific language governing permissions and
     limitations under the License.
+
+    SPDX-License-Identifier: Apache License, Version 2.0
 */
 
 pragma solidity 0.6.10;
@@ -42,7 +44,7 @@ contract SupplyCapAllowedCallerIssuanceHook is Ownable, IManagerIssuanceHook {
     event SupplyCapUpdated(uint256 _newCap);
     event CallerStatusUpdated(address indexed _caller, bool _status);
     event AnyoneCallableUpdated(bool indexed _status);
-    
+
     /* ============ State Variables ============ */
 
     // Cap on totalSupply of Sets
@@ -89,7 +91,7 @@ contract SupplyCapAllowedCallerIssuanceHook is Ownable, IManagerIssuanceHook {
         override
     {
         _validateAllowedContractCaller(_sender);
-        
+
         uint256 totalSupply = _setToken.totalSupply();
         require(totalSupply.add(_issueQuantity) <= supplyCap, "Supply cap exceeded");
     }
@@ -133,7 +135,7 @@ contract SupplyCapAllowedCallerIssuanceHook is Ownable, IManagerIssuanceHook {
     }
 
     /**
-     * ONLY OWNER: Toggle whether anyone can call function, bypassing the callAllowlist 
+     * ONLY OWNER: Toggle whether anyone can call function, bypassing the callAllowlist
      *
      * @param _status           Boolean indicating whether to allow anyone call
      */
@@ -145,7 +147,7 @@ contract SupplyCapAllowedCallerIssuanceHook is Ownable, IManagerIssuanceHook {
     /* ============ Internal Functions ============ */
 
     /**
-     * Validate if passed address is allowed to call function. If anyoneCallable is set to true, anyone can call otherwise needs to be an EOA or 
+     * Validate if passed address is allowed to call function. If anyoneCallable is set to true, anyone can call otherwise needs to be an EOA or
      * approved contract address.
      */
     function _validateAllowedContractCaller(address _caller) internal view {

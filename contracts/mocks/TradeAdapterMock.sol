@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache License, Version 2.0
 pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
@@ -24,7 +25,7 @@ contract TradeAdapterMock {
         address _destinationToken,
         address _destinationAddress,
         uint256 _sourceQuantity,
-        uint256 _minDestinationQuantity
+        uint256 /* _minDestinationQuantity */
     )
         external
     {
