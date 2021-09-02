@@ -35,10 +35,10 @@ contract AirdropExtension is BaseExtension {
     /* ========== State Variables ========= */
 
     // Address of AirdropModule
-    IAirdropModule public airdropModule;
+    IAirdropModule public immutable airdropModule;
 
     // Address of Set Token
-    ISetToken public setToken;
+    ISetToken public immutable setToken;
 
     /* ============ Constructor ============ */
 
