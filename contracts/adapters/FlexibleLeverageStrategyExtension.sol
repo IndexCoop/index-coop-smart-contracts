@@ -12,6 +12,8 @@
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
     See the License for the specific language governing permissions and
     limitations under the License.
+
+    SPDX-License-Identifier: Apache License, Version 2.0
 */
 
 pragma solidity 0.6.10;
@@ -28,7 +30,7 @@ import { ICErc20 } from "../interfaces/ICErc20.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IChainlinkAggregatorV3 } from "../interfaces/IChainlinkAggregatorV3.sol";
 import { IComptroller } from "../interfaces/IComptroller.sol";
-import { ICompoundLeverageModule } from "../interfaces/ICompoundLeverageModule.sol";
+import { ILeverageModule } from "../interfaces/ILeverageModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
@@ -104,7 +106,7 @@ contract FlexibleLeverageStrategyExtension is BaseExtension {
 
     struct ContractSettings {
         ISetToken setToken;                             // Instance of leverage token
-        ICompoundLeverageModule leverageModule;         // Instance of Compound leverage module
+        ILeverageModule leverageModule;                 // Instance of Compound leverage module
         IComptroller comptroller;                       // Instance of Compound Comptroller
         IChainlinkAggregatorV3 collateralPriceOracle;   // Chainlink oracle feed that returns prices in 8 decimals for collateral asset
         IChainlinkAggregatorV3 borrowPriceOracle;       // Chainlink oracle feed that returns prices in 8 decimals for borrow asset

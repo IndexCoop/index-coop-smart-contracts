@@ -12,6 +12,8 @@
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
     See the License for the specific language governing permissions and
     limitations under the License.
+
+    SPDX-License-Identifier: Apache License, Version 2.0
 */
 
 pragma solidity 0.6.10;
@@ -30,7 +32,7 @@ import { Vesting } from "./Vesting.sol";
 /**
  * @title IndexPowah
  * @author Set Protocol
- * 
+ *
  * An ERC20 token used for tracking the voting power for the Index Coop. The mutative functions of
  * the ERC20 interface have been disabled since the token is only designed to count votes for the
  * sake of utilizing Snapshot's erc20-balance-of strategy. This contract is inspired by Sushiswap's
@@ -39,9 +41,9 @@ import { Vesting } from "./Vesting.sol";
 contract IndexPowah is IERC20, Ownable {
 
     using SafeMath for uint256;
-    
+
     IERC20 public indexToken;
-    
+
     IMasterChef public masterChef;
     uint256 public masterChefId;
     IPair public uniPair;
@@ -52,7 +54,7 @@ contract IndexPowah is IERC20, Ownable {
 
     /**
      * Sets the appropriate state variables for the contract.
-     * 
+     *
      * @param _owner        owner of this contract
      * @param _indexToken   Index Coop's governance token contract
      * @param _uniPair      INDEX-WETH Uniswap pair
@@ -124,7 +126,7 @@ contract IndexPowah is IERC20, Ownable {
 
     /**
      * ONLY OWNER: Updates the MasterChef contract and pool ID
-     * 
+     *
      * @param _newMasterChef    address of the new MasterChef contract
      * @param _newMasterChefId  new pool id for the index-eth MasterChef rewards
      */

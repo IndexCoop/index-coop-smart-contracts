@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache License, Version 2.0
 pragma solidity ^0.6.10;
 pragma experimental ABIEncoderV2;
 
@@ -14,10 +15,10 @@ contract IndexToken {
     /// @notice Total number of tokens in circulation
     uint public constant totalSupply = 10000000e18; // 10 million INDEX
 
-    /// @notice Allowance amounts on behalf of others
+    /// @dev Allowance amounts on behalf of others
     mapping (address => mapping (address => uint96)) internal allowances;
 
-    /// @notice Official record of token balances for each account
+    /// @dev Official record of token balances for each account
     mapping (address => uint96) internal balances;
 
     /// @notice A record of each accounts delegate

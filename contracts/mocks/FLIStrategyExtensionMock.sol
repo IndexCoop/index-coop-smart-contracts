@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache License, Version 2.0
 pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
@@ -16,7 +17,7 @@ contract FLIStrategyExtensionMock {
     FlexibleLeverageStrategyExtension.ContractSettings internal strategy;
 
     mapping(string => FlexibleLeverageStrategyExtension.ExchangeSettings) internal exchangeSettings;
-    
+
 
     function shouldRebalanceWithBounds(
         uint256 /* _customMinLeverageRatio */,
@@ -31,7 +32,7 @@ contract FLIStrategyExtensionMock {
 
     function getChunkRebalanceNotional(
         string[] calldata /* _exchangeNames */
-    ) 
+    )
         external
         view
         returns(uint256[] memory sizes, address sellAsset, address buyAsset)
