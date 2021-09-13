@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: Apache License, Version 2.0
 pragma solidity 0.6.10;
 pragma experimental "ABIEncoderV2";
 
 import { ISetToken } from "./ISetToken.sol";
 
-interface ICompoundLeverageModule {
+interface ILeverageModule {
     function sync(
         ISetToken _setToken
     ) external;

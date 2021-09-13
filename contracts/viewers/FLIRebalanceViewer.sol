@@ -12,6 +12,8 @@
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
     See the License for the specific language governing permissions and
     limitations under the License.
+
+    SPDX-License-Identifier: Apache License, Version 2.0
 */
 pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
@@ -116,7 +118,7 @@ contract FLIRebalanceViewer {
         ActionInfo memory actionInfo = _getActionInfo(_minLeverageRatio, _maxLeverageRatio);
 
         (uint256 uniswapV3Price, uint256 uniswapV2Price) = _getPrices(actionInfo);
-        
+
         return _getExchangePriority(
             uniswapV3Price,
             uniswapV2Price,
@@ -154,9 +156,9 @@ contract FLIRebalanceViewer {
      * @return uint256      price of trade on Uniswap V3
      */
     function _getV3Price(uint256 _sellSize, bool _isLever) internal returns (uint256) {
-        
-        bytes memory uniswapV3TradePath = _isLever ? 
-            fliStrategyExtension.getExchangeSettings(uniswapV3ExchangeName).leverExchangeData : 
+
+        bytes memory uniswapV3TradePath = _isLever ?
+            fliStrategyExtension.getExchangeSettings(uniswapV3ExchangeName).leverExchangeData :
             fliStrategyExtension.getExchangeSettings(uniswapV3ExchangeName).deleverExchangeData;
 
         uint256 outputAmount = uniswapV3Quoter.quoteExactInput(uniswapV3TradePath, _sellSize);
@@ -174,9 +176,9 @@ contract FLIRebalanceViewer {
      * @return uint256      price of trade on Uniswap V2
      */
     function _getV2Price(uint256 _sellSize, bool _isLever, address _sellAsset, address _buyAsset) internal view returns (uint256) {
-        
-        bytes memory uniswapV2TradePathRaw = _isLever ? 
-            fliStrategyExtension.getExchangeSettings(uniswapV2ExchangeName).leverExchangeData : 
+
+        bytes memory uniswapV2TradePathRaw = _isLever ?
+            fliStrategyExtension.getExchangeSettings(uniswapV2ExchangeName).leverExchangeData :
             fliStrategyExtension.getExchangeSettings(uniswapV2ExchangeName).deleverExchangeData;
 
         address[] memory uniswapV2TradePath;
@@ -187,9 +189,9 @@ contract FLIRebalanceViewer {
         } else {
             uniswapV2TradePath = abi.decode(uniswapV2TradePathRaw, (address[]));
         }
-        
+
         uint256 outputAmount = uniswapV2Router.getAmountsOut(_sellSize, uniswapV2TradePath)[uniswapV2TradePath.length.sub(1)];
-        
+
         // Divide to get ratio of quote / base asset. Don't care about decimals here. Standardizes to 10e18 with preciseDiv
         return outputAmount.preciseDiv(_sellSize);
     }

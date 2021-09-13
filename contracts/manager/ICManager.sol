@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache License, Version 2.0
 pragma solidity ^0.6.10;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
@@ -77,7 +78,7 @@ contract ICManager is TimeLockUpgrade, MutualUpgrade {
             _operatorFeeSplit <= PreciseUnitMath.preciseUnit(),
             "Operator Fee Split must be less than 1e18"
         );
-        
+
         setToken = _setToken;
         indexModule = _indexModule;
         feeModule = _feeModule;
@@ -160,7 +161,7 @@ contract ICManager is TimeLockUpgrade, MutualUpgrade {
     }
 
     /**
-     * OPERATOR ONLY: Toggle ability for passed addresses to trade from current state 
+     * OPERATOR ONLY: Toggle ability for passed addresses to trade from current state
      *
      * @param _traders           Array trader addresses to toggle status
      * @param _statuses          Booleans indicating if matching trader can trade
@@ -270,7 +271,7 @@ contract ICManager is TimeLockUpgrade, MutualUpgrade {
      *
      * @param _newFeeSplit           New fee split percentage
      */
-    function updateFeeSplit(uint256 _newFeeSplit) external mutualUpgrade(operator, methodologist) {    
+    function updateFeeSplit(uint256 _newFeeSplit) external mutualUpgrade(operator, methodologist) {
         require(
             _newFeeSplit <= PreciseUnitMath.preciseUnit(),
             "Operator Fee Split must be less than 1e18"

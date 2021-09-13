@@ -1,8 +1,9 @@
+// SPDX-License-Identifier: Apache License, Version 2.0
 pragma solidity 0.6.10;
 
 
 contract ChainlinkAggregatorV3Mock {
-    
+
     int256 private latestPrice;
 
     constructor() public {
