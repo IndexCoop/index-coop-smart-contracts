@@ -89,3 +89,10 @@ export interface IncentiveSettings {
   etherReward: BigNumber;
   incentivizedLeverageRatio: BigNumber;
 }
+
+export interface AirdropSettings {
+  airdrops: Address[];
+  feeRecipient: Address;
+  airdropFee: BigNumber;
+  anyoneAbsorb: boolean;
+}

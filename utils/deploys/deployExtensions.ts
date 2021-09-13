@@ -2,6 +2,7 @@ import { Signer, BigNumber } from "ethers";
 import { Address, ContractSettings, MethodologySettings, ExecutionSettings, IncentiveSettings, ExchangeSettings, AaveContractSettings } from "../types";
 import {
   AaveLeverageStrategyExtension,
+  AirdropExtension,
   ExchangeIssuance,
   ExchangeIssuanceV2,
   FlexibleLeverageStrategyExtension,
@@ -12,6 +13,7 @@ import {
 } from "../contracts/index";
 
 import { AaveLeverageStrategyExtension__factory } from "../../typechain/factories/AaveLeverageStrategyExtension__factory";
+import { AirdropExtension__factory } from "../../typechain/factories/AirdropExtension__factory";
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
@@ -137,6 +139,10 @@ export default class DeployExtensions {
     );
   }
 
+  public async deployAirdropExtension(manager: Address, airdropModule: Address): Promise<AirdropExtension> {
+    return await new AirdropExtension__factory(this._deployerSigner).deploy(manager, airdropModule);
+  }
+  
   public async deployAaveLeverageStrategyExtension(
     manager: Address,
     contractSettings: AaveContractSettings,

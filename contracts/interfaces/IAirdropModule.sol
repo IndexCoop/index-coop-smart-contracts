@@ -19,6 +19,14 @@ pragma solidity 0.6.10;
 import { ISetToken } from "../interfaces/ISetToken.sol";
 
 interface IAirdropModule {
+
+    struct AirdropSettings {
+        address[] airdrops;
+        address feeRecipient;
+        uint256 airdropFee;
+        bool anyoneAbsorb;
+    }
+    
     function batchAbsorb(ISetToken _setToken, address[] memory _tokens) external;
     function getAirdrops(ISetToken _setToken) external view returns (address[] memory);
 }
