@@ -56,11 +56,15 @@ contract AirdropExtension is BaseExtension {
     /* ========== External Functions ========== */
 
     /**
-     * OPERATOR ONLY: initializes the AirdropModule
+     * OPERATOR ONLY: initializes the AirdropModule. The recipient is always set to the manager and the fee to 0.
      *
      * @param _airdropSettings  Settings to initially the AirdropModule with
      */
     function initializeAirdropModule(IAirdropModule.AirdropSettings memory _airdropSettings) external onlyOperator {
+
+        _airdropSettings.feeRecipient = address(manager);
+        _airdropSettings.airdropFee = 0;
+
         invokeManager(
             address(airdropModule),
             abi.encodeWithSignature("initialize(address,(address[],address,uint256,bool))", setToken, _airdropSettings)
@@ -124,30 +128,6 @@ contract AirdropExtension is BaseExtension {
         invokeManager(
             address(airdropModule),
             abi.encodeWithSignature("updateAnyoneAbsorb(address,bool)", setToken, _anyoneAbsorb)
-        );
-    }
-
-    /**
-     * OPERATOR ONLY: updates the feeRecipient setting
-     *
-     * @param _newRecipient     new feeRecipient setting value
-     */
-    function updateFeeRecipient(address _newRecipient) external onlyOperator {
-        invokeManager(
-            address(airdropModule),
-            abi.encodeWithSignature("updateFeeRecipient(address,address)", setToken, _newRecipient)
-        );
-    }
-
-    /**
-     * OPERATOR ONLY: updates the airdropFee setting
-     *
-     * @param _newFee     new airdropFee setting value
-     */
-    function updateAirdropFee(uint256 _newFee) external onlyOperator {
-        invokeManager(
-            address(airdropModule),
-            abi.encodeWithSignature("updateAirdropFee(address,uint256)", setToken, _newFee)
         );
     }
 }
