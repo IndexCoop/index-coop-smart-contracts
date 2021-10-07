@@ -9,6 +9,7 @@ import {
   FeeSplitExtension,
   GIMExtension,
   GovernanceExtension,
+  IPRebalanceExtension,
   StreamingFeeSplitExtension
 } from "../contracts/index";
 
@@ -20,6 +21,7 @@ import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitEx
 import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtension__factory";
 import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
 import { GovernanceExtension__factory } from "../../typechain/factories/GovernanceExtension__factory";
+import { IPRebalanceExtension__factory } from "../../typechain/factories/IPRebalanceExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 
 export default class DeployExtensions {
@@ -142,7 +144,7 @@ export default class DeployExtensions {
   public async deployAirdropExtension(manager: Address, airdropModule: Address): Promise<AirdropExtension> {
     return await new AirdropExtension__factory(this._deployerSigner).deploy(manager, airdropModule);
   }
-  
+
   public async deployAaveLeverageStrategyExtension(
     manager: Address,
     contractSettings: AaveContractSettings,
@@ -161,5 +163,9 @@ export default class DeployExtensions {
       exchangeNames,
       exchangeSettings,
     );
+  }
+
+  public async deployIPRebalanceExtension(manager: Address, generalIndexModule: Address): Promise<IPRebalanceExtension> {
+    return await new IPRebalanceExtension__factory(this._deployerSigner).deploy(manager, generalIndexModule);
   }
 }

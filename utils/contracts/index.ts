@@ -15,6 +15,7 @@ export { GovernanceExtension } from "../../typechain/GovernanceExtension";
 export { GovernanceAdapterMock } from "../../typechain/GovernanceAdapterMock";
 export { ICManager } from "../../typechain/ICManager";
 export { IndexToken } from "../../typechain/IndexToken";
+export { IPRebalanceExtension } from "../../typechain/IPRebalanceExtension";
 export { MasterChefMock } from "../../typechain/MasterChefMock";
 export { MerkleDistributor } from "../../typechain/MerkleDistributor";
 export { MutualUpgradeMock } from "../../typechain/MutualUpgradeMock";
