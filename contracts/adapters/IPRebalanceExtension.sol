@@ -19,12 +19,23 @@
 pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
+import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
+import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+
 import { BaseExtension } from "../lib/BaseExtension.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IGeneralIndexModule } from "../interfaces/IGeneralIndexModule.sol";
+import { ISetToken } from "../interfaces/ISetToken.sol";
 import { ITransformHelper } from "../interfaces/ITransformHelper.sol";
+import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
+
+import { console } from "hardhat/console.sol";
+
 
 contract IPRebalanceExtension is BaseExtension {
+    using PreciseUnitMath for uint256;
+    using SafeCast for int256;
+    using SafeMath for uint256;
 
     /* ============ Structs =========== */
 
@@ -85,4 +96,82 @@ contract IPRebalanceExtension is BaseExtension {
         transformComponentInfo[_transformComponent] = _transformInfo;
     }
 
+    function startIPRebalance(address[] memory _setComponents, uint256[] memory _targetUnitsUnderlying) external onlyOperator {
+        require(_setComponents.length == _targetUnitsUnderlying.length, "length mismatch");
+
+        ISetToken setToken = manager.setToken();
+
+        for (uint256 i = 0; i < _setComponents.length; i++) {
+            if (_isTransformComponent(_setComponents[i])) {
+
+                uint256 currentUnits = setToken.getDefaultPositionRealUnit(_setComponents[i]).toUint256();
+
+                // convert target units from underlying to transformed amounts
+                TransformInfo memory transformInfo = transformComponentInfo[_setComponents[i]];
+                uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(transformInfo.underlyingComponent, _setComponents[i]);
+                uint256 targetUnitsInTransformed = _targetUnitsUnderlying[i].preciseMul(exchangeRate);
+
+                uint256 unitsToUntransform = currentUnits > targetUnitsInTransformed ? currentUnits.sub(targetUnitsInTransformed) : 0;
+
+                if (unitsToUntransform > 0) {
+                    untransforms++;
+                    untransformUnits[_setComponents[i]] = unitsToUntransform;
+                }
+
+                // for each transform's underlying, save the current amount of the underlying present in
+                // the set as a normal raw component. This is usually zero unless a set contains both a 
+                // transformed and underlying component
+                address underlying = transformComponentInfo[_setComponents[i]].underlyingComponent;
+                startingUnderlyingComponentUnits[_setComponents[i]] = setToken.getDefaultPositionRealUnit(underlying).toUint256();
+            }
+
+            // saves rebalance parameters for later use to start rebalance through GIM when untransforming is complete
+            rebalanceParams[_setComponents[i]].targetUnderlyingUnits = _targetUnitsUnderlying[i];
+
+            // saves the percentage of the total underlying units that should be transformed into this component at end of rebalance
+            // this value can be calculates by taking _targetUnitsUnderlying and dividing it by the sum of all underlying and raw components units
+            // that are the same token as the underlying of this transform component.
+            rebalanceParams[_setComponents[i]].transformPercentage = _calculateTransformPercentage(
+                _setComponents[i],
+                _targetUnitsUnderlying[i],
+                _setComponents,
+                _targetUnitsUnderlying
+            );
+        }
+
+        setComponentList = _setComponents;
+    }
+
+    /* ======== Internal Functions ======== */
+
+    function _isTransformComponent(address _component) internal view returns (bool) {
+        return transformComponentInfo[_component].underlyingComponent != address(0);
+    }
+
+    // TODO: gas golf
+    function _calculateTransformPercentage(
+        address _component,
+        uint256 _componentUnitsUnderlying,
+        address[] memory _setComponents,
+        uint256[] memory _targetUnitsUnderlying
+    )
+        internal
+        view
+        returns (uint256)
+    {
+        if (!_isTransformComponent(_component)) return 0;
+
+        uint256 sum = _componentUnitsUnderlying;
+        for (uint256 i = 0; i < _setComponents.length; i++) {
+            if (_component != _setComponents[i] ) {
+                if (transformComponentInfo[_component].underlyingComponent == transformComponentInfo[_setComponents[i]].underlyingComponent) {
+                    sum += _targetUnitsUnderlying[i];
+                }
+                if(transformComponentInfo[_component].underlyingComponent == _setComponents[i]) {
+                    sum += _targetUnitsUnderlying[i];
+                }
+            }
+        }
+        return _componentUnitsUnderlying.preciseDiv(sum);
+    }
 }

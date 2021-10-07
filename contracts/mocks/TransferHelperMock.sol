@@ -30,7 +30,7 @@ contract TransformHelperMock {
         exchangeRate = _newExchangeRate;
     }
 
-    function getExchangeRate(address _underlyingComponent, address _transformComponent) external view returns (uint256) {
-        
+    function getExchangeRate(address /* _underlyingComponent */, address /* _transformComponent */) external view returns (uint256) {
+        return exchangeRate;
     }
 }
