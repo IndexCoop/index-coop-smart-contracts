@@ -96,3 +96,8 @@ export interface AirdropSettings {
   airdropFee: BigNumber;
   anyoneAbsorb: boolean;
 }
+
+export interface TransformInfo {
+  underlyingComponent: Address;
+  transformHelper: Address;
+}

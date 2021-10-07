@@ -17,24 +17,25 @@
 */
 
 pragma solidity 0.6.10;
+pragma experimental ABIEncoderV2;
 
 import { BaseExtension } from "../lib/BaseExtension.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IGeneralIndexModule } from "../interfaces/IGeneralIndexModule.sol";
 import { ITransformHelper } from "../interfaces/ITransformHelper.sol";
 
-contract IPRebalanceModule is BaseExtension {
+contract IPRebalanceExtension is BaseExtension {
 
     /* ============ Structs =========== */
 
     struct TransformInfo {
-        address _underlyingComponent;
-        ITransformHelper _transformHelper;
+        address underlyingComponent;
+        ITransformHelper transformHelper;
     }
 
     struct RebalanceParam {
-        uint256 _targetUnderlyingUnits;
-        uint256 _transformPercentage;
+        uint256 targetUnderlyingUnits;
+        uint256 transformPercentage;
     }
 
     /* ========== State Variables ========= */
@@ -47,6 +48,8 @@ contract IPRebalanceModule is BaseExtension {
     mapping(address => uint256) public untransformUnits;
     mapping(address => uint256) public transformUnits;
 
+    mapping(address => TransformInfo) public transformComponentInfo;
+
     mapping(address => RebalanceParam) public rebalanceParams;
     address[] public setComponentList;
 
@@ -58,6 +61,24 @@ contract IPRebalanceModule is BaseExtension {
 
     constructor(IBaseManager _manager, IGeneralIndexModule _generalIndexModule) public BaseExtension(_manager) {
         generalIndexModule = _generalIndexModule;
+    }
+
+    /* ======== External Functions ======== */
+
+    function setTransformInfo(address _transformComponent, TransformInfo memory _transformInfo) external onlyOperator {
+        require(
+            transformComponentInfo[_transformComponent].underlyingComponent == address(0),
+            "TransformInfo already set"
+        );
+        transformComponentInfo[_transformComponent] = _transformInfo;
+    }
+
+    function updateTransformInfo(address _transformComponent, TransformInfo memory _transformInfo) external onlyOperator {
+        require(
+            transformComponentInfo[_transformComponent].underlyingComponent != address(0),
+            "TransformInfo not set yet"
+        );
+        transformComponentInfo[_transformComponent] = _transformInfo;
     }
 
 }
