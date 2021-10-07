@@ -29,6 +29,7 @@ export { StringArrayUtilsMock } from "../../typechain/StringArrayUtilsMock";
 export { SupplyCapAllowedCallerIssuanceHook } from "../../typechain/SupplyCapAllowedCallerIssuanceHook";
 export { SupplyCapIssuanceHook } from "../../typechain/SupplyCapIssuanceHook";
 export { TradeAdapterMock } from "../../typechain/TradeAdapterMock";
+export { TransformHelperMock } from "../../typechain/TransformHelperMock";
 export { Vesting } from "../../typechain/Vesting";
 export { WETH9 } from "../../typechain/WETH9";
 export { FLIStrategyExtensionMock } from "../../typechain/FLIStrategyExtensionMock";

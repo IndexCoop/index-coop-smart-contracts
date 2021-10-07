@@ -7,7 +7,8 @@ import {
   MutualUpgradeMock,
   StandardTokenMock,
   StringArrayUtilsMock,
-  TradeAdapterMock
+  TradeAdapterMock,
+  TransformHelperMock
 } from "../contracts/index";
 
 import { BaseExtensionMock__factory } from "../../typechain/factories/BaseExtensionMock__factory";
@@ -16,9 +17,10 @@ import { FLIStrategyExtensionMock__factory } from "../../typechain/factories/FLI
 import { GovernanceAdapterMock__factory  } from "../../typechain/factories/GovernanceAdapterMock__factory";
 import { MasterChefMock__factory } from "../../typechain/factories/MasterChefMock__factory";
 import { MutualUpgradeMock__factory } from "../../typechain/factories/MutualUpgradeMock__factory";
-import { TradeAdapterMock__factory } from "../../typechain/factories/TradeAdapterMock__factory";
 import { StandardTokenMock__factory  } from "../../typechain/factories/StandardTokenMock__factory";
 import { StringArrayUtilsMock__factory  } from "../../typechain/factories/StringArrayUtilsMock__factory";
+import { TradeAdapterMock__factory } from "../../typechain/factories/TradeAdapterMock__factory";
+import { TransformHelperMock__factory } from "../../typechain/factories/TransformHelperMock__factory";
 
 export default class DeployMocks {
   private _deployerSigner: Signer;
@@ -61,5 +63,9 @@ export default class DeployMocks {
 
   public async deployFLIStrategyExtensionMock(): Promise<FLIStrategyExtensionMock> {
     return await new FLIStrategyExtensionMock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployTransformHelperMock(exchangeRate: BigNumber): Promise<TransformHelperMock> {
+    return await new TransformHelperMock__factory(this._deployerSigner).deploy(exchangeRate);
   }
 }

@@ -20,7 +20,7 @@ pragma solidity 0.6.10;
 
 interface ITransformHelper {
 
-    function getExchangeRate(address _underlyingComponent, address _transformComponent) external view;
+    function getExchangeRate(address _underlyingComponent, address _transformComponent) external view returns (uint256);
 
     function getTransformData(
         address _setToken,
