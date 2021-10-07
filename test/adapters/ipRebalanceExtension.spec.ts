@@ -97,6 +97,16 @@ describe("IPRebalanceExtension", () => {
     });
   });
 
+  describe("#startRebalanceWithUnits", async () => {
+    async function subject(): Promise<void> {
+      return await ipRebalanceExtension.startRebalanceWithUnits([], []);
+    }
+
+    it("should revert", async () => {
+      await expect(subject()).to.be.revertedWith("use startIPRebalance instead");
+    });
+  });
+
   describe("#setTransformData", async () => {
     let subjectTransformComponent: Address;
     let subjectTransformInfo: TransformInfo;

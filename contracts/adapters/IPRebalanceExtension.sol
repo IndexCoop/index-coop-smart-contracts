@@ -65,6 +65,10 @@ contract IPRebalanceExtension is BaseExtension {
 
     /* ======== External Functions ======== */
 
+    function startRebalanceWithUnits(address[] memory /* _components */, uint256[] memory /* _targetUnitsUnderlying */) external pure {
+        revert("use startIPRebalance instead");
+    }
+
     function setTransformInfo(address _transformComponent, TransformInfo memory _transformInfo) external onlyOperator {
         require(
             transformComponentInfo[_transformComponent].underlyingComponent == address(0),
