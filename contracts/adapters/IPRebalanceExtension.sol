@@ -142,7 +142,63 @@ contract IPRebalanceExtension is BaseExtension {
         setComponentList = _setComponents;
     }
 
+    function batchExecuteUntransform(
+        address[] memory _transformComponents,
+        bytes[] memory _untransformData
+    )
+        external
+        onlyAllowedCaller(msg.sender)
+    {
+        require(_transformComponents.length == _untransformData.length, "length mismatch");
+
+        _absorbAirdrops(_transformComponents);
+
+        for (uint256 i = 0; i < _transformComponents.length; i++) {
+            _executeUntransform(_transformComponents[i], _untransformData[i]);
+        }
+    }
+
     /* ======== Internal Functions ======== */
+
+    function _executeUntransform(address _transformComponent, bytes memory _untransformData) internal {
+
+        uint256 unitsToUntransform = untransformUnits[_transformComponent];
+        require(unitsToUntransform > 0 && untransforms > 0, "nothing to untransform");
+
+        TransformInfo memory transformInfo = transformComponentInfo[_transformComponent];
+
+        require(
+            transformInfo.transformHelper.shouldUntransform(transformInfo.underlyingComponent, _transformComponent),
+            "untransform unavailable"
+        );
+
+        // untransform component
+        (address module, bytes memory callData) = transformInfo.transformHelper.getUntransformCall(
+            manager.setToken(),
+            transformInfo.underlyingComponent,
+            _transformComponent,
+            unitsToUntransform,
+            _untransformData
+        );
+
+        invokeManager(module, callData);
+
+        untransformUnits[_transformComponent] = 0;
+        untransforms--;
+
+        // if done untransforming begin the rebalance through GIM
+        if (untransforms == 0) {
+            _startGIMRebalance();
+        }
+    }
+
+    function _startGIMRebalance() internal {
+        //TODO: start GIM rebalance
+    }
+
+    function _absorbAirdrops(address[] memory _components) internal {
+        //TODO: absorb airdrops
+    }
 
     function _isTransformComponent(address _component) internal view returns (bool) {
         return transformComponentInfo[_component].underlyingComponent != address(0);

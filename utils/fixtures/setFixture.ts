@@ -13,7 +13,8 @@ import {
   IntegrationRegistry,
   SetToken,
   SetTokenCreator,
-  StreamingFeeModule
+  StreamingFeeModule,
+  WrapModuleV2
 } from "../contracts/setV2";
 import { WETH9, StandardTokenMock } from "../contracts/index";
 import DeployHelper from "../deploys";
@@ -49,6 +50,7 @@ export class SetFixture {
   public governanceModule: GovernanceModule;
   public generalIndexModule: GeneralIndexModule;
   public airdropModule: AirdropModule;
+  public wrapModuleV2: WrapModuleV2;
 
   public weth: WETH9;
   public usdc: StandardTokenMock;
@@ -78,6 +80,7 @@ export class SetFixture {
 
     await this.initializeStandardComponents();
 
+    this.wrapModuleV2 = await this._deployer.setV2.deployWrapModuleV2(this.controller.address, this.weth.address);
     this.generalIndexModule = await this._deployer.setV2.deployGeneralIndexModule(
       this.controller.address,
       this.weth.address
@@ -90,6 +93,7 @@ export class SetFixture {
       this.governanceModule.address,
       this.generalIndexModule.address,
       this.airdropModule.address,
+      this.wrapModuleV2.address,
     ];
 
     await this.controller.initialize(

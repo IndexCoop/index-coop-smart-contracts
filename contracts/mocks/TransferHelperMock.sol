@@ -18,12 +18,18 @@
 
 pragma solidity 0.6.10;
 
+import { ISetToken } from "../interfaces/ISetToken.sol";
+
 contract TransformHelperMock {
 
     uint256 public exchangeRate;
+    address public wrapModuleV2;
+    string public integrationName;
 
-    constructor(uint256 _exchangeRate) public {
+    constructor(uint256 _exchangeRate, address _wrapModuleV2, string memory _integrationName) public {
         exchangeRate = _exchangeRate;
+        wrapModuleV2 = _wrapModuleV2;
+        integrationName = _integrationName;
     }
 
     function setExchangeRate(uint256 _newExchangeRate) external {
@@ -32,5 +38,33 @@ contract TransformHelperMock {
 
     function getExchangeRate(address /* _underlyingComponent */, address /* _transformComponent */) external view returns (uint256) {
         return exchangeRate;
+    }
+
+    function shouldUntransform(address /* _underlyingComponent */, address /* _untransformComponent */) external pure returns (bool) {
+        return true;
+    }
+
+    function getUntransformCall(
+        ISetToken _setToken,
+        address _underlyingComponent,
+        address _transformComponent,
+        uint256 _units,
+        bytes memory /* _untransformData */
+    )
+        external
+        view
+        returns (address, bytes memory)
+    {
+        bytes memory callData = abi.encodeWithSignature(
+            "unwrap(address,address,address,uint256,string,bytes)",
+            _setToken,
+            _underlyingComponent,
+            _transformComponent,
+            _units,
+            integrationName,
+            ""
+        );
+
+        return (wrapModuleV2, callData);
     }
 }

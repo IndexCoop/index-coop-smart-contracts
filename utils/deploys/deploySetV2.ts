@@ -9,6 +9,7 @@ import {
   BasicIssuanceModule,
   Compound,
   CompoundLeverageModule,
+  CompoundWrapV2Adapter,
   Controller,
   ComptrollerMock,
   ContractCallerMock,
@@ -20,7 +21,8 @@ import {
   SetToken,
   SetTokenCreator,
   SingleIndexModule,
-  UniswapV2ExchangeAdapter
+  UniswapV2ExchangeAdapter,
+  WrapModuleV2
 } from "../contracts/setV2";
 import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
@@ -31,6 +33,7 @@ import { BasicIssuanceModule__factory } from "../../typechain/factories/BasicIss
 import { Controller__factory } from "../../typechain/factories/Controller__factory";
 import { Compound__factory } from "../../typechain/factories/Compound__factory";
 import { CompoundLeverageModule__factory } from "../../typechain/factories/CompoundLeverageModule__factory";
+import { CompoundWrapV2Adapter__factory } from "../../typechain/factories/CompoundWrapV2Adapter__factory";
 import { ComptrollerMock__factory } from "../../typechain/factories/ComptrollerMock__factory";
 import { ContractCallerMock__factory } from "../../typechain/factories/ContractCallerMock__factory";
 import { DebtIssuanceModule__factory } from "../../typechain/factories/DebtIssuanceModule__factory";
@@ -43,6 +46,7 @@ import { SetToken__factory } from "../../typechain/factories/SetToken__factory";
 import { SetTokenCreator__factory } from "../../typechain/factories/SetTokenCreator__factory";
 import { StandardTokenMock__factory } from "../../typechain/factories/StandardTokenMock__factory";
 import { UniswapV2ExchangeAdapter__factory } from "../../typechain/factories/UniswapV2ExchangeAdapter__factory";
+import { WrapModuleV2__factory } from "../../typechain/factories/WrapModuleV2__factory";
 import { WETH9__factory } from "../../typechain/factories/WETH9__factory";
 
 export default class DeploySetV2 {
@@ -233,5 +237,26 @@ export default class DeploySetV2 {
 
   public async deployAirdropModule(controller: Address): Promise<AirdropModule> {
     return await new AirdropModule__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployWrapModuleV2(controller: Address, weth: Address): Promise<WrapModuleV2> {
+    return await new WrapModuleV2__factory(this._deployerSigner).deploy(controller, weth);
+  }
+
+  public async deployCompoundWrapV2Adapter(): Promise<CompoundWrapV2Adapter> {
+    const compoundLib = await this.deployCompoundLib();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/protocol/integration/lib/Compound.sol:Compound"
+    );
+
+    return await new CompoundWrapV2Adapter__factory(
+      // @ts-ignore
+      {
+        [linkId]: compoundLib.address,
+      },
+      // @ts-ignore
+      this._deployerSigner
+    ).deploy();
   }
 }

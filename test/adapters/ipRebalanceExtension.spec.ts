@@ -1,8 +1,14 @@
 import "module-alias/register";
 
 import { Address, Account, TransformInfo, ContractTransaction } from "@utils/types";
-import { ADDRESS_ZERO, MAX_UINT_256, ZERO } from "@utils/constants";
-import { IPRebalanceExtension, BaseManagerV2, StandardTokenMock, TransformHelperMock } from "@utils/contracts/index";
+import { ADDRESS_ZERO, EMPTY_BYTES, MAX_UINT_256, ONE, ZERO } from "@utils/constants";
+import {
+  CTokenMock,
+  IPRebalanceExtension,
+  BaseManagerV2,
+  StandardTokenMock,
+  TransformHelperMock
+} from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -24,6 +30,7 @@ describe("IPRebalanceExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
+  let allowedCaller: Account;
   let randomCaller: Account;
 
   let setV2Setup: SetFixture;
@@ -32,7 +39,7 @@ describe("IPRebalanceExtension", () => {
   let setToken: SetToken;
 
   let DAI: StandardTokenMock;
-  let cDAI: StandardTokenMock;
+  let cDAI: CTokenMock;
   let yDAI: StandardTokenMock;
   let USDC: StandardTokenMock;
 
@@ -47,6 +54,7 @@ describe("IPRebalanceExtension", () => {
       owner,
       operator,
       methodologist,
+      allowedCaller,
       randomCaller,
     ] = await getAccounts();
 
@@ -58,18 +66,36 @@ describe("IPRebalanceExtension", () => {
     // Setup Component Tokens
     USDC = setV2Setup.usdc;
     DAI = setV2Setup.dai;
-    cDAI = await deployer.mocks.deployStandardTokenMock(owner.address, 18);
+    cDAI = await deployer.mocks.deployCTokenMock(18, DAI.address, ether(1.01914841));
     yDAI = await deployer.mocks.deployStandardTokenMock(owner.address, 18);
 
+    // Mint cDAI
+    await DAI.approve(cDAI.address, MAX_UINT_256);
+    await cDAI.mint(ether(10000));
+
+    // Setup CompoundWrapV2Adapter
+    const compoundWrapV2Adapter = await deployer.setV2.deployCompoundWrapV2Adapter();
+    await setV2Setup.integrationRegistry.addIntegration(
+      setV2Setup.wrapModuleV2.address,
+      "CompoundWrapV2Adapter",
+      compoundWrapV2Adapter.address
+    );
+
+    // Setup SetToken
     setToken = await setV2Setup.createSetToken(
       [USDC.address, DAI.address, cDAI.address, yDAI.address],
       [ether(15), ether(20), ether(25), ether(30)],
-      [setV2Setup.generalIndexModule.address, setV2Setup.issuanceModule.address]
+      [setV2Setup.generalIndexModule.address, setV2Setup.issuanceModule.address, setV2Setup.wrapModuleV2.address]
     );
 
     await setV2Setup.issuanceModule.initialize(
       setToken.address,
       ADDRESS_ZERO
+    );
+
+    await setV2Setup.wrapModuleV2.initialize(
+      setToken.address,
+      { gasLimit: 2_000_000 }
     );
 
     // Issue some set tokens
@@ -90,11 +116,20 @@ describe("IPRebalanceExtension", () => {
 
     // Deploy IPRebalanceExtension
     ipRebalanceExtension = await deployer.extensions.deployIPRebalanceExtension(baseManagerV2.address, setV2Setup.generalIndexModule.address);
-    baseManagerV2.connect(operator.wallet).addExtension(ipRebalanceExtension.address);
+    await ipRebalanceExtension.connect(operator.wallet).updateCallerStatus([allowedCaller.address], [true]);
+    await baseManagerV2.connect(operator.wallet).addExtension(ipRebalanceExtension.address);
 
     // Deploy TransferHelpers
-    compTransferHelper = await deployer.mocks.deployTransformHelperMock(ether(1.01914841));
-    yearnTransformHelper = await deployer.mocks.deployTransformHelperMock(ether(1.014914892));
+    compTransferHelper = await deployer.mocks.deployTransformHelperMock(
+      await cDAI.exchangeRate(),
+      setV2Setup.wrapModuleV2.address,
+      "CompoundWrapV2Adapter"
+    );
+    yearnTransformHelper = await deployer.mocks.deployTransformHelperMock(
+      ether(1.014914892),
+      setV2Setup.wrapModuleV2.address,
+      "YearnWrapV2Adapter"
+    );
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -349,6 +384,60 @@ describe("IPRebalanceExtension", () => {
 
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("Must be operator");
+        });
+      });
+    });
+
+    context("when startIPRebalance has been called", async () => {
+      beforeEach(async () => {
+        const components = [USDC.address, DAI.address, cDAI.address, yDAI.address];
+        const targetUnitsUnderlying = [ether(10), ether(10), ether(15), ether(60)];
+
+        await ipRebalanceExtension.connect(operator.wallet).startIPRebalance(components, targetUnitsUnderlying);
+      });
+
+      describe("#batchExecuteUntransform", async () => {
+        let subjectTransformComponents: Address[];
+        let subjectUntransformData: string[];
+        let subjectCaller: Account;
+
+        beforeEach(() => {
+          subjectTransformComponents = [cDAI.address];
+          subjectUntransformData = [EMPTY_BYTES];
+          subjectCaller = allowedCaller;
+        });
+
+        async function subject(): Promise<ContractTransaction> {
+          return await ipRebalanceExtension.connect(subjectCaller.wallet).batchExecuteUntransform(
+            subjectTransformComponents,
+            subjectUntransformData
+          );
+        }
+
+        it("should untransform the correct unit amounts", async () => {
+          await subject();
+
+          const expectCDaiUnits = preciseMul(ether(15), await compTransferHelper.exchangeRate());
+          const actualCDaiUnits = await setToken.getDefaultPositionRealUnit(cDAI.address);
+
+          expect(actualCDaiUnits).to.eq(expectCDaiUnits);
+        });
+
+        it("should decrement the untransforms counter", async () => {
+          const initUntransforms = await ipRebalanceExtension.untransforms();
+          await subject();
+          const finalUntransforms = await ipRebalanceExtension.untransforms();
+
+          expect(initUntransforms.sub(finalUntransforms)).to.eq(ONE);
+        });
+
+        it("should set the untransformUnits amount for the component to 0", async () => {
+          const initUntransformUnits = await ipRebalanceExtension.untransformUnits(cDAI.address);
+          await subject();
+          const finalUntransformUnits = await ipRebalanceExtension.untransformUnits(cDAI.address);
+
+          expect(initUntransformUnits).to.not.eq(ZERO);
+          expect(finalUntransformUnits).to.eq(ZERO);
         });
       });
     });

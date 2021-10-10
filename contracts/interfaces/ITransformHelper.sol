@@ -18,39 +18,43 @@
 
 pragma solidity 0.6.10;
 
+import { ISetToken } from "./ISetToken.sol";
+
 interface ITransformHelper {
 
     function getExchangeRate(address _underlyingComponent, address _transformComponent) external view returns (uint256);
 
     function getTransformData(
-        address _setToken,
+        ISetToken _setToken,
         address _underlyingComponent,
         address _transformComponent,
         uint256 _units
     ) external view returns (bytes memory);
 
     function getUntransformData(
-        address _setToken,
+        ISetToken _setToken,
         address _underlyingComponent,
         address _transformComponent,
         uint256 _units
     ) external view returns (bytes memory);
 
     function getTransformCall(
+        ISetToken _setToken,
         address _underlyingComponent,
         address _transformComponent,
-        bytes memory _transformData,
-        uint256 _units
+        uint256 _units,
+        bytes memory _transformData
     ) external view returns (address, bytes memory);
 
     function getUntransformCall(
+        ISetToken _setToken,
         address _underlyingComponent,
         address _transformComponent,
-        bytes memory _untransformData,
-        uint256 _units
+        uint256 _units,
+        bytes memory _untransformData
     ) external view returns (address, bytes memory);
 
-    function shouldTransform(address _underlyingComponent, address _transformComponent) external view;
+    function shouldTransform(address _underlyingComponent, address _transformComponent) external view returns (bool);
 
-    function shouldUntransform(address _underlyingComponent, address _untransformComponent) external view;
+    function shouldUntransform(address _underlyingComponent, address _untransformComponent) external view returns (bool);
 }

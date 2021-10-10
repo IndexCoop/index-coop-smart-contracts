@@ -2,6 +2,7 @@ import { Signer, BigNumber } from "ethers";
 import { Address } from "../types";
 import {
   BaseExtensionMock,
+  CTokenMock,
   FLIStrategyExtensionMock,
   GovernanceAdapterMock,
   MutualUpgradeMock,
@@ -12,6 +13,7 @@ import {
 } from "../contracts/index";
 
 import { BaseExtensionMock__factory } from "../../typechain/factories/BaseExtensionMock__factory";
+import { CTokenMock__factory } from "../../typechain/factories/CTokenMock__factory";
 import { ChainlinkAggregatorV3Mock__factory  } from "../../typechain/factories/ChainlinkAggregatorV3Mock__factory";
 import { FLIStrategyExtensionMock__factory } from "../../typechain/factories/FLIStrategyExtensionMock__factory";
 import { GovernanceAdapterMock__factory  } from "../../typechain/factories/GovernanceAdapterMock__factory";
@@ -65,7 +67,11 @@ export default class DeployMocks {
     return await new FLIStrategyExtensionMock__factory(this._deployerSigner).deploy();
   }
 
-  public async deployTransformHelperMock(exchangeRate: BigNumber): Promise<TransformHelperMock> {
-    return await new TransformHelperMock__factory(this._deployerSigner).deploy(exchangeRate);
+  public async deployTransformHelperMock(exchangeRate: BigNumber, wrapModuleV2: Address, integrationName: string): Promise<TransformHelperMock> {
+    return await new TransformHelperMock__factory(this._deployerSigner).deploy(exchangeRate, wrapModuleV2, integrationName);
+  }
+
+  public async deployCTokenMock(decimals: number, underlying: Address, exchangeRate: BigNumber): Promise<CTokenMock> {
+    return await new CTokenMock__factory(this._deployerSigner).deploy("Mock cToken", "cToken", decimals, underlying, exchangeRate);
   }
 }
