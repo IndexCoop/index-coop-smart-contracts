@@ -23,6 +23,7 @@ import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import { BaseExtension } from "../lib/BaseExtension.sol";
+import { GIMExtension } from "./GIMExtension.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IGeneralIndexModule } from "../interfaces/IGeneralIndexModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
@@ -32,7 +33,7 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { console } from "hardhat/console.sol";
 
 
-contract IPRebalanceExtension is BaseExtension {
+contract IPRebalanceExtension is GIMExtension {
     using PreciseUnitMath for uint256;
     using SafeCast for int256;
     using SafeMath for uint256;
@@ -50,8 +51,6 @@ contract IPRebalanceExtension is BaseExtension {
     }
 
     /* ========== State Variables ========= */
-
-    IGeneralIndexModule public generalIndexModule;
     
     uint256 public untransforms;
     uint256 public transforms;
@@ -70,13 +69,19 @@ contract IPRebalanceExtension is BaseExtension {
 
     /* ========== Constructor ========== */
 
-    constructor(IBaseManager _manager, IGeneralIndexModule _generalIndexModule) public BaseExtension(_manager) {
-        generalIndexModule = _generalIndexModule;
-    }
+    constructor(IBaseManager _manager, IGeneralIndexModule _generalIndexModule) public GIMExtension(_manager, _generalIndexModule) {}
 
     /* ======== External Functions ======== */
 
-    function startRebalanceWithUnits(address[] memory /* _components */, uint256[] memory /* _targetUnitsUnderlying */) external pure {
+    function startRebalanceWithUnits(
+        address[] calldata /* _components */,
+        uint256[] calldata /* _targetUnitsUnderlying */,
+        uint256 /* _posotionMultiplier */
+    )
+        external
+        onlyOperator
+        override
+    {
         revert("use startIPRebalance instead");
     }
 
@@ -99,7 +104,7 @@ contract IPRebalanceExtension is BaseExtension {
     function startIPRebalance(address[] memory _setComponents, uint256[] memory _targetUnitsUnderlying) external onlyOperator {
         require(_setComponents.length == _targetUnitsUnderlying.length, "length mismatch");
 
-        ISetToken setToken = manager.setToken();
+        // TODO: clear out startingUnderlyingComponent units
 
         for (uint256 i = 0; i < _setComponents.length; i++) {
             if (_isTransformComponent(_setComponents[i])) {
@@ -113,16 +118,12 @@ contract IPRebalanceExtension is BaseExtension {
 
                 uint256 unitsToUntransform = currentUnits > targetUnitsInTransformed ? currentUnits.sub(targetUnitsInTransformed) : 0;
 
+                startingUnderlyingComponentUnits[transformInfo.underlyingComponent] += currentUnits.preciseDiv(exchangeRate);
+
                 if (unitsToUntransform > 0) {
                     untransforms++;
                     untransformUnits[_setComponents[i]] = unitsToUntransform;
                 }
-
-                // for each transform's underlying, save the current amount of the underlying present in
-                // the set as a normal raw component. This is usually zero unless a set contains both a 
-                // transformed and underlying component
-                address underlying = transformComponentInfo[_setComponents[i]].underlyingComponent;
-                startingUnderlyingComponentUnits[_setComponents[i]] = setToken.getDefaultPositionRealUnit(underlying).toUint256();
             }
 
             // saves rebalance parameters for later use to start rebalance through GIM when untransforming is complete
@@ -193,7 +194,41 @@ contract IPRebalanceExtension is BaseExtension {
     }
 
     function _startGIMRebalance() internal {
-        //TODO: start GIM rebalance
+        
+        uint256[] memory rebalanceTargets = new uint256[](setComponentList.length);
+
+        for (uint256 i = 0; i < setComponentList.length; i++) {
+            if (_isTransformComponent(setComponentList[i])) {
+                rebalanceTargets[i] = setToken.getDefaultPositionRealUnit(setComponentList[i]).toUint256();
+            } else {
+
+                uint256 finalTotalUnderlyingUnits = _getFinalTotoalUnderlyingUnits(setComponentList[i], setComponentList);
+                uint256 startingTotalUnderlyingUnits = startingUnderlyingComponentUnits[setComponentList[i]];
+
+                if (finalTotalUnderlyingUnits > startingTotalUnderlyingUnits) {
+                    rebalanceTargets[i] = finalTotalUnderlyingUnits.sub(startingTotalUnderlyingUnits);
+                } else {
+                    rebalanceTargets[i] = 0;
+                }
+            }
+        }
+
+        (
+            address[] memory newComponents,
+            uint256[] memory newComponentsTargetUnits,
+            uint256[] memory oldComponentsTargetUnits
+        ) =_sortNewAndOldComponents(setComponentList, rebalanceTargets);
+
+        bytes memory callData = abi.encodeWithSelector(
+            IGeneralIndexModule.startRebalance.selector,
+            setToken,
+            newComponents,
+            newComponentsTargetUnits,
+            oldComponentsTargetUnits,
+            setToken.positionMultiplier()
+        );
+
+        invokeManager(address(generalIndexModule), callData);
     }
 
     function _absorbAirdrops(address[] memory _components) internal {
@@ -229,5 +264,16 @@ contract IPRebalanceExtension is BaseExtension {
             }
         }
         return _componentUnitsUnderlying.preciseDiv(sum);
+    }
+
+    // TODO: reconcile function with _calculateTransformPercentage
+    function _getFinalTotoalUnderlyingUnits(address _underlying, address[] memory _components) internal view returns (uint256) {
+        uint256 sum = 0;
+        for (uint256 i = 0; i < _components.length; i++) {
+            if (transformComponentInfo[_components[i]].underlyingComponent == _underlying || _underlying == _components[i]) {
+                sum += rebalanceParams[_components[i]].targetUnderlyingUnits;
+            }
+        }
+        return sum;
     }
 }

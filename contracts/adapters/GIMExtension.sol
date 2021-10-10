@@ -69,6 +69,7 @@ contract GIMExtension is BaseExtension {
         uint256 _positionMultiplier
     )
         external
+        virtual
         onlyOperator
     {
         (
