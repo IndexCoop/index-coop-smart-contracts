@@ -202,7 +202,7 @@ contract IPRebalanceExtension is GIMExtension {
                 rebalanceTargets[i] = setToken.getDefaultPositionRealUnit(setComponentList[i]).toUint256();
             } else {
 
-                uint256 finalTotalUnderlyingUnits = _getFinalTotoalUnderlyingUnits(setComponentList[i], setComponentList);
+                uint256 finalTotalUnderlyingUnits = _getFinalTotalUnderlyingUnits(setComponentList[i], setComponentList);
                 uint256 startingTotalUnderlyingUnits = startingUnderlyingComponentUnits[setComponentList[i]];
 
                 if (finalTotalUnderlyingUnits > startingTotalUnderlyingUnits) {
@@ -267,7 +267,7 @@ contract IPRebalanceExtension is GIMExtension {
     }
 
     // TODO: reconcile function with _calculateTransformPercentage
-    function _getFinalTotoalUnderlyingUnits(address _underlying, address[] memory _components) internal view returns (uint256) {
+    function _getFinalTotalUnderlyingUnits(address _underlying, address[] memory _components) internal view returns (uint256) {
         uint256 sum = 0;
         for (uint256 i = 0; i < _components.length; i++) {
             if (transformComponentInfo[_components[i]].underlyingComponent == _underlying || _underlying == _components[i]) {
