@@ -5,6 +5,7 @@ import { ADDRESS_ZERO, EMPTY_BYTES, MAX_UINT_256, ONE, ZERO } from "@utils/const
 import {
   CTokenMock,
   IPRebalanceExtension,
+  IndexExchangeAdapterMock,
   BaseManagerV2,
   StandardTokenMock,
   TransformHelperMock
@@ -43,6 +44,7 @@ describe("IPRebalanceExtension", () => {
   let yDAI: StandardTokenMock;
   let USDC: StandardTokenMock;
 
+  let exchangeAdapter: IndexExchangeAdapterMock;
   let compTransformHelper: TransformHelperMock;
   let yearnTransformHelper: TransformHelperMock;
 
@@ -81,10 +83,18 @@ describe("IPRebalanceExtension", () => {
       compoundWrapV2Adapter.address
     );
 
+    // Setup IndexExchangeAdapterMock
+    exchangeAdapter = await deployer.mocks.deployIndexExchangeAdapterMock();
+    await setV2Setup.integrationRegistry.addIntegration(
+      setV2Setup.generalIndexModule.address,
+      "IndexExchangeAdapterMock",
+      exchangeAdapter.address
+    );
+
     // Setup SetToken
     setToken = await setV2Setup.createSetToken(
       [USDC.address, DAI.address, cDAI.address, yDAI.address],
-      [ether(15), ether(20), ether(25), ether(30)],
+      [ether(25), ether(20), ether(25), ether(30)],
       [setV2Setup.generalIndexModule.address, setV2Setup.issuanceModule.address, setV2Setup.wrapModuleV2.address]
     );
 
@@ -288,7 +298,7 @@ describe("IPRebalanceExtension", () => {
 
       beforeEach(async () => {
         subjectSetComponents = [USDC.address, DAI.address, cDAI.address, yDAI.address];
-        subjectTargetUnitsUnderlying = [ether(10), ether(10), ether(15), ether(60)];
+        subjectTargetUnitsUnderlying = [ether(10), ether(15), ether(15), ether(60)];
         subjectCaller = operator;
       });
 
@@ -399,7 +409,7 @@ describe("IPRebalanceExtension", () => {
     context("when startIPRebalance has been called", async () => {
       beforeEach(async () => {
         const components = [USDC.address, DAI.address, cDAI.address, yDAI.address];
-        const targetUnitsUnderlying = [ether(10), ether(10), ether(15), ether(60)];
+        const targetUnitsUnderlying = [ether(10), ether(15), ether(15), ether(60)];
 
         await ipRebalanceExtension.connect(operator.wallet).startIPRebalance(components, targetUnitsUnderlying);
       });
@@ -460,12 +470,98 @@ describe("IPRebalanceExtension", () => {
             const cDaiExchangeRate = await compTransformHelper.getExchangeRate(DAI.address, cDAI.address);
             const yDaiExchangeRate = await yearnTransformHelper.getExchangeRate(DAI.address, yDAI.address);
 
-            const expectedDaiUnits = ether(10 + 15 + 60).sub(preciseDiv(ether(25), cDaiExchangeRate).add(preciseDiv(ether(30), yDaiExchangeRate)));
+            const expectedDaiUnits = ether(15 + 15 + 60).sub(preciseDiv(ether(25), cDaiExchangeRate).add(preciseDiv(ether(30), yDaiExchangeRate)));
 
             expect(cDaiTargetUnits).to.eq(await setToken.getDefaultPositionRealUnit(cDAI.address));
             expect(yDaiTargetUnits).to.eq(await setToken.getDefaultPositionRealUnit(yDAI.address));
             expect(usdcTargetUnits).to.eq(ether(10));
             expect(daiTargetUnits).to.eq(expectedDaiUnits);
+          });
+        });
+
+        context("when caller is not an allowed caller", async () => {
+          beforeEach(() => {
+            subjectCaller = randomCaller;
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("Address not permitted to call");
+          });
+        });
+      });
+
+      context("when final untransform is complete", async () => {
+        beforeEach(async () => {
+          await ipRebalanceExtension.connect(allowedCaller.wallet).batchExecuteUntransform(
+            [cDAI.address],
+            [EMPTY_BYTES]
+          );
+        });
+
+        context("when trading is complete", async () => {
+          beforeEach(async () => {
+            await ipRebalanceExtension.connect(operator.wallet).setTraderStatus(
+              [allowedCaller.address],
+              [true]
+            );
+            await ipRebalanceExtension.connect(operator.wallet).setTradeMaximums(
+              [DAI.address, USDC.address],
+              [MAX_UINT_256, MAX_UINT_256]
+            );
+            await ipRebalanceExtension.connect(operator.wallet).setExchanges(
+              [DAI.address, USDC.address],
+              ["IndexExchangeAdapterMock", "IndexExchangeAdapterMock"]
+            );
+
+            await setV2Setup.weth.transfer(exchangeAdapter.address, ether(1.1));
+            await setV2Setup.generalIndexModule.connect(allowedCaller.wallet).trade(setToken.address, USDC.address, MAX_UINT_256);
+
+            const currentDai = await DAI.balanceOf(setToken.address);
+            const targetDaiUnit = (await setV2Setup.generalIndexModule.executionInfo(setToken.address, DAI.address)).targetUnit;
+            const targetDai = preciseMul(targetDaiUnit, await setToken.totalSupply());
+            const daiDiff = targetDai.sub(currentDai);
+            await DAI.transfer(exchangeAdapter.address, daiDiff);
+            await setV2Setup.generalIndexModule.connect(allowedCaller.wallet).tradeRemainingWETH(setToken.address, DAI.address, daiDiff);
+          });
+
+          describe("#setTradesComplete", async () => {
+            let subjectCaller: Account;
+
+            beforeEach(() => {
+              subjectCaller = operator;
+            });
+
+            async function subject(): Promise<ContractTransaction> {
+              return await ipRebalanceExtension.connect(subjectCaller.wallet).setTradesComplete();
+            }
+
+            it("should set the number of transforms", async () => {
+              await subject();
+
+              expect(await ipRebalanceExtension.transforms()).to.eq(ONE);
+            });
+
+            it("should set the transformUnits", async () => {
+              await subject();
+
+              const targetYDaiUnitsUnderlying = ether(60);
+              const currentYDaiUnits = await setToken.getDefaultPositionRealUnit(yDAI.address);
+              const exchangeRate = await yearnTransformHelper.getExchangeRate(DAI.address, yDAI.address);
+              const currentYDaiUnitsUnderlying = preciseDiv(currentYDaiUnits, exchangeRate);
+              const expectedTransformUnits = targetYDaiUnitsUnderlying.sub(currentYDaiUnitsUnderlying);
+
+              expect(await ipRebalanceExtension.transformUnits(yDAI.address)).to.eq(expectedTransformUnits);
+            });
+
+            context("when caller is not operator", async () => {
+              beforeEach(() => {
+                subjectCaller = randomCaller;
+              });
+
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith("Must be operator");
+              });
+            });
           });
         });
       });

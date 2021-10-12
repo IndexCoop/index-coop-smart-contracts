@@ -5,6 +5,7 @@ import {
   CTokenMock,
   FLIStrategyExtensionMock,
   GovernanceAdapterMock,
+  IndexExchangeAdapterMock,
   MutualUpgradeMock,
   StandardTokenMock,
   StringArrayUtilsMock,
@@ -17,6 +18,7 @@ import { CTokenMock__factory } from "../../typechain/factories/CTokenMock__facto
 import { ChainlinkAggregatorV3Mock__factory  } from "../../typechain/factories/ChainlinkAggregatorV3Mock__factory";
 import { FLIStrategyExtensionMock__factory } from "../../typechain/factories/FLIStrategyExtensionMock__factory";
 import { GovernanceAdapterMock__factory  } from "../../typechain/factories/GovernanceAdapterMock__factory";
+import { IndexExchangeAdapterMock__factory } from "../../typechain/factories/IndexExchangeAdapterMock__factory";
 import { MasterChefMock__factory } from "../../typechain/factories/MasterChefMock__factory";
 import { MutualUpgradeMock__factory } from "../../typechain/factories/MutualUpgradeMock__factory";
 import { StandardTokenMock__factory  } from "../../typechain/factories/StandardTokenMock__factory";
@@ -73,5 +75,9 @@ export default class DeployMocks {
 
   public async deployCTokenMock(decimals: number, underlying: Address, exchangeRate: BigNumber): Promise<CTokenMock> {
     return await new CTokenMock__factory(this._deployerSigner).deploy("Mock cToken", "cToken", decimals, underlying, exchangeRate);
+  }
+
+  public async deployIndexExchangeAdapterMock(): Promise<IndexExchangeAdapterMock> {
+    return await new IndexExchangeAdapterMock__factory(this._deployerSigner).deploy();
   }
 }

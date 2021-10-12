@@ -159,6 +159,30 @@ contract IPRebalanceExtension is GIMExtension {
         }
     }
 
+    function setTradesComplete() external onlyOperator {
+        tradesComplete = true;
+        for (uint256 i = 0; i < setComponentList.length; i++) {
+            address component = setComponentList[i];
+            if (_isTransformComponent(component)) {
+
+                TransformInfo memory transformInfo = transformComponentInfo[component];
+
+                uint256 currentUnits = setToken.getDefaultPositionRealUnit(component).toUint256();
+                uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(transformInfo.underlyingComponent, component);
+                uint256 currentUnitsUnderlying = currentUnits.preciseDiv(exchangeRate);
+
+                uint256 targetUnitsUnderlying = rebalanceParams[component].targetUnderlyingUnits;
+
+                uint256 unitsToTransform = targetUnitsUnderlying.sub(currentUnitsUnderlying);
+
+                if (unitsToTransform > 0) {
+                    transforms++;
+                    transformUnits[component] = unitsToTransform;
+                }
+            }
+        }
+    }
+
     /* ======== Internal Functions ======== */
 
     function _executeUntransform(address _transformComponent, bytes memory _untransformData) internal {
