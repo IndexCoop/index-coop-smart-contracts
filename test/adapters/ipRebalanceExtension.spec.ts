@@ -41,7 +41,7 @@ describe("IPRebalanceExtension", () => {
 
   let DAI: StandardTokenMock;
   let cDAI: CTokenMock;
-  let yDAI: StandardTokenMock;
+  let yDAI: CTokenMock;
   let USDC: StandardTokenMock;
 
   let exchangeAdapter: IndexExchangeAdapterMock;
@@ -68,12 +68,14 @@ describe("IPRebalanceExtension", () => {
     // Setup Component Tokens
     USDC = setV2Setup.usdc;
     DAI = setV2Setup.dai;
-    cDAI = await deployer.mocks.deployCTokenMock(18, DAI.address, ether(1.01914841));
-    yDAI = await deployer.mocks.deployStandardTokenMock(owner.address, 18);
+    cDAI = await deployer.mocks.deployCTokenMock(18, DAI.address, ether(1.001914841));
+    yDAI = await deployer.mocks.deployCTokenMock(18, DAI.address, ether(1.001491489));
 
-    // Mint cDAI
+    // Mint cDAI and yDAI
     await DAI.approve(cDAI.address, MAX_UINT_256);
+    await DAI.approve(yDAI.address, MAX_UINT_256);
     await cDAI.mint(ether(10000));
+    await yDAI.mint(ether(10000));
 
     // Setup CompoundWrapV2Adapter
     const compoundWrapV2Adapter = await deployer.setV2.deployCompoundWrapV2Adapter();
@@ -138,9 +140,9 @@ describe("IPRebalanceExtension", () => {
       "CompoundWrapV2Adapter"
     );
     yearnTransformHelper = await deployer.mocks.deployTransformHelperMock(
-      ether(1.014914892),
+      await yDAI.exchangeRate(),
       setV2Setup.wrapModuleV2.address,
-      "YearnWrapV2Adapter"
+      "CompoundWrapV2Adapter"
     );
   });
 
@@ -333,46 +335,15 @@ describe("IPRebalanceExtension", () => {
       it("should set the rebalance params", async () => {
         await subject();
 
-        const [usdcTargetUnderlying, usdcTransformPercentage] = await ipRebalanceExtension.rebalanceParams(USDC.address);
-        const [daiTargetUnderlying, daiTransformPercentage] = await ipRebalanceExtension.rebalanceParams(DAI.address);
-        const [cDaiTargetUnderlying, cDaiTransformPercentage] = await ipRebalanceExtension.rebalanceParams(cDAI.address);
-        const [yDaiTargetUnderlying, yDaiTransformPercentage] = await ipRebalanceExtension.rebalanceParams(yDAI.address);
+        const usdcTargetUnderlying = await ipRebalanceExtension.rebalanceParams(USDC.address);
+        const daiTargetUnderlying = await ipRebalanceExtension.rebalanceParams(DAI.address);
+        const cDaiTargetUnderlying = await ipRebalanceExtension.rebalanceParams(cDAI.address);
+        const yDaiTargetUnderlying = await ipRebalanceExtension.rebalanceParams(yDAI.address);
 
         expect(usdcTargetUnderlying).to.eq(subjectTargetUnitsUnderlying[0]);
         expect(daiTargetUnderlying).to.eq(subjectTargetUnitsUnderlying[1]);
         expect(cDaiTargetUnderlying).to.eq(subjectTargetUnitsUnderlying[2]);
         expect(yDaiTargetUnderlying).to.eq(subjectTargetUnitsUnderlying[3]);
-
-        const totalUnderlyingDai = daiTargetUnderlying.add(cDaiTargetUnderlying).add(yDaiTargetUnderlying);
-        const expectedCDaiTransformPercentage = preciseDiv(cDaiTargetUnderlying, totalUnderlyingDai);
-        const expectedYDaiTransformPercentage = preciseDiv(yDaiTargetUnderlying, totalUnderlyingDai);
-
-        expect(usdcTransformPercentage).to.eq(ZERO);
-        expect(daiTransformPercentage).to.eq(ZERO);
-        expect(cDaiTransformPercentage).to.eq(expectedCDaiTransformPercentage);
-        expect(yDaiTransformPercentage).to.eq(expectedYDaiTransformPercentage);
-      });
-
-      it("should set the starting underlying component units", async () => {
-        await subject();
-
-        const usdcStartingUnderlying = await ipRebalanceExtension.startingUnderlyingComponentUnits(USDC.address);
-        const daiStartingUnderlying = await ipRebalanceExtension.startingUnderlyingComponentUnits(DAI.address);
-        const cDaiStartingUnderlying = await ipRebalanceExtension.startingUnderlyingComponentUnits(cDAI.address);
-        const yDaiStartingUnderlying = await ipRebalanceExtension.startingUnderlyingComponentUnits(yDAI.address);
-
-        const currentCDaiUnits = await setToken.getDefaultPositionRealUnit(cDAI.address);
-        const currentYDaiUnits = await setToken.getDefaultPositionRealUnit(yDAI.address);
-        const cDaiExchangeRate = await compTransformHelper.getExchangeRate(DAI.address, cDAI.address);
-        const yDaiExchangeRate = await yearnTransformHelper.getExchangeRate(DAI.address, yDAI.address);
-
-        const currentCDaiUnderlyingUnits = preciseDiv(currentCDaiUnits, cDaiExchangeRate);
-        const currentYDaiUnderlyingUnits = preciseDiv(currentYDaiUnits, yDaiExchangeRate);
-
-        expect(usdcStartingUnderlying).to.eq(ZERO);
-        expect(daiStartingUnderlying).to.eq(currentCDaiUnderlyingUnits.add(currentYDaiUnderlyingUnits));
-        expect(cDaiStartingUnderlying).to.eq(ZERO);
-        expect(yDaiStartingUnderlying).to.eq(ZERO);
       });
 
       it("should set the component list", async () => {
@@ -467,10 +438,11 @@ describe("IPRebalanceExtension", () => {
             const cDaiTargetUnits = (await setV2Setup.generalIndexModule.executionInfo(setToken.address, cDAI.address)).targetUnit;
             const yDaiTargetUnits = (await setV2Setup.generalIndexModule.executionInfo(setToken.address, yDAI.address)).targetUnit;
 
-            const cDaiExchangeRate = await compTransformHelper.getExchangeRate(DAI.address, cDAI.address);
             const yDaiExchangeRate = await yearnTransformHelper.getExchangeRate(DAI.address, yDAI.address);
 
-            const expectedDaiUnits = ether(15 + 15 + 60).sub(preciseDiv(ether(25), cDaiExchangeRate).add(preciseDiv(ether(30), yDaiExchangeRate)));
+            const expectedDaiUnits = ether(15 + 60)                         // cDaiUnderlyingEnd + yDaiUnderlyingEnd
+              .sub(ether(15).add(preciseDiv(ether(30), yDaiExchangeRate)))  // cDaiUnderlyingCurrent + yDaiUnderlyingCurrent
+              .add(ether(15));                                              // daiFinal
 
             expect(cDaiTargetUnits).to.eq(await setToken.getDefaultPositionRealUnit(cDAI.address));
             expect(yDaiTargetUnits).to.eq(await setToken.getDefaultPositionRealUnit(yDAI.address));
@@ -560,6 +532,89 @@ describe("IPRebalanceExtension", () => {
 
               it("should revert", async () => {
                 await expect(subject()).to.be.revertedWith("Must be operator");
+              });
+            });
+          });
+
+          context("when setTradesComplete has been called", async () => {
+            beforeEach(async () => {
+              await ipRebalanceExtension.connect(operator.wallet).setTradesComplete();
+            });
+
+            describe("#batchExecuteTransform", async () => {
+              let subjectTransformComponents: Address[];
+              let subjectTransformData: string[];
+              let subjectCaller: Account;
+
+              beforeEach(() => {
+                subjectTransformComponents = [yDAI.address];
+                subjectTransformData = [EMPTY_BYTES];
+                subjectCaller = allowedCaller;
+              });
+
+              async function subject(): Promise<ContractTransaction> {
+                return await ipRebalanceExtension.connect(subjectCaller.wallet).batchExecuteTransform(
+                  subjectTransformComponents,
+                  subjectTransformData
+                );
+              }
+
+              it("should transform the correct unit amounts", async () => {
+                await subject();
+
+                const targetYDaiUnderlyingUnits = ether(60);
+                const exchangeRate = await yearnTransformHelper.getExchangeRate(DAI.address, yDAI.address);
+                const expectedYDaiUnits = preciseMul(targetYDaiUnderlyingUnits, exchangeRate);
+
+                const currentYDaiUnits = await setToken.getDefaultPositionRealUnit(yDAI.address);
+
+                expect(currentYDaiUnits).to.eq(expectedYDaiUnits);
+              });
+
+              it("should decrement the transforms counter", async () => {
+                const initTransforms = await ipRebalanceExtension.transforms();
+                await subject();
+                const finalTransforms = await ipRebalanceExtension.transforms();
+
+                expect(initTransforms.sub(finalTransforms)).to.eq(ONE);
+              });
+
+              it("should set the transform amount for the component to 0", async () => {
+                const initTransformUnits = await ipRebalanceExtension.transformUnits(yDAI.address);
+                await subject();
+                const finalTransformUnits = await ipRebalanceExtension.transformUnits(yDAI.address);
+
+                expect(initTransformUnits).to.not.eq(ZERO);
+                expect(finalTransformUnits).to.eq(ZERO);
+              });
+
+              context("when it is the final transform", async () => {
+                it("should set tradesComplete to false", async () => {
+                  await subject();
+
+                  expect(await ipRebalanceExtension.tradesComplete()).to.eq(false);
+                });
+
+                it("should have the correct component units", async () => {
+                  await subject();
+
+                  const cDaiUnits = await setToken.getDefaultPositionRealUnit(cDAI.address);
+                  const cDaiExchangeRate = await compTransformHelper.getExchangeRate(DAI.address, cDAI.address);
+                  const cDaiUnderlyingUnits = preciseDiv(cDaiUnits, cDaiExchangeRate);
+
+                  const yDaiUnits = await setToken.getDefaultPositionRealUnit(yDAI.address);
+                  const yDaiExchangeRate = await yearnTransformHelper.getExchangeRate(DAI.address, yDAI.address);
+                  const yDaiUnderlyingUnits = preciseDiv(yDaiUnits, yDaiExchangeRate);
+
+                  const daiUnits = await setToken.getDefaultPositionRealUnit(DAI.address);
+                  const usdcUnits = await setToken.getDefaultPositionRealUnit(USDC.address);
+
+                  // TODO: investigate rounding error
+                  expect(daiUnits).to.eq(ether(15).sub(2));
+                  expect(usdcUnits).to.eq(ether(10));
+                  expect(cDaiUnderlyingUnits).to.eq(ether(15));
+                  expect(yDaiUnderlyingUnits).to.eq(ether(60));
+                });
               });
             });
           });

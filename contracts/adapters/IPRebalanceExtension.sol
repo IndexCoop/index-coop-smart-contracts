@@ -30,12 +30,11 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { ITransformHelper } from "../interfaces/ITransformHelper.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
-import { console } from "hardhat/console.sol";
-
 
 contract IPRebalanceExtension is GIMExtension {
     using PreciseUnitMath for uint256;
     using SafeCast for int256;
+    using SafeCast for uint256;
     using SafeMath for uint256;
 
     /* ============ Structs =========== */
@@ -43,11 +42,6 @@ contract IPRebalanceExtension is GIMExtension {
     struct TransformInfo {
         address underlyingComponent;
         ITransformHelper transformHelper;
-    }
-
-    struct RebalanceParam {
-        uint256 targetUnderlyingUnits;
-        uint256 transformPercentage;
     }
 
     /* ========== State Variables ========= */
@@ -60,10 +54,8 @@ contract IPRebalanceExtension is GIMExtension {
 
     mapping(address => TransformInfo) public transformComponentInfo;
 
-    mapping(address => RebalanceParam) public rebalanceParams;
+    mapping(address => uint256) public rebalanceParams;
     address[] public setComponentList;
-
-    mapping(address => uint256) public startingUnderlyingComponentUnits;
 
     bool public tradesComplete;
 
@@ -118,8 +110,6 @@ contract IPRebalanceExtension is GIMExtension {
 
                 uint256 unitsToUntransform = currentUnits > targetUnitsInTransformed ? currentUnits.sub(targetUnitsInTransformed) : 0;
 
-                startingUnderlyingComponentUnits[transformInfo.underlyingComponent] += currentUnits.preciseDiv(exchangeRate);
-
                 if (unitsToUntransform > 0) {
                     untransforms++;
                     untransformUnits[_setComponents[i]] = unitsToUntransform;
@@ -127,17 +117,7 @@ contract IPRebalanceExtension is GIMExtension {
             }
 
             // saves rebalance parameters for later use to start rebalance through GIM when untransforming is complete
-            rebalanceParams[_setComponents[i]].targetUnderlyingUnits = _targetUnitsUnderlying[i];
-
-            // saves the percentage of the total underlying units that should be transformed into this component at end of rebalance
-            // this value can be calculates by taking _targetUnitsUnderlying and dividing it by the sum of all underlying and raw components units
-            // that are the same token as the underlying of this transform component.
-            rebalanceParams[_setComponents[i]].transformPercentage = _calculateTransformPercentage(
-                _setComponents[i],
-                _targetUnitsUnderlying[i],
-                _setComponents,
-                _targetUnitsUnderlying
-            );
+            rebalanceParams[_setComponents[i]] = _targetUnitsUnderlying[i];
         }
 
         setComponentList = _setComponents;
@@ -171,7 +151,7 @@ contract IPRebalanceExtension is GIMExtension {
                 uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(transformInfo.underlyingComponent, component);
                 uint256 currentUnitsUnderlying = currentUnits.preciseDiv(exchangeRate);
 
-                uint256 targetUnitsUnderlying = rebalanceParams[component].targetUnderlyingUnits;
+                uint256 targetUnitsUnderlying = rebalanceParams[component];
 
                 uint256 unitsToTransform = targetUnitsUnderlying.sub(currentUnitsUnderlying);
 
@@ -180,6 +160,22 @@ contract IPRebalanceExtension is GIMExtension {
                     transformUnits[component] = unitsToTransform;
                 }
             }
+        }
+    }
+
+    function batchExecuteTransform(
+        address[] memory _transformComponents,
+        bytes[] memory _transformData
+    )
+        external
+        onlyAllowedCaller(msg.sender)
+    {
+        require(_transformComponents.length == _transformData.length, "length mismatch");
+
+        _absorbAirdrops(_transformComponents);
+
+        for (uint256 i = 0; i < _transformComponents.length; i++) {
+            _executeTransform(_transformComponents[i], _transformData[i]);
         }
     }
 
@@ -197,7 +193,6 @@ contract IPRebalanceExtension is GIMExtension {
             "untransform unavailable"
         );
 
-        // untransform component
         (address module, bytes memory callData) = transformInfo.transformHelper.getUntransformCall(
             manager.setToken(),
             transformInfo.underlyingComponent,
@@ -217,6 +212,36 @@ contract IPRebalanceExtension is GIMExtension {
         }
     }
 
+    function _executeTransform(address _transformComponent, bytes memory _transformData) internal {
+
+        uint256 unitsToTransform = transformUnits[_transformComponent];
+        require(unitsToTransform > 0 && transforms > 0, "nothing to untransform");
+
+        TransformInfo memory transformInfo = transformComponentInfo[_transformComponent];
+
+        require(
+            transformInfo.transformHelper.shouldTransform(transformInfo.underlyingComponent, _transformComponent),
+            "untransform unavailable"
+        );
+
+        (address module, bytes memory callData) = transformInfo.transformHelper.getTransformCall(
+            manager.setToken(),
+            transformInfo.underlyingComponent,
+            _transformComponent,
+            unitsToTransform,
+            _transformData
+        );
+
+        invokeManager(module, callData);
+
+        transformUnits[_transformComponent] = 0;
+        transforms--;
+
+        if (transforms == 0) {
+            tradesComplete = false;
+        }
+    }
+
     function _startGIMRebalance() internal {
         
         uint256[] memory rebalanceTargets = new uint256[](setComponentList.length);
@@ -227,10 +252,13 @@ contract IPRebalanceExtension is GIMExtension {
             } else {
 
                 uint256 finalTotalUnderlyingUnits = _getFinalTotalUnderlyingUnits(setComponentList[i], setComponentList);
-                uint256 startingTotalUnderlyingUnits = startingUnderlyingComponentUnits[setComponentList[i]];
+                uint256 currentTotalUnderlyingUnits = _getCurrentTotalUnderlyingUnits(setComponentList[i], setComponentList);
 
-                if (finalTotalUnderlyingUnits > startingTotalUnderlyingUnits) {
-                    rebalanceTargets[i] = finalTotalUnderlyingUnits.sub(startingTotalUnderlyingUnits);
+                uint256 targetUnderlying = rebalanceParams[setComponentList[i]];
+                int256 diff = finalTotalUnderlyingUnits.toInt256() - currentTotalUnderlyingUnits.toInt256() + targetUnderlying.toInt256();
+
+                if (diff > 0) {
+                    rebalanceTargets[i] = diff.toUint256();
                 } else {
                     rebalanceTargets[i] = 0;
                 }
@@ -263,39 +291,25 @@ contract IPRebalanceExtension is GIMExtension {
         return transformComponentInfo[_component].underlyingComponent != address(0);
     }
 
-    // TODO: gas golf
-    function _calculateTransformPercentage(
-        address _component,
-        uint256 _componentUnitsUnderlying,
-        address[] memory _setComponents,
-        uint256[] memory _targetUnitsUnderlying
-    )
-        internal
-        view
-        returns (uint256)
-    {
-        if (!_isTransformComponent(_component)) return 0;
-
-        uint256 sum = _componentUnitsUnderlying;
-        for (uint256 i = 0; i < _setComponents.length; i++) {
-            if (_component != _setComponents[i] ) {
-                if (transformComponentInfo[_component].underlyingComponent == transformComponentInfo[_setComponents[i]].underlyingComponent) {
-                    sum += _targetUnitsUnderlying[i];
-                }
-                if(transformComponentInfo[_component].underlyingComponent == _setComponents[i]) {
-                    sum += _targetUnitsUnderlying[i];
-                }
-            }
-        }
-        return _componentUnitsUnderlying.preciseDiv(sum);
-    }
-
-    // TODO: reconcile function with _calculateTransformPercentage
     function _getFinalTotalUnderlyingUnits(address _underlying, address[] memory _components) internal view returns (uint256) {
         uint256 sum = 0;
         for (uint256 i = 0; i < _components.length; i++) {
-            if (transformComponentInfo[_components[i]].underlyingComponent == _underlying || _underlying == _components[i]) {
-                sum += rebalanceParams[_components[i]].targetUnderlyingUnits;
+            if (transformComponentInfo[_components[i]].underlyingComponent == _underlying) {
+                sum += rebalanceParams[_components[i]];
+            }
+        }
+        return sum;
+    }
+
+    function _getCurrentTotalUnderlyingUnits(address _underlying, address[] memory _components) internal view returns (uint256) {
+        uint256 sum = 0;
+        for (uint256 i = 0; i < _components.length; i++) {
+            if (transformComponentInfo[_components[i]].underlyingComponent == _underlying) {
+                ITransformHelper transformHelper = transformComponentInfo[_components[i]].transformHelper;
+                uint256 exchangeRate = transformHelper.getExchangeRate(_underlying, _components[i]);
+                
+                uint256 currentUnderlying = setToken.getDefaultPositionRealUnit(_components[i]).toUint256().preciseDiv(exchangeRate);
+                sum += currentUnderlying;
             }
         }
         return sum;

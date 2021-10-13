@@ -44,6 +44,10 @@ contract TransformHelperMock {
         return true;
     }
 
+    function shouldTransform(address /* _underlyingComponent */, address /* _untransformComponent */) external pure returns (bool) {
+        return true;
+    }
+
     function getUntransformCall(
         ISetToken _setToken,
         address _underlyingComponent,
@@ -57,6 +61,30 @@ contract TransformHelperMock {
     {
         bytes memory callData = abi.encodeWithSignature(
             "unwrap(address,address,address,uint256,string,bytes)",
+            _setToken,
+            _underlyingComponent,
+            _transformComponent,
+            _units,
+            integrationName,
+            ""
+        );
+
+        return (wrapModuleV2, callData);
+    }
+
+    function getTransformCall(
+        ISetToken _setToken,
+        address _underlyingComponent,
+        address _transformComponent,
+        uint256 _units,
+        bytes memory /* _transformData */
+    )
+        external
+        view
+        returns (address, bytes memory)
+    {
+        bytes memory callData = abi.encodeWithSignature(
+            "wrap(address,address,address,uint256,string,bytes)",
             _setToken,
             _underlyingComponent,
             _transformComponent,
