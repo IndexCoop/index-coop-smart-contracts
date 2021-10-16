@@ -20,7 +20,7 @@ import {
   getRandomAddress,
   getWaffleExpect,
   preciseDiv,
-  preciseMul
+  preciseMul,
 } from "@utils/index";
 import { SetFixture } from "@utils/fixtures";
 import { BigNumber } from "ethers";
@@ -460,6 +460,36 @@ describe("IPRebalanceExtension", () => {
             await expect(subject()).to.be.revertedWith("Address not permitted to call");
           });
         });
+
+        context("when transformComponents and untransformData lengths do not match", async () => {
+          beforeEach(() => {
+            subjectUntransformData = [EMPTY_BYTES, EMPTY_BYTES];
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("length mismatch");
+          });
+        });
+
+        context("when component should not be untransformed", async () => {
+          beforeEach(async () => {
+            subjectTransformComponents = [USDC.address];
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("nothing to untransform");
+          });
+        });
+
+        context("when shouldUntransform is false", async () => {
+          beforeEach(async () => {
+            await compTransformHelper.setShouldTransformUntransform(false);
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("untransform unavailable");
+          });
+        });
       });
 
       context("when final untransform is complete", async () => {
@@ -614,6 +644,46 @@ describe("IPRebalanceExtension", () => {
                   expect(usdcUnits).to.eq(ether(10));
                   expect(cDaiUnderlyingUnits).to.eq(ether(15));
                   expect(yDaiUnderlyingUnits).to.eq(ether(60));
+                });
+              });
+
+              context("when caller is not an allowed caller", async () => {
+                beforeEach(() => {
+                  subjectCaller = randomCaller;
+                });
+
+                it("should revert", async () => {
+                  await expect(subject()).to.be.revertedWith("Address not permitted to call");
+                });
+              });
+
+              context("when transformComponents and transformData lengths do not match", async () => {
+                beforeEach(() => {
+                  subjectTransformData = [EMPTY_BYTES, EMPTY_BYTES];
+                });
+
+                it("should revert", async () => {
+                  await expect(subject()).to.be.revertedWith("length mismatch");
+                });
+              });
+
+              context("when component should not be transformed", async () => {
+                beforeEach(async () => {
+                  subjectTransformComponents = [USDC.address];
+                });
+
+                it("should revert", async () => {
+                  await expect(subject()).to.be.revertedWith("nothing to transform");
+                });
+              });
+
+              context("when shouldTransform is false", async () => {
+                beforeEach(async () => {
+                  await yearnTransformHelper.setShouldTransformUntransform(false);
+                });
+
+                it("should revert", async () => {
+                  await expect(subject()).to.be.revertedWith("transform unavailable");
                 });
               });
             });

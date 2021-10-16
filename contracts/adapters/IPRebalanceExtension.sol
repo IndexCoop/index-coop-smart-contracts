@@ -215,13 +215,13 @@ contract IPRebalanceExtension is GIMExtension {
     function _executeTransform(address _transformComponent, bytes memory _transformData) internal {
 
         uint256 unitsToTransform = transformUnits[_transformComponent];
-        require(unitsToTransform > 0 && transforms > 0, "nothing to untransform");
+        require(unitsToTransform > 0 && transforms > 0, "nothing to transform");
 
         TransformInfo memory transformInfo = transformComponentInfo[_transformComponent];
 
         require(
             transformInfo.transformHelper.shouldTransform(transformInfo.underlyingComponent, _transformComponent),
-            "untransform unavailable"
+            "transform unavailable"
         );
 
         (address module, bytes memory callData) = transformInfo.transformHelper.getTransformCall(

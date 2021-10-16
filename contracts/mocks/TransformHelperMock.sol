@@ -25,27 +25,37 @@ contract TransformHelperMock {
     uint256 public exchangeRate;
     address public wrapModuleV2;
     string public integrationName;
+    bool public shouldTransformUntransform;
 
     constructor(uint256 _exchangeRate, address _wrapModuleV2, string memory _integrationName) public {
         exchangeRate = _exchangeRate;
         wrapModuleV2 = _wrapModuleV2;
         integrationName = _integrationName;
+        shouldTransformUntransform = true;
     }
+
+    /* =========== Setter Functions ========== */
 
     function setExchangeRate(uint256 _newExchangeRate) external {
         exchangeRate = _newExchangeRate;
     }
 
+    function setShouldTransformUntransform(bool _newShouldTransformUntransform) external {
+        shouldTransformUntransform = _newShouldTransformUntransform;
+    }
+
+    /* ========== Mock Functions ========= */
+
     function getExchangeRate(address /* _underlyingComponent */, address /* _transformComponent */) external view returns (uint256) {
         return exchangeRate;
     }
 
-    function shouldUntransform(address /* _underlyingComponent */, address /* _untransformComponent */) external pure returns (bool) {
-        return true;
+    function shouldUntransform(address /* _underlyingComponent */, address /* _untransformComponent */) external view returns (bool) {
+        return shouldTransformUntransform;
     }
 
-    function shouldTransform(address /* _underlyingComponent */, address /* _untransformComponent */) external pure returns (bool) {
-        return true;
+    function shouldTransform(address /* _underlyingComponent */, address /* _untransformComponent */) external view returns (bool) {
+        return shouldTransformUntransform;
     }
 
     function getUntransformCall(
