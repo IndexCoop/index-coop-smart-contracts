@@ -355,6 +355,18 @@ describe("IPRebalanceExtension", () => {
         expect(await ipRebalanceExtension.setComponentList(3)).to.eq(yDAI.address);
       });
 
+      context("when removing a transform component", async () => {
+        beforeEach(() => {
+          subjectTargetUnitsUnderlying = [ether(10), ether(15), ether(0), ether(60)];
+        });
+
+        it("should set untransformUnits for removed component to max unit256", async () => {
+          await subject();
+
+          expect(await ipRebalanceExtension.untransformUnits(cDAI.address)).to.eq(MAX_UINT_256);
+        });
+      });
+
       context("when component list and target list lengths don't match", async () => {
         beforeEach(() => {
           subjectSetComponents = [DAI.address];
@@ -448,6 +460,21 @@ describe("IPRebalanceExtension", () => {
             expect(yDaiTargetUnits).to.eq(await setToken.getDefaultPositionRealUnit(yDAI.address));
             expect(usdcTargetUnits).to.eq(ether(10));
             expect(daiTargetUnits).to.eq(expectedDaiUnits);
+          });
+        });
+
+        context("when removing a transform component", async () => {
+          beforeEach(async () => {
+            const components = [USDC.address, DAI.address, cDAI.address, yDAI.address];
+            const targetUnitsUnderlying = [ether(10), ether(15), ether(0), ether(60)];
+
+            await ipRebalanceExtension.connect(operator.wallet).startIPRebalance(components, targetUnitsUnderlying);
+          });
+
+          it("should unwrap all units of the component", async () => {
+            await subject();
+
+            expect(await setToken.getDefaultPositionRealUnit(cDAI.address)).to.eq(ZERO);
           });
         });
 
