@@ -101,14 +101,23 @@ contract IPRebalanceExtension is GIMExtension {
         for (uint256 i = 0; i < _setComponents.length; i++) {
             if (_isTransformComponent(_setComponents[i])) {
 
-                uint256 currentUnits = setToken.getDefaultPositionRealUnit(_setComponents[i]).toUint256();
+                uint256 unitsToUntransform;
 
-                // convert target units from underlying to transformed amounts
-                TransformInfo memory transformInfo = transformComponentInfo[_setComponents[i]];
-                uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(transformInfo.underlyingComponent, _setComponents[i]);
-                uint256 targetUnitsInTransformed = _targetUnitsUnderlying[i].preciseMul(exchangeRate);
+                if (_targetUnitsUnderlying[i] != 0) {
+                    uint256 currentUnits = setToken.getDefaultPositionRealUnit(_setComponents[i]).toUint256();
 
-                uint256 unitsToUntransform = currentUnits > targetUnitsInTransformed ? currentUnits.sub(targetUnitsInTransformed) : 0;
+                    // convert target units from underlying to transformed amounts
+                    TransformInfo memory transformInfo = transformComponentInfo[_setComponents[i]];
+                    uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(transformInfo.underlyingComponent, _setComponents[i]);
+                    uint256 targetUnitsInTransformed = _targetUnitsUnderlying[i].preciseMul(exchangeRate);
+
+                    unitsToUntransform = currentUnits > targetUnitsInTransformed ? currentUnits.sub(targetUnitsInTransformed) : 0;
+                } else {
+                    // If target units are 0 then set to MAX_UINT256 to ensure that all tokens are untransformed in batchExecuteUntransform.
+                    // This is because if it is a rabsing token or the exchange rate changes then it is possible to leave a small amount of
+                    // transform tokens by accident.
+                    unitsToUntransform = type(uint256).max;
+                }
 
                 if (unitsToUntransform > 0) {
                     untransforms++;
@@ -146,14 +155,24 @@ contract IPRebalanceExtension is GIMExtension {
             if (_isTransformComponent(component)) {
 
                 TransformInfo memory transformInfo = transformComponentInfo[component];
+                
+                uint256 finalUnderlyingUnits = rebalanceParams[transformInfo.underlyingComponent];
 
-                uint256 currentUnits = setToken.getDefaultPositionRealUnit(component).toUint256();
-                uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(transformInfo.underlyingComponent, component);
-                uint256 currentUnitsUnderlying = currentUnits.preciseDiv(exchangeRate);
+                uint256 unitsToTransform;
+                if (finalUnderlyingUnits != 0) {
+                    uint256 currentUnits = setToken.getDefaultPositionRealUnit(component).toUint256();
+                    uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(transformInfo.underlyingComponent, component);
+                    uint256 currentUnitsUnderlying = currentUnits.preciseDiv(exchangeRate);
 
-                uint256 targetUnitsUnderlying = rebalanceParams[component];
+                    uint256 targetUnitsUnderlying = rebalanceParams[component];
 
-                uint256 unitsToTransform = targetUnitsUnderlying.sub(currentUnitsUnderlying);
+                    unitsToTransform = targetUnitsUnderlying.sub(currentUnitsUnderlying);
+                } else {
+                    // If final underlying units should be 0 set unitsToTransform to 0 to signal to batchExecuteTransform to transform all
+                    // underly units into the transform component. This is important since if a token rebases or exchange rates change then
+                    // a small amount of underlying can be left over.
+                    unitsToTransform = type(uint256).max;
+                }
 
                 if (unitsToTransform > 0) {
                     transforms++;
@@ -187,11 +206,14 @@ contract IPRebalanceExtension is GIMExtension {
         require(unitsToUntransform > 0 && untransforms > 0, "nothing to untransform");
 
         TransformInfo memory transformInfo = transformComponentInfo[_transformComponent];
-
         require(
             transformInfo.transformHelper.shouldUntransform(transformInfo.underlyingComponent, _transformComponent),
             "untransform unavailable"
         );
+
+        if (unitsToUntransform == type(uint256).max) {
+            unitsToUntransform = setToken.getDefaultPositionRealUnit(_transformComponent).toUint256();
+        }
 
         (address module, bytes memory callData) = transformInfo.transformHelper.getUntransformCall(
             manager.setToken(),
@@ -218,11 +240,14 @@ contract IPRebalanceExtension is GIMExtension {
         require(unitsToTransform > 0 && transforms > 0, "nothing to transform");
 
         TransformInfo memory transformInfo = transformComponentInfo[_transformComponent];
-
         require(
             transformInfo.transformHelper.shouldTransform(transformInfo.underlyingComponent, _transformComponent),
             "transform unavailable"
         );
+
+        if (unitsToTransform == type(uint256).max) {
+            unitsToTransform = setToken.getDefaultPositionRealUnit(transformInfo.underlyingComponent).toUint256();
+        }
 
         (address module, bytes memory callData) = transformInfo.transformHelper.getTransformCall(
             manager.setToken(),
@@ -269,7 +294,7 @@ contract IPRebalanceExtension is GIMExtension {
             address[] memory newComponents,
             uint256[] memory newComponentsTargetUnits,
             uint256[] memory oldComponentsTargetUnits
-        ) =_sortNewAndOldComponents(setComponentList, rebalanceTargets);
+        ) = _sortNewAndOldComponents(setComponentList, rebalanceTargets);
 
         bytes memory callData = abi.encodeWithSelector(
             IGeneralIndexModule.startRebalance.selector,
