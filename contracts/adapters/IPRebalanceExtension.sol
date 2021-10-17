@@ -30,6 +30,8 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { ITransformHelper } from "../interfaces/ITransformHelper.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
+import { console } from "hardhat/console.sol";
+
 
 contract IPRebalanceExtension is GIMExtension {
     using PreciseUnitMath for uint256;
@@ -97,6 +99,8 @@ contract IPRebalanceExtension is GIMExtension {
     function startIPRebalance(address[] memory _setComponents, uint256[] memory _targetUnitsUnderlying) external onlyOperator {
         require(_setComponents.length == _targetUnitsUnderlying.length, "length mismatch");
 
+        untransforms = 0;
+
         for (uint256 i = 0; i < _setComponents.length; i++) {
             if (_isTransformComponent(_setComponents[i])) {
 
@@ -161,7 +165,7 @@ contract IPRebalanceExtension is GIMExtension {
 
                 uint256 targetUnitsUnderlying = rebalanceParams[component];
 
-                uint256 unitsToTransform = targetUnitsUnderlying.sub(currentUnitsUnderlying);
+                uint256 unitsToTransform = targetUnitsUnderlying > currentUnitsUnderlying ? targetUnitsUnderlying.sub(currentUnitsUnderlying) : 0;
 
                 if (unitsToTransform > 0) {
                     transforms++;

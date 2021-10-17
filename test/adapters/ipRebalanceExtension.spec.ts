@@ -1,7 +1,7 @@
 import "module-alias/register";
 
 import { Address, Account, TransformInfo, ContractTransaction } from "@utils/types";
-import { ADDRESS_ZERO, EMPTY_BYTES, MAX_UINT_256, ONE, ZERO } from "@utils/constants";
+import { ADDRESS_ZERO, EMPTY_BYTES, MAX_UINT_256, ONE, TWO, ZERO } from "@utils/constants";
 import {
   CTokenMock,
   IPRebalanceExtension,
@@ -43,6 +43,7 @@ describe("IPRebalanceExtension", () => {
   let cDAI: CTokenMock;
   let yDAI: CTokenMock;
   let USDC: StandardTokenMock;
+  let cUSDC: CTokenMock;
 
   let exchangeAdapter: IndexExchangeAdapterMock;
   let compTransformHelper: TransformHelperMock;
@@ -70,6 +71,7 @@ describe("IPRebalanceExtension", () => {
     DAI = setV2Setup.dai;
     cDAI = await deployer.mocks.deployCTokenMock(18, DAI.address, ether(1.001914841));
     yDAI = await deployer.mocks.deployCTokenMock(18, DAI.address, ether(1.001491489));
+    cUSDC = await deployer.mocks.deployCTokenMock(18, USDC.address, ether(1.001914841));
 
     // Mint cDAI and yDAI
     await DAI.approve(cDAI.address, MAX_UINT_256);
@@ -287,6 +289,10 @@ describe("IPRebalanceExtension", () => {
         underlyingComponent: DAI.address,
         transformHelper: compTransformHelper.address,
       });
+      await ipRebalanceExtension.connect(operator.wallet).setTransformInfo(cUSDC.address, {
+        underlyingComponent: USDC.address,
+        transformHelper: compTransformHelper.address,
+      });
       await ipRebalanceExtension.connect(operator.wallet).setTransformInfo(yDAI.address, {
         underlyingComponent: DAI.address,
         transformHelper: yearnTransformHelper.address,
@@ -391,8 +397,8 @@ describe("IPRebalanceExtension", () => {
 
     context("when startIPRebalance has been called", async () => {
       beforeEach(async () => {
-        const components = [USDC.address, DAI.address, cDAI.address, yDAI.address];
-        const targetUnitsUnderlying = [ether(10), ether(15), ether(15), ether(60)];
+        const components = [USDC.address, cUSDC.address, DAI.address, cDAI.address, yDAI.address];
+        const targetUnitsUnderlying = [ether(0), ether(10), ether(15), ether(15), ether(60)];
 
         await ipRebalanceExtension.connect(operator.wallet).startIPRebalance(components, targetUnitsUnderlying);
       });
@@ -449,6 +455,7 @@ describe("IPRebalanceExtension", () => {
             const usdcTargetUnits = (await setV2Setup.generalIndexModule.executionInfo(setToken.address, USDC.address)).targetUnit;
             const cDaiTargetUnits = (await setV2Setup.generalIndexModule.executionInfo(setToken.address, cDAI.address)).targetUnit;
             const yDaiTargetUnits = (await setV2Setup.generalIndexModule.executionInfo(setToken.address, yDAI.address)).targetUnit;
+            const cUsdcTargetUnits = (await setV2Setup.generalIndexModule.executionInfo(setToken.address, cUSDC.address)).targetUnit;
 
             const yDaiExchangeRate = await yearnTransformHelper.getExchangeRate(DAI.address, yDAI.address);
 
@@ -458,6 +465,7 @@ describe("IPRebalanceExtension", () => {
 
             expect(cDaiTargetUnits).to.eq(await setToken.getDefaultPositionRealUnit(cDAI.address));
             expect(yDaiTargetUnits).to.eq(await setToken.getDefaultPositionRealUnit(yDAI.address));
+            expect(cUsdcTargetUnits).to.eq(await setToken.getDefaultPositionRealUnit(cUSDC.address));
             expect(usdcTargetUnits).to.eq(ether(10));
             expect(daiTargetUnits).to.eq(expectedDaiUnits);
           });
@@ -471,7 +479,7 @@ describe("IPRebalanceExtension", () => {
             await ipRebalanceExtension.connect(operator.wallet).startIPRebalance(components, targetUnitsUnderlying);
           });
 
-          it("should unwrap all units of the component", async () => {
+          it("should untransform all units of the component", async () => {
             await subject();
 
             expect(await setToken.getDefaultPositionRealUnit(cDAI.address)).to.eq(ZERO);
@@ -567,7 +575,7 @@ describe("IPRebalanceExtension", () => {
             it("should set the number of transforms", async () => {
               await subject();
 
-              expect(await ipRebalanceExtension.transforms()).to.eq(ONE);
+              expect(await ipRebalanceExtension.transforms()).to.eq(TWO);
             });
 
             it("should set the transformUnits", async () => {
@@ -646,6 +654,11 @@ describe("IPRebalanceExtension", () => {
               });
 
               context("when it is the final transform", async () => {
+                beforeEach(async () => {
+                  await subject();
+                  subjectTransformComponents = [cUSDC.address];
+                });
+
                 it("should set tradesComplete to false", async () => {
                   await subject();
 
@@ -659,6 +672,10 @@ describe("IPRebalanceExtension", () => {
                   const cDaiExchangeRate = await compTransformHelper.getExchangeRate(DAI.address, cDAI.address);
                   const cDaiUnderlyingUnits = preciseDiv(cDaiUnits, cDaiExchangeRate);
 
+                  const cUsdcUnits = await setToken.getDefaultPositionRealUnit(cUSDC.address);
+                  const cUsdcExchangeRate = await compTransformHelper.getExchangeRate(DAI.address, cUSDC.address);
+                  const cUsdcUnderlyingUnits = preciseDiv(cUsdcUnits, cUsdcExchangeRate);
+
                   const yDaiUnits = await setToken.getDefaultPositionRealUnit(yDAI.address);
                   const yDaiExchangeRate = await yearnTransformHelper.getExchangeRate(DAI.address, yDAI.address);
                   const yDaiUnderlyingUnits = preciseDiv(yDaiUnits, yDaiExchangeRate);
@@ -668,9 +685,10 @@ describe("IPRebalanceExtension", () => {
 
                   // TODO: investigate rounding error
                   expect(daiUnits).to.eq(ether(15).sub(2));
-                  expect(usdcUnits).to.eq(ether(10));
+                  expect(usdcUnits).to.eq(ether(0));
                   expect(cDaiUnderlyingUnits).to.eq(ether(15));
                   expect(yDaiUnderlyingUnits).to.eq(ether(60));
+                  expect(cUsdcUnderlyingUnits).to.eq(ether(10));
                 });
               });
 
