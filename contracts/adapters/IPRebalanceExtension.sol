@@ -51,6 +51,7 @@ contract IPRebalanceExtension is GIMExtension {
 
     mapping(address => uint256) public untransformUnits;
     mapping(address => uint256) public transformUnits;
+    mapping(address => uint256) public transformsLeftForUnderlying;
 
     mapping(address => TransformInfo) public transformComponentInfo;
 
@@ -95,8 +96,6 @@ contract IPRebalanceExtension is GIMExtension {
 
     function startIPRebalance(address[] memory _setComponents, uint256[] memory _targetUnitsUnderlying) external onlyOperator {
         require(_setComponents.length == _targetUnitsUnderlying.length, "length mismatch");
-
-        // TODO: clear out startingUnderlyingComponent units
 
         for (uint256 i = 0; i < _setComponents.length; i++) {
             if (_isTransformComponent(_setComponents[i])) {
@@ -155,28 +154,19 @@ contract IPRebalanceExtension is GIMExtension {
             if (_isTransformComponent(component)) {
 
                 TransformInfo memory transformInfo = transformComponentInfo[component];
-                
-                uint256 finalUnderlyingUnits = rebalanceParams[transformInfo.underlyingComponent];
 
-                uint256 unitsToTransform;
-                if (finalUnderlyingUnits != 0) {
-                    uint256 currentUnits = setToken.getDefaultPositionRealUnit(component).toUint256();
-                    uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(transformInfo.underlyingComponent, component);
-                    uint256 currentUnitsUnderlying = currentUnits.preciseDiv(exchangeRate);
+                uint256 currentUnits = setToken.getDefaultPositionRealUnit(component).toUint256();
+                uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(transformInfo.underlyingComponent, component);
+                uint256 currentUnitsUnderlying = currentUnits.preciseDiv(exchangeRate);
 
-                    uint256 targetUnitsUnderlying = rebalanceParams[component];
+                uint256 targetUnitsUnderlying = rebalanceParams[component];
 
-                    unitsToTransform = targetUnitsUnderlying.sub(currentUnitsUnderlying);
-                } else {
-                    // If final underlying units should be 0 set unitsToTransform to 0 to signal to batchExecuteTransform to transform all
-                    // underly units into the transform component. This is important since if a token rebases or exchange rates change then
-                    // a small amount of underlying can be left over.
-                    unitsToTransform = type(uint256).max;
-                }
+                uint256 unitsToTransform = targetUnitsUnderlying.sub(currentUnitsUnderlying);
 
                 if (unitsToTransform > 0) {
                     transforms++;
                     transformUnits[component] = unitsToTransform;
+                    transformsLeftForUnderlying[transformInfo.underlyingComponent]++;
                 }
             }
         }
@@ -245,7 +235,11 @@ contract IPRebalanceExtension is GIMExtension {
             "transform unavailable"
         );
 
-        if (unitsToTransform == type(uint256).max) {
+        // If target units for underlying is 0 and on last transform for that underlying, transform everything left.
+        // This is because if it is a rabsing token or the exchange rate changes then it is possible to leave a small amount of
+        // underlying tokens by accident.
+        uint256 underlyingInFinal = rebalanceParams[transformInfo.underlyingComponent];
+        if (underlyingInFinal == 0 && transformsLeftForUnderlying[transformInfo.underlyingComponent] == 1) {
             unitsToTransform = setToken.getDefaultPositionRealUnit(transformInfo.underlyingComponent).toUint256();
         }
 
@@ -260,6 +254,7 @@ contract IPRebalanceExtension is GIMExtension {
         invokeManager(module, callData);
 
         transformUnits[_transformComponent] = 0;
+        transformsLeftForUnderlying[transformInfo.underlyingComponent]++;
         transforms--;
 
         if (transforms == 0) {
