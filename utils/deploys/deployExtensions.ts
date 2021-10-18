@@ -165,7 +165,7 @@ export default class DeployExtensions {
     );
   }
 
-  public async deployIPRebalanceExtension(manager: Address, generalIndexModule: Address): Promise<IPRebalanceExtension> {
-    return await new IPRebalanceExtension__factory(this._deployerSigner).deploy(manager, generalIndexModule);
+  public async deployIPRebalanceExtension(manager: Address, generalIndexModule: Address, airdropModule: Address): Promise<IPRebalanceExtension> {
+    return await new IPRebalanceExtension__factory(this._deployerSigner).deploy(manager, generalIndexModule, airdropModule);
   }
 }

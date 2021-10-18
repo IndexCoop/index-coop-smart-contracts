@@ -132,7 +132,11 @@ describe("IPRebalanceExtension", () => {
     await setToken.setManager(baseManagerV2.address);
 
     // Deploy IPRebalanceExtension
-    ipRebalanceExtension = await deployer.extensions.deployIPRebalanceExtension(baseManagerV2.address, setV2Setup.generalIndexModule.address);
+    ipRebalanceExtension = await deployer.extensions.deployIPRebalanceExtension(
+      baseManagerV2.address,
+      setV2Setup.generalIndexModule.address,
+      setV2Setup.airdropModule.address
+    );
     await ipRebalanceExtension.connect(operator.wallet).updateCallerStatus([allowedCaller.address], [true]);
     await baseManagerV2.connect(operator.wallet).addExtension(ipRebalanceExtension.address);
 
@@ -159,14 +163,16 @@ describe("IPRebalanceExtension", () => {
   describe("#constructor", async () => {
     let subjectManager: Address;
     let subjectGeneralIndexModule: Address;
+    let subjectAirdropModule: Address;
 
     beforeEach(async () => {
       subjectManager = baseManagerV2.address;
       subjectGeneralIndexModule = setV2Setup.generalIndexModule.address;
+      subjectAirdropModule = setV2Setup.airdropModule.address;
     });
 
     async function subject(): Promise<IPRebalanceExtension> {
-      return await deployer.extensions.deployIPRebalanceExtension(subjectManager, subjectGeneralIndexModule);
+      return await deployer.extensions.deployIPRebalanceExtension(subjectManager, subjectGeneralIndexModule, subjectAirdropModule);
     }
 
     it("should set the state variables", async () => {
@@ -174,6 +180,7 @@ describe("IPRebalanceExtension", () => {
 
       expect(await extension.manager()).to.eq(subjectManager);
       expect(await extension.generalIndexModule()).to.eq(subjectGeneralIndexModule);
+      expect(await extension.airdropModule()).to.eq(subjectAirdropModule);
     });
   });
 

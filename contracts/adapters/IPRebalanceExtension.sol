@@ -22,8 +22,10 @@ pragma experimental ABIEncoderV2;
 import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
+import { AddressArrayUtils } from "../lib/AddressArrayUtils.sol";
 import { BaseExtension } from "../lib/BaseExtension.sol";
 import { GIMExtension } from "./GIMExtension.sol";
+import { IAirdropModule } from "../interfaces/IAirdropModule.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IGeneralIndexModule } from "../interfaces/IGeneralIndexModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
@@ -34,6 +36,7 @@ import { console } from "hardhat/console.sol";
 
 
 contract IPRebalanceExtension is GIMExtension {
+    using AddressArrayUtils for address[];
     using PreciseUnitMath for uint256;
     using SafeCast for int256;
     using SafeCast for uint256;
@@ -47,6 +50,8 @@ contract IPRebalanceExtension is GIMExtension {
     }
 
     /* ========== State Variables ========= */
+
+    IAirdropModule public airdropModule;
     
     uint256 public untransforms;
     uint256 public transforms;
@@ -64,7 +69,16 @@ contract IPRebalanceExtension is GIMExtension {
 
     /* ========== Constructor ========== */
 
-    constructor(IBaseManager _manager, IGeneralIndexModule _generalIndexModule) public GIMExtension(_manager, _generalIndexModule) {}
+    constructor(
+        IBaseManager _manager,
+        IGeneralIndexModule _generalIndexModule,
+        IAirdropModule _airdropModule
+    )
+        public
+        GIMExtension(_manager, _generalIndexModule)
+    {
+        airdropModule = _airdropModule;
+    }
 
     /* ======== External Functions ======== */
 
@@ -317,7 +331,26 @@ contract IPRebalanceExtension is GIMExtension {
     }
 
     function _absorbAirdrops(address[] memory _components) internal {
-        //TODO: absorb airdrops
+        address[] memory airdropTokens = airdropModule.getAirdrops(setToken);
+        address[] memory tokensToAbsorb = new address[](_components.length);
+
+        uint256 numTokensToAbsorb = 0;
+        // can do this is n*log(n) time using a sort but might not be worth the effort
+        for (uint256 i = 0; i < _components.length; i++) {
+            if (airdropTokens.contains(_components[i])) {
+                tokensToAbsorb[numTokensToAbsorb] = _components[i];
+                numTokensToAbsorb++;
+            }
+        }
+
+        if (numTokensToAbsorb == 0) return;
+
+        address[] memory batchAbsorbTokens = new address[](numTokensToAbsorb);
+        for (uint256 i = 0; i < numTokensToAbsorb; i++) {
+            batchAbsorbTokens[i] = tokensToAbsorb[i];
+        }
+
+        airdropModule.batchAbsorb(setToken, batchAbsorbTokens);
     }
 
     function _isTransformComponent(address _component) internal view returns (bool) {
