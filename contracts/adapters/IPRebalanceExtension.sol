@@ -271,14 +271,17 @@ contract IPRebalanceExtension is GIMExtension {
         uint256[] memory rebalanceTargets = new uint256[](setComponentList.length);
 
         for (uint256 i = 0; i < setComponentList.length; i++) {
-            if (_isTransformComponent(setComponentList[i])) {
-                rebalanceTargets[i] = setToken.getDefaultPositionRealUnit(setComponentList[i]).toUint256();
+
+            address component = setComponentList[i];
+
+            if (_isTransformComponent(component)) {
+                rebalanceTargets[i] = setToken.getDefaultPositionRealUnit(component).toUint256();
             } else {
 
-                uint256 finalTotalUnderlyingUnits = _getFinalTotalUnderlyingUnits(setComponentList[i], setComponentList);
-                uint256 currentTotalUnderlyingUnits = _getCurrentTotalUnderlyingUnits(setComponentList[i], setComponentList);
+                uint256 finalTotalUnderlyingUnits = _getFinalTotalUnderlyingUnits(component, setComponentList);
+                uint256 currentTotalUnderlyingUnits = _getCurrentTotalUnderlyingUnits(component, setComponentList);
 
-                uint256 targetUnderlying = rebalanceParams[setComponentList[i]];
+                uint256 targetUnderlying = rebalanceParams[component];
                 int256 diff = finalTotalUnderlyingUnits.toInt256() - currentTotalUnderlyingUnits.toInt256() + targetUnderlying.toInt256();
 
                 if (diff > 0) {
@@ -328,9 +331,9 @@ contract IPRebalanceExtension is GIMExtension {
     function _getCurrentTotalUnderlyingUnits(address _underlying, address[] memory _components) internal view returns (uint256) {
         uint256 sum = 0;
         for (uint256 i = 0; i < _components.length; i++) {
-            if (transformComponentInfo[_components[i]].underlyingComponent == _underlying) {
-                ITransformHelper transformHelper = transformComponentInfo[_components[i]].transformHelper;
-                uint256 exchangeRate = transformHelper.getExchangeRate(_underlying, _components[i]);
+            TransformInfo memory transformInfo = transformComponentInfo[_components[i]];
+            if (transformInfo.underlyingComponent == _underlying) {
+                uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(_underlying, _components[i]);
                 
                 uint256 currentUnderlying = setToken.getDefaultPositionRealUnit(_components[i]).toUint256().preciseDiv(exchangeRate);
                 sum += currentUnderlying;
