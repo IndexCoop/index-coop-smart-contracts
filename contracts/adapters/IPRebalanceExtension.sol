@@ -33,6 +33,16 @@ import { ITransformHelper } from "../interfaces/ITransformHelper.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 
+/**
+ * @title IPRebalanceExtension
+ * @author Index Coop
+ *
+ * Manager extension for managing the entire rebalance process for sets that include intrinsic productivity. Utilizes Set Protocol's
+ * GeneralIndexModule, WrapModuleV2, AmmModule and AirdropModule with all actions invoked via the BaseManagerV2 contract. Additionally
+ * uses helper contracts adhering to the ITransformHelper interface to inform the contract how properly interface with Set Protocol to
+ * transform and untransform components and fetch relevent information such as exhcange rates. With this contract, the operator can begin
+ * a rebalance by just supplying components and their target unit allocations mesaured in equivelent amounts of the underlying component.
+ */
 contract IPRebalanceExtension is GIMExtension {
     using AddressArrayUtils for address[];
     using PreciseUnitMath for uint256;
@@ -67,6 +77,13 @@ contract IPRebalanceExtension is GIMExtension {
 
     /* ========== Constructor ========== */
 
+    /**
+     * Sets requires state variables
+     *
+     * @param _manager              BaseManagerV2 manager contract
+     * @param _generalIndexModule   Set Protocol GeneralIndexModule
+     * @param _airdropModule        Set Protocol AirdropModule
+     */
     constructor(
         IBaseManager _manager,
         IGeneralIndexModule _generalIndexModule,
@@ -80,6 +97,10 @@ contract IPRebalanceExtension is GIMExtension {
 
     /* ======== External Functions ======== */
 
+    /**
+     * Original function for starting rebalances from the inherited GIMExtension. This function has been deprecated
+     * in favor of startIPRebalance. It will revert when it is called.
+     */
     function startRebalanceWithUnits(
         address[] calldata /* _components */,
         uint256[] calldata /* _targetUnitsUnderlying */,
@@ -92,6 +113,14 @@ contract IPRebalanceExtension is GIMExtension {
         revert("use startIPRebalance instead");
     }
 
+    /**
+     * ONLY OPERATOR: Sets a TransformInfo entry for a transform component. Each transform component must have a TransformInfo set
+     * for it which includes neccessary information such as the underlying component and TransformHelper address. Must not already
+     * have been set. If it has, use updateTransformInfo.
+     *
+     * @param _transformComponent       component that needs to be transformed/untransformed during rebalance
+     * @param _transformInfo            TransfomInfo entry for the transform component
+     */
     function setTransformInfo(address _transformComponent, TransformInfo memory _transformInfo) external onlyOperator {
         require(
             transformComponentInfo[_transformComponent].underlyingComponent == address(0),
@@ -100,6 +129,13 @@ contract IPRebalanceExtension is GIMExtension {
         transformComponentInfo[_transformComponent] = _transformInfo;
     }
 
+    /**
+     * ONLY OPERATOR: Updates TransformInfo entry for a transform component. Must already have been set before updating. If not,
+     * use setTransformInfo.
+     *
+     * @param _transformComponent       component that needs to be transformed/untransformed during rebalance
+     * @param _transformInfo            new TransfomInfo entry for the transform component
+     */
     function updateTransformInfo(address _transformComponent, TransformInfo memory _transformInfo) external onlyOperator {
         require(
             transformComponentInfo[_transformComponent].underlyingComponent != address(0),
@@ -108,6 +144,13 @@ contract IPRebalanceExtension is GIMExtension {
         transformComponentInfo[_transformComponent] = _transformInfo;
     }
 
+    /**
+     * ONLY OPERATOR: Begins a rebalance. Must supply the set components as well as the target unit allocation for each. If the
+     * component is a transform component, then the target units should be measured in the equivalent value of the underlying tokens
+     *
+     * @param _setComponents            array of components involved in rebalance including components being removed (target units set to 0)
+     * @param _targetUnitsUnderlying    array of target units at end of rebalance, maps to same index of _components array
+     */
     function startIPRebalance(address[] memory _setComponents, uint256[] memory _targetUnitsUnderlying) external onlyOperator {
         require(_setComponents.length == _targetUnitsUnderlying.length, "length mismatch");
 
@@ -147,6 +190,14 @@ contract IPRebalanceExtension is GIMExtension {
         setComponentList = _setComponents;
     }
 
+    /**
+     * ONLY ALLOWED CALLER: Untransforms components. This function must be called after starting the rebalance, but before beginning the
+     * trades through the GeneralIndexModule. The untransformData parameter can be fetched by the rebalance bots by calling getUntransformData
+     * on the relevent TransformHelper. If it is the final untransform, it will automatically begin the rebalance through GeneralIndexMoudule.
+     *
+     * @param _transformComponents      array of components to untransform
+     * @param _untransformData          array of untransform data 
+     */
     function batchExecuteUntransform(
         address[] memory _transformComponents,
         bytes[] memory _untransformData
@@ -163,6 +214,10 @@ contract IPRebalanceExtension is GIMExtension {
         }
     }
 
+    /**
+     * ONLY OPERATOR: Marks the contract as ready to execute transforms. Must be called after trades through GeneralIndexModule have
+     * completed.
+     */
     function setTradesComplete() external onlyOperator {
         tradesComplete = true;
         for (uint256 i = 0; i < setComponentList.length; i++) {
@@ -188,6 +243,13 @@ contract IPRebalanceExtension is GIMExtension {
         }
     }
 
+    /**
+     * ONLY ALLOWED CALLER: Transforms components. This function must be called after calling setTradesComplete. The transformData parameter 
+     * can be fetched by the rebalance bots by calling getTransformData on the relevent TransformHelper.
+     *
+     * @param _transformComponents      array of components to untransform
+     * @param _transformData            array of transform data 
+     */
     function batchExecuteTransform(
         address[] memory _transformComponents,
         bytes[] memory _transformData
@@ -206,6 +268,10 @@ contract IPRebalanceExtension is GIMExtension {
 
     /* ======== Internal Functions ======== */
 
+    /**
+     * Untransforms a component. If it is the final untransform, it will automatically begin the rebalance
+     * through GeneralIndexModule.
+     */
     function _executeUntransform(address _transformComponent, bytes memory _untransformData) internal {
 
         uint256 unitsToUntransform = untransformUnits[_transformComponent];
@@ -240,6 +306,9 @@ contract IPRebalanceExtension is GIMExtension {
         }
     }
 
+    /**
+     * Untransforms a component
+     */
     function _executeTransform(address _transformComponent, bytes memory _transformData) internal {
 
         uint256 unitsToTransform = transformUnits[_transformComponent];
@@ -284,6 +353,11 @@ contract IPRebalanceExtension is GIMExtension {
         }
     }
 
+    /**
+     * Parameterizes the rebalancing trades through GeneralIndexModule. For all transform components, the target units
+     * remain fixed at their current allocations. For non-transform units, the target units are calculated by taking into
+     * account the total amount of the component needed to create the target trasnform units.
+     */
     function _startGIMRebalance() internal {
         
         uint256[] memory rebalanceTargets = new uint256[](setComponentList.length);
@@ -324,6 +398,10 @@ contract IPRebalanceExtension is GIMExtension {
         invokeManager(address(generalIndexModule), callData);
     }
 
+    /**
+     * Absorbs all valid airdrops passed into the components parameter. If a component passed in is not a
+     * valid airdrop component, ignore it.
+     */
     function _absorbAirdrops(address[] memory _components) internal {
         address[] memory airdropTokens = airdropModule.getAirdrops(setToken);
         address[] memory tokensToAbsorb = new address[](_components.length);
@@ -348,10 +426,19 @@ contract IPRebalanceExtension is GIMExtension {
         invokeManager(address(airdropModule), callData);
     }
 
+    /**
+     * Checks if a component is a valid transform component. This can be done by checking if it has a TransformInfo
+     * entry.
+     */
     function _isTransformComponent(address _component) internal view returns (bool) {
         return transformComponentInfo[_component].underlyingComponent != address(0);
     }
 
+    /**
+     * Gets the total amount of a underlying component in the target set units. This value includes all units present due to
+     * a transform component containing it as its underlying. Units from the raw underlying component potentially being a component
+     * in the set are ignored.
+     */
     function _getFinalTotalUnderlyingUnits(address _underlying, address[] memory _components) internal view returns (uint256) {
         uint256 sum = 0;
         for (uint256 i = 0; i < _components.length; i++) {
@@ -362,6 +449,11 @@ contract IPRebalanceExtension is GIMExtension {
         return sum;
     }
 
+    /**
+     * Gets the total amount of a underlying component in the current set units. This value includes all units present due to
+     * a transform component containing it as its underlying. Units from the raw underlying component potentially being a component
+     * in the set are ignored.
+     */
     function _getCurrentTotalUnderlyingUnits(address _underlying, address[] memory _components) internal view returns (uint256) {
         uint256 sum = 0;
         for (uint256 i = 0; i < _components.length; i++) {
