@@ -302,11 +302,7 @@ contract IPRebalanceExtension is GIMExtension {
                 uint256 targetUnderlying = rebalanceParams[component];
                 int256 diff = finalTotalUnderlyingUnits.toInt256() - currentTotalUnderlyingUnits.toInt256() + targetUnderlying.toInt256();
 
-                if (diff > 0) {
-                    rebalanceTargets[i] = diff.toUint256();
-                } else {
-                    rebalanceTargets[i] = 0;
-                }
+                rebalanceTargets[i] = diff > 0 ? diff.toUint256() : 0;
             }
         }
 
