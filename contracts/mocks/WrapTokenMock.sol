@@ -23,7 +23,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
-contract CTokenMock is ERC20 {
+contract WrapTokenMock is ERC20 {
     using PreciseUnitMath for uint256;
 
     IERC20 public underlying;

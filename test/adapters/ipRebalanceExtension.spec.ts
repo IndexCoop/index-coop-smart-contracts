@@ -3,7 +3,7 @@ import "module-alias/register";
 import { Address, Account, TransformInfo, ContractTransaction } from "@utils/types";
 import { ADDRESS_ZERO, EMPTY_BYTES, MAX_UINT_256, ONE, TWO, ZERO } from "@utils/constants";
 import {
-  CTokenMock,
+  WrapTokenMock,
   IPRebalanceExtension,
   IndexExchangeAdapterMock,
   BaseManagerV2,
@@ -40,14 +40,15 @@ describe("IPRebalanceExtension", () => {
   let setToken: SetToken;
 
   let DAI: StandardTokenMock;
-  let cDAI: CTokenMock;
-  let yDAI: CTokenMock;
+  let cDAI: WrapTokenMock;
+  let yDAI: WrapTokenMock;
   let USDC: StandardTokenMock;
-  let cUSDC: CTokenMock;
+  let fUSDC: WrapTokenMock;
 
   let exchangeAdapter: IndexExchangeAdapterMock;
   let compTransformHelper: TransformHelperMock;
   let yearnTransformHelper: TransformHelperMock;
+  let fuseTransformHelper: TransformHelperMock;
 
   let baseManagerV2: BaseManagerV2;
   let ipRebalanceExtension: IPRebalanceExtension;
@@ -69,9 +70,9 @@ describe("IPRebalanceExtension", () => {
     // Setup Component Tokens
     USDC = setV2Setup.usdc;
     DAI = setV2Setup.dai;
-    cDAI = await deployer.mocks.deployCTokenMock(18, DAI.address, ether(1.001914841));
-    yDAI = await deployer.mocks.deployCTokenMock(18, DAI.address, ether(1.001491489));
-    cUSDC = await deployer.mocks.deployCTokenMock(18, USDC.address, ether(1.001914841));
+    cDAI = await deployer.mocks.deployWrapTokenMock(18, DAI.address, ether(1.001914841));
+    yDAI = await deployer.mocks.deployWrapTokenMock(18, DAI.address, ether(1.001491489));
+    fUSDC = await deployer.mocks.deployWrapTokenMock(18, USDC.address, ether(1.0045884));
 
     // Mint cDAI and yDAI
     await DAI.approve(cDAI.address, MAX_UINT_256);
@@ -79,12 +80,12 @@ describe("IPRebalanceExtension", () => {
     await cDAI.mint(ether(10000));
     await yDAI.mint(ether(10000));
 
-    // Setup CompoundWrapV2Adapter
-    const compoundWrapV2Adapter = await deployer.setV2.deployCompoundWrapV2Adapter();
+    // Setup mock wrap adapter
+    const mockWrapV2Adapter = await deployer.setV2.deployCompoundWrapV2Adapter();
     await setV2Setup.integrationRegistry.addIntegration(
       setV2Setup.wrapModuleV2.address,
-      "CompoundWrapV2Adapter",
-      compoundWrapV2Adapter.address
+      "MockWrapV2Adapter",
+      mockWrapV2Adapter.address
     );
 
     // Setup IndexExchangeAdapterMock
@@ -139,12 +140,17 @@ describe("IPRebalanceExtension", () => {
     compTransformHelper = await deployer.mocks.deployTransformHelperMock(
       await cDAI.exchangeRate(),
       setV2Setup.wrapModuleV2.address,
-      "CompoundWrapV2Adapter"
+      "MockWrapV2Adapter"
     );
     yearnTransformHelper = await deployer.mocks.deployTransformHelperMock(
       await yDAI.exchangeRate(),
       setV2Setup.wrapModuleV2.address,
-      "CompoundWrapV2Adapter"
+      "MockWrapV2Adapter"
+    );
+    fuseTransformHelper = await deployer.mocks.deployTransformHelperMock(
+      await fUSDC.exchangeRate(),
+      setV2Setup.wrapModuleV2.address,
+      "MockWrapV2Adapter"
     );
   });
 
@@ -289,9 +295,9 @@ describe("IPRebalanceExtension", () => {
         underlyingComponent: DAI.address,
         transformHelper: compTransformHelper.address,
       });
-      await ipRebalanceExtension.connect(operator.wallet).setTransformInfo(cUSDC.address, {
+      await ipRebalanceExtension.connect(operator.wallet).setTransformInfo(fUSDC.address, {
         underlyingComponent: USDC.address,
-        transformHelper: compTransformHelper.address,
+        transformHelper: fuseTransformHelper.address,
       });
       await ipRebalanceExtension.connect(operator.wallet).setTransformInfo(yDAI.address, {
         underlyingComponent: DAI.address,
@@ -397,7 +403,7 @@ describe("IPRebalanceExtension", () => {
 
     context("when startIPRebalance has been called", async () => {
       beforeEach(async () => {
-        const components = [USDC.address, cUSDC.address, DAI.address, cDAI.address, yDAI.address];
+        const components = [USDC.address, fUSDC.address, DAI.address, cDAI.address, yDAI.address];
         const targetUnitsUnderlying = [ether(0), ether(10), ether(15), ether(15), ether(60)];
 
         await ipRebalanceExtension.connect(operator.wallet).startIPRebalance(components, targetUnitsUnderlying);
@@ -455,7 +461,7 @@ describe("IPRebalanceExtension", () => {
             const usdcTargetUnits = (await setV2Setup.generalIndexModule.executionInfo(setToken.address, USDC.address)).targetUnit;
             const cDaiTargetUnits = (await setV2Setup.generalIndexModule.executionInfo(setToken.address, cDAI.address)).targetUnit;
             const yDaiTargetUnits = (await setV2Setup.generalIndexModule.executionInfo(setToken.address, yDAI.address)).targetUnit;
-            const cUsdcTargetUnits = (await setV2Setup.generalIndexModule.executionInfo(setToken.address, cUSDC.address)).targetUnit;
+            const fUsdcTargetUnits = (await setV2Setup.generalIndexModule.executionInfo(setToken.address, fUSDC.address)).targetUnit;
 
             const yDaiExchangeRate = await yearnTransformHelper.getExchangeRate(DAI.address, yDAI.address);
 
@@ -465,7 +471,7 @@ describe("IPRebalanceExtension", () => {
 
             expect(cDaiTargetUnits).to.eq(await setToken.getDefaultPositionRealUnit(cDAI.address));
             expect(yDaiTargetUnits).to.eq(await setToken.getDefaultPositionRealUnit(yDAI.address));
-            expect(cUsdcTargetUnits).to.eq(await setToken.getDefaultPositionRealUnit(cUSDC.address));
+            expect(fUsdcTargetUnits).to.eq(await setToken.getDefaultPositionRealUnit(fUSDC.address));
             expect(usdcTargetUnits).to.eq(ether(10));
             expect(daiTargetUnits).to.eq(expectedDaiUnits);
           });
@@ -656,7 +662,7 @@ describe("IPRebalanceExtension", () => {
               context("when it is the final transform", async () => {
                 beforeEach(async () => {
                   await subject();
-                  subjectTransformComponents = [cUSDC.address];
+                  subjectTransformComponents = [fUSDC.address];
                 });
 
                 it("should set tradesComplete to false", async () => {
@@ -672,9 +678,9 @@ describe("IPRebalanceExtension", () => {
                   const cDaiExchangeRate = await compTransformHelper.getExchangeRate(DAI.address, cDAI.address);
                   const cDaiUnderlyingUnits = preciseDiv(cDaiUnits, cDaiExchangeRate);
 
-                  const cUsdcUnits = await setToken.getDefaultPositionRealUnit(cUSDC.address);
-                  const cUsdcExchangeRate = await compTransformHelper.getExchangeRate(DAI.address, cUSDC.address);
-                  const cUsdcUnderlyingUnits = preciseDiv(cUsdcUnits, cUsdcExchangeRate);
+                  const fUsdcUnits = await setToken.getDefaultPositionRealUnit(fUSDC.address);
+                  const fUsdcExchangeRate = await fuseTransformHelper.getExchangeRate(DAI.address, fUSDC.address);
+                  const fUsdcUnderlyingUnits = preciseDiv(fUsdcUnits, fUsdcExchangeRate);
 
                   const yDaiUnits = await setToken.getDefaultPositionRealUnit(yDAI.address);
                   const yDaiExchangeRate = await yearnTransformHelper.getExchangeRate(DAI.address, yDAI.address);
@@ -688,7 +694,7 @@ describe("IPRebalanceExtension", () => {
                   expect(usdcUnits).to.eq(ether(0));
                   expect(cDaiUnderlyingUnits).to.eq(ether(15));
                   expect(yDaiUnderlyingUnits).to.eq(ether(60));
-                  expect(cUsdcUnderlyingUnits).to.eq(ether(10));
+                  expect(fUsdcUnderlyingUnits).to.eq(ether(10));
                 });
               });
 
