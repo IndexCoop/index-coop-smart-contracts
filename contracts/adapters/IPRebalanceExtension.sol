@@ -32,8 +32,6 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { ITransformHelper } from "../interfaces/ITransformHelper.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
-import { console } from "hardhat/console.sol";
-
 
 contract IPRebalanceExtension is GIMExtension {
     using AddressArrayUtils for address[];
@@ -350,7 +348,8 @@ contract IPRebalanceExtension is GIMExtension {
             batchAbsorbTokens[i] = tokensToAbsorb[i];
         }
 
-        airdropModule.batchAbsorb(setToken, batchAbsorbTokens);
+        bytes memory callData = abi.encodeWithSelector(airdropModule.batchAbsorb.selector, setToken, batchAbsorbTokens);
+        invokeManager(address(airdropModule), callData);
     }
 
     function _isTransformComponent(address _component) internal view returns (bool) {

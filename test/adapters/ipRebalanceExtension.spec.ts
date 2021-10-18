@@ -100,7 +100,7 @@ describe("IPRebalanceExtension", () => {
     setToken = await setV2Setup.createSetToken(
       [USDC.address, DAI.address, cDAI.address, yDAI.address],
       [ether(25), ether(20), ether(25), ether(30)],
-      [setV2Setup.generalIndexModule.address, setV2Setup.issuanceModule.address, setV2Setup.wrapModuleV2.address]
+      [setV2Setup.generalIndexModule.address, setV2Setup.issuanceModule.address, setV2Setup.wrapModuleV2.address, setV2Setup.airdropModule.address]
     );
 
     await setV2Setup.issuanceModule.initialize(
@@ -111,6 +111,16 @@ describe("IPRebalanceExtension", () => {
     await setV2Setup.wrapModuleV2.initialize(
       setToken.address,
       { gasLimit: 2_000_000 }
+    );
+
+    await setV2Setup.airdropModule.initialize(
+      setToken.address,
+      {
+        airdrops: [cDAI.address],
+        feeRecipient: operator.address,
+        airdropFee: ZERO,
+        anyoneAbsorb: false,
+      }
     );
 
     await setV2Setup.generalIndexModule.initialize(setToken.address);
@@ -481,6 +491,24 @@ describe("IPRebalanceExtension", () => {
             expect(fUsdcTargetUnits).to.eq(await setToken.getDefaultPositionRealUnit(fUSDC.address));
             expect(usdcTargetUnits).to.eq(ether(10));
             expect(daiTargetUnits).to.eq(expectedDaiUnits);
+          });
+        });
+
+        context("when a token rebases before being untransformed", async () => {
+          let rebaseUnits: BigNumber;
+
+          beforeEach(async () => {
+            rebaseUnits = ether(1.1);
+            await cDAI.transfer(setToken.address, preciseMul(rebaseUnits, await setToken.totalSupply()));
+          });
+
+          it("should absorb rebase and untransform correct amount", async () => {
+            await subject();
+
+            const expectCDaiUnits = preciseMul(ether(15), await compTransformHelper.exchangeRate()).add(rebaseUnits);
+            const actualCDaiUnits = await setToken.getDefaultPositionRealUnit(cDAI.address);
+
+            expect(actualCDaiUnits).to.eq(expectCDaiUnits);
           });
         });
 
