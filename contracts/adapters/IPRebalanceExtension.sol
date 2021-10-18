@@ -239,12 +239,18 @@ contract IPRebalanceExtension is GIMExtension {
             "transform unavailable"
         );
 
-        // If target units for underlying is 0 and on last transform for that underlying, transform everything left.
-        // This is because if it is a rabsing token or the exchange rate changes then it is possible to leave a small amount of
-        // underlying tokens by accident.
+        uint256 currentUnitsUnderlying = setToken.getDefaultPositionRealUnit(transformInfo.underlyingComponent).toUint256();
         uint256 underlyingInFinal = rebalanceParams[transformInfo.underlyingComponent];
-        if (underlyingInFinal == 0 && transformsLeftForUnderlying[transformInfo.underlyingComponent] == 1) {
-            unitsToTransform = setToken.getDefaultPositionRealUnit(transformInfo.underlyingComponent).toUint256();
+
+        // If target units for underlying is 0 and on last transform for that underlying, transform everything left.
+        // This is because if it is a rabasing token or the exchange rate changes then it is possible to leave a small amount of
+        // underlying tokens by accident.
+        bool shouldFullyRemoveUnderlying = underlyingInFinal == 0 && transformsLeftForUnderlying[transformInfo.underlyingComponent] == 1;
+        // If requested units to transform is greater than the current units, transform everything left.
+        // This can happen if the rebalancing trades were not able to acquire as many tokens as was anticipated.
+        bool transformWillOverflow = unitsToTransform > currentUnitsUnderlying;
+        if (shouldFullyRemoveUnderlying || transformWillOverflow) {
+            unitsToTransform = currentUnitsUnderlying;
         }
 
         (address module, bytes memory callData) = transformInfo.transformHelper.getTransformCall(
