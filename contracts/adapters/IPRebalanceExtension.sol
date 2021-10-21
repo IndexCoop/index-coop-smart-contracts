@@ -60,13 +60,6 @@ contract IPRebalanceExtension is GIMExtension {
     /* ========== State Variables ========= */
 
     IAirdropModule public airdropModule;
-    
-    uint256 public untransforms;
-    uint256 public transforms;
-
-    mapping(address => uint256) public untransformUnits;
-    mapping(address => uint256) public transformUnits;
-    mapping(address => uint256) public transformsLeftForUnderlying;
 
     mapping(address => TransformInfo) public transformComponentInfo;
 
@@ -153,37 +146,15 @@ contract IPRebalanceExtension is GIMExtension {
      */
     function startIPRebalance(address[] memory _setComponents, uint256[] memory _targetUnitsUnderlying) external onlyOperator {
         require(_setComponents.length == _targetUnitsUnderlying.length, "length mismatch");
+        tradesComplete = false;
 
-        untransforms = 0;
+        // clear out any current member of rebalanceParams from last rebalance
+        for (uint256 i = 0; i < setComponentList.length; i++) {
+            rebalanceParams[setComponentList[i]] = 0;
+        }
 
+        // Save rebalanceParams
         for (uint256 i = 0; i < _setComponents.length; i++) {
-            if (_isTransformComponent(_setComponents[i])) {
-
-                uint256 unitsToUntransform;
-
-                if (_targetUnitsUnderlying[i] != 0) {
-                    uint256 currentUnits = setToken.getDefaultPositionRealUnit(_setComponents[i]).toUint256();
-
-                    // convert target units from underlying to transformed amounts
-                    TransformInfo memory transformInfo = transformComponentInfo[_setComponents[i]];
-                    uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(transformInfo.underlyingComponent, _setComponents[i]);
-                    uint256 targetUnitsInTransformed = _targetUnitsUnderlying[i].preciseMul(exchangeRate);
-
-                    unitsToUntransform = currentUnits > targetUnitsInTransformed ? currentUnits.sub(targetUnitsInTransformed) : 0;
-                } else {
-                    // If target units are 0 then set to MAX_UINT256 to ensure that all tokens are untransformed in batchExecuteUntransform.
-                    // This is because if it is a rabsing token or the exchange rate changes then it is possible to leave a small amount of
-                    // transform tokens by accident.
-                    unitsToUntransform = type(uint256).max;
-                }
-
-                if (unitsToUntransform > 0) {
-                    untransforms++;
-                    untransformUnits[_setComponents[i]] = unitsToUntransform;
-                }
-            }
-
-            // saves rebalance parameters for later use to start rebalance through GIM when untransforming is complete
             rebalanceParams[_setComponents[i]] = _targetUnitsUnderlying[i];
         }
 
@@ -214,33 +185,16 @@ contract IPRebalanceExtension is GIMExtension {
         }
     }
 
+    function startTrades() external onlyOperator {
+        _startGIMRebalance();
+    }
+
     /**
      * ONLY OPERATOR: Marks the contract as ready to execute transforms. Must be called after trades through GeneralIndexModule have
      * completed.
      */
     function setTradesComplete() external onlyOperator {
         tradesComplete = true;
-        for (uint256 i = 0; i < setComponentList.length; i++) {
-            address component = setComponentList[i];
-            if (_isTransformComponent(component)) {
-
-                TransformInfo memory transformInfo = transformComponentInfo[component];
-
-                uint256 currentUnits = setToken.getDefaultPositionRealUnit(component).toUint256();
-                uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(transformInfo.underlyingComponent, component);
-                uint256 currentUnitsUnderlying = currentUnits.preciseDiv(exchangeRate);
-
-                uint256 targetUnitsUnderlying = rebalanceParams[component];
-
-                uint256 unitsToTransform = targetUnitsUnderlying > currentUnitsUnderlying ? targetUnitsUnderlying.sub(currentUnitsUnderlying) : 0;
-
-                if (unitsToTransform > 0) {
-                    transforms++;
-                    transformUnits[component] = unitsToTransform;
-                    transformsLeftForUnderlying[transformInfo.underlyingComponent]++;
-                }
-            }
-        }
     }
 
     /**
@@ -262,7 +216,7 @@ contract IPRebalanceExtension is GIMExtension {
         _absorbAirdrops(_transformComponents);
 
         for (uint256 i = 0; i < _transformComponents.length; i++) {
-            _executeTransform(_transformComponents[i], _transformData[i]);
+            _executeTransform(_transformComponents[i], _transformData[i], false);
         }
     }
 
@@ -274,18 +228,23 @@ contract IPRebalanceExtension is GIMExtension {
      */
     function _executeUntransform(address _transformComponent, bytes memory _untransformData) internal {
 
-        uint256 unitsToUntransform = untransformUnits[_transformComponent];
-        require(unitsToUntransform > 0 && untransforms > 0, "nothing to untransform");
-
         TransformInfo memory transformInfo = transformComponentInfo[_transformComponent];
+
+        require(transformInfo.underlyingComponent != address(0), "nothing to untransform");
         require(
             transformInfo.transformHelper.shouldUntransform(transformInfo.underlyingComponent, _transformComponent),
             "untransform unavailable"
         );
 
-        if (unitsToUntransform == type(uint256).max) {
-            unitsToUntransform = setToken.getDefaultPositionRealUnit(_transformComponent).toUint256();
-        }
+        uint256 targetUnitsUnderlying = rebalanceParams[_transformComponent];
+        uint256 currentUnits = setToken.getDefaultPositionRealUnit(_transformComponent).toUint256();
+
+        // convert target units from underlying to transformed amounts
+        uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(transformInfo.underlyingComponent, _transformComponent);
+        uint256 targetUnitsInTransformed = targetUnitsUnderlying.preciseMul(exchangeRate);
+        uint256 unitsToUntransform = currentUnits > targetUnitsInTransformed ? currentUnits.sub(targetUnitsInTransformed) : 0;
+
+        require(unitsToUntransform > 0, "nothing to untransform");
 
         (address module, bytes memory callData) = transformInfo.transformHelper.getUntransformCall(
             manager.setToken(),
@@ -296,42 +255,41 @@ contract IPRebalanceExtension is GIMExtension {
         );
 
         invokeManager(module, callData);
-
-        untransformUnits[_transformComponent] = 0;
-        untransforms--;
-
-        // if done untransforming begin the rebalance through GIM
-        if (untransforms == 0) {
-            _startGIMRebalance();
-        }
     }
 
     /**
      * Untransforms a component
      */
-    function _executeTransform(address _transformComponent, bytes memory _transformData) internal {
-
-        uint256 unitsToTransform = transformUnits[_transformComponent];
-        require(unitsToTransform > 0 && transforms > 0, "nothing to transform");
+    function _executeTransform(address _transformComponent, bytes memory _transformData, bool _transformRemaining) internal {
+        require(tradesComplete, "trades not complete");
 
         TransformInfo memory transformInfo = transformComponentInfo[_transformComponent];
+
+        require(transformInfo.underlyingComponent != address(0), "nothing to transform");
         require(
             transformInfo.transformHelper.shouldTransform(transformInfo.underlyingComponent, _transformComponent),
             "transform unavailable"
         );
 
-        uint256 currentUnitsUnderlying = setToken.getDefaultPositionRealUnit(transformInfo.underlyingComponent).toUint256();
-        uint256 underlyingInFinal = rebalanceParams[transformInfo.underlyingComponent];
+        uint256 unitsToTransform;
+        uint256 currentRawUnderlying = setToken.getDefaultPositionRealUnit(transformInfo.underlyingComponent).toUint256();
 
-        // If target units for underlying is 0 and on last transform for that underlying, transform everything left.
-        // This is because if it is a rabasing token or the exchange rate changes then it is possible to leave a small amount of
-        // underlying tokens by accident.
-        bool shouldFullyRemoveUnderlying = underlyingInFinal == 0 && transformsLeftForUnderlying[transformInfo.underlyingComponent] == 1;
-        // If requested units to transform is greater than the current units, transform everything left.
-        // This can happen if the rebalancing trades were not able to acquire as many tokens as was anticipated.
-        bool transformWillOverflow = unitsToTransform > currentUnitsUnderlying;
-        if (shouldFullyRemoveUnderlying || transformWillOverflow) {
-            unitsToTransform = currentUnitsUnderlying;
+        if (_transformRemaining) {
+            unitsToTransform = currentRawUnderlying;
+        } else {
+            uint256 currentUnits = setToken.getDefaultPositionRealUnit(_transformComponent).toUint256();
+            uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(transformInfo.underlyingComponent, _transformComponent);
+
+            uint256 currentUnitsUnderlying = currentUnits.preciseDiv(exchangeRate);
+            uint256 targetUnitsUnderlying = rebalanceParams[_transformComponent];
+
+            unitsToTransform = targetUnitsUnderlying > currentUnitsUnderlying ? targetUnitsUnderlying.sub(currentUnitsUnderlying) : 0;
+        }
+
+        require(unitsToTransform > 0, "nothing to transform");
+
+        if (unitsToTransform > currentRawUnderlying) {
+            unitsToTransform = currentRawUnderlying;
         }
 
         (address module, bytes memory callData) = transformInfo.transformHelper.getTransformCall(
@@ -343,14 +301,6 @@ contract IPRebalanceExtension is GIMExtension {
         );
 
         invokeManager(module, callData);
-
-        transformUnits[_transformComponent] = 0;
-        transformsLeftForUnderlying[transformInfo.underlyingComponent]++;
-        transforms--;
-
-        if (transforms == 0) {
-            tradesComplete = false;
-        }
     }
 
     /**
