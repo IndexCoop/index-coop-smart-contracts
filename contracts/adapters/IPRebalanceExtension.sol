@@ -239,6 +239,10 @@ contract IPRebalanceExtension is GIMExtension {
         external
         onlyAllowedCaller(msg.sender)
     {
+        address underlying = transformComponentInfo[_transformComponent].underlyingComponent;
+        uint256 underlyingUnitsRaw = rebalanceParams[underlying];
+        require(underlyingUnitsRaw == 0, "raw underlying in target set composition");
+
         _transform(_transformComponent, _transformData, true);
     }
 

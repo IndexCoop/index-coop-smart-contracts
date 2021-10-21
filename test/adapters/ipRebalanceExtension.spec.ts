@@ -759,7 +759,7 @@ describe("IPRebalanceExtension", () => {
               let subjectCaller: Account;
 
               beforeEach(() => {
-                subjectTransformComponent = yDAI.address;
+                subjectTransformComponent = fUSDC.address;
                 subjectTransformData = EMPTY_BYTES;
                 subjectCaller = allowedCaller;
               });
@@ -772,12 +772,22 @@ describe("IPRebalanceExtension", () => {
               }
 
               it("should transform all underlying units into the transform component", async () => {
-                const initDaiUnits = await setToken.getDefaultPositionRealUnit(DAI.address);
+                const initUsdcUnits = await setToken.getDefaultPositionRealUnit(USDC.address);
                 await subject();
-                const finalDaiUnits = await setToken.getDefaultPositionRealUnit(DAI.address);
+                const finalUsdcUnits = await setToken.getDefaultPositionRealUnit(USDC.address);
 
-                expect(initDaiUnits).to.not.eq(ZERO);
-                expect(finalDaiUnits).to.eq(ZERO);
+                expect(initUsdcUnits).to.not.eq(ZERO);
+                expect(finalUsdcUnits).to.eq(ZERO);
+              });
+
+              context("when transform component's underlying is in the target set composition", async () => {
+                beforeEach(() => {
+                  subjectTransformComponent = yDAI.address;
+                });
+
+                it("should revert", async () => {
+                  await expect(subject()).to.be.revertedWith("raw underlying in target set composition");
+                });
               });
 
               context("when caller is not an allowed caller", async () => {
@@ -789,7 +799,6 @@ describe("IPRebalanceExtension", () => {
                   await expect(subject()).to.be.revertedWith("Address not permitted to call");
                 });
               });
-
             });
           });
         });
