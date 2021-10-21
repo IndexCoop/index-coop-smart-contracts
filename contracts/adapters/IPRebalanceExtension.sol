@@ -220,6 +220,16 @@ contract IPRebalanceExtension is GIMExtension {
         }
     }
 
+    function executeTransformRemaining(
+        address _transformComponent,
+        bytes memory _transformData
+    )
+        external
+        onlyAllowedCaller(msg.sender)
+    {
+        _executeTransform(_transformComponent, _transformData, true);
+    }
+
     /* ======== Internal Functions ======== */
 
     /**
@@ -284,13 +294,13 @@ contract IPRebalanceExtension is GIMExtension {
             uint256 targetUnitsUnderlying = rebalanceParams[_transformComponent];
 
             unitsToTransform = targetUnitsUnderlying > currentUnitsUnderlying ? targetUnitsUnderlying.sub(currentUnitsUnderlying) : 0;
+
+            if (unitsToTransform > currentRawUnderlying) {
+                unitsToTransform = currentRawUnderlying;
+            }
         }
 
         require(unitsToTransform > 0, "nothing to transform");
-
-        if (unitsToTransform > currentRawUnderlying) {
-            unitsToTransform = currentRawUnderlying;
-        }
 
         (address module, bytes memory callData) = transformInfo.transformHelper.getTransformCall(
             manager.setToken(),

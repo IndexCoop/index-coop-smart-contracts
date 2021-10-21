@@ -752,6 +752,45 @@ describe("IPRebalanceExtension", () => {
                 });
               });
             });
+
+            describe("#executeTransformRemaining", async () => {
+              let subjectTransformComponent: Address;
+              let subjectTransformData: string;
+              let subjectCaller: Account;
+
+              beforeEach(() => {
+                subjectTransformComponent = yDAI.address;
+                subjectTransformData = EMPTY_BYTES;
+                subjectCaller = allowedCaller;
+              });
+
+              async function subject(): Promise<ContractTransaction> {
+                return await ipRebalanceExtension.connect(subjectCaller.wallet).executeTransformRemaining(
+                  subjectTransformComponent,
+                  subjectTransformData
+                );
+              }
+
+              it("should transform all underlying units into the transform component", async () => {
+                const initDaiUnits = await setToken.getDefaultPositionRealUnit(DAI.address);
+                await subject();
+                const finalDaiUnits = await setToken.getDefaultPositionRealUnit(DAI.address);
+
+                expect(initDaiUnits).to.not.eq(ZERO);
+                expect(finalDaiUnits).to.eq(ZERO);
+              });
+
+              context("when caller is not an allowed caller", async () => {
+                beforeEach(() => {
+                  subjectCaller = randomCaller;
+                });
+
+                it("should revert", async () => {
+                  await expect(subject()).to.be.revertedWith("Address not permitted to call");
+                });
+              });
+
+            });
           });
         });
       });
