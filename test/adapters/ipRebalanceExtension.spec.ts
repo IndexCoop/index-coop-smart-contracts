@@ -390,7 +390,7 @@ describe("IPRebalanceExtension", () => {
         await ipRebalanceExtension.connect(operator.wallet).startIPRebalance(components, targetUnitsUnderlying);
       });
 
-      describe("#batchExecuteUntransform", async () => {
+      describe("#batchUntransform", async () => {
         let subjectTransformComponents: Address[];
         let subjectUntransformData: string[];
         let subjectCaller: Account;
@@ -402,7 +402,7 @@ describe("IPRebalanceExtension", () => {
         });
 
         async function subject(): Promise<ContractTransaction> {
-          return await ipRebalanceExtension.connect(subjectCaller.wallet).batchExecuteUntransform(
+          return await ipRebalanceExtension.connect(subjectCaller.wallet).batchUntransform(
             subjectTransformComponents,
             subjectUntransformData
           );
@@ -503,7 +503,7 @@ describe("IPRebalanceExtension", () => {
 
       context("when all untransforms are complete", async () => {
         beforeEach(async () => {
-          await ipRebalanceExtension.connect(allowedCaller.wallet).batchExecuteUntransform(
+          await ipRebalanceExtension.connect(allowedCaller.wallet).batchUntransform(
             [cDAI.address],
             [EMPTY_BYTES]
           );
@@ -613,7 +613,7 @@ describe("IPRebalanceExtension", () => {
               await ipRebalanceExtension.connect(operator.wallet).setTradesComplete();
             });
 
-            describe("#batchExecuteTransform", async () => {
+            describe("#batchTransform", async () => {
               let subjectTransformComponents: Address[];
               let subjectTransformData: string[];
               let subjectCaller: Account;
@@ -625,7 +625,7 @@ describe("IPRebalanceExtension", () => {
               });
 
               async function subject(): Promise<ContractTransaction> {
-                return await ipRebalanceExtension.connect(subjectCaller.wallet).batchExecuteTransform(
+                return await ipRebalanceExtension.connect(subjectCaller.wallet).batchTransform(
                   subjectTransformComponents,
                   subjectTransformData
                 );
@@ -753,7 +753,7 @@ describe("IPRebalanceExtension", () => {
               });
             });
 
-            describe("#executeTransformRemaining", async () => {
+            describe("#transformRemaining", async () => {
               let subjectTransformComponent: Address;
               let subjectTransformData: string;
               let subjectCaller: Account;
@@ -765,7 +765,7 @@ describe("IPRebalanceExtension", () => {
               });
 
               async function subject(): Promise<ContractTransaction> {
-                return await ipRebalanceExtension.connect(subjectCaller.wallet).executeTransformRemaining(
+                return await ipRebalanceExtension.connect(subjectCaller.wallet).transformRemaining(
                   subjectTransformComponent,
                   subjectTransformData
                 );

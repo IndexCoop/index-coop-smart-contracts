@@ -169,7 +169,7 @@ contract IPRebalanceExtension is GIMExtension {
      * @param _transformComponents      array of components to untransform
      * @param _untransformData          array of untransform data 
      */
-    function batchExecuteUntransform(
+    function batchUntransform(
         address[] memory _transformComponents,
         bytes[] memory _untransformData
     )
@@ -181,7 +181,7 @@ contract IPRebalanceExtension is GIMExtension {
         _absorbAirdrops(_transformComponents);
 
         for (uint256 i = 0; i < _transformComponents.length; i++) {
-            _executeUntransform(_transformComponents[i], _untransformData[i]);
+            _untransform(_transformComponents[i], _untransformData[i]);
         }
     }
 
@@ -204,7 +204,7 @@ contract IPRebalanceExtension is GIMExtension {
      * @param _transformComponents      array of components to untransform
      * @param _transformData            array of transform data 
      */
-    function batchExecuteTransform(
+    function batchTransform(
         address[] memory _transformComponents,
         bytes[] memory _transformData
     )
@@ -216,18 +216,18 @@ contract IPRebalanceExtension is GIMExtension {
         _absorbAirdrops(_transformComponents);
 
         for (uint256 i = 0; i < _transformComponents.length; i++) {
-            _executeTransform(_transformComponents[i], _transformData[i], false);
+            _transform(_transformComponents[i], _transformData[i], false);
         }
     }
 
-    function executeTransformRemaining(
+    function transformRemaining(
         address _transformComponent,
         bytes memory _transformData
     )
         external
         onlyAllowedCaller(msg.sender)
     {
-        _executeTransform(_transformComponent, _transformData, true);
+        _transform(_transformComponent, _transformData, true);
     }
 
     /* ======== Internal Functions ======== */
@@ -236,7 +236,7 @@ contract IPRebalanceExtension is GIMExtension {
      * Untransforms a component. If it is the final untransform, it will automatically begin the rebalance
      * through GeneralIndexModule.
      */
-    function _executeUntransform(address _transformComponent, bytes memory _untransformData) internal {
+    function _untransform(address _transformComponent, bytes memory _untransformData) internal {
 
         TransformInfo memory transformInfo = transformComponentInfo[_transformComponent];
 
@@ -270,7 +270,7 @@ contract IPRebalanceExtension is GIMExtension {
     /**
      * Untransforms a component
      */
-    function _executeTransform(address _transformComponent, bytes memory _transformData, bool _transformRemaining) internal {
+    function _transform(address _transformComponent, bytes memory _transformData, bool _transformRemaining) internal {
         require(tradesComplete, "trades not complete");
 
         TransformInfo memory transformInfo = transformComponentInfo[_transformComponent];
