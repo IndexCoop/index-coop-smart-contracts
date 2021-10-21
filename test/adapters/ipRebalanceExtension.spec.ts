@@ -470,6 +470,16 @@ describe("IPRebalanceExtension", () => {
           });
         });
 
+        context("when a component has already been untransformed", async () => {
+          beforeEach(async () => {
+            await subject();
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("nothing to untransform");
+          });
+        });
+
         context("when component should not be untransformed", async () => {
           beforeEach(async () => {
             subjectTransformComponents = [USDC.address];
@@ -666,6 +676,22 @@ describe("IPRebalanceExtension", () => {
                 });
               });
 
+              context("when exchange rate changes such that units to transform are greater than total underlying", async () => {
+                beforeEach(async () => {
+                  const currentExchangeRate = await yearnTransformHelper.getExchangeRate(DAI.address, yDAI.address);
+                  await yearnTransformHelper.setExchangeRate(preciseMul(currentExchangeRate, ether(2.5)));
+                });
+
+                it("should transform all available underlying units", async () => {
+                  const initDai = await setToken.getDefaultPositionRealUnit(DAI.address);
+                  await subject();
+                  const finalDai = await setToken.getDefaultPositionRealUnit(DAI.address);
+
+                  expect(initDai).to.not.eq(ZERO);
+                  expect(finalDai).to.eq(ZERO);
+                });
+              });
+
               context("when caller is not an allowed caller", async () => {
                 beforeEach(() => {
                   subjectCaller = randomCaller;
@@ -686,6 +712,16 @@ describe("IPRebalanceExtension", () => {
                 });
               });
 
+              context("when component has already been transformed", async () => {
+                beforeEach(async () => {
+                  await subject();
+                });
+
+                it("should revert", async () => {
+                  await expect(subject()).to.be.revertedWith("nothing to transform");
+                });
+              });
+
               context("when component should not be transformed", async () => {
                 beforeEach(async () => {
                   subjectTransformComponents = [USDC.address];
@@ -703,6 +739,16 @@ describe("IPRebalanceExtension", () => {
 
                 it("should revert", async () => {
                   await expect(subject()).to.be.revertedWith("transform unavailable");
+                });
+              });
+
+              context("when the tradesComplete flag is false", async () => {
+                beforeEach(async () => {
+                  await ipRebalanceExtension.connect(operator.wallet).startIPRebalance([], []);
+                });
+
+                it("should revert", async () => {
+                  await expect(subject()).to.be.revertedWith("trades not complete");
                 });
               });
             });
