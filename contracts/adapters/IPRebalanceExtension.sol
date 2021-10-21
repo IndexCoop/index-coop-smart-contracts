@@ -162,9 +162,8 @@ contract IPRebalanceExtension is GIMExtension {
     }
 
     /**
-     * ONLY ALLOWED CALLER: Untransforms components. This function must be called after starting the rebalance, but before beginning the
-     * trades through the GeneralIndexModule. The untransformData parameter can be fetched by the rebalance bots by calling getUntransformData
-     * on the relevent TransformHelper. If it is the final untransform, it will automatically begin the rebalance through GeneralIndexMoudule.
+     * ONLY ALLOWED CALLER: Untransforms components. This function must be called after starting the rebalance, but before calling startTrades.
+     * The untransformData parameter can be fetched by the rebalance bots by calling getUntransformData on the relevent TransformHelper.
      *
      * @param _transformComponents      array of components to untransform
      * @param _untransformData          array of untransform data 
@@ -185,6 +184,10 @@ contract IPRebalanceExtension is GIMExtension {
         }
     }
 
+    /**
+     * ONLY OPERATOR: Begins the trading portion of the rebalance by initializing the GeneralIndexModule. Must be called after all required
+     * components have been untransformed.
+     */
     function startTrades() external onlyOperator {
         _startGIMRebalance();
     }
@@ -201,7 +204,7 @@ contract IPRebalanceExtension is GIMExtension {
      * ONLY ALLOWED CALLER: Transforms components. This function must be called after calling setTradesComplete. The transformData parameter 
      * can be fetched by the rebalance bots by calling getTransformData on the relevent TransformHelper.
      *
-     * @param _transformComponents      array of components to untransform
+     * @param _transformComponents      array of components to transform
      * @param _transformData            array of transform data 
      */
     function batchTransform(
@@ -220,6 +223,15 @@ contract IPRebalanceExtension is GIMExtension {
         }
     }
 
+    /**
+     * ONLY ALLOWED CALLER: Transforms all remaining units of the underlying component into the transfrorm component. This function should
+     * only be called if it is the final transformation for the underlying, and the raw underlying is not an intended component of the final
+     * Set composition. The transformData parameter can be fetched by the rebalance bots by calling getTransformData on the relevent
+     * TransformHelper.
+     *
+     * @param _transformComponent       component to transform
+     * @param _transformData            transform data
+     */
     function transformRemaining(
         address _transformComponent,
         bytes memory _transformData
