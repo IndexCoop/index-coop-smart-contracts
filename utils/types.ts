@@ -99,5 +99,7 @@ export interface AirdropSettings {
 
 export interface TransformInfo {
   underlyingComponent: Address;
+  maxTransformSize: BigNumber;
+  minTransformDelay: BigNumber;
   transformHelper: Address;
 }
