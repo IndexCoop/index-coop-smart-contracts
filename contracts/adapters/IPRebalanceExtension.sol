@@ -53,19 +53,28 @@ contract IPRebalanceExtension is GIMExtension {
     /* ============ Structs =========== */
 
     struct TransformInfo {
-        address underlyingComponent;
-        ITransformHelper transformHelper;
+        address underlyingComponent;        // underlying component address
+        uint256 maxSize;                    // max transform/untransform size measured in underlying component units
+        uint256 delay;                      // minumum delay between transfroms/untransforms
+        ITransformHelper transformHelper;   // TransformHelper contract address
     }
 
     /* ========== State Variables ========= */
 
     IAirdropModule public airdropModule;
 
+    // mapping from transform component to TransformInfo
     mapping(address => TransformInfo) public transformComponentInfo;
-
+    // mapping from set component to target units
     mapping(address => uint256) public rebalanceParams;
+
+    // mapping from transform component to last transform/untransform timestamp
+    mapping(address => uint256) public lastTransform;
+
+    // list of all set components involved in rebalance including added/removed components
     address[] public setComponentList;
 
+    // flag marking whether GIM trades have completed
     bool public tradesComplete;
 
     /* ========== Constructor ========== */
@@ -256,6 +265,9 @@ contract IPRebalanceExtension is GIMExtension {
 
         TransformInfo memory transformInfo = transformComponentInfo[_transformComponent];
 
+        require(transformInfo.delay + lastTransform[_transformComponent] < block.timestamp, "delay not passed");
+        lastTransform[_transformComponent] = block.timestamp;
+
         require(transformInfo.underlyingComponent != address(0), "nothing to untransform");
         require(
             transformInfo.transformHelper.shouldUntransform(transformInfo.underlyingComponent, _transformComponent),
@@ -269,6 +281,12 @@ contract IPRebalanceExtension is GIMExtension {
         uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(transformInfo.underlyingComponent, _transformComponent);
         uint256 targetUnitsInTransformed = targetUnitsUnderlying.preciseMul(exchangeRate);
         uint256 unitsToUntransform = currentUnits > targetUnitsInTransformed ? currentUnits.sub(targetUnitsInTransformed) : 0;
+
+        uint256 maxSize = transformInfo.maxSize;
+        uint256 unitsToUntransformUnderlying = unitsToUntransform.preciseDiv(exchangeRate);
+        if (unitsToUntransformUnderlying > maxSize) {
+            unitsToUntransform = maxSize.preciseMul(exchangeRate);
+        }
 
         require(unitsToUntransform > 0, "nothing to untransform");
 
@@ -291,6 +309,9 @@ contract IPRebalanceExtension is GIMExtension {
 
         TransformInfo memory transformInfo = transformComponentInfo[_transformComponent];
 
+        require(transformInfo.delay + lastTransform[_transformComponent] < block.timestamp, "delay not passed");
+        lastTransform[_transformComponent] = block.timestamp;
+
         require(transformInfo.underlyingComponent != address(0), "nothing to transform");
         require(
             transformInfo.transformHelper.shouldTransform(transformInfo.underlyingComponent, _transformComponent),
@@ -301,6 +322,7 @@ contract IPRebalanceExtension is GIMExtension {
         uint256 currentRawUnderlying = setToken.getDefaultPositionRealUnit(transformInfo.underlyingComponent).toUint256();
 
         if (_transformRemaining) {
+            require(transformInfo.maxSize >= currentRawUnderlying, "transform units greater than max");
             unitsToTransform = currentRawUnderlying;
         } else {
             uint256 currentUnits = setToken.getDefaultPositionRealUnit(_transformComponent).toUint256();
@@ -315,6 +337,12 @@ contract IPRebalanceExtension is GIMExtension {
                 unitsToTransform = currentRawUnderlying;
             }
         }
+
+        uint256 maxSize = transformInfo.maxSize;
+        if (unitsToTransform > maxSize) {
+            unitsToTransform = maxSize;
+        }
+
 
         require(unitsToTransform > 0, "nothing to transform");
 
