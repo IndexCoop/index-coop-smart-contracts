@@ -53,19 +53,28 @@ contract IPRebalanceExtension is GIMExtension {
     /* ============ Structs =========== */
 
     struct TransformInfo {
-        address underlyingComponent;
-        ITransformHelper transformHelper;
+        address underlyingComponent;        // underlying component address
+        uint256 maxTransformSize;           // max transform/untransform size measured in underlying component units
+        uint256 minTransformDelay;          // minumum delay between transfroms/untransforms
+        ITransformHelper transformHelper;   // TransformHelper contract address
     }
 
     /* ========== State Variables ========= */
 
     IAirdropModule public airdropModule;
 
+    // mapping from transform component to TransformInfo
     mapping(address => TransformInfo) public transformComponentInfo;
-
+    // mapping from set component to target units
     mapping(address => uint256) public rebalanceParams;
+
+    // mapping from transform component to last transform/untransform timestamp
+    mapping(address => uint256) public lastTransform;
+
+    // list of all set components involved in rebalance including added/removed components
     address[] public setComponentList;
 
+    // flag marking whether GIM trades have completed
     bool public tradesComplete;
 
     /* ========== Constructor ========== */
@@ -119,6 +128,8 @@ contract IPRebalanceExtension is GIMExtension {
             transformComponentInfo[_transformComponent].underlyingComponent == address(0),
             "TransformInfo already set"
         );
+        
+        require(_transformInfo.maxTransformSize <= type(uint96).max, "max transform size must be less than MAX_UINT_96");
         transformComponentInfo[_transformComponent] = _transformInfo;
     }
 
@@ -134,6 +145,8 @@ contract IPRebalanceExtension is GIMExtension {
             transformComponentInfo[_transformComponent].underlyingComponent != address(0),
             "TransformInfo not set yet"
         );
+
+        require(_transformInfo.maxTransformSize <= type(uint96).max, "max transform size must be less than MAX_UINT_96");
         transformComponentInfo[_transformComponent] = _transformInfo;
     }
 
@@ -256,6 +269,9 @@ contract IPRebalanceExtension is GIMExtension {
 
         TransformInfo memory transformInfo = transformComponentInfo[_transformComponent];
 
+        require(transformInfo.minTransformDelay + lastTransform[_transformComponent] < block.timestamp, "delay not elapsed");
+        lastTransform[_transformComponent] = block.timestamp;
+
         require(transformInfo.underlyingComponent != address(0), "nothing to untransform");
         require(
             transformInfo.transformHelper.shouldUntransform(transformInfo.underlyingComponent, _transformComponent),
@@ -269,6 +285,12 @@ contract IPRebalanceExtension is GIMExtension {
         uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(transformInfo.underlyingComponent, _transformComponent);
         uint256 targetUnitsInTransformed = targetUnitsUnderlying.preciseMul(exchangeRate);
         uint256 unitsToUntransform = currentUnits > targetUnitsInTransformed ? currentUnits.sub(targetUnitsInTransformed) : 0;
+        
+        uint256 maxUntransformUnits = transformInfo.maxTransformSize.preciseDiv(setToken.totalSupply()).preciseMul(exchangeRate);
+        if (unitsToUntransform > maxUntransformUnits) {
+            unitsToUntransform = maxUntransformUnits;
+        }
+
 
         require(unitsToUntransform > 0, "nothing to untransform");
 
@@ -291,6 +313,9 @@ contract IPRebalanceExtension is GIMExtension {
 
         TransformInfo memory transformInfo = transformComponentInfo[_transformComponent];
 
+        require(transformInfo.minTransformDelay + lastTransform[_transformComponent] < block.timestamp, "delay not elapsed");
+        lastTransform[_transformComponent] = block.timestamp;
+
         require(transformInfo.underlyingComponent != address(0), "nothing to transform");
         require(
             transformInfo.transformHelper.shouldTransform(transformInfo.underlyingComponent, _transformComponent),
@@ -299,8 +324,10 @@ contract IPRebalanceExtension is GIMExtension {
 
         uint256 unitsToTransform;
         uint256 currentRawUnderlying = setToken.getDefaultPositionRealUnit(transformInfo.underlyingComponent).toUint256();
+        uint256 maxTransformUnits = transformInfo.maxTransformSize.preciseDiv(setToken.totalSupply());
 
         if (_transformRemaining) {
+            require(maxTransformUnits >= currentRawUnderlying, "transform units greater than max");
             unitsToTransform = currentRawUnderlying;
         } else {
             uint256 currentUnits = setToken.getDefaultPositionRealUnit(_transformComponent).toUint256();
@@ -315,6 +342,11 @@ contract IPRebalanceExtension is GIMExtension {
                 unitsToTransform = currentRawUnderlying;
             }
         }
+
+        if (unitsToTransform > maxTransformUnits) {
+            unitsToTransform = maxTransformUnits;
+        }
+
 
         require(unitsToTransform > 0, "nothing to transform");
 

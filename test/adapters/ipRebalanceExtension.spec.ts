@@ -1,7 +1,7 @@
 import "module-alias/register";
 
 import { Address, Account, TransformInfo, ContractTransaction } from "@utils/types";
-import { ADDRESS_ZERO, EMPTY_BYTES, MAX_UINT_256, ZERO } from "@utils/constants";
+import { ADDRESS_ZERO, EMPTY_BYTES, MAX_UINT_256, MAX_UINT_96, ZERO } from "@utils/constants";
 import {
   WrapTokenMock,
   IPRebalanceExtension,
@@ -213,6 +213,8 @@ describe("IPRebalanceExtension", () => {
       subjectTransformComponent = await getRandomAddress();
       subjectTransformInfo = {
         underlyingComponent: await getRandomAddress(),
+        maxTransformSize: ether(10000),
+        minTransformDelay: BigNumber.from(60),
         transformHelper: await getRandomAddress(),
       };
       subjectCaller = operator;
@@ -228,6 +230,8 @@ describe("IPRebalanceExtension", () => {
       const transformInfo = await ipRebalanceExtension.transformComponentInfo(subjectTransformComponent);
 
       expect(transformInfo.underlyingComponent).to.eq(subjectTransformInfo.underlyingComponent);
+      expect(transformInfo.maxTransformSize).to.eq(subjectTransformInfo.maxTransformSize);
+      expect(transformInfo.minTransformDelay).to.eq(subjectTransformInfo.minTransformDelay);
       expect(transformInfo.transformHelper).to.eq(subjectTransformInfo.transformHelper);
     });
 
@@ -250,6 +254,16 @@ describe("IPRebalanceExtension", () => {
         await expect(subject()).to.be.revertedWith("TransformInfo already set");
       });
     });
+
+    context("when maxTransformSize is greater tha MAX_UINT_96", async () => {
+      beforeEach(() => {
+        subjectTransformInfo.maxTransformSize = MAX_UINT_256;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("max transform size must be less than MAX_UINT_96");
+      });
+    });
   });
 
   describe("#updateTransformData", async () => {
@@ -261,12 +275,16 @@ describe("IPRebalanceExtension", () => {
       subjectTransformComponent = await getRandomAddress();
       subjectTransformInfo = {
         underlyingComponent: await getRandomAddress(),
+        maxTransformSize: ether(10000),
+        minTransformDelay: BigNumber.from(120),
         transformHelper: await getRandomAddress(),
       };
       subjectCaller = operator;
 
-      const originalTransformInfo = {
+      const originalTransformInfo: TransformInfo = {
         underlyingComponent: await getRandomAddress(),
+        maxTransformSize: ether(1234),
+        minTransformDelay: BigNumber.from(45),
         transformHelper: await getRandomAddress(),
       };
       await ipRebalanceExtension.connect(operator.wallet).setTransformInfo(subjectTransformComponent, originalTransformInfo);
@@ -282,6 +300,8 @@ describe("IPRebalanceExtension", () => {
       const transformInfo = await ipRebalanceExtension.transformComponentInfo(subjectTransformComponent);
 
       expect(transformInfo.underlyingComponent).to.eq(subjectTransformInfo.underlyingComponent);
+      expect(transformInfo.maxTransformSize).to.eq(subjectTransformInfo.maxTransformSize);
+      expect(transformInfo.minTransformDelay).to.eq(subjectTransformInfo.minTransformDelay);
       expect(transformInfo.transformHelper).to.eq(subjectTransformInfo.transformHelper);
     });
 
@@ -304,20 +324,36 @@ describe("IPRebalanceExtension", () => {
         await expect(subject()).to.be.revertedWith("TransformInfo not set yet");
       });
     });
+
+    context("when maxTransformSize is greater tha MAX_UINT_96", async () => {
+      beforeEach(() => {
+        subjectTransformInfo.maxTransformSize = MAX_UINT_256;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("max transform size must be less than MAX_UINT_96");
+      });
+    });
   });
 
   context("when transform helpers have been properly set", async () => {
     beforeEach(async () => {
       await ipRebalanceExtension.connect(operator.wallet).setTransformInfo(cDAI.address, {
         underlyingComponent: DAI.address,
+        maxTransformSize: MAX_UINT_96,
+        minTransformDelay: ZERO,
         transformHelper: compTransformHelper.address,
       });
       await ipRebalanceExtension.connect(operator.wallet).setTransformInfo(fUSDC.address, {
         underlyingComponent: USDC.address,
+        maxTransformSize: MAX_UINT_96,
+        minTransformDelay: ZERO,
         transformHelper: fuseTransformHelper.address,
       });
       await ipRebalanceExtension.connect(operator.wallet).setTransformInfo(yDAI.address, {
         underlyingComponent: DAI.address,
+        maxTransformSize: MAX_UINT_96,
+        minTransformDelay: ZERO,
         transformHelper: yearnTransformHelper.address,
       });
     });
@@ -450,6 +486,34 @@ describe("IPRebalanceExtension", () => {
           });
         });
 
+        context("when maxTransformSize is less than amount needed to untransform", async () => {
+          let transformInfo: TransformInfo;
+
+          beforeEach(async () => {
+            transformInfo = {
+              underlyingComponent: DAI.address,
+              maxTransformSize: ether(25),
+              minTransformDelay: ZERO,
+              transformHelper: compTransformHelper.address,
+            };
+
+            await ipRebalanceExtension.connect(operator.wallet).updateTransformInfo(cDAI.address, transformInfo);
+          });
+
+          it("should untransform a reduced amount", async () => {
+            const initUnits = await setToken.getDefaultPositionRealUnit(DAI.address);
+            await subject();
+            const finalUnits = await setToken.getDefaultPositionRealUnit(DAI.address);
+
+            const diff = finalUnits.sub(initUnits);
+            const expectedDiff = preciseDiv(transformInfo.maxTransformSize, await setToken.totalSupply());
+
+            // fuzzy check for rounding error
+            expect(diff).to.lt(expectedDiff.add(5));
+            expect(diff).to.gt(expectedDiff.sub(5));
+          });
+        });
+
         context("when caller is not an allowed caller", async () => {
           beforeEach(() => {
             subjectCaller = randomCaller;
@@ -497,6 +561,24 @@ describe("IPRebalanceExtension", () => {
 
           it("should revert", async () => {
             await expect(subject()).to.be.revertedWith("untransform unavailable");
+          });
+        });
+
+        context("when transform delay has not elapsed", async () => {
+          beforeEach(async () => {
+            const transformInfo = {
+              underlyingComponent: DAI.address,
+              maxTransformSize: ether(25),
+              minTransformDelay: BigNumber.from(60),
+              transformHelper: compTransformHelper.address,
+            };
+
+            await ipRebalanceExtension.connect(operator.wallet).updateTransformInfo(cDAI.address, transformInfo);
+            await subject();
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("delay not elapsed");
           });
         });
       });
@@ -667,8 +749,10 @@ describe("IPRebalanceExtension", () => {
                   const daiUnits = await setToken.getDefaultPositionRealUnit(DAI.address);
                   const usdcUnits = await setToken.getDefaultPositionRealUnit(USDC.address);
 
-                  // TODO: investigate rounding error
-                  expect(daiUnits).to.eq(ether(15).sub(2));
+                  // fuzzy check for rounding error
+                  expect(daiUnits).to.lt(ether(15).add(5));
+                  expect(daiUnits).to.gt(ether(15).sub(5));
+
                   expect(usdcUnits).to.eq(ether(0));
                   expect(cDaiUnderlyingUnits).to.eq(ether(15));
                   expect(yDaiUnderlyingUnits).to.eq(ether(60));
@@ -689,6 +773,34 @@ describe("IPRebalanceExtension", () => {
 
                   expect(initDai).to.not.eq(ZERO);
                   expect(finalDai).to.eq(ZERO);
+                });
+              });
+
+              context("when maxTransformSize is less than amount needed to transform", async () => {
+                let transformInfo: TransformInfo;
+
+                beforeEach(async () => {
+                  transformInfo = {
+                    underlyingComponent: DAI.address,
+                    maxTransformSize: ether(25),
+                    minTransformDelay: ZERO,
+                    transformHelper: yearnTransformHelper.address,
+                  };
+
+                  await ipRebalanceExtension.connect(operator.wallet).updateTransformInfo(yDAI.address, transformInfo);
+                });
+
+                it("should transform a reduced amount", async () => {
+                  const initUnits = await setToken.getDefaultPositionRealUnit(DAI.address);
+                  await subject();
+                  const finalUnits = await setToken.getDefaultPositionRealUnit(DAI.address);
+
+                  const diff = initUnits.sub(finalUnits);
+                  const expectedDiff = preciseDiv(transformInfo.maxTransformSize, await setToken.totalSupply());
+
+                  // fuzzy check for rounding error
+                  expect(diff).to.lt(expectedDiff.add(5));
+                  expect(diff).to.gt(expectedDiff.sub(5));
                 });
               });
 
@@ -751,6 +863,24 @@ describe("IPRebalanceExtension", () => {
                   await expect(subject()).to.be.revertedWith("trades not complete");
                 });
               });
+
+              context("when transform delay has not elapsed", async () => {
+                beforeEach(async () => {
+                  const transformInfo = {
+                    underlyingComponent: DAI.address,
+                    maxTransformSize: ether(25),
+                    minTransformDelay: BigNumber.from(60),
+                    transformHelper: yearnTransformHelper.address,
+                  };
+
+                  await ipRebalanceExtension.connect(operator.wallet).updateTransformInfo(yDAI.address, transformInfo);
+                  await subject();
+                });
+
+                it("should revert", async () => {
+                  await expect(subject()).to.be.revertedWith("delay not elapsed");
+                });
+              });
             });
 
             describe("#transformRemaining", async () => {
@@ -787,6 +917,23 @@ describe("IPRebalanceExtension", () => {
 
                 it("should revert", async () => {
                   await expect(subject()).to.be.revertedWith("raw underlying in target set composition");
+                });
+              });
+
+              context("when transform amount is greater than maxTransformSize", async () => {
+                beforeEach(async () => {
+                  const transformInfo = {
+                    underlyingComponent: USDC.address,
+                    maxTransformSize: ether(25),
+                    minTransformDelay: ZERO,
+                    transformHelper: fuseTransformHelper.address,
+                  };
+
+                  await ipRebalanceExtension.connect(operator.wallet).updateTransformInfo(fUSDC.address, transformInfo);
+                });
+
+                it("should revert", async () => {
+                  await expect(subject()).to.be.revertedWith("transform units greater than max");
                 });
               });
 
