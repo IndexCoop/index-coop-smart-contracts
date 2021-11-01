@@ -111,7 +111,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         // safe approve 0xRouter
     }
 
-        /* ============ Public Functions ============ */
+    /* ============ Public Functions ============ */
 
     /**
      * Runs all the necessary approval functions required for a given ERC20 token.
@@ -664,7 +664,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         address[] memory path = new address[](2);
         path[0] = _tokenIn;
         path[1] = _tokenOut;
-        return zeroExRouter.swapExactTokensForTokens(_amountIn, 0, path, address(this), block.timestamp)[1];
+        return zeroExRouter(_exchange).swapExactTokensForTokens(_amountIn, 0, path, address(this), block.timestamp)[1];
     }
 
     /**
