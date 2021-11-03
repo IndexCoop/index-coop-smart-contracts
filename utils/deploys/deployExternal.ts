@@ -53,6 +53,8 @@ import {
   ValidationLogic
 } from "../contracts/aaveV2";
 
+import { ZeroEx } from "../contracts/zeroEx";
+
 import { Address } from "./../types";
 
 import { AaveTokenV2Mintable__factory } from "../../typechain/factories/AaveTokenV2Mintable__factory";
@@ -95,6 +97,8 @@ import { SwapRouter__factory } from "../../typechain/factories/SwapRouter__facto
 import { NonfungiblePositionManager__factory } from "../../typechain/factories/NonfungiblePositionManager__factory";
 import { Quoter__factory } from "../../typechain/factories/Quoter__factory";
 import { NFTDescriptor__factory } from "../../typechain/factories/NFTDescriptor__factory";
+import { ZeroEx__factory } from "../../typechain/factories/ZeroEx__factory";
+
 import { ether } from "@utils/common";
 
 
@@ -380,4 +384,11 @@ export default class DeployExternalContracts {
   public async deployAaveTokenV2Mintable(): Promise<AaveTokenV2Mintable> {
     return await new AaveTokenV2Mintable__factory(this._deployerSigner).deploy();
   }
+
+  // ZERO EX
+  public async deployZeroEx(): Promise<ZeroEx> {
+    return await new ZeroEx__factory(this._deployerSigner).deploy();
+  }
+
+
 }

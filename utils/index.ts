@@ -10,7 +10,8 @@ import {
   CompoundFixture,
   SetFixture,
   UniswapFixture,
-  UniswapV3Fixture
+  UniswapV3Fixture,
+  ZeroExFixture
 } from "./fixtures";
 
 export const getSetFixture = (ownerAddress: Address) => new SetFixture(provider, ownerAddress);
@@ -18,6 +19,7 @@ export const getAaveV2Fixture = (ownerAddress: Address) => new AaveV2Fixture(pro
 export const getCompoundFixture = (ownerAddress: Address) => new CompoundFixture(provider, ownerAddress);
 export const getUniswapFixture = (ownerAddress: Address) => new UniswapFixture(provider, ownerAddress);
 export const getUniswapV3Fixture = (ownerAddress: Address) => new UniswapV3Fixture(provider, ownerAddress);
+export const getZeroExFixture = (ownerAddress: Address) => new ZeroExFixture(provider, ownerAddress);
 
 export {
   getAccounts,
