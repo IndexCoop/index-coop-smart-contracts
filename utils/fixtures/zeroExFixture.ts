@@ -1,16 +1,23 @@
 import DeployHelper from "../deploys";
 import { JsonRpcProvider, Web3Provider } from "@ethersproject/providers";
-import {  Signer } from "ethers";
+import { Signer } from "ethers";
 import { Address } from "../types";
 
-import { ZeroEx } from "../contracts/zeroEx";
-
+import {
+  ZeroEx,
+  InitialMigration,
+  OwnableFeature,
+  SimpleFunctionRegistryFeature,
+} from "../contracts/zeroEx";
 
 export class ZeroExFixture {
   private _deployer: DeployHelper;
   private _ownerSigner: Signer;
 
   public zeroEx: ZeroEx;
+  public migrator: InitialMigration;
+  public registryFeature: SimpleFunctionRegistryFeature;
+  public ownableFeature: OwnableFeature;
 
   /**
    * Instantiates a new ZeroExFixture
@@ -24,15 +31,22 @@ export class ZeroExFixture {
   }
 
   /**
-   * Deploys contracts and creates weth-dai and weth-wbtc pools
+   * Deploys exchange proxy and adds bootstrap features
    *
-   * @param _owner  the owner of the deployed Uniswap V3 system
-   * @param _weth   weth address
-   * @param _wbtc   wbtc address
-   * @param _dai    dai address
    */
-  public async initialize(
-  ): Promise<void> {
-      this.zeroEx = await this._deployer.external.deployZeroEx();
+  public async initialize(ownerAddress: Address): Promise<void> {
+    this.migrator = await this._deployer.external.deployInitialMigration(ownerAddress);
+    this.zeroEx = await this._deployer.external.deployZeroEx(this.migrator.address);
+    this.registryFeature = await this._deployer.external.deploySimpleFunctionRegistryFeature();
+    this.ownableFeature = await this._deployer.external.deployOwnableFeature();
+    const features = {
+      registry: this.registryFeature.address,
+      ownable: this.ownableFeature.address,
+    };
+    await this.zeroEx.deployed();
+    await this.migrator.deployed();
+    await this.registryFeature.deployed();
+    await this.ownableFeature.deployed();
+    await this.migrator.initializeZeroEx(ownerAddress, this.zeroEx.address, features);
   }
 }
