@@ -20,7 +20,6 @@ import { Math } from "@openzeppelin/contracts/math/Math.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { IZeroEx } from "@0x/contracts-zero-ex/contracts/src/IZeroEx.sol";
 
 import { IBasicIssuanceModule } from "../interfaces/IBasicIssuanceModule.sol";
 import { IController } from "../interfaces/IController.sol";
@@ -35,6 +34,11 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
     using PreciseUnitMath for uint256;
     using SafeERC20 for IERC20;
     using SafeERC20 for ISetToken;
+
+    struct ZeroExSwap {
+        address payable _swapTarget;
+        bytes _swapCalldata;
+    }
 
     /* ============ Constants ============= */
 
@@ -152,8 +156,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         IERC20 _inputToken,
         uint256 _amountInput,
         uint256 _minSetReceive,
-        address[] memory _swapTargets,
-        bytes[] calldata _swapTargetsCalldata
+        ZeroExSwap[] calldata _swaps
     )
         isSetToken(_setToken)
         external
@@ -162,13 +165,13 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
     {
         require(_amountInput > 0, "ExchangeIssuance: INVALID INPUT");
         require(_minSetReceive > 0, "ExchangeIssuance: INVALID MIN_RECEIVE");
-        require(_swapTargets.length == _swapTargetsCalldata.length, "ExchangeIssuance: INVALID_QUOTES");
-        require(_setToken.getComponents().length == _swapTargets.length, "ExchangeIssuance: INVALID_QUOTES");
+        require(_setToken.getComponents().length == _swaps.length, "ExchangeIssuance: INVALID_QUOTES");
         // Steps:
         // 1. Transfer the ETH from user to this contract
-        // 2. For each component, swapTarget swap making sure the total amount does not exceed _amountInput. Otherwise revert
-        // 3. After executing all swaps, issue set token
-        // 4. If number of set token received was less than _minSetReceive revert, otherwise return
+        // 2. For each component, swapTarget swap making sure the total amount does not exceed _amountInput.
+        // Otherwise revert.
+        // 3. After executing all swaps, issue set token using basic issuance module.
+        // 4. If number of set token received was less than _minSetReceive revert, otherwise return the amount of set token minted.
         // 5. Refund any extra eth.
         address[] memory components = _setToken.getComponents();
 

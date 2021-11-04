@@ -86,9 +86,6 @@
     "typescript": "^3.9.3"
   },
   "dependencies": {
-    "@0x/contracts-erc20": "^3.3.22",
-    "@0x/contracts-utils": "^4.8.3",
-    "@0x/contracts-zero-ex": "^0.29.3",
     "@ethersproject/abstract-signer": "5.0.9",
     "@ethersproject/bignumber": "5.0.12",
     "@ethersproject/providers": "5.0.17",
