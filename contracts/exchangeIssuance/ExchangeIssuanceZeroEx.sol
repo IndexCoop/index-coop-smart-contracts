@@ -30,6 +30,11 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 contract ExchangeIssuanceZeroEx is ReentrancyGuard {
 
+    struct ZeroExQuote {
+        address payable swapTarget;
+        bytes data;
+    }
+
     using Address for address payable;
     using SafeMath for uint256;
     using PreciseUnitMath for uint256;
@@ -151,15 +156,23 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         ISetToken _setToken,
         IERC20 _inputToken,
         uint256 _amountInput,
-        uint256 _minSetReceive
+        uint256 _minSetReceive,
+        ZeroExQuote[] calldata quotes
     )
         isSetToken(_setToken)
         external
         nonReentrant
         returns (uint256)
     {
-        require(_amountInput > 0, "ExchangeIssuance: INVALID INPUTS");
-        // TODO: implement this:
+        require(_amountInput > 0, "ExchangeIssuance: INVALID INPUT");
+        require(_minSetReceive > 0, "ExchangeIssuance: INVALID MIN_RECEIVE");
+        require(_setToken.getComponents().length == quotes.length, "ExchangeIssuance: INVALID_QUOTES");
+        _inputToken.safeTransferFrom(msg.sender, address(this), _amountInput);
+
+        for (uint256 i = 0; i < quotes.length; i++) {
+            
+        }
+
     }
 
     /**
