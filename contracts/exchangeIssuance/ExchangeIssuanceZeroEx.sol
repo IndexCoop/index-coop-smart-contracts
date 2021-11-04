@@ -30,11 +30,6 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 contract ExchangeIssuanceZeroEx is ReentrancyGuard {
 
-    struct ZeroExQuote {
-        address payable swapTarget;
-        bytes data;
-    }
-
     using Address for address payable;
     using SafeMath for uint256;
     using PreciseUnitMath for uint256;
@@ -157,7 +152,8 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         IERC20 _inputToken,
         uint256 _amountInput,
         uint256 _minSetReceive,
-        ZeroExQuote[] calldata quotes
+        address[] memory _swapTargets,
+        bytes[] calldata _swapTargetsCalldata
     )
         isSetToken(_setToken)
         external
@@ -166,13 +162,19 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
     {
         require(_amountInput > 0, "ExchangeIssuance: INVALID INPUT");
         require(_minSetReceive > 0, "ExchangeIssuance: INVALID MIN_RECEIVE");
-        require(_setToken.getComponents().length == quotes.length, "ExchangeIssuance: INVALID_QUOTES");
-        _inputToken.safeTransferFrom(msg.sender, address(this), _amountInput);
+        require(_swapTargets.length == _swapTargetsCalldata.length, "ExchangeIssuance: INVALID_QUOTES");
+        require(_setToken.getComponents().length == _swapTargets.length, "ExchangeIssuance: INVALID_QUOTES");
+        // Steps:
+        // 1. Transfer the ETH from user to this contract
+        // 2. For each component, swapTarget swap making sure the total amount does not exceed _amountInput. Otherwise revert
+        // 3. After executing all swaps, issue set token
+        // 4. If number of set token received was less than _minSetReceive revert, otherwise return
+        // 5. Refund any extra eth.
+        address[] memory components = _setToken.getComponents();
 
-        for (uint256 i = 0; i < quotes.length; i++) {
-            
+        for (uint256 i = 0; i < components.length; i++) {
+
         }
-
     }
 
     /**
@@ -311,4 +313,106 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
             _token.safeIncreaseAllowance(_spender, MAX_UINT96 - allowance);
         }
     }
+
+    /**
+     * Issues an exact amount of SetTokens using WETH.
+     * Acquires SetToken components at the best price accross uniswap and sushiswap.
+     * Uses the acquired components to issue the SetTokens.
+     *
+     * @param _setToken          Address of the SetToken being issued
+     * @param _amountSetToken    Amount of SetTokens to be issued
+     * @param _maxEther          Max amount of ether that can be used to acquire the SetToken components
+     *
+     * @return totalEth          Total amount of ether used to acquire the SetToken components
+     */
+    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken, uint256 _maxEther) internal returns (uint256) {
+
+        // Currently this logic is done in the contract. With 0x, this logic will need to be moved
+        // to the client.
+        address[] memory components = _setToken.getComponents();
+        (
+            uint256 sumEth,
+            ,
+            uint256[] memory amountComponents,
+        ) = _getAmountETHForIssuance(_setToken, components, _amountSetToken);
+
+        require(sumEth <= _maxEther, "ExchangeIssuance: INSUFFICIENT_INPUT_AMOUNT");
+
+        // For each component
+        // 1. Get the component
+        // 2. Execute the swap
+        // 3. Return the total eth used.
+        uint256 totalEth = 0;
+        for (uint256 i = 0; i < components.length; i++) {
+            uint256 amountEth = _swapTokensForExactTokens(WETH, components[i], amountComponents[i]);
+            totalEth = totalEth.add(amountEth);
+        }
+        basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
+        return totalEth;
+    }
+
+    /**
+     * This logic will probably need to be moved to the client.
+     * Gets the total amount of ether required for purchasing each component in a SetToken,
+     * to enable the issuance of a given amount of SetTokens.
+     *
+     * @param _setToken             Address of the SetToken to be issued
+     * @param _components           An array containing the addresses of the SetToken components
+     * @param _amountSetToken       Amount of SetToken to be issued
+     *
+     * @return sumEth               The total amount of Ether reuired to issue the set
+     * @return amountEthIn          An array containing the amount of ether to purchase each component of the SetToken
+     * @return amountComponents     An array containing the amount of each SetToken component required for issuing the given
+     *                              amount of SetToken
+     * @return pairAddresses        An array containing the pair addresses of ETH/component exchange pool
+     */
+    function _getAmountETHForIssuance(ISetToken _setToken, address[] memory _components, uint256 _amountSetToken)
+        internal
+        view
+        returns (
+            uint256 sumEth,
+            uint256[] memory amountEthIn,
+            uint256[] memory amountComponents,
+            address[] memory pairAddresses
+        )
+    {
+        sumEth = 0;
+        amountEthIn = new uint256[](_components.length);
+        amountComponents = new uint256[](_components.length);
+        pairAddresses = new address[](_components.length);
+
+        for (uint256 i = 0; i < _components.length; i++) {
+
+            // Check that the component does not have external positions
+            require(
+                _setToken.getExternalPositionModules(_components[i]).length == 0,
+                "ExchangeIssuance: EXTERNAL_POSITIONS_NOT_ALLOWED"
+            );
+
+            // Get minimum amount of ETH to be spent to acquire the required amount of SetToken component
+            uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(_components[i]));
+            amountComponents[i] = uint256(unit).preciseMulCeil(_amountSetToken);
+            // Get eth amount and add to sumEth.
+            sumEth = sumEth.add(0);
+        }
+        return (sumEth, amountEthIn, amountComponents, pairAddresses);
+    }
+
+    /**
+     * Swap tokens for exact amount of output tokens on a given DEX.
+     *
+     * @param _tokenIn      The address of the input token
+     * @param _tokenOut     The address of the output token
+     * @param _amountOut    The amount of output token required
+     *
+     * @return              The amount of input tokens spent
+     */
+    function _swapTokensForExactTokens(address _tokenIn, address _tokenOut, uint256 _amountOut) internal returns (uint256) {
+        if (_tokenIn == _tokenOut) {
+            return _amountOut;
+        }
+        // TODO: Implement execute swap
+        return 0;
+    }
+
 }
