@@ -8,6 +8,7 @@ import {
   ether,
   getAccounts,
   getSetFixture,
+  getWaffleExpect,
   getZeroExFixture,
 } from "@utils/index";
 import { UnitsUtils } from "@utils/common/unitsUtils";
@@ -15,9 +16,12 @@ import { SetFixture, ZeroExFixture } from "@utils/fixtures";
 import { BigNumber } from "ethers";
 import { ZeroEx } from "utils/contracts/zeroEx";
 
+const expect = getWaffleExpect();
+
 describe("ExchangeIssuanceV2", async () => {
   let owner: Account;
   let setV2Setup: SetFixture;
+  let zeroExSetup: ZeroExFixture;
 
   let setToken: SetToken;
   let setTokenWithWeth: SetToken;
@@ -52,18 +56,28 @@ describe("ExchangeIssuanceV2", async () => {
     let zeroEx: ZeroEx;
 
     cacheBeforeEach(async () => {
-      let zeroExSetup: ZeroExFixture;
-
       zeroExSetup = getZeroExFixture(owner.address);
       await zeroExSetup.initialize(owner.address);
-
       zeroEx = zeroExSetup.zeroEx;
+      zeroEx.deployed();
     });
 
-    it("Zero Ex Fixture working", async () => {
-      await zeroEx.deployed();
-      const impl = await zeroEx.getFunctionImplementation("0x12345678");
-      console.log(impl);
+    it("Implementations for ownable and registry correct", async () => {
+      const ownable = zeroExSetup.ownableFeature;
+      const registry = zeroExSetup.registryFeature;
+      const ownableSelectors = [ownable.interface.getSighash("transferOwnership")];
+      const registrySelectors = [registry.interface.getSighash("rollback"), registry.interface.getSighash("extend")];
+      const selectors = [...ownableSelectors, ...registrySelectors];
+      const impls = await Promise.all(selectors.map(s => zeroEx.getFunctionImplementation(s)));
+      for (let i = 0; i < impls.length; ++i) {
+        const selector = selectors[i];
+        const impl = impls[i];
+        const expectedImpl = ownableSelectors.includes(selector)
+          ? ownable.address
+          : registry.address;
+        expect(impl).to.eq(expectedImpl);
+      }
     });
+
   });
 });
