@@ -1,7 +1,7 @@
 import "module-alias/register";
 
 import { Account } from "@utils/types";
-import { ADDRESS_ZERO } from "@utils/constants";
+import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { SetToken } from "@utils/contracts/setV2";
 import {
   cacheBeforeEach,
@@ -10,17 +10,31 @@ import {
   getSetFixture,
   getWaffleExpect,
   getZeroExFixture,
+  getUniswapV3Fixture,
 } from "@utils/index";
 import { UnitsUtils } from "@utils/common/unitsUtils";
-import { SetFixture, ZeroExFixture } from "@utils/fixtures";
-import { BigNumber } from "ethers";
-import { ZeroEx } from "utils/contracts/zeroEx";
+import { SetFixture, ZeroExFixture, UniswapV3Fixture } from "@utils/fixtures";
+import { BigNumber, Contract } from "ethers";
+import { hexUtils } from "@0x/utils";
 
 const expect = getWaffleExpect();
+const POOL_FEE = 3000;
+
+function encodePath(tokens_: Array<Contract>): string {
+  const elems: string[] = [];
+  tokens_.forEach((t, i) => {
+    if (i) {
+      elems.push(hexUtils.leftPad(POOL_FEE, 3));
+    }
+    elems.push(hexUtils.leftPad(t.address, 20));
+  });
+  return hexUtils.concat(...elems);
+}
 
 describe("ExchangeIssuanceV2", async () => {
   let owner: Account;
   let setV2Setup: SetFixture;
+  let uniswapV3Setup: UniswapV3Fixture;
   let zeroExSetup: ZeroExFixture;
 
   let setToken: SetToken;
@@ -50,25 +64,37 @@ describe("ExchangeIssuanceV2", async () => {
     );
 
     await setV2Setup.issuanceModule.initialize(setTokenWithWeth.address, ADDRESS_ZERO);
+
+    uniswapV3Setup = getUniswapV3Fixture(owner.address);
+
+    await setV2Setup.initialize();
+    await uniswapV3Setup.initialize(
+      owner,
+      setV2Setup.weth,
+      2000,
+      setV2Setup.wbtc,
+      35000,
+      setV2Setup.dai,
+    );
+
+    zeroExSetup = getZeroExFixture(owner.address);
+    await zeroExSetup.initialize(owner.address);
+    await zeroExSetup.zeroEx.deployed();
   });
 
   describe("#constructor", async () => {
-    let zeroEx: ZeroEx;
-
-    cacheBeforeEach(async () => {
-      zeroExSetup = getZeroExFixture(owner.address);
-      await zeroExSetup.initialize(owner.address);
-      zeroEx = zeroExSetup.zeroEx;
-      zeroEx.deployed();
-    });
-
     it("Implementations for ownable and registry correct", async () => {
       const ownable = zeroExSetup.ownableFeature;
       const registry = zeroExSetup.registryFeature;
       const ownableSelectors = [ownable.interface.getSighash("transferOwnership")];
-      const registrySelectors = [registry.interface.getSighash("rollback"), registry.interface.getSighash("extend")];
+      const registrySelectors = [
+        registry.interface.getSighash("rollback"),
+        registry.interface.getSighash("extend"),
+      ];
       const selectors = [...ownableSelectors, ...registrySelectors];
-      const impls = await Promise.all(selectors.map(s => zeroEx.getFunctionImplementation(s)));
+      const impls = await Promise.all(
+        selectors.map(s => zeroExSetup.zeroEx.getFunctionImplementation(s)),
+      );
       for (let i = 0; i < impls.length; ++i) {
         const selector = selectors[i];
         const impl = impls[i];
@@ -79,5 +105,42 @@ describe("ExchangeIssuanceV2", async () => {
       }
     });
 
+    it("Register UniswapV3 Feature", async () => {
+      const POOL_INIT_CODE_HASH =
+        "0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54";
+      await zeroExSetup.registerUniswapV3Feature(
+        setV2Setup.weth.address,
+        uniswapV3Setup.factory.address,
+        POOL_INIT_CODE_HASH,
+      );
+
+      console.log("Contract Addresses", {
+        WethDaiPool: uniswapV3Setup.wethDaiPool.address,
+        ZeroEx: zeroExSetup.zeroEx.address,
+      });
+      // Add Liquidity
+      console.log("Adding Liquidity");
+      await setV2Setup.weth.approve(uniswapV3Setup.nftPositionManager.address, MAX_UINT_256);
+      await setV2Setup.dai.approve(uniswapV3Setup.nftPositionManager.address, MAX_UINT_256);
+      await uniswapV3Setup.addLiquidityWide(
+        setV2Setup.weth,
+        setV2Setup.dai,
+        3000,
+        ether(10),
+        ether(30_000),
+        owner.address,
+      );
+
+      console.log("Approving weth");
+      await setV2Setup.weth.approve(zeroExSetup.zeroEx.address, MAX_UINT_256);
+
+      const encodedPath = encodePath([setV2Setup.weth, setV2Setup.dai]);
+      const recipient = "0x0000000000000000000000000000000000000000";
+      const sellAmount = ether(1);
+      const minBuyAmount = ether(1);
+      const zeroEx = zeroExSetup.uniswapV3Feature.attach(zeroExSetup.zeroEx.address);
+      console.log("Trading");
+      await zeroEx.sellTokenForTokenToUniswapV3(encodedPath, sellAmount, minBuyAmount, recipient);
+    });
   });
 });

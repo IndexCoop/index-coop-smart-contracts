@@ -7,6 +7,7 @@ import {
   ZeroEx,
   InitialMigration,
   OwnableFeature,
+  UniswapV3Feature,
   SimpleFunctionRegistryFeature,
 } from "../contracts/zeroEx";
 
@@ -18,6 +19,7 @@ export class ZeroExFixture {
   public migrator: InitialMigration;
   public registryFeature: SimpleFunctionRegistryFeature;
   public ownableFeature: OwnableFeature;
+  public uniswapV3Feature: UniswapV3Feature;
 
   /**
    * Instantiates a new ZeroExFixture
@@ -48,5 +50,20 @@ export class ZeroExFixture {
     await this.registryFeature.deployed();
     await this.ownableFeature.deployed();
     await this.migrator.initializeZeroEx(ownerAddress, this.zeroEx.address, features);
+  }
+
+  public async registerUniswapV3Feature(
+    weth: Address,
+    uniFactory: Address,
+    poolInitCodeHash: string,
+  ): Promise<void> {
+    this.uniswapV3Feature = await this._deployer.external.deployUniswapV3Feature(
+      weth,
+      uniFactory,
+      poolInitCodeHash,
+    );
+    const registry = this.registryFeature.attach(this.zeroEx.address);
+    const selector = this.uniswapV3Feature.interface.getSighash("sellTokenForTokenToUniswapV3");
+    await registry.extend(selector, this.uniswapV3Feature.address);
   }
 }
