@@ -1,5 +1,4 @@
 import "module-alias/register";
-
 import { Account } from "@utils/types";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { SetToken } from "@utils/contracts/setV2";
@@ -8,7 +7,6 @@ import {
   ether,
   getAccounts,
   getSetFixture,
-  getWaffleExpect,
   getZeroExFixture,
   getUniswapV3Fixture,
 } from "@utils/index";
@@ -17,9 +15,10 @@ import { SetFixture, ZeroExFixture, UniswapV3Fixture } from "@utils/fixtures";
 import { BigNumber, Contract } from "ethers";
 import { hexUtils } from "@0x/utils";
 
-const expect = getWaffleExpect();
 const POOL_FEE = 3000;
 
+// Used to encode Uniswap trading path to format expected by zeroEx
+// Taken from: https://github.com/0xProject/protocol/blob/development/contracts/zero-ex/test/features/uniswapv3_test.ts#L118
 function encodePath(tokens_: Array<Contract>): string {
   const elems: string[] = [];
   tokens_.forEach((t, i) => {
@@ -76,36 +75,16 @@ describe("ExchangeIssuanceV2", async () => {
       35000,
       setV2Setup.dai,
     );
-
     zeroExSetup = getZeroExFixture(owner.address);
+
     await zeroExSetup.initialize(owner.address);
     await zeroExSetup.zeroEx.deployed();
   });
 
   describe("#constructor", async () => {
-    it("Implementations for ownable and registry correct", async () => {
-      const ownable = zeroExSetup.ownableFeature;
-      const registry = zeroExSetup.registryFeature;
-      const ownableSelectors = [ownable.interface.getSighash("transferOwnership")];
-      const registrySelectors = [
-        registry.interface.getSighash("rollback"),
-        registry.interface.getSighash("extend"),
-      ];
-      const selectors = [...ownableSelectors, ...registrySelectors];
-      const impls = await Promise.all(
-        selectors.map(s => zeroExSetup.zeroEx.getFunctionImplementation(s)),
-      );
-      for (let i = 0; i < impls.length; ++i) {
-        const selector = selectors[i];
-        const impl = impls[i];
-        const expectedImpl = ownableSelectors.includes(selector)
-          ? ownable.address
-          : registry.address;
-        expect(impl).to.eq(expectedImpl);
-      }
-    });
-
-    it("Register UniswapV3 Feature", async () => {
+    it("Execute UniswapV3 trade via ZeroEx", async () => {
+      // Code Hash taken from: https://github.com/Uniswap/v3-sdk/blob/main/src/constants.ts
+      // TODO: Check if this is correct or needs to be gnerated dynamically somehow
       const POOL_INIT_CODE_HASH =
         "0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54";
       await zeroExSetup.registerUniswapV3Feature(
@@ -114,12 +93,7 @@ describe("ExchangeIssuanceV2", async () => {
         POOL_INIT_CODE_HASH,
       );
 
-      console.log("Contract Addresses", {
-        WethDaiPool: uniswapV3Setup.wethDaiPool.address,
-        ZeroEx: zeroExSetup.zeroEx.address,
-      });
       // Add Liquidity
-      console.log("Adding Liquidity");
       await setV2Setup.weth.approve(uniswapV3Setup.nftPositionManager.address, MAX_UINT_256);
       await setV2Setup.dai.approve(uniswapV3Setup.nftPositionManager.address, MAX_UINT_256);
       await uniswapV3Setup.addLiquidityWide(
@@ -131,15 +105,20 @@ describe("ExchangeIssuanceV2", async () => {
         owner.address,
       );
 
-      console.log("Approving weth");
-      await setV2Setup.weth.approve(zeroExSetup.zeroEx.address, MAX_UINT_256);
 
+      // Attach the uniswapV3Feature interface to to the proxy address
+      const zeroEx = zeroExSetup.uniswapV3Feature.attach(zeroExSetup.zeroEx.address);
+
+
+
+      await setV2Setup.weth.approve(zeroExSetup.zeroEx.address, MAX_UINT_256);
       const encodedPath = encodePath([setV2Setup.weth, setV2Setup.dai]);
       const recipient = "0x0000000000000000000000000000000000000000";
-      const sellAmount = ether(1);
-      const minBuyAmount = ether(1);
-      const zeroEx = zeroExSetup.uniswapV3Feature.attach(zeroExSetup.zeroEx.address);
-      console.log("Trading");
+      const sellAmount = ether(0.001);
+      const minBuyAmount = ether(1000);
+
+
+      // TODO: Reverting
       await zeroEx.sellTokenForTokenToUniswapV3(encodedPath, sellAmount, minBuyAmount, recipient);
     });
   });

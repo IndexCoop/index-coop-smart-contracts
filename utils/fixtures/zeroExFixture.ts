@@ -52,6 +52,10 @@ export class ZeroExFixture {
     await this.migrator.initializeZeroEx(ownerAddress, this.zeroEx.address, features);
   }
 
+  /**
+   * Deploys uniswapV3Feature and registers its sellTokenForTokenToUniswapV3 function with the proxy
+   *
+   */
   public async registerUniswapV3Feature(
     weth: Address,
     uniFactory: Address,
