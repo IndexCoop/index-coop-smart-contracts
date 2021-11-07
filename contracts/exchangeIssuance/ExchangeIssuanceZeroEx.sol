@@ -37,7 +37,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
 
     struct ZeroExSwap {
         address payable _swapTarget;
-        bytes _swapCalldata;
+        bytes calldata _swapCalldata;
     }
 
     /* ============ Constants ============= */
@@ -156,7 +156,8 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         ISetToken _setToken,
         IERC20 _inputToken,
         uint256 _amountSetToken,
-        uint256 _maxAmountInputToken
+        uint256 _maxAmountInputToken,
+        ZeroExSwap[] calldata swaps
     )
         isSetToken(_setToken)
         external
@@ -164,6 +165,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         returns (uint256)
     {
         require(_amountSetToken > 0 && _maxAmountInputToken > 0, "ExchangeIssuance: INVALID INPUTS");
+        // Transfer input token to this address
         // TODO: implement this
     }
 
@@ -183,7 +185,8 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         ISetToken _setToken,
         IERC20 _inputToken,
         uint256 _amountSetToken,
-        uint256 _maxAmountInputToken
+        uint256 _maxAmountInputToken,
+        ZeroExSwap[] calldata swaps
     )
         isSetToken(_setToken)
         external
@@ -209,7 +212,8 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         ISetToken _setToken,
         IERC20 _outputToken,
         uint256 _amountSetToken,
-        uint256 _minOutputReceive
+        uint256 _minOutputReceive,
+        ZeroExSwap[] calldata swaps
     )
         isSetToken(_setToken)
         external
@@ -235,7 +239,8 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         ISetToken _setToken,
         IERC20 _outputToken,
         uint256 _amountSetToken,
-        uint256 _minOutputReceive
+        uint256 _minOutputReceive,
+        ZeroExSwap[] calldata swaps
     )
         isSetToken(_setToken)
         external
