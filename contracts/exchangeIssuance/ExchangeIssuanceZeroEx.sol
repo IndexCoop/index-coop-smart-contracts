@@ -141,46 +141,6 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
     }
 
     /**
-     * Issues SetTokens for an exact amount of input ERC20 tokens.
-     * The ERC20 token must be approved by the sender to this contract.
-     *
-     * @param _setToken         Address of the SetToken being issued
-     * @param _inputToken       Address of input token
-     * @param _amountInput      Amount of the input token / ether to spend
-     * @param _minSetReceive    Minimum amount of SetTokens to receive. Prevents unnecessary slippage.
-     *
-     * @return setTokenAmount   Amount of SetTokens issued to the caller
-     */
-    function issueSetForExactToken(
-        ISetToken _setToken,
-        IERC20 _inputToken,
-        uint256 _amountInput,
-        uint256 _minSetReceive,
-        ZeroExSwap[] calldata _swaps
-    )
-        isSetToken(_setToken)
-        external
-        nonReentrant
-        returns (uint256)
-    {
-        require(_amountInput > 0, "ExchangeIssuance: INVALID INPUT");
-        require(_minSetReceive > 0, "ExchangeIssuance: INVALID MIN_RECEIVE");
-        require(_setToken.getComponents().length == _swaps.length, "ExchangeIssuance: INVALID_QUOTES");
-        // Steps:
-        // 1. Transfer the ETH from user to this contract
-        // 2. For each component, swapTarget swap making sure the total amount does not exceed _amountInput.
-        // Otherwise revert.
-        // 3. After executing all swaps, issue set token using basic issuance module.
-        // 4. If number of set token received was less than _minSetReceive revert, otherwise return the amount of set token minted.
-        // 5. Refund any extra eth.
-        address[] memory components = _setToken.getComponents();
-
-        for (uint256 i = 0; i < components.length; i++) {
-
-        }
-    }
-
-    /**
     * Issues an exact amount of SetTokens for given amount of input ERC20 tokens.
     * The excess amount of tokens is returned in an equivalent amount of ether.
     *
@@ -204,7 +164,33 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         returns (uint256)
     {
         require(_amountSetToken > 0 && _maxAmountInputToken > 0, "ExchangeIssuance: INVALID INPUTS");
+        // TODO: implement this
+    }
 
+    /**
+    * Issues an exact amount of SetTokens for given amount of ETH.
+    * The excess amount of tokens is returned in an equivalent amount of ether.
+    *
+    * @param _setToken              Address of the SetToken to be issued
+    * @param _inputToken            Address of the input token
+    * @param _amountSetToken        Amount of SetTokens to issue
+    * @param _maxAmountInputToken   Maximum amount of input tokens to be used to issue SetTokens. The unused
+    *                               input tokens are returned as ether.
+    *
+    * @return amountEthReturn       Amount of ether returned to the caller
+    */
+    function issueExactSetFromETH(
+        ISetToken _setToken,
+        IERC20 _inputToken,
+        uint256 _amountSetToken,
+        uint256 _maxAmountInputToken
+    )
+        isSetToken(_setToken)
+        external
+        nonReentrant
+        returns (uint256)
+    {
+        require(_amountSetToken > 0 && _maxAmountInputToken > 0, "ExchangeIssuance: INVALID INPUTS");
         // TODO: implement this
     }
 
@@ -234,6 +220,31 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         // TODO: implement this
     }
 
+    /**
+     * Redeems an exact amount of SetTokens for ETH.
+     * The SetToken must be approved by the sender to this contract.
+     *
+     * @param _setToken             Address of the SetToken being redeemed
+     * @param _outputToken          Address of output token
+     * @param _amountSetToken       Amount SetTokens to redeem
+     * @param _minOutputReceive     Minimum amount of output token to receive
+     *
+     * @return outputAmount         Amount of output tokens sent to the caller
+     */
+    function redeemExactSetForETH(
+        ISetToken _setToken,
+        IERC20 _outputToken,
+        uint256 _amountSetToken,
+        uint256 _minOutputReceive
+    )
+        isSetToken(_setToken)
+        external
+        nonReentrant
+        returns (uint256)
+    {
+        require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
+        // TODO: implement this
+    }
 
     /**
      * Returns an estimated amount of SetToken that can be issued given an amount of input ERC20 token.
