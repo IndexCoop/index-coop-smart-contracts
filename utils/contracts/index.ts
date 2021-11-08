@@ -31,4 +31,5 @@ export { TradeAdapterMock } from "../../typechain/TradeAdapterMock";
 export { Vesting } from "../../typechain/Vesting";
 export { WETH9 } from "../../typechain/WETH9";
 export { FLIStrategyExtensionMock } from "../../typechain/FLIStrategyExtensionMock";
+export { ZeroExExchangeProxyMock } from "../../typechain/ZeroExExchangeProxyMock";
 
