@@ -146,16 +146,18 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
     *
     * @param _setToken              Address of the SetToken to be issued
     * @param _inputToken            Address of the input token
+    * @param _inputSwap             The encoded 0x transaction from the input token to WETH
     * @param _amountSetToken        Amount of SetTokens to issue
     * @param _maxAmountInputToken   Maximum amount of input tokens to be used to issue SetTokens. The unused
     *                               input tokens are returned as ether.
-    * @param _swaps                 The encoded 0x transactions to execute.
+    * @param _swaps                 The encoded 0x transactions to execute (WETH -> components).
     *
     * @return amountEthReturn       Amount of ether returned to the caller
     */
     function issueExactSetFromToken(
         ISetToken _setToken,
         IERC20 _inputToken,
+        ZeroExSwap calldata _inputSwap,
         uint256 _amountSetToken,
         uint256 _maxAmountInputToken,
         ZeroExSwap[] calldata _swaps
@@ -176,16 +178,18 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
     *
     * @param _setToken              Address of the SetToken to be issued
     * @param _inputToken            Address of the input token
+    * @param _inputSwap             The encoded 0x transaction from ETH to WETH.
     * @param _amountSetToken        Amount of SetTokens to issue
     * @param _maxAmountInputToken   Maximum amount of input tokens to be used to issue SetTokens. The unused
     *                               input tokens are returned as ether.
-    * @param _swaps                 The encoded 0x transactions to execute.
+    * @param _swaps                 The encoded 0x transactions to execute (WETH -> components).
     *
     * @return amountEthReturn       Amount of ether returned to the caller
     */
     function issueExactSetFromETH(
         ISetToken _setToken,
         IERC20 _inputToken,
+        ZeroExSwap calldata _inputSwap,
         uint256 _amountSetToken,
         uint256 _maxAmountInputToken,
         ZeroExSwap[] calldata _swaps
@@ -205,18 +209,20 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
      *
      * @param _setToken             Address of the SetToken being redeemed
      * @param _outputToken          Address of output token
+     * @param _outputSwap           The encoded 0x transaction from WETH to output token.
      * @param _amountSetToken       Amount SetTokens to redeem
      * @param _minOutputReceive     Minimum amount of output token to receive
-     * @param _swaps                The encoded 0x transactions to execute.
+     * @param _swaps                The encoded 0x transactions execute (components -> WETH).
      *
      * @return outputAmount         Amount of output tokens sent to the caller
      */
     function redeemExactSetForToken(
         ISetToken _setToken,
         IERC20 _outputToken,
+        ZeroExSwap calldata _outputSwap,
         uint256 _amountSetToken,
         uint256 _minOutputReceive,
-        ZeroExSwap[] calldata swaps
+        ZeroExSwap[] calldata _swaps
     )
         isSetToken(_setToken)
         external
@@ -233,18 +239,20 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
      *
      * @param _setToken             Address of the SetToken being redeemed
      * @param _outputToken          Address of output token
+     * @param _outputSwap           The encoded 0x transaction from WETH to ETH.
      * @param _amountSetToken       Amount SetTokens to redeem
      * @param _minOutputReceive     Minimum amount of output token to receive
-     * @param _swaps                The encoded 0x transactions to execute.
+     * @param _swaps                The encoded 0x transactions to execute (components -> WETH).
      *
      * @return outputAmount         Amount of output tokens sent to the caller
      */
     function redeemExactSetForETH(
         ISetToken _setToken,
         IERC20 _outputToken,
+        ZeroExSwap calldata _outputSwap,
         uint256 _amountSetToken,
         uint256 _minOutputReceive,
-        ZeroExSwap[] calldata swaps
+        ZeroExSwap[] calldata _swaps
     )
         isSetToken(_setToken)
         external
