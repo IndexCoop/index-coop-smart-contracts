@@ -161,10 +161,10 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
     function issueExactSetFromToken(
         ISetToken _setToken,
         ISetToken _inputToken,
-        ZeroExSwapQuote calldata _inputQuote,
+        ZeroExSwapQuote memory _inputQuote,
         uint256 _amountSetToken,
         uint256 _maxAmountInputToken,
-        ZeroExSwapQuote[] calldata _componentQuotes
+        ZeroExSwapQuote[] memory _componentQuotes
     )
         isSetToken(_setToken)
         external
@@ -373,7 +373,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
      * @param _amountSetToken    Amount of SetTokens to be issued
      *
      */
-    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] calldata _quotes) internal returns (uint256) {
+    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _quotes) internal returns (uint256) {
         // For each component
         // 1. Get the component
         // 2. Execute the swap
@@ -416,7 +416,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         // Call the encoded swap function call on the contract at `swapTarget`,
         // passing along any ETH attached to this function call to cover protocol fees.
         (bool success,) = _quote.swapTarget.call{value: msg.value}(_quote.swapCallData);
-        require(success, 'SWAP_CALL_FAILED');
+        require(success, "SWAP_CALL_FAILED");
 
         // Refund any unspent protocol fees to the sender.
         payable(msg.sender).transfer(address(this).balance);
