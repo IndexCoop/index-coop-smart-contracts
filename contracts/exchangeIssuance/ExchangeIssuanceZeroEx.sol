@@ -149,6 +149,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
     * @param _amountSetToken        Amount of SetTokens to issue
     * @param _maxAmountInputToken   Maximum amount of input tokens to be used to issue SetTokens. The unused
     *                               input tokens are returned as ether.
+    * @param _swaps                 The encoded 0x transactions to execute.
     *
     * @return amountEthReturn       Amount of ether returned to the caller
     */
@@ -157,7 +158,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         IERC20 _inputToken,
         uint256 _amountSetToken,
         uint256 _maxAmountInputToken,
-        ZeroExSwap[] calldata swaps
+        ZeroExSwap[] calldata _swaps
     )
         isSetToken(_setToken)
         external
@@ -178,6 +179,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
     * @param _amountSetToken        Amount of SetTokens to issue
     * @param _maxAmountInputToken   Maximum amount of input tokens to be used to issue SetTokens. The unused
     *                               input tokens are returned as ether.
+    * @param _swaps                 The encoded 0x transactions to execute.
     *
     * @return amountEthReturn       Amount of ether returned to the caller
     */
@@ -186,7 +188,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         IERC20 _inputToken,
         uint256 _amountSetToken,
         uint256 _maxAmountInputToken,
-        ZeroExSwap[] calldata swaps
+        ZeroExSwap[] calldata _swaps
     )
         isSetToken(_setToken)
         external
@@ -205,6 +207,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
      * @param _outputToken          Address of output token
      * @param _amountSetToken       Amount SetTokens to redeem
      * @param _minOutputReceive     Minimum amount of output token to receive
+     * @param _swaps                The encoded 0x transactions to execute.
      *
      * @return outputAmount         Amount of output tokens sent to the caller
      */
@@ -232,6 +235,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
      * @param _outputToken          Address of output token
      * @param _amountSetToken       Amount SetTokens to redeem
      * @param _minOutputReceive     Minimum amount of output token to receive
+     * @param _swaps                The encoded 0x transactions to execute.
      *
      * @return outputAmount         Amount of output tokens sent to the caller
      */
