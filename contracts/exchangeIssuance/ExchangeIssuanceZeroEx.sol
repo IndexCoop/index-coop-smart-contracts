@@ -20,7 +20,6 @@ import { Math } from "@openzeppelin/contracts/math/Math.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { IZeroEx } from "@0x/contracts-zero-ex/contracts/src/IZeroEx.sol";
 
 import { IBasicIssuanceModule } from "../interfaces/IBasicIssuanceModule.sol";
 import { IController } from "../interfaces/IController.sol";
@@ -35,6 +34,14 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
     using PreciseUnitMath for uint256;
     using SafeERC20 for IERC20;
     using SafeERC20 for ISetToken;
+
+    struct ZeroExSwapQuote {
+        IERC20 sellToken;
+        IERC20 buyToken;
+        address spender;
+        address payable swapTarget;
+        bytes swapCallData;
+    }
 
     /* ============ Constants ============= */
 
@@ -70,6 +77,8 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         address indexed _recipient,     // The recipient address which redeemed the SetTokens
         uint256 _refundAmount           // The amount of ETH redunded to the recipient
     );
+
+    event BoughtTokens(IERC20 sellToken, IERC20 buyToken, uint256 boughtAmount);
 
 
     /* ============ Modifiers ============ */
@@ -137,48 +146,72 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
     }
 
     /**
-     * Issues SetTokens for an exact amount of input ERC20 tokens.
-     * The ERC20 token must be approved by the sender to this contract.
-     *
-     * @param _setToken         Address of the SetToken being issued
-     * @param _inputToken       Address of input token
-     * @param _amountInput      Amount of the input token / ether to spend
-     * @param _minSetReceive    Minimum amount of SetTokens to receive. Prevents unnecessary slippage.
-     *
-     * @return setTokenAmount   Amount of SetTokens issued to the caller
-     */
-    function issueSetForExactToken(
-        ISetToken _setToken,
-        IERC20 _inputToken,
-        uint256 _amountInput,
-        uint256 _minSetReceive
-    )
-        isSetToken(_setToken)
-        external
-        nonReentrant
-        returns (uint256)
-    {
-        require(_amountInput > 0, "ExchangeIssuance: INVALID INPUTS");
-        // TODO: implement this:
-    }
-
-    /**
     * Issues an exact amount of SetTokens for given amount of input ERC20 tokens.
     * The excess amount of tokens is returned in an equivalent amount of ether.
     *
     * @param _setToken              Address of the SetToken to be issued
-    * @param _inputToken            Address of the input token
+    * @param _inputToken              Address of the input token
+    * @param _inputQuote             The encoded 0x transaction from the input token to WETH
     * @param _amountSetToken        Amount of SetTokens to issue
-    * @param _maxAmountInputToken   Maximum amount of input tokens to be used to issue SetTokens. The unused
-    *                               input tokens are returned as ether.
+    * @param _maxAmountInputToken        Amount of SetTokens to issue
+    * @param _componentQuotes                 The encoded 0x transactions to execute (WETH -> components).
     *
     * @return amountEthReturn       Amount of ether returned to the caller
     */
     function issueExactSetFromToken(
         ISetToken _setToken,
-        IERC20 _inputToken,
+        ISetToken _inputToken,
+        ZeroExSwapQuote calldata _inputQuote,
         uint256 _amountSetToken,
-        uint256 _maxAmountInputToken
+        uint256 _maxAmountInputToken,
+        ZeroExSwapQuote[] calldata _componentQuotes
+    )
+        isSetToken(_setToken)
+        external
+        nonReentrant
+        payable // Must attach ETH equal to the sum of the `value` fields from all the API responses.
+        returns (uint256)
+    {
+        require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
+        require(_setToken.getComponents().length == _componentQuotes.length, "Wrong number of component quotes");
+
+        uint256 initETHAmount = address(_inputToken) == WETH
+            ? _maxAmountInputToken
+            : _fillQuote(_inputQuote);
+
+        uint256 amountEthSpent = _issueExactSetFromWETH(_setToken, _amountSetToken, _componentQuotes);
+
+        uint256 amountEthReturn = initETHAmount.sub(amountEthSpent);
+        if (amountEthReturn > 0) {
+            IERC20(WETH).safeTransfer(msg.sender,  amountEthReturn);
+        }
+
+        emit Refund(msg.sender, amountEthReturn);
+        emit ExchangeIssue(msg.sender, _setToken, _inputToken, _maxAmountInputToken, _amountSetToken);
+        return amountEthReturn;
+    }
+
+    /**
+    * Issues an exact amount of SetTokens for given amount of ETH.
+    * The excess amount of tokens is returned in an equivalent amount of ether.
+    *
+    * @param _setToken              Address of the SetToken to be issued
+    * @param _inputToken            Address of the input token
+    * @param _inputSwap             The encoded 0x transaction from ETH to WETH.
+    * @param _amountSetToken        Amount of SetTokens to issue
+    * @param _maxAmountInputToken   Maximum amount of input tokens to be used to issue SetTokens. The unused
+    *                               input tokens are returned as ether.
+    * @param _swaps                 The encoded 0x transactions to execute (WETH -> components).
+    *
+    * @return amountEthReturn       Amount of ether returned to the caller
+    */
+    function issueExactSetFromETH(
+        ISetToken _setToken,
+        IERC20 _inputToken,
+        ZeroExSwapQuote calldata _inputSwap,
+        uint256 _amountSetToken,
+        uint256 _maxAmountInputToken,
+        ZeroExSwapQuote[] calldata _swaps
     )
         isSetToken(_setToken)
         external
@@ -186,7 +219,6 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         returns (uint256)
     {
         require(_amountSetToken > 0 && _maxAmountInputToken > 0, "ExchangeIssuance: INVALID INPUTS");
-
         // TODO: implement this
     }
 
@@ -196,16 +228,20 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
      *
      * @param _setToken             Address of the SetToken being redeemed
      * @param _outputToken          Address of output token
+     * @param _outputSwap           The encoded 0x transaction from WETH to output token.
      * @param _amountSetToken       Amount SetTokens to redeem
      * @param _minOutputReceive     Minimum amount of output token to receive
+     * @param _swaps                The encoded 0x transactions execute (components -> WETH).
      *
      * @return outputAmount         Amount of output tokens sent to the caller
      */
     function redeemExactSetForToken(
         ISetToken _setToken,
         IERC20 _outputToken,
+        ZeroExSwapQuote calldata _outputSwap,
         uint256 _amountSetToken,
-        uint256 _minOutputReceive
+        uint256 _minOutputReceive,
+        ZeroExSwapQuote[] calldata _swaps
     )
         isSetToken(_setToken)
         external
@@ -216,6 +252,35 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         // TODO: implement this
     }
 
+    /**
+     * Redeems an exact amount of SetTokens for ETH.
+     * The SetToken must be approved by the sender to this contract.
+     *
+     * @param _setToken             Address of the SetToken being redeemed
+     * @param _outputToken          Address of output token
+     * @param _outputSwap           The encoded 0x transaction from WETH to ETH.
+     * @param _amountSetToken       Amount SetTokens to redeem
+     * @param _minOutputReceive     Minimum amount of output token to receive
+     * @param _swaps                The encoded 0x transactions to execute (components -> WETH).
+     *
+     * @return outputAmount         Amount of output tokens sent to the caller
+     */
+    function redeemExactSetForETH(
+        ISetToken _setToken,
+        IERC20 _outputToken,
+        ZeroExSwapQuote calldata _outputSwap,
+        uint256 _amountSetToken,
+        uint256 _minOutputReceive,
+        ZeroExSwapQuote[] calldata _swaps
+    )
+        isSetToken(_setToken)
+        external
+        nonReentrant
+        returns (uint256)
+    {
+        require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
+        // TODO: implement this
+    }
 
     /**
      * Returns an estimated amount of SetToken that can be issued given an amount of input ERC20 token.
@@ -298,4 +363,68 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
             _token.safeIncreaseAllowance(_spender, MAX_UINT96 - allowance);
         }
     }
+
+    /**
+     * Issues an exact amount of SetTokens using WETH.
+     * Acquires SetToken components at the best price accross uniswap and sushiswap.
+     * Uses the acquired components to issue the SetTokens.
+     *
+     * @param _setToken          Address of the SetToken being issued
+     * @param _amountSetToken    Amount of SetTokens to be issued
+     *
+     */
+    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] calldata _quotes) internal returns (uint256) {
+        // For each component
+        // 1. Get the component
+        // 2. Execute the swap
+        // 3. Return the total eth used.
+        uint256 totalEth = 0;
+
+        ISetToken.Position[] memory positions = _setToken.getPositions();
+
+        for (uint256 i = 0; i < positions.length; i++) {
+            ISetToken.Position memory position = positions[i];
+            ZeroExSwapQuote memory quote = _quotes[i];
+            require(position.component == address(quote.buyToken), "Component / Quote mismatch");
+            uint256 amountBought = _fillQuote(quote);
+        }
+
+        basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
+    }
+
+    /**
+     * Execute a 0x Swap quote
+     *
+     * @param _quote      Swap quote as returned by 0x API
+     *
+     * @return              The amount of tokens bought
+     */
+    // Swaps ERC20->ERC20 tokens held by this contract using a 0x-API quote.
+    function _fillQuote(
+        ZeroExSwapQuote memory _quote
+    )
+        internal
+        returns(uint256)
+    {
+        // Track our balance of the buyToken to determine how much we've bought.
+        uint256 boughtAmount = _quote.buyToken.balanceOf(address(this));
+        uint256 spentAmount = _quote.sellToken.balanceOf(address(this));
+
+        // Give `spender` an infinite allowance to spend this contract's `sellToken`.
+        require(_quote.sellToken.approve(_quote.spender, type(uint256).max));
+
+        // Call the encoded swap function call on the contract at `swapTarget`,
+        // passing along any ETH attached to this function call to cover protocol fees.
+        (bool success,) = _quote.swapTarget.call{value: msg.value}(_quote.swapCallData);
+        require(success, 'SWAP_CALL_FAILED');
+
+        // Refund any unspent protocol fees to the sender.
+        payable(msg.sender).transfer(address(this).balance);
+
+        // Use our current buyToken balance to determine how much we've bought.
+        boughtAmount = _quote.buyToken.balanceOf(address(this)) - boughtAmount;
+        emit BoughtTokens(_quote.sellToken, _quote.buyToken, boughtAmount);
+        return boughtAmount;
+    }
+
 }
