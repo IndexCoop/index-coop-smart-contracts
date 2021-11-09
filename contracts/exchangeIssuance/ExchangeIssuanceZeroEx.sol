@@ -432,9 +432,6 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         (bool success,) = _quote.swapTarget.call{value: msg.value}(_quote.swapCallData);
         require(success, "SWAP_CALL_FAILED");
 
-        // Refund any unspent protocol fees to the sender.
-        payable(msg.sender).transfer(address(this).balance);
-
         // Use our current buyToken balance to determine how much we've bought.
         boughtAmount = _quote.buyToken.balanceOf(address(this)).sub(buyTokenBalanceBefore);
         spentAmount = sellTokenBalanceBefore.sub(_quote.sellToken.balanceOf(address(this)));
