@@ -67,43 +67,51 @@ describe("ExchangeIssuanceZeroEx", async () => {
       );
     }
 
+    function getUniswapV2Quote(
+      sellToken: Address,
+      sellAmount: BigNumber,
+      buyToken: Address,
+      minBuyAmount: BigNumber,
+    ) {
+      const isSushi = false;
+      return {
+        sellToken,
+        buyToken,
+        spender: zeroExMock.address,
+        swapTarget: zeroExMock.address,
+        swapCallData: zeroExMock.interface.encodeFunctionData("sellToUniswap", [
+          [sellToken, buyToken],
+          sellAmount,
+          minBuyAmount,
+          isSushi,
+        ]),
+      };
+    }
+
     it("Issue Exact Set from Input Token", async () => {
       const inputToken = setV2Setup.dai;
 
-      // Generate call data for swap to weth
+      // Generate call data fkor swap to weth
       const inputTokenAmount = ether(1000);
       const wethAmount = ether(1);
       const amountSetToken = 1;
       const amountSetTokenWei = ether(amountSetToken);
-      const isSushi = false;
-      const inputSwapQuote: ZeroExSwapQuote = {
-        sellToken: setV2Setup.dai.address,
-        buyToken: setV2Setup.weth.address,
-        spender: zeroExMock.address,
-        swapTarget: zeroExMock.address,
-        swapCallData: zeroExMock.interface.encodeFunctionData("sellToUniswap", [
-          [setV2Setup.dai.address, setV2Setup.weth.address],
-          inputTokenAmount,
-          wethAmount,
-          isSushi,
-        ]),
-      };
+      const inputSwapQuote = getUniswapV2Quote(
+        setV2Setup.dai.address,
+        inputTokenAmount,
+        setV2Setup.weth.address,
+        wethAmount,
+      );
 
       const positions = await setToken.getPositions();
-      const positionSwapQuotes: ZeroExSwapQuote[] = positions.map(position => {
-        return {
-          sellToken: setV2Setup.weth.address,
-          buyToken: position.component,
-          spender: zeroExMock.address,
-          swapTarget: zeroExMock.address,
-          swapCallData: zeroExMock.interface.encodeFunctionData("sellToUniswap", [
-            [setV2Setup.weth.address, position.component],
-            wethAmount.div(2),
-            position.unit.mul(amountSetToken),
-            isSushi,
-          ]),
-        };
-      });
+      const positionSwapQuotes: ZeroExSwapQuote[] = positions.map(position =>
+        getUniswapV2Quote(
+          setV2Setup.weth.address,
+          wethAmount.div(2),
+          position.component,
+          position.unit.mul(amountSetToken),
+        ),
+      );
 
       const exchangeIssuanceZeroEx = await subject();
       await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
