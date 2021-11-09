@@ -41,6 +41,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         address spender;
         address payable swapTarget;
         bytes swapCallData;
+        uint256 value;
     }
 
     /* ============ Constants ============= */
@@ -424,7 +425,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
 
         require(_quote.sellToken.approve(_quote.spender, type(uint256).max));
 
-        (bool success,) = _quote.swapTarget.call{value: msg.value}(_quote.swapCallData);
+        (bool success,) = _quote.swapTarget.call{value: _quote.value}(_quote.swapCallData);
         require(success, "SWAP_CALL_FAILED");
 
         // TODO: check if we want to do this / and how to do so savely

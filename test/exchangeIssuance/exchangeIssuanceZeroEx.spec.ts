@@ -17,6 +17,7 @@ type ZeroExSwapQuote = {
   spender: Address;
   swapTarget: Address;
   swapCallData: string;
+  value: BigNumber;
 };
 
 describe("ExchangeIssuanceZeroEx", async () => {
@@ -72,7 +73,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
       sellAmount: BigNumber,
       buyToken: Address,
       minBuyAmount: BigNumber,
-    ) {
+    ): ZeroExSwapQuote {
       const isSushi = false;
       return {
         sellToken,
@@ -85,6 +86,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           minBuyAmount,
           isSushi,
         ]),
+        value: ether(0),
       };
     }
 
