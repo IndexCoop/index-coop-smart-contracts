@@ -105,12 +105,11 @@ describe("ExchangeIssuanceZeroEx", async () => {
         };
       });
 
-      console.log("Transfers / Approvals");
       const exchangeIssuanceZeroEx = await subject();
       await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
       // Approve exchange issuance contract to spend the input token
       setV2Setup.dai.approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
-      // Transfer tokens to be traded into (weth and components to the zerExMock)
+      // Fund the Exchange mock with tokens to be traded into (weth and components to the zerExMock)
       await setV2Setup.weth.transfer(zeroExMock.address, wethAmount);
       await setV2Setup.wbtc.transfer(zeroExMock.address, wbtcUnits.mul(amountSetToken));
       await setV2Setup.dai.transfer(zeroExMock.address, daiUnits.mul(amountSetToken));

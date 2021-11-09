@@ -177,11 +177,26 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         require(_setToken.getComponents().length == _componentQuotes.length, "Wrong number of component quotes");
 
         _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
-        uint256 initETHAmount = address(_inputToken) == WETH
-            ? _maxAmountInputToken
-            : _fillQuote(_inputQuote);
 
-        uint256 amountEthSpent = _issueExactSetFromWETH(_setToken, _amountSetToken, _componentQuotes);
+        uint256 initETHAmount;
+        if(address(_inputToken) == WETH){
+            initETHAmount = _maxAmountInputToken;
+        }
+        else {
+            uint256 inputTokenSpent;
+            (initETHAmount, inputTokenSpent) = _fillQuote(_inputQuote);
+            require(inputTokenSpent<= _maxAmountInputToken, "OVERSPENT INPUTTOKEN");
+            uint256 amountInputTokenReturn = _maxAmountInputToken.sub(inputTokenSpent);
+            if (amountInputTokenReturn > 0) {
+                _inputToken.transfer(msg.sender, amountInputTokenReturn);
+            }
+        }
+
+        uint256 amountEthSpent = _issueExactSetFromWETH(_setToken, _amountSetToken, initETHAmount, _componentQuotes);
+        uint256 amountEthReturn = initETHAmount.sub(amountEthSpent);
+        if (amountEthReturn > 0) {
+            IERC20(WETH).safeTransfer(msg.sender,  amountEthReturn);
+        }
 
         emit ExchangeIssue(msg.sender, _setToken, _inputToken, _maxAmountInputToken, _amountSetToken);
         return amountEthSpent;
@@ -369,12 +384,11 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
      * @param _amountSetToken    Amount of SetTokens to be issued
      *
      */
-    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _quotes) internal returns (uint256) {
+    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken, uint256 _maxAmountWeth, ZeroExSwapQuote[] memory _quotes) internal returns (uint256 totalEth) {
         // For each component
         // 1. Get the component
         // 2. Execute the swap
         // 3. Return the total eth used.
-        uint256 totalEth = 0;
 
         ISetToken.Position[] memory positions = _setToken.getPositions();
 
@@ -383,7 +397,9 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
             ZeroExSwapQuote memory quote = _quotes[i];
             require(position.component == address(quote.buyToken), "Component / Quote mismatch");
             quote.sellToken.approve(quote.swapTarget, MAX_UINT256);
-            uint256 amountBought = _fillQuote(quote);
+            (uint256 componentAmountBought, uint256 wethAmountSpent) = _fillQuote(quote);
+            totalEth = totalEth.add(wethAmountSpent);
+            require(totalEth <= _maxAmountWeth, "OVERSPENT WETH");
         }
 
         basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
@@ -394,18 +410,19 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
      *
      * @param _quote      Swap quote as returned by 0x API
      *
-     * @return              The amount of tokens bought
+     * @return boughtAmount  The amount of _quote.buyToken obtained
+     * @return spentAmount  The amount of _quote.sellToken spent
      */
     // Swaps ERC20->ERC20 tokens held by this contract using a 0x-API quote.
     function _fillQuote(
         ZeroExSwapQuote memory _quote
     )
         internal
-        returns(uint256)
+        returns(uint256 boughtAmount, uint256 spentAmount)
     {
         // Track our balance of the buyToken to determine how much we've bought.
-        uint256 boughtAmount = _quote.buyToken.balanceOf(address(this));
-        uint256 spentAmount = _quote.sellToken.balanceOf(address(this));
+        uint256 buyTokenBalanceBefore = _quote.buyToken.balanceOf(address(this));
+        uint256 sellTokenBalanceBefore = _quote.sellToken.balanceOf(address(this));
 
         // Give `spender` an infinite allowance to spend this contract's `sellToken`.
         require(_quote.sellToken.approve(_quote.spender, type(uint256).max));
@@ -419,9 +436,9 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         payable(msg.sender).transfer(address(this).balance);
 
         // Use our current buyToken balance to determine how much we've bought.
-        boughtAmount = _quote.buyToken.balanceOf(address(this)) - boughtAmount;
+        boughtAmount = _quote.buyToken.balanceOf(address(this)).sub(buyTokenBalanceBefore);
+        spentAmount = sellTokenBalanceBefore.sub(_quote.sellToken.balanceOf(address(this)));
         emit BoughtTokens(_quote.sellToken, _quote.buyToken, boughtAmount);
-        return boughtAmount;
     }
 
 }
