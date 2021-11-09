@@ -22,8 +22,9 @@ contract ZeroExExchangeProxyMock {
         require(tokens.length > 1, "UniswapFeature/InvalidTokensLength");
         IERC20 sellToken = tokens[0];
         IERC20 buyToken = tokens[tokens.length - 1];
+
         sellToken.transferFrom(msg.sender, address(this), sellAmount);
-        buyToken.transferFrom(address(this), msg.sender, minBuyAmount);
+        buyToken.transfer(msg.sender, minBuyAmount);
         buyAmount = minBuyAmount;
     }
     

@@ -46,6 +46,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
     /* ============ Constants ============= */
 
     uint256 constant private MAX_UINT96 = 2**96 - 1;
+    uint256 constant private MAX_UINT256 = 2**256 - 1;
     address constant public ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /* ============ State Variables ============ */
@@ -175,20 +176,15 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
         require(_setToken.getComponents().length == _componentQuotes.length, "Wrong number of component quotes");
 
+        _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
         uint256 initETHAmount = address(_inputToken) == WETH
             ? _maxAmountInputToken
             : _fillQuote(_inputQuote);
 
         uint256 amountEthSpent = _issueExactSetFromWETH(_setToken, _amountSetToken, _componentQuotes);
 
-        uint256 amountEthReturn = initETHAmount.sub(amountEthSpent);
-        if (amountEthReturn > 0) {
-            IERC20(WETH).safeTransfer(msg.sender,  amountEthReturn);
-        }
-
-        emit Refund(msg.sender, amountEthReturn);
         emit ExchangeIssue(msg.sender, _setToken, _inputToken, _maxAmountInputToken, _amountSetToken);
-        return amountEthReturn;
+        return amountEthSpent;
     }
 
     /**
@@ -386,6 +382,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
             ISetToken.Position memory position = positions[i];
             ZeroExSwapQuote memory quote = _quotes[i];
             require(position.component == address(quote.buyToken), "Component / Quote mismatch");
+            quote.sellToken.approve(quote.swapTarget, MAX_UINT256);
             uint256 amountBought = _fillQuote(quote);
         }
 
