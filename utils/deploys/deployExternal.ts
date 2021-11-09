@@ -53,14 +53,6 @@ import {
   ValidationLogic,
 } from "../contracts/aaveV2";
 
-import {
-  InitialMigration,
-  OwnableFeature,
-  SimpleFunctionRegistryFeature,
-  UniswapV3Feature,
-  ZeroEx,
-} from "../contracts/zeroEx";
-
 import { Address } from "./../types";
 
 import { AaveTokenV2Mintable__factory } from "../../typechain/factories/AaveTokenV2Mintable__factory";
@@ -104,11 +96,6 @@ import { NonfungiblePositionManager__factory } from "../../typechain/factories/N
 import { Quoter__factory } from "../../typechain/factories/Quoter__factory";
 import { NFTDescriptor__factory } from "../../typechain/factories/NFTDescriptor__factory";
 
-import { ZeroEx__factory } from "../../typechain/factories/ZeroEx__factory";
-import { InitialMigration__factory } from "../../typechain/factories/InitialMigration__factory";
-import { SimpleFunctionRegistryFeature__factory } from "../../typechain/factories/SimpleFunctionRegistryFeature__factory";
-import { OwnableFeature__factory } from "../../typechain/factories/OwnableFeature__factory";
-import { UniswapV3Feature__factory } from "../../typechain/factories/UniswapV3Feature__factory";
 
 import { ether } from "@utils/common";
 
@@ -456,34 +443,5 @@ export default class DeployExternalContracts {
 
   public async deployAaveTokenV2Mintable(): Promise<AaveTokenV2Mintable> {
     return await new AaveTokenV2Mintable__factory(this._deployerSigner).deploy();
-  }
-
-  // ZERO EX
-  public async deployZeroEx(bootstrapper: Address): Promise<ZeroEx> {
-    return await new ZeroEx__factory(this._deployerSigner).deploy(bootstrapper);
-  }
-
-  public async deployInitialMigration(initializeCaller_: Address): Promise<InitialMigration> {
-    return await new InitialMigration__factory(this._deployerSigner).deploy(initializeCaller_);
-  }
-
-  public async deploySimpleFunctionRegistryFeature(): Promise<SimpleFunctionRegistryFeature> {
-    return await new SimpleFunctionRegistryFeature__factory(this._deployerSigner).deploy();
-  }
-
-  public async deployOwnableFeature(): Promise<OwnableFeature> {
-    return await new OwnableFeature__factory(this._deployerSigner).deploy();
-  }
-
-  public async deployUniswapV3Feature(
-    weth: Address,
-    uniFactory: Address,
-    poolInitCodeHash: string,
-  ): Promise<UniswapV3Feature> {
-    return await new UniswapV3Feature__factory(this._deployerSigner).deploy(
-      weth,
-      uniFactory,
-      poolInitCodeHash,
-    );
   }
 }
