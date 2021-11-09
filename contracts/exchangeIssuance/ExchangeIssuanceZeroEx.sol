@@ -162,7 +162,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
     */
     function issueExactSetFromToken(
         ISetToken _setToken,
-        ISetToken _inputToken,
+        IERC20 _inputToken,
         ZeroExSwapQuote memory _inputQuote,
         uint256 _amountSetToken,
         uint256 _maxAmountInputToken,
