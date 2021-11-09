@@ -413,26 +413,24 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
      * @return boughtAmount  The amount of _quote.buyToken obtained
      * @return spentAmount  The amount of _quote.sellToken spent
      */
-    // Swaps ERC20->ERC20 tokens held by this contract using a 0x-API quote.
     function _fillQuote(
         ZeroExSwapQuote memory _quote
     )
         internal
         returns(uint256 boughtAmount, uint256 spentAmount)
     {
-        // Track our balance of the buyToken to determine how much we've bought.
         uint256 buyTokenBalanceBefore = _quote.buyToken.balanceOf(address(this));
         uint256 sellTokenBalanceBefore = _quote.sellToken.balanceOf(address(this));
 
-        // Give `spender` an infinite allowance to spend this contract's `sellToken`.
         require(_quote.sellToken.approve(_quote.spender, type(uint256).max));
 
-        // Call the encoded swap function call on the contract at `swapTarget`,
-        // passing along any ETH attached to this function call to cover protocol fees.
         (bool success,) = _quote.swapTarget.call{value: msg.value}(_quote.swapCallData);
         require(success, "SWAP_CALL_FAILED");
 
-        // Use our current buyToken balance to determine how much we've bought.
+        // TODO: check if we want to do this / and how to do so savely
+        // Refund any unspent protocol fees to the sender.
+        // payable(msg.sender).transfer(address(this).balance);
+
         boughtAmount = _quote.buyToken.balanceOf(address(this)).sub(buyTokenBalanceBefore);
         spentAmount = sellTokenBalanceBefore.sub(_quote.sellToken.balanceOf(address(this)));
         emit BoughtTokens(_quote.sellToken, _quote.buyToken, boughtAmount);
