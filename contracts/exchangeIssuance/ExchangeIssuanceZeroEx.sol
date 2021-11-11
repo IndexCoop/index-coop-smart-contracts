@@ -233,7 +233,32 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         returns (uint256)
     {
         require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-        // TODO: implement this
+        require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: INVALID INPUTS");
+        // Check output token address
+        uint256 outputAmount;
+        if (address(_outputToken) == WETH) {
+            require(totalEth > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
+            // Redeem exact set token
+            _redeemExactSet(_setToken, _amountSetToken);
+            // Liquidate components for WETH
+            outputAmount = _liquidateComponentsForWETH(components, amountComponents, exchanges);
+        } else {
+            (uint256 totalOutput, Exchange outTokenExchange, ) = _getMaxTokenForExactToken(totalEth, address(WETH), address(_outputToken));
+            require(totalOutput > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
+            // Redeem exact set token
+            _redeemExactSet(_setToken, _amountSetToken);
+            // Liquidate components for WETH
+            uint256 outputEth = _liquidateComponentsForWETH(components, amountComponents, exchanges);
+            // Swap WETH for output token
+            outputAmount = _swapExactTokensForTokens(outTokenExchange, WETH, address(_outputToken), outputEth);
+        }
+
+        // Transfer sender output token
+        _outputToken.safeTransfer(msg.sender, outputAmount);
+        // Emit event
+        emit ExchangeRedeem(msg.sender, _setToken, _outputToken, _amountSetToken, outputAmount);
+        // Return output amount
+        return outputAmount;
     }
 
     /**
@@ -449,4 +474,14 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         return 0;
     }
 
+    /**
+     * Redeems a given amount of SetToken.
+     *
+     * @param _setToken     Address of the SetToken to be redeemed
+     * @param _amount       Amount of SetToken to be redeemed
+     */
+    function _redeemExactSet(ISetToken _setToken, uint256 _amount) internal returns (uint256) {
+        _setToken.safeTransferFrom(msg.sender, address(this), _amount);
+        basicIssuanceModule.redeem(_setToken, _amount, address(this));
+    }
 }
