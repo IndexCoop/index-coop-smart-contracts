@@ -1,5 +1,13 @@
 import { Signer, BigNumber } from "ethers";
-import { Address, ContractSettings, MethodologySettings, ExecutionSettings, IncentiveSettings, ExchangeSettings, AaveContractSettings } from "../types";
+import {
+  Address,
+  ContractSettings,
+  MethodologySettings,
+  ExecutionSettings,
+  IncentiveSettings,
+  ExchangeSettings,
+  AaveContractSettings,
+} from "../types";
 import {
   AaveLeverageStrategyExtension,
   AirdropExtension,

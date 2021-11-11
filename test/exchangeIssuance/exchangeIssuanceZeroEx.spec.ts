@@ -66,6 +66,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
         wethAddress,
         controllerAddress,
         basicIssuanceModuleAddress,
+        [zeroExMock.address],
       );
     }
 

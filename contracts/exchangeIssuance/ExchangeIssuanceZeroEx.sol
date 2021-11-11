@@ -19,6 +19,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Math } from "@openzeppelin/contracts/math/Math.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import { IBasicIssuanceModule } from "../interfaces/IBasicIssuanceModule.sol";
@@ -27,7 +28,7 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
-contract ExchangeIssuanceZeroEx is ReentrancyGuard {
+contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
     using Address for address payable;
     using SafeMath for uint256;
@@ -45,18 +46,14 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         uint256 sellAmount;
     }
 
-    /* ============ Constants ============= */
-
-    uint256 constant private MAX_UINT96 = 2**96 - 1;
-    uint256 constant private MAX_UINT256 = 2**256 - 1;
-    address constant public ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-
     /* ============ State Variables ============ */
 
     address public WETH;
 
     IController public immutable setController;
     IBasicIssuanceModule public immutable basicIssuanceModule;
+
+    mapping(address => bool) allowedSwapTargets;
 
     /* ============ Events ============ */
 
@@ -94,7 +91,8 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
     constructor(
         address _weth,
         IController _setController,
-        IBasicIssuanceModule _basicIssuanceModule
+        IBasicIssuanceModule _basicIssuanceModule,
+        address[] memory _allowedSwapTargets
     )
         public
     {
@@ -103,9 +101,31 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
 
         WETH = _weth;
         // Safe approve 0x contract address
+        for (uint256 i = 0; i < _allowedSwapTargets.length; i++) {
+            allowedSwapTargets[_allowedSwapTargets[i]] = true;
+        }
     }
 
     /* ============ Public Functions ============ */
+
+    /**
+     * Adds given address to whitelist of allowed swap target contracts
+     *
+     * @param _swapTarget    Address of the swap target contract. (Usually ZeroEx ExchangeProxy)
+     */
+    function addAllowedSwapTarget(address _swapTarget) public onlyOwner {
+        allowedSwapTargets[_swapTarget] = true;
+    }
+
+    /**
+     * Removes given address from whitelist of allowed swap target contracts
+     *
+     * @param _swapTarget    Address of the swap target contract. (Usually ZeroEx ExchangeProxy)
+     */
+    function removeAllowedSwapTarget(address _swapTarget) public onlyOwner {
+        allowedSwapTargets[_swapTarget] = false;
+    }
+
 
     /**
      * Runs all the necessary approval functions required for a given ERC20 token.
@@ -115,7 +135,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
      * @param _token    Address of the token which needs approval
      */
     function approveToken(IERC20 _token) public {
-        _safeApprove(_token, address(basicIssuanceModule), MAX_UINT96);
+        _safeApprove(_token, address(basicIssuanceModule), type(uint96).max);
     }
 
     /**
@@ -180,29 +200,36 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
 
         _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
 
-        uint256 initETHAmount;
+        uint256 maxAmountWETH;
+        uint256 maxAmountETH = msg.value;
         if(address(_inputToken) == WETH){
-            initETHAmount = _maxAmountInputToken;
+            maxAmountWETH = _maxAmountInputToken;
         }
         else {
             uint256 inputTokenSpent;
             _safeApprove(_inputToken, _inputQuote.swapTarget, _maxAmountInputToken);
-            (initETHAmount, inputTokenSpent) = _fillQuote(_inputQuote);
-            require(inputTokenSpent<= _maxAmountInputToken, "OVERSPENT INPUTTOKEN");
+
+            if(_inputQuote.value > 0){
+                maxAmountETH = maxAmountETH.sub(_inputQuote.value);
+                require(maxAmountETH >= 0, "OVERSPENT NATIVE ETH");
+            }
+
+            (maxAmountWETH, inputTokenSpent) = _fillQuote(_inputQuote);
+            require(inputTokenSpent <= _maxAmountInputToken, "OVERSPENT INPUTTOKEN");
             uint256 amountInputTokenReturn = _maxAmountInputToken.sub(inputTokenSpent);
             if (amountInputTokenReturn > 0) {
                 _inputToken.transfer(msg.sender, amountInputTokenReturn);
             }
         }
 
-        uint256 amountEthSpent = _issueExactSetFromWETH(_setToken, _amountSetToken, initETHAmount, _componentQuotes);
-        uint256 amountEthReturn = initETHAmount.sub(amountEthSpent);
+        uint256 amountWethSpent = _issueExactSetFromWETH(_setToken, _amountSetToken, maxAmountWETH, maxAmountETH, _componentQuotes);
+        uint256 amountEthReturn = maxAmountWETH.sub(amountWethSpent);
         if (amountEthReturn > 0) {
             IERC20(WETH).safeTransfer(msg.sender,  amountEthReturn);
         }
 
         emit ExchangeIssue(msg.sender, _setToken, _inputToken, _maxAmountInputToken, _amountSetToken);
-        return amountEthSpent;
+        return amountWethSpent;
     }
 
     /**
@@ -374,7 +401,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
     function _safeApprove(IERC20 _token, address _spender, uint256 _requiredAllowance) internal {
         uint256 allowance = _token.allowance(address(this), _spender);
         if (allowance < _requiredAllowance) {
-            _token.safeIncreaseAllowance(_spender, MAX_UINT96 - allowance);
+            _token.safeIncreaseAllowance(_spender, type(uint96).max - allowance);
         }
     }
 
@@ -387,10 +414,11 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
      * @param _amountSetToken    Amount of SetTokens to be issued
      *
      */
-    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken, uint256 _maxAmountWeth, ZeroExSwapQuote[] memory _quotes) internal returns (uint256 totalEthSpent) {
+    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken, uint256 _maxAmountWeth, uint256 _maxAmountEthValue, ZeroExSwapQuote[] memory _quotes) internal returns (uint256 totalWethSpent) {
         ISetToken.Position[] memory positions = _setToken.getPositions();
 
-        uint256 totalEthApproved = 0;
+        uint256 totalWethApproved = 0;
+        uint256 totalEthValue = 0;
 
         for (uint256 i = 0; i < positions.length; i++) {
             ISetToken.Position memory position = positions[i];
@@ -398,14 +426,19 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
             require(position.component == address(quote.buyToken), "Component / Quote mismatch");
             require(address(quote.sellToken) ==  WETH, "Invalid Sell Token");
 
-            totalEthApproved = totalEthApproved.add(quote.sellAmount);
-            require(totalEthApproved <= _maxAmountWeth, "OVERAPPROVED WETH");
+            totalWethApproved = totalWethApproved.add(quote.sellAmount);
+            require(totalWethApproved <= _maxAmountWeth, "OVERAPPROVED WETH");
             _safeApprove(IERC20(WETH), quote.swapTarget, quote.sellAmount);
 
+            if(quote.value > 0){
+                totalEthValue = totalEthValue.add(quote.value);
+                require(totalEthValue <= _maxAmountEthValue, "OVERSPENT NATIVE ETH");
+            }
+
             (uint256 componentAmountBought, uint256 wethAmountSpent) = _fillQuote(quote);
-            totalEthSpent = totalEthSpent.add(wethAmountSpent);
+            totalWethSpent = totalWethSpent.add(wethAmountSpent);
             // TODO: Check if we bought enough component to avoid attackers using left over tokens in contract to make up for insufficient purchase
-            require(totalEthSpent <= _maxAmountWeth, "OVERSPENT WETH");
+            require(totalWethSpent <= _maxAmountWeth, "OVERSPENT WETH");
         }
 
         basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
@@ -425,6 +458,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         internal
         returns(uint256 boughtAmount, uint256 spentAmount)
     {
+        require(allowedSwapTargets[_quote.swapTarget], "UNAUTHORISED SWAP TARGET");
         uint256 buyTokenBalanceBefore = _quote.buyToken.balanceOf(address(this));
         uint256 sellTokenBalanceBefore = _quote.sellToken.balanceOf(address(this));
 
