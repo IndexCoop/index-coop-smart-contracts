@@ -42,6 +42,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         address payable swapTarget;
         bytes swapCallData;
         uint256 value;
+        uint256 sellAmount;
     }
 
     /* ============ Constants ============= */
@@ -185,6 +186,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         }
         else {
             uint256 inputTokenSpent;
+            _safeApprove(_inputToken, _inputQuote.swapTarget, _maxAmountInputToken);
             (initETHAmount, inputTokenSpent) = _fillQuote(_inputQuote);
             require(inputTokenSpent<= _maxAmountInputToken, "OVERSPENT INPUTTOKEN");
             uint256 amountInputTokenReturn = _maxAmountInputToken.sub(inputTokenSpent);
@@ -385,22 +387,25 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
      * @param _amountSetToken    Amount of SetTokens to be issued
      *
      */
-    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken, uint256 _maxAmountWeth, ZeroExSwapQuote[] memory _quotes) internal returns (uint256 totalEth) {
-        // For each component
-        // 1. Get the component
-        // 2. Execute the swap
-        // 3. Return the total eth used.
-
+    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken, uint256 _maxAmountWeth, ZeroExSwapQuote[] memory _quotes) internal returns (uint256 totalEthSpent) {
         ISetToken.Position[] memory positions = _setToken.getPositions();
+
+        uint256 totalEthApproved = 0;
 
         for (uint256 i = 0; i < positions.length; i++) {
             ISetToken.Position memory position = positions[i];
             ZeroExSwapQuote memory quote = _quotes[i];
             require(position.component == address(quote.buyToken), "Component / Quote mismatch");
-            quote.sellToken.approve(quote.swapTarget, MAX_UINT256);
+            require(address(quote.sellToken) ==  WETH, "Invalid Sell Token");
+
+            totalEthApproved = totalEthApproved.add(quote.sellAmount);
+            require(totalEthApproved <= _maxAmountWeth, "OVERAPPROVED WETH");
+            _safeApprove(IERC20(WETH), quote.swapTarget, quote.sellAmount);
+
             (uint256 componentAmountBought, uint256 wethAmountSpent) = _fillQuote(quote);
-            totalEth = totalEth.add(wethAmountSpent);
-            require(totalEth <= _maxAmountWeth, "OVERSPENT WETH");
+            totalEthSpent = totalEthSpent.add(wethAmountSpent);
+            // TODO: Check if we bought enough component to avoid attackers using left over tokens in contract to make up for insufficient purchase
+            require(totalEthSpent <= _maxAmountWeth, "OVERSPENT WETH");
         }
 
         basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
@@ -422,8 +427,6 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
     {
         uint256 buyTokenBalanceBefore = _quote.buyToken.balanceOf(address(this));
         uint256 sellTokenBalanceBefore = _quote.sellToken.balanceOf(address(this));
-
-        require(_quote.sellToken.approve(_quote.spender, type(uint256).max));
 
         (bool success,) = _quote.swapTarget.call{value: _quote.value}(_quote.swapCallData);
         require(success, "SWAP_CALL_FAILED");
