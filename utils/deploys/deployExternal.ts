@@ -11,7 +11,7 @@ import {
   CEther,
   PriceOracleProxy,
   Unitroller,
-  WhitePaperInterestRateModel,
+  WhitePaperInterestRateModel
 } from "./../contracts/compound";
 
 import {
@@ -19,7 +19,7 @@ import {
   UniswapTimelock,
   UniswapV2Factory,
   UniswapV2Pair,
-  UniswapV2Router02,
+  UniswapV2Router02
 } from "../contracts/uniswap";
 
 import {
@@ -27,7 +27,7 @@ import {
   UniswapV3Factory,
   NonfungiblePositionManager,
   Quoter,
-  NFTDescriptor,
+  NFTDescriptor
 } from "../contracts/uniswapV3";
 
 import {
@@ -50,7 +50,7 @@ import {
   GovernanceStrategy,
   GenericLogic,
   ReserveLogic,
-  ValidationLogic,
+  ValidationLogic
 } from "../contracts/aaveV2";
 
 import { Address } from "./../types";
@@ -95,9 +95,8 @@ import { SwapRouter__factory } from "../../typechain/factories/SwapRouter__facto
 import { NonfungiblePositionManager__factory } from "../../typechain/factories/NonfungiblePositionManager__factory";
 import { Quoter__factory } from "../../typechain/factories/Quoter__factory";
 import { NFTDescriptor__factory } from "../../typechain/factories/NFTDescriptor__factory";
-
-
 import { ether } from "@utils/common";
+
 
 export default class DeployExternalContracts {
   private _deployerSigner: Signer;
@@ -111,23 +110,12 @@ export default class DeployExternalContracts {
     return await new Comp__factory(this._deployerSigner).deploy(_account);
   }
 
-  public async deployCompoundTimelock(
-    _admin: Address,
-    _delay: BigNumber,
-  ): Promise<CompoundTimelock> {
+  public async deployCompoundTimelock(_admin: Address, _delay: BigNumber): Promise<CompoundTimelock> {
     return await new CompoundTimelock__factory(this._deployerSigner).deploy(_admin, _delay);
   }
 
-  public async deployCompoundGovernorAlpha(
-    _timelock: Address,
-    _comp: Address,
-    _guardian: Address,
-  ): Promise<CompoundGovernorAlpha> {
-    return await new CompoundGovernorAlpha__factory(this._deployerSigner).deploy(
-      _timelock,
-      _comp,
-      _guardian,
-    );
+  public async deployCompoundGovernorAlpha(_timelock: Address, _comp: Address, _guardian: Address): Promise<CompoundGovernorAlpha> {
+    return await new CompoundGovernorAlpha__factory(this._deployerSigner).deploy(_timelock, _comp, _guardian);
   }
 
   public async deployCERc20(
@@ -137,7 +125,7 @@ export default class DeployExternalContracts {
     initialExchangeRateMantissa: BigNumberish,
     name: string,
     symbol: string,
-    decimals: BigNumberish,
+    decimals: BigNumberish
   ): Promise<CERc20> {
     return await new CERc20__factory(this._deployerSigner).deploy(
       underlying,
@@ -156,7 +144,7 @@ export default class DeployExternalContracts {
     initialExchangeRateMantissa: BigNumberish,
     name: string,
     symbol: string,
-    decimals: BigNumberish,
+    decimals: BigNumberish
   ): Promise<CEther> {
     return await new CEther__factory(this._deployerSigner).deploy(
       comptroller,
@@ -202,25 +190,14 @@ export default class DeployExternalContracts {
 
   public async deployWhitePaperInterestRateModel(
     baseRate: BigNumberish,
-    multiplier: BigNumberish,
+    multiplier: BigNumberish
   ): Promise<WhitePaperInterestRateModel> {
-    return await new WhitePaperInterestRateModel__factory(this._deployerSigner).deploy(
-      baseRate,
-      multiplier,
-    );
+    return await new WhitePaperInterestRateModel__factory(this._deployerSigner).deploy(baseRate, multiplier);
   }
 
   // Uniswap V2
-  public async deployUni(
-    _account: Address,
-    _minter: Address,
-    _mintingAllowedAfter: BigNumber,
-  ): Promise<Uni> {
-    return await new Uni__factory(this._deployerSigner).deploy(
-      _account,
-      _minter,
-      _mintingAllowedAfter,
-    );
+  public async deployUni(_account: Address, _minter: Address, _mintingAllowedAfter: BigNumber): Promise<Uni> {
+    return await new Uni__factory(this._deployerSigner).deploy(_account, _minter, _mintingAllowedAfter);
   }
 
   public async deployUniswapTimelock(_admin: Address, _delay: BigNumber): Promise<UniswapTimelock> {
@@ -231,10 +208,7 @@ export default class DeployExternalContracts {
     return await new UniswapV2Factory__factory(this._deployerSigner).deploy(_feeToSetter);
   }
 
-  public async deployUniswapV2Router02(
-    _factory: Address,
-    _weth: Address,
-  ): Promise<UniswapV2Router02> {
+  public async deployUniswapV2Router02(_factory: Address, _weth: Address): Promise<UniswapV2Router02> {
     return await new UniswapV2Router02__factory(this._deployerSigner).deploy(_factory, _weth);
   }
 
@@ -242,54 +216,39 @@ export default class DeployExternalContracts {
     return await new UniswapV2Pair__factory(this._deployerSigner).deploy();
   }
 
-  // Uniswap V3
-  public async deployUniswapV3Factory(): Promise<UniswapV3Factory> {
-    return await new UniswapV3Factory__factory(this._deployerSigner).deploy();
+    // Uniswap V3
+    public async deployUniswapV3Factory(): Promise<UniswapV3Factory> {
+      return await new UniswapV3Factory__factory(this._deployerSigner).deploy();
+    }
+
+    public async deploySwapRouter(factory: Address, weth: Address): Promise<SwapRouter> {
+      return await new SwapRouter__factory(this._deployerSigner).deploy(factory, weth);
+    }
+
+    public async deployNftPositionManager(factory: Address, weth: Address, nftDesc: Address): Promise<NonfungiblePositionManager> {
+      return await new NonfungiblePositionManager__factory(this._deployerSigner).deploy(factory, weth, nftDesc);
+    }
+
+    public async deployQuoter(factory: Address, weth: Address): Promise<Quoter> {
+      return await new Quoter__factory(this._deployerSigner).deploy(factory, weth);
+    }
+
+    public async deployNFTDescriptor(): Promise<NFTDescriptor> {
+      return await new NFTDescriptor__factory(this._deployerSigner).deploy();
+    }
+
+      // AAVE V2
+  public async deployAaveV2LendingPoolAddressesProvider(marketId: string): Promise<AaveV2LendingPoolAddressesProvider> {
+    return await new AaveV2LendingPoolAddressesProvider__factory(this._deployerSigner).deploy(marketId);
   }
 
-  public async deploySwapRouter(factory: Address, weth: Address): Promise<SwapRouter> {
-    return await new SwapRouter__factory(this._deployerSigner).deploy(factory, weth);
-  }
-
-  public async deployNftPositionManager(
-    factory: Address,
-    weth: Address,
-    nftDesc: Address,
-  ): Promise<NonfungiblePositionManager> {
-    return await new NonfungiblePositionManager__factory(this._deployerSigner).deploy(
-      factory,
-      weth,
-      nftDesc,
-    );
-  }
-
-  public async deployQuoter(factory: Address, weth: Address): Promise<Quoter> {
-    return await new Quoter__factory(this._deployerSigner).deploy(factory, weth);
-  }
-
-  public async deployNFTDescriptor(): Promise<NFTDescriptor> {
-    return await new NFTDescriptor__factory(this._deployerSigner).deploy();
-  }
-
-  // AAVE V2
-  public async deployAaveV2LendingPoolAddressesProvider(
-    marketId: string,
-  ): Promise<AaveV2LendingPoolAddressesProvider> {
-    return await new AaveV2LendingPoolAddressesProvider__factory(this._deployerSigner).deploy(
-      marketId,
-    );
-  }
-
-  public async deployAaveV2LendingPool(
-    validationLogicAddress: Address,
-    reserveLogicAddress: Address,
-  ): Promise<AaveV2LendingPool> {
+  public async deployAaveV2LendingPool(validationLogicAddress: Address, reserveLogicAddress: Address): Promise<AaveV2LendingPool> {
     return await new AaveV2LendingPool__factory(
       {
         ["__$de8c0cf1a7d7c36c802af9a64fb9d86036$__"]: validationLogicAddress,
         ["__$22cd43a9dda9ce44e9b92ba393b88fb9ac$__"]: reserveLogicAddress,
       },
-      this._deployerSigner,
+      this._deployerSigner
     ).deploy();
   }
 
@@ -297,9 +256,7 @@ export default class DeployExternalContracts {
     return await new AaveV2LendingPoolConfigurator__factory(this._deployerSigner).deploy();
   }
 
-  public async deployAaveV2LendingPoolCollateralManager(): Promise<
-    AaveV2LendingPoolCollateralManager
-  > {
+  public async deployAaveV2LendingPoolCollateralManager(): Promise<AaveV2LendingPoolCollateralManager> {
     return await new AaveV2LendingPoolCollateralManager__factory(this._deployerSigner).deploy();
   }
 
@@ -311,14 +268,8 @@ export default class DeployExternalContracts {
     assets: string[],
     sources: [],
     fallBackOracle: Address,
-    weth: Address,
-  ): Promise<AaveV2Oracle> {
-    return await new AaveV2Oracle__factory(this._deployerSigner).deploy(
-      assets,
-      sources,
-      fallBackOracle,
-      weth,
-    );
+    weth: Address): Promise<AaveV2Oracle> {
+    return await new AaveV2Oracle__factory(this._deployerSigner).deploy(assets, sources, fallBackOracle, weth);
   }
 
   public async deployAaveV2PriceOracle(): Promise<AaveV2PriceOracle> {
@@ -345,12 +296,8 @@ export default class DeployExternalContracts {
     );
   }
 
-  public async deployAaveV2ProtocolDataProvider(
-    addressProvider: Address,
-  ): Promise<AaveV2ProtocolDataProvider> {
-    return await new AaveV2ProtocolDataProvider__factory(this._deployerSigner).deploy(
-      addressProvider,
-    );
+  public async deployAaveV2ProtocolDataProvider(addressProvider: Address): Promise<AaveV2ProtocolDataProvider> {
+    return await new AaveV2ProtocolDataProvider__factory(this._deployerSigner).deploy(addressProvider);
   }
 
   public async deployAaveV2AToken(): Promise<AaveV2AToken> {
@@ -367,11 +314,11 @@ export default class DeployExternalContracts {
 
   public async deployAaveV2StakedTokenIncentivesController(
     stakeToken: Address,
-    emissionManager: Address,
+    emissionManager: Address
   ): Promise<AaveV2StakedTokenIncentivesController> {
     return await new AaveV2StakedTokenIncentivesController__factory(this._deployerSigner).deploy(
       stakeToken,
-      emissionManager,
+      emissionManager
     );
   }
 
@@ -380,15 +327,12 @@ export default class DeployExternalContracts {
     return await new GenericLogic__factory(this._deployerSigner).deploy();
   }
 
-  public async deployValidationLogic(
-    genericLogicLibraryAddress: Address,
-  ): Promise<ValidationLogic> {
+  public async deployValidationLogic(genericLogicLibraryAddress: Address): Promise<ValidationLogic> {
     return await new ValidationLogic__factory(
       {
         ["__$52a8a86ab43135662ff256bbc95497e8e3$__"]: genericLogicLibraryAddress,
       },
-      this._deployerSigner,
-    ).deploy();
+      this._deployerSigner).deploy();
   }
 
   public async deployReserveLogic(): Promise<ReserveLogic> {
@@ -400,14 +344,9 @@ export default class DeployExternalContracts {
     _governanceStrategy: Address,
     _votingDelay: BigNumber,
     _guardian: Address,
-    _executors: Address[],
+    _executors: Address[]
   ): Promise<AaveGovernanceV2> {
-    return await new AaveGovernanceV2__factory(this._deployerSigner).deploy(
-      _governanceStrategy,
-      _votingDelay,
-      _guardian,
-      _executors,
-    );
+    return await new AaveGovernanceV2__factory(this._deployerSigner).deploy(_governanceStrategy, _votingDelay, _guardian, _executors);
   }
 
   public async deployExecutor(
@@ -419,7 +358,7 @@ export default class DeployExternalContracts {
     _propositionThreshold: BigNumber,
     _voteDuration: BigNumber,
     _voteDifferential: BigNumber,
-    _minmumQuorum: BigNumber,
+    _minmumQuorum: BigNumber
   ): Promise<Executor> {
     return await new Executor__factory(this._deployerSigner).deploy(
       _admin,
@@ -434,10 +373,7 @@ export default class DeployExternalContracts {
     );
   }
 
-  public async deployGovernanceStrategy(
-    _aave: Address,
-    _stkaave: Address,
-  ): Promise<GovernanceStrategy> {
+  public async deployGovernanceStrategy(_aave: Address, _stkaave: Address): Promise<GovernanceStrategy> {
     return await new GovernanceStrategy__factory(this._deployerSigner).deploy(_aave, _stkaave);
   }
 
