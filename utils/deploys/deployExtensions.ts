@@ -153,11 +153,13 @@ export default class DeployExtensions {
     wethAddress: Address,
     setControllerAddress: Address,
     basicIssuanceModuleAddress: Address,
+    allowedSwapTargets: Address[]
   ): Promise<ExchangeIssuanceZeroEx> {
     return await new ExchangeIssuanceZeroEx__factory(this._deployerSigner).deploy(
       wethAddress,
       setControllerAddress,
-      basicIssuanceModuleAddress
+      basicIssuanceModuleAddress,
+      allowedSwapTargets
     );
   }
 
