@@ -10,7 +10,7 @@ import {
   CompoundFixture,
   SetFixture,
   UniswapFixture,
-  UniswapV3Fixture,
+  UniswapV3Fixture
 } from "./fixtures";
 
 export const getSetFixture = (ownerAddress: Address) => new SetFixture(provider, ownerAddress);
