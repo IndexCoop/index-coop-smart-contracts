@@ -294,14 +294,12 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         // Check output token address
         uint256 outputAmount;
         if (address(_outputToken) == WETH) {
-            // Add condition check here that the WETH they will receive is more than _minOutputReceive
             // Redeem exact set token
             _redeemExactSet(_setToken, _amountSetToken);
             // Liquidate components for WETH
             outputAmount = _fillQuotes(_componentQuotes);
             require(outputAmount >= _minOutputReceive, "ExchangeIssuance: INVALID OUTPUT AMOUNT");
         } else {
-            // Add condition check here that the WETH they will receive is more than _minOutputReceive
             // Redeem exact set token
             _redeemExactSet(_setToken, _amountSetToken);
             // Liquidate components for WETH
