@@ -8,6 +8,7 @@ export { ChainlinkAggregatorV3Mock } from "../../typechain/ChainlinkAggregatorV3
 export { DebtIssuanceModule } from "../../typechain/DebtIssuanceModule";
 export { ExchangeIssuance } from "../../typechain/ExchangeIssuance";
 export { ExchangeIssuanceV2 } from "../../typechain/ExchangeIssuanceV2";
+export { ExchangeIssuanceZeroEx } from "../../typechain/ExchangeIssuanceZeroEx";
 export { FeeSplitExtension } from "../../typechain/FeeSplitExtension";
 export { FlexibleLeverageStrategyExtension } from "../../typechain/FlexibleLeverageStrategyExtension";
 export { GIMExtension } from "../../typechain/GIMExtension";
@@ -31,4 +32,5 @@ export { TradeAdapterMock } from "../../typechain/TradeAdapterMock";
 export { Vesting } from "../../typechain/Vesting";
 export { WETH9 } from "../../typechain/WETH9";
 export { FLIStrategyExtensionMock } from "../../typechain/FLIStrategyExtensionMock";
+export { ZeroExExchangeProxyMock } from "../../typechain/ZeroExExchangeProxyMock";
 
