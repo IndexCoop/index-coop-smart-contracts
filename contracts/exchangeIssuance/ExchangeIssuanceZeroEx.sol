@@ -242,7 +242,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
             _redeemExactSet(_setToken, _amountSetToken);
             // Liquidate components for WETH
             outputAmount = _fillQuotes(_componentQuotes);
-            // Ignore _outputQuote
+            // Add condition check here that the outputAmount is greater than _minOutputReceive
         } else {
             // Add condition check here that the WETH they will receive is more than _minOutputReceive
             // Redeem exact set token
@@ -251,6 +251,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
             uint256 outputEth = _fillQuotes(_componentQuotes);
             // Swap WETH for output token
             outputAmount = _fillQuote(_outputQuote);
+            // Add condition check here that the outputAmount is greater than _minOutputReceive
         }
 
         // Transfer sender output token
