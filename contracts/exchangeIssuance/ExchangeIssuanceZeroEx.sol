@@ -542,9 +542,15 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         basicIssuanceModule.redeem(_setToken, _amount, address(this));
     }
 
-    function _findMatchingQuote(address memory _token, ZeroExSwapQuote[] memory _quotes) internal returns (ZeroExSwapQuote) {
+    /**
+     * Given a token and array of 0x quotes, find the matching quote.
+     *
+     * @param _token        Address of the token to find
+     * @param _quotes       Set of 0x quotes to search through
+     */
+    function _findMatchingQuote(address _token, ZeroExSwapQuote[] memory _quotes) internal pure returns (ZeroExSwapQuote memory) {
         for (uint256 i = 0; i < _quotes.length; i++) {
-            if (_quotes[i].sellToken == _token) {
+            if (address(_quotes[i].sellToken) == _token) {
                 return _quotes[i];
             }
         }
