@@ -1,10 +1,19 @@
 import { Signer, BigNumber } from "ethers";
-import { Address, ContractSettings, MethodologySettings, ExecutionSettings, IncentiveSettings, ExchangeSettings, AaveContractSettings } from "../types";
+import {
+  Address,
+  ContractSettings,
+  MethodologySettings,
+  ExecutionSettings,
+  IncentiveSettings,
+  ExchangeSettings,
+  AaveContractSettings,
+} from "../types";
 import {
   AaveLeverageStrategyExtension,
   AirdropExtension,
   ExchangeIssuance,
   ExchangeIssuanceV2,
+  ExchangeIssuanceZeroEx,
   FlexibleLeverageStrategyExtension,
   FeeSplitExtension,
   GIMExtension,
@@ -16,6 +25,7 @@ import { AaveLeverageStrategyExtension__factory } from "../../typechain/factorie
 import { AirdropExtension__factory } from "../../typechain/factories/AirdropExtension__factory";
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
+import { ExchangeIssuanceZeroEx__factory } from "../../typechain/factories/ExchangeIssuanceZeroEx__factory";
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
 import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtension__factory";
 import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
@@ -139,10 +149,24 @@ export default class DeployExtensions {
     );
   }
 
+  public async deployExchangeIssuanceZeroEx(
+    wethAddress: Address,
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+    allowedSwapTargets: Address[]
+  ): Promise<ExchangeIssuanceZeroEx> {
+    return await new ExchangeIssuanceZeroEx__factory(this._deployerSigner).deploy(
+      wethAddress,
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      allowedSwapTargets
+    );
+  }
+
   public async deployAirdropExtension(manager: Address, airdropModule: Address): Promise<AirdropExtension> {
     return await new AirdropExtension__factory(this._deployerSigner).deploy(manager, airdropModule);
   }
-  
+
   public async deployAaveLeverageStrategyExtension(
     manager: Address,
     contractSettings: AaveContractSettings,
