@@ -436,8 +436,14 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             }
 
             (uint256 componentAmountBought, uint256 wethAmountSpent) = _fillQuote(quote);
+
+            // TODO: Had to reassign this variable to avoid CompilerError: Stack too deep - review if better solution possible
+            uint256 setAmount = _amountSetToken;
+            uint256 units =uint256(position.unit);
+            uint256 minComponentRequired = setAmount.mul(units).div(10**18);
+            require(componentAmountBought >= minComponentRequired, "UNDERBOUGHT COMPONENT");
+
             totalWethSpent = totalWethSpent.add(wethAmountSpent);
-            // TODO: Check if we bought enough component to avoid attackers using left over tokens in contract to make up for insufficient purchase
             require(totalWethSpent <= _maxAmountWeth, "OVERSPENT WETH");
         }
 
@@ -463,7 +469,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 sellTokenBalanceBefore = _quote.sellToken.balanceOf(address(this));
 
         (bool success,) = _quote.swapTarget.call{value: _quote.value}(_quote.swapCallData);
-        require(success, "SWAP_CALL_FAILED");
+        require(success, "SWAP CALL FAILED");
 
         // TODO: check if we want to do this / and how to do so savely
         // Refund any unspent protocol fees to the sender.

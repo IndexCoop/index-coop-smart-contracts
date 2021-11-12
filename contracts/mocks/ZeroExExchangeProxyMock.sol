@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache License, Version 2.0
 pragma solidity 0.6.10;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "hardhat/console.sol";
 
 
 contract ZeroExExchangeProxyMock {
 
+    // Mappings to control amount of buy / sell token transfered
+    mapping(address => uint256) public buyAmountMultipliers;
+    mapping(address => uint256) public sellAmountMultipliers;
 
     // Method mocking the UniswapFeature of the zeroEx setup in tests
     // Returns the `minBuyAmount` of target token to the caller, which needs to be deposited into this contract beforehand
@@ -23,12 +27,62 @@ contract ZeroExExchangeProxyMock {
         IERC20 sellToken = tokens[0];
         IERC20 buyToken = tokens[tokens.length - 1];
 
-        sellToken.transferFrom(msg.sender, address(this), sellAmount);
-        buyToken.transfer(msg.sender, minBuyAmount);
-        buyAmount = minBuyAmount;
+        uint256 multipliedSellAmount = getSellAmount(sellToken, sellAmount);
+        sellToken.transferFrom(msg.sender, address(this), multipliedSellAmount);
+
+        buyAmount = getBuyAmount(buyToken, minBuyAmount);
+        buyToken.transfer(msg.sender, buyAmount);
     }
-    
 
+    function getBuyAmount(
+        IERC20 buyToken,
+        uint256 minBuyAmount
+    ) public view returns(uint256 buyAmount) {
+        uint256 buyMultiplier = buyAmountMultipliers[address(buyToken)];
+        if(buyMultiplier == 0){
+            buyAmount = minBuyAmount;
+        }
+        else{
+            buyAmount = (minBuyAmount * buyMultiplier) / 10**18;
+            console.log("Adjusting buy amount");
+            console.logUint(minBuyAmount);
+            console.logUint(buyAmount);
+        }
+    }
 
+    // Function to adjust the amount of buy token that will be returned 
+    // Set to 0 to disable / i.e. always return exact minBuyAmount
+    function setBuyMultiplier(
+        IERC20 buyToken,
+        uint256 multiplier
+    ) public {
+        buyAmountMultipliers[address(buyToken)] = multiplier;
+    }
+
+    function getSellAmount(
+        IERC20 sellToken,
+        uint256 inputSellAmount
+    ) public view returns(uint256 sellAmount) {
+        uint256 sellMultiplier = sellAmountMultipliers[address(sellToken)];
+        if(sellMultiplier == 0){
+            sellAmount = inputSellAmount;
+            console.log("Not adjusting sell amount");
+        }
+        else{
+            sellAmount = (inputSellAmount * sellMultiplier) / 10**18;
+            console.log("Adjusting sell amount");
+            console.logUint(inputSellAmount);
+            console.logUint(sellAmount);
+        }
+    }
+
+    // Function to adjust the amount of sell token that will be returned 
+    // Set to 0 to disable / i.e. always return exact minSellAmount
+    function setSellMultiplier(
+        IERC20 sellToken,
+        uint256 multiplier
+    ) public {
+        sellAmountMultipliers[address(sellToken)] = multiplier;
+    }
 
 }

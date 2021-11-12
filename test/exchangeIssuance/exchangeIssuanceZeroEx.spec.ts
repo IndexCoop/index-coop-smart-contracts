@@ -262,7 +262,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       context("when a position quote is missing", async () => {
         beforeEach(async () => {
-          positionSwapQuotes = [ positionSwapQuotes[0] ];
+          positionSwapQuotes = [positionSwapQuotes[0]];
         });
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("WRONG NUMBER OF COMPONENT QUOTES");
@@ -302,6 +302,47 @@ describe("ExchangeIssuanceZeroEx", async () => {
         });
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("OVERAPPROVED WETH");
+        });
+      });
+
+      context("when the input swap yields insufficient WETH", async () => {
+        beforeEach(async () => {
+          await zeroExMock.setBuyMultiplier(weth.address, ether(0.5));
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("OVERAPPROVED WETH");
+        });
+      });
+
+      context("when a component swap spends too much weth", async () => {
+        beforeEach(async () => {
+          // Simulate left over weth balance left in contract
+          await weth.transfer(exchangeIssuanceZeroEx.address, wethAmount);
+          await zeroExMock.setSellMultiplier(weth.address, ether(2));
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("OVERSPENT WETH");
+        });
+      });
+
+      context("when a component swap yields insufficient component token", async () => {
+        beforeEach(async () => {
+          // Simulating left over component balance left in contract
+          await wbtc.transfer(exchangeIssuanceZeroEx.address, wbtcUnits);
+          await zeroExMock.setBuyMultiplier(wbtc.address, ether(0.5));
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("UNDERBOUGHT COMPONENT");
+        });
+      });
+
+      context("when a swap call fails", async () => {
+        beforeEach(async () => {
+          // Trigger revertion in mock by trying to return more buy tokens than available in balance
+          await zeroExMock.setBuyMultiplier(wbtc.address, ether(100));
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
         });
       });
     });
