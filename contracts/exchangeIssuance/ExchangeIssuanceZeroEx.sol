@@ -215,7 +215,7 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
      * @param _outputQuote          The encoded 0x transaction from WETH to output token.
      * @param _amountSetToken       Amount SetTokens to redeem
      * @param _minOutputReceive     Minimum amount of output token to receive
-     * @param _componentQUotes      The encoded 0x transactions execute (components -> WETH).
+     * @param _componentQuotes      The encoded 0x transactions execute (components -> WETH).
      *
      * @return outputAmount         Amount of output tokens sent to the caller
      */
@@ -237,14 +237,14 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         // Check output token address
         uint256 outputAmount;
         if (address(_outputToken) == WETH) {
-            require(totalEth > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
+            // Add condition check here that the WETH they will receive is more than _minOutputReceive
             // Redeem exact set token
             _redeemExactSet(_setToken, _amountSetToken);
             // Liquidate components for WETH
             outputAmount = _fillQuotes(_componentQuotes);
             // Ignore _outputQuote
         } else {
-            require(totalOutput > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
+            // Add condition check here that the WETH they will receive is more than _minOutputReceive
             // Redeem exact set token
             _redeemExactSet(_setToken, _amountSetToken);
             // Liquidate components for WETH
