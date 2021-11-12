@@ -241,16 +241,16 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
             // Redeem exact set token
             _redeemExactSet(_setToken, _amountSetToken);
             // Liquidate components for WETH
-            outputAmount = _liquidateComponentsForWETH(components, amountComponents, exchanges);
+            outputAmount = _fillQuotes(_componentQuotes);
+            // Ignore _outputQuote
         } else {
-            (uint256 totalOutput, Exchange outTokenExchange, ) = _getMaxTokenForExactToken(totalEth, address(WETH), address(_outputToken));
             require(totalOutput > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
             // Redeem exact set token
             _redeemExactSet(_setToken, _amountSetToken);
             // Liquidate components for WETH
-            uint256 outputEth = _liquidateComponentsForWETH(components, amountComponents, exchanges);
+            uint256 outputEth = _fillQuotes(_componentQuotes);
             // Swap WETH for output token
-            outputAmount = _swapExactTokensForTokens(outTokenExchange, WETH, address(_outputToken), outputEth);
+            outputAmount = _fillQuote(_outputQuote);
         }
 
         // Transfer sender output token
@@ -458,6 +458,24 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
     }
 
     /**
+     * Liquidates a given list of SetToken components for WETH.
+     *
+     * @param _swaps                An array containing ZeroExSwap swaps
+     *
+     * @return                      Total amount of WETH received after liquidating all SetToken components
+     */
+    function _fillQuotes(ZeroExSwap[] _swaps)
+        internal
+        returns (uint256)
+    {
+        uint256 sumEth = 0;
+        for (uint256 i = 0; i < _swaps.length; i++) {
+            _fillQuote(swaps[i]);
+        }
+        return sumEth;
+    }
+
+    /**
      * Swap tokens for exact amount of output tokens on a given DEX.
      *
      * @param _tokenIn      The address of the input token
@@ -472,6 +490,11 @@ contract ExchangeIssuanceZeroEx is ReentrancyGuard {
         }
         // TODO: Implement execute swap
         return 0;
+    }
+
+    function _fillQuote(ZeroExSwap _quote) {
+        (bool success,) = _quote.swapTarget.call{value: _quote.value}(_quote.swapCallData);
+        require(success);
     }
 
     /**
