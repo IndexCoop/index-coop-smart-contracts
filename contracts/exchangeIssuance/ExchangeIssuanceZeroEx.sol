@@ -299,16 +299,18 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             _redeemExactSet(_setToken, _amountSetToken);
             // Liquidate components for WETH
             outputAmount = _fillQuotes(_componentQuotes);
-            // Add condition check here that the outputAmount is greater than _minOutputReceive
+            require(outputAmount >= _minOutputReceive, "ExchangeIssuance: INVALID OUTPUT AMOUNT");
         } else {
             // Add condition check here that the WETH they will receive is more than _minOutputReceive
             // Redeem exact set token
             _redeemExactSet(_setToken, _amountSetToken);
             // Liquidate components for WETH
             uint256 outputEth = _fillQuotes(_componentQuotes);
+            // Need to check that WETH is around equal to outputQuote's specified WETH amount (sellAmount)
+            require(outputEth == _outputQuote.sellAmount, "ExchangeIssuance: INVALID WETH");
             // Swap WETH for output token
-            (,outputAmount) = _fillQuote(_outputQuote);
-            // Add condition check here that the outputAmount is greater than _minOutputReceive
+            (outputAmount,) = _fillQuote(_outputQuote);
+            require(outputAmount >= _minOutputReceive, "ExchangeIssuance: INVALID OUTPUT AMOUNT");
         }
 
         // Transfer sender output token
