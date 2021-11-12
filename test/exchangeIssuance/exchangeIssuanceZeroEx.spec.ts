@@ -18,6 +18,7 @@ import {
   ExchangeIssuanceZeroEx,
   ZeroExExchangeProxyMock,
   StandardTokenMock,
+  WETH9,
 } from "@utils/contracts/index";
 import { getAllowances } from "@utils/common/exchangeIssuanceUtils";
 
@@ -35,11 +36,16 @@ type ZeroExSwapQuote = {
 
 describe("ExchangeIssuanceZeroEx", async () => {
   let owner: Account;
+
   let setV2Setup: SetFixture;
   let zeroExMock: ZeroExExchangeProxyMock;
   let deployer: DeployHelper;
 
   let setToken: SetToken;
+  let wbtc: StandardTokenMock;
+  let dai: StandardTokenMock;
+  let weth: WETH9;
+
   let daiUnits: BigNumber;
   let wbtcUnits: BigNumber;
 
@@ -50,12 +56,14 @@ describe("ExchangeIssuanceZeroEx", async () => {
     setV2Setup = getSetFixture(owner.address);
     await setV2Setup.initialize();
 
+    ({ dai, wbtc, weth } = setV2Setup);
+
     zeroExMock = await deployer.mocks.deployZeroExExchangeProxyMock();
 
     daiUnits = BigNumber.from("23252699054621733");
     wbtcUnits = UnitsUtils.wbtc(1);
     setToken = await setV2Setup.createSetToken(
-      [setV2Setup.dai.address, setV2Setup.wbtc.address],
+      [dai.address, wbtc.address],
       [daiUnits, wbtcUnits],
       [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address],
     );
@@ -68,7 +76,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
     let basicIssuanceModuleAddress: Address;
 
     cacheBeforeEach(async () => {
-      wethAddress = setV2Setup.weth.address;
+      wethAddress = weth.address;
       basicIssuanceModuleAddress = setV2Setup.issuanceModule.address;
       controllerAddress = setV2Setup.controller.address;
     });
@@ -113,7 +121,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
     let exchangeIssuanceZeroEx: ExchangeIssuanceZeroEx;
 
     cacheBeforeEach(async () => {
-      wethAddress = setV2Setup.weth.address;
+      wethAddress = weth.address;
       controllerAddress = setV2Setup.controller.address;
       basicIssuanceModuleAddress = setV2Setup.issuanceModule.address;
       exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
@@ -135,7 +143,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
         return await exchangeIssuanceZeroEx.approveSetToken(subjectSetToApprove.address);
       }
       it("should update the approvals correctly", async () => {
-        const tokens = [setV2Setup.dai, setV2Setup.dai];
+        const tokens = [dai, dai];
         const spenders = [basicIssuanceModuleAddress];
 
         await subject();
@@ -155,7 +163,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       context("when the input token is not a set", async () => {
         beforeEach(async () => {
-          subjectSetToApprove = setV2Setup.dai;
+          subjectSetToApprove = dai;
         });
 
         it("should revert", async () => {
@@ -199,21 +207,16 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       const initializeSubjectVariables = async () => {
         inputTokenAmount = ether(1000);
-        inputToken = setV2Setup.dai;
+        inputToken = dai;
         wethAmount = ether(1);
         amountSetToken = 1;
         amountSetTokenWei = ether(amountSetToken);
-        inputSwapQuote = getUniswapV2Quote(
-          setV2Setup.dai.address,
-          inputTokenAmount,
-          setV2Setup.weth.address,
-          wethAmount,
-        );
+        inputSwapQuote = getUniswapV2Quote(dai.address, inputTokenAmount, weth.address, wethAmount);
 
         const positions = await setToken.getPositions();
         positionSwapQuotes = positions.map(position =>
           getUniswapV2Quote(
-            setV2Setup.weth.address,
+            weth.address,
             wethAmount.div(2),
             position.component,
             position.unit.mul(amountSetToken),
@@ -221,15 +224,13 @@ describe("ExchangeIssuanceZeroEx", async () => {
         );
       };
 
-      cacheBeforeEach(async () => {
+      beforeEach(async () => {
         initializeSubjectVariables();
         await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
-        // Approve exchange issuance contract to spend the input token
-        setV2Setup.dai.approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
-        // Fund the Exchange mock with tokens to be traded into (weth and components)
-        await setV2Setup.weth.transfer(zeroExMock.address, wethAmount);
-        await setV2Setup.wbtc.transfer(zeroExMock.address, wbtcUnits.mul(amountSetToken));
-        await setV2Setup.dai.transfer(zeroExMock.address, daiUnits.mul(amountSetToken));
+        dai.approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
+        await weth.transfer(zeroExMock.address, wethAmount);
+        await wbtc.transfer(zeroExMock.address, wbtcUnits.mul(amountSetToken));
+        await dai.transfer(zeroExMock.address, daiUnits.mul(amountSetToken));
       });
 
       async function subject(): Promise<ContractTransaction> {
@@ -257,6 +258,24 @@ describe("ExchangeIssuanceZeroEx", async () => {
         const finalInputBalance = await inputToken.balanceOf(owner.address);
         const expectedInputBalance = initialBalanceOfInput.sub(inputTokenAmount);
         expect(finalInputBalance).to.eq(expectedInputBalance);
+      });
+
+      context("when a position quote is missing", async () => {
+        beforeEach(async () => {
+          positionSwapQuotes = [ positionSwapQuotes[0] ];
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("WRONG NUMBER OF COMPONENT QUOTES");
+        });
+      });
+
+      context("when a position quote has the wrong buyTokenAddress", async () => {
+        beforeEach(async () => {
+          positionSwapQuotes[0].buyToken = await getRandomAddress();
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("COMPONENT / QUOTE ADDRESS MISMATCH");
+        });
       });
     });
   });

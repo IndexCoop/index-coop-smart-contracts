@@ -196,7 +196,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         returns (uint256)
     {
         require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-        require(_setToken.getComponents().length == _componentQuotes.length, "Wrong number of component quotes");
+        require(_setToken.getComponents().length == _componentQuotes.length, "WRONG NUMBER OF COMPONENT QUOTES");
 
         _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
 
@@ -423,7 +423,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         for (uint256 i = 0; i < positions.length; i++) {
             ISetToken.Position memory position = positions[i];
             ZeroExSwapQuote memory quote = _quotes[i];
-            require(position.component == address(quote.buyToken), "Component / Quote mismatch");
+            require(position.component == address(quote.buyToken), "COMPONENT / QUOTE ADDRESS MISMATCH");
             require(address(quote.sellToken) ==  WETH, "Invalid Sell Token");
 
             totalWethApproved = totalWethApproved.add(quote.sellAmount);
