@@ -290,26 +290,40 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         returns (uint256)
     {
         require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-        require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: INVALID INPUTS");
-        // Check output token address
+
+        address[] memory components = _setToken.getComponents();
+        require(components.length == _componentQuotes.length, "ExchangeIssuance: INVALID INPUTS");
+        // Verify all component quotes have correct sellAmounts
+        for (uint256 i = 0; i < components.length; i++) {
+            // Check that the component does not have external positions
+            require(
+                _setToken.getExternalPositionModules(components[i]).length == 0,
+                "ExchangeIssuance: EXTERNAL_POSITIONS_NOT_ALLOWED"
+            );
+
+            uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
+            uint256 requiredAmount = unit.preciseMul(_amountSetToken);
+
+            ZeroExSwapQuote memory quote = _findMatchingQuote(components[i], _componentQuotes);
+            require(requiredAmount == quote.sellAmount, "ExchangeIssuance: INVALID SELL AMOUNT");
+        }
+
+        // TODO: Check output token address
         uint256 outputAmount;
+        // Redeem exact set token
+        _redeemExactSet(_setToken, _amountSetToken);
         if (address(_outputToken) == WETH) {
-            // Redeem exact set token
-            _redeemExactSet(_setToken, _amountSetToken);
             // Liquidate components for WETH
             outputAmount = _fillQuotes(_componentQuotes);
-            require(outputAmount >= _minOutputReceive, "ExchangeIssuance: INVALID OUTPUT AMOUNT");
         } else {
-            // Redeem exact set token
-            _redeemExactSet(_setToken, _amountSetToken);
             // Liquidate components for WETH
             uint256 outputEth = _fillQuotes(_componentQuotes);
             // Need to check that WETH is around equal to outputQuote's specified WETH amount (sellAmount)
             require(outputEth == _outputQuote.sellAmount, "ExchangeIssuance: INVALID WETH");
             // Swap WETH for output token
             (outputAmount,) = _fillQuote(_outputQuote);
-            require(outputAmount >= _minOutputReceive, "ExchangeIssuance: INVALID OUTPUT AMOUNT");
         }
+        require(outputAmount >= _minOutputReceive, "ExchangeIssuance: INVALID OUTPUT AMOUNT");
 
         // Transfer sender output token
         _outputToken.safeTransfer(msg.sender, outputAmount);
@@ -526,5 +540,14 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     function _redeemExactSet(ISetToken _setToken, uint256 _amount) internal returns (uint256) {
         _setToken.safeTransferFrom(msg.sender, address(this), _amount);
         basicIssuanceModule.redeem(_setToken, _amount, address(this));
+    }
+
+    function _findMatchingQuote(address memory _token, ZeroExSwapQuote[] memory _quotes) internal returns (ZeroExSwapQuote) {
+        for (uint256 i = 0; i < _quotes.length; i++) {
+            if (_quotes[i].sellToken == _token) {
+                return _quotes[i];
+            }
+        }
+        require(false, "Failed to find matching quote");
     }
 }
