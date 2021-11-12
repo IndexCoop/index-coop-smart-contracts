@@ -173,7 +173,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
     });
 
     describe("#issueExactSetFromToken", async () => {
-      let inputToken: StandardTokenMock;
+      let inputToken: StandardTokenMock | WETH9;
       let inputTokenAmount: BigNumber;
       let wethAmount: BigNumber;
       let amountSetToken: number;
@@ -258,6 +258,46 @@ describe("ExchangeIssuanceZeroEx", async () => {
         const finalInputBalance = await inputToken.balanceOf(owner.address);
         const expectedInputBalance = initialBalanceOfInput.sub(inputTokenAmount);
         expect(finalInputBalance).to.eq(expectedInputBalance);
+      });
+
+      context("when the input swap generates surplus WETH", async () => {
+        beforeEach(async () => {
+          await weth.transfer(zeroExMock.address, wethAmount);
+          await zeroExMock.setBuyMultiplier(weth.address, ether(2));
+        });
+        it("should return surplus WETH to user", async () => {
+          const initialBalanceOfSet = await setToken.balanceOf(owner.address);
+          const wethBalanceBefore = await weth.balanceOf(owner.address);
+          await subject();
+          const finalSetBalance = await setToken.balanceOf(owner.address);
+          const wethBalanceAfter = await weth.balanceOf(owner.address);
+          const expectedSetBalance = initialBalanceOfSet.add(amountSetTokenWei);
+          const expectedWethBalance = wethBalanceBefore.add(wethAmount);
+          expect(wethBalanceAfter).to.equal(expectedWethBalance);
+          expect(finalSetBalance).to.eq(expectedSetBalance);
+        });
+      });
+
+      context("when the input token is weth", async () => {
+        beforeEach(async () => {
+          inputToken = weth;
+          inputTokenAmount = wethAmount;
+          await weth.approve(exchangeIssuanceZeroEx.address, inputTokenAmount);
+        });
+        it("should issue correct amount of set tokens", async () => {
+          const initialBalanceOfSet = await setToken.balanceOf(owner.address);
+          await subject();
+          const finalSetBalance = await setToken.balanceOf(owner.address);
+          const expectedSetBalance = initialBalanceOfSet.add(amountSetTokenWei);
+          expect(finalSetBalance).to.eq(expectedSetBalance);
+        });
+        it("should use correct amount of input tokens", async () => {
+          const initialBalanceOfInput = await inputToken.balanceOf(owner.address);
+          await subject();
+          const finalInputBalance = await inputToken.balanceOf(owner.address);
+          const expectedInputBalance = initialBalanceOfInput.sub(inputTokenAmount);
+          expect(finalInputBalance).to.eq(expectedInputBalance);
+        });
       });
 
       context("when a position quote is missing", async () => {
