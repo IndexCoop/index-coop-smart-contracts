@@ -279,10 +279,10 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     function redeemExactSetForToken(
         ISetToken _setToken,
         IERC20 _outputToken,
-        ZeroExSwapQuote calldata _outputQuote,
+        ZeroExSwapQuote memory _outputQuote,
         uint256 _amountSetToken,
         uint256 _minOutputReceive,
-        ZeroExSwapQuote[] calldata _componentQuotes
+        ZeroExSwapQuote[] memory _componentQuotes
     )
         isSetToken(_setToken)
         external

@@ -96,7 +96,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
     it("Issue Exact Set from Input Token", async () => {
       const inputToken = setV2Setup.dai;
 
-      // Generate call data fkor swap to weth
+      // Generate call data for swap to weth
       const inputTokenAmount = ether(1000);
       const wethAmount = ether(1);
       const amountSetToken = 1;
@@ -140,6 +140,56 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       const finalSetBalance = await setToken.balanceOf(owner.address);
       const expectedSetBalance = initialBalanceOfSet.add(amountSetTokenWei);
+      expect(finalSetBalance).to.eq(expectedSetBalance);
+    });
+
+    it("Redeems Exact Set For Token", async () => {
+      const outputToken = setV2Setup.dai;
+
+      // Generate call data for swap from weth
+      const outputTokenAmount = ether(1000);
+      const wethAmount = ether(1);
+      const amountSetToken = 1;
+      const amountSetTokenWei = ether(amountSetToken);
+      const outputSwapQuote = getUniswapV2Quote(
+        setV2Setup.weth.address,
+        outputTokenAmount,
+        setV2Setup.dai.address,
+        wethAmount,
+      );
+
+      const positions = await setToken.getPositions();
+      const positionSwapQuotes: ZeroExSwapQuote[] = positions.map(position =>
+        getUniswapV2Quote(
+          position.component,
+          wethAmount.div(2),
+          setV2Setup.weth.address,
+          position.unit.mul(amountSetToken),
+        ),
+      );
+
+      const exchangeIssuanceZeroEx = await subject();
+      await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+      // Approve exchange issuance contract to spend the input token
+      setV2Setup.dai.approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
+      // Fund the Exchange mock with tokens to be traded into (weth and components)
+      await setV2Setup.weth.transfer(zeroExMock.address, wethAmount);
+      await setV2Setup.wbtc.transfer(zeroExMock.address, wbtcUnits.mul(amountSetToken));
+      await setV2Setup.dai.transfer(zeroExMock.address, daiUnits.mul(amountSetToken));
+
+      const initialBalanceOfSet = await setToken.balanceOf(owner.address);
+      console.log("IssueTokens");
+      exchangeIssuanceZeroEx.redeemExactSetForToken(
+        setToken.address,
+        outputToken.address,
+        outputSwapQuote,
+        amountSetTokenWei,
+        outputTokenAmount,
+        positionSwapQuotes,
+      );
+
+      const finalSetBalance = await setToken.balanceOf(owner.address);
+      const expectedSetBalance = initialBalanceOfSet.sub(amountSetTokenWei);
       expect(finalSetBalance).to.eq(expectedSetBalance);
     });
   });
