@@ -277,6 +277,33 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await expect(subject()).to.be.revertedWith("COMPONENT / QUOTE ADDRESS MISMATCH");
         });
       });
+
+      context("when a position quote has a non-WETH sellToken address", async () => {
+        beforeEach(async () => {
+          positionSwapQuotes[0].sellToken = await getRandomAddress();
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("INVALID SELL TOKEN");
+        });
+      });
+
+      context("when a quote has an unauthorized swap target", async () => {
+        beforeEach(async () => {
+          positionSwapQuotes[0].swapTarget = await getRandomAddress();
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("UNAUTHORISED SWAP TARGET");
+        });
+      });
+
+      context("when the sum of the approved ETH exceeds the amount obtained", async () => {
+        beforeEach(async () => {
+          positionSwapQuotes[0].sellAmount = ether(100000);
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("OVERAPPROVED WETH");
+        });
+      });
     });
   });
 });

@@ -424,7 +424,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             ISetToken.Position memory position = positions[i];
             ZeroExSwapQuote memory quote = _quotes[i];
             require(position.component == address(quote.buyToken), "COMPONENT / QUOTE ADDRESS MISMATCH");
-            require(address(quote.sellToken) ==  WETH, "Invalid Sell Token");
+            require(address(quote.sellToken) ==  WETH, "INVALID SELL TOKEN");
 
             totalWethApproved = totalWethApproved.add(quote.sellAmount);
             require(totalWethApproved <= _maxAmountWeth, "OVERAPPROVED WETH");
