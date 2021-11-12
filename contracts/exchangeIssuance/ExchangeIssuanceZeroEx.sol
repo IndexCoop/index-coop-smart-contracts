@@ -53,7 +53,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     IController public immutable setController;
     IBasicIssuanceModule public immutable basicIssuanceModule;
 
-    mapping(address => bool) allowedSwapTargets;
+    mapping(address => bool) public allowedSwapTargets;
 
     /* ============ Events ============ */
 
