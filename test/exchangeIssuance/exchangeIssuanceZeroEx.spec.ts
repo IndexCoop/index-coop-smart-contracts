@@ -108,7 +108,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
       expect(isZeroExMockAllowedSwapTarget).to.eq(true);
 
       const isRandomAddressAllowedSwapTarget = await exchangeIssuanceContract.allowedSwapTargets(
-        getRandomAddress(),
+        await getRandomAddress(),
       );
       expect(isRandomAddressAllowedSwapTarget).to.eq(false);
     });
