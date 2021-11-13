@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache License, Version 2.0
 pragma solidity 0.6.10;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "hardhat/console.sol";
 
 
 contract ZeroExExchangeProxyMock {
@@ -44,9 +43,6 @@ contract ZeroExExchangeProxyMock {
         }
         else{
             buyAmount = (minBuyAmount * buyMultiplier) / 10**18;
-            console.log("Adjusting buy amount");
-            console.logUint(minBuyAmount);
-            console.logUint(buyAmount);
         }
     }
 
@@ -66,13 +62,9 @@ contract ZeroExExchangeProxyMock {
         uint256 sellMultiplier = sellAmountMultipliers[address(sellToken)];
         if(sellMultiplier == 0){
             sellAmount = inputSellAmount;
-            console.log("Not adjusting sell amount");
         }
         else{
             sellAmount = (inputSellAmount * sellMultiplier) / 10**18;
-            console.log("Adjusting sell amount");
-            console.logUint(inputSellAmount);
-            console.logUint(sellAmount);
         }
     }
 

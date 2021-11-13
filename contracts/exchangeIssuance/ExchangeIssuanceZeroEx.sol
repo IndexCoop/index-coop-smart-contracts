@@ -439,7 +439,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
             // TODO: Had to reassign this variable to avoid CompilerError: Stack too deep - review if better solution possible
             uint256 setAmount = _amountSetToken;
-            uint256 units =uint256(position.unit);
+            uint256 units = uint256(position.unit);
             uint256 minComponentRequired = setAmount.mul(units).div(10**18);
             require(componentAmountBought >= minComponentRequired, "UNDERBOUGHT COMPONENT");
 
