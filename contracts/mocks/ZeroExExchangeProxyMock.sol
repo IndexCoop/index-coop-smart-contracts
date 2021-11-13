@@ -4,8 +4,6 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 
 contract ZeroExExchangeProxyMock {
-
-
     // Method mocking the UniswapFeature of the zeroEx setup in tests
     // Returns the `minBuyAmount` of target token to the caller, which needs to be deposited into this contract beforehand
     // Original Implementation: https://github.com/0xProject/protocol/blob/development/contracts/zero-ex/contracts/src/features/UniswapFeature.sol#L99
@@ -16,8 +14,7 @@ contract ZeroExExchangeProxyMock {
         bool // isSushi
     )
         external
-        payable
-        returns (uint256 buyAmount)
+        returns (uint256)
     {
         require(tokens.length > 1, "UniswapFeature/InvalidTokensLength");
         IERC20 sellToken = tokens[0];
@@ -25,10 +22,6 @@ contract ZeroExExchangeProxyMock {
 
         sellToken.transferFrom(msg.sender, address(this), sellAmount);
         buyToken.transfer(msg.sender, minBuyAmount);
-        buyAmount = minBuyAmount;
+        return minBuyAmount;
     }
-    
-
-
-
 }

@@ -23,6 +23,7 @@ type ZeroExSwapQuote = {
 
 describe("ExchangeIssuanceZeroEx", async () => {
   let owner: Account;
+  let user: Account;
   let setV2Setup: SetFixture;
   let zeroExMock: ZeroExExchangeProxyMock;
   let deployer: DeployHelper;
@@ -32,7 +33,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
   let wbtcUnits: BigNumber;
 
   cacheBeforeEach(async () => {
-    [owner] = await getAccounts();
+    [owner, user] = await getAccounts();
     deployer = new DeployHelper(owner.wallet);
 
     setV2Setup = getSetFixture(owner.address);
@@ -144,7 +145,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
     });
 
     it("Redeems Exact Set For Token", async () => {
-      const outputToken = setV2Setup.dai;
+      // Output token is USDC
+      const outputToken = setV2Setup.usdc;
 
       // Generate call data for swap from weth
       const outputTokenAmount = ether(1000);
@@ -153,33 +155,32 @@ describe("ExchangeIssuanceZeroEx", async () => {
       const amountSetTokenWei = ether(amountSetToken);
       const outputSwapQuote = getUniswapV2Quote(
         setV2Setup.weth.address,
-        outputTokenAmount,
-        setV2Setup.dai.address,
         wethAmount,
+        setV2Setup.usdc.address,
+        outputTokenAmount,
       );
 
       const positions = await setToken.getPositions();
       const positionSwapQuotes: ZeroExSwapQuote[] = positions.map(position =>
         getUniswapV2Quote(
           position.component,
-          wethAmount.div(2),
-          setV2Setup.weth.address,
           position.unit.mul(amountSetToken),
+          setV2Setup.weth.address,
+          wethAmount.div(2),
         ),
       );
 
       const exchangeIssuanceZeroEx = await subject();
+      await setV2Setup.approveAndIssueSetToken(setToken, amountSetTokenWei, user.address);
       await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
-      // Approve exchange issuance contract to spend the input token
-      setV2Setup.dai.approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
-      // Fund the Exchange mock with tokens to be traded into (weth and components)
+      await setToken.connect(user.wallet).approve(exchangeIssuanceZeroEx.address, MAX_UINT_256, { gasPrice: 0 });
+      // Fund the Exchange mock with tokens to be traded into (weth and usdc)
       await setV2Setup.weth.transfer(zeroExMock.address, wethAmount);
-      await setV2Setup.wbtc.transfer(zeroExMock.address, wbtcUnits.mul(amountSetToken));
-      await setV2Setup.dai.transfer(zeroExMock.address, daiUnits.mul(amountSetToken));
+      await setV2Setup.usdc.transfer(zeroExMock.address, outputTokenAmount);
 
-      const initialBalanceOfSet = await setToken.balanceOf(owner.address);
-      console.log("IssueTokens");
-      exchangeIssuanceZeroEx.redeemExactSetForToken(
+      const initialBalanceOfSet = await setToken.balanceOf(user.address);
+      const initialUsdcBalance = await setV2Setup.usdc.balanceOf(user.address);
+      exchangeIssuanceZeroEx.connect(user.wallet).redeemExactSetForToken(
         setToken.address,
         outputToken.address,
         outputSwapQuote,
@@ -188,9 +189,12 @@ describe("ExchangeIssuanceZeroEx", async () => {
         positionSwapQuotes,
       );
 
-      const finalSetBalance = await setToken.balanceOf(owner.address);
+      const finalSetBalance = await setToken.balanceOf(user.address);
+      const finalUsdcBalance = await setV2Setup.usdc.balanceOf(user.address);
       const expectedSetBalance = initialBalanceOfSet.sub(amountSetTokenWei);
+      const expectedUsdcBalance = initialUsdcBalance.add(outputTokenAmount);
       expect(finalSetBalance).to.eq(expectedSetBalance);
+      expect(finalUsdcBalance).to.eq(expectedUsdcBalance);
     });
   });
 });

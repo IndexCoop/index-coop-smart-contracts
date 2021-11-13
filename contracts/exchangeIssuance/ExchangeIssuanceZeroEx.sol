@@ -48,7 +48,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
     /* ============ State Variables ============ */
 
-    address public WETH;
+    address public immutable WETH;
 
     IController public immutable setController;
     IBasicIssuanceModule public immutable basicIssuanceModule;
@@ -80,7 +80,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
     event BoughtTokens(IERC20 sellToken, IERC20 buyToken, uint256 boughtAmount);
 
-
     /* ============ Modifiers ============ */
 
     modifier isSetToken(ISetToken _setToken) {
@@ -102,7 +101,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         WETH = _weth;
         // Safe approve 0x contract address
         for (uint256 i = 0; i < _allowedSwapTargets.length; i++) {
-            allowedSwapTargets[_allowedSwapTargets[i]] = true;
+            addAllowedSwapTarget(_allowedSwapTargets[i]);
         }
     }
 
@@ -290,10 +289,11 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         returns (uint256)
     {
         require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
+        require(address(_outputToken) == address(_outputQuote.buyToken), "ExchangeIssuance: INVALID INPUTS");
 
         address[] memory components = _setToken.getComponents();
         require(components.length == _componentQuotes.length, "ExchangeIssuance: INVALID INPUTS");
-        // Verify all component quotes have correct sellAmounts
+        // Verify all component quotes do not have external positions
         for (uint256 i = 0; i < components.length; i++) {
             // Check that the component does not have external positions
             require(
@@ -305,10 +305,10 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             uint256 requiredAmount = unit.preciseMul(_amountSetToken);
 
             ZeroExSwapQuote memory quote = _findMatchingQuote(components[i], _componentQuotes);
+            require(address(quote.buyToken) == WETH, "ExchangeIssuance: INVALID INTERMEDIARY TOKEN");
             require(requiredAmount == quote.sellAmount, "ExchangeIssuance: INVALID SELL AMOUNT");
         }
 
-        // TODO: Check output token address
         uint256 outputAmount;
         // Redeem exact set token
         _redeemExactSet(_setToken, _amountSetToken);
@@ -316,6 +316,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             // Liquidate components for WETH
             outputAmount = _fillQuotes(_componentQuotes);
         } else {
+            // _safeApprove(_outputToken, _outputQuote.swapTarget, _minOutputReceive);
             // Liquidate components for WETH
             uint256 outputEth = _fillQuotes(_componentQuotes);
             // Need to check that WETH is around equal to outputQuote's specified WETH amount (sellAmount)
@@ -497,7 +498,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     {
         uint256 sumEth = 0;
         for (uint256 i = 0; i < _swaps.length; i++) {
-            _fillQuote(_swaps[i]);
+            (uint256 boughtAmount,) = _fillQuote(_swaps[i]);
+            sumEth = sumEth.add(boughtAmount);
         }
         return sumEth;
     }
@@ -520,10 +522,11 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 buyTokenBalanceBefore = _quote.buyToken.balanceOf(address(this));
         uint256 sellTokenBalanceBefore = _quote.sellToken.balanceOf(address(this));
 
+        _safeApprove(_quote.sellToken, address(_quote.swapTarget), _quote.sellAmount);
         (bool success,) = _quote.swapTarget.call{value: _quote.value}(_quote.swapCallData);
         require(success, "SWAP_CALL_FAILED");
 
-        // TODO: check if we want to do this / and how to do so savely
+        // TODO: check if we want to do this / and how to do so safely
         // Refund any unspent protocol fees to the sender.
         // payable(msg.sender).transfer(address(this).balance);
         boughtAmount = _quote.buyToken.balanceOf(address(this)).sub(buyTokenBalanceBefore);
