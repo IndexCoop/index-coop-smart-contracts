@@ -293,7 +293,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
         address[] memory components = _setToken.getComponents();
         require(components.length == _componentQuotes.length, "ExchangeIssuance: INVALID INPUTS");
-        // Verify all component quotes do not have external positions
+        // Validate components and componentQuotes
         for (uint256 i = 0; i < components.length; i++) {
             // Check that the component does not have external positions
             require(
