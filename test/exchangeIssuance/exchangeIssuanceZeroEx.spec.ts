@@ -28,7 +28,6 @@ type ZeroExSwapQuote = {
   sellToken: Address;
   buyToken: Address;
   spender: Address;
-  swapTarget: Address;
   swapCallData: string;
   sellAmount: BigNumber;
 };
@@ -73,11 +72,13 @@ describe("ExchangeIssuanceZeroEx", async () => {
     let subjectWethAddress: Address;
     let subjectControllerAddress: Address;
     let subjectBasicIssuanceModuleAddress: Address;
+    let subjectSwapTarget: Address;
 
     cacheBeforeEach(async () => {
       subjectWethAddress = weth.address;
       subjectBasicIssuanceModuleAddress = setV2Setup.issuanceModule.address;
       subjectControllerAddress = setV2Setup.controller.address;
+      subjectSwapTarget = zeroExMock.address;
     });
 
     async function subject(): Promise<ExchangeIssuanceZeroEx> {
@@ -85,7 +86,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
         subjectWethAddress,
         subjectControllerAddress,
         subjectBasicIssuanceModuleAddress,
-        [zeroExMock.address],
+        subjectSwapTarget,
       );
     }
 
@@ -101,15 +102,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
       const expectedBasicIssuanceModuleAddress = await exchangeIssuanceContract.basicIssuanceModule();
       expect(expectedBasicIssuanceModuleAddress).to.eq(subjectBasicIssuanceModuleAddress);
 
-      const isZeroExMockAllowedSwapTarget = await exchangeIssuanceContract.allowedSwapTargets(
-        zeroExMock.address,
-      );
-      expect(isZeroExMockAllowedSwapTarget).to.eq(true);
-
-      const isRandomAddressAllowedSwapTarget = await exchangeIssuanceContract.allowedSwapTargets(
-        await getRandomAddress(),
-      );
-      expect(isRandomAddressAllowedSwapTarget).to.eq(false);
+      const swapTarget = await exchangeIssuanceContract.swapTarget();
+      expect(swapTarget).to.eq(subjectSwapTarget);
     });
   });
 
@@ -127,7 +121,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
         wethAddress,
         controllerAddress,
         basicIssuanceModuleAddress,
-        [zeroExMock.address],
+        zeroExMock.address,
       );
     });
 
@@ -192,7 +186,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
           sellToken,
           buyToken,
           spender: zeroExMock.address,
-          swapTarget: zeroExMock.address,
           swapCallData: zeroExMock.interface.encodeFunctionData("sellToUniswap", [
             [sellToken, buyToken],
             sellAmount,
@@ -209,7 +202,12 @@ describe("ExchangeIssuanceZeroEx", async () => {
         subjectWethAmount = ether(1);
         subjectAmountSetToken = 1;
         subjectAmountSetTokenWei = ether(subjectAmountSetToken);
-        subjectInputSwapQuote = getUniswapV2Quote(dai.address, subjectInputTokenAmount, weth.address, subjectWethAmount);
+        subjectInputSwapQuote = getUniswapV2Quote(
+          dai.address,
+          subjectInputTokenAmount,
+          weth.address,
+          subjectWethAmount,
+        );
 
         const positions = await setToken.getPositions();
         subjectPositionSwapQuotes = positions.map(position =>
@@ -322,15 +320,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
         });
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("INVALID SELL TOKEN");
-        });
-      });
-
-      context("when a quote has an unauthorized swap target", async () => {
-        beforeEach(async () => {
-          subjectPositionSwapQuotes[0].swapTarget = await getRandomAddress();
-        });
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("UNAUTHORISED SWAP TARGET");
         });
       });
 

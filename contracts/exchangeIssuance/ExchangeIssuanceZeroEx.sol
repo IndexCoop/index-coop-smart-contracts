@@ -40,7 +40,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         IERC20 sellToken;
         IERC20 buyToken;
         address spender;
-        address payable swapTarget;
         bytes swapCallData;
         uint256 sellAmount;
     }
@@ -52,7 +51,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     IController public immutable setController;
     IBasicIssuanceModule public immutable basicIssuanceModule;
 
-    mapping(address => bool) public allowedSwapTargets;
+    address public swapTarget;
 
     /* ============ Events ============ */
 
@@ -91,7 +90,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         address _weth,
         IController _setController,
         IBasicIssuanceModule _basicIssuanceModule,
-        address[] memory _allowedSwapTargets
+        address _swapTarget
     )
         public
     {
@@ -99,32 +98,19 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         basicIssuanceModule = _basicIssuanceModule;
 
         WETH = _weth;
-        // Safe approve 0x contract address
-        for (uint256 i = 0; i < _allowedSwapTargets.length; i++) {
-            allowedSwapTargets[_allowedSwapTargets[i]] = true;
-        }
+        swapTarget = _swapTarget;
     }
 
     /* ============ Public Functions ============ */
 
     /**
-     * Adds given address to whitelist of allowed swap target contracts
+     * Change the _swapTarget
      *
      * @param _swapTarget    Address of the swap target contract. (Usually ZeroEx ExchangeProxy)
      */
-    function addAllowedSwapTarget(address _swapTarget) public onlyOwner {
-        allowedSwapTargets[_swapTarget] = true;
+    function setSwapTarget(address _swapTarget) public onlyOwner {
+        swapTarget = _swapTarget;
     }
-
-    /**
-     * Removes given address from whitelist of allowed swap target contracts
-     *
-     * @param _swapTarget    Address of the swap target contract. (Usually ZeroEx ExchangeProxy)
-     */
-    function removeAllowedSwapTarget(address _swapTarget) public onlyOwner {
-        allowedSwapTargets[_swapTarget] = false;
-    }
-
 
     /**
      * Runs all the necessary approval functions required for a given ERC20 token.
@@ -204,7 +190,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         }
         else {
             uint256 inputTokenSpent;
-            _safeApprove(_inputToken, _inputQuote.swapTarget, _maxAmountInputToken);
+            _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
 
             (maxAmountWETH, inputTokenSpent) = _fillQuote(_inputQuote);
             require(inputTokenSpent <= _maxAmountInputToken, "OVERSPENT INPUTTOKEN");
@@ -419,7 +405,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
             totalWethApproved = totalWethApproved.add(quote.sellAmount);
             require(totalWethApproved <= _maxAmountWeth, "OVERAPPROVED WETH");
-            _safeApprove(IERC20(WETH), quote.swapTarget, quote.sellAmount);
+            _safeApprove(IERC20(WETH), swapTarget, quote.sellAmount);
 
             (uint256 componentAmountBought, uint256 wethAmountSpent) = _fillQuote(quote);
 
@@ -450,11 +436,10 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         internal
         returns(uint256 boughtAmount, uint256 spentAmount)
     {
-        require(allowedSwapTargets[_quote.swapTarget], "UNAUTHORISED SWAP TARGET");
         uint256 buyTokenBalanceBefore = _quote.buyToken.balanceOf(address(this));
         uint256 sellTokenBalanceBefore = _quote.sellToken.balanceOf(address(this));
 
-        (bool success,) = _quote.swapTarget.call(_quote.swapCallData);
+        (bool success,) = swapTarget.call(_quote.swapCallData);
         require(success, "SWAP CALL FAILED");
 
         // TODO: check if we want to do this / and how to do so savely
