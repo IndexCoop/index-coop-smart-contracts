@@ -323,21 +323,12 @@ describe("ExchangeIssuanceZeroEx", async () => {
         });
       });
 
-      context("when the sum of the approved WETH exceeds the amount obtained", async () => {
-        beforeEach(async () => {
-          subjectPositionSwapQuotes[0].sellAmount = ether(100000);
-        });
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("OVERAPPROVED WETH");
-        });
-      });
-
       context("when the input swap yields insufficient WETH", async () => {
         beforeEach(async () => {
           await zeroExMock.setBuyMultiplier(weth.address, ether(0.5));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("OVERAPPROVED WETH");
+          await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
         });
       });
 

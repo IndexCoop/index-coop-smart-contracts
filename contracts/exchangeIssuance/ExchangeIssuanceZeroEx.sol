@@ -201,9 +201,9 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         }
 
         uint256 amountWethSpent = _issueExactSetFromWETH(_setToken, _amountSetToken, maxAmountWETH, _componentQuotes);
-        uint256 amountEthReturn = maxAmountWETH.sub(amountWethSpent);
-        if (amountEthReturn > 0) {
-            IERC20(WETH).safeTransfer(msg.sender,  amountEthReturn);
+        uint256 amountWethReturn = maxAmountWETH.sub(amountWethSpent);
+        if (amountWethReturn > 0) {
+            IERC20(WETH).safeTransfer(msg.sender,  amountWethReturn);
         }
 
         emit ExchangeIssue(msg.sender, _setToken, _inputToken, _maxAmountInputToken, _amountSetToken);
@@ -397,15 +397,12 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
         uint256 totalWethApproved = 0;
 
+        _safeApprove(IERC20(WETH), swapTarget, _maxAmountWeth);
         for (uint256 i = 0; i < positions.length; i++) {
             ISetToken.Position memory position = positions[i];
             ZeroExSwapQuote memory quote = _quotes[i];
             require(position.component == address(quote.buyToken), "COMPONENT / QUOTE ADDRESS MISMATCH");
             require(address(quote.sellToken) ==  WETH, "INVALID SELL TOKEN");
-
-            totalWethApproved = totalWethApproved.add(quote.sellAmount);
-            require(totalWethApproved <= _maxAmountWeth, "OVERAPPROVED WETH");
-            _safeApprove(IERC20(WETH), swapTarget, quote.sellAmount);
 
             (uint256 componentAmountBought, uint256 wethAmountSpent) = _fillQuote(quote);
 
