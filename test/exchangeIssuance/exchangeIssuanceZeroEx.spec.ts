@@ -27,7 +27,6 @@ const expect = getWaffleExpect();
 type ZeroExSwapQuote = {
   sellToken: Address;
   buyToken: Address;
-  spender: Address;
   swapCallData: string;
   sellAmount: BigNumber;
 };
@@ -165,6 +164,24 @@ describe("ExchangeIssuanceZeroEx", async () => {
       });
     });
 
+    describe("#setSwapTarget", async () => {
+      let subjectSwapTarget: Address;
+
+      beforeEach(async () => {
+        subjectSwapTarget = await getRandomAddress();
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await exchangeIssuanceZeroEx.setSwapTarget(subjectSwapTarget);
+      }
+      it("should update the swap target correctly", async () => {
+        await subject();
+        const swapTarget = await exchangeIssuanceZeroEx.swapTarget();
+        expect(swapTarget).to.eq(subjectSwapTarget);
+      });
+
+    });
+
     describe("#issueExactSetFromToken", async () => {
       let subjectInputToken: StandardTokenMock | WETH9;
       let subjectInputTokenAmount: BigNumber;
@@ -185,7 +202,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
         return {
           sellToken,
           buyToken,
-          spender: zeroExMock.address,
           swapCallData: zeroExMock.interface.encodeFunctionData("sellToUniswap", [
             [sellToken, buyToken],
             sellAmount,

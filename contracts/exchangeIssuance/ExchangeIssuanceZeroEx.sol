@@ -39,7 +39,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     struct ZeroExSwapQuote {
         IERC20 sellToken;
         IERC20 buyToken;
-        address spender;
         bytes swapCallData;
         uint256 sellAmount;
     }
