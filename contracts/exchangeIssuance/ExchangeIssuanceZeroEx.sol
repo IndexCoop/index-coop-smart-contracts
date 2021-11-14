@@ -40,7 +40,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         IERC20 sellToken;
         IERC20 buyToken;
         bytes swapCallData;
-        uint256 sellAmount;
     }
 
     /* ============ State Variables ============ */
