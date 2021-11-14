@@ -23,6 +23,7 @@ import {
 import { getAllowances } from "@utils/common/exchangeIssuanceUtils";
 import axios from "axios";
 import qs from "qs";
+import hre, { ethers } from "hardhat";
 
 const expect = getWaffleExpect();
 
@@ -528,16 +529,30 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectInputToken = dai;
           subjectAmountSetToken = 1;
           subjectAmountSetTokenWei = ether(subjectAmountSetToken);
-          [subjectInputSwapQuote, subjectPositionSwapQuotes, subjectInputTokenAmount] = await getQuotes(
-            setToken,
-            subjectInputToken.address,
-            subjectAmountSetToken,
-          );
+          [
+            subjectInputSwapQuote,
+            subjectPositionSwapQuotes,
+            subjectInputTokenAmount,
+          ] = await getQuotes(setToken, subjectInputToken.address, subjectAmountSetToken);
         };
 
         beforeEach(async () => {
           await initializeSubjectVariables();
           await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+          const inputTokenWhaleAddress = "0x21a31Ee1afC51d94C2eFcCAa2092aD1028285549";
+          await hre.network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: [inputTokenWhaleAddress],
+          });
+          const inputTokenWhaleSigner = ethers.provider.getSigner(inputTokenWhaleAddress);
+          const whaleTokenBalance = await subjectInputToken.balanceOf(inputTokenWhaleAddress);
+          console.log("Whale token balance", whaleTokenBalance);
+          console.log("Whale ether balance", await inputTokenWhaleSigner.getBalance());
+          const transferTx = await subjectInputToken
+            .connect(inputTokenWhaleSigner)
+            .transfer(owner.address, whaleTokenBalance);
+          await transferTx.wait();
+          console.log("New owner balance", await subjectInputToken.balanceOf(owner.address));
           dai.approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
         });
 
