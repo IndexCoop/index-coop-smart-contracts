@@ -40,6 +40,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
   let setToken: SetToken;
   let wbtc: StandardTokenMock;
   let dai: StandardTokenMock;
+  let usdc: StandardTokenMock;
   let weth: WETH9;
 
   let daiUnits: BigNumber;
@@ -52,7 +53,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
     setV2Setup = getSetFixture(owner.address);
     await setV2Setup.initialize();
 
-    ({ dai, wbtc, weth } = setV2Setup);
+    ({ dai, wbtc, weth, usdc } = setV2Setup);
 
     zeroExMock = await deployer.mocks.deployZeroExExchangeProxyMock();
 
@@ -178,8 +179,27 @@ describe("ExchangeIssuanceZeroEx", async () => {
         const swapTarget = await exchangeIssuanceZeroEx.swapTarget();
         expect(swapTarget).to.eq(subjectSwapTarget);
       });
-
     });
+
+    // Helper function to generate 0xAPI quote for UniswapV2
+    function getUniswapV2Quote(
+      sellToken: Address,
+      sellAmount: BigNumber,
+      buyToken: Address,
+      minBuyAmount: BigNumber,
+    ): ZeroExSwapQuote {
+      const isSushi = false;
+      return {
+        sellToken,
+        buyToken,
+        swapCallData: zeroExMock.interface.encodeFunctionData("sellToUniswap", [
+          [sellToken, buyToken],
+          sellAmount,
+          minBuyAmount,
+          isSushi,
+        ]),
+      };
+    }
 
     describe("#issueExactSetFromToken", async () => {
       let subjectInputToken: StandardTokenMock | WETH9;
@@ -189,26 +209,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
       let subjectAmountSetTokenWei: BigNumber;
       let subjectInputSwapQuote: ZeroExSwapQuote;
       let subjectPositionSwapQuotes: ZeroExSwapQuote[];
-
-      // Helper function to generate 0xAPI quote for UniswapV2
-      function getUniswapV2Quote(
-        sellToken: Address,
-        sellAmount: BigNumber,
-        buyToken: Address,
-        minBuyAmount: BigNumber,
-      ): ZeroExSwapQuote {
-        const isSushi = false;
-        return {
-          sellToken,
-          buyToken,
-          swapCallData: zeroExMock.interface.encodeFunctionData("sellToUniswap", [
-            [sellToken, buyToken],
-            sellAmount,
-            minBuyAmount,
-            isSushi,
-          ]),
-        };
-      }
 
       const initializeSubjectVariables = async () => {
         subjectInputTokenAmount = ether(1000);
@@ -379,57 +379,88 @@ describe("ExchangeIssuanceZeroEx", async () => {
       });
     });
 
-    it("Redeems Exact Set For Token", async () => {
-      // Output token is USDC
-      const outputToken = setV2Setup.usdc;
+    describe("#redeemExactSetToken", async () => {
+      let subjectOutputToken: StandardTokenMock | WETH9;
+      let subjectOutputTokenAmount: BigNumber;
+      let subjectWethAmount: BigNumber;
+      let subjectAmountSetToken: number;
+      let subjectAmountSetTokenWei: BigNumber;
+      let subjectOutputSwapQuote: ZeroExSwapQuote;
+      let subjectPositionSwapQuotes: ZeroExSwapQuote[];
 
-      // Generate call data for swap from weth
-      const outputTokenAmount = ether(1000);
-      const wethAmount = ether(1);
-      const amountSetToken = 1;
-      const amountSetTokenWei = ether(amountSetToken);
-      const outputSwapQuote = getUniswapV2Quote(
-        setV2Setup.weth.address,
-        wethAmount,
-        setV2Setup.usdc.address,
-        outputTokenAmount,
-      );
+      const initializeSubjectVariables = async () => {
+        subjectOutputTokenAmount = ether(1000);
+        subjectOutputToken = usdc;
+        subjectWethAmount = ether(1);
+        subjectAmountSetToken = 1;
+        subjectAmountSetTokenWei = ether(subjectAmountSetToken);
+        subjectOutputSwapQuote = getUniswapV2Quote(
+          weth.address,
+          subjectWethAmount,
+          usdc.address,
+          subjectOutputTokenAmount,
+        );
 
-      const positions = await setToken.getPositions();
-      const positionSwapQuotes: ZeroExSwapQuote[] = positions.map(position =>
-        getUniswapV2Quote(
-          position.component,
-          position.unit.mul(amountSetToken),
-          setV2Setup.weth.address,
-          wethAmount.div(2),
-        ),
-      );
+        const positions = await setToken.getPositions();
+        subjectPositionSwapQuotes = positions.map(position =>
+          getUniswapV2Quote(
+            position.component,
+            position.unit.mul(subjectAmountSetToken),
+            weth.address,
+            subjectWethAmount.div(2),
+          ),
+        );
+      };
 
-      const exchangeIssuanceZeroEx = await subject();
-      await setV2Setup.approveAndIssueSetToken(setToken, amountSetTokenWei, user.address);
-      await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
-      await setToken.connect(user.wallet).approve(exchangeIssuanceZeroEx.address, MAX_UINT_256, { gasPrice: 0 });
-      // Fund the Exchange mock with tokens to be traded into (weth and usdc)
-      await setV2Setup.weth.transfer(zeroExMock.address, wethAmount);
-      await setV2Setup.usdc.transfer(zeroExMock.address, outputTokenAmount);
+      beforeEach(async () => {
+        await initializeSubjectVariables();
+        await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+        await setV2Setup.approveAndIssueSetToken(setToken, subjectAmountSetTokenWei, user.address);
+        await setToken.connect(user.wallet).approve(exchangeIssuanceZeroEx.address, MAX_UINT_256, { gasPrice: 0 });
+        await weth.connect(user.wallet).approve(zeroExMock.address, MAX_UINT_256);
+        await usdc.connect(user.wallet).approve(zeroExMock.address, MAX_UINT_256);
+        await dai.connect(user.wallet).approve(zeroExMock.address, MAX_UINT_256);
+        await wbtc.connect(user.wallet).approve(zeroExMock.address, MAX_UINT_256);
+        await usdc.connect(user.wallet).approve(zeroExMock.address, MAX_UINT_256);
+        await weth.transfer(zeroExMock.address, subjectWethAmount);
+        await usdc.transfer(zeroExMock.address, subjectOutputTokenAmount);
+      });
 
-      const initialBalanceOfSet = await setToken.balanceOf(user.address);
-      const initialUsdcBalance = await setV2Setup.usdc.balanceOf(user.address);
-      exchangeIssuanceZeroEx.connect(user.wallet).redeemExactSetForToken(
-        setToken.address,
-        outputToken.address,
-        outputSwapQuote,
-        amountSetTokenWei,
-        outputTokenAmount,
-        positionSwapQuotes,
-      );
+      async function subject(): Promise<ContractTransaction> {
+        return await exchangeIssuanceZeroEx.connect(user.wallet).redeemExactSetForToken(
+          setToken.address,
+          subjectOutputToken.address,
+          subjectOutputSwapQuote,
+          subjectAmountSetTokenWei,
+          subjectOutputTokenAmount,
+          subjectPositionSwapQuotes,
+        );
+      }
 
-      const finalSetBalance = await setToken.balanceOf(user.address);
-      const finalUsdcBalance = await setV2Setup.usdc.balanceOf(user.address);
-      const expectedSetBalance = initialBalanceOfSet.sub(amountSetTokenWei);
-      const expectedUsdcBalance = initialUsdcBalance.add(outputTokenAmount);
-      expect(finalSetBalance).to.eq(expectedSetBalance);
-      expect(finalUsdcBalance).to.eq(expectedUsdcBalance);
+      it("should redeem the correct number of set tokens", async () => {
+        const initialBalanceOfSet = await setToken.balanceOf(user.address);
+        await subject();
+        const finalSetBalance = await setToken.balanceOf(user.address);
+        const expectedSetBalance = initialBalanceOfSet.sub(subjectAmountSetTokenWei);
+        expect(finalSetBalance).to.eq(expectedSetBalance);
+      });
+
+      it("should give the correct number of output tokens", async () => {
+        const initialUsdcBalance = await usdc.balanceOf(user.address);
+        await subject();
+        const finalUsdcBalance = await usdc.balanceOf(user.address);
+        const expectedUsdcBalance = initialUsdcBalance.add(subjectOutputTokenAmount);
+        expect(finalUsdcBalance).to.eq(expectedUsdcBalance);
+      });
+
+      context("when a position quote is missing", async () => {
+        beforeEach(async () => {
+          subjectPositionSwapQuotes = [subjectPositionSwapQuotes[0]];
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("WRONG NUMBER OF COMPONENT QUOTES");
+        });
+      });
     });
   });
 });
