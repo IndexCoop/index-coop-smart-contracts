@@ -417,11 +417,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
         await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
         await setV2Setup.approveAndIssueSetToken(setToken, subjectAmountSetTokenWei, user.address);
         await setToken.connect(user.wallet).approve(exchangeIssuanceZeroEx.address, MAX_UINT_256, { gasPrice: 0 });
-        await weth.connect(user.wallet).approve(zeroExMock.address, MAX_UINT_256);
-        await usdc.connect(user.wallet).approve(zeroExMock.address, MAX_UINT_256);
-        await dai.connect(user.wallet).approve(zeroExMock.address, MAX_UINT_256);
-        await wbtc.connect(user.wallet).approve(zeroExMock.address, MAX_UINT_256);
-        await usdc.connect(user.wallet).approve(zeroExMock.address, MAX_UINT_256);
         await weth.transfer(zeroExMock.address, subjectWethAmount);
         await usdc.transfer(zeroExMock.address, subjectOutputTokenAmount);
       });
@@ -453,12 +448,88 @@ describe("ExchangeIssuanceZeroEx", async () => {
         expect(finalUsdcBalance).to.eq(expectedUsdcBalance);
       });
 
+      context("when the output token is weth", async () => {
+        beforeEach(async () => {
+          subjectOutputToken = weth;
+          subjectOutputTokenAmount = subjectWethAmount;
+        });
+        it("should redeem correct amount of set tokens", async () => {
+          const initialBalanceOfSet = await setToken.balanceOf(user.address);
+          await subject();
+          const finalSetBalance = await setToken.balanceOf(user.address);
+          const expectedSetBalance = initialBalanceOfSet.sub(subjectAmountSetTokenWei);
+          expect(finalSetBalance).to.eq(expectedSetBalance);
+        });
+        it("should receive correct amount of WETH", async () => {
+          const initialBalanceOfOutput = await subjectOutputToken.balanceOf(user.address);
+          await subject();
+          const finalOutputBalance = await subjectOutputToken.balanceOf(user.address);
+          const expectedOutputbalance = initialBalanceOfOutput.add(subjectOutputTokenAmount);
+          expect(finalOutputBalance).to.eq(expectedOutputbalance);
+        });
+      });
+
+      context("when invalid set token amount is requested", async () => {
+        beforeEach(async () => {
+          subjectAmountSetTokenWei = ether(0);
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID SET TOKEN AMOUNT");
+        });
+      });
+
       context("when a position quote is missing", async () => {
         beforeEach(async () => {
           subjectPositionSwapQuotes = [subjectPositionSwapQuotes[0]];
         });
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("WRONG NUMBER OF COMPONENT QUOTES");
+        });
+      });
+
+      context("when a position quote has the wrong sellTokenAddress", async () => {
+        beforeEach(async () => {
+          subjectPositionSwapQuotes[0].sellToken = await getRandomAddress();
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("COMPONENT / QUOTE ADDRESS MISMATCH");
+        });
+      });
+
+      context("when a position quote has a non-WETH buyToken address", async () => {
+        beforeEach(async () => {
+          subjectPositionSwapQuotes[0].buyToken = await getRandomAddress();
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("INVALID BUY TOKEN");
+        });
+      });
+
+      context("when the input swap yields insufficient WETH", async () => {
+        beforeEach(async () => {
+          await zeroExMock.setBuyMultiplier(weth.address, ether(0.5));
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
+        });
+      });
+
+      context("when the output swap yields insufficient USDC", async () => {
+        beforeEach(async () => {
+          await zeroExMock.setBuyMultiplier(usdc.address, ether(0.5));
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+        });
+      });
+
+      context("when a swap call fails", async () => {
+        beforeEach(async () => {
+          // Trigger revertion in mock by trying to return more buy weth than available in balance
+          await zeroExMock.setBuyMultiplier(weth.address, ether(100));
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
         });
       });
     });

@@ -267,16 +267,16 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         returns (uint256)
     {
         require(_amountSetToken > 0, "ExchangeIssuance: INVALID SET TOKEN AMOUNT");
-        require(address(_outputToken) == address(_outputQuote.buyToken), "ExchangeIssuance: OUTPUT TOKEN / OUTPUT QUOTE MISMATCH");
         require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
 
         uint256 outputAmount;
         // Redeem exact set token
         _redeemExactSet(_setToken, _amountSetToken);
         if (address(_outputToken) == WETH) {
-            // Liquidate components for WETH
+            // Liquidate components for WETH and ignore _outputQuote
             outputAmount = _liquidateComponentsForWETH(_setToken, _amountSetToken, _componentQuotes);
         } else {
+            require(address(_outputToken) == address(_outputQuote.buyToken), "ExchangeIssuance: OUTPUT TOKEN / OUTPUT QUOTE MISMATCH");
             // Liquidate components for WETH
             uint256 outputWeth = _liquidateComponentsForWETH(_setToken, _amountSetToken, _componentQuotes);
             _safeApprove(IERC20(WETH), address(swapTarget), outputWeth);
