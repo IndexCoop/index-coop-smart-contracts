@@ -39,11 +39,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     struct ZeroExSwapQuote {
         IERC20 sellToken;
         IERC20 buyToken;
-        address spender;
-        address payable swapTarget;
         bytes swapCallData;
-        uint256 value;
-        uint256 sellAmount;
     }
 
     /* ============ State Variables ============ */
@@ -53,7 +49,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     IController public immutable setController;
     IBasicIssuanceModule public immutable basicIssuanceModule;
 
-    mapping(address => bool) allowedSwapTargets;
+    address public swapTarget;
 
     /* ============ Events ============ */
 
@@ -91,7 +87,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         address _weth,
         IController _setController,
         IBasicIssuanceModule _basicIssuanceModule,
-        address[] memory _allowedSwapTargets
+        address _swapTarget
     )
         public
     {
@@ -99,32 +95,19 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         basicIssuanceModule = _basicIssuanceModule;
 
         WETH = _weth;
-        // Safe approve 0x contract address
-        for (uint256 i = 0; i < _allowedSwapTargets.length; i++) {
-            addAllowedSwapTarget(_allowedSwapTargets[i]);
-        }
+        swapTarget = _swapTarget;
     }
 
     /* ============ Public Functions ============ */
 
     /**
-     * Adds given address to whitelist of allowed swap target contracts
+     * Change the _swapTarget
      *
      * @param _swapTarget    Address of the swap target contract. (Usually ZeroEx ExchangeProxy)
      */
-    function addAllowedSwapTarget(address _swapTarget) public onlyOwner {
-        allowedSwapTargets[_swapTarget] = true;
+    function setSwapTarget(address _swapTarget) public onlyOwner {
+        swapTarget = _swapTarget;
     }
-
-    /**
-     * Removes given address from whitelist of allowed swap target contracts
-     *
-     * @param _swapTarget    Address of the swap target contract. (Usually ZeroEx ExchangeProxy)
-     */
-    function removeAllowedSwapTarget(address _swapTarget) public onlyOwner {
-        allowedSwapTargets[_swapTarget] = false;
-    }
-
 
     /**
      * Runs all the necessary approval functions required for a given ERC20 token.
@@ -191,27 +174,20 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         isSetToken(_setToken)
         external
         nonReentrant
-        payable // Must attach ETH equal to the sum of the `value` fields from all the API responses.
         returns (uint256)
     {
         require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-        require(_setToken.getComponents().length == _componentQuotes.length, "Wrong number of component quotes");
+        require(_setToken.getComponents().length == _componentQuotes.length, "WRONG NUMBER OF COMPONENT QUOTES");
 
         _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
 
         uint256 maxAmountWETH;
-        uint256 maxAmountETH = msg.value;
         if(address(_inputToken) == WETH){
             maxAmountWETH = _maxAmountInputToken;
         }
         else {
             uint256 inputTokenSpent;
-            _safeApprove(_inputToken, _inputQuote.swapTarget, _maxAmountInputToken);
-
-            if(_inputQuote.value > 0){
-                maxAmountETH = maxAmountETH.sub(_inputQuote.value);
-                require(maxAmountETH >= 0, "OVERSPENT NATIVE ETH");
-            }
+            _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
 
             (maxAmountWETH, inputTokenSpent) = _fillQuote(_inputQuote);
             require(inputTokenSpent <= _maxAmountInputToken, "OVERSPENT INPUTTOKEN");
@@ -221,10 +197,10 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             }
         }
 
-        uint256 amountWethSpent = _issueExactSetFromWETH(_setToken, _amountSetToken, maxAmountWETH, maxAmountETH, _componentQuotes);
-        uint256 amountEthReturn = maxAmountWETH.sub(amountWethSpent);
-        if (amountEthReturn > 0) {
-            IERC20(WETH).safeTransfer(msg.sender,  amountEthReturn);
+        uint256 amountWethSpent = _issueExactSetFromWETH(_setToken, _amountSetToken, maxAmountWETH, _componentQuotes);
+        uint256 amountWethReturn = maxAmountWETH.sub(amountWethSpent);
+        if (amountWethReturn > 0) {
+            IERC20(WETH).safeTransfer(msg.sender,  amountWethReturn);
         }
 
         emit ExchangeIssue(msg.sender, _setToken, _inputToken, _maxAmountInputToken, _amountSetToken);
@@ -455,30 +431,27 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _amountSetToken    Amount of SetTokens to be issued
      *
      */
-    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken, uint256 _maxAmountWeth, uint256 _maxAmountEthValue, ZeroExSwapQuote[] memory _quotes) internal returns (uint256 totalWethSpent) {
+    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken, uint256 _maxAmountWeth, ZeroExSwapQuote[] memory _quotes) internal returns (uint256 totalWethSpent) {
         ISetToken.Position[] memory positions = _setToken.getPositions();
 
         uint256 totalWethApproved = 0;
-        uint256 totalEthValue = 0;
 
+        _safeApprove(IERC20(WETH), swapTarget, _maxAmountWeth);
         for (uint256 i = 0; i < positions.length; i++) {
             ISetToken.Position memory position = positions[i];
             ZeroExSwapQuote memory quote = _quotes[i];
-            require(position.component == address(quote.buyToken), "Component / Quote mismatch");
-            require(address(quote.sellToken) ==  WETH, "Invalid Sell Token");
-
-            totalWethApproved = totalWethApproved.add(quote.sellAmount);
-            require(totalWethApproved <= _maxAmountWeth, "OVERAPPROVED WETH");
-            _safeApprove(IERC20(WETH), quote.swapTarget, quote.sellAmount);
-
-            if(quote.value > 0){
-                totalEthValue = totalEthValue.add(quote.value);
-                require(totalEthValue <= _maxAmountEthValue, "OVERSPENT NATIVE ETH");
-            }
+            require(position.component == address(quote.buyToken), "COMPONENT / QUOTE ADDRESS MISMATCH");
+            require(address(quote.sellToken) ==  WETH, "INVALID SELL TOKEN");
 
             (uint256 componentAmountBought, uint256 wethAmountSpent) = _fillQuote(quote);
+
+            // TODO: Had to reassign this variable to avoid CompilerError: Stack too deep - review if better solution possible
+            uint256 setAmount = _amountSetToken;
+            uint256 units = uint256(position.unit);
+            uint256 minComponentRequired = setAmount.mul(units).div(10**18);
+            require(componentAmountBought >= minComponentRequired, "UNDERBOUGHT COMPONENT");
+
             totalWethSpent = totalWethSpent.add(wethAmountSpent);
-            // TODO: Check if we bought enough component to avoid attackers using left over tokens in contract to make up for insufficient purchase
             require(totalWethSpent <= _maxAmountWeth, "OVERSPENT WETH");
         }
 
@@ -518,13 +491,12 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         internal
         returns(uint256 boughtAmount, uint256 spentAmount)
     {
-        require(allowedSwapTargets[_quote.swapTarget], "UNAUTHORISED SWAP TARGET");
         uint256 buyTokenBalanceBefore = _quote.buyToken.balanceOf(address(this));
         uint256 sellTokenBalanceBefore = _quote.sellToken.balanceOf(address(this));
 
         _safeApprove(_quote.sellToken, address(_quote.swapTarget), _quote.sellAmount);
-        (bool success,) = _quote.swapTarget.call{value: _quote.value}(_quote.swapCallData);
-        require(success, "SWAP_CALL_FAILED");
+        (bool success,) = swapTarget.call(_quote.swapCallData);
+        require(success, "SWAP CALL FAILED");
 
         // TODO: check if we want to do this / and how to do so safely
         // Refund any unspent protocol fees to the sender.
