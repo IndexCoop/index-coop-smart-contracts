@@ -32,7 +32,7 @@ type ZeroExSwapQuote = {
 
 describe("ExchangeIssuanceZeroEx", async () => {
   let owner: Account;
-
+  let user: Account;
   let setV2Setup: SetFixture;
   let zeroExMock: ZeroExExchangeProxyMock;
   let deployer: DeployHelper;
@@ -40,19 +40,20 @@ describe("ExchangeIssuanceZeroEx", async () => {
   let setToken: SetToken;
   let wbtc: StandardTokenMock;
   let dai: StandardTokenMock;
+  let usdc: StandardTokenMock;
   let weth: WETH9;
 
   let daiUnits: BigNumber;
   let wbtcUnits: BigNumber;
 
   cacheBeforeEach(async () => {
-    [owner] = await getAccounts();
+    [owner, user] = await getAccounts();
     deployer = new DeployHelper(owner.wallet);
 
     setV2Setup = getSetFixture(owner.address);
     await setV2Setup.initialize();
 
-    ({ dai, wbtc, weth } = setV2Setup);
+    ({ dai, wbtc, weth, usdc } = setV2Setup);
 
     zeroExMock = await deployer.mocks.deployZeroExExchangeProxyMock();
 
@@ -178,8 +179,27 @@ describe("ExchangeIssuanceZeroEx", async () => {
         const swapTarget = await exchangeIssuanceZeroEx.swapTarget();
         expect(swapTarget).to.eq(subjectSwapTarget);
       });
-
     });
+
+    // Helper function to generate 0xAPI quote for UniswapV2
+    function getUniswapV2Quote(
+      sellToken: Address,
+      sellAmount: BigNumber,
+      buyToken: Address,
+      minBuyAmount: BigNumber,
+    ): ZeroExSwapQuote {
+      const isSushi = false;
+      return {
+        sellToken,
+        buyToken,
+        swapCallData: zeroExMock.interface.encodeFunctionData("sellToUniswap", [
+          [sellToken, buyToken],
+          sellAmount,
+          minBuyAmount,
+          isSushi,
+        ]),
+      };
+    }
 
     describe("#issueExactSetFromToken", async () => {
       let subjectInputToken: StandardTokenMock | WETH9;
@@ -189,26 +209,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
       let subjectAmountSetTokenWei: BigNumber;
       let subjectInputSwapQuote: ZeroExSwapQuote;
       let subjectPositionSwapQuotes: ZeroExSwapQuote[];
-
-      // Helper function to generate 0xAPI quote for UniswapV2
-      function getUniswapV2Quote(
-        sellToken: Address,
-        sellAmount: BigNumber,
-        buyToken: Address,
-        minBuyAmount: BigNumber,
-      ): ZeroExSwapQuote {
-        const isSushi = false;
-        return {
-          sellToken,
-          buyToken,
-          swapCallData: zeroExMock.interface.encodeFunctionData("sellToUniswap", [
-            [sellToken, buyToken],
-            sellAmount,
-            minBuyAmount,
-            isSushi,
-          ]),
-        };
-      }
 
       const initializeSubjectVariables = async () => {
         subjectInputTokenAmount = ether(1000);
@@ -372,6 +372,161 @@ describe("ExchangeIssuanceZeroEx", async () => {
         beforeEach(async () => {
           // Trigger revertion in mock by trying to return more buy tokens than available in balance
           await zeroExMock.setBuyMultiplier(wbtc.address, ether(100));
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
+        });
+      });
+    });
+
+    describe("#redeemExactSetToken", async () => {
+      let subjectOutputToken: StandardTokenMock | WETH9;
+      let subjectOutputTokenAmount: BigNumber;
+      let subjectWethAmount: BigNumber;
+      let subjectAmountSetToken: number;
+      let subjectAmountSetTokenWei: BigNumber;
+      let subjectOutputSwapQuote: ZeroExSwapQuote;
+      let subjectPositionSwapQuotes: ZeroExSwapQuote[];
+
+      const initializeSubjectVariables = async () => {
+        subjectOutputTokenAmount = ether(1000);
+        subjectOutputToken = usdc;
+        subjectWethAmount = ether(1);
+        subjectAmountSetToken = 1;
+        subjectAmountSetTokenWei = ether(subjectAmountSetToken);
+        subjectOutputSwapQuote = getUniswapV2Quote(
+          weth.address,
+          subjectWethAmount,
+          usdc.address,
+          subjectOutputTokenAmount,
+        );
+
+        const positions = await setToken.getPositions();
+        subjectPositionSwapQuotes = positions.map(position =>
+          getUniswapV2Quote(
+            position.component,
+            position.unit.mul(subjectAmountSetToken),
+            weth.address,
+            subjectWethAmount.div(2),
+          ),
+        );
+      };
+
+      beforeEach(async () => {
+        await initializeSubjectVariables();
+        await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+        await setV2Setup.approveAndIssueSetToken(setToken, subjectAmountSetTokenWei, user.address);
+        await setToken.connect(user.wallet).approve(exchangeIssuanceZeroEx.address, MAX_UINT_256, { gasPrice: 0 });
+        await weth.transfer(zeroExMock.address, subjectWethAmount);
+        await usdc.transfer(zeroExMock.address, subjectOutputTokenAmount);
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await exchangeIssuanceZeroEx.connect(user.wallet).redeemExactSetForToken(
+          setToken.address,
+          subjectOutputToken.address,
+          subjectOutputSwapQuote,
+          subjectAmountSetTokenWei,
+          subjectOutputTokenAmount,
+          subjectPositionSwapQuotes,
+        );
+      }
+
+      it("should redeem the correct number of set tokens", async () => {
+        const initialBalanceOfSet = await setToken.balanceOf(user.address);
+        await subject();
+        const finalSetBalance = await setToken.balanceOf(user.address);
+        const expectedSetBalance = initialBalanceOfSet.sub(subjectAmountSetTokenWei);
+        expect(finalSetBalance).to.eq(expectedSetBalance);
+      });
+
+      it("should give the correct number of output tokens", async () => {
+        const initialUsdcBalance = await usdc.balanceOf(user.address);
+        await subject();
+        const finalUsdcBalance = await usdc.balanceOf(user.address);
+        const expectedUsdcBalance = initialUsdcBalance.add(subjectOutputTokenAmount);
+        expect(finalUsdcBalance).to.eq(expectedUsdcBalance);
+      });
+
+      context("when the output token is weth", async () => {
+        beforeEach(async () => {
+          subjectOutputToken = weth;
+          subjectOutputTokenAmount = subjectWethAmount;
+        });
+        it("should redeem correct amount of set tokens", async () => {
+          const initialBalanceOfSet = await setToken.balanceOf(user.address);
+          await subject();
+          const finalSetBalance = await setToken.balanceOf(user.address);
+          const expectedSetBalance = initialBalanceOfSet.sub(subjectAmountSetTokenWei);
+          expect(finalSetBalance).to.eq(expectedSetBalance);
+        });
+        it("should receive correct amount of WETH", async () => {
+          const initialBalanceOfOutput = await subjectOutputToken.balanceOf(user.address);
+          await subject();
+          const finalOutputBalance = await subjectOutputToken.balanceOf(user.address);
+          const expectedOutputbalance = initialBalanceOfOutput.add(subjectOutputTokenAmount);
+          expect(finalOutputBalance).to.eq(expectedOutputbalance);
+        });
+      });
+
+      context("when invalid set token amount is requested", async () => {
+        beforeEach(async () => {
+          subjectAmountSetTokenWei = ether(0);
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID SET TOKEN AMOUNT");
+        });
+      });
+
+      context("when a position quote is missing", async () => {
+        beforeEach(async () => {
+          subjectPositionSwapQuotes = [subjectPositionSwapQuotes[0]];
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("WRONG NUMBER OF COMPONENT QUOTES");
+        });
+      });
+
+      context("when a position quote has the wrong sellTokenAddress", async () => {
+        beforeEach(async () => {
+          subjectPositionSwapQuotes[0].sellToken = await getRandomAddress();
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("COMPONENT / QUOTE ADDRESS MISMATCH");
+        });
+      });
+
+      context("when a position quote has a non-WETH buyToken address", async () => {
+        beforeEach(async () => {
+          subjectPositionSwapQuotes[0].buyToken = await getRandomAddress();
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("INVALID BUY TOKEN");
+        });
+      });
+
+      context("when the input swap yields insufficient WETH", async () => {
+        beforeEach(async () => {
+          await zeroExMock.setBuyMultiplier(weth.address, ether(0.5));
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
+        });
+      });
+
+      context("when the output swap yields insufficient USDC", async () => {
+        beforeEach(async () => {
+          await zeroExMock.setBuyMultiplier(usdc.address, ether(0.5));
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+        });
+      });
+
+      context("when a swap call fails", async () => {
+        beforeEach(async () => {
+          // Trigger revertion in mock by trying to return more buy weth than available in balance
+          await zeroExMock.setBuyMultiplier(weth.address, ether(100));
         });
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
