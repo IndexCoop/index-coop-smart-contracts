@@ -487,10 +487,43 @@ describe("ExchangeIssuanceZeroEx", async () => {
         const API_QUOTE_URL = "https://api.0x.org/swap/v1/quote";
         async function getQuote(params: any) {
           const url = `${API_QUOTE_URL}?${qs.stringify(params)}`;
+          console.log(`Getting quote from ${params.sellToken} to ${params.buyToken}`);
           console.log("Sending quote request to:", url);
           const response = await axios(url);
-          console.log("Response:", response.data);
           return response.data;
+        }
+
+        async function logQuote(quote: any) {
+          console.log("Sell Amount:", quote.sellAmount);
+          console.log("Buy Amount:", quote.buyAmount);
+          console.log("Swap Target:", quote.to);
+          console.log("Allowance Target:", quote.allowanceTarget);
+          console.log(
+            "Sources:",
+            quote.sources.filter((source: any) => source.proportion > "0"),
+          );
+          await decodeCallData(quote.data, quote.to);
+        }
+
+        async function decodeCallData(callData: string, proxyAddress: Address) {
+          const API_KEY = "X28YB9Z9TQD4KSSC6A6QTKHYGPYGIP8D7I";
+          const ABI_ENDPOINT = `https://api.etherscan.io/api?module=contract&action=getabi&apikey=${API_KEY}&address=`;
+          const proxyAbi = await axios
+            .get(ABI_ENDPOINT + proxyAddress)
+            .then(response => JSON.parse(response.data.result));
+          const proxyContract = await ethers.getContractAt(proxyAbi, proxyAddress);
+          await proxyContract.deployed();
+          const implementation = await proxyContract.getFunctionImplementation(
+            callData.slice(0, 10),
+          );
+          console.log("Implementation Address: ", implementation);
+          const abiResponse = await axios.get(ABI_ENDPOINT + implementation);
+          const abi = JSON.parse(abiResponse.data.result);
+          const iface = new ethers.utils.Interface(abi);
+          const decodedTransaction = iface.parseTransaction({
+            data: callData,
+          });
+          console.log("Called Function Signature: ", decodedTransaction.signature);
         }
 
         // Helper function to generate 0xAPI quote for UniswapV2
@@ -498,7 +531,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           setToken: SetToken,
           inputTokenAddress: Address,
           setAmount: number,
-        ) {
+        ): Promise<[ZeroExSwapQuote, ZeroExSwapQuote[], BigNumber]> {
           const positions = await setToken.getPositions();
           const positionQuotes: ZeroExSwapQuote[] = [];
           let buyAmountWeth = BigNumber.from(0);
@@ -509,18 +542,29 @@ describe("ExchangeIssuanceZeroEx", async () => {
             const buyToken = position.component;
             const sellToken = wethAddress;
             const quote = await getQuote({ buyToken, sellToken, buyAmount });
-            console.log("Received Quote", quote);
-            positionQuotes.push(quote);
+            await logQuote(quote);
+            positionQuotes.push({
+              sellToken: sellToken,
+              buyToken: buyToken,
+              swapCallData: quote.data,
+            });
             buyAmountWeth = buyAmountWeth.add(BigNumber.from(quote.sellAmount));
           }
 
           console.log("Getting quote for input token trade");
-          const inputQuote = await getQuote({
+          const inputTokenApiResponse = await getQuote({
             buyToken: wethAddress,
             sellToken: inputTokenAddress,
             buyAmount: buyAmountWeth.toString(),
           });
-          const inputTokenAmount = inputQuote.sellAmount;
+          await logQuote(inputTokenApiResponse);
+          const inputTokenAmount = BigNumber.from(inputTokenApiResponse.sellAmount);
+          console.log("Input token amount", inputTokenAmount.toString());
+          const inputQuote = {
+            buyToken: wethAddress,
+            sellToken: inputTokenAddress,
+            swapCallData: inputTokenApiResponse.data,
+          };
           return [inputQuote, positionQuotes, inputTokenAmount];
         }
 
@@ -546,26 +590,38 @@ describe("ExchangeIssuanceZeroEx", async () => {
           });
           const inputTokenWhaleSigner = ethers.provider.getSigner(inputTokenWhaleAddress);
           const whaleTokenBalance = await subjectInputToken.balanceOf(inputTokenWhaleAddress);
-          console.log("Whale token balance", whaleTokenBalance);
-          console.log("Whale ether balance", await inputTokenWhaleSigner.getBalance());
           const transferTx = await subjectInputToken
             .connect(inputTokenWhaleSigner)
             .transfer(owner.address, whaleTokenBalance);
           await transferTx.wait();
-          console.log("New owner balance", await subjectInputToken.balanceOf(owner.address));
-          dai.approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
+          console.log(
+            "New owner balance",
+            (await subjectInputToken.balanceOf(owner.address)).toString(),
+          );
+          subjectInputToken.approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
         });
 
         async function subject(): Promise<ContractTransaction> {
           return await exchangeIssuanceZeroEx.issueExactSetFromToken(
             setToken.address,
             subjectInputToken.address,
-            subjectInputSwapQuote as any,
+            subjectInputSwapQuote,
             subjectAmountSetTokenWei,
             subjectInputTokenAmount,
-            subjectPositionSwapQuotes as any,
+            subjectPositionSwapQuotes,
           );
         }
+
+        it("should be able to execute input swap directly", async () => {
+          const transactionRequest = {
+            to: zeroExProxyAddress,
+            data: subjectInputSwapQuote.swapCallData,
+          };
+          subjectInputToken.approve(zeroExProxyAddress, MAX_UINT_256);
+          const [signer] = await ethers.getSigners();
+          const tx = await signer.sendTransaction(transactionRequest);
+          await tx.wait();
+        });
 
         it("should issue correct amount of set tokens", async () => {
           const initialBalanceOfSet = await setToken.balanceOf(owner.address);

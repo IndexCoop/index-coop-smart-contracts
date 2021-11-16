@@ -27,6 +27,7 @@ import { IController } from "../interfaces/IController.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
+import "hardhat/console.sol";
 
 contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
@@ -434,6 +435,9 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 buyTokenBalanceBefore = _quote.buyToken.balanceOf(address(this));
         uint256 sellTokenBalanceBefore = _quote.sellToken.balanceOf(address(this));
 
+        console.log("Calling Swap target");
+        console.logAddress(address(swapTarget));
+        console.logBytes(_quote.swapCallData);
         (bool success,) = swapTarget.call(_quote.swapCallData);
         require(success, "SWAP CALL FAILED");
 
