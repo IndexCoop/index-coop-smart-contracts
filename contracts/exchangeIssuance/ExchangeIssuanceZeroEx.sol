@@ -27,7 +27,6 @@ import { IController } from "../interfaces/IController.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
-import "hardhat/console.sol";
 
 contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
@@ -191,13 +190,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             uint256 inputTokenSpent;
             _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
 
-            console.log("Input Token Balance:");
             uint256 inputTokenBalance = _inputToken.balanceOf(address(this));
-            console.log("Contract");
-            console.logUint(inputTokenBalance);
             uint256 inputTokenBalanceSender = _inputToken.balanceOf(msg.sender);
-            console.log("Sender");
-            console.logUint(inputTokenBalanceSender);
 
             (maxAmountWETH, inputTokenSpent) = _fillQuote(_inputQuote);
             require(inputTokenSpent <= _maxAmountInputToken, "OVERSPENT INPUTTOKEN");
@@ -443,12 +437,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 buyTokenBalanceBefore = _quote.buyToken.balanceOf(address(this));
         uint256 sellTokenBalanceBefore = _quote.sellToken.balanceOf(address(this));
 
-        console.log("Calling Swap target");
-        console.logAddress(address(swapTarget));
-        console.logBytes(_quote.swapCallData);
         (bool success, bytes memory returndata) = swapTarget.call(_quote.swapCallData);
         require(success, string(returndata));
-        console.log("Called Swap target");
 
         // TODO: check if we want to do this / and how to do so savely
         // Refund any unspent protocol fees to the sender.
