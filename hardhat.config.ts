@@ -38,13 +38,13 @@ const config: HardhatUserConfig = {
       gas: 12000000,
       blockGasLimit: 12000000,
       // @ts-ignore
-      timeout: process.env.FORK ? INTEGRATIONTEST_TIMEOUT : 20000,
+      timeout: INTEGRATIONTEST_TIMEOUT,
     },
     localhost: {
       url: "http://127.0.0.1:8545",
       gas: 12000000,
       blockGasLimit: 12000000,
-      timeout: process.env.INTEGRATIONTEST ? INTEGRATIONTEST_TIMEOUT : 20000,
+      timeout: INTEGRATIONTEST_TIMEOUT,
     },
     kovan: {
       url: "https://kovan.infura.io/v3/" + process.env.INFURA_TOKEN,

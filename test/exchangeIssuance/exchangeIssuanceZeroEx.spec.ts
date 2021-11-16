@@ -537,8 +537,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
           const positionQuotes: ZeroExSwapQuote[] = [];
           let buyAmountWeth = BigNumber.from(0);
 
-          console.log("Getting quotes for component trades");
           for (const position of positions) {
+            console.log("\n\n###################COMPONENT QUOTE##################");
             const buyAmount = position.unit.mul(setAmount).toString();
             const buyToken = position.component;
             const sellToken = wethAddress;
@@ -552,7 +552,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             buyAmountWeth = buyAmountWeth.add(BigNumber.from(quote.sellAmount));
           }
 
-          console.log("Getting quote for input token trade");
+          console.log("\n\n###################INPUT TOKEN QUOTE##################");
           const inputTokenApiResponse = await getQuote({
             buyToken: wethAddress,
             sellToken: inputTokenAddress,
@@ -595,6 +595,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
         beforeEach(async () => {
           await initializeSubjectVariables();
           await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+
+          console.log("\n\n###################OBTAIN INPUT TOKEN FROM WHALE##################");
           const inputTokenWhaleAddress = "0x21a31Ee1afC51d94C2eFcCAa2092aD1028285549";
           await hre.network.provider.request({
             method: "hardhat_impersonateAccount",
@@ -614,7 +616,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
         });
 
         async function subject(): Promise<ContractTransaction> {
-          console.log("calling subject");
           return await exchangeIssuanceZeroEx.issueExactSetFromToken(
             setToken.address,
             subjectInputToken.address,
