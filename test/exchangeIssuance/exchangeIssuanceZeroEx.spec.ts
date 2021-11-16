@@ -531,6 +531,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           setToken: SetToken,
           inputTokenAddress: Address,
           setAmount: number,
+          inputTokenMultiplierPercentage: number,
         ): Promise<[ZeroExSwapQuote, ZeroExSwapQuote[], BigNumber]> {
           const positions = await setToken.getPositions();
           const positionQuotes: ZeroExSwapQuote[] = [];
@@ -558,7 +559,9 @@ describe("ExchangeIssuanceZeroEx", async () => {
             buyAmount: buyAmountWeth.toString(),
           });
           await logQuote(inputTokenApiResponse);
-          const inputTokenAmount = BigNumber.from(inputTokenApiResponse.sellAmount);
+          const inputTokenAmount = BigNumber.from(inputTokenApiResponse.sellAmount)
+            .mul(inputTokenMultiplierPercentage)
+            .div(100);
           console.log("Input token amount", inputTokenAmount.toString());
           const inputQuote = {
             buyToken: wethAddress,
@@ -569,7 +572,11 @@ describe("ExchangeIssuanceZeroEx", async () => {
         }
 
         const initializeSubjectVariables = async () => {
-          subjectInputTokenAmount = ether(1000);
+          // Currently "invalid dai balance" errors get thrown by ZeroEx UniswapV3Feature when we transfer only the sellAmount returned by 0xAPI
+          // so we add some margin for extra safety
+          // TODO: Review to understand why this happens and how to handle in production
+          const INPUT_TOKEN_MULTIPLIER_PERCENTAGE = 110;
+
           subjectInputToken = dai;
           subjectAmountSetToken = 1;
           subjectAmountSetTokenWei = ether(subjectAmountSetToken);
@@ -577,7 +584,12 @@ describe("ExchangeIssuanceZeroEx", async () => {
             subjectInputSwapQuote,
             subjectPositionSwapQuotes,
             subjectInputTokenAmount,
-          ] = await getQuotes(setToken, subjectInputToken.address, subjectAmountSetToken);
+          ] = await getQuotes(
+            setToken,
+            subjectInputToken.address,
+            subjectAmountSetToken,
+            INPUT_TOKEN_MULTIPLIER_PERCENTAGE,
+          );
         };
 
         beforeEach(async () => {
@@ -612,17 +624,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
             subjectPositionSwapQuotes,
           );
         }
-
-        // it("should be able to execute input swap directly", async () => {
-        //   const transactionRequest = {
-        //     to: zeroExProxyAddress,
-        //     data: subjectInputSwapQuote.swapCallData,
-        //   };
-        //   subjectInputToken.approve(zeroExProxyAddress, MAX_UINT_256);
-        //   const [signer] = await ethers.getSigners();
-        //   const tx = await signer.sendTransaction(transactionRequest);
-        //   await tx.wait();
-        // });
 
         it("should issue correct amount of set tokens", async () => {
           const initialBalanceOfSet = await setToken.balanceOf(owner.address);
