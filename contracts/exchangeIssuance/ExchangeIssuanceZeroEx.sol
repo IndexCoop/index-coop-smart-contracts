@@ -191,6 +191,14 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             uint256 inputTokenSpent;
             _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
 
+            console.log("Input Token Balance:");
+            uint256 inputTokenBalance = _inputToken.balanceOf(address(this));
+            console.log("Contract");
+            console.logUint(inputTokenBalance);
+            uint256 inputTokenBalanceSender = _inputToken.balanceOf(msg.sender);
+            console.log("Sender");
+            console.logUint(inputTokenBalanceSender);
+
             (maxAmountWETH, inputTokenSpent) = _fillQuote(_inputQuote);
             require(inputTokenSpent <= _maxAmountInputToken, "OVERSPENT INPUTTOKEN");
             uint256 amountInputTokenReturn = _maxAmountInputToken.sub(inputTokenSpent);
@@ -438,8 +446,9 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         console.log("Calling Swap target");
         console.logAddress(address(swapTarget));
         console.logBytes(_quote.swapCallData);
-        (bool success,) = swapTarget.call(_quote.swapCallData);
-        require(success, "SWAP CALL FAILED");
+        (bool success, bytes memory returndata) = swapTarget.call(_quote.swapCallData);
+        require(success, string(returndata));
+        console.log("Called Swap target");
 
         // TODO: check if we want to do this / and how to do so savely
         // Refund any unspent protocol fees to the sender.

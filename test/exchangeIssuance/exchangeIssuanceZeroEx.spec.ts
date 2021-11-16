@@ -590,18 +590,19 @@ describe("ExchangeIssuanceZeroEx", async () => {
           });
           const inputTokenWhaleSigner = ethers.provider.getSigner(inputTokenWhaleAddress);
           const whaleTokenBalance = await subjectInputToken.balanceOf(inputTokenWhaleAddress);
-          const transferTx = await subjectInputToken
+          await subjectInputToken
             .connect(inputTokenWhaleSigner)
             .transfer(owner.address, whaleTokenBalance);
-          await transferTx.wait();
           console.log(
             "New owner balance",
             (await subjectInputToken.balanceOf(owner.address)).toString(),
           );
           subjectInputToken.approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
+          subjectInputTokenAmount = await subjectInputToken.balanceOf(owner.address);
         });
 
         async function subject(): Promise<ContractTransaction> {
+          console.log("calling subject");
           return await exchangeIssuanceZeroEx.issueExactSetFromToken(
             setToken.address,
             subjectInputToken.address,
@@ -612,16 +613,16 @@ describe("ExchangeIssuanceZeroEx", async () => {
           );
         }
 
-        it("should be able to execute input swap directly", async () => {
-          const transactionRequest = {
-            to: zeroExProxyAddress,
-            data: subjectInputSwapQuote.swapCallData,
-          };
-          subjectInputToken.approve(zeroExProxyAddress, MAX_UINT_256);
-          const [signer] = await ethers.getSigners();
-          const tx = await signer.sendTransaction(transactionRequest);
-          await tx.wait();
-        });
+        // it("should be able to execute input swap directly", async () => {
+        //   const transactionRequest = {
+        //     to: zeroExProxyAddress,
+        //     data: subjectInputSwapQuote.swapCallData,
+        //   };
+        //   subjectInputToken.approve(zeroExProxyAddress, MAX_UINT_256);
+        //   const [signer] = await ethers.getSigners();
+        //   const tx = await signer.sendTransaction(transactionRequest);
+        //   await tx.wait();
+        // });
 
         it("should issue correct amount of set tokens", async () => {
           const initialBalanceOfSet = await setToken.balanceOf(owner.address);
