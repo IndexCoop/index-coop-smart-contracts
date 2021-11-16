@@ -11,9 +11,10 @@ import "./tasks";
 
 const forkingConfig = {
   url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
+  blockNumber: process.env.LATESTBLOCK ? undefined : 11649166,
 };
 
-const INTEGRATIONTEST_TIMEOUT = 100000;
+const INTEGRATIONTEST_TIMEOUT = 300000;
 
 const mochaConfig = {
   grep: "@forked-network",
@@ -44,7 +45,7 @@ const config: HardhatUserConfig = {
       url: "http://127.0.0.1:8545",
       gas: 12000000,
       blockGasLimit: 12000000,
-      timeout: INTEGRATIONTEST_TIMEOUT,
+      timeout:  INTEGRATIONTEST_TIMEOUT,
     },
     kovan: {
       url: "https://kovan.infura.io/v3/" + process.env.INFURA_TOKEN,

@@ -69,7 +69,213 @@ describe("ExchangeIssuanceZeroEx", async () => {
     await setV2Setup.issuanceModule.initialize(setToken.address, ADDRESS_ZERO);
   });
 
-  if (!process.env.INTEGRATIONTEST) {
+  if (process.env.INTEGRATIONTEST) {
+    context("integration tests", async () => {
+      let wethAddress: Address;
+      let wbtcAddress: Address;
+      let daiAddress: Address;
+      let exchangeIssuanceZeroEx: ExchangeIssuanceZeroEx;
+      let zeroExProxyAddress: Address;
+      let setToken: SetToken;
+
+      cacheBeforeEach(async () => {
+        // Mainnet addresses
+        wethAddress = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
+        daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
+        wbtcAddress = "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599";
+        zeroExProxyAddress = "0xDef1C0ded9bec7F1a1670819833240f027b25EfF";
+
+        dai = dai.attach(daiAddress);
+        weth = weth.attach(wethAddress);
+        wbtc = wbtc.attach(wbtcAddress);
+        setToken = await setV2Setup.createSetToken(
+          [daiAddress, wbtcAddress],
+          [daiUnits, wbtcUnits],
+          [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address],
+        );
+
+        exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
+          wethAddress,
+          setV2Setup.controller.address,
+          setV2Setup.issuanceModule.address,
+          zeroExProxyAddress,
+        );
+        await setV2Setup.issuanceModule.initialize(setToken.address, ADDRESS_ZERO);
+      });
+
+
+      describe("#issueExactSetFromToken", async () => {
+        let subjectInputToken: StandardTokenMock | WETH9;
+        let subjectInputTokenAmount: BigNumber;
+        let subjectAmountSetToken: number;
+        let subjectAmountSetTokenWei: BigNumber;
+        let subjectInputSwapQuote: ZeroExSwapQuote;
+        let subjectPositionSwapQuotes: ZeroExSwapQuote[];
+
+        const API_QUOTE_URL = "https://api.0x.org/swap/v1/quote";
+        async function getQuote(params: any) {
+          const url = `${API_QUOTE_URL}?${qs.stringify(params)}`;
+          console.log(`Getting quote from ${params.sellToken} to ${params.buyToken}`);
+          console.log("Sending quote request to:", url);
+          const response = await axios(url);
+          return response.data;
+        }
+
+        async function logQuote(quote: any) {
+          console.log("Sell Amount:", quote.sellAmount);
+          console.log("Buy Amount:", quote.buyAmount);
+          console.log("Swap Target:", quote.to);
+          console.log("Allowance Target:", quote.allowanceTarget);
+          console.log(
+            "Sources:",
+            quote.sources.filter((source: any) => source.proportion > "0"),
+          );
+          await decodeCallData(quote.data, quote.to);
+        }
+
+        async function decodeCallData(callData: string, proxyAddress: Address) {
+          const API_KEY = "X28YB9Z9TQD4KSSC6A6QTKHYGPYGIP8D7I";
+          const ABI_ENDPOINT = `https://api.etherscan.io/api?module=contract&action=getabi&apikey=${API_KEY}&address=`;
+          const proxyAbi = await axios
+            .get(ABI_ENDPOINT + proxyAddress)
+            .then(response => JSON.parse(response.data.result));
+          const proxyContract = await ethers.getContractAt(proxyAbi, proxyAddress);
+          await proxyContract.deployed();
+          const implementation = await proxyContract.getFunctionImplementation(
+            callData.slice(0, 10),
+          );
+          console.log("Implementation Address: ", implementation);
+          const abiResponse = await axios.get(ABI_ENDPOINT + implementation);
+          const abi = JSON.parse(abiResponse.data.result);
+          const iface = new ethers.utils.Interface(abi);
+          const decodedTransaction = iface.parseTransaction({
+            data: callData,
+          });
+          console.log("Called Function Signature: ", decodedTransaction.signature);
+        }
+
+        // Helper function to generate 0xAPI quote for UniswapV2
+        async function getQuotes(
+          setToken: SetToken,
+          inputTokenAddress: Address,
+          setAmount: number,
+          inputTokenMultiplierPercentage: number,
+          wethMultiplierPercentage: number,
+          excludedSources: string | undefined = undefined,
+        ): Promise<[ZeroExSwapQuote, ZeroExSwapQuote[], BigNumber]> {
+          const positions = await setToken.getPositions();
+          const positionQuotes: ZeroExSwapQuote[] = [];
+          let buyAmountWeth = BigNumber.from(0);
+
+          for (const position of positions) {
+            console.log("\n\n###################COMPONENT QUOTE##################");
+            const buyAmount = position.unit.mul(setAmount).toString();
+            const buyToken = position.component;
+            const sellToken = wethAddress;
+            const quote = await getQuote({ buyToken, sellToken, buyAmount, excludedSources });
+            await logQuote(quote);
+            positionQuotes.push({
+              sellToken: sellToken,
+              buyToken: buyToken,
+              swapCallData: quote.data,
+            });
+            buyAmountWeth = buyAmountWeth.add(BigNumber.from(quote.sellAmount));
+          }
+
+          buyAmountWeth = buyAmountWeth.mul(wethMultiplierPercentage).div(100);
+
+          console.log("\n\n###################INPUT TOKEN QUOTE##################");
+          const inputTokenApiResponse = await getQuote({
+            buyToken: wethAddress,
+            sellToken: inputTokenAddress,
+            buyAmount: buyAmountWeth.toString(),
+          });
+          await logQuote(inputTokenApiResponse);
+          const inputTokenAmount = BigNumber.from(inputTokenApiResponse.sellAmount)
+            .mul(inputTokenMultiplierPercentage)
+            .div(100);
+          console.log("Input token amount", inputTokenAmount.toString());
+          const inputQuote = {
+            buyToken: wethAddress,
+            sellToken: inputTokenAddress,
+            swapCallData: inputTokenApiResponse.data,
+          };
+          return [inputQuote, positionQuotes, inputTokenAmount];
+        }
+
+        const initializeSubjectVariables = async () => {
+          // Currently "invalid dai balance" errors get thrown by ZeroEx UniswapV3Feature when we transfer only the sellAmount returned by 0xAPI
+          // so we add some margin for extra safety
+          // TODO: Review to understand why this happens and how to handle in production
+          const INPUT_TOKEN_MULTIPLIER_PERCENTAGE = 110;
+          const WETH_MULTIPLIER_PERCENTAGE = 110;
+          // During testing swaps including Sushi frequently reverted, so excluding it for now
+          // TODO: Review to understand why this happens and how to handle in production
+          const EXCLUDED_SOURCES = "SushiSwap";
+
+          subjectInputToken = dai;
+          subjectAmountSetToken = 1;
+          subjectAmountSetTokenWei = ether(subjectAmountSetToken);
+          [
+            subjectInputSwapQuote,
+            subjectPositionSwapQuotes,
+            subjectInputTokenAmount,
+          ] = await getQuotes(
+            setToken,
+            subjectInputToken.address,
+            subjectAmountSetToken,
+            INPUT_TOKEN_MULTIPLIER_PERCENTAGE,
+            WETH_MULTIPLIER_PERCENTAGE,
+            EXCLUDED_SOURCES,
+          );
+        };
+
+        beforeEach(async () => {
+          await initializeSubjectVariables();
+          await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+
+          console.log("\n\n###################OBTAIN INPUT TOKEN FROM WHALE##################");
+          const inputTokenWhaleAddress = "0x21a31Ee1afC51d94C2eFcCAa2092aD1028285549";
+          await hre.network.provider.request({
+            method: "hardhat_impersonateAccount",
+            params: [inputTokenWhaleAddress],
+          });
+          const inputTokenWhaleSigner = ethers.provider.getSigner(inputTokenWhaleAddress);
+          const whaleTokenBalance = await subjectInputToken.balanceOf(inputTokenWhaleAddress);
+          await subjectInputToken
+            .connect(inputTokenWhaleSigner)
+            .transfer(owner.address, whaleTokenBalance);
+          console.log(
+            "New owner balance",
+            (await subjectInputToken.balanceOf(owner.address)).toString(),
+          );
+          subjectInputToken.approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
+          subjectInputTokenAmount = await subjectInputToken.balanceOf(owner.address);
+        });
+
+        async function subject(): Promise<ContractTransaction> {
+          return await exchangeIssuanceZeroEx.issueExactSetFromToken(
+            setToken.address,
+            subjectInputToken.address,
+            subjectInputSwapQuote,
+            subjectAmountSetTokenWei,
+            subjectInputTokenAmount,
+            subjectPositionSwapQuotes,
+          );
+        }
+
+        it("should issue correct amount of set tokens", async () => {
+          const initialBalanceOfSet = await setToken.balanceOf(owner.address);
+          await subject();
+          const finalSetBalance = await setToken.balanceOf(owner.address);
+          const expectedSetBalance = initialBalanceOfSet.add(subjectAmountSetTokenWei);
+          expect(finalSetBalance).to.eq(expectedSetBalance);
+        });
+      });
+    });
+  }
+
+  else {
     describe("#constructor", async () => {
       let subjectWethAddress: Address;
       let subjectControllerAddress: Address;
@@ -345,7 +551,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             await zeroExMock.setBuyMultiplier(weth.address, ether(0.5));
           });
           it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
+            await expect(subject()).to.be.reverted;
           });
         });
 
@@ -377,271 +583,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
             await zeroExMock.setBuyMultiplier(wbtc.address, ether(100));
           });
           it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
+            await expect(subject()).to.be.reverted;
           });
-        });
-      });
-    });
-  }
-  if (process.env.INTEGRATIONTEST) {
-    context("integration tests", async () => {
-      let wethAddress: Address;
-      let wbtcAddress: Address;
-      let daiAddress: Address;
-      let basicIssuanceModuleAddress: Address;
-      let exchangeIssuanceZeroEx: ExchangeIssuanceZeroEx;
-      let zeroExProxyAddress: Address;
-      let setToken: SetToken;
-
-      cacheBeforeEach(async () => {
-        // Mainnet addresses
-        wethAddress = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
-        daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
-        wbtcAddress = "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599";
-        basicIssuanceModuleAddress = "0xd8EF3cACe8b4907117a45B0b125c68560532F94D";
-        zeroExProxyAddress = "0xDef1C0ded9bec7F1a1670819833240f027b25EfF";
-
-        dai = dai.attach(daiAddress);
-        weth = weth.attach(wethAddress);
-        wbtc = wbtc.attach(wbtcAddress);
-        setToken = await setV2Setup.createSetToken(
-          [daiAddress, wbtcAddress],
-          [daiUnits, wbtcUnits],
-          [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address],
-        );
-
-        exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
-          wethAddress,
-          setV2Setup.controller.address,
-          setV2Setup.issuanceModule.address,
-          zeroExProxyAddress,
-        );
-        await setV2Setup.issuanceModule.initialize(setToken.address, ADDRESS_ZERO);
-      });
-
-      describe("#approveSetToken", async () => {
-        let subjectSetToApprove: SetToken | StandardTokenMock;
-
-        beforeEach(async () => {
-          subjectSetToApprove = setToken;
-        });
-
-        async function subject(): Promise<ContractTransaction> {
-          return await exchangeIssuanceZeroEx.approveSetToken(subjectSetToApprove.address);
-        }
-        it("should update the approvals correctly", async () => {
-          const tokens = [dai, wbtc];
-          const spenders = [basicIssuanceModuleAddress];
-
-          await subject();
-
-          const finalAllowances = await getAllowances(
-            tokens,
-            exchangeIssuanceZeroEx.address,
-            spenders,
-          );
-
-          for (let i = 0; i < finalAllowances.length; i++) {
-            const actualAllowance = finalAllowances[i];
-            const expectedAllowance = MAX_UINT_96;
-            expect(actualAllowance).to.eq(expectedAllowance);
-          }
-        });
-
-        context("when the input token is not a set", async () => {
-          beforeEach(async () => {
-            subjectSetToApprove = dai;
-          });
-
-          it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID SET");
-          });
-        });
-      });
-
-      describe("#setSwapTarget", async () => {
-        let subjectSwapTarget: Address;
-
-        beforeEach(async () => {
-          subjectSwapTarget = await getRandomAddress();
-        });
-
-        async function subject(): Promise<ContractTransaction> {
-          return await exchangeIssuanceZeroEx.setSwapTarget(subjectSwapTarget);
-        }
-        it("should update the swap target correctly", async () => {
-          await subject();
-          const swapTarget = await exchangeIssuanceZeroEx.swapTarget();
-          expect(swapTarget).to.eq(subjectSwapTarget);
-        });
-      });
-
-      describe("#issueExactSetFromToken", async () => {
-        let subjectInputToken: StandardTokenMock | WETH9;
-        let subjectInputTokenAmount: BigNumber;
-        let subjectAmountSetToken: number;
-        let subjectAmountSetTokenWei: BigNumber;
-        let subjectInputSwapQuote: ZeroExSwapQuote;
-        let subjectPositionSwapQuotes: ZeroExSwapQuote[];
-
-        const API_QUOTE_URL = "https://api.0x.org/swap/v1/quote";
-        async function getQuote(params: any) {
-          const url = `${API_QUOTE_URL}?${qs.stringify(params)}`;
-          console.log(`Getting quote from ${params.sellToken} to ${params.buyToken}`);
-          console.log("Sending quote request to:", url);
-          const response = await axios(url);
-          return response.data;
-        }
-
-        async function logQuote(quote: any) {
-          console.log("Sell Amount:", quote.sellAmount);
-          console.log("Buy Amount:", quote.buyAmount);
-          console.log("Swap Target:", quote.to);
-          console.log("Allowance Target:", quote.allowanceTarget);
-          console.log(
-            "Sources:",
-            quote.sources.filter((source: any) => source.proportion > "0"),
-          );
-          await decodeCallData(quote.data, quote.to);
-        }
-
-        async function decodeCallData(callData: string, proxyAddress: Address) {
-          const API_KEY = "X28YB9Z9TQD4KSSC6A6QTKHYGPYGIP8D7I";
-          const ABI_ENDPOINT = `https://api.etherscan.io/api?module=contract&action=getabi&apikey=${API_KEY}&address=`;
-          const proxyAbi = await axios
-            .get(ABI_ENDPOINT + proxyAddress)
-            .then(response => JSON.parse(response.data.result));
-          const proxyContract = await ethers.getContractAt(proxyAbi, proxyAddress);
-          await proxyContract.deployed();
-          const implementation = await proxyContract.getFunctionImplementation(
-            callData.slice(0, 10),
-          );
-          console.log("Implementation Address: ", implementation);
-          const abiResponse = await axios.get(ABI_ENDPOINT + implementation);
-          const abi = JSON.parse(abiResponse.data.result);
-          const iface = new ethers.utils.Interface(abi);
-          const decodedTransaction = iface.parseTransaction({
-            data: callData,
-          });
-          console.log("Called Function Signature: ", decodedTransaction.signature);
-        }
-
-        // Helper function to generate 0xAPI quote for UniswapV2
-        async function getQuotes(
-          setToken: SetToken,
-          inputTokenAddress: Address,
-          setAmount: number,
-          inputTokenMultiplierPercentage: number,
-          wethMultiplierPercentage: number,
-          excludedSources: string | undefined = undefined,
-        ): Promise<[ZeroExSwapQuote, ZeroExSwapQuote[], BigNumber]> {
-          const positions = await setToken.getPositions();
-          const positionQuotes: ZeroExSwapQuote[] = [];
-          let buyAmountWeth = BigNumber.from(0);
-
-          for (const position of positions) {
-            console.log("\n\n###################COMPONENT QUOTE##################");
-            const buyAmount = position.unit.mul(setAmount).toString();
-            const buyToken = position.component;
-            const sellToken = wethAddress;
-            const quote = await getQuote({ buyToken, sellToken, buyAmount, excludedSources });
-            await logQuote(quote);
-            positionQuotes.push({
-              sellToken: sellToken,
-              buyToken: buyToken,
-              swapCallData: quote.data,
-            });
-            buyAmountWeth = buyAmountWeth.add(BigNumber.from(quote.sellAmount));
-          }
-
-          buyAmountWeth = buyAmountWeth.mul(wethMultiplierPercentage).div(100);
-
-          console.log("\n\n###################INPUT TOKEN QUOTE##################");
-          const inputTokenApiResponse = await getQuote({
-            buyToken: wethAddress,
-            sellToken: inputTokenAddress,
-            buyAmount: buyAmountWeth.toString(),
-          });
-          await logQuote(inputTokenApiResponse);
-          const inputTokenAmount = BigNumber.from(inputTokenApiResponse.sellAmount)
-            .mul(inputTokenMultiplierPercentage)
-            .div(100);
-          console.log("Input token amount", inputTokenAmount.toString());
-          const inputQuote = {
-            buyToken: wethAddress,
-            sellToken: inputTokenAddress,
-            swapCallData: inputTokenApiResponse.data,
-          };
-          return [inputQuote, positionQuotes, inputTokenAmount];
-        }
-
-        const initializeSubjectVariables = async () => {
-          // Currently "invalid dai balance" errors get thrown by ZeroEx UniswapV3Feature when we transfer only the sellAmount returned by 0xAPI
-          // so we add some margin for extra safety
-          // TODO: Review to understand why this happens and how to handle in production
-          const INPUT_TOKEN_MULTIPLIER_PERCENTAGE = 110;
-          const WETH_MULTIPLIER_PERCENTAGE = 110;
-          // During testing swaps including Sushi frequently reverted, so excluding it for now
-          // TODO: Review to understand why this happens and how to handle in production
-          const EXCLUDED_SOURCES = "SushiSwap";
-
-          subjectInputToken = dai;
-          subjectAmountSetToken = 1;
-          subjectAmountSetTokenWei = ether(subjectAmountSetToken);
-          [
-            subjectInputSwapQuote,
-            subjectPositionSwapQuotes,
-            subjectInputTokenAmount,
-          ] = await getQuotes(
-            setToken,
-            subjectInputToken.address,
-            subjectAmountSetToken,
-            INPUT_TOKEN_MULTIPLIER_PERCENTAGE,
-            WETH_MULTIPLIER_PERCENTAGE,
-            EXCLUDED_SOURCES,
-          );
-        };
-
-        beforeEach(async () => {
-          await initializeSubjectVariables();
-          await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
-
-          console.log("\n\n###################OBTAIN INPUT TOKEN FROM WHALE##################");
-          const inputTokenWhaleAddress = "0x21a31Ee1afC51d94C2eFcCAa2092aD1028285549";
-          await hre.network.provider.request({
-            method: "hardhat_impersonateAccount",
-            params: [inputTokenWhaleAddress],
-          });
-          const inputTokenWhaleSigner = ethers.provider.getSigner(inputTokenWhaleAddress);
-          const whaleTokenBalance = await subjectInputToken.balanceOf(inputTokenWhaleAddress);
-          await subjectInputToken
-            .connect(inputTokenWhaleSigner)
-            .transfer(owner.address, whaleTokenBalance);
-          console.log(
-            "New owner balance",
-            (await subjectInputToken.balanceOf(owner.address)).toString(),
-          );
-          subjectInputToken.approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
-          subjectInputTokenAmount = await subjectInputToken.balanceOf(owner.address);
-        });
-
-        async function subject(): Promise<ContractTransaction> {
-          return await exchangeIssuanceZeroEx.issueExactSetFromToken(
-            setToken.address,
-            subjectInputToken.address,
-            subjectInputSwapQuote,
-            subjectAmountSetTokenWei,
-            subjectInputTokenAmount,
-            subjectPositionSwapQuotes,
-          );
-        }
-
-        it("should issue correct amount of set tokens", async () => {
-          const initialBalanceOfSet = await setToken.balanceOf(owner.address);
-          await subject();
-          const finalSetBalance = await setToken.balanceOf(owner.address);
-          const expectedSetBalance = initialBalanceOfSet.add(subjectAmountSetTokenWei);
-          expect(finalSetBalance).to.eq(expectedSetBalance);
         });
       });
     });
