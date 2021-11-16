@@ -532,6 +532,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
           inputTokenAddress: Address,
           setAmount: number,
           inputTokenMultiplierPercentage: number,
+          wethMultiplierPercentage: number,
+          excludedSources: string | undefined = undefined,
         ): Promise<[ZeroExSwapQuote, ZeroExSwapQuote[], BigNumber]> {
           const positions = await setToken.getPositions();
           const positionQuotes: ZeroExSwapQuote[] = [];
@@ -542,7 +544,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             const buyAmount = position.unit.mul(setAmount).toString();
             const buyToken = position.component;
             const sellToken = wethAddress;
-            const quote = await getQuote({ buyToken, sellToken, buyAmount });
+            const quote = await getQuote({ buyToken, sellToken, buyAmount, excludedSources });
             await logQuote(quote);
             positionQuotes.push({
               sellToken: sellToken,
@@ -551,6 +553,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
             });
             buyAmountWeth = buyAmountWeth.add(BigNumber.from(quote.sellAmount));
           }
+
+          buyAmountWeth = buyAmountWeth.mul(wethMultiplierPercentage).div(100);
 
           console.log("\n\n###################INPUT TOKEN QUOTE##################");
           const inputTokenApiResponse = await getQuote({
@@ -576,6 +580,10 @@ describe("ExchangeIssuanceZeroEx", async () => {
           // so we add some margin for extra safety
           // TODO: Review to understand why this happens and how to handle in production
           const INPUT_TOKEN_MULTIPLIER_PERCENTAGE = 110;
+          const WETH_MULTIPLIER_PERCENTAGE = 110;
+          // During testing swaps including Sushi frequently reverted, so excluding it for now
+          // TODO: Review to understand why this happens and how to handle in production
+          const EXCLUDED_SOURCES = "SushiSwap";
 
           subjectInputToken = dai;
           subjectAmountSetToken = 1;
@@ -589,6 +597,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
             subjectInputToken.address,
             subjectAmountSetToken,
             INPUT_TOKEN_MULTIPLIER_PERCENTAGE,
+            WETH_MULTIPLIER_PERCENTAGE,
+            EXCLUDED_SOURCES,
           );
         };
 
