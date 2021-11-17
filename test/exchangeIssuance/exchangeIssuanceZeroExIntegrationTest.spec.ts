@@ -47,7 +47,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
     ({ dai, wbtc, weth } = setV2Setup);
 
-    zeroExMock = await deployer.mocks.deployZeroExExchangeProxyMock();
 
     daiUnits = BigNumber.from("23252699054621733");
     wbtcUnits = UnitsUtils.wbtc(1);
