@@ -103,7 +103,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
         await setV2Setup.issuanceModule.initialize(setToken.address, ADDRESS_ZERO);
       });
 
-
       describe("#issueExactSetFromToken", async () => {
         let subjectInputToken: StandardTokenMock | WETH9;
         let subjectInputTokenAmount: BigNumber;
@@ -159,20 +158,26 @@ describe("ExchangeIssuanceZeroEx", async () => {
           setToken: SetToken,
           inputTokenAddress: Address,
           setAmount: number,
-          inputTokenMultiplierPercentage: number,
-          wethMultiplierPercentage: number,
+          slippagePercents: number,
           excludedSources: string | undefined = undefined,
         ): Promise<[ZeroExSwapQuote, ZeroExSwapQuote[], BigNumber]> {
           const positions = await setToken.getPositions();
           const positionQuotes: ZeroExSwapQuote[] = [];
           let buyAmountWeth = BigNumber.from(0);
+          const slippagePercentage = slippagePercents / 100;
 
           for (const position of positions) {
             console.log("\n\n###################COMPONENT QUOTE##################");
             const buyAmount = position.unit.mul(setAmount).toString();
             const buyToken = position.component;
             const sellToken = wethAddress;
-            const quote = await getQuote({ buyToken, sellToken, buyAmount, excludedSources });
+            const quote = await getQuote({
+              buyToken,
+              sellToken,
+              buyAmount,
+              excludedSources,
+              slippagePercentage,
+            });
             await logQuote(quote);
             positionQuotes.push({
               sellToken: sellToken,
@@ -181,19 +186,18 @@ describe("ExchangeIssuanceZeroEx", async () => {
             });
             buyAmountWeth = buyAmountWeth.add(BigNumber.from(quote.sellAmount));
           }
-
-          buyAmountWeth = buyAmountWeth.mul(wethMultiplierPercentage).div(100);
+          buyAmountWeth = buyAmountWeth.mul(100 + slippagePercents).div(100);
 
           console.log("\n\n###################INPUT TOKEN QUOTE##################");
           const inputTokenApiResponse = await getQuote({
             buyToken: wethAddress,
             sellToken: inputTokenAddress,
             buyAmount: buyAmountWeth.toString(),
+            excludedSources,
+            slippagePercentage,
           });
           await logQuote(inputTokenApiResponse);
-          const inputTokenAmount = BigNumber.from(inputTokenApiResponse.sellAmount)
-            .mul(inputTokenMultiplierPercentage)
-            .div(100);
+          const inputTokenAmount = BigNumber.from(inputTokenApiResponse.sellAmount);
           console.log("Input token amount", inputTokenAmount.toString());
           const inputQuote = {
             buyToken: wethAddress,
@@ -204,14 +208,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
         }
 
         const initializeSubjectVariables = async () => {
-          // Currently "invalid dai balance" errors get thrown by ZeroEx UniswapV3Feature when we transfer only the sellAmount returned by 0xAPI
-          // so we add some margin for extra safety
-          // TODO: Review to understand why this happens and how to handle in production
-          const INPUT_TOKEN_MULTIPLIER_PERCENTAGE = 110;
-          const WETH_MULTIPLIER_PERCENTAGE = 110;
-          // During testing swaps including Sushi frequently reverted, so excluding it for now
-          // TODO: Review to understand why this happens and how to handle in production
-          const EXCLUDED_SOURCES = "SushiSwap";
+          // TODO: Analyse what a good value would be in production
+          const SLIPPAGE_PERCENTAGE = 50;
 
           subjectInputToken = dai;
           subjectAmountSetToken = 1;
@@ -224,9 +222,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             setToken,
             subjectInputToken.address,
             subjectAmountSetToken,
-            INPUT_TOKEN_MULTIPLIER_PERCENTAGE,
-            WETH_MULTIPLIER_PERCENTAGE,
-            EXCLUDED_SOURCES,
+            SLIPPAGE_PERCENTAGE,
           );
         };
 
@@ -273,9 +269,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
         });
       });
     });
-  }
-
-  else {
+  } else {
     describe("#constructor", async () => {
       let subjectWethAddress: Address;
       let subjectControllerAddress: Address;
