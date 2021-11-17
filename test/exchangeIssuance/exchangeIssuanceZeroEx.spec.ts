@@ -186,7 +186,10 @@ describe("ExchangeIssuanceZeroEx", async () => {
             });
             buyAmountWeth = buyAmountWeth.add(BigNumber.from(quote.sellAmount));
           }
-          buyAmountWeth = buyAmountWeth.mul(100 + slippagePercents).div(100);
+          // I assume that this is the correct math to make sure we have enough weth to cover the slippage
+          // based on the fact that the slippagePercentage is limited between 0.0 and 1.0 on the 0xApi
+          // TODO: Review if correct
+          buyAmountWeth = buyAmountWeth.mul(100).div(100 - slippagePercents);
 
           console.log("\n\n###################INPUT TOKEN QUOTE##################");
           const inputTokenApiResponse = await getQuote({
@@ -197,7 +200,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
             slippagePercentage,
           });
           await logQuote(inputTokenApiResponse);
-          const inputTokenAmount = BigNumber.from(inputTokenApiResponse.sellAmount);
+          let inputTokenAmount = BigNumber.from(inputTokenApiResponse.sellAmount);
+          inputTokenAmount = inputTokenAmount.mul(100).div(100 - slippagePercents);
           console.log("Input token amount", inputTokenAmount.toString());
           const inputQuote = {
             buyToken: wethAddress,
@@ -246,7 +250,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
             (await subjectInputToken.balanceOf(owner.address)).toString(),
           );
           subjectInputToken.approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
-          subjectInputTokenAmount = await subjectInputToken.balanceOf(owner.address);
         });
 
         async function subject(): Promise<ContractTransaction> {
