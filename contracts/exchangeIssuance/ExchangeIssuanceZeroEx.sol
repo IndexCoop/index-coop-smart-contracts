@@ -44,7 +44,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
     /* ============ State Variables ============ */
 
-    address public WETH;
+    address public immutable WETH;
 
     IController public immutable setController;
     IBasicIssuanceModule public immutable basicIssuanceModule;
@@ -75,7 +75,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     );
 
     event BoughtTokens(IERC20 sellToken, IERC20 buyToken, uint256 boughtAmount);
-
 
     /* ============ Modifiers ============ */
 
@@ -248,28 +247,51 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      *
      * @param _setToken             Address of the SetToken being redeemed
      * @param _outputToken          Address of output token
-     * @param _outputSwap           The encoded 0x transaction from WETH to output token.
+     * @param _outputQuote          The encoded 0x transaction from WETH to output token.
      * @param _amountSetToken       Amount SetTokens to redeem
      * @param _minOutputReceive     Minimum amount of output token to receive
-     * @param _swaps                The encoded 0x transactions execute (components -> WETH).
+     * @param _componentQuotes      The encoded 0x transactions execute (components -> WETH).
      *
      * @return outputAmount         Amount of output tokens sent to the caller
      */
     function redeemExactSetForToken(
         ISetToken _setToken,
         IERC20 _outputToken,
-        ZeroExSwapQuote calldata _outputSwap,
+        ZeroExSwapQuote memory _outputQuote,
         uint256 _amountSetToken,
         uint256 _minOutputReceive,
-        ZeroExSwapQuote[] calldata _swaps
+        ZeroExSwapQuote[] memory _componentQuotes
     )
         isSetToken(_setToken)
         external
         nonReentrant
         returns (uint256)
     {
-        require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-        // TODO: implement this
+        require(_amountSetToken > 0, "ExchangeIssuance: INVALID SET TOKEN AMOUNT");
+        require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
+
+        uint256 outputAmount;
+        // Redeem exact set token
+        _redeemExactSet(_setToken, _amountSetToken);
+        if (address(_outputToken) == WETH) {
+            // Liquidate components for WETH and ignore _outputQuote
+            outputAmount = _liquidateComponentsForWETH(_setToken, _amountSetToken, _componentQuotes);
+        } else {
+            require(address(_outputToken) == address(_outputQuote.buyToken), "ExchangeIssuance: OUTPUT TOKEN / OUTPUT QUOTE MISMATCH");
+            // Liquidate components for WETH
+            uint256 outputWeth = _liquidateComponentsForWETH(_setToken, _amountSetToken, _componentQuotes);
+            _safeApprove(IERC20(WETH), address(swapTarget), outputWeth);
+            // Swap WETH for output token
+            (outputAmount,) = _fillQuote(_outputQuote);
+        }
+        require(outputAmount >= _minOutputReceive, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+
+        // Transfer sender output token
+        _outputToken.safeTransfer(msg.sender, outputAmount);
+        // Emit event
+        emit ExchangeRedeem(msg.sender, _setToken, _outputToken, _amountSetToken, outputAmount);
+        // Return output amount
+        return outputAmount;
     }
 
     /**
@@ -403,7 +425,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             ISetToken.Position memory position = positions[i];
             ZeroExSwapQuote memory quote = _quotes[i];
             require(position.component == address(quote.buyToken), "COMPONENT / QUOTE ADDRESS MISMATCH");
-            require(address(quote.sellToken) ==  WETH, "INVALID SELL TOKEN");
+            require(address(quote.sellToken) == WETH, "INVALID SELL TOKEN");
 
             (uint256 componentAmountBought, uint256 wethAmountSpent) = _fillQuote(quote);
 
@@ -418,6 +440,33 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         }
 
         basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
+    }
+
+    /**
+     * Liquidates a given list of SetToken components for WETH.
+     *
+     * @param _setToken             The set token being swapped.
+     * @param _amountSetToken       The amount of set token being swapped.
+     * @param _swaps                An array containing ZeroExSwap swaps.
+     *
+     * @return                      Total amount of WETH received after liquidating all SetToken components
+     */
+    function _liquidateComponentsForWETH(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _swaps)
+        internal
+        returns (uint256)
+    {
+        uint256 sumWeth = 0;
+        address[] memory components = _setToken.getComponents();
+        for (uint256 i = 0; i < _swaps.length; i++) {
+            require(components[i] == address(_swaps[i].sellToken), "COMPONENT / QUOTE ADDRESS MISMATCH");
+            require(address(_swaps[i].buyToken) == WETH, "INVALID BUY TOKEN");
+            uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
+            uint256 requiredAmount = unit.preciseMul(_amountSetToken);
+            _safeApprove(_swaps[i].sellToken, address(swapTarget), requiredAmount);
+            (uint256 boughtAmount,) = _fillQuote(_swaps[i]);
+            sumWeth = sumWeth.add(boughtAmount);
+        }
+        return sumWeth;
     }
 
     /**
@@ -440,13 +489,22 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         (bool success, bytes memory returndata) = swapTarget.call(_quote.swapCallData);
         require(success, string(returndata));
 
-        // TODO: check if we want to do this / and how to do so savely
+        // TODO: check if we want to do this / and how to do so safely
         // Refund any unspent protocol fees to the sender.
         // payable(msg.sender).transfer(address(this).balance);
-
         boughtAmount = _quote.buyToken.balanceOf(address(this)).sub(buyTokenBalanceBefore);
         spentAmount = sellTokenBalanceBefore.sub(_quote.sellToken.balanceOf(address(this)));
         emit BoughtTokens(_quote.sellToken, _quote.buyToken, boughtAmount);
     }
 
+    /**
+     * Redeems a given amount of SetToken.
+     *
+     * @param _setToken     Address of the SetToken to be redeemed
+     * @param _amount       Amount of SetToken to be redeemed
+     */
+    function _redeemExactSet(ISetToken _setToken, uint256 _amount) internal returns (uint256) {
+        _setToken.safeTransferFrom(msg.sender, address(this), _amount);
+        basicIssuanceModule.redeem(_setToken, _amount, address(this));
+    }
 }
