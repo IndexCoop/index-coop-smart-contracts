@@ -42,6 +42,10 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         bytes swapCallData;
     }
 
+    /* ============ Constants ============== */
+
+    address constant public ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
     /* ============ State Variables ============ */
 
     address public immutable WETH;
@@ -212,30 +216,40 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     * The excess amount of tokens is returned in an equivalent amount of ether.
     *
     * @param _setToken              Address of the SetToken to be issued
-    * @param _inputToken            Address of the input token
-    * @param _inputSwap             The encoded 0x transaction from ETH to WETH.
     * @param _amountSetToken        Amount of SetTokens to issue
-    * @param _maxAmountInputToken   Maximum amount of input tokens to be used to issue SetTokens. The unused
-    *                               input tokens are returned as ether.
-    * @param _swaps                 The encoded 0x transactions to execute (WETH -> components).
+    * @param _componentQuotes       The encoded 0x transactions to execute (WETH -> components).
     *
     * @return amountEthReturn       Amount of ether returned to the caller
     */
     function issueExactSetFromETH(
         ISetToken _setToken,
-        IERC20 _inputToken,
-        ZeroExSwapQuote calldata _inputSwap,
         uint256 _amountSetToken,
-        uint256 _maxAmountInputToken,
-        ZeroExSwapQuote[] calldata _swaps
+        ZeroExSwapQuote[] memory _componentQuotes
     )
         isSetToken(_setToken)
         external
         nonReentrant
+        payable
         returns (uint256)
     {
-        require(_amountSetToken > 0 && _maxAmountInputToken > 0, "ExchangeIssuance: INVALID INPUTS");
-        // TODO: implement this
+        require(_amountSetToken > 0 && msg.value > 0, "ExchangeIssuance: INVALID INPUTS");    
+        require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENTS");
+
+        IWETH(WETH).deposit{value: msg.value}();
+
+        uint256 amountEth = _issueExactSetFromWETH(_setToken, _amountSetToken, msg.value, _componentQuotes);
+
+        uint256 amountEthReturn = msg.value.sub(amountEth);
+        require(amountEthReturn >= 0, "ExchangeIssuance: OVERSPENT ETH");
+
+        if (amountEthReturn > 0) {
+            IWETH(WETH).withdraw(amountEthReturn);
+            (payable(msg.sender)).sendValue(amountEthReturn);
+        }
+
+        emit Refund(msg.sender, amountEthReturn);
+        emit ExchangeIssue(msg.sender, _setToken, IERC20(ETH_ADDRESS), amountEth, _amountSetToken);
+        return amountEthReturn; 
     }
 
     /**
@@ -414,8 +428,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      */
     function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken, uint256 _maxAmountWeth, ZeroExSwapQuote[] memory _quotes) internal returns (uint256 totalWethSpent) {
         ISetToken.Position[] memory positions = _setToken.getPositions();
-
-        uint256 totalWethApproved = 0;
 
         _safeApprove(IERC20(WETH), swapTarget, _maxAmountWeth);
         for (uint256 i = 0; i < positions.length; i++) {
