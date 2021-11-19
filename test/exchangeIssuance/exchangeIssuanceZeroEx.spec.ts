@@ -346,7 +346,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setBuyMultiplier(weth.address, ether(0.5));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
+          await expect(subject()).to.be.reverted;
         });
       });
 
@@ -378,7 +378,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setBuyMultiplier(wbtc.address, ether(100));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
+          await expect(subject()).to.be.reverted;
         });
       });
     });
@@ -626,7 +626,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setBuyMultiplier(weth.address, ether(0.5));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
+          await expect(subject()).to.be.reverted;
         });
       });
 
@@ -645,7 +645,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setBuyMultiplier(weth.address, ether(100));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
+          await expect(subject()).to.be.reverted;
         });
       });
     });

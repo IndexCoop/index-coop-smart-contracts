@@ -193,6 +193,9 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             uint256 inputTokenSpent;
             _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
 
+            uint256 inputTokenBalance = _inputToken.balanceOf(address(this));
+            uint256 inputTokenBalanceSender = _inputToken.balanceOf(msg.sender);
+
             (maxAmountWETH, inputTokenSpent) = _fillQuote(_inputQuote);
             require(inputTokenSpent <= _maxAmountInputToken, "OVERSPENT INPUTTOKEN");
             uint256 amountInputTokenReturn = _maxAmountInputToken.sub(inputTokenSpent);
@@ -495,8 +498,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 buyTokenBalanceBefore = _quote.buyToken.balanceOf(address(this));
         uint256 sellTokenBalanceBefore = _quote.sellToken.balanceOf(address(this));
 
-        (bool success,) = swapTarget.call(_quote.swapCallData);
-        require(success, "SWAP CALL FAILED");
+        (bool success, bytes memory returndata) = swapTarget.call(_quote.swapCallData);
+        require(success, string(returndata));
 
         // TODO: check if we want to do this / and how to do so safely
         // Refund any unspent protocol fees to the sender.
