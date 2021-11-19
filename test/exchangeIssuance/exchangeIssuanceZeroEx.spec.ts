@@ -445,21 +445,39 @@ describe("ExchangeIssuanceZeroEx", async () => {
       });
 
       it("emits an ExchangeIssue log", async () => {
-        await expect(subject()).to.emit(exchangeIssuanceZeroEx, "ExchangeIssue").withArgs(
-          subjectCaller.address,
-          setToken.address,
-          ETH_ADDRESS,
-          subjectAmountETHInput,
-          subjectAmountSetTokenWei
-        );
+        await expect(subject())
+          .to.emit(exchangeIssuanceZeroEx, "ExchangeIssue")
+          .withArgs(
+            subjectCaller.address,
+            setToken.address,
+            ETH_ADDRESS,
+            subjectAmountETHInput,
+            subjectAmountSetTokenWei,
+          );
       });
 
       context("when exact amount of eth needed is supplied", () => {
         it("should not refund any eth", async () => {
-          await expect(subject()).to.emit(exchangeIssuanceZeroEx, "Refund").withArgs(
-            subjectCaller.address,
-            BigNumber.from(0)
-          );
+          await expect(subject())
+            .to.emit(exchangeIssuanceZeroEx, "Refund")
+            .withArgs(subjectCaller.address, BigNumber.from(0));
+        });
+      });
+
+      context("when input ether amount is more than required", async () => {
+        const shareSpent = ether(0.5);
+
+        beforeEach(async () => {
+          await zeroExMock.setSellMultiplier(weth.address, shareSpent);
+        });
+        it("should return excess eth", async () => {
+          const initialBalanceOfEth = await user.wallet.getBalance();
+
+          await subject();
+
+          const finalEthBalance = await user.wallet.getBalance();
+          const expectedEthBalance = initialBalanceOfEth.sub(subjectAmountETHInput.mul(shareSpent));
+          expect(finalEthBalance).to.eq(expectedEthBalance);
         });
       });
 
