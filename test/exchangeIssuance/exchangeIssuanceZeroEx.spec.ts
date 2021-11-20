@@ -771,12 +771,12 @@ describe("ExchangeIssuanceZeroEx", async () => {
       context("when the swap consumes an excessive amount of component token", async () => {
         const wbtcMultiplier = 2;
         beforeEach(async () => {
-          await zeroExMock.setBuyMultiplier(wbtc.address, ether(wbtcMultiplier));
+          await zeroExMock.setSellMultiplier(wbtc.address, ether(wbtcMultiplier));
           await wbtc.transfer(exchangeIssuanceZeroEx.address, wbtcUnits.mul(wbtcMultiplier - 1));
         });
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith(
-            "ExchangeIssuance: INSUFFICIENT WETH RECEIVED",
+            "OVERSOLD COMPONENT",
           );
         });
       });
