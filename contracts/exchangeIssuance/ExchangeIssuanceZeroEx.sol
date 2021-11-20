@@ -188,7 +188,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         returns (uint256)
     {
         require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-        require(_setToken.getComponents().length == _componentQuotes.length, "WRONG NUMBER OF COMPONENT QUOTES");
+        require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
 
         _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
 
@@ -204,7 +204,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             uint256 inputTokenBalanceSender = _inputToken.balanceOf(msg.sender);
 
             (maxAmountWETH, inputTokenSpent) = _fillQuote(_inputQuote);
-            require(inputTokenSpent <= _maxAmountInputToken, "OVERSPENT INPUTTOKEN");
+            require(inputTokenSpent <= _maxAmountInputToken, "ExchangeIssuance: OVERSPENT INPUTTOKEN");
             uint256 amountInputTokenReturn = _maxAmountInputToken.sub(inputTokenSpent);
             if (amountInputTokenReturn > 0) {
                 _inputToken.transfer(msg.sender, amountInputTokenReturn);
@@ -450,8 +450,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         for (uint256 i = 0; i < positions.length; i++) {
             ISetToken.Position memory position = positions[i];
             ZeroExSwapQuote memory quote = _quotes[i];
-            require(position.component == address(quote.buyToken), "COMPONENT / QUOTE ADDRESS MISMATCH");
-            require(address(quote.sellToken) == WETH, "INVALID SELL TOKEN");
+            require(position.component == address(quote.buyToken), "ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
+            require(address(quote.sellToken) == WETH, "ExchangeIssuance: INVALID SELL TOKEN");
 
             (uint256 componentAmountBought, uint256 wethAmountSpent) = _fillQuote(quote);
 
@@ -459,10 +459,10 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             uint256 setAmount = _amountSetToken;
             uint256 units = uint256(position.unit);
             uint256 minComponentRequired = setAmount.mul(units).div(10**18);
-            require(componentAmountBought >= minComponentRequired, "UNDERBOUGHT COMPONENT");
+            require(componentAmountBought >= minComponentRequired, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
 
             totalWethSpent = totalWethSpent.add(wethAmountSpent);
-            require(totalWethSpent <= _maxAmountWeth, "OVERSPENT WETH");
+            require(totalWethSpent <= _maxAmountWeth, "ExchangeIssuance: OVERSPENT WETH");
         }
 
         basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
@@ -484,13 +484,13 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 sumWeth = 0;
         address[] memory components = _setToken.getComponents();
         for (uint256 i = 0; i < _swaps.length; i++) {
-            require(components[i] == address(_swaps[i].sellToken), "COMPONENT / QUOTE ADDRESS MISMATCH");
-            require(address(_swaps[i].buyToken) == WETH, "INVALID BUY TOKEN");
+            require(components[i] == address(_swaps[i].sellToken), "ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
+            require(address(_swaps[i].buyToken) == WETH, "ExchangeIssuance: INVALID BUY TOKEN");
             uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
             uint256 maxAmountSell = unit.preciseMul(_amountSetToken);
             _safeApprove(_swaps[i].sellToken, address(swapTarget), maxAmountSell);
             (uint256 boughtAmount, uint256 soldAmount) = _fillQuote(_swaps[i]);
-            require(maxAmountSell >= soldAmount, "OVERSOLD COMPONENT");
+            require(maxAmountSell >= soldAmount, "ExchangeIssuance: OVERSOLD COMPONENT");
             sumWeth = sumWeth.add(boughtAmount);
         }
         return sumWeth;

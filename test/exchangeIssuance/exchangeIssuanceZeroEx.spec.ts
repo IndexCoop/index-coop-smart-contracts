@@ -315,7 +315,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectPositionSwapQuotes = [subjectPositionSwapQuotes[0]];
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("WRONG NUMBER OF COMPONENT QUOTES");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
         });
       });
 
@@ -324,7 +324,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectPositionSwapQuotes[0].buyToken = await getRandomAddress();
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("COMPONENT / QUOTE ADDRESS MISMATCH");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
         });
       });
 
@@ -333,7 +333,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectPositionSwapQuotes[0].sellToken = await getRandomAddress();
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("INVALID SELL TOKEN");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID SELL TOKEN");
         });
       });
 
@@ -342,7 +342,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setBuyMultiplier(weth.address, ether(0.5));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.reverted;
+          await expect(subject()).to.be.revertedWith("revert");
         });
       });
 
@@ -353,7 +353,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setSellMultiplier(weth.address, ether(2));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("OVERSPENT WETH");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: OVERSPENT WETH");
         });
       });
 
@@ -364,7 +364,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setBuyMultiplier(wbtc.address, ether(0.5));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("UNDERBOUGHT COMPONENT");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: UNDERBOUGHT COMPONENT");
         });
       });
 
@@ -374,7 +374,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setBuyMultiplier(wbtc.address, ether(100));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.reverted;
+          await expect(subject()).to.be.revertedWith("ERC20: transfer amount exceeds balance");
         });
       });
     });
@@ -507,7 +507,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
         });
 
         it("should revert", async () => {
-          await expect(subject()).to.be.reverted;
+          await expect(subject()).to.be.revertedWith("revert");
         });
       });
     });
@@ -620,7 +620,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectPositionSwapQuotes = [subjectPositionSwapQuotes[0]];
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("WRONG NUMBER OF COMPONENT QUOTES");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
         });
       });
 
@@ -629,7 +629,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectPositionSwapQuotes[0].sellToken = await getRandomAddress();
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("COMPONENT / QUOTE ADDRESS MISMATCH");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
         });
       });
 
@@ -638,7 +638,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectPositionSwapQuotes[0].buyToken = await getRandomAddress();
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("INVALID BUY TOKEN");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID BUY TOKEN");
         });
       });
 
@@ -647,7 +647,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setBuyMultiplier(weth.address, ether(0.5));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.reverted;
+          await expect(subject()).to.be.revertedWith("revert");
         });
       });
 
@@ -668,7 +668,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setBuyMultiplier(weth.address, ether(100));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.reverted;
+          await expect(subject()).to.be.revertedWith("revert");
         });
       });
     });
@@ -776,10 +776,11 @@ describe("ExchangeIssuanceZeroEx", async () => {
         });
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith(
-            "OVERSOLD COMPONENT",
+            "ExchangeIssuance: OVERSOLD COMPONENT",
           );
         });
       });
+
     });
   });
 });
