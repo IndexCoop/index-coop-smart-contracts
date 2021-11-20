@@ -344,75 +344,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
         // TODO: implement this
     }
-
-    /**
-     * Returns an estimated amount of SetToken that can be issued given an amount of input ERC20 token.
-     *
-     * @param _setToken         Address of the SetToken being issued
-     * @param _amountInput      Amount of the input token to spend
-     * @param _inputToken       Address of input token.
-     *
-     * @return                  Estimated amount of SetTokens that will be received
-     */
-    function getEstimatedIssueSetAmount(
-        ISetToken _setToken,
-        IERC20 _inputToken,
-        uint256 _amountInput
-    )
-        isSetToken(_setToken)
-        external
-        view
-        returns (uint256)
-    {
-        require(_amountInput > 0, "ExchangeIssuance: INVALID INPUTS");
-        // TODO: implement this
-    }
-
-    /**
-    * Returns the amount of input ERC20 tokens required to issue an exact amount of SetTokens.
-    *
-    * @param _setToken          Address of the SetToken being issued
-    * @param _amountSetToken    Amount of SetTokens to issue
-    *
-    * @return                   Amount of tokens needed to issue specified amount of SetTokens
-    */
-    function getAmountInToIssueExactSet(
-        ISetToken _setToken,
-        IERC20 _inputToken,
-        uint256 _amountSetToken
-    )
-        isSetToken(_setToken)
-        external
-        view
-        returns(uint256)
-    {
-        require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-        // TODO: implement this
-    }
-
-    /**
-     * Returns amount of output ERC20 tokens received upon redeeming a given amount of SetToken.
-     *
-     * @param _setToken             Address of SetToken to be redeemed
-     * @param _amountSetToken       Amount of SetToken to be redeemed
-     * @param _outputToken          Address of output token
-     *
-     * @return                      Estimated amount of ether/erc20 that will be received
-     */
-    function getAmountOutOnRedeemSet(
-        ISetToken _setToken,
-        address _outputToken,
-        uint256 _amountSetToken
-    )
-        isSetToken(_setToken)
-        external
-        view
-        returns (uint256)
-    {
-        require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-        // TODO: implement this
-    }
-
+    
     /**
      * Sets a max approval limit for an ERC20 token, provided the current allowance
      * is less than the required allownce.
