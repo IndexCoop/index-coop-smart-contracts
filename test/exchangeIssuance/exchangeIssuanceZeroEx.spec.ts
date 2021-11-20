@@ -346,7 +346,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setBuyMultiplier(weth.address, ether(0.5));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
+          await expect(subject()).to.be.reverted;
         });
       });
 
@@ -378,7 +378,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setBuyMultiplier(wbtc.address, ether(100));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
+          await expect(subject()).to.be.reverted;
         });
       });
     });
@@ -445,21 +445,40 @@ describe("ExchangeIssuanceZeroEx", async () => {
       });
 
       it("emits an ExchangeIssue log", async () => {
-        await expect(subject()).to.emit(exchangeIssuanceZeroEx, "ExchangeIssue").withArgs(
-          subjectCaller.address,
-          setToken.address,
-          ETH_ADDRESS,
-          subjectAmountETHInput,
-          subjectAmountSetTokenWei
-        );
+        await expect(subject())
+          .to.emit(exchangeIssuanceZeroEx, "ExchangeIssue")
+          .withArgs(
+            subjectCaller.address,
+            setToken.address,
+            ETH_ADDRESS,
+            subjectAmountETHInput,
+            subjectAmountSetTokenWei,
+          );
       });
 
       context("when exact amount of eth needed is supplied", () => {
         it("should not refund any eth", async () => {
-          await expect(subject()).to.emit(exchangeIssuanceZeroEx, "Refund").withArgs(
-            subjectCaller.address,
-            BigNumber.from(0)
+          await expect(subject())
+            .to.emit(exchangeIssuanceZeroEx, "Refund")
+            .withArgs(subjectCaller.address, BigNumber.from(0));
+        });
+      });
+
+      context("when not all eth is used up in the transaction", async () => {
+        const shareSpent = 0.5;
+        const shareSpentWei = ether(shareSpent);
+
+        beforeEach(async () => {
+          await zeroExMock.setSellMultiplier(weth.address, shareSpentWei);
+        });
+        it("should return excess eth to the user", async () => {
+          const initialBalanceOfEth = await user.wallet.getBalance();
+          await subject();
+          const finalEthBalance = await user.wallet.getBalance();
+          const expectedEthBalance = initialBalanceOfEth.sub(
+            subjectAmountETHInput.div(1 / shareSpent),
           );
+          expect(finalEthBalance).to.eq(expectedEthBalance);
         });
       });
 
@@ -626,7 +645,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setBuyMultiplier(weth.address, ether(0.5));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
+          await expect(subject()).to.be.reverted;
         });
       });
 
@@ -645,7 +664,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setBuyMultiplier(weth.address, ether(100));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
+          await expect(subject()).to.be.reverted;
         });
       });
     });
