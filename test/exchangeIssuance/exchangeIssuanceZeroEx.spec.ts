@@ -1,6 +1,6 @@
 import "module-alias/register";
 import { Address, Account } from "@utils/types";
-import { ADDRESS_ZERO, MAX_UINT_96, MAX_UINT_256 } from "@utils/constants";
+import { ADDRESS_ZERO, MAX_UINT_96, MAX_UINT_256, ETH_ADDRESS, ZERO, ONE } from "@utils/constants";
 import { SetToken } from "@utils/contracts/setV2";
 import {
   cacheBeforeEach,
@@ -20,7 +20,11 @@ import {
   StandardTokenMock,
   WETH9,
 } from "@utils/contracts/index";
-import { getAllowances } from "@utils/common/exchangeIssuanceUtils";
+import {
+  getAllowances,
+} from "@utils/common/exchangeIssuanceUtils";
+
+
 
 const expect = getWaffleExpect();
 
@@ -375,6 +379,137 @@ describe("ExchangeIssuanceZeroEx", async () => {
         });
         it("should revert", async () => {
           await expect(subject()).to.be.reverted;
+        });
+      });
+    });
+
+    describe("#issueExactSetFromETH", async () => {
+      let subjectCaller: Account;
+      let subjectAmountETHInput: BigNumber;
+      let subjectAmountSetToken: number;
+      let subjectAmountSetTokenWei: BigNumber;
+      let subjectPositionSwapQuotes: ZeroExSwapQuote[];
+
+      const initializeSubjectVariables = async () => {
+        subjectCaller = user;
+        subjectAmountETHInput = ether(1);
+        subjectAmountSetToken = 2;
+        subjectAmountSetTokenWei = ether(subjectAmountSetToken);
+
+        const positions = await setToken.getPositions();
+        subjectPositionSwapQuotes = positions.map(position =>
+          getUniswapV2Quote(
+            weth.address,
+            subjectAmountETHInput.div(2),
+            position.component,
+            position.unit.mul(subjectAmountSetToken),
+          ),
+        );
+      };
+
+      beforeEach(async () => {
+        initializeSubjectVariables();
+        await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+        await weth.transfer(user.address, subjectAmountETHInput);
+        await wbtc.transfer(zeroExMock.address, wbtcUnits.mul(subjectAmountSetToken));
+        await dai.transfer(zeroExMock.address, daiUnits.mul(subjectAmountSetToken));
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return await exchangeIssuanceZeroEx.connect(subjectCaller.wallet).issueExactSetFromETH(
+          setToken.address,
+          subjectAmountSetTokenWei,
+          subjectPositionSwapQuotes,
+          { value: subjectAmountETHInput, gasPrice: 0 }
+        );
+      }
+
+      it("should issue the correct amount of Set to the caller", async () => {
+        const initialBalanceOfSet = await setToken.balanceOf(subjectCaller.address);
+
+        await subject();
+
+        const finalBalanceOfSet = await setToken.balanceOf(subjectCaller.address);
+        const expectedBalance = initialBalanceOfSet.add(subjectAmountSetTokenWei);
+        expect(finalBalanceOfSet).to.eq(expectedBalance);
+      });
+
+      it("should use the correct amount of ether from the caller", async () => {
+        const initialBalanceOfEth = await user.wallet.getBalance();
+
+        await subject();
+
+        const finalEthBalance = await user.wallet.getBalance();
+        const expectedEthBalance = initialBalanceOfEth.sub(subjectAmountETHInput);
+        expect(finalEthBalance).to.eq(expectedEthBalance);
+      });
+
+      it("emits an ExchangeIssue log", async () => {
+        await expect(subject())
+          .to.emit(exchangeIssuanceZeroEx, "ExchangeIssue")
+          .withArgs(
+            subjectCaller.address,
+            setToken.address,
+            ETH_ADDRESS,
+            subjectAmountETHInput,
+            subjectAmountSetTokenWei,
+          );
+      });
+
+      context("when exact amount of eth needed is supplied", () => {
+        it("should not refund any eth", async () => {
+          await expect(subject())
+            .to.emit(exchangeIssuanceZeroEx, "Refund")
+            .withArgs(subjectCaller.address, BigNumber.from(0));
+        });
+      });
+
+      context("when not all eth is used up in the transaction", async () => {
+        const shareSpent = 0.5;
+        const shareSpentWei = ether(shareSpent);
+
+        beforeEach(async () => {
+          await zeroExMock.setSellMultiplier(weth.address, shareSpentWei);
+        });
+        it("should return excess eth to the user", async () => {
+          const initialBalanceOfEth = await user.wallet.getBalance();
+          await subject();
+          const finalEthBalance = await user.wallet.getBalance();
+          const expectedEthBalance = initialBalanceOfEth.sub(
+            subjectAmountETHInput.div(1 / shareSpent),
+          );
+          expect(finalEthBalance).to.eq(expectedEthBalance);
+        });
+      });
+
+      context("when input ether amount is 0", async () => {
+        beforeEach(async () => {
+          subjectAmountETHInput = ZERO;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
+        });
+      });
+
+      context("when amount Set is 0", async () => {
+        beforeEach(async () => {
+          subjectAmountSetTokenWei = ZERO;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
+        });
+      });
+
+      context("when input ether amount is insufficient", async () => {
+        beforeEach(async () => {
+          subjectAmountETHInput = ONE;
+          zeroExMock.setBuyMultiplier(weth.address, ether(2));
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("revert");
         });
       });
     });
