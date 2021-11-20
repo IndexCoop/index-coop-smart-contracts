@@ -320,21 +320,17 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * The SetToken must be approved by the sender to this contract.
      *
      * @param _setToken             Address of the SetToken being redeemed
-     * @param _outputToken          Address of output token
-     * @param _outputSwap           The encoded 0x transaction from WETH to ETH.
      * @param _amountSetToken       Amount SetTokens to redeem
-     * @param _minOutputReceive     Minimum amount of output token to receive
-     * @param _swaps                The encoded 0x transactions to execute (components -> WETH).
+     * @param _minEthReceive        Minimum amount of Eth to receive
+     * @param _componentQuotes      The encoded 0x transactions execute (components -> WETH).
      *
      * @return outputAmount         Amount of output tokens sent to the caller
      */
     function redeemExactSetForETH(
         ISetToken _setToken,
-        IERC20 _outputToken,
-        ZeroExSwapQuote calldata _outputSwap,
         uint256 _amountSetToken,
-        uint256 _minOutputReceive,
-        ZeroExSwapQuote[] calldata _swaps
+        uint256 _minEthReceive,
+        ZeroExSwapQuote[] memory _componentQuotes
     )
         isSetToken(_setToken)
         external
@@ -342,7 +338,18 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         returns (uint256)
     {
         require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-        // TODO: implement this
+        require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
+        
+        _redeemExactSet(_setToken, _amountSetToken);
+        uint ethAmount = _liquidateComponentsForWETH(_setToken, _amountSetToken, _componentQuotes);
+        require(ethAmount >= _minEthReceive, "ExchangeIssuance: INSUFFICIENT WETH RECEIVED");
+
+        IWETH(WETH).withdraw(ethAmount);
+        (payable(msg.sender)).sendValue(ethAmount);
+
+        emit ExchangeRedeem(msg.sender, _setToken, IERC20(ETH_ADDRESS), _amountSetToken, ethAmount);
+        return ethAmount;
+         
     }
 
     /**
@@ -482,7 +489,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
             uint256 requiredAmount = unit.preciseMul(_amountSetToken);
             _safeApprove(_swaps[i].sellToken, address(swapTarget), requiredAmount);
-            (uint256 boughtAmount,) = _fillQuote(_swaps[i]);
+            (uint256 boughtAmount, uint256 soldAmount) = _fillQuote(_swaps[i]);
             sumWeth = sumWeth.add(boughtAmount);
         }
         return sumWeth;
