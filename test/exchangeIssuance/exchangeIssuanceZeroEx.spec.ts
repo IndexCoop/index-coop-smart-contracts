@@ -464,19 +464,20 @@ describe("ExchangeIssuanceZeroEx", async () => {
         });
       });
 
-      context("when input ether amount is more than required", async () => {
-        const shareSpent = ether(0.5);
+      context("when not all eth is used up in the transaction", async () => {
+        const shareSpent = 0.5;
+        const shareSpentWei = ether(shareSpent);
 
         beforeEach(async () => {
-          await zeroExMock.setSellMultiplier(weth.address, shareSpent);
+          await zeroExMock.setSellMultiplier(weth.address, shareSpentWei);
         });
-        it("should return excess eth", async () => {
+        it("should return excess eth to the user", async () => {
           const initialBalanceOfEth = await user.wallet.getBalance();
-
           await subject();
-
           const finalEthBalance = await user.wallet.getBalance();
-          const expectedEthBalance = initialBalanceOfEth.sub(subjectAmountETHInput.mul(shareSpent));
+          const expectedEthBalance = initialBalanceOfEth.sub(
+            subjectAmountETHInput.div(1 / shareSpent),
+          );
           expect(finalEthBalance).to.eq(expectedEthBalance);
         });
       });

@@ -102,6 +102,13 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         swapTarget = _swapTarget;
     }
 
+    /* ============ External Functions ============ */
+
+    receive() external payable {
+        // required for weth.withdraw() to work properly
+        require(msg.sender == WETH, "ExchangeIssuance: Direct deposits not allowed");
+    }
+
     /* ============ Public Functions ============ */
 
     /**
