@@ -505,11 +505,11 @@ describe("ExchangeIssuanceZeroEx", async () => {
       context("when input ether amount is insufficient", async () => {
         beforeEach(async () => {
           subjectAmountETHInput = ONE;
-          zeroExMock.setBuyMultiplier(wbtc.address, ether(2));
+          zeroExMock.setBuyMultiplier(weth.address, ether(2));
         });
 
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("SWAP CALL FAILED");
+          await expect(subject()).to.be.revertedWith("revert");
         });
       });
     });
