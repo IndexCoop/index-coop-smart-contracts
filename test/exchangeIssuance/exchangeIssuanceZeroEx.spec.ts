@@ -35,11 +35,12 @@ type ZeroExSwapQuote = {
 describe("ExchangeIssuanceZeroEx", async () => {
   let owner: Account;
   let user: Account;
+  let externalPositionModule: Account;
   let setV2Setup: SetFixture;
   let zeroExMock: ZeroExExchangeProxyMock;
   let deployer: DeployHelper;
-
   let setToken: SetToken;
+
   let wbtc: StandardTokenMock;
   let dai: StandardTokenMock;
   let usdc: StandardTokenMock;
@@ -49,23 +50,28 @@ describe("ExchangeIssuanceZeroEx", async () => {
   let wbtcUnits: BigNumber;
 
   cacheBeforeEach(async () => {
-    [owner, user] = await getAccounts();
+    [owner, user, externalPositionModule] = await getAccounts();
     deployer = new DeployHelper(owner.wallet);
 
     setV2Setup = getSetFixture(owner.address);
     await setV2Setup.initialize();
 
-    ({ dai, wbtc, weth, usdc } = setV2Setup);
+    dai = setV2Setup.dai;
+    wbtc = setV2Setup.wbtc;
+    weth = setV2Setup.weth;
+    usdc = setV2Setup.usdc;
 
     zeroExMock = await deployer.mocks.deployZeroExExchangeProxyMock();
 
     daiUnits = BigNumber.from("23252699054621733");
     wbtcUnits = UnitsUtils.wbtc(1);
+
     setToken = await setV2Setup.createSetToken(
-      [dai.address, wbtc.address],
+      [setV2Setup.dai.address, setV2Setup.wbtc.address],
       [daiUnits, wbtcUnits],
-      [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address],
+      [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address]
     );
+
     await setV2Setup.issuanceModule.initialize(setToken.address, ADDRESS_ZERO);
   });
 
@@ -113,11 +119,30 @@ describe("ExchangeIssuanceZeroEx", async () => {
     let controllerAddress: Address;
     let basicIssuanceModuleAddress: Address;
     let exchangeIssuanceZeroEx: ExchangeIssuanceZeroEx;
+    let setTokenExternal: SetToken;
 
     cacheBeforeEach(async () => {
+      setTokenExternal = await setV2Setup.createSetToken(
+        [setV2Setup.dai.address],
+        [ether(0.5)],
+        [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address]
+      );
+      await setV2Setup.issuanceModule.initialize(setTokenExternal.address, ADDRESS_ZERO);
+
+      const controller = setV2Setup.controller;
+      await controller.addModule(externalPositionModule.address);
+      await setTokenExternal.addModule(externalPositionModule.address);
+      await setTokenExternal.connect(externalPositionModule.wallet).initializeModule();
+
+      await setTokenExternal.connect(externalPositionModule.wallet).addExternalPositionModule(
+        dai.address,
+        externalPositionModule.address
+      );
+
       wethAddress = weth.address;
       controllerAddress = setV2Setup.controller.address;
       basicIssuanceModuleAddress = setV2Setup.issuanceModule.address;
+
       exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
         wethAddress,
         controllerAddress,
@@ -136,6 +161,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
       async function subject(): Promise<ContractTransaction> {
         return await exchangeIssuanceZeroEx.approveSetToken(subjectSetToApprove.address);
       }
+
       it("should update the approvals correctly", async () => {
         const tokens = [dai, dai];
         const spenders = [basicIssuanceModuleAddress];
@@ -164,6 +190,34 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID SET");
         });
       });
+
+      context("when set token has external positions", async () => {
+        beforeEach(async () => {
+          subjectSetToApprove = setTokenExternal;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: EXTERNAL_POSITIONS_NOT_ALLOWED");
+        });
+      });
+    });
+
+    describe("#receive", async () => {
+      let subjectCaller: Account;
+      let subjectAmount: BigNumber;
+
+      beforeEach(async () => {
+        subjectCaller = user;
+        subjectAmount = ether(10);
+      });
+
+      async function subject(): Promise<String> {
+        return subjectCaller.wallet.call({ to: exchangeIssuanceZeroEx.address, value: subjectAmount });
+      }
+
+      it("should revert when receiving ether not from the WETH contract", async () => {
+        await expect(subject()).to.be.revertedWith("ExchangeIssuance: Direct deposits not allowed");
+      });
     });
 
     describe("#setSwapTarget", async () => {
@@ -180,6 +234,33 @@ describe("ExchangeIssuanceZeroEx", async () => {
         await subject();
         const swapTarget = await exchangeIssuanceZeroEx.swapTarget();
         expect(swapTarget).to.eq(subjectSwapTarget);
+      });
+    });
+
+    describe("#approveTokens", async () => {
+      let subjectTokensToApprove: StandardTokenMock[];
+
+      beforeEach(async () => {
+        subjectTokensToApprove = [setV2Setup.dai, setV2Setup.wbtc];
+      });
+
+
+      async function subject() {
+        return await exchangeIssuanceZeroEx.approveTokens(subjectTokensToApprove.map(token => token.address));
+      }
+
+      it("should update the approvals correctly", async () => {
+        const spenders = [zeroExMock.address, basicIssuanceModuleAddress];
+
+        await subject();
+
+        const finalAllowances = await getAllowances(subjectTokensToApprove, exchangeIssuanceZeroEx.address, spenders);
+
+        for (let i = 0; i < finalAllowances.length; i++) {
+          const actualAllowance = finalAllowances[i];
+          const expectedAllowance = MAX_UINT_96;
+          expect(actualAllowance).to.eq(expectedAllowance);
+        }
       });
     });
 
@@ -205,6 +286,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
     describe("#issueExactSetFromToken", async () => {
       let subjectCaller: Account;
+      let subjectSetToken: SetToken;
       let subjectInputToken: StandardTokenMock | WETH9;
       let subjectInputTokenAmount: BigNumber;
       let subjectWethAmount: BigNumber;
@@ -215,6 +297,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       const initializeSubjectVariables = async () => {
         subjectCaller = user;
+        subjectSetToken = setToken;
         subjectInputTokenAmount = ether(1000);
         subjectInputToken = dai;
         subjectWethAmount = ether(1);
@@ -227,7 +310,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectWethAmount,
         );
 
-        const positions = await setToken.getPositions();
+        const positions = await subjectSetToken.getPositions();
         subjectPositionSwapQuotes = positions.map(position =>
           getUniswapV2Quote(
             weth.address,
@@ -240,7 +323,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       beforeEach(async () => {
         initializeSubjectVariables();
-        await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+        await exchangeIssuanceZeroEx.approveSetToken(subjectSetToken.address);
         dai.connect(subjectCaller.wallet).approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
         await dai.transfer(subjectCaller.address, subjectInputTokenAmount);
         await weth.transfer(zeroExMock.address, subjectWethAmount);
@@ -250,7 +333,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       async function subject(): Promise<ContractTransaction> {
         return await exchangeIssuanceZeroEx.connect(subjectCaller.wallet).issueExactSetFromToken(
-          setToken.address,
+          subjectSetToken.address,
           subjectInputToken.address,
           subjectInputSwapQuote,
           subjectAmountSetTokenWei,
@@ -260,9 +343,9 @@ describe("ExchangeIssuanceZeroEx", async () => {
       }
 
       it("should issue correct amount of set tokens", async () => {
-        const initialBalanceOfSet = await setToken.balanceOf(subjectCaller.address);
+        const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
         await subject();
-        const finalSetBalance = await setToken.balanceOf(subjectCaller.address);
+        const finalSetBalance = await subjectSetToken.balanceOf(subjectCaller.address);
         const expectedSetBalance = initialBalanceOfSet.add(subjectAmountSetTokenWei);
         expect(finalSetBalance).to.eq(expectedSetBalance);
       });
@@ -281,15 +364,11 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setBuyMultiplier(weth.address, ether(2));
         });
         it("should return surplus WETH to user", async () => {
-          const initialBalanceOfSet = await setToken.balanceOf(subjectCaller.address);
           const wethBalanceBefore = await weth.balanceOf(subjectCaller.address);
           await subject();
-          const finalSetBalance = await setToken.balanceOf(subjectCaller.address);
           const wethBalanceAfter = await weth.balanceOf(subjectCaller.address);
-          const expectedSetBalance = initialBalanceOfSet.add(subjectAmountSetTokenWei);
           const expectedWethBalance = wethBalanceBefore.add(subjectWethAmount);
           expect(wethBalanceAfter).to.equal(expectedWethBalance);
-          expect(finalSetBalance).to.eq(expectedSetBalance);
         });
       });
 
@@ -301,9 +380,9 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await weth.transfer(user.address, subjectInputTokenAmount);
         });
         it("should issue correct amount of set tokens", async () => {
-          const initialBalanceOfSet = await setToken.balanceOf(subjectCaller.address);
+          const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
           await subject();
-          const finalSetBalance = await setToken.balanceOf(subjectCaller.address);
+          const finalSetBalance = await subjectSetToken.balanceOf(subjectCaller.address);
           const expectedSetBalance = initialBalanceOfSet.add(subjectAmountSetTokenWei);
           expect(finalSetBalance).to.eq(expectedSetBalance);
         });
@@ -321,7 +400,16 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectPositionSwapQuotes = [subjectPositionSwapQuotes[0]];
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("WRONG NUMBER OF COMPONENT QUOTES");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
+        });
+      });
+
+      context("when invalid set token amount is requested", async () => {
+        beforeEach(async () => {
+          subjectAmountSetTokenWei = ether(0);
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID SET TOKEN AMOUNT");
         });
       });
 
@@ -330,7 +418,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectPositionSwapQuotes[0].buyToken = await getRandomAddress();
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("COMPONENT / QUOTE ADDRESS MISMATCH");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
         });
       });
 
@@ -339,7 +427,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectPositionSwapQuotes[0].sellToken = await getRandomAddress();
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("INVALID SELL TOKEN");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID SELL TOKEN");
         });
       });
 
@@ -359,7 +447,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setSellMultiplier(weth.address, ether(2));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("OVERSPENT WETH");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: OVERSPENT WETH");
         });
       });
 
@@ -370,7 +458,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setBuyMultiplier(wbtc.address, ether(0.5));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("UNDERBOUGHT COMPONENT");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: UNDERBOUGHT COMPONENT");
         });
       });
 
@@ -387,6 +475,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
     describe("#issueExactSetFromETH", async () => {
       let subjectCaller: Account;
+      let subjectSetToken: SetToken;
       let subjectAmountETHInput: BigNumber;
       let subjectAmountSetToken: number;
       let subjectAmountSetTokenWei: BigNumber;
@@ -394,11 +483,12 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       const initializeSubjectVariables = async () => {
         subjectCaller = user;
+        subjectSetToken = setToken;
         subjectAmountETHInput = ether(1);
         subjectAmountSetToken = 2;
         subjectAmountSetTokenWei = ether(subjectAmountSetToken);
 
-        const positions = await setToken.getPositions();
+        const positions = await subjectSetToken.getPositions();
         subjectPositionSwapQuotes = positions.map(position =>
           getUniswapV2Quote(
             weth.address,
@@ -411,7 +501,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       beforeEach(async () => {
         initializeSubjectVariables();
-        await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+        await exchangeIssuanceZeroEx.approveSetToken(subjectSetToken.address);
         await weth.transfer(subjectCaller.address, subjectAmountETHInput);
         await wbtc.transfer(zeroExMock.address, wbtcUnits.mul(subjectAmountSetToken));
         await dai.transfer(zeroExMock.address, daiUnits.mul(subjectAmountSetToken));
@@ -419,7 +509,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       async function subject(): Promise<ContractTransaction> {
         return await exchangeIssuanceZeroEx.connect(subjectCaller.wallet).issueExactSetFromETH(
-          setToken.address,
+          subjectSetToken.address,
           subjectAmountSetTokenWei,
           subjectPositionSwapQuotes,
           { value: subjectAmountETHInput, gasPrice: 0 }
@@ -427,11 +517,11 @@ describe("ExchangeIssuanceZeroEx", async () => {
       }
 
       it("should issue the correct amount of Set to the caller", async () => {
-        const initialBalanceOfSet = await setToken.balanceOf(subjectCaller.address);
+        const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
 
         await subject();
 
-        const finalBalanceOfSet = await setToken.balanceOf(subjectCaller.address);
+        const finalBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
         const expectedBalance = initialBalanceOfSet.add(subjectAmountSetTokenWei);
         expect(finalBalanceOfSet).to.eq(expectedBalance);
       });
@@ -451,7 +541,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           .to.emit(exchangeIssuanceZeroEx, "ExchangeIssue")
           .withArgs(
             subjectCaller.address,
-            setToken.address,
+            subjectSetToken.address,
             ETH_ADDRESS,
             subjectAmountETHInput,
             subjectAmountSetTokenWei,
@@ -468,10 +558,9 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       context("when not all eth is used up in the transaction", async () => {
         const shareSpent = 0.5;
-        const shareSpentWei = ether(shareSpent);
 
         beforeEach(async () => {
-          await zeroExMock.setSellMultiplier(weth.address, shareSpentWei);
+          await zeroExMock.setSellMultiplier(weth.address, ether(shareSpent));
         });
         it("should return excess eth to the caller", async () => {
           const initialBalanceOfEth = await subjectCaller.wallet.getBalance();
@@ -484,13 +573,35 @@ describe("ExchangeIssuanceZeroEx", async () => {
         });
       });
 
+      context("when too much eth is used", async () => {
+        beforeEach(async () => {
+          await weth.transfer(exchangeIssuanceZeroEx.address, subjectAmountETHInput);
+          await zeroExMock.setSellMultiplier(wbtc.address, ether(2));
+          await zeroExMock.setSellMultiplier(weth.address, ether(2));
+          await zeroExMock.setSellMultiplier(dai.address, ether(2));
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: OVERSPENT WETH");
+        });
+      });
+
+      context("when wrong number of component quotes are used", async () => {
+        beforeEach(async () => {
+          subjectPositionSwapQuotes = [];
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
+        });
+      });
+
       context("when input ether amount is 0", async () => {
         beforeEach(async () => {
           subjectAmountETHInput = ZERO;
         });
 
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID ETH AMOUNT");
         });
       });
 
@@ -500,7 +611,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
         });
 
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID SET TOKEN AMOUNT");
         });
       });
 
@@ -518,6 +629,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
     describe("#redeemExactSetForToken", async () => {
       let subjectCaller: Account;
+      let subjectSetToken: SetToken;
       let subjectOutputToken: StandardTokenMock | WETH9;
       let subjectOutputTokenAmount: BigNumber;
       let subjectWethAmount: BigNumber;
@@ -528,6 +640,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       const initializeSubjectVariables = async () => {
         subjectCaller = user;
+        subjectSetToken = setToken;
         subjectOutputTokenAmount = ether(1000);
         subjectOutputToken = usdc;
         subjectWethAmount = ether(1);
@@ -540,7 +653,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectOutputTokenAmount,
         );
 
-        const positions = await setToken.getPositions();
+        const positions = await subjectSetToken.getPositions();
         subjectPositionSwapQuotes = positions.map(position =>
           getUniswapV2Quote(
             position.component,
@@ -553,8 +666,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       beforeEach(async () => {
         await initializeSubjectVariables();
-        await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
-        await setV2Setup.approveAndIssueSetToken(setToken, subjectAmountSetTokenWei, subjectCaller.address);
+        await exchangeIssuanceZeroEx.approveSetToken(subjectSetToken.address);
+        await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetTokenWei, subjectCaller.address);
         await setToken.connect(subjectCaller.wallet).approve(exchangeIssuanceZeroEx.address, MAX_UINT_256, { gasPrice: 0 });
         await weth.transfer(zeroExMock.address, subjectWethAmount);
         await usdc.transfer(zeroExMock.address, subjectOutputTokenAmount);
@@ -562,7 +675,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       async function subject(): Promise<ContractTransaction> {
         return await exchangeIssuanceZeroEx.connect(subjectCaller.wallet).redeemExactSetForToken(
-          setToken.address,
+          subjectSetToken.address,
           subjectOutputToken.address,
           subjectOutputSwapQuote,
           subjectAmountSetTokenWei,
@@ -572,9 +685,9 @@ describe("ExchangeIssuanceZeroEx", async () => {
       }
 
       it("should redeem the correct number of set tokens", async () => {
-        const initialBalanceOfSet = await setToken.balanceOf(subjectCaller.address);
+        const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
         await subject();
-        const finalSetBalance = await setToken.balanceOf(subjectCaller.address);
+        const finalSetBalance = await subjectSetToken.balanceOf(subjectCaller.address);
         const expectedSetBalance = initialBalanceOfSet.sub(subjectAmountSetTokenWei);
         expect(finalSetBalance).to.eq(expectedSetBalance);
       });
@@ -593,9 +706,9 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectOutputTokenAmount = subjectWethAmount;
         });
         it("should redeem correct amount of set tokens", async () => {
-          const initialBalanceOfSet = await setToken.balanceOf(subjectCaller.address);
+          const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
           await subject();
-          const finalSetBalance = await setToken.balanceOf(subjectCaller.address);
+          const finalSetBalance = await subjectSetToken.balanceOf(subjectCaller.address);
           const expectedSetBalance = initialBalanceOfSet.sub(subjectAmountSetTokenWei);
           expect(finalSetBalance).to.eq(expectedSetBalance);
         });
@@ -622,7 +735,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectPositionSwapQuotes = [subjectPositionSwapQuotes[0]];
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("WRONG NUMBER OF COMPONENT QUOTES");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
         });
       });
 
@@ -631,7 +744,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectPositionSwapQuotes[0].sellToken = await getRandomAddress();
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("COMPONENT / QUOTE ADDRESS MISMATCH");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
         });
       });
 
@@ -640,7 +753,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectPositionSwapQuotes[0].buyToken = await getRandomAddress();
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("INVALID BUY TOKEN");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID BUY TOKEN");
         });
       });
 
@@ -659,6 +772,21 @@ describe("ExchangeIssuanceZeroEx", async () => {
         });
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+        });
+      });
+
+      context("when the output token and output swap are mismatched", async () => {
+        beforeEach(async () => {
+          subjectOutputToken = dai;
+          subjectOutputSwapQuote = getUniswapV2Quote(
+            weth.address,
+            subjectWethAmount,
+            usdc.address,
+            subjectOutputTokenAmount,
+          );
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: OUTPUT TOKEN / OUTPUT QUOTE MISMATCH");
         });
       });
 
