@@ -187,25 +187,23 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         nonReentrant
         returns (uint256)
     {
-        require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
+        require(_amountSetToken > 0, "ExchangeIssuance: INVALID SET TOKEN AMOUNT");
         require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
 
         _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
 
         uint256 maxAmountWETH;
-        if(address(_inputToken) == WETH){
+        if(address(_inputToken) == WETH) {
             maxAmountWETH = _maxAmountInputToken;
-        }
-        else {
+        } else {
             uint256 inputTokenSpent;
             _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
 
-            uint256 inputTokenBalance = _inputToken.balanceOf(address(this));
-            uint256 inputTokenBalanceSender = _inputToken.balanceOf(msg.sender);
-
             (maxAmountWETH, inputTokenSpent) = _fillQuote(_inputQuote);
-            require(inputTokenSpent <= _maxAmountInputToken, "ExchangeIssuance: OVERSPENT INPUTTOKEN");
+            require(inputTokenSpent <= _maxAmountInputToken, "ExchangeIssuance: OVERSPENT INPUT TOKEN");
             uint256 amountInputTokenReturn = _maxAmountInputToken.sub(inputTokenSpent);
+            // TODO: (christ.n) to check if this is required. Shouldn't be possible as 
+            // the quote should use up all the buy amount.
             if (amountInputTokenReturn > 0) {
                 _inputToken.transfer(msg.sender, amountInputTokenReturn);
             }
@@ -242,16 +240,15 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         payable
         returns (uint256)
     {
-        require(_amountSetToken > 0 && msg.value > 0, "ExchangeIssuance: INVALID INPUTS");    
-        require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENTS");
+        require(_amountSetToken > 0, "ExchangeIssuance: INVALID SET TOKEN AMOUNT");    
+        require(msg.value > 0, "ExchangeIssuance: INVALID ETH AMOUNT");
+        require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
 
         IWETH(WETH).deposit{value: msg.value}();
 
         uint256 amountEth = _issueExactSetFromWETH(_setToken, _amountSetToken, msg.value, _componentQuotes);
 
         uint256 amountEthReturn = msg.value.sub(amountEth);
-        require(amountEthReturn >= 0, "ExchangeIssuance: OVERSPENT ETH");
-
         if (amountEthReturn > 0) {
             IWETH(WETH).withdraw(amountEthReturn);
             (payable(msg.sender)).sendValue(amountEthReturn);
@@ -351,75 +348,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         return ethAmount;
          
     }
-
-    /**
-     * Returns an estimated amount of SetToken that can be issued given an amount of input ERC20 token.
-     *
-     * @param _setToken         Address of the SetToken being issued
-     * @param _amountInput      Amount of the input token to spend
-     * @param _inputToken       Address of input token.
-     *
-     * @return                  Estimated amount of SetTokens that will be received
-     */
-    function getEstimatedIssueSetAmount(
-        ISetToken _setToken,
-        IERC20 _inputToken,
-        uint256 _amountInput
-    )
-        isSetToken(_setToken)
-        external
-        view
-        returns (uint256)
-    {
-        require(_amountInput > 0, "ExchangeIssuance: INVALID INPUTS");
-        // TODO: implement this
-    }
-
-    /**
-    * Returns the amount of input ERC20 tokens required to issue an exact amount of SetTokens.
-    *
-    * @param _setToken          Address of the SetToken being issued
-    * @param _amountSetToken    Amount of SetTokens to issue
-    *
-    * @return                   Amount of tokens needed to issue specified amount of SetTokens
-    */
-    function getAmountInToIssueExactSet(
-        ISetToken _setToken,
-        IERC20 _inputToken,
-        uint256 _amountSetToken
-    )
-        isSetToken(_setToken)
-        external
-        view
-        returns(uint256)
-    {
-        require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-        // TODO: implement this
-    }
-
-    /**
-     * Returns amount of output ERC20 tokens received upon redeeming a given amount of SetToken.
-     *
-     * @param _setToken             Address of SetToken to be redeemed
-     * @param _amountSetToken       Amount of SetToken to be redeemed
-     * @param _outputToken          Address of output token
-     *
-     * @return                      Estimated amount of ether/erc20 that will be received
-     */
-    function getAmountOutOnRedeemSet(
-        ISetToken _setToken,
-        address _outputToken,
-        uint256 _amountSetToken
-    )
-        isSetToken(_setToken)
-        external
-        view
-        returns (uint256)
-    {
-        require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-        // TODO: implement this
-    }
-
+    
     /**
      * Sets a max approval limit for an ERC20 token, provided the current allowance
      * is less than the required allownce.
@@ -499,10 +428,10 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     /**
      * Execute a 0x Swap quote
      *
-     * @param _quote      Swap quote as returned by 0x API
+     * @param _quote          Swap quote as returned by 0x API
      *
-     * @return boughtAmount  The amount of _quote.buyToken obtained
-     * @return spentAmount  The amount of _quote.sellToken spent
+     * @return boughtAmount   The amount of _quote.buyToken obtained
+     * @return spentAmount    The amount of _quote.sellToken spent
      */
     function _fillQuote(
         ZeroExSwapQuote memory _quote
@@ -516,9 +445,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         (bool success, bytes memory returndata) = swapTarget.call(_quote.swapCallData);
         require(success, string(returndata));
 
-        // TODO: check if we want to do this / and how to do so safely
-        // Refund any unspent protocol fees to the sender.
-        // payable(msg.sender).transfer(address(this).balance);
         boughtAmount = _quote.buyToken.balanceOf(address(this)).sub(buyTokenBalanceBefore);
         spentAmount = sellTokenBalanceBefore.sub(_quote.sellToken.balanceOf(address(this)));
         emit BoughtTokens(_quote.sellToken, _quote.buyToken, boughtAmount);

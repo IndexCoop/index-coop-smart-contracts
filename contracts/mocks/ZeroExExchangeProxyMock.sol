@@ -36,9 +36,9 @@ contract ZeroExExchangeProxyMock {
     function getBuyAmount(
         IERC20 buyToken,
         uint256 minBuyAmount
-    ) public view returns(uint256 buyAmount) {
+    ) public view returns (uint256 buyAmount) {
         uint256 buyMultiplier = buyAmountMultipliers[address(buyToken)];
-        if(buyMultiplier == 0){
+        if (buyMultiplier == 0) {
             buyAmount = minBuyAmount;
         }
         else{
@@ -58,9 +58,9 @@ contract ZeroExExchangeProxyMock {
     function getSellAmount(
         IERC20 sellToken,
         uint256 inputSellAmount
-    ) public view returns(uint256 sellAmount) {
+    ) public view returns (uint256 sellAmount) {
         uint256 sellMultiplier = sellAmountMultipliers[address(sellToken)];
-        if(sellMultiplier == 0){
+        if (sellMultiplier == 0) {
             sellAmount = inputSellAmount;
         }
         else{
@@ -76,5 +76,4 @@ contract ZeroExExchangeProxyMock {
     ) public {
         sellAmountMultipliers[address(sellToken)] = multiplier;
     }
-
 }
