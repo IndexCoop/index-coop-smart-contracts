@@ -356,6 +356,21 @@ describe("ExchangeIssuanceZeroEx", async () => {
         expect(finalInputBalance).to.eq(expectedInputBalance);
       });
 
+      context("when the input swap does not use all of the input token amount", async () => {
+        const sellMultiplier = 0.5;
+        beforeEach(async () => {
+          await weth.transfer(zeroExMock.address, subjectWethAmount);
+          await zeroExMock.setSellMultiplier(subjectInputToken.address, ether(sellMultiplier));
+        });
+        it("should return surplus input token to user", async () => {
+          const inputTokenBalanceBefore = await subjectInputToken.balanceOf(subjectCaller.address);
+          await subject();
+          const inputTokenBalanceAfter = await subjectInputToken.balanceOf(subjectCaller.address);
+          const expectedInputTokenBalance = inputTokenBalanceBefore.sub(subjectInputTokenAmount.div(1/sellMultiplier));
+          expect(inputTokenBalanceAfter).to.equal(expectedInputTokenBalance);
+        });
+      });
+
       context("when the input swap generates surplus WETH", async () => {
         beforeEach(async () => {
           await weth.transfer(zeroExMock.address, subjectWethAmount);
