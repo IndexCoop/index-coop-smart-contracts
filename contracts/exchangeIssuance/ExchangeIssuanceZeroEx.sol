@@ -200,7 +200,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
 
             (maxAmountWETH, inputTokenSpent) = _fillQuote(_inputQuote);
-            require(inputTokenSpent <= _maxAmountInputToken, "OVERSPENT INPUT TOKEN");
+            require(inputTokenSpent <= _maxAmountInputToken, "ExchangeIssuance: OVERSPENT INPUT TOKEN");
             uint256 amountInputTokenReturn = _maxAmountInputToken.sub(inputTokenSpent);
             // TODO: (christ.n) to check if this is required. Shouldn't be possible as 
             // the quote should use up all the buy amount.
@@ -317,21 +317,17 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * The SetToken must be approved by the sender to this contract.
      *
      * @param _setToken             Address of the SetToken being redeemed
-     * @param _outputToken          Address of output token
-     * @param _outputSwap           The encoded 0x transaction from WETH to ETH.
      * @param _amountSetToken       Amount SetTokens to redeem
-     * @param _minOutputReceive     Minimum amount of output token to receive
-     * @param _swaps                The encoded 0x transactions to execute (components -> WETH).
+     * @param _minEthReceive        Minimum amount of Eth to receive
+     * @param _componentQuotes      The encoded 0x transactions execute (components -> WETH).
      *
      * @return outputAmount         Amount of output tokens sent to the caller
      */
     function redeemExactSetForETH(
         ISetToken _setToken,
-        IERC20 _outputToken,
-        ZeroExSwapQuote calldata _outputSwap,
         uint256 _amountSetToken,
-        uint256 _minOutputReceive,
-        ZeroExSwapQuote[] calldata _swaps
+        uint256 _minEthReceive,
+        ZeroExSwapQuote[] memory _componentQuotes
     )
         isSetToken(_setToken)
         external
@@ -339,7 +335,18 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         returns (uint256)
     {
         require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-        // TODO: implement this
+        require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
+        
+        _redeemExactSet(_setToken, _amountSetToken);
+        uint ethAmount = _liquidateComponentsForWETH(_setToken, _amountSetToken, _componentQuotes);
+        require(ethAmount >= _minEthReceive, "ExchangeIssuance: INSUFFICIENT WETH RECEIVED");
+
+        IWETH(WETH).withdraw(ethAmount);
+        (payable(msg.sender)).sendValue(ethAmount);
+
+        emit ExchangeRedeem(msg.sender, _setToken, IERC20(ETH_ADDRESS), _amountSetToken, ethAmount);
+        return ethAmount;
+         
     }
     
     /**
@@ -409,9 +416,10 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             require(components[i] == address(_swaps[i].sellToken), "ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
             require(address(_swaps[i].buyToken) == WETH, "ExchangeIssuance: INVALID BUY TOKEN");
             uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
-            uint256 requiredAmount = unit.preciseMul(_amountSetToken);
-            _safeApprove(_swaps[i].sellToken, address(swapTarget), requiredAmount);
-            (uint256 boughtAmount,) = _fillQuote(_swaps[i]);
+            uint256 maxAmountSell = unit.preciseMul(_amountSetToken);
+            _safeApprove(_swaps[i].sellToken, address(swapTarget), maxAmountSell);
+            (uint256 boughtAmount, uint256 soldAmount) = _fillQuote(_swaps[i]);
+            require(maxAmountSell >= soldAmount, "ExchangeIssuance: OVERSOLD COMPONENT");
             sumWeth = sumWeth.add(boughtAmount);
         }
         return sumWeth;
