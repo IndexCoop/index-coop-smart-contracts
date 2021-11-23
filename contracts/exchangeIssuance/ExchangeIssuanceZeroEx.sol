@@ -87,6 +87,12 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
          _;
     }
 
+    modifier validInputs(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _componentQuotes) {
+        require(_amountSetToken > 0, "ExchangeIssuance: INVALID SET TOKEN AMOUNT");
+        require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
+         _;
+    }
+
     constructor(
         address _weth,
         IController _setController,
@@ -183,12 +189,11 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         ZeroExSwapQuote[] memory _componentQuotes
     )
         isSetToken(_setToken)
+        validInputs(_setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         returns (uint256)
     {
-        require(_amountSetToken > 0, "ExchangeIssuance: INVALID SET TOKEN AMOUNT");
-        require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
 
         _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
 
@@ -235,14 +240,13 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         ZeroExSwapQuote[] memory _componentQuotes
     )
         isSetToken(_setToken)
+        validInputs(_setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         payable
         returns (uint256)
     {
-        require(_amountSetToken > 0, "ExchangeIssuance: INVALID SET TOKEN AMOUNT");    
         require(msg.value > 0, "ExchangeIssuance: INVALID ETH AMOUNT");
-        require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
 
         IWETH(WETH).deposit{value: msg.value}();
 
@@ -281,12 +285,11 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         ZeroExSwapQuote[] memory _componentQuotes
     )
         isSetToken(_setToken)
+        validInputs(_setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         returns (uint256)
     {
-        require(_amountSetToken > 0, "ExchangeIssuance: INVALID SET TOKEN AMOUNT");
-        require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
 
         uint256 outputAmount;
         // Redeem exact set token
@@ -330,13 +333,11 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         ZeroExSwapQuote[] memory _componentQuotes
     )
         isSetToken(_setToken)
+        validInputs(_setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         returns (uint256)
     {
-        require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-        require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
-        
         _redeemExactSet(_setToken, _amountSetToken);
         uint ethAmount = _liquidateComponentsForWETH(_setToken, _amountSetToken, _componentQuotes);
         require(ethAmount >= _minEthReceive, "ExchangeIssuance: INSUFFICIENT WETH RECEIVED");
