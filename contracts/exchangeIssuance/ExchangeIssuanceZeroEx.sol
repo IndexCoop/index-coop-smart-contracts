@@ -87,7 +87,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
          _;
     }
 
-    modifier validInputs(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _componentQuotes) {
+    modifier isValidInput(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _componentQuotes) {
         require(_amountSetToken > 0, "ExchangeIssuance: INVALID SET TOKEN AMOUNT");
         require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
          _;
@@ -189,7 +189,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         ZeroExSwapQuote[] memory _componentQuotes
     )
         isSetToken(_setToken)
-        validInputs(_setToken, _amountSetToken, _componentQuotes)
+        isValidInput(_setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         returns (uint256)
@@ -240,7 +240,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         ZeroExSwapQuote[] memory _componentQuotes
     )
         isSetToken(_setToken)
-        validInputs(_setToken, _amountSetToken, _componentQuotes)
+        isValidInput(_setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         payable
@@ -285,7 +285,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         ZeroExSwapQuote[] memory _componentQuotes
     )
         isSetToken(_setToken)
-        validInputs(_setToken, _amountSetToken, _componentQuotes)
+        isValidInput(_setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         returns (uint256)
@@ -333,7 +333,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         ZeroExSwapQuote[] memory _componentQuotes
     )
         isSetToken(_setToken)
-        validInputs(_setToken, _amountSetToken, _componentQuotes)
+        isValidInput(_setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         returns (uint256)
