@@ -260,6 +260,28 @@ describe("ExchangeIssuanceZeroEx", async () => {
           expect(actualAllowance).to.eq(expectedAllowance);
         }
       });
+
+      context("when the tokens are approved twice", async () => {
+        it("should update the approvals correctly", async () => {
+          const spenders = [zeroExMock.address, basicIssuanceModuleAddress];
+
+          const tx = await subject();
+          await tx.wait();
+          await subject();
+
+          const finalAllowances = await getAllowances(
+            subjectTokensToApprove,
+            exchangeIssuanceZeroEx.address,
+            spenders,
+          );
+
+          for (let i = 0; i < finalAllowances.length; i++) {
+            const actualAllowance = finalAllowances[i];
+            const expectedAllowance = MAX_UINT_96;
+            expect(actualAllowance).to.eq(expectedAllowance);
+          }
+        });
+      });
     });
 
     // Helper function to generate 0xAPI quote for UniswapV2
@@ -356,6 +378,21 @@ describe("ExchangeIssuanceZeroEx", async () => {
         expect(finalInputBalance).to.eq(expectedInputBalance);
       });
 
+      context("when the input swap does not use all of the input token amount", async () => {
+        const sellMultiplier = 0.5;
+        beforeEach(async () => {
+          await weth.transfer(zeroExMock.address, subjectWethAmount);
+          await zeroExMock.setSellMultiplier(subjectInputToken.address, ether(sellMultiplier));
+        });
+        it("should return surplus input token to user", async () => {
+          const inputTokenBalanceBefore = await subjectInputToken.balanceOf(subjectCaller.address);
+          await subject();
+          const inputTokenBalanceAfter = await subjectInputToken.balanceOf(subjectCaller.address);
+          const expectedInputTokenBalance = inputTokenBalanceBefore.sub(subjectInputTokenAmount.div(1/sellMultiplier));
+          expect(inputTokenBalanceAfter).to.equal(expectedInputTokenBalance);
+        });
+      });
+
       context("when the input swap generates surplus WETH", async () => {
         beforeEach(async () => {
           await weth.transfer(zeroExMock.address, subjectWethAmount);
@@ -426,6 +463,17 @@ describe("ExchangeIssuanceZeroEx", async () => {
         });
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID SELL TOKEN");
+        });
+      });
+
+      context("when the input swap overspends input token", async () => {
+        const sellMultiplier = 2;
+        beforeEach(async () => {
+          await subjectInputToken.transfer(exchangeIssuanceZeroEx.address, subjectInputTokenAmount.mul(sellMultiplier));
+          await zeroExMock.setSellMultiplier(subjectInputToken.address, ether(sellMultiplier));
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: OVERSPENT INPUT TOKEN");
         });
       });
 
