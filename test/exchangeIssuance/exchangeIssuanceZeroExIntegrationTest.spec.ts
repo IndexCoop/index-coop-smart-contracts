@@ -26,6 +26,12 @@ type SetTokenScenario = {
   issuanceModule: Address;
 };
 
+function logIfVerboseMode( ...args: any[] ) {
+    if ( process.env.VERBOSE ) console.log(...args);
+}
+
+
+
 describe("ExchangeIssuanceZeroEx", async () => {
   let owner: Account;
 
@@ -85,7 +91,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
         wbtc = wbtc.attach(wbtcAddress);
 
         daiUnits = BigNumber.from("23252699054621733");
-        wbtcUnits = UnitsUtils.wbtc(1);
+        wbtcUnits = UnitsUtils.wbtc(0.05);
         simpleSetToken = await setV2Setup.createSetToken(
           [daiAddress, wbtcAddress],
           [daiUnits, wbtcUnits],
@@ -121,18 +127,18 @@ describe("ExchangeIssuanceZeroEx", async () => {
         const API_QUOTE_URL = "https://api.0x.org/swap/v1/quote";
         async function getQuote(params: any) {
           const url = `${API_QUOTE_URL}?${qs.stringify(params)}`;
-          console.log(`Getting quote from ${params.sellToken} to ${params.buyToken}`);
-          console.log("Sending quote request to:", url);
+          logIfVerboseMode(`Getting quote from ${params.sellToken} to ${params.buyToken}`);
+          logIfVerboseMode("Sending quote request to:", url);
           const response = await axios(url);
           return response.data;
         }
 
         async function logQuote(quote: any) {
-          console.log("Sell Amount:", quote.sellAmount);
-          console.log("Buy Amount:", quote.buyAmount);
-          console.log("Swap Target:", quote.to);
-          console.log("Allowance Target:", quote.allowanceTarget);
-          console.log(
+          logIfVerboseMode("Sell Amount:", quote.sellAmount);
+          logIfVerboseMode("Buy Amount:", quote.buyAmount);
+          logIfVerboseMode("Swap Target:", quote.to);
+          logIfVerboseMode("Allowance Target:", quote.allowanceTarget);
+          logIfVerboseMode(
             "Sources:",
             quote.sources.filter((source: any) => source.proportion > "0"),
           );
@@ -150,14 +156,14 @@ describe("ExchangeIssuanceZeroEx", async () => {
           const implementation = await proxyContract.getFunctionImplementation(
             callData.slice(0, 10),
           );
-          console.log("Implementation Address: ", implementation);
+          logIfVerboseMode("Implementation Address: ", implementation);
           const abiResponse = await axios.get(ABI_ENDPOINT + implementation);
           const abi = JSON.parse(abiResponse.data.result);
           const iface = new ethers.utils.Interface(abi);
           const decodedTransaction = iface.parseTransaction({
             data: callData,
           });
-          console.log("Called Function Signature: ", decodedTransaction.signature);
+          logIfVerboseMode("Called Function Signature: ", decodedTransaction.signature);
         }
 
         // Helper function to generate 0xAPI quote for UniswapV2
@@ -174,7 +180,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           const slippagePercentage = slippagePercents / 100;
 
           for (const position of positions) {
-            console.log("\n\n###################COMPONENT QUOTE##################");
+            logIfVerboseMode("\n\n###################COMPONENT QUOTE##################");
             const buyAmount = position.unit.mul(setAmount).toString();
             const buyToken = position.component;
             const sellToken = wethAddress;
@@ -198,7 +204,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           // TODO: Review if correct
           buyAmountWeth = buyAmountWeth.mul(100).div(100 - slippagePercents);
 
-          console.log("\n\n###################INPUT TOKEN QUOTE##################");
+          logIfVerboseMode("\n\n###################INPUT TOKEN QUOTE##################");
           const inputTokenApiResponse = await getQuote({
             buyToken: wethAddress,
             sellToken: inputTokenAddress,
@@ -209,7 +215,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await logQuote(inputTokenApiResponse);
           let inputTokenAmount = BigNumber.from(inputTokenApiResponse.sellAmount);
           inputTokenAmount = inputTokenAmount.mul(100).div(100 - slippagePercents);
-          console.log("Input token amount", inputTokenAmount.toString());
+          logIfVerboseMode("Input token amount", inputTokenAmount.toString());
           const inputQuote = {
             buyToken: wethAddress,
             sellToken: inputTokenAddress,
@@ -242,7 +248,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           const whaleTokenBalance = await subjectInputToken.balanceOf(inputTokenWhaleAddress);
 
           if (whaleTokenBalance.gt(0)) {
-            console.log("\n\n###################OBTAIN INPUT TOKEN FROM WHALE##################");
+            logIfVerboseMode("\n\n###################OBTAIN INPUT TOKEN FROM WHALE##################");
             await hre.network.provider.request({
               method: "hardhat_impersonateAccount",
               params: [inputTokenWhaleAddress],
@@ -251,9 +257,9 @@ describe("ExchangeIssuanceZeroEx", async () => {
             await subjectInputToken
               .connect(inputTokenWhaleSigner)
               .transfer(owner.address, whaleTokenBalance);
-            console.log(
+            logIfVerboseMode(
               "New owner balance",
-              (await subjectInputToken.balanceOf(owner.address)).toString(),
+              ethers.utils.formatEther(await subjectInputToken.balanceOf(owner.address)),
             );
           }
 
