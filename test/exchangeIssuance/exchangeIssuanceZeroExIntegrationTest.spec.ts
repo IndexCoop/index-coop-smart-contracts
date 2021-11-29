@@ -7,11 +7,7 @@ import DeployHelper from "@utils/deploys";
 import { UnitsUtils } from "@utils/common/unitsUtils";
 import { SetFixture } from "@utils/fixtures";
 import { BigNumber, ContractTransaction } from "ethers";
-import {
-  ExchangeIssuanceZeroEx,
-  StandardTokenMock,
-  WETH9,
-} from "@utils/contracts/index";
+import { ExchangeIssuanceZeroEx, StandardTokenMock, WETH9 } from "@utils/contracts/index";
 import axios from "axios";
 import qs from "qs";
 import hre, { ethers } from "hardhat";
@@ -30,13 +26,9 @@ describe("ExchangeIssuanceZeroEx", async () => {
   let setV2Setup: SetFixture;
   let deployer: DeployHelper;
 
-  let setToken: SetToken;
   let wbtc: StandardTokenMock;
   let dai: StandardTokenMock;
   let weth: WETH9;
-
-  let daiUnits: BigNumber;
-  let wbtcUnits: BigNumber;
 
   cacheBeforeEach(async () => {
     [owner] = await getAccounts();
@@ -46,16 +38,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
     await setV2Setup.initialize();
 
     ({ dai, wbtc, weth } = setV2Setup);
-
-
-    daiUnits = BigNumber.from("23252699054621733");
-    wbtcUnits = UnitsUtils.wbtc(1);
-    setToken = await setV2Setup.createSetToken(
-      [dai.address, wbtc.address],
-      [daiUnits, wbtcUnits],
-      [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address],
-    );
-    await setV2Setup.issuanceModule.initialize(setToken.address, ADDRESS_ZERO);
   });
 
   if (process.env.INTEGRATIONTEST) {
@@ -65,7 +47,21 @@ describe("ExchangeIssuanceZeroEx", async () => {
       let daiAddress: Address;
       let exchangeIssuanceZeroEx: ExchangeIssuanceZeroEx;
       let zeroExProxyAddress: Address;
+      let simpleSetToken: SetToken;
       let setToken: SetToken;
+      let daiUnits: BigNumber;
+      let wbtcUnits: BigNumber;
+      let controllerAddress: Address;
+      let issuanceModuleAddress: Address;
+
+      async function deployExchangeIssuanceZeroEx() {
+        exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
+          wethAddress,
+          controllerAddress,
+          issuanceModuleAddress,
+          zeroExProxyAddress,
+        );
+      }
 
       cacheBeforeEach(async () => {
         // Mainnet addresses
@@ -77,19 +73,15 @@ describe("ExchangeIssuanceZeroEx", async () => {
         dai = dai.attach(daiAddress);
         weth = weth.attach(wethAddress);
         wbtc = wbtc.attach(wbtcAddress);
-        setToken = await setV2Setup.createSetToken(
+
+        daiUnits = BigNumber.from("23252699054621733");
+        wbtcUnits = UnitsUtils.wbtc(1);
+        simpleSetToken = await setV2Setup.createSetToken(
           [daiAddress, wbtcAddress],
           [daiUnits, wbtcUnits],
           [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address],
         );
-
-        exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
-          wethAddress,
-          setV2Setup.controller.address,
-          setV2Setup.issuanceModule.address,
-          zeroExProxyAddress,
-        );
-        await setV2Setup.issuanceModule.initialize(setToken.address, ADDRESS_ZERO);
+        await setV2Setup.issuanceModule.initialize(simpleSetToken.address, ADDRESS_ZERO);
       });
 
       describe("#issueExactSetFromToken", async () => {
@@ -219,27 +211,28 @@ describe("ExchangeIssuanceZeroEx", async () => {
           );
         };
 
-        beforeEach(async () => {
-          await initializeSubjectVariables();
-          await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
-
-          console.log("\n\n###################OBTAIN INPUT TOKEN FROM WHALE##################");
+        async function obtainAndApproveInputToken() {
           const inputTokenWhaleAddress = "0x21a31Ee1afC51d94C2eFcCAa2092aD1028285549";
-          await hre.network.provider.request({
-            method: "hardhat_impersonateAccount",
-            params: [inputTokenWhaleAddress],
-          });
-          const inputTokenWhaleSigner = ethers.provider.getSigner(inputTokenWhaleAddress);
           const whaleTokenBalance = await subjectInputToken.balanceOf(inputTokenWhaleAddress);
-          await subjectInputToken
-            .connect(inputTokenWhaleSigner)
-            .transfer(owner.address, whaleTokenBalance);
-          console.log(
-            "New owner balance",
-            (await subjectInputToken.balanceOf(owner.address)).toString(),
-          );
+
+          if (whaleTokenBalance.gt(0)) {
+            console.log("\n\n###################OBTAIN INPUT TOKEN FROM WHALE##################");
+            await hre.network.provider.request({
+              method: "hardhat_impersonateAccount",
+              params: [inputTokenWhaleAddress],
+            });
+            const inputTokenWhaleSigner = ethers.provider.getSigner(inputTokenWhaleAddress);
+            await subjectInputToken
+              .connect(inputTokenWhaleSigner)
+              .transfer(owner.address, whaleTokenBalance);
+            console.log(
+              "New owner balance",
+              (await subjectInputToken.balanceOf(owner.address)).toString(),
+            );
+          }
+
           subjectInputToken.approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
-        });
+        }
 
         async function subject(): Promise<ContractTransaction> {
           return await exchangeIssuanceZeroEx.issueExactSetFromToken(
@@ -252,12 +245,45 @@ describe("ExchangeIssuanceZeroEx", async () => {
           );
         }
 
-        it("should issue correct amount of set tokens", async () => {
-          const initialBalanceOfSet = await setToken.balanceOf(owner.address);
-          await subject();
-          const finalSetBalance = await setToken.balanceOf(owner.address);
-          const expectedSetBalance = initialBalanceOfSet.add(subjectAmountSetTokenWei);
-          expect(finalSetBalance).to.eq(expectedSetBalance);
+        context("When set token is simple index with 2 components", () => {
+          beforeEach(async () => {
+            controllerAddress = setV2Setup.controller.address;
+            issuanceModuleAddress = setV2Setup.issuanceModule.address;
+            await deployExchangeIssuanceZeroEx();
+
+            setToken = simpleSetToken;
+
+            await initializeSubjectVariables();
+            await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+            await obtainAndApproveInputToken();
+          });
+          it("should issue correct amount of set tokens", async () => {
+            const initialBalanceOfSet = await setToken.balanceOf(owner.address);
+            await subject();
+            const finalSetBalance = await setToken.balanceOf(owner.address);
+            const expectedSetBalance = initialBalanceOfSet.add(subjectAmountSetTokenWei);
+            expect(finalSetBalance).to.eq(expectedSetBalance);
+          });
+
+          context("When set token is DPI", () => {
+            const DPI_ADDRESS = "0x1494ca1f11d487c2bbe4543e90080aeba4ba3c2b";
+            beforeEach(async () => {
+              setToken = simpleSetToken.attach(DPI_ADDRESS);
+              controllerAddress = await setToken.controller();
+              [issuanceModuleAddress] = await setToken.getModules();
+              await deployExchangeIssuanceZeroEx();
+              await initializeSubjectVariables();
+              await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+              await obtainAndApproveInputToken();
+            });
+            it("should issue correct amount of set tokens", async () => {
+              const initialBalanceOfSet = await setToken.balanceOf(owner.address);
+              await subject();
+              const finalSetBalance = await setToken.balanceOf(owner.address);
+              const expectedSetBalance = initialBalanceOfSet.add(subjectAmountSetTokenWei);
+              expect(finalSetBalance).to.eq(expectedSetBalance);
+            });
+          });
         });
       });
     });
