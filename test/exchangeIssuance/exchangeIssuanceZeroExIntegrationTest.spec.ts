@@ -36,6 +36,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
   let dai: StandardTokenMock;
   let weth: WETH9;
   const SET_TOKEN_NAMES = ["SimpleToken", "DPI"];
+  const SET_TOKEN_AMOUNTS = [1, 100];
 
   cacheBeforeEach(async () => {
     [owner] = await getAccounts();
@@ -143,7 +144,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           const ABI_ENDPOINT = `https://api.etherscan.io/api?module=contract&action=getabi&apikey=${API_KEY}&address=`;
           const proxyAbi = await axios
             .get(ABI_ENDPOINT + proxyAddress)
-            .then( response => JSON.parse(response.data.result));
+            .then(response => JSON.parse(response.data.result));
           const proxyContract = await ethers.getContractAt(proxyAbi, proxyAddress);
           await proxyContract.deployed();
           const implementation = await proxyContract.getFunctionImplementation(
@@ -217,12 +218,12 @@ describe("ExchangeIssuanceZeroEx", async () => {
           return [inputQuote, positionQuotes, inputTokenAmount];
         }
 
-        const initializeSubjectVariables = async () => {
+        const initializeSubjectVariables = async (_amountSetToken: number) => {
           // TODO: Analyse what a good value would be in production
           const SLIPPAGE_PERCENTAGE = 50;
 
           subjectInputToken = dai;
-          subjectAmountSetToken = 1;
+          subjectAmountSetToken = _amountSetToken;
           subjectAmountSetTokenWei = ether(subjectAmountSetToken);
           [
             subjectInputSwapQuote,
@@ -277,19 +278,24 @@ describe("ExchangeIssuanceZeroEx", async () => {
               controllerAddress = scenario.controller;
               issuanceModuleAddress = scenario.issuanceModule;
               setToken = simpleSetToken.attach(scenario.setToken);
-
-              await deployExchangeIssuanceZeroEx();
-              await initializeSubjectVariables();
-              await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
-              await obtainAndApproveInputToken();
             });
-            it("should issue correct amount of set tokens", async () => {
-              const initialBalanceOfSet = await setToken.balanceOf(owner.address);
-              await subject();
-              const finalSetBalance = await setToken.balanceOf(owner.address);
-              const expectedSetBalance = initialBalanceOfSet.add(subjectAmountSetTokenWei);
-              expect(finalSetBalance).to.eq(expectedSetBalance);
-            });
+            for (const setTokenAmount of SET_TOKEN_AMOUNTS) {
+              context(`When set token amount is ${setTokenAmount}`, () => {
+                beforeEach(async () => {
+                  await deployExchangeIssuanceZeroEx();
+                  await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+                  await initializeSubjectVariables(setTokenAmount);
+                  await obtainAndApproveInputToken();
+                });
+                it("should issue correct amount of set tokens", async () => {
+                  const initialBalanceOfSet = await setToken.balanceOf(owner.address);
+                  await subject();
+                  const finalSetBalance = await setToken.balanceOf(owner.address);
+                  const expectedSetBalance = initialBalanceOfSet.add(subjectAmountSetTokenWei);
+                  expect(finalSetBalance).to.eq(expectedSetBalance);
+                });
+              });
+            }
           });
         }
       });
