@@ -22,7 +22,7 @@ export const gWei = (amount: number): BigNumber => {
 };
 
 export const wbtc = (amount: number): BigNumber => {
-  return BigNumber.from(amount).mul(BigNumber.from(10).pow(8));
+  return ethers.utils.parseUnits(amount.toString(), 8);
 };
 
 export const UnitsUtils = { usdc, wbtc, ether, gWei };
