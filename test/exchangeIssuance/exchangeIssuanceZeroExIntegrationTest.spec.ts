@@ -20,6 +20,12 @@ type ZeroExSwapQuote = {
   swapCallData: string;
 };
 
+type SetTokenScenario = {
+  setToken: Address;
+  controller: Address;
+  issuanceModule: Address;
+};
+
 describe("ExchangeIssuanceZeroEx", async () => {
   let owner: Account;
 
@@ -29,6 +35,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
   let wbtc: StandardTokenMock;
   let dai: StandardTokenMock;
   let weth: WETH9;
+  const SET_TOKEN_NAMES = ["SimpleToken", "DPI"];
 
   cacheBeforeEach(async () => {
     [owner] = await getAccounts();
@@ -53,6 +60,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
       let wbtcUnits: BigNumber;
       let controllerAddress: Address;
       let issuanceModuleAddress: Address;
+      const setTokenScenarios: Record<string, SetTokenScenario> = {};
+      const DPI_ADDRESS = "0x1494ca1f11d487c2bbe4543e90080aeba4ba3c2b";
 
       async function deployExchangeIssuanceZeroEx() {
         exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
@@ -82,6 +91,22 @@ describe("ExchangeIssuanceZeroEx", async () => {
           [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address],
         );
         await setV2Setup.issuanceModule.initialize(simpleSetToken.address, ADDRESS_ZERO);
+
+        setTokenScenarios["SimpleToken"] = {
+          setToken: simpleSetToken.address,
+          controller: setV2Setup.controller.address,
+          issuanceModule: setV2Setup.issuanceModule.address,
+        };
+
+        const dpiToken = simpleSetToken.attach(DPI_ADDRESS);
+        const dpiController = await dpiToken.controller();
+        const [dpiIssuanceModule] = await dpiToken.getModules();
+
+        setTokenScenarios["DPI"] = {
+          setToken: DPI_ADDRESS,
+          controller: dpiController,
+          issuanceModule: dpiIssuanceModule,
+        };
       });
 
       describe("#issueExactSetFromToken", async () => {
@@ -118,7 +143,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           const ABI_ENDPOINT = `https://api.etherscan.io/api?module=contract&action=getabi&apikey=${API_KEY}&address=`;
           const proxyAbi = await axios
             .get(ABI_ENDPOINT + proxyAddress)
-            .then(response => JSON.parse(response.data.result));
+            .then( response => JSON.parse(response.data.result));
           const proxyContract = await ethers.getContractAt(proxyAbi, proxyAddress);
           await proxyContract.deployed();
           const implementation = await proxyContract.getFunctionImplementation(
@@ -245,32 +270,14 @@ describe("ExchangeIssuanceZeroEx", async () => {
           );
         }
 
-        context("When set token is simple index with 2 components", () => {
-          beforeEach(async () => {
-            controllerAddress = setV2Setup.controller.address;
-            issuanceModuleAddress = setV2Setup.issuanceModule.address;
-            await deployExchangeIssuanceZeroEx();
-
-            setToken = simpleSetToken;
-
-            await initializeSubjectVariables();
-            await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
-            await obtainAndApproveInputToken();
-          });
-          it("should issue correct amount of set tokens", async () => {
-            const initialBalanceOfSet = await setToken.balanceOf(owner.address);
-            await subject();
-            const finalSetBalance = await setToken.balanceOf(owner.address);
-            const expectedSetBalance = initialBalanceOfSet.add(subjectAmountSetTokenWei);
-            expect(finalSetBalance).to.eq(expectedSetBalance);
-          });
-
-          context("When set token is DPI", () => {
-            const DPI_ADDRESS = "0x1494ca1f11d487c2bbe4543e90080aeba4ba3c2b";
+        for (const tokenName of SET_TOKEN_NAMES) {
+          context(`When set token is ${tokenName}`, () => {
             beforeEach(async () => {
-              setToken = simpleSetToken.attach(DPI_ADDRESS);
-              controllerAddress = await setToken.controller();
-              [issuanceModuleAddress] = await setToken.getModules();
+              const scenario = setTokenScenarios[tokenName];
+              controllerAddress = scenario.controller;
+              issuanceModuleAddress = scenario.issuanceModule;
+              setToken = simpleSetToken.attach(scenario.setToken);
+
               await deployExchangeIssuanceZeroEx();
               await initializeSubjectVariables();
               await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
@@ -284,7 +291,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
               expect(finalSetBalance).to.eq(expectedSetBalance);
             });
           });
-        });
+        }
       });
     });
   }
