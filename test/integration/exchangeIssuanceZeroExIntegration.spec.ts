@@ -64,7 +64,9 @@ if (process.env.INTEGRATIONTEST) {
     const SET_TOKEN_NAMES: TokenName[] = ["DPI", "SimpleToken"];
     const SET_TOKEN_AMOUNTS: Record<TokenName, number[]> = {
       SimpleToken: [1],
-      DPI: [2000],
+      // DPI issuance of 5000 failed due to underbuying Badger in a multihop
+      // TODO: Investigate
+      DPI: [1, 2000],
     };
 
     async function deployExchangeIssuanceZeroEx() {
@@ -180,7 +182,6 @@ if (process.env.INTEGRATIONTEST) {
               let subjectInputSwapQuote: ZeroExSwapQuote;
               let subjectPositionSwapQuotes: ZeroExSwapQuote[];
 
-              // Helper function to generate 0xAPI quote for UniswapV2
               async function getIssuanceQuotes(
                 setToken: SetToken,
                 inputTokenAddress: Address,
