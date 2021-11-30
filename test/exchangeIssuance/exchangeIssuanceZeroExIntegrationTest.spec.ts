@@ -2,7 +2,7 @@ import "module-alias/register";
 import { Address, Account } from "@utils/types";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { SetToken } from "@utils/contracts/setV2";
-import { cacheBeforeEach, ether, getAccounts, getSetFixture, getWaffleExpect } from "@utils/index";
+import { ether, getAccounts, getSetFixture, getWaffleExpect } from "@utils/index";
 import DeployHelper from "@utils/deploys";
 import { UnitsUtils } from "@utils/common/unitsUtils";
 import { SetFixture } from "@utils/fixtures";
@@ -61,21 +61,11 @@ if (process.env.INTEGRATIONTEST) {
 
     const setTokenScenarios: Partial<Record<TokenName, SetTokenScenario>> = {};
     // Test Parameterization
-    const SET_TOKEN_NAMES: TokenName[] = ["SimpleToken", "DPI"];
+    const SET_TOKEN_NAMES: TokenName[] = ["DPI", "SimpleToken"];
     const SET_TOKEN_AMOUNTS: Record<TokenName, number[]> = {
       SimpleToken: [1],
-      DPI: [1, 100, 1000],
+      DPI: [2000],
     };
-
-    cacheBeforeEach(async () => {
-      [owner] = await getAccounts();
-      deployer = new DeployHelper(owner.wallet);
-
-      setV2Setup = getSetFixture(owner.address);
-      await setV2Setup.initialize();
-
-      ({ dai, wbtc, weth } = setV2Setup);
-    });
 
     async function deployExchangeIssuanceZeroEx() {
       exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
@@ -86,7 +76,14 @@ if (process.env.INTEGRATIONTEST) {
       );
     }
 
-    cacheBeforeEach(async () => {
+    before(async () => {
+      [owner] = await getAccounts();
+      deployer = new DeployHelper(owner.wallet);
+
+      setV2Setup = getSetFixture(owner.address);
+      await setV2Setup.initialize();
+
+      ({ dai, wbtc, weth } = setV2Setup);
       // Mainnet addresses
       wethAddress = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
       daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
@@ -184,7 +181,7 @@ if (process.env.INTEGRATIONTEST) {
               let subjectPositionSwapQuotes: ZeroExSwapQuote[];
 
               // Helper function to generate 0xAPI quote for UniswapV2
-              async function getQuotes(
+              async function getIssuanceQuotes(
                 setToken: SetToken,
                 inputTokenAddress: Address,
                 setAmount: number,
@@ -252,7 +249,7 @@ if (process.env.INTEGRATIONTEST) {
                   subjectInputSwapQuote,
                   subjectPositionSwapQuotes,
                   subjectInputTokenAmount,
-                ] = await getQuotes(
+                ] = await getIssuanceQuotes(
                   setToken,
                   subjectInputToken.address,
                   subjectAmountSetToken,
@@ -261,7 +258,10 @@ if (process.env.INTEGRATIONTEST) {
               };
 
               async function obtainAndApproveInputToken() {
-                const inputTokenWhaleAddress = "0x21a31Ee1afC51d94C2eFcCAa2092aD1028285549";
+                // Obtaining the input token by taking it from a large holder introduces an external dependency
+                // .i.e. the tests will fail if this address does not have enough input token (DAI) anymore
+                // TODO: Review if this needs changing.
+                const inputTokenWhaleAddress = "0x47ac0Fb4F2D84898e4D9E7b4DaB3C24507a6D503";
                 const whaleTokenBalance = await subjectInputToken.balanceOf(inputTokenWhaleAddress);
 
                 if (whaleTokenBalance.gt(0)) {
@@ -307,6 +307,122 @@ if (process.env.INTEGRATIONTEST) {
                 await subject();
                 const finalSetBalance = await setToken.balanceOf(owner.address);
                 const expectedSetBalance = initialBalanceOfSet.add(subjectAmountSetTokenWei);
+                expect(finalSetBalance).to.eq(expectedSetBalance);
+              });
+            });
+
+            describe("#redeemExactSetForToken", async () => {
+              // Note that this test will only succeed if the previous issuance test succeeded
+              // since it redeems the thereby obtained tokens
+              // TODO: Review if this dependency is an issue
+              let subjectOutputToken: StandardTokenMock | WETH9;
+              let subjectOutputTokenAmount: BigNumber;
+              let subjectAmountSetToken: number;
+              let subjectAmountSetTokenWei: BigNumber;
+              let subjectOutputSwapQuote: ZeroExSwapQuote;
+              let subjectPositionSwapQuotes: ZeroExSwapQuote[];
+
+              // Helper function to generate 0xAPI quote for UniswapV2
+              async function getRedemptionQuotes(
+                setToken: SetToken,
+                outputTokenAddress: Address,
+                setAmount: number,
+                slippagePercents: number,
+                excludedSources: string | undefined = undefined,
+              ): Promise<[ZeroExSwapQuote, ZeroExSwapQuote[], BigNumber]> {
+                const positions = await setToken.getPositions();
+                const positionQuotes: ZeroExSwapQuote[] = [];
+                let sellAmountWeth = BigNumber.from(0);
+                const slippagePercentage = slippagePercents / 100;
+
+                for (const position of positions) {
+                  logIfVerboseMode("\n\n###################COMPONENT QUOTE##################");
+                  const sellAmount = position.unit.mul(setAmount).toString();
+                  const sellToken = position.component;
+                  const buyToken = wethAddress;
+                  const quote = await getQuote({
+                    buyToken,
+                    sellToken,
+                    sellAmount,
+                    excludedSources,
+                    slippagePercentage,
+                  });
+                  await logQuote(quote);
+                  positionQuotes.push({
+                    sellToken: sellToken,
+                    buyToken: buyToken,
+                    swapCallData: quote.data,
+                  });
+                  sellAmountWeth = sellAmountWeth.add(BigNumber.from(quote.buyAmount));
+                }
+                // I assume that this is the correct math to make sure we have enough weth to cover the slippage
+                // based on the fact that the slippagePercentage is limited between 0.0 and 1.0 on the 0xApi
+                // TODO: Review if correct
+                sellAmountWeth = sellAmountWeth.mul(100 - slippagePercents).div(100);
+
+                logIfVerboseMode("\n\n###################OUTPUT TOKEN QUOTE##################");
+                const outputTokenApiResponse = await getQuote({
+                  sellToken: wethAddress,
+                  buyToken: outputTokenAddress,
+                  sellAmount: sellAmountWeth.toString(),
+                  excludedSources,
+                  slippagePercentage,
+                });
+                await logQuote(outputTokenApiResponse);
+                let outputTokenAmount = BigNumber.from(outputTokenApiResponse.sellAmount);
+                outputTokenAmount = outputTokenAmount;
+                logIfVerboseMode("Output token amount", outputTokenAmount.toString());
+                const outputQuote = {
+                  sellToken: wethAddress,
+                  buyToken: outputTokenAddress,
+                  swapCallData: outputTokenApiResponse.data,
+                };
+                return [outputQuote, positionQuotes, outputTokenAmount];
+              }
+
+              const initializeSubjectVariables = async (_amountSetToken: number) => {
+                const SLIPPAGE_PERCENTAGE = 50;
+                subjectOutputTokenAmount = ether(1000);
+                subjectOutputToken = dai;
+                subjectAmountSetToken = _amountSetToken;
+                subjectAmountSetTokenWei = ether(subjectAmountSetToken);
+                [
+                  subjectOutputSwapQuote,
+                  subjectPositionSwapQuotes,
+                  subjectOutputTokenAmount,
+                ] = await getRedemptionQuotes(
+                  setToken,
+                  subjectOutputToken.address,
+                  subjectAmountSetToken,
+                  SLIPPAGE_PERCENTAGE,
+                );
+              };
+              async function subject(): Promise<ContractTransaction> {
+                return await exchangeIssuanceZeroEx
+                  .connect(owner.wallet)
+                  .redeemExactSetForToken(
+                    setToken.address,
+                    subjectOutputToken.address,
+                    subjectOutputSwapQuote,
+                    subjectAmountSetTokenWei,
+                    subjectOutputTokenAmount,
+                    subjectPositionSwapQuotes,
+                  );
+              }
+              beforeEach(async () => {
+                await deployExchangeIssuanceZeroEx();
+                await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+                await initializeSubjectVariables(setTokenAmount);
+                await setToken
+                  .connect(owner.wallet)
+                  .approve(exchangeIssuanceZeroEx.address, subjectAmountSetTokenWei);
+              });
+              it("should consume correct amount of set tokens", async () => {
+                const initialBalanceOfSet = await setToken.balanceOf(owner.address);
+                expect(initialBalanceOfSet.gte(subjectAmountSetTokenWei));
+                await subject();
+                const finalSetBalance = await setToken.balanceOf(owner.address);
+                const expectedSetBalance = initialBalanceOfSet.sub(subjectAmountSetTokenWei);
                 expect(finalSetBalance).to.eq(expectedSetBalance);
               });
             });
