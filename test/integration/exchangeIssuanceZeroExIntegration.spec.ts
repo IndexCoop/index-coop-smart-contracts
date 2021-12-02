@@ -35,6 +35,7 @@ function logVerbose(...args: any[]) {
 if (process.env.INTEGRATIONTEST) {
   describe("ExchangeIssuanceZeroEx - Integration Test", async () => {
     let owner: Account;
+    let user: Account;
 
     let setV2Setup: SetFixture;
     let deployer: DeployHelper;
@@ -43,10 +44,10 @@ if (process.env.INTEGRATIONTEST) {
     let wethAddress: Address;
     let wbtcAddress: Address;
     let daiAddress: Address;
+    let dpiAddress: Address;
     let zeroExProxyAddress: Address;
     let controllerAddress: Address;
     let issuanceModuleAddress: Address;
-    const DPI_ADDRESS: Address = "0x1494ca1f11d487c2bbe4543e90080aeba4ba3c2b";
 
     // Contract Instances
     let wbtc: StandardTokenMock;
@@ -79,7 +80,7 @@ if (process.env.INTEGRATIONTEST) {
     }
 
     before(async () => {
-      [owner] = await getAccounts();
+      [owner, user] = await getAccounts();
       deployer = new DeployHelper(owner.wallet);
 
       setV2Setup = getSetFixture(owner.address);
@@ -91,6 +92,7 @@ if (process.env.INTEGRATIONTEST) {
       daiAddress = "0x6b175474e89094c44da98b954eedeac495271d0f";
       wbtcAddress = "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599";
       zeroExProxyAddress = "0xDef1C0ded9bec7F1a1670819833240f027b25EfF";
+      dpiAddress = "0x1494ca1f11d487c2bbe4543e90080aeba4ba3c2b";
 
       dai = dai.attach(daiAddress);
       weth = weth.attach(wethAddress);
@@ -111,12 +113,12 @@ if (process.env.INTEGRATIONTEST) {
         issuanceModule: setV2Setup.issuanceModule.address,
       };
 
-      const dpiToken = simpleSetToken.attach(DPI_ADDRESS);
+      const dpiToken = simpleSetToken.attach(dpiAddress);
       const dpiController = await dpiToken.controller();
       const [dpiIssuanceModule] = await dpiToken.getModules();
 
       setTokenScenarios["DPI"] = {
-        setToken: DPI_ADDRESS,
+        setToken: dpiAddress,
         controller: dpiController,
         issuanceModule: dpiIssuanceModule,
       };
@@ -270,6 +272,10 @@ if (process.env.INTEGRATIONTEST) {
                   logVerbose(
                     "\n\n###################OBTAIN INPUT TOKEN FROM WHALE##################",
                   );
+                  await user.wallet.sendTransaction({
+                    to: inputTokenWhaleAddress,
+                    value: ethers.utils.parseEther("1.0"),
+                  });
                   await hre.network.provider.request({
                     method: "hardhat_impersonateAccount",
                     params: [inputTokenWhaleAddress],
@@ -277,25 +283,29 @@ if (process.env.INTEGRATIONTEST) {
                   const inputTokenWhaleSigner = ethers.provider.getSigner(inputTokenWhaleAddress);
                   await subjectInputToken
                     .connect(inputTokenWhaleSigner)
-                    .transfer(owner.address, whaleTokenBalance);
+                    .transfer(user.address, whaleTokenBalance);
                   logVerbose(
-                    "New owner balance",
-                    ethers.utils.formatEther(await subjectInputToken.balanceOf(owner.address)),
+                    "New user balance",
+                    ethers.utils.formatEther(await subjectInputToken.balanceOf(user.address)),
                   );
                 }
 
-                subjectInputToken.approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
+                subjectInputToken
+                  .connect(user.wallet)
+                  .approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
               }
 
               async function subject(): Promise<ContractTransaction> {
-                return await exchangeIssuanceZeroEx.issueExactSetFromToken(
-                  setToken.address,
-                  subjectInputToken.address,
-                  subjectInputSwapQuote,
-                  subjectAmountSetTokenWei,
-                  subjectInputTokenAmount,
-                  subjectPositionSwapQuotes,
-                );
+                return await exchangeIssuanceZeroEx
+                  .connect(user.wallet)
+                  .issueExactSetFromToken(
+                    setToken.address,
+                    subjectInputToken.address,
+                    subjectInputSwapQuote,
+                    subjectAmountSetTokenWei,
+                    subjectInputTokenAmount,
+                    subjectPositionSwapQuotes,
+                  );
               }
 
               beforeEach(async () => {
@@ -305,9 +315,9 @@ if (process.env.INTEGRATIONTEST) {
                 await obtainAndApproveInputToken();
               });
               it("should issue correct amount of set tokens", async () => {
-                const initialBalanceOfSet = await setToken.balanceOf(owner.address);
+                const initialBalanceOfSet = await setToken.balanceOf(user.address);
                 await subject();
-                const finalSetBalance = await setToken.balanceOf(owner.address);
+                const finalSetBalance = await setToken.balanceOf(user.address);
                 const expectedSetBalance = initialBalanceOfSet.add(subjectAmountSetTokenWei);
                 expect(finalSetBalance).to.eq(expectedSetBalance);
               });
@@ -401,7 +411,7 @@ if (process.env.INTEGRATIONTEST) {
               };
               async function subject(): Promise<ContractTransaction> {
                 return await exchangeIssuanceZeroEx
-                  .connect(owner.wallet)
+                  .connect(user.wallet)
                   .redeemExactSetForToken(
                     setToken.address,
                     subjectOutputToken.address,
@@ -416,16 +426,23 @@ if (process.env.INTEGRATIONTEST) {
                 await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
                 await initializeSubjectVariables(setTokenAmount);
                 await setToken
-                  .connect(owner.wallet)
+                  .connect(user.wallet)
                   .approve(exchangeIssuanceZeroEx.address, subjectAmountSetTokenWei);
               });
               it("should consume correct amount of set tokens", async () => {
-                const initialBalanceOfSet = await setToken.balanceOf(owner.address);
-                expect(initialBalanceOfSet.gte(subjectAmountSetTokenWei));
+                const initialBalanceOfSet = await setToken.balanceOf(user.address);
+                const initialBalanceOfOutputToken = await subjectOutputToken.balanceOf(
+                  user.address,
+                );
                 await subject();
-                const finalSetBalance = await setToken.balanceOf(owner.address);
+                const finalSetBalance = await setToken.balanceOf(user.address);
                 const expectedSetBalance = initialBalanceOfSet.sub(subjectAmountSetTokenWei);
                 expect(finalSetBalance).to.eq(expectedSetBalance);
+                const finalOutputBalance = await subjectOutputToken.balanceOf(user.address);
+                const expectedOutputBalance = initialBalanceOfOutputToken.add(
+                  subjectOutputTokenAmount,
+                );
+                expect(finalOutputBalance.gte(expectedOutputBalance));
               });
             });
           });
