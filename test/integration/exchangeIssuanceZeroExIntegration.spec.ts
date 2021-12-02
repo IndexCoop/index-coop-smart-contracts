@@ -28,7 +28,7 @@ type SetTokenScenario = {
 
 type TokenName = "SimpleToken" | "DPI";
 
-function logIfVerboseMode(...args: any[]) {
+function logVerbose(...args: any[]) {
   if (process.env.VERBOSE) console.log(...args);
 }
 
@@ -125,18 +125,18 @@ if (process.env.INTEGRATIONTEST) {
     const API_QUOTE_URL = "https://api.0x.org/swap/v1/quote";
     async function getQuote(params: any) {
       const url = `${API_QUOTE_URL}?${qs.stringify(params)}`;
-      logIfVerboseMode(`Getting quote from ${params.sellToken} to ${params.buyToken}`);
-      logIfVerboseMode("Sending quote request to:", url);
+      logVerbose(`Getting quote from ${params.sellToken} to ${params.buyToken}`);
+      logVerbose("Sending quote request to:", url);
       const response = await axios(url);
       return response.data;
     }
 
     async function logQuote(quote: any) {
-      logIfVerboseMode("Sell Amount:", quote.sellAmount);
-      logIfVerboseMode("Buy Amount:", quote.buyAmount);
-      logIfVerboseMode("Swap Target:", quote.to);
-      logIfVerboseMode("Allowance Target:", quote.allowanceTarget);
-      logIfVerboseMode(
+      logVerbose("Sell Amount:", quote.sellAmount);
+      logVerbose("Buy Amount:", quote.buyAmount);
+      logVerbose("Swap Target:", quote.to);
+      logVerbose("Allowance Target:", quote.allowanceTarget);
+      logVerbose(
         "Sources:",
         quote.sources.filter((source: any) => source.proportion > "0"),
       );
@@ -152,14 +152,14 @@ if (process.env.INTEGRATIONTEST) {
       const proxyContract = await ethers.getContractAt(proxyAbi, proxyAddress);
       await proxyContract.deployed();
       const implementation = await proxyContract.getFunctionImplementation(callData.slice(0, 10));
-      logIfVerboseMode("Implementation Address: ", implementation);
+      logVerbose("Implementation Address: ", implementation);
       const abiResponse = await axios.get(ABI_ENDPOINT + implementation);
       const abi = JSON.parse(abiResponse.data.result);
       const iface = new ethers.utils.Interface(abi);
       const decodedTransaction = iface.parseTransaction({
         data: callData,
       });
-      logIfVerboseMode("Called Function Signature: ", decodedTransaction.signature);
+      logVerbose("Called Function Signature: ", decodedTransaction.signature);
     }
 
     for (const tokenName of SET_TOKEN_NAMES) {
@@ -192,10 +192,11 @@ if (process.env.INTEGRATIONTEST) {
                 const positions = await setToken.getPositions();
                 const positionQuotes: ZeroExSwapQuote[] = [];
                 let buyAmountWeth = BigNumber.from(0);
+                // 0xAPI expects percentage as value between 0-1 e.g. 5% -> 0.05
                 const slippagePercentage = slippagePercents / 100;
 
                 for (const position of positions) {
-                  logIfVerboseMode("\n\n###################COMPONENT QUOTE##################");
+                  logVerbose("\n\n###################COMPONENT QUOTE##################");
                   const buyAmount = position.unit.mul(setAmount).toString();
                   const buyToken = position.component;
                   const sellToken = wethAddress;
@@ -219,7 +220,7 @@ if (process.env.INTEGRATIONTEST) {
                 // TODO: Review if correct
                 buyAmountWeth = buyAmountWeth.mul(100).div(100 - slippagePercents);
 
-                logIfVerboseMode("\n\n###################INPUT TOKEN QUOTE##################");
+                logVerbose("\n\n###################INPUT TOKEN QUOTE##################");
                 const inputTokenApiResponse = await getQuote({
                   buyToken: wethAddress,
                   sellToken: inputTokenAddress,
@@ -230,7 +231,7 @@ if (process.env.INTEGRATIONTEST) {
                 await logQuote(inputTokenApiResponse);
                 let inputTokenAmount = BigNumber.from(inputTokenApiResponse.sellAmount);
                 inputTokenAmount = inputTokenAmount.mul(100).div(100 - slippagePercents);
-                logIfVerboseMode("Input token amount", inputTokenAmount.toString());
+                logVerbose("Input token amount", inputTokenAmount.toString());
                 const inputQuote = {
                   buyToken: wethAddress,
                   sellToken: inputTokenAddress,
@@ -266,7 +267,7 @@ if (process.env.INTEGRATIONTEST) {
                 const whaleTokenBalance = await subjectInputToken.balanceOf(inputTokenWhaleAddress);
 
                 if (whaleTokenBalance.gt(0)) {
-                  logIfVerboseMode(
+                  logVerbose(
                     "\n\n###################OBTAIN INPUT TOKEN FROM WHALE##################",
                   );
                   await hre.network.provider.request({
@@ -277,7 +278,7 @@ if (process.env.INTEGRATIONTEST) {
                   await subjectInputToken
                     .connect(inputTokenWhaleSigner)
                     .transfer(owner.address, whaleTokenBalance);
-                  logIfVerboseMode(
+                  logVerbose(
                     "New owner balance",
                     ethers.utils.formatEther(await subjectInputToken.balanceOf(owner.address)),
                   );
@@ -337,7 +338,7 @@ if (process.env.INTEGRATIONTEST) {
                 const slippagePercentage = slippagePercents / 100;
 
                 for (const position of positions) {
-                  logIfVerboseMode("\n\n###################COMPONENT QUOTE##################");
+                  logVerbose("\n\n###################COMPONENT QUOTE##################");
                   const sellAmount = position.unit.mul(setAmount).toString();
                   const sellToken = position.component;
                   const buyToken = wethAddress;
@@ -361,7 +362,7 @@ if (process.env.INTEGRATIONTEST) {
                 // TODO: Review if correct
                 sellAmountWeth = sellAmountWeth.mul(100 - slippagePercents).div(100);
 
-                logIfVerboseMode("\n\n###################OUTPUT TOKEN QUOTE##################");
+                logVerbose("\n\n###################OUTPUT TOKEN QUOTE##################");
                 const outputTokenApiResponse = await getQuote({
                   sellToken: wethAddress,
                   buyToken: outputTokenAddress,
@@ -372,7 +373,7 @@ if (process.env.INTEGRATIONTEST) {
                 await logQuote(outputTokenApiResponse);
                 let outputTokenAmount = BigNumber.from(outputTokenApiResponse.sellAmount);
                 outputTokenAmount = outputTokenAmount;
-                logIfVerboseMode("Output token amount", outputTokenAmount.toString());
+                logVerbose("Output token amount", outputTokenAmount.toString());
                 const outputQuote = {
                   sellToken: wethAddress,
                   buyToken: outputTokenAddress,
