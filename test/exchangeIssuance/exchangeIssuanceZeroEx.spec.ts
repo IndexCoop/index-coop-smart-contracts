@@ -52,7 +52,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
   let usdc: StandardTokenMock;
   let weth: WETH9;
 
-  let wethUnits: BigNumber;
+  let usdcUnits: BigNumber;
   let wbtcUnits: BigNumber;
 
   cacheBeforeEach(async () => {
@@ -69,12 +69,12 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
     zeroExMock = await deployer.mocks.deployZeroExExchangeProxyMock();
 
-    wethUnits = UnitsUtils.ether(1);
+    usdcUnits = UnitsUtils.usdc(1);
     wbtcUnits = UnitsUtils.wbtc(1);
 
     setToken = await setV2Setup.createSetToken(
-      [setV2Setup.weth.address, setV2Setup.wbtc.address],
-      [wethUnits, wbtcUnits],
+      [setV2Setup.usdc.address, setV2Setup.wbtc.address],
+      [usdcUnits, wbtcUnits],
       [setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address],
     );
 
@@ -355,7 +355,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
         dai.connect(subjectCaller.wallet).approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
         await dai.transfer(subjectCaller.address, subjectInputTokenAmount);
         await wbtc.transfer(zeroExMock.address, wbtcUnits.mul(subjectAmountSetToken));
-        await weth.transfer(zeroExMock.address, wethUnits.mul(subjectAmountSetToken));
+        await usdc.transfer(zeroExMock.address, usdcUnits.mul(subjectAmountSetToken));
       });
 
       async function subject(): Promise<ContractTransaction> {
@@ -519,7 +519,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
         subjectPositionSwapQuotes = positions.map((position) =>
           getUniswapV2Quote(
             weth.address,
-            // TODO: This is only correct for this specific setup - WETH is component - Review
             subjectAmountETHInput.div(2),
             position.component,
             position.unit.mul(subjectAmountSetToken),
@@ -532,6 +531,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
         await exchangeIssuanceZeroEx.approveSetToken(subjectSetToken.address);
         await weth.transfer(subjectCaller.address, subjectAmountETHInput);
         await wbtc.transfer(zeroExMock.address, wbtcUnits.mul(subjectAmountSetToken));
+        await usdc.transfer(zeroExMock.address, usdcUnits.mul(subjectAmountSetToken));
       });
 
       async function subject(): Promise<ContractTransaction> {
@@ -589,14 +589,10 @@ describe("ExchangeIssuanceZeroEx", async () => {
       });
 
       context("when not all eth is used up in the transaction", async () => {
-        // TODO: This is the share of the weth component in the overall composition
-        // Find better way
-        const shareWethComponent = 0.5;
-        const wethSellMultiplier = 0.5;
-        const shareSpent = 1 - shareWethComponent * wethSellMultiplier;
+        const shareSpent = 0.5;
 
         beforeEach(async () => {
-          await zeroExMock.setSellMultiplier(weth.address, ether(wethSellMultiplier));
+          await zeroExMock.setSellMultiplier(weth.address, ether(shareSpent));
         });
         it("should return excess eth to the caller", async () => {
           const initialBalanceOfEth = await subjectCaller.wallet.getBalance();
