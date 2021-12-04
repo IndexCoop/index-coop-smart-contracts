@@ -28,6 +28,8 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
+import "hardhat/console.sol";
+
 contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
     using Address for address payable;
@@ -173,7 +175,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     *
     * @param _setToken              Address of the SetToken to be issued
     * @param _inputToken              Address of the input token
-    * @param _inputQuote             The encoded 0x transaction from the input token to WETH
     * @param _amountSetToken        Amount of SetTokens to issue
     * @param _maxAmountInputToken        Amount of SetTokens to issue
     * @param _componentQuotes                 The encoded 0x transactions to execute (WETH -> components).
@@ -183,7 +184,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     function issueExactSetFromToken(
         ISetToken _setToken,
         IERC20 _inputToken,
-        ZeroExSwapQuote memory _inputQuote,
         uint256 _amountSetToken,
         uint256 _maxAmountInputToken,
         ZeroExSwapQuote[] memory _componentQuotes
@@ -195,33 +195,23 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         returns (uint256)
     {
 
+        console.log("Transfering input token");
         _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
+        console.log("Approving input token");
+        _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
 
-        uint256 maxAmountWETH;
-        if(address(_inputToken) == WETH) {
-            maxAmountWETH = _maxAmountInputToken;
-        } else {
-            uint256 inputTokenSpent;
-            _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
-
-            (maxAmountWETH, inputTokenSpent) = _fillQuote(_inputQuote);
-            require(inputTokenSpent <= _maxAmountInputToken, "ExchangeIssuance: OVERSPENT INPUT TOKEN");
-            uint256 amountInputTokenReturn = _maxAmountInputToken.sub(inputTokenSpent);
-            // TODO: (christ.n) to check if this is required. Shouldn't be possible as 
-            // the quote should use up all the buy amount.
-            if (amountInputTokenReturn > 0) {
-                _inputToken.transfer(msg.sender, amountInputTokenReturn);
-            }
-        }
-
-        uint256 amountWethSpent = _issueExactSetFromWETH(_setToken, _amountSetToken, maxAmountWETH, _componentQuotes);
-        uint256 amountWethReturn = maxAmountWETH.sub(amountWethSpent);
-        if (amountWethReturn > 0) {
-            IERC20(WETH).safeTransfer(msg.sender,  amountWethReturn);
+        console.log("Issuing from token");
+        uint256 amountTokenSpent = _issueExactSetFromToken(_setToken, _amountSetToken, _maxAmountInputToken, _componentQuotes);
+        console.log("Calculating return amount");
+        uint256 amountTokenReturn = _maxAmountInputToken.sub(amountTokenSpent);
+        if (amountTokenReturn > 0) {
+            console.log("Transfering return amount");
+            _inputToken.safeTransfer(msg.sender,  amountTokenReturn);
         }
 
         emit ExchangeIssue(msg.sender, _setToken, _inputToken, _maxAmountInputToken, _amountSetToken);
-        return amountWethSpent;
+        console.log("Return");
+        return amountTokenSpent;
     }
 
     /**
@@ -249,11 +239,14 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         require(msg.value > 0, "ExchangeIssuance: INVALID ETH AMOUNT");
 
         IWETH(WETH).deposit{value: msg.value}();
+        _safeApprove(IERC20(WETH), swapTarget, msg.value);
 
-        uint256 amountEth = _issueExactSetFromWETH(_setToken, _amountSetToken, msg.value, _componentQuotes);
+        uint256 amountEth = _issueExactSetFromToken(_setToken, _amountSetToken, msg.value, _componentQuotes);
 
         uint256 amountEthReturn = msg.value.sub(amountEth);
         if (amountEthReturn > 0) {
+            console.log("Returning excess eth");
+            console.logUint(amountEthReturn);
             IWETH(WETH).withdraw(amountEthReturn);
             (payable(msg.sender)).sendValue(amountEthReturn);
         }
@@ -373,26 +366,39 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _amountSetToken    Amount of SetTokens to be issued
      *
      */
-    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken, uint256 _maxAmountWeth, ZeroExSwapQuote[] memory _quotes) internal returns (uint256 totalWethSpent) {
+    function _issueExactSetFromToken(ISetToken _setToken, uint256 _amountSetToken, uint256 _maxAmountToken, ZeroExSwapQuote[] memory _quotes) internal returns (uint256 totalTokenSpent) {
         ISetToken.Position[] memory positions = _setToken.getPositions();
 
-        _safeApprove(IERC20(WETH), swapTarget, _maxAmountWeth);
         for (uint256 i = 0; i < positions.length; i++) {
             ISetToken.Position memory position = positions[i];
             ZeroExSwapQuote memory quote = _quotes[i];
             require(position.component == address(quote.buyToken), "ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
-            require(address(quote.sellToken) == WETH, "ExchangeIssuance: INVALID SELL TOKEN");
-
-            (uint256 componentAmountBought, uint256 wethAmountSpent) = _fillQuote(quote);
-
             // TODO: Had to reassign this variable to avoid CompilerError: Stack too deep - review if better solution possible
             uint256 setAmount = _amountSetToken;
             uint256 units = uint256(position.unit);
             uint256 minComponentRequired = setAmount.mul(units).div(10**18);
-            require(componentAmountBought >= minComponentRequired, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
 
-            totalWethSpent = totalWethSpent.add(wethAmountSpent);
-            require(totalWethSpent <= _maxAmountWeth, "ExchangeIssuance: OVERSPENT WETH");
+            uint256 componentAmountBought;
+            uint256 tokenAmountSpent;
+
+            // If the component is equal to the input token we don't have to trade
+            if(position.component == address(quote.sellToken)){
+                console.log("Fake swap");
+                console.logAddress(position.component);
+                console.logUint(minComponentRequired);
+                componentAmountBought = minComponentRequired;
+                tokenAmountSpent = minComponentRequired;
+            }
+
+            else{
+                console.log("Filling Quote");
+                (componentAmountBought, tokenAmountSpent) = _fillQuote(quote);
+                console.log("Filled Quote");
+                require(componentAmountBought >= minComponentRequired, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
+            }
+
+            totalTokenSpent = totalTokenSpent.add(tokenAmountSpent);
+            require(totalTokenSpent <= _maxAmountToken, "ExchangeIssuance: OVERSPENT TOKEN");
         }
 
         basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
@@ -443,8 +449,11 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 buyTokenBalanceBefore = _quote.buyToken.balanceOf(address(this));
         uint256 sellTokenBalanceBefore = _quote.sellToken.balanceOf(address(this));
 
+
+        console.log("Calling Swap Target");
         (bool success, bytes memory returndata) = swapTarget.call(_quote.swapCallData);
         require(success, string(returndata));
+        console.log("Called Swap Target");
 
         boughtAmount = _quote.buyToken.balanceOf(address(this)).sub(buyTokenBalanceBefore);
         spentAmount = sellTokenBalanceBefore.sub(_quote.sellToken.balanceOf(address(this)));
