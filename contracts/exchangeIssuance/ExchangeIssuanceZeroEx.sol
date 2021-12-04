@@ -28,7 +28,6 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
-import "hardhat/console.sol";
 
 contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
@@ -195,22 +194,16 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         returns (uint256)
     {
 
-        console.log("Transfering input token");
         _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
-        console.log("Approving input token");
         _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
 
-        console.log("Issuing from token");
         uint256 amountTokenSpent = _issueExactSetFromToken(_setToken, _amountSetToken, _maxAmountInputToken, _componentQuotes);
-        console.log("Calculating return amount");
         uint256 amountTokenReturn = _maxAmountInputToken.sub(amountTokenSpent);
         if (amountTokenReturn > 0) {
-            console.log("Transfering return amount");
             _inputToken.safeTransfer(msg.sender,  amountTokenReturn);
         }
 
         emit ExchangeIssue(msg.sender, _setToken, _inputToken, _maxAmountInputToken, _amountSetToken);
-        console.log("Return");
         return amountTokenSpent;
     }
 
@@ -245,8 +238,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
         uint256 amountEthReturn = msg.value.sub(amountEth);
         if (amountEthReturn > 0) {
-            console.log("Returning excess eth");
-            console.logUint(amountEthReturn);
             IWETH(WETH).withdraw(amountEthReturn);
             (payable(msg.sender)).sendValue(amountEthReturn);
         }
@@ -383,17 +374,12 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
             // If the component is equal to the input token we don't have to trade
             if(position.component == address(quote.sellToken)){
-                console.log("Fake swap");
-                console.logAddress(position.component);
-                console.logUint(minComponentRequired);
                 componentAmountBought = minComponentRequired;
                 tokenAmountSpent = minComponentRequired;
             }
 
             else{
-                console.log("Filling Quote");
                 (componentAmountBought, tokenAmountSpent) = _fillQuote(quote);
-                console.log("Filled Quote");
                 require(componentAmountBought >= minComponentRequired, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
             }
 
@@ -450,10 +436,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 sellTokenBalanceBefore = _quote.sellToken.balanceOf(address(this));
 
 
-        console.log("Calling Swap Target");
         (bool success, bytes memory returndata) = swapTarget.call(_quote.swapCallData);
         require(success, string(returndata));
-        console.log("Called Swap Target");
 
         boughtAmount = _quote.buyToken.balanceOf(address(this)).sub(buyTokenBalanceBefore);
         spentAmount = sellTokenBalanceBefore.sub(_quote.sellToken.balanceOf(address(this)));

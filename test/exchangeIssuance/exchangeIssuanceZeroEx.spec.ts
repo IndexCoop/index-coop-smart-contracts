@@ -256,7 +256,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       async function subject() {
         return await exchangeIssuanceZeroEx.approveTokens(
-          subjectTokensToApprove.map((token) => token.address),
+          subjectTokensToApprove.map(token => token.address),
         );
       }
 
@@ -339,7 +339,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
         subjectAmountSetTokenWei = ether(subjectAmountSetToken);
 
         const positions = await subjectSetToken.getPositions();
-        subjectPositionSwapQuotes = positions.map((position) =>
+        subjectPositionSwapQuotes = positions.map(position =>
           getUniswapV2Quote(
             subjectInputToken.address,
             subjectInputTokenAmount.div(2),
@@ -407,7 +407,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectInputToken = weth;
           subjectInputTokenAmount = UnitsUtils.ether(2);
           const positions = await subjectSetToken.getPositions();
-          subjectPositionSwapQuotes = positions.map((position) =>
+          subjectPositionSwapQuotes = positions.map(position =>
             getUniswapV2Quote(
               subjectInputToken.address,
               subjectInputTokenAmount.div(2),
@@ -516,7 +516,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
         subjectAmountSetTokenWei = ether(subjectAmountSetToken);
 
         const positions = await subjectSetToken.getPositions();
-        subjectPositionSwapQuotes = positions.map((position) =>
+        subjectPositionSwapQuotes = positions.map(position =>
           getUniswapV2Quote(
             weth.address,
             subjectAmountETHInput.div(2),
@@ -677,11 +677,19 @@ describe("ExchangeIssuanceZeroEx", async () => {
         subjectCaller = user;
         subjectSetToken = setToken;
         subjectOutputTokenAmount = ether(1000);
-        subjectOutputToken = usdc;
+        subjectOutputToken = dai;
+        subjectWethAmount = ether(1);
+        subjectAmountSetToken = 1;
         subjectAmountSetTokenWei = ether(subjectAmountSetToken);
+        subjectOutputSwapQuote = getUniswapV2Quote(
+          weth.address,
+          subjectWethAmount,
+          dai.address,
+          subjectOutputTokenAmount,
+        );
 
         const positions = await subjectSetToken.getPositions();
-        subjectPositionSwapQuotes = positions.map((position) =>
+        subjectPositionSwapQuotes = positions.map(position =>
           getUniswapV2Quote(
             position.component,
             position.unit.mul(subjectAmountSetToken),
@@ -703,7 +711,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           .connect(subjectCaller.wallet)
           .approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
         await weth.transfer(zeroExMock.address, subjectWethAmount);
-        await usdc.transfer(zeroExMock.address, subjectOutputTokenAmount);
+        await dai.transfer(zeroExMock.address, subjectOutputTokenAmount);
       });
 
       async function subject(): Promise<ContractTransaction> {
@@ -728,11 +736,11 @@ describe("ExchangeIssuanceZeroEx", async () => {
       });
 
       it("should give the correct number of output tokens", async () => {
-        const initialUsdcBalance = await usdc.balanceOf(subjectCaller.address);
+        const initialDaiBalance = await dai.balanceOf(subjectCaller.address);
         await subject();
-        const finalUsdcBalance = await usdc.balanceOf(subjectCaller.address);
-        const expectedUsdcBalance = initialUsdcBalance.add(subjectOutputTokenAmount);
-        expect(finalUsdcBalance).to.eq(expectedUsdcBalance);
+        const finalDaiBalance = await dai.balanceOf(subjectCaller.address);
+        const expectedDaiBalance = initialDaiBalance.add(subjectOutputTokenAmount);
+        expect(finalDaiBalance).to.eq(expectedDaiBalance);
       });
 
       context("when the output token is weth", async () => {
@@ -805,9 +813,9 @@ describe("ExchangeIssuanceZeroEx", async () => {
         });
       });
 
-      context("when the output swap yields insufficient USDC", async () => {
+      context("when the output swap yields insufficient DAI", async () => {
         beforeEach(async () => {
-          await zeroExMock.setBuyMultiplier(usdc.address, ether(0.5));
+          await zeroExMock.setBuyMultiplier(dai.address, ether(0.5));
         });
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith(
@@ -818,7 +826,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       context("when the output token and output swap are mismatched", async () => {
         beforeEach(async () => {
-          subjectOutputToken = dai;
           subjectOutputSwapQuote = getUniswapV2Quote(
             weth.address,
             subjectWethAmount,
