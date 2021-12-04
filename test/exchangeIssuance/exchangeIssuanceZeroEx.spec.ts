@@ -667,10 +667,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
       let subjectSetToken: SetToken;
       let subjectOutputToken: StandardTokenMock | WETH9;
       let subjectOutputTokenAmount: BigNumber;
-      let subjectWethAmount: BigNumber;
       let subjectAmountSetToken: number;
       let subjectAmountSetTokenWei: BigNumber;
-      let subjectOutputSwapQuote: ZeroExSwapQuote;
       let subjectPositionSwapQuotes: ZeroExSwapQuote[];
 
       const initializeSubjectVariables = async () => {
@@ -678,23 +676,16 @@ describe("ExchangeIssuanceZeroEx", async () => {
         subjectSetToken = setToken;
         subjectOutputTokenAmount = ether(1000);
         subjectOutputToken = dai;
-        subjectWethAmount = ether(1);
         subjectAmountSetToken = 1;
         subjectAmountSetTokenWei = ether(subjectAmountSetToken);
-        subjectOutputSwapQuote = getUniswapV2Quote(
-          weth.address,
-          subjectWethAmount,
-          dai.address,
-          subjectOutputTokenAmount,
-        );
 
         const positions = await subjectSetToken.getPositions();
         subjectPositionSwapQuotes = positions.map(position =>
           getUniswapV2Quote(
             position.component,
             position.unit.mul(subjectAmountSetToken),
-            weth.address,
-            subjectWethAmount.div(2),
+            subjectOutputToken.address,
+            subjectOutputTokenAmount.div(2),
           ),
         );
       };
@@ -710,7 +701,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
         await setToken
           .connect(subjectCaller.wallet)
           .approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
-        await weth.transfer(zeroExMock.address, subjectWethAmount);
         await dai.transfer(zeroExMock.address, subjectOutputTokenAmount);
       });
 
@@ -720,7 +710,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
           .redeemExactSetForToken(
             subjectSetToken.address,
             subjectOutputToken.address,
-            subjectOutputSwapQuote,
             subjectAmountSetTokenWei,
             subjectOutputTokenAmount,
             subjectPositionSwapQuotes,
@@ -741,27 +730,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
         const finalDaiBalance = await dai.balanceOf(subjectCaller.address);
         const expectedDaiBalance = initialDaiBalance.add(subjectOutputTokenAmount);
         expect(finalDaiBalance).to.eq(expectedDaiBalance);
-      });
-
-      context("when the output token is weth", async () => {
-        beforeEach(async () => {
-          subjectOutputToken = weth;
-          subjectOutputTokenAmount = subjectWethAmount;
-        });
-        it("should redeem correct amount of set tokens", async () => {
-          const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
-          await subject();
-          const finalSetBalance = await subjectSetToken.balanceOf(subjectCaller.address);
-          const expectedSetBalance = initialBalanceOfSet.sub(subjectAmountSetTokenWei);
-          expect(finalSetBalance).to.eq(expectedSetBalance);
-        });
-        it("should receive correct amount of WETH", async () => {
-          const initialBalanceOfOutput = await subjectOutputToken.balanceOf(subjectCaller.address);
-          await subject();
-          const finalOutputBalance = await subjectOutputToken.balanceOf(subjectCaller.address);
-          const expectedOutputbalance = initialBalanceOfOutput.add(subjectOutputTokenAmount);
-          expect(finalOutputBalance).to.eq(expectedOutputbalance);
-        });
       });
 
       context("when invalid set token amount is requested", async () => {
@@ -804,15 +772,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
         });
       });
 
-      context("when the input swap yields insufficient WETH", async () => {
-        beforeEach(async () => {
-          await zeroExMock.setBuyMultiplier(weth.address, ether(0.5));
-        });
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("revert");
-        });
-      });
-
       context("when the output swap yields insufficient DAI", async () => {
         beforeEach(async () => {
           await zeroExMock.setBuyMultiplier(dai.address, ether(0.5));
@@ -824,26 +783,10 @@ describe("ExchangeIssuanceZeroEx", async () => {
         });
       });
 
-      context("when the output token and output swap are mismatched", async () => {
-        beforeEach(async () => {
-          subjectOutputSwapQuote = getUniswapV2Quote(
-            weth.address,
-            subjectWethAmount,
-            usdc.address,
-            subjectOutputTokenAmount,
-          );
-        });
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith(
-            "ExchangeIssuance: OUTPUT TOKEN / OUTPUT QUOTE MISMATCH",
-          );
-        });
-      });
-
       context("when a swap call fails", async () => {
         beforeEach(async () => {
-          // Trigger revertion in mock by trying to return more buy weth than available in balance
-          await zeroExMock.setBuyMultiplier(weth.address, ether(100));
+          // Trigger revertion in mock by trying to return more output token than available in balance
+          await zeroExMock.setBuyMultiplier(subjectOutputToken.address, ether(100));
         });
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("revert");
