@@ -173,10 +173,10 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     * The excess amount of tokens is returned in an equivalent amount of ether.
     *
     * @param _setToken              Address of the SetToken to be issued
-    * @param _inputToken              Address of the input token
+    * @param _inputToken            Address of the input token
     * @param _amountSetToken        Amount of SetTokens to issue
-    * @param _maxAmountInputToken        Amount of SetTokens to issue
-    * @param _componentQuotes                 The encoded 0x transactions to execute (WETH -> components).
+    * @param _maxAmountInputToken   Amount of SetTokens to issue
+    * @param _componentQuotes       The encoded 0x transactions to execute 
     *
     * @return amountEthReturn       Amount of ether returned to the caller
     */
@@ -197,7 +197,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
         _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
 
-        uint256 amountTokenSpent = _issueExactSetFromToken(_setToken, _amountSetToken, _maxAmountInputToken, _componentQuotes);
+        uint256 amountTokenSpent = _issueExactSetFromToken(_setToken, _amountSetToken, _maxAmountInputToken, _componentQuotes, _inputToken);
         uint256 amountTokenReturn = _maxAmountInputToken.sub(amountTokenSpent);
         if (amountTokenReturn > 0) {
             _inputToken.safeTransfer(msg.sender,  amountTokenReturn);
@@ -213,7 +213,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     *
     * @param _setToken              Address of the SetToken to be issued
     * @param _amountSetToken        Amount of SetTokens to issue
-    * @param _componentQuotes       The encoded 0x transactions to execute (WETH -> components).
+    * @param _componentQuotes       The encoded 0x transactions to execute
     *
     * @return amountEthReturn       Amount of ether returned to the caller
     */
@@ -234,7 +234,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         IWETH(WETH).deposit{value: msg.value}();
         _safeApprove(IERC20(WETH), swapTarget, msg.value);
 
-        uint256 amountEth = _issueExactSetFromToken(_setToken, _amountSetToken, msg.value, _componentQuotes);
+        uint256 amountEth = _issueExactSetFromToken(_setToken, _amountSetToken, msg.value, _componentQuotes, IERC20(WETH));
 
         uint256 amountEthReturn = msg.value.sub(amountEth);
         if (amountEthReturn > 0) {
@@ -296,7 +296,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _setToken             Address of the SetToken being redeemed
      * @param _amountSetToken       Amount SetTokens to redeem
      * @param _minEthReceive        Minimum amount of Eth to receive
-     * @param _componentQuotes      The encoded 0x transactions execute (components -> WETH).
+     * @param _componentQuotes      The encoded 0x transactions execute
      *
      * @return outputAmount         Amount of output tokens sent to the caller
      */
@@ -345,15 +345,17 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      *
      * @param _setToken          Address of the SetToken being issued
      * @param _amountSetToken    Amount of SetTokens to be issued
+     * @param _maxAmountToken    Maximum amount of input token to spend
      *
      */
-    function _issueExactSetFromToken(ISetToken _setToken, uint256 _amountSetToken, uint256 _maxAmountToken, ZeroExSwapQuote[] memory _quotes) internal returns (uint256 totalTokenSpent) {
+    function _issueExactSetFromToken(ISetToken _setToken, uint256 _amountSetToken, uint256 _maxAmountToken, ZeroExSwapQuote[] memory _quotes, IERC20 _inputToken) internal returns (uint256 totalTokenSpent) {
         ISetToken.Position[] memory positions = _setToken.getPositions();
 
         for (uint256 i = 0; i < positions.length; i++) {
             ISetToken.Position memory position = positions[i];
             ZeroExSwapQuote memory quote = _quotes[i];
             require(position.component == address(quote.buyToken), "ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
+            require(_inputToken == quote.sellToken, "ExchangeIssuance: INVALID SELL TOKEN");
             // TODO: Had to reassign this variable to avoid CompilerError: Stack too deep - review if better solution possible
             uint256 setAmount = _amountSetToken;
             uint256 units = uint256(position.unit);
@@ -381,13 +383,14 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     }
 
     /**
-     * Liquidates a given list of SetToken components for WETH.
+     * Liquidates a given list of SetToken components for given token.
      *
      * @param _setToken             The set token being swapped.
      * @param _amountSetToken       The amount of set token being swapped.
      * @param _swaps                An array containing ZeroExSwap swaps.
+     * @param _outputToken          The token for which to sell the index components
      *
-     * @return                      Total amount of WETH received after liquidating all SetToken components
+     * @return                      Total amount of output token received after liquidating all SetToken components
      */
     function _liquidateComponentsForToken(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _swaps, IERC20 _outputToken)
         internal
