@@ -197,14 +197,18 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
         _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
 
-        uint256 amountTokenSpent = _issueExactSetFromToken(_setToken, _amountSetToken, _maxAmountInputToken, _componentQuotes, _inputToken);
-        uint256 amountTokenReturn = _maxAmountInputToken.sub(amountTokenSpent);
+        uint256 totalInputTokenSold = _buyComponentsForInputToken(_setToken, _amountSetToken,  _componentQuotes, _inputToken);
+        require(totalInputTokenSold <= _maxAmountInputToken, "ExchangeIssuance: OVERSPENT TOKEN");
+
+        basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
+
+        uint256 amountTokenReturn = _maxAmountInputToken.sub(totalInputTokenSold);
         if (amountTokenReturn > 0) {
             _inputToken.safeTransfer(msg.sender,  amountTokenReturn);
         }
 
         emit ExchangeIssue(msg.sender, _setToken, _inputToken, _maxAmountInputToken, _amountSetToken);
-        return amountTokenSpent;
+        return totalInputTokenSold;
     }
 
     /**
@@ -234,16 +238,19 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         IWETH(WETH).deposit{value: msg.value}();
         _safeApprove(IERC20(WETH), swapTarget, msg.value);
 
-        uint256 amountEth = _issueExactSetFromToken(_setToken, _amountSetToken, msg.value, _componentQuotes, IERC20(WETH));
+        uint256 totalEthSold = _buyComponentsForInputToken(_setToken, _amountSetToken, _componentQuotes, IERC20(WETH));
 
-        uint256 amountEthReturn = msg.value.sub(amountEth);
+        require(totalEthSold<= msg.value, "ExchangeIssuance: OVERSPENT ETH");
+        basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
+
+        uint256 amountEthReturn = msg.value.sub(totalEthSold);
         if (amountEthReturn > 0) {
             IWETH(WETH).withdraw(amountEthReturn);
             (payable(msg.sender)).sendValue(amountEthReturn);
         }
 
         emit Refund(msg.sender, amountEthReturn);
-        emit ExchangeIssue(msg.sender, _setToken, IERC20(ETH_ADDRESS), amountEth, _amountSetToken);
+        emit ExchangeIssue(msg.sender, _setToken, IERC20(ETH_ADDRESS), totalEthSold, _amountSetToken);
         return amountEthReturn; 
     }
 
@@ -274,11 +281,10 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     {
 
         uint256 outputAmount;
-        // Redeem exact set token
         _redeemExactSet(_setToken, _amountSetToken);
 
         // Liquidate components for WETH and ignore _outputQuote
-        outputAmount = _liquidateComponentsForToken(_setToken, _amountSetToken, _componentQuotes, _outputToken);
+        outputAmount = _sellComponentsForOutputToken(_setToken, _amountSetToken, _componentQuotes, _outputToken);
         require(outputAmount >= _minOutputReceive, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
 
         // Transfer sender output token
@@ -313,7 +319,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         returns (uint256)
     {
         _redeemExactSet(_setToken, _amountSetToken);
-        uint ethAmount = _liquidateComponentsForToken(_setToken, _amountSetToken, _componentQuotes, IERC20(WETH));
+        uint ethAmount = _sellComponentsForOutputToken(_setToken, _amountSetToken, _componentQuotes, IERC20(WETH));
         require(ethAmount >= _minEthReceive, "ExchangeIssuance: INSUFFICIENT WETH RECEIVED");
 
         IWETH(WETH).withdraw(ethAmount);
@@ -345,10 +351,9 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      *
      * @param _setToken          Address of the SetToken being issued
      * @param _amountSetToken    Amount of SetTokens to be issued
-     * @param _maxAmountToken    Maximum amount of input token to spend
      *
      */
-    function _issueExactSetFromToken(ISetToken _setToken, uint256 _amountSetToken, uint256 _maxAmountToken, ZeroExSwapQuote[] memory _quotes, IERC20 _inputToken) internal returns (uint256 totalTokenSpent) {
+    function _buyComponentsForInputToken(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _quotes, IERC20 _inputToken) internal returns (uint256 totalInputTokenSold) {
         ISetToken.Position[] memory positions = _setToken.getPositions();
 
         for (uint256 i = 0; i < positions.length; i++) {
@@ -362,41 +367,37 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             uint256 minComponentRequired = setAmount.mul(units).div(10**18);
 
             uint256 componentAmountBought;
-            uint256 tokenAmountSpent;
+            uint256 inputTokenAmountSold;
 
             // If the component is equal to the input token we don't have to trade
             if(position.component == address(quote.sellToken)){
                 componentAmountBought = minComponentRequired;
-                tokenAmountSpent = minComponentRequired;
+                inputTokenAmountSold = minComponentRequired;
             }
 
             else{
-                (componentAmountBought, tokenAmountSpent) = _fillQuote(quote);
+                (componentAmountBought, inputTokenAmountSold) = _fillQuote(quote);
                 require(componentAmountBought >= minComponentRequired, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
             }
 
-            totalTokenSpent = totalTokenSpent.add(tokenAmountSpent);
-            require(totalTokenSpent <= _maxAmountToken, "ExchangeIssuance: OVERSPENT TOKEN");
+            totalInputTokenSold = totalInputTokenSold.add(inputTokenAmountSold);
         }
-
-        basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
     }
 
     /**
-     * Liquidates a given list of SetToken components for given token.
+     * Redeems a given list of SetToken components for given token.
      *
      * @param _setToken             The set token being swapped.
      * @param _amountSetToken       The amount of set token being swapped.
      * @param _swaps                An array containing ZeroExSwap swaps.
      * @param _outputToken          The token for which to sell the index components
      *
-     * @return                      Total amount of output token received after liquidating all SetToken components
+     * @return totalOutputTokenBought  Total amount of output token received after liquidating all SetToken components
      */
-    function _liquidateComponentsForToken(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _swaps, IERC20 _outputToken)
+    function _sellComponentsForOutputToken(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _swaps, IERC20 _outputToken)
         internal
-        returns (uint256)
+        returns (uint256 totalOutputTokenBought)
     {
-        uint256 sumOutputToken = 0;
         address[] memory components = _setToken.getComponents();
         for (uint256 i = 0; i < _swaps.length; i++) {
             require(components[i] == address(_swaps[i].sellToken), "ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
@@ -404,23 +405,22 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
             uint256 maxAmountSell = unit.preciseMul(_amountSetToken);
 
-            uint256 boughtAmount;
-            uint256 soldAmount;
+            uint256 outputTokenAmountBought;
+            uint256 componentAmountSold;
 
             // If the component is equal to the input token we don't have to trade
             if(components[i] == address(_swaps[i].buyToken)){
-                boughtAmount = maxAmountSell;
-                soldAmount = maxAmountSell;
+                outputTokenAmountBought = maxAmountSell;
+                componentAmountSold = maxAmountSell;
             }
             else{
                 _safeApprove(_swaps[i].sellToken, address(swapTarget), maxAmountSell);
-                (boughtAmount, soldAmount) = _fillQuote(_swaps[i]);
+                (outputTokenAmountBought, componentAmountSold) = _fillQuote(_swaps[i]);
             }
 
-            require(maxAmountSell >= soldAmount, "ExchangeIssuance: OVERSOLD COMPONENT");
-            sumOutputToken = sumOutputToken.add(boughtAmount);
+            require(maxAmountSell >= componentAmountSold, "ExchangeIssuance: OVERSOLD COMPONENT");
+            totalOutputTokenBought = totalOutputTokenBought.add(outputTokenAmountBought);
         }
-        return sumOutputToken;
     }
 
     /**
