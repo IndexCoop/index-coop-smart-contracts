@@ -403,8 +403,20 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             require(address(_swaps[i].buyToken) == address(_outputToken), "ExchangeIssuance: INVALID BUY TOKEN");
             uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
             uint256 maxAmountSell = unit.preciseMul(_amountSetToken);
-            _safeApprove(_swaps[i].sellToken, address(swapTarget), maxAmountSell);
-            (uint256 boughtAmount, uint256 soldAmount) = _fillQuote(_swaps[i]);
+
+            uint256 boughtAmount;
+            uint256 soldAmount;
+
+            // If the component is equal to the input token we don't have to trade
+            if(components[i] == address(_swaps[i].buyToken)){
+                boughtAmount = maxAmountSell;
+                soldAmount = maxAmountSell;
+            }
+            else{
+                _safeApprove(_swaps[i].sellToken, address(swapTarget), maxAmountSell);
+                (boughtAmount, soldAmount) = _fillQuote(_swaps[i]);
+            }
+
             require(maxAmountSell >= soldAmount, "ExchangeIssuance: OVERSOLD COMPONENT");
             sumOutputToken = sumOutputToken.add(boughtAmount);
         }

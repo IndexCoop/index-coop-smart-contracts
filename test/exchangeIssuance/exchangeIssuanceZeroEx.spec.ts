@@ -339,7 +339,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
         subjectAmountSetTokenWei = ether(subjectAmountSetToken);
 
         const positions = await subjectSetToken.getPositions();
-        subjectPositionSwapQuotes = positions.map(position =>
+          subjectPositionSwapQuotes = positions.map((position: any) =>
           getUniswapV2Quote(
             subjectInputToken.address,
             subjectInputTokenAmount.div(2),
