@@ -269,8 +269,7 @@ contract IPRebalanceExtension is GIMExtension {
     /* ======== Internal Functions ======== */
 
     /**
-     * Untransforms a component. If it is the final untransform, it will automatically begin the rebalance
-     * through GeneralIndexModule. To prevent losses from untransforms that may incur slippage, a maximum
+     * Untransforms a component. To prevent losses from untransforms that may incur slippage, a maximum
      * untransform size and minimum untransform delay are enforced. 
      * 
      * To calculate the number of units to untransform use:
