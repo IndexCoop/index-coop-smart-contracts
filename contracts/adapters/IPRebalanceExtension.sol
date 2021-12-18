@@ -159,6 +159,9 @@ contract IPRebalanceExtension is GIMExtension {
             "TransformInfo not set yet"
         );
 
+        // Maximum transform size is limited to MAX_UINT_96 to prevent overflows when multiplying this maximum size by
+        // the transform components exchange rate to get a maximum untransform size. This prevents using MAX_UINT_256 
+        // to represent an unlimited amount.
         require(_transformInfo.maxTransformSize <= type(uint96).max, "max transform size must be less than MAX_UINT_96");
         transformComponentInfo[_transformComponent] = _transformInfo;
     }
