@@ -173,11 +173,6 @@ contract IPRebalanceExtension is GIMExtension {
         require(_setComponents.length == _targetUnitsUnderlying.length, "length mismatch");
         tradesComplete = false;
 
-        // clear out any current member of rebalanceParams from last rebalance
-        for (uint256 i = 0; i < setComponentList.length; i++) {
-            targetUnitsUnderlying[setComponentList[i]] = 0;
-        }
-
         // Save rebalanceParams
         for (uint256 i = 0; i < _setComponents.length; i++) {
             targetUnitsUnderlying[_setComponents[i]] = _targetUnitsUnderlying[i];
