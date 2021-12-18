@@ -74,7 +74,8 @@ contract IPRebalanceExtension is GIMExtension {
     // mapping from transform component to TransformInfo
     // can be used to map a transform component to its underlying component
     mapping(address => TransformInfo) public transformComponentInfo;
-    // mapping from set component to target units
+
+    // mapping from set component to target underlying units
     mapping(address => uint256) public targetUnitsUnderlying;
 
     // mapping from transform component to last transform/untransform timestamp
