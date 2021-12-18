@@ -38,13 +38,13 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  * @title IPRebalanceExtension
  * @author Index Coop
  *
- * Manager extension for managing the entire rebalance process for sets that include intrinsic productivity. Utilizes Set Protocol's
- * GeneralIndexModule, WrapModuleV2, AmmModule and AirdropModule with all actions invoked via the BaseManagerV2 contract. Additionally
- * uses helper contracts adhering to the ITransformHelper interface to inform the contract how properly interface with Set Protocol to
- * transform and untransform components and fetch relevent information such as exchange rates. With this contract, the operator can begin
- * a rebalance by just supplying components and their target unit allocations mesaured in equivalent amounts of the underlying component.
+ * Manager extension for handling the entire rebalance process for sets that include intrinsic productivity. Utilizes Set Protocol's
+ * GeneralIndexModule, WrapModuleV2, AmmModule and AirdropModule with all actions invoked via the BaseManagerV2 contract. Helper contracts
+ * adhering to the ITransformHelper interface inform this extension on how properly interface with Set Protocol to transform and untransform
+ * components and fetch relevent information such as exchange rates. With this contract, the operator can begin a rebalance by just supplying
+ * components and their target unit allocations mesaured in equivalent amounts of the underlying component.
  *
- * Since the accounting in this contract is quite difficult, strict terminology is used to refer to components:
+ * Since the accounting in this contract is quite complex, strict terminology is used to refer to components:
  * - transform component: a component that has been transformed from an underlying component
  * - underlying component: the underlying token that corresponds to a transform component
  * - set component: a component that should be included in either the initial or final set state. This can be either a transformed component
