@@ -279,7 +279,7 @@ contract IPRebalanceExtension is GIMExtension {
      * untransform size and minimum untransform delay are enforced. 
      * 
      * To calculate the number of units to untransform use:
-     * min(currentUnits - targetUnitsUnderlying * exchangeRate, 0)
+     * max(currentUnits - targetUnitsUnderlying * exchangeRate, 0)
      *
      * This calculation ensures that if the target units is greater than the current units then no tokens will
      * be untransformed. If this calculation yields a resulting amount to untransform that is larger than the
@@ -332,7 +332,7 @@ contract IPRebalanceExtension is GIMExtension {
      * described below and simply transform all remaining underlying tokens.
      *
      * To calculate the number of units to transform use:
-     * min(targetUnitsUnderlying - currentUnits / exchangeRate, 0)
+     * max(targetUnitsUnderlying - currentUnits / exchangeRate, 0)
      *
      * This calculation ensures that if the current units (measured in underlying amounts) is greater than the target
      * underlying units then no tokens will be transformed. If the calculated units to transform are greater than the
@@ -400,7 +400,7 @@ contract IPRebalanceExtension is GIMExtension {
      * remain fixed at their current allocations.
      *
      * For non-transform components, calculate the target units using:
-     * min(finalTotalUnderlying - currentTotalUnderlying + targetUnderlyingRaw, 0)
+     * max(finalTotalUnderlying - currentTotalUnderlying + targetUnderlyingRaw, 0)
      *
      * Where:
      * - finalTotalUnderlying: The total amount of equivalent underlying units expected in the final set composition.
