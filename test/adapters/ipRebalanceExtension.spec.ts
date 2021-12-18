@@ -581,6 +581,16 @@ describe("IPRebalanceExtension", () => {
             await expect(subject()).to.be.revertedWith("delay not elapsed");
           });
         });
+
+        context("when the rebalance stage is not UNTRANSFORM", async () => {
+          beforeEach(async () => {
+            await ipRebalanceExtension.connect(operator.wallet).startTrades();
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("must be in untransform stage");
+          });
+        });
       });
 
       context("when all untransforms are complete", async () => {
@@ -673,10 +683,10 @@ describe("IPRebalanceExtension", () => {
               return await ipRebalanceExtension.connect(subjectCaller.wallet).setTradesComplete();
             }
 
-            it("should set the tradesComplete flag", async () => {
-              expect(await ipRebalanceExtension.tradesComplete()).to.be.false;
+            it("should set the rebalance stage to TRANSFORM", async () => {
+              expect(await ipRebalanceExtension.stage()).to.eq(1);   // TRADE
               await subject();
-              expect(await ipRebalanceExtension.tradesComplete()).to.be.true;
+              expect(await ipRebalanceExtension.stage()).to.eq(2);   // TRANSFORM
             });
 
             context("when caller is not operator", async () => {
@@ -686,6 +696,16 @@ describe("IPRebalanceExtension", () => {
 
               it("should revert", async () => {
                 await expect(subject()).to.be.revertedWith("Must be operator");
+              });
+            });
+
+            context("when the rebalance stage is not TRADE", async () => {
+              beforeEach(async () => {
+                await ipRebalanceExtension.connect(operator.wallet).startIPRebalance([], []);
+              });
+
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith("must be in trade stage");
               });
             });
           });
@@ -854,13 +874,13 @@ describe("IPRebalanceExtension", () => {
                 });
               });
 
-              context("when the tradesComplete flag is false", async () => {
+              context("when the rebalance stage is not TRANSFORM", async () => {
                 beforeEach(async () => {
                   await ipRebalanceExtension.connect(operator.wallet).startIPRebalance([], []);
                 });
 
                 it("should revert", async () => {
-                  await expect(subject()).to.be.revertedWith("trades not complete");
+                  await expect(subject()).to.be.revertedWith("must be in transform stage");
                 });
               });
 

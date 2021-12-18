@@ -58,6 +58,14 @@ contract IPRebalanceExtension is GIMExtension {
     using SafeMath for uint256;
     using SignedSafeMath for int256;
 
+    /* ============ Enums ============ */
+
+    enum RebalanceStage {
+        UNTRANSFORM,
+        TRADE,
+        TRANSFORM
+    }
+
     /* ============ Structs =========== */
 
     struct TransformInfo {
@@ -84,8 +92,8 @@ contract IPRebalanceExtension is GIMExtension {
     // list of all set components involved in rebalance including added/removed components
     address[] public setComponentList;
 
-    // flag marking whether GIM trades have completed
-    bool public tradesComplete;
+    // represents the current stage of the rebalance process
+    RebalanceStage public stage;
 
     /* ========== Constructor ========== */
 
@@ -175,7 +183,7 @@ contract IPRebalanceExtension is GIMExtension {
      */
     function startIPRebalance(address[] memory _setComponents, uint256[] memory _targetUnitsUnderlying) external onlyOperator {
         require(_setComponents.length == _targetUnitsUnderlying.length, "length mismatch");
-        tradesComplete = false;
+        stage = RebalanceStage.UNTRANSFORM;
 
         // Save rebalanceParams
         for (uint256 i = 0; i < _setComponents.length; i++) {
@@ -213,6 +221,7 @@ contract IPRebalanceExtension is GIMExtension {
      * components have been untransformed.
      */
     function startTrades() external onlyOperator {
+        stage = RebalanceStage.TRADE;
         _startGIMRebalance();
     }
 
@@ -221,7 +230,8 @@ contract IPRebalanceExtension is GIMExtension {
      * completed.
      */
     function setTradesComplete() external onlyOperator {
-        tradesComplete = true;
+        require(stage == RebalanceStage.TRADE, "must be in trade stage");
+        stage = RebalanceStage.TRANSFORM;
     }
 
     /**
@@ -285,6 +295,7 @@ contract IPRebalanceExtension is GIMExtension {
      * transform component can be untransformed in later transactions.
      */
     function _untransform(address _transformComponent, bytes memory _untransformData) internal {
+        require(stage == RebalanceStage.UNTRANSFORM, "must be in untransform stage");
 
         TransformInfo memory transformInfo = transformComponentInfo[_transformComponent];
 
@@ -341,7 +352,7 @@ contract IPRebalanceExtension is GIMExtension {
      * 
      */
     function _transform(address _transformComponent, bytes memory _transformData, bool _transformRemaining) internal {
-        require(tradesComplete, "trades not complete");
+        require(stage == RebalanceStage.TRANSFORM, "must be in transform stage");
 
         TransformInfo memory transformInfo = transformComponentInfo[_transformComponent];
 
