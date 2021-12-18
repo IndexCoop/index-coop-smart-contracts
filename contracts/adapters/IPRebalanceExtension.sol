@@ -49,6 +49,23 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  * - underlying component: the underlying token that corresponds to a transform component
  * - set component: a component that should be included in either the initial or final set state. This can be either a transformed component
  *   or an raw untransformed component (given that the component is never meant to be transformed)
+ *
+ * The rebalance process is divided into three distinct steps: untransform, trade, and transform. The current stage of this process is stored
+ * inside the public stage variable.
+ *
+ * To begin the untransform stage, the operator must initialize the rebalance by calling startIPRebalance and supply the target units for each
+ * set component. Target units are always measured in the underlying asset amount for transform components. At this point, allowed callers may call
+ * batchUntransform for each transform component that must have its allocation reduced from its current weighting.
+ *
+ * After all untransformations are complete, the operator must call startTrades to begin the normal trading process through the GeneralIndexModule.
+ * This will move the extension into the trade stage. More information on how the target units are calculated for the GeneralIndexModule can be
+ * found in _startGIMRebalance.
+ *
+ * Once the trades are complete, the operator must call tradesComplete to begin the transform stage. Allowed callers can then call batchTransform
+ * to transform underlying components into transform components. In cases where 100% of the underlying component left must be transformed
+ * (meaning no raw underlying components should be present in the final set), allowed callers should instead call transformRemaining. This ensures
+ * that there is no units of the underlying component left inside the set at the end of the rebalance. At this point the rebalance has completed.
+ * The stage of the extension will remain transform until the next rebalance is initialized.
  */
 contract IPRebalanceExtension is GIMExtension {
     using AddressArrayUtils for address[];
