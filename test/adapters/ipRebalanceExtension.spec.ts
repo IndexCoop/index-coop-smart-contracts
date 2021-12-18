@@ -373,13 +373,13 @@ describe("IPRebalanceExtension", () => {
         return await ipRebalanceExtension.connect(subjectCaller.wallet).startIPRebalance(subjectSetComponents, subjectTargetUnitsUnderlying);
       }
 
-      it("should set the rebalance params", async () => {
+      it("should set the correct target underlying units", async () => {
         await subject();
 
-        const usdcTargetUnderlying = await ipRebalanceExtension.rebalanceParams(USDC.address);
-        const daiTargetUnderlying = await ipRebalanceExtension.rebalanceParams(DAI.address);
-        const cDaiTargetUnderlying = await ipRebalanceExtension.rebalanceParams(cDAI.address);
-        const yDaiTargetUnderlying = await ipRebalanceExtension.rebalanceParams(yDAI.address);
+        const usdcTargetUnderlying = await ipRebalanceExtension.targetUnitsUnderlying(USDC.address);
+        const daiTargetUnderlying = await ipRebalanceExtension.targetUnitsUnderlying(DAI.address);
+        const cDaiTargetUnderlying = await ipRebalanceExtension.targetUnitsUnderlying(cDAI.address);
+        const yDaiTargetUnderlying = await ipRebalanceExtension.targetUnitsUnderlying(yDAI.address);
 
         expect(usdcTargetUnderlying).to.eq(subjectTargetUnitsUnderlying[0]);
         expect(daiTargetUnderlying).to.eq(subjectTargetUnitsUnderlying[1]);
