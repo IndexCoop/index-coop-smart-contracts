@@ -21,6 +21,7 @@ pragma experimental ABIEncoderV2;
 
 import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+import { SignedSafeMath } from "@openzeppelin/contracts/math/SignedSafeMath.sol";
 
 import { AddressArrayUtils } from "../lib/AddressArrayUtils.sol";
 import { BaseExtension } from "../lib/BaseExtension.sol";
@@ -40,8 +41,14 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  * Manager extension for managing the entire rebalance process for sets that include intrinsic productivity. Utilizes Set Protocol's
  * GeneralIndexModule, WrapModuleV2, AmmModule and AirdropModule with all actions invoked via the BaseManagerV2 contract. Additionally
  * uses helper contracts adhering to the ITransformHelper interface to inform the contract how properly interface with Set Protocol to
- * transform and untransform components and fetch relevent information such as exhcange rates. With this contract, the operator can begin
- * a rebalance by just supplying components and their target unit allocations mesaured in equivelent amounts of the underlying component.
+ * transform and untransform components and fetch relevent information such as exchange rates. With this contract, the operator can begin
+ * a rebalance by just supplying components and their target unit allocations mesaured in equivalent amounts of the underlying component.
+ *
+ * Since the accounting in this contract is quite difficult, strict terminology is used to refer to components:
+ * - transform component: a component that has been transformed from an underlying component
+ * - underlying component: the underlying token that corresponds to a transform component
+ * - set component: a component that should be included in either the initial or final set state. This can be either a transformed component
+ *   or an raw untransformed component (given that the component is never meant to be transformed)
  */
 contract IPRebalanceExtension is GIMExtension {
     using AddressArrayUtils for address[];
@@ -49,6 +56,7 @@ contract IPRebalanceExtension is GIMExtension {
     using SafeCast for int256;
     using SafeCast for uint256;
     using SafeMath for uint256;
+    using SignedSafeMath for int256;
 
     /* ============ Structs =========== */
 
@@ -64,9 +72,10 @@ contract IPRebalanceExtension is GIMExtension {
     IAirdropModule public airdropModule;
 
     // mapping from transform component to TransformInfo
+    // can be used to map a transform component to its underlying component
     mapping(address => TransformInfo) public transformComponentInfo;
     // mapping from set component to target units
-    mapping(address => uint256) public rebalanceParams;
+    mapping(address => uint256) public targetUnitsUnderlying;
 
     // mapping from transform component to last transform/untransform timestamp
     mapping(address => uint256) public lastTransform;
@@ -106,7 +115,7 @@ contract IPRebalanceExtension is GIMExtension {
     function startRebalanceWithUnits(
         address[] calldata /* _components */,
         uint256[] calldata /* _targetUnitsUnderlying */,
-        uint256 /* _posotionMultiplier */
+        uint256 /* _positionMultiplier */
     )
         external
         onlyOperator
@@ -129,6 +138,9 @@ contract IPRebalanceExtension is GIMExtension {
             "TransformInfo already set"
         );
         
+        // Maximum transform size is limited to MAX_UINT_96 to prevent overflows when multiplying this maximum size by
+        // the transform components exchange rate to get a maximum untransform size. This prevents using MAX_UINT_256 
+        // to represent an unlimited amount.
         require(_transformInfo.maxTransformSize <= type(uint96).max, "max transform size must be less than MAX_UINT_96");
         transformComponentInfo[_transformComponent] = _transformInfo;
     }
@@ -163,12 +175,12 @@ contract IPRebalanceExtension is GIMExtension {
 
         // clear out any current member of rebalanceParams from last rebalance
         for (uint256 i = 0; i < setComponentList.length; i++) {
-            rebalanceParams[setComponentList[i]] = 0;
+            targetUnitsUnderlying[setComponentList[i]] = 0;
         }
 
         // Save rebalanceParams
         for (uint256 i = 0; i < _setComponents.length; i++) {
-            rebalanceParams[_setComponents[i]] = _targetUnitsUnderlying[i];
+            targetUnitsUnderlying[_setComponents[i]] = _targetUnitsUnderlying[i];
         }
 
         setComponentList = _setComponents;
@@ -253,7 +265,7 @@ contract IPRebalanceExtension is GIMExtension {
         onlyAllowedCaller(msg.sender)
     {
         address underlying = transformComponentInfo[_transformComponent].underlyingComponent;
-        uint256 underlyingUnitsRaw = rebalanceParams[underlying];
+        uint256 underlyingUnitsRaw = targetUnitsUnderlying[underlying];
         require(underlyingUnitsRaw == 0, "raw underlying in target set composition");
 
         _transform(_transformComponent, _transformData, true);
@@ -263,7 +275,16 @@ contract IPRebalanceExtension is GIMExtension {
 
     /**
      * Untransforms a component. If it is the final untransform, it will automatically begin the rebalance
-     * through GeneralIndexModule.
+     * through GeneralIndexModule. To prevent losses from untransforms that may incur slippage, a maximum
+     * untransform size and minimum untransform delay are enforced. 
+     * 
+     * To calculate the number of units to untransform use:
+     * min(currentUnits - targetUnitsUnderlying * exchangeRate, 0)
+     *
+     * This calculation ensures that if the target units is greater than the current units then no tokens will
+     * be untransformed. If this calculation yields a resulting amount to untransform that is larger than the
+     * maximum untransform size, the untransform size will be replaced with this max value. The rest of the
+     * transform component can be untransformed in later transactions.
      */
     function _untransform(address _transformComponent, bytes memory _untransformData) internal {
 
@@ -278,12 +299,12 @@ contract IPRebalanceExtension is GIMExtension {
             "untransform unavailable"
         );
 
-        uint256 targetUnitsUnderlying = rebalanceParams[_transformComponent];
+        uint256 targetUnderlying = targetUnitsUnderlying[_transformComponent];
         uint256 currentUnits = setToken.getDefaultPositionRealUnit(_transformComponent).toUint256();
 
         // convert target units from underlying to transformed amounts
         uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(transformInfo.underlyingComponent, _transformComponent);
-        uint256 targetUnitsInTransformed = targetUnitsUnderlying.preciseMul(exchangeRate);
+        uint256 targetUnitsInTransformed = targetUnderlying.preciseMul(exchangeRate);
         uint256 unitsToUntransform = currentUnits > targetUnitsInTransformed ? currentUnits.sub(targetUnitsInTransformed) : 0;
         
         uint256 maxUntransformUnits = transformInfo.maxTransformSize.preciseDiv(setToken.totalSupply()).preciseMul(exchangeRate);
@@ -306,7 +327,20 @@ contract IPRebalanceExtension is GIMExtension {
     }
 
     /**
-     * Untransforms a component
+     * Transforms a component. To prevent losses from untransforms that may incur slippage, a maximum transform
+     * size and minimum transform delay are enforced. If _transformRemaining is set to true, ignore the calculations
+     * described below and simply transform all remaining underlying tokens.
+     *
+     * To calculate the number of units to transform use:
+     * min(targetUnitsUnderlying - currentUnits / exchangeRate, 0)
+     *
+     * This calculation ensures that if the current units (measured in underlying amounts) is greater than the target
+     * underlying units then no tokens will be transformed. If the calculated units to transform are greater than the
+     * units of underlying left in the set, just untransform all the units left. This may happen in cases where the exchange
+     * rate changes between the time the rebalance was parameterized and the transformation was made. Finally, if the amount
+     * to transform is greater than maximum transform amount, the transform size will be replaced with the max value. The rest
+     * can be transformed in later transactions.
+     * 
      */
     function _transform(address _transformComponent, bytes memory _transformData, bool _transformRemaining) internal {
         require(tradesComplete, "trades not complete");
@@ -334,9 +368,9 @@ contract IPRebalanceExtension is GIMExtension {
             uint256 exchangeRate = transformInfo.transformHelper.getExchangeRate(transformInfo.underlyingComponent, _transformComponent);
 
             uint256 currentUnitsUnderlying = currentUnits.preciseDiv(exchangeRate);
-            uint256 targetUnitsUnderlying = rebalanceParams[_transformComponent];
+            uint256 targetUnderlying = targetUnitsUnderlying[_transformComponent];
 
-            unitsToTransform = targetUnitsUnderlying > currentUnitsUnderlying ? targetUnitsUnderlying.sub(currentUnitsUnderlying) : 0;
+            unitsToTransform = targetUnderlying > currentUnitsUnderlying ? targetUnderlying.sub(currentUnitsUnderlying) : 0;
 
             if (unitsToTransform > currentRawUnderlying) {
                 unitsToTransform = currentRawUnderlying;
@@ -363,8 +397,21 @@ contract IPRebalanceExtension is GIMExtension {
 
     /**
      * Parameterizes the rebalancing trades through GeneralIndexModule. For all transform components, the target units
-     * remain fixed at their current allocations. For non-transform units, the target units are calculated by taking into
-     * account the total amount of the component needed to create the target trasnform units.
+     * remain fixed at their current allocations.
+     *
+     * For non-transform components, calculate the target units using:
+     * min(finalTotalUnderlying - currentTotalUnderlying + targetUnderlyingRaw, 0)
+     *
+     * Where:
+     * - finalTotalUnderlying: The total amount of equivalent underlying units expected in the final set composition.
+     *   This only includes underlying units that are implied by the presence of a transform component rather than raw
+     *   underlying units that would be present in the final set. For more information on how this value is calculated,
+     *   see _getFinalTotalUnderlyingUnits
+     * - currentTotalUnderling: The total amount of equivalent underlying units in the current set composition. This
+     *   only includes underlying units that are implied by the presence of a transform component rather than raw underlying
+     *   units that are present in the set. For more information on how this value is calculated, see _getCurrentTotalUnderlyingUnits
+     * - targetUnderlyingRaw: The target units of the raw underlying component present in the final set composition. This does not
+     *   include the implied units from the presence of transform components.
      */
     function _startGIMRebalance() internal {
         
@@ -381,8 +428,8 @@ contract IPRebalanceExtension is GIMExtension {
                 uint256 finalTotalUnderlyingUnits = _getFinalTotalUnderlyingUnits(component, setComponentList);
                 uint256 currentTotalUnderlyingUnits = _getCurrentTotalUnderlyingUnits(component, setComponentList);
 
-                uint256 targetUnderlying = rebalanceParams[component];
-                int256 diff = finalTotalUnderlyingUnits.toInt256() - currentTotalUnderlyingUnits.toInt256() + targetUnderlying.toInt256();
+                uint256 targetUnderlyingRaw = targetUnitsUnderlying[component];
+                int256 diff = finalTotalUnderlyingUnits.toInt256().sub(currentTotalUnderlyingUnits.toInt256()).add(targetUnderlyingRaw.toInt256());
 
                 rebalanceTargets[i] = diff > 0 ? diff.toUint256() : 0;
             }
@@ -451,7 +498,7 @@ contract IPRebalanceExtension is GIMExtension {
         uint256 sum = 0;
         for (uint256 i = 0; i < _components.length; i++) {
             if (transformComponentInfo[_components[i]].underlyingComponent == _underlying) {
-                sum += rebalanceParams[_components[i]];
+                sum += targetUnitsUnderlying[_components[i]];
             }
         }
         return sum;
