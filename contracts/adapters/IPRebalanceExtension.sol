@@ -397,7 +397,11 @@ contract IPRebalanceExtension is GIMExtension {
 
     /**
      * Parameterizes the rebalancing trades through GeneralIndexModule. For all transform components, the target units
-     * remain fixed at their current allocations.
+     * remain fixed at their current allocations. For non-transform components, the goal is to end up with the correct
+     * unit amount to ensure that there is enough underlying to perform all necessary transformations, and to satisfy
+     * any units of this raw (untransformed) component being in the set. For example, if DAI, cDAI, and yDAI are all
+     * present in the final set, then enough DAI must be purchased to ensure that there is enough raw DAI units after
+     * transforming into cDAI and yDAI.
      *
      * For non-transform components, calculate the target units using:
      * max(finalTotalUnderlying - currentTotalUnderlying + targetUnderlyingRaw, 0)
