@@ -1,6 +1,6 @@
-import { DeployFunction } from "hardhat-deploy/types";
+import { ethers } from "hardhat";
 
-const func: DeployFunction = async function({ ethers }) {
+async function main() {
   const ExchangeIssuanceZeroEx = await ethers.getContractFactory("ExchangeIssuanceZeroEx");
   // Mainnet addresses
   const wethAddress = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
@@ -10,8 +10,19 @@ const func: DeployFunction = async function({ ethers }) {
 
   const dpiAddress = "0x1494ca1f11d487c2bbe4543e90080aeba4ba3c2b";
 
-  const exchangeIssuanceZeroEx = await ExchangeIssuanceZeroEx.deploy(wethAddress, controllerAddress, issuanceModuleAddress, zeroExProxyAddress)
+  const exchangeIssuanceZeroEx = await ExchangeIssuanceZeroEx.deploy(
+    wethAddress,
+    controllerAddress,
+    issuanceModuleAddress,
+    zeroExProxyAddress,
+  );
   console.log("Exchange Issuacne deployed to", exchangeIssuanceZeroEx.address);
   await exchangeIssuanceZeroEx.approveSetToken(dpiAddress);
-};
-export default func;
+    console.log("Approved dpi token");
+}
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
