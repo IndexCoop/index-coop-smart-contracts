@@ -1,4 +1,5 @@
 import { ethers } from "hardhat";
+import { BigNumber } from "ethers";
 import axios from "axios";
 import qs from "qs";
 
@@ -25,6 +26,30 @@ async function getQuote(params: any, retryCount: number = 0): Promise<any> {
   }
 }
 
+async function getQuotes(
+  positions: any[],
+  inputToken: string,
+  setAmount: number,
+  wethStage: boolean,
+) {
+  const componentSwapInputToken = wethStage ? "WETH" : inputToken;
+  const componentInputTokenAddress = TOKEN_ADDRESSES[componentSwapInputToken];
+  const quotes = await getPositionQuotes(positions, componentInputTokenAddress, setAmount);
+  if (wethStage) {
+    const wethBuyAmount = quotes.reduce(
+      (sum: BigNumber | number, quote: any) => BigNumber.from(quote.sellAmount).add(sum),
+      0,
+    );
+    const wethQuote = await getQuote({
+      buyToken: TOKEN_ADDRESSES["WETH"],
+      sellToken: TOKEN_ADDRESSES[inputToken],
+      buyAmount: wethBuyAmount.toString(),
+    });
+    quotes.push(wethQuote);
+  }
+  return quotes;
+}
+
 async function getPositionQuotes(
   positions: any[],
   inputTokenAddress: string,
@@ -35,7 +60,7 @@ async function getPositionQuotes(
       ethers.utils.getAddress(position.component) === ethers.utils.getAddress(inputTokenAddress)
     ) {
       console.log("No swap needed");
-      return Promise.resolve({ gas: 0 });
+      return Promise.resolve({ gas: "0", sellAmount: position.unit.mul(setAmount).toString() });
     } else {
       const params = {
         buyToken: position.component,
@@ -52,38 +77,45 @@ type GasCostRow = {
   setToken: string;
   inputToken: string;
   setAmount: number;
+  wethStage: boolean;
   gas: number;
 };
 
 const TOKEN_ADDRESSES: Record<string, string> = {
   DPI: "0x1494ca1f11d487c2bbe4543e90080aeba4ba3c2b",
   DAI: "0x6b175474e89094c44da98b954eedeac495271d0f",
+  UNI: "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984",
+  WETH: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
 };
 
-async function calculateTotalGas({
-  setToken,
-  inputToken,
-  setAmount,
-}: {
-  setToken: string;
-  inputToken: string;
-  setAmount: number;
-}): Promise<GasCostRow> {
-  const inputAddress = TOKEN_ADDRESSES[inputToken];
+async function calculateTotalGas(
+  setToken: string,
+  inputToken: string,
+  setAmount: number,
+  wethStage: boolean,
+): Promise<GasCostRow> {
   const setAddress = TOKEN_ADDRESSES[setToken];
   const setContract = await ethers.getContractAt("ISetToken", setAddress);
   const positions = await setContract.getPositions();
-  const positionQuotes = await getPositionQuotes(positions, inputAddress, setAmount);
+  const positionQuotes = await getQuotes(positions, inputToken, setAmount, wethStage);
   const gas = positionQuotes.reduce((sum: number, quote: any) => sum + parseInt(quote.gas), 0);
-  return { setToken, inputToken, setAmount, gas };
+  return { setToken, inputToken, setAmount, wethStage, gas };
 }
 
+//@ts-ignore
+const f = (a, b) => [].concat(...a.map((d) => b.map((e) => [].concat(d, e))));
+//@ts-ignore
+const cartesian = (a, b, ...c) => (b ? cartesian(f(a, b), ...c) : a);
+
 async function main() {
-  const scenarios = [
-    { setToken: "DPI", inputToken: "DAI", setAmount: 100 },
-    { setToken: "DPI", inputToken: "DAI", setAmount: 1000 },
-  ];
-  const promises = scenarios.map((value) => calculateTotalGas(value));
+  const setTokens = ["DPI"];
+  const inputTokens = ["DAI"];
+  const setAmounts = [100, 1000, 10000];
+  const wethStage = [false, true];
+  const scenarios = cartesian(setTokens, inputTokens, setAmounts, wethStage);
+  const promises = scenarios.map((params: [string, string, number, boolean]) =>
+    calculateTotalGas(params[0], params[1], params[2], params[3]),
+  );
   const results = await Promise.all(promises);
   console.table(results);
 }
