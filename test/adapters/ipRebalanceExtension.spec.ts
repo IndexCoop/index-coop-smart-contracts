@@ -514,6 +514,20 @@ describe("IPRebalanceExtension", () => {
           });
         });
 
+        context("when component has already been untransformed", async () => {
+          beforeEach(async () => {
+            await subject();
+          });
+
+          it("should not untransform additional units", async () => {
+            const initUnits = await setToken.getDefaultPositionRealUnit(DAI.address);
+            await subject();
+            const finalUnits = await setToken.getDefaultPositionRealUnit(DAI.address);
+
+            expect(finalUnits).to.eq(initUnits);
+          });
+        });
+
         context("when caller is not an allowed caller", async () => {
           beforeEach(() => {
             subjectCaller = randomCaller;
@@ -531,16 +545,6 @@ describe("IPRebalanceExtension", () => {
 
           it("should revert", async () => {
             await expect(subject()).to.be.revertedWith("length mismatch");
-          });
-        });
-
-        context("when a component has already been untransformed", async () => {
-          beforeEach(async () => {
-            await subject();
-          });
-
-          it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("nothing to untransform");
           });
         });
 
@@ -824,6 +828,20 @@ describe("IPRebalanceExtension", () => {
                 });
               });
 
+              context("when component has already been transformed", async () => {
+                beforeEach(async () => {
+                  await subject();
+                });
+
+                it("should not transform additional units", async () => {
+                  const initUnits = await setToken.getDefaultPositionRealUnit(DAI.address);
+                  await subject();
+                  const finalUnits = await setToken.getDefaultPositionRealUnit(DAI.address);
+
+                  expect(finalUnits).to.eq(initUnits);
+                });
+              });
+
               context("when caller is not an allowed caller", async () => {
                 beforeEach(() => {
                   subjectCaller = randomCaller;
@@ -841,16 +859,6 @@ describe("IPRebalanceExtension", () => {
 
                 it("should revert", async () => {
                   await expect(subject()).to.be.revertedWith("length mismatch");
-                });
-              });
-
-              context("when component has already been transformed", async () => {
-                beforeEach(async () => {
-                  await subject();
-                });
-
-                it("should revert", async () => {
-                  await expect(subject()).to.be.revertedWith("nothing to transform");
                 });
               });
 

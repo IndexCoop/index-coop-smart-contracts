@@ -48,7 +48,7 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  * - transform component: a component that has been transformed from an underlying component
  * - underlying component: the underlying token that corresponds to a transform component
  * - set component: a component that should be included in either the initial or final set state. This can be either a transformed component
- *   or an raw untransformed component (given that the component is never meant to be transformed)
+ *   or a raw untransformed component (given that the component is never meant to be transformed)
  *
  * The rebalance process is divided into three distinct steps: untransform, trade, and transform. The current stage of this process is stored
  * inside the public stage variable.
@@ -164,11 +164,7 @@ contract IPRebalanceExtension is GIMExtension {
             "TransformInfo already set"
         );
         
-        // Maximum transform size is limited to MAX_UINT_96 to prevent overflows when multiplying this maximum size by
-        // the transform components exchange rate to get a maximum untransform size. This prevents using MAX_UINT_256 
-        // to represent an unlimited amount.
-        require(_transformInfo.maxTransformSize <= type(uint96).max, "max transform size must be less than MAX_UINT_96");
-        transformComponentInfo[_transformComponent] = _transformInfo;
+        _setTransformInfo(_transformComponent, _transformInfo);
     }
 
     /**
@@ -184,11 +180,7 @@ contract IPRebalanceExtension is GIMExtension {
             "TransformInfo not set yet"
         );
 
-        // Maximum transform size is limited to MAX_UINT_96 to prevent overflows when multiplying this maximum size by
-        // the transform components exchange rate to get a maximum untransform size. This prevents using MAX_UINT_256 
-        // to represent an unlimited amount.
-        require(_transformInfo.maxTransformSize <= type(uint96).max, "max transform size must be less than MAX_UINT_96");
-        transformComponentInfo[_transformComponent] = _transformInfo;
+        _setTransformInfo(_transformComponent, _transformInfo);
     }
 
     /**
@@ -312,18 +304,12 @@ contract IPRebalanceExtension is GIMExtension {
      * transform component can be untransformed in later transactions.
      */
     function _untransform(address _transformComponent, bytes memory _untransformData) internal {
-        require(stage == RebalanceStage.UNTRANSFORM, "must be in untransform stage");
 
         TransformInfo memory transformInfo = transformComponentInfo[_transformComponent];
 
-        require(transformInfo.minTransformDelay + lastTransform[_transformComponent] < block.timestamp, "delay not elapsed");
+        _validateUntransform(_transformComponent, transformInfo);
         lastTransform[_transformComponent] = block.timestamp;
 
-        require(transformInfo.underlyingComponent != address(0), "nothing to untransform");
-        require(
-            transformInfo.transformHelper.shouldUntransform(transformInfo.underlyingComponent, _transformComponent),
-            "untransform unavailable"
-        );
 
         uint256 targetUnderlying = targetUnitsUnderlying[_transformComponent];
         uint256 currentUnits = setToken.getDefaultPositionRealUnit(_transformComponent).toUint256();
@@ -339,7 +325,9 @@ contract IPRebalanceExtension is GIMExtension {
         }
 
 
-        require(unitsToUntransform > 0, "nothing to untransform");
+        if (unitsToUntransform == 0) {
+            return;
+        }
 
         (address module, bytes memory callData) = transformInfo.transformHelper.getUntransformCall(
             manager.setToken(),
@@ -369,18 +357,11 @@ contract IPRebalanceExtension is GIMExtension {
      * 
      */
     function _transform(address _transformComponent, bytes memory _transformData, bool _transformRemaining) internal {
-        require(stage == RebalanceStage.TRANSFORM, "must be in transform stage");
 
         TransformInfo memory transformInfo = transformComponentInfo[_transformComponent];
 
-        require(transformInfo.minTransformDelay + lastTransform[_transformComponent] < block.timestamp, "delay not elapsed");
+        _validateTransform(_transformComponent, transformInfo);
         lastTransform[_transformComponent] = block.timestamp;
-
-        require(transformInfo.underlyingComponent != address(0), "nothing to transform");
-        require(
-            transformInfo.transformHelper.shouldTransform(transformInfo.underlyingComponent, _transformComponent),
-            "transform unavailable"
-        );
 
         uint256 unitsToTransform;
         uint256 currentRawUnderlying = setToken.getDefaultPositionRealUnit(transformInfo.underlyingComponent).toUint256();
@@ -408,7 +389,9 @@ contract IPRebalanceExtension is GIMExtension {
         }
 
 
-        require(unitsToTransform > 0, "nothing to transform");
+        if (unitsToTransform == 0) {
+            return;
+        }
 
         (address module, bytes memory callData) = transformInfo.transformHelper.getTransformCall(
             manager.setToken(),
@@ -509,6 +492,38 @@ contract IPRebalanceExtension is GIMExtension {
 
         bytes memory callData = abi.encodeWithSelector(airdropModule.batchAbsorb.selector, setToken, batchAbsorbTokens);
         invokeManager(address(airdropModule), callData);
+    }
+
+    /**
+     * Sets a TransformInfo entry for a transform component. The maximum transform size parameter is
+     * restricted to a maximum of MAX_UINT_96 to avoid overflows when multiplying by the exchange rate.
+     */
+    function _setTransformInfo(address _transformComponent, TransformInfo memory _transformInfo) internal {
+        // Maximum transform size is limited to MAX_UINT_96 to prevent overflows when multiplying this maximum size by
+        // the transform components exchange rate to get a maximum untransform size. This prevents using MAX_UINT_256 
+        // to represent an unlimited amount.
+        require(_transformInfo.maxTransformSize <= type(uint96).max, "max transform size must be less than MAX_UINT_96");
+        transformComponentInfo[_transformComponent] = _transformInfo;
+    }
+
+    function _validateUntransform(address _transformComponent, TransformInfo memory _transformInfo) internal view {
+        require(stage == RebalanceStage.UNTRANSFORM, "must be in untransform stage");
+        require(_transformInfo.minTransformDelay + lastTransform[_transformComponent] < block.timestamp, "delay not elapsed");
+        require(_transformInfo.underlyingComponent != address(0), "nothing to untransform");
+        require(
+            _transformInfo.transformHelper.shouldUntransform(_transformInfo.underlyingComponent, _transformComponent),
+            "untransform unavailable"
+        );
+    }
+
+    function _validateTransform(address _transformComponent, TransformInfo memory _transformInfo) internal view {
+        require(stage == RebalanceStage.TRANSFORM, "must be in transform stage");
+        require(_transformInfo.minTransformDelay + lastTransform[_transformComponent] < block.timestamp, "delay not elapsed");
+        require(_transformInfo.underlyingComponent != address(0), "nothing to transform");
+        require(
+            _transformInfo.transformHelper.shouldTransform(_transformInfo.underlyingComponent, _transformComponent),
+            "transform unavailable"
+        );
     }
 
     /**
