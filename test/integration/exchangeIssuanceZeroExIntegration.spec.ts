@@ -62,12 +62,12 @@ if (process.env.INTEGRATIONTEST) {
 
     const setTokenScenarios: Partial<Record<TokenName, SetTokenScenario>> = {};
     // Test Parameterization
-    const SET_TOKEN_NAMES: TokenName[] = ["DPI", "SimpleToken"];
+    const SET_TOKEN_NAMES: TokenName[] = ["SimpleToken", "DPI"];
     const SET_TOKEN_AMOUNTS: Record<TokenName, number[]> = {
       SimpleToken: [1],
       // DPI issuance of 5000 failed due to underbuying Badger in a multihop
       // TODO: Investigate
-      DPI: [1, 2000],
+      DPI: [1, 1000],
     };
 
     async function deployExchangeIssuanceZeroEx() {
@@ -181,7 +181,6 @@ if (process.env.INTEGRATIONTEST) {
               let subjectInputTokenAmount: BigNumber;
               let subjectAmountSetToken: number;
               let subjectAmountSetTokenWei: BigNumber;
-              let subjectInputSwapQuote: ZeroExSwapQuote;
               let subjectPositionSwapQuotes: ZeroExSwapQuote[];
 
               async function getIssuanceQuotes(
@@ -190,10 +189,10 @@ if (process.env.INTEGRATIONTEST) {
                 setAmount: number,
                 slippagePercents: number,
                 excludedSources: string | undefined = undefined,
-              ): Promise<[ZeroExSwapQuote, ZeroExSwapQuote[], BigNumber]> {
+              ): Promise<[ZeroExSwapQuote[], BigNumber]> {
                 const positions = await setToken.getPositions();
                 const positionQuotes: ZeroExSwapQuote[] = [];
-                let buyAmountWeth = BigNumber.from(0);
+                let inputTokenAmount = BigNumber.from(0);
                 // 0xAPI expects percentage as value between 0-1 e.g. 5% -> 0.05
                 const slippagePercentage = slippagePercents / 100;
 
@@ -201,45 +200,37 @@ if (process.env.INTEGRATIONTEST) {
                   logVerbose("\n\n###################COMPONENT QUOTE##################");
                   const buyAmount = position.unit.mul(setAmount).toString();
                   const buyToken = position.component;
-                  const sellToken = wethAddress;
-                  const quote = await getQuote({
-                    buyToken,
-                    sellToken,
-                    buyAmount,
-                    excludedSources,
-                    slippagePercentage,
-                  });
-                  await logQuote(quote);
-                  positionQuotes.push({
-                    sellToken: sellToken,
-                    buyToken: buyToken,
-                    swapCallData: quote.data,
-                  });
-                  buyAmountWeth = buyAmountWeth.add(BigNumber.from(quote.sellAmount));
+                  const sellToken = inputTokenAddress;
+                  if (ethers.utils.getAddress(buyToken) == ethers.utils.getAddress(sellToken)) {
+                    logVerbose("Component equal to input token skipping zero ex api call");
+                    positionQuotes.push({
+                      sellToken: sellToken,
+                      buyToken: buyToken,
+                      swapCallData: ethers.utils.formatBytes32String("FOOBAR"),
+                    });
+                    inputTokenAmount = inputTokenAmount.add(position.unit.mul(setAmount));
+                  } else {
+                    const quote = await getQuote({
+                      buyToken,
+                      sellToken,
+                      buyAmount,
+                      excludedSources,
+                      slippagePercentage,
+                    });
+                    await logQuote(quote);
+                    positionQuotes.push({
+                      sellToken: sellToken,
+                      buyToken: buyToken,
+                      swapCallData: quote.data,
+                    });
+                    inputTokenAmount = inputTokenAmount.add(BigNumber.from(quote.sellAmount));
+                  }
                 }
                 // I assume that this is the correct math to make sure we have enough weth to cover the slippage
                 // based on the fact that the slippagePercentage is limited between 0.0 and 1.0 on the 0xApi
                 // TODO: Review if correct
-                buyAmountWeth = buyAmountWeth.mul(100).div(100 - slippagePercents);
-
-                logVerbose("\n\n###################INPUT TOKEN QUOTE##################");
-                const inputTokenApiResponse = await getQuote({
-                  buyToken: wethAddress,
-                  sellToken: inputTokenAddress,
-                  buyAmount: buyAmountWeth.toString(),
-                  excludedSources,
-                  slippagePercentage,
-                });
-                await logQuote(inputTokenApiResponse);
-                let inputTokenAmount = BigNumber.from(inputTokenApiResponse.sellAmount);
                 inputTokenAmount = inputTokenAmount.mul(100).div(100 - slippagePercents);
-                logVerbose("Input token amount", inputTokenAmount.toString());
-                const inputQuote = {
-                  buyToken: wethAddress,
-                  sellToken: inputTokenAddress,
-                  swapCallData: inputTokenApiResponse.data,
-                };
-                return [inputQuote, positionQuotes, inputTokenAmount];
+                return [positionQuotes, inputTokenAmount];
               }
 
               const initializeSubjectVariables = async (_amountSetToken: number) => {
@@ -249,11 +240,7 @@ if (process.env.INTEGRATIONTEST) {
                 subjectInputToken = dai;
                 subjectAmountSetToken = _amountSetToken;
                 subjectAmountSetTokenWei = ether(subjectAmountSetToken);
-                [
-                  subjectInputSwapQuote,
-                  subjectPositionSwapQuotes,
-                  subjectInputTokenAmount,
-                ] = await getIssuanceQuotes(
+                [subjectPositionSwapQuotes, subjectInputTokenAmount] = await getIssuanceQuotes(
                   setToken,
                   subjectInputToken.address,
                   subjectAmountSetToken,
@@ -274,12 +261,14 @@ if (process.env.INTEGRATIONTEST) {
                   );
                   await user.wallet.sendTransaction({
                     to: inputTokenWhaleAddress,
-                    value: ethers.utils.parseEther("1.0"),
+                    value: ethers.utils.parseEther("2.0"),
                   });
+                  logVerbose("Sent ether to whale");
                   await hre.network.provider.request({
                     method: "hardhat_impersonateAccount",
                     params: [inputTokenWhaleAddress],
                   });
+                  logVerbose("Impersonated whale");
                   const inputTokenWhaleSigner = ethers.provider.getSigner(inputTokenWhaleAddress);
                   await subjectInputToken
                     .connect(inputTokenWhaleSigner)
@@ -301,7 +290,6 @@ if (process.env.INTEGRATIONTEST) {
                   .issueExactSetFromToken(
                     setToken.address,
                     subjectInputToken.address,
-                    subjectInputSwapQuote,
                     subjectAmountSetTokenWei,
                     subjectInputTokenAmount,
                     subjectPositionSwapQuotes,
@@ -331,7 +319,6 @@ if (process.env.INTEGRATIONTEST) {
               let subjectOutputTokenAmount: BigNumber;
               let subjectAmountSetToken: number;
               let subjectAmountSetTokenWei: BigNumber;
-              let subjectOutputSwapQuote: ZeroExSwapQuote;
               let subjectPositionSwapQuotes: ZeroExSwapQuote[];
 
               // Helper function to generate 0xAPI quote for UniswapV2
@@ -341,55 +328,48 @@ if (process.env.INTEGRATIONTEST) {
                 setAmount: number,
                 slippagePercents: number,
                 excludedSources: string | undefined = undefined,
-              ): Promise<[ZeroExSwapQuote, ZeroExSwapQuote[], BigNumber]> {
+              ): Promise<[ZeroExSwapQuote[], BigNumber]> {
                 const positions = await setToken.getPositions();
                 const positionQuotes: ZeroExSwapQuote[] = [];
-                let sellAmountWeth = BigNumber.from(0);
+                let outputTokenAmount = BigNumber.from(0);
                 const slippagePercentage = slippagePercents / 100;
 
                 for (const position of positions) {
                   logVerbose("\n\n###################COMPONENT QUOTE##################");
                   const sellAmount = position.unit.mul(setAmount).toString();
                   const sellToken = position.component;
-                  const buyToken = wethAddress;
-                  const quote = await getQuote({
-                    buyToken,
-                    sellToken,
-                    sellAmount,
-                    excludedSources,
-                    slippagePercentage,
-                  });
-                  await logQuote(quote);
-                  positionQuotes.push({
-                    sellToken: sellToken,
-                    buyToken: buyToken,
-                    swapCallData: quote.data,
-                  });
-                  sellAmountWeth = sellAmountWeth.add(BigNumber.from(quote.buyAmount));
+                  const buyToken = outputTokenAddress;
+                  if (ethers.utils.getAddress(buyToken) == ethers.utils.getAddress(sellToken)) {
+                    logVerbose("Component equal to output token skipping zero ex api call");
+                    positionQuotes.push({
+                      sellToken: sellToken,
+                      buyToken: buyToken,
+                      swapCallData: ethers.utils.formatBytes32String("FOOBAR"),
+                    });
+                    outputTokenAmount = outputTokenAmount.add(position.unit.mul(setAmount));
+                  } else {
+                    const quote = await getQuote({
+                      buyToken,
+                      sellToken,
+                      sellAmount,
+                      excludedSources,
+                      slippagePercentage,
+                    });
+                    await logQuote(quote);
+                    positionQuotes.push({
+                      sellToken: sellToken,
+                      buyToken: buyToken,
+                      swapCallData: quote.data,
+                    });
+                    outputTokenAmount = outputTokenAmount.add(BigNumber.from(quote.buyAmount));
+                  }
                 }
                 // I assume that this is the correct math to make sure we have enough weth to cover the slippage
                 // based on the fact that the slippagePercentage is limited between 0.0 and 1.0 on the 0xApi
                 // TODO: Review if correct
-                sellAmountWeth = sellAmountWeth.mul(100 - slippagePercents).div(100);
+                outputTokenAmount = outputTokenAmount.div(100).mul(100 - slippagePercents);
 
-                logVerbose("\n\n###################OUTPUT TOKEN QUOTE##################");
-                const outputTokenApiResponse = await getQuote({
-                  sellToken: wethAddress,
-                  buyToken: outputTokenAddress,
-                  sellAmount: sellAmountWeth.toString(),
-                  excludedSources,
-                  slippagePercentage,
-                });
-                await logQuote(outputTokenApiResponse);
-                let outputTokenAmount = BigNumber.from(outputTokenApiResponse.sellAmount);
-                outputTokenAmount = outputTokenAmount;
-                logVerbose("Output token amount", outputTokenAmount.toString());
-                const outputQuote = {
-                  sellToken: wethAddress,
-                  buyToken: outputTokenAddress,
-                  swapCallData: outputTokenApiResponse.data,
-                };
-                return [outputQuote, positionQuotes, outputTokenAmount];
+                return [positionQuotes, outputTokenAmount];
               }
 
               const initializeSubjectVariables = async (_amountSetToken: number) => {
@@ -398,11 +378,7 @@ if (process.env.INTEGRATIONTEST) {
                 subjectOutputToken = dai;
                 subjectAmountSetToken = _amountSetToken;
                 subjectAmountSetTokenWei = ether(subjectAmountSetToken);
-                [
-                  subjectOutputSwapQuote,
-                  subjectPositionSwapQuotes,
-                  subjectOutputTokenAmount,
-                ] = await getRedemptionQuotes(
+                [subjectPositionSwapQuotes, subjectOutputTokenAmount] = await getRedemptionQuotes(
                   setToken,
                   subjectOutputToken.address,
                   subjectAmountSetToken,
@@ -415,7 +391,6 @@ if (process.env.INTEGRATIONTEST) {
                   .redeemExactSetForToken(
                     setToken.address,
                     subjectOutputToken.address,
-                    subjectOutputSwapQuote,
                     subjectAmountSetTokenWei,
                     subjectOutputTokenAmount,
                     subjectPositionSwapQuotes,

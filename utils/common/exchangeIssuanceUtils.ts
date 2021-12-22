@@ -6,7 +6,7 @@ import { StandardTokenMock, WETH9 } from "@utils/contracts/index";
 import { UniswapV2Factory, UniswapV2Router02 } from "@utils/contracts/uniswap";
 
 
-export const getAllowances = async (tokens: StandardTokenMock[], owner: string, spenders: string[]) => {
+export const getAllowances = async (tokens: (StandardTokenMock | WETH9)[], owner: string, spenders: string[]) => {
   const allowances: BigNumber[] = [];
   tokens.forEach(async token => {
     allowances.push(...await Promise.all(spenders.map(async address => await token.allowance(owner, address))));
