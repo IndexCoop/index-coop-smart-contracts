@@ -50,9 +50,9 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     /* ============ State Variables ============ */
 
     address public immutable WETH;
+    mapping(address => bool) public allowedIssuanceModules;
 
     IController public immutable setController;
-    IBasicIssuanceModule public immutable basicIssuanceModule;
 
     address public swapTarget;
 
@@ -88,7 +88,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
          _;
     }
 
-    modifier isValidInput(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _componentQuotes) {
+    modifier isValidInput(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _componentQuotes) {
+        require(allowedIssuanceModules[_issuanceModule], "ExchangeIssuance: INVALID ISSUANCE MODULE");
         require(_amountSetToken > 0, "ExchangeIssuance: INVALID SET TOKEN AMOUNT");
         require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
          _;
@@ -97,16 +98,20 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     constructor(
         address _weth,
         IController _setController,
-        IBasicIssuanceModule _basicIssuanceModule,
+        address[] memory _allowedIssuanceModules,
         address _swapTarget
     )
         public
     {
         setController = _setController;
-        basicIssuanceModule = _basicIssuanceModule;
 
         WETH = _weth;
         swapTarget = _swapTarget;
+
+        for (uint256 i = 0; i < _allowedIssuanceModules.length; i++) {
+            _addIssuanceModule(_allowedIssuanceModules[i]);
+        }
+
     }
 
     /* ============ External Functions ============ */
@@ -117,6 +122,24 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     }
 
     /* ============ Public Functions ============ */
+
+    /**
+     * Whitelists an issuance module
+     *
+     * @param _issuanceModule    Address of issuance module to add
+     */
+    function addIssuanceModule(address _issuanceModule) public onlyOwner {
+        _addIssuanceModule(_issuanceModule);
+    }
+
+    /**
+     * Removes an issuance module from the whitelist
+     *
+     * @param _issuanceModule    Address of issuance module to remove
+     */
+    function removeIssuanceModule(address _issuanceModule) public onlyOwner {
+        _removeIssuanceModule(_issuanceModule);
+    }
 
     /**
      * Change the _swapTarget
@@ -134,8 +157,9 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      *
      * @param _token    Address of the token which needs approval
      */
-    function approveToken(IERC20 _token) public {
-        _safeApprove(_token, address(basicIssuanceModule), type(uint96).max);
+    // TODO: Added onlyOwner modifier here, check if correct
+    function approveToken(IERC20 _token, address _spender) public  onlyOwner {
+        _safeApprove(_token, _spender, type(uint96).max);
     }
 
     /**
@@ -143,9 +167,9 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      *
      * @param _tokens    Addresses of the tokens which need approval
      */
-    function approveTokens(IERC20[] calldata _tokens) external {
+    function approveTokens(IERC20[] calldata _tokens, address _spender) external {
         for (uint256 i = 0; i < _tokens.length; i++) {
-            approveToken(_tokens[i]);
+            approveToken(_tokens[i], _spender);
         }
     }
 
@@ -156,7 +180,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      *
      * @param _setToken    Address of the SetToken being initialized
      */
-    function approveSetToken(ISetToken _setToken) isSetToken(_setToken) external {
+    function approveSetToken(ISetToken _setToken, address _issuanceModule) isSetToken(_setToken) external {
         address[] memory components = _setToken.getComponents();
         for (uint256 i = 0; i < components.length; i++) {
             // Check that the component does not have external positions
@@ -164,7 +188,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
                 _setToken.getExternalPositionModules(components[i]).length == 0,
                 "ExchangeIssuance: EXTERNAL_POSITIONS_NOT_ALLOWED"
             );
-            approveToken(IERC20(components[i]));
+            approveToken(IERC20(components[i]), _issuanceModule);
         }
     }
 
@@ -185,10 +209,11 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         IERC20 _inputToken,
         uint256 _amountSetToken,
         uint256 _maxAmountInputToken,
-        ZeroExSwapQuote[] memory _componentQuotes
+        ZeroExSwapQuote[] memory _componentQuotes,
+        address _issuanceModule
     )
         isSetToken(_setToken)
-        isValidInput(_setToken, _amountSetToken, _componentQuotes)
+        isValidInput(_issuanceModule, _setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         returns (uint256)
@@ -200,16 +225,14 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 totalInputTokenSold = _buyComponentsForInputToken(_setToken, _amountSetToken,  _componentQuotes, _inputToken);
         require(totalInputTokenSold <= _maxAmountInputToken, "ExchangeIssuance: OVERSPENT TOKEN");
 
-        basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
+        IBasicIssuanceModule(_issuanceModule).issue(_setToken, _amountSetToken, msg.sender);
 
-        uint256 amountTokenReturn = _maxAmountInputToken.sub(totalInputTokenSold);
-        if (amountTokenReturn > 0) {
-            _inputToken.safeTransfer(msg.sender,  amountTokenReturn);
-        }
+        _returnExcessInputToken(_inputToken, _maxAmountInputToken, totalInputTokenSold);
 
         emit ExchangeIssue(msg.sender, _setToken, _inputToken, _maxAmountInputToken, _amountSetToken);
         return totalInputTokenSold;
     }
+
 
     /**
     * Issues an exact amount of SetTokens for given amount of ETH.
@@ -224,10 +247,11 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     function issueExactSetFromETH(
         ISetToken _setToken,
         uint256 _amountSetToken,
-        ZeroExSwapQuote[] memory _componentQuotes
+        ZeroExSwapQuote[] memory _componentQuotes,
+        address _issuanceModule
     )
         isSetToken(_setToken)
-        isValidInput(_setToken, _amountSetToken, _componentQuotes)
+        isValidInput(_issuanceModule, _setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         payable
@@ -241,7 +265,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 totalEthSold = _buyComponentsForInputToken(_setToken, _amountSetToken, _componentQuotes, IERC20(WETH));
 
         require(totalEthSold<= msg.value, "ExchangeIssuance: OVERSPENT ETH");
-        basicIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
+        IBasicIssuanceModule(_issuanceModule).issue(_setToken, _amountSetToken, msg.sender);
 
         uint256 amountEthReturn = msg.value.sub(totalEthSold);
         if (amountEthReturn > 0) {
@@ -271,17 +295,18 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         IERC20 _outputToken,
         uint256 _amountSetToken,
         uint256 _minOutputReceive,
-        ZeroExSwapQuote[] memory _componentQuotes
+        ZeroExSwapQuote[] memory _componentQuotes,
+        address _issuanceModule
     )
         isSetToken(_setToken)
-        isValidInput(_setToken, _amountSetToken, _componentQuotes)
+        isValidInput(_issuanceModule, _setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         returns (uint256)
     {
 
         uint256 outputAmount;
-        _redeemExactSet(_setToken, _amountSetToken);
+        _redeemExactSet(_setToken, _amountSetToken, _issuanceModule);
 
         // Liquidate components for WETH and ignore _outputQuote
         outputAmount = _sellComponentsForOutputToken(_setToken, _amountSetToken, _componentQuotes, _outputToken);
@@ -310,15 +335,16 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         ISetToken _setToken,
         uint256 _amountSetToken,
         uint256 _minEthReceive,
-        ZeroExSwapQuote[] memory _componentQuotes
+        ZeroExSwapQuote[] memory _componentQuotes,
+        address _issuanceModule
     )
         isSetToken(_setToken)
-        isValidInput(_setToken, _amountSetToken, _componentQuotes)
+        isValidInput(_issuanceModule, _setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         returns (uint256)
     {
-        _redeemExactSet(_setToken, _amountSetToken);
+        _redeemExactSet(_setToken, _amountSetToken, _issuanceModule);
         uint ethAmount = _sellComponentsForOutputToken(_setToken, _amountSetToken, _componentQuotes, IERC20(WETH));
         require(ethAmount >= _minEthReceive, "ExchangeIssuance: INSUFFICIENT WETH RECEIVED");
 
@@ -330,6 +356,24 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
          
     }
     
+    /**
+     * Whitelists an issuance module
+     *
+     * @param _issuanceModule    Address of issuance module to add
+     */
+    function _addIssuanceModule(address _issuanceModule) internal {
+        allowedIssuanceModules[_issuanceModule] = true;
+    }
+
+    /**
+     * Removes an issuance module from the whitelist
+     *
+     * @param _issuanceModule    Address of issuance module to remove
+     */
+    function _removeIssuanceModule(address _issuanceModule) internal {
+        allowedIssuanceModules[_issuanceModule] = false;
+    }
+
     /**
      * Sets a max approval limit for an ERC20 token, provided the current allowance
      * is less than the required allownce.
@@ -455,8 +499,22 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _setToken     Address of the SetToken to be redeemed
      * @param _amount       Amount of SetToken to be redeemed
      */
-    function _redeemExactSet(ISetToken _setToken, uint256 _amount) internal returns (uint256) {
+    function _redeemExactSet(ISetToken _setToken, uint256 _amount, address _issuanceModule) internal returns (uint256) {
         _setToken.safeTransferFrom(msg.sender, address(this), _amount);
-        basicIssuanceModule.redeem(_setToken, _amount, address(this));
+        IBasicIssuanceModule(_issuanceModule).redeem(_setToken, _amount, address(this));
+    }
+
+    /**
+     * Returns excess input token
+     *
+     * @param _inputToken         Address of the input token to return
+     * @param _receivedAmount     Amount received by the caller
+     * @param _spentAmount        Amount spent for issuance
+     */
+    function _returnExcessInputToken(IERC20 _inputToken, uint256 _receivedAmount, uint256 _spentAmount) internal{
+        uint256 amountTokenReturn = _receivedAmount.sub(_spentAmount);
+        if (amountTokenReturn > 0) {
+            _inputToken.safeTransfer(msg.sender,  amountTokenReturn);
+        }
     }
 }
