@@ -614,7 +614,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           await zeroExMock.setSellMultiplier(dai.address, ether(2));
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("ExchangeIssuance: OVERSPENT TOKEN");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: OVERSPENT ETH");
         });
       });
 
