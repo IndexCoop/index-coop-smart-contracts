@@ -67,7 +67,7 @@ if (process.env.INTEGRATIONTEST) {
       SimpleToken: [1],
       // DPI issuance of 5000 failed due to underbuying Badger in a multihop
       // TODO: Investigate
-      DPI: [1, 2000],
+      DPI: [1, 1000],
     };
 
     async function deployExchangeIssuanceZeroEx() {
