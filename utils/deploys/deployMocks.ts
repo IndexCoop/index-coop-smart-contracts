@@ -7,7 +7,8 @@ import {
   MutualUpgradeMock,
   StandardTokenMock,
   StringArrayUtilsMock,
-  TradeAdapterMock
+  TradeAdapterMock,
+  WrapAdapterMock
 } from "../contracts/index";
 
 import { BaseExtensionMock__factory } from "../../typechain/factories/BaseExtensionMock__factory";
@@ -19,6 +20,7 @@ import { MutualUpgradeMock__factory } from "../../typechain/factories/MutualUpgr
 import { TradeAdapterMock__factory } from "../../typechain/factories/TradeAdapterMock__factory";
 import { StandardTokenMock__factory  } from "../../typechain/factories/StandardTokenMock__factory";
 import { StringArrayUtilsMock__factory  } from "../../typechain/factories/StringArrayUtilsMock__factory";
+import { WrapAdapterMock__factory } from "../../typechain/factories/WrapAdapterMock__factory";
 
 export default class DeployMocks {
   private _deployerSigner: Signer;
@@ -61,5 +63,9 @@ export default class DeployMocks {
 
   public async deployFLIStrategyExtensionMock(): Promise<FLIStrategyExtensionMock> {
     return await new FLIStrategyExtensionMock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployWrapAdapterMock(owner: Address, initAmount: BigNumber): Promise<WrapAdapterMock> {
+    return await new WrapAdapterMock__factory(this._deployerSigner).deploy(owner, initAmount);
   }
 }
