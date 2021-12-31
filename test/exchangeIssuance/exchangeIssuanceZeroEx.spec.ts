@@ -98,7 +98,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
       return await deployer.extensions.deployExchangeIssuanceZeroEx(
         subjectWethAddress,
         subjectControllerAddress,
-        subjectBasicIssuanceModuleAddress,
+        [subjectBasicIssuanceModuleAddress],
         subjectSwapTarget,
       );
     }
@@ -112,8 +112,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
       const expectedControllerAddress = await exchangeIssuanceContract.setController();
       expect(expectedControllerAddress).to.eq(subjectControllerAddress);
 
-      const expectedBasicIssuanceModuleAddress = await exchangeIssuanceContract.basicIssuanceModule();
-      expect(expectedBasicIssuanceModuleAddress).to.eq(subjectBasicIssuanceModuleAddress);
+      const basicIssuanceModuleStatus = await exchangeIssuanceContract.allowedIssuanceModules(subjectBasicIssuanceModuleAddress);
+      expect(basicIssuanceModuleStatus).to.eq(true);
 
       const swapTarget = await exchangeIssuanceContract.swapTarget();
       expect(swapTarget).to.eq(subjectSwapTarget);
@@ -151,7 +151,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
       exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
         wethAddress,
         controllerAddress,
-        basicIssuanceModuleAddress,
+        [basicIssuanceModuleAddress],
         zeroExMock.address,
       );
     });
@@ -164,7 +164,10 @@ describe("ExchangeIssuanceZeroEx", async () => {
       });
 
       async function subject(): Promise<ContractTransaction> {
-        return await exchangeIssuanceZeroEx.approveSetToken(subjectSetToApprove.address);
+        return await exchangeIssuanceZeroEx.approveSetToken(
+          subjectSetToApprove.address,
+          basicIssuanceModuleAddress,
+        );
       }
 
       it("should update the approvals correctly", async () => {
@@ -257,6 +260,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
       async function subject() {
         return await exchangeIssuanceZeroEx.approveTokens(
           subjectTokensToApprove.map(token => token.address),
+          basicIssuanceModuleAddress,
         );
       }
 
@@ -339,7 +343,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
         subjectAmountSetTokenWei = ether(subjectAmountSetToken);
 
         const positions = await subjectSetToken.getPositions();
-          subjectPositionSwapQuotes = positions.map((position: any) =>
+        subjectPositionSwapQuotes = positions.map((position: any) =>
           getUniswapV2Quote(
             subjectInputToken.address,
             subjectInputTokenAmount.div(2),
@@ -351,7 +355,10 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       beforeEach(async () => {
         initializeSubjectVariables();
-        await exchangeIssuanceZeroEx.approveSetToken(subjectSetToken.address);
+        await exchangeIssuanceZeroEx.approveSetToken(
+          subjectSetToken.address,
+          basicIssuanceModuleAddress,
+        );
         dai.connect(subjectCaller.wallet).approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
         await dai.transfer(subjectCaller.address, subjectInputTokenAmount);
         await wbtc.transfer(zeroExMock.address, wbtcUnits.mul(subjectAmountSetToken));
@@ -367,6 +374,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             subjectAmountSetTokenWei,
             subjectInputTokenAmount,
             subjectPositionSwapQuotes,
+            basicIssuanceModuleAddress,
           );
       }
 
@@ -528,7 +536,10 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       beforeEach(async () => {
         initializeSubjectVariables();
-        await exchangeIssuanceZeroEx.approveSetToken(subjectSetToken.address);
+        await exchangeIssuanceZeroEx.approveSetToken(
+          subjectSetToken.address,
+          basicIssuanceModuleAddress,
+        );
         await weth.transfer(subjectCaller.address, subjectAmountETHInput);
         await wbtc.transfer(zeroExMock.address, wbtcUnits.mul(subjectAmountSetToken));
         await usdc.transfer(zeroExMock.address, usdcUnits.mul(subjectAmountSetToken));
@@ -541,6 +552,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             subjectSetToken.address,
             subjectAmountSetTokenWei,
             subjectPositionSwapQuotes,
+            basicIssuanceModuleAddress,
             { value: subjectAmountETHInput },
           );
       }
@@ -692,7 +704,10 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       beforeEach(async () => {
         await initializeSubjectVariables();
-        await exchangeIssuanceZeroEx.approveSetToken(subjectSetToken.address);
+        await exchangeIssuanceZeroEx.approveSetToken(
+          subjectSetToken.address,
+          basicIssuanceModuleAddress,
+        );
         await setV2Setup.approveAndIssueSetToken(
           subjectSetToken,
           subjectAmountSetTokenWei,
@@ -713,6 +728,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             subjectAmountSetTokenWei,
             subjectOutputTokenAmount,
             subjectPositionSwapQuotes,
+            basicIssuanceModuleAddress,
           );
       }
 
@@ -817,7 +833,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       beforeEach(async () => {
         await initializeSubjectVariables();
-        await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+        await exchangeIssuanceZeroEx.approveSetToken(setToken.address, basicIssuanceModuleAddress);
         await setV2Setup.approveAndIssueSetToken(setToken, subjectAmountSetTokenWei, owner.address);
         await setToken.approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
         await weth.transfer(zeroExMock.address, subjectWethAmount);
@@ -829,6 +845,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           subjectAmountSetTokenWei,
           subjectWethAmount,
           subjectPositionSwapQuotes,
+          basicIssuanceModuleAddress,
         );
       }
 
