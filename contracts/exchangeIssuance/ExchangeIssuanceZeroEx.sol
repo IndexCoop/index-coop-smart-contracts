@@ -43,6 +43,13 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         bytes swapCallData;
     }
 
+    struct IssuanceModuleData {
+        bool isAllowed;
+        address moduleAddress;
+        string issueUnitsSignature;
+        string redeemUnitsSignature;
+    }
+
     /* ============ Constants ============== */
 
     address constant public ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -50,7 +57,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     /* ============ State Variables ============ */
 
     address public immutable WETH;
-    mapping(address => bool) public allowedIssuanceModules;
+    mapping(address => IssuanceModuleData) public allowedIssuanceModules;
 
     IController public immutable setController;
 
@@ -89,7 +96,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     }
 
     modifier isValidInput(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _componentQuotes) {
-        require(allowedIssuanceModules[_issuanceModule], "ExchangeIssuance: INVALID ISSUANCE MODULE");
+        require(allowedIssuanceModules[_issuanceModule].isAllowed, "ExchangeIssuance: INVALID ISSUANCE MODULE");
         require(_amountSetToken > 0, "ExchangeIssuance: INVALID SET TOKEN AMOUNT");
         require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
          _;
@@ -98,7 +105,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     constructor(
         address _weth,
         IController _setController,
-        address[] memory _allowedIssuanceModules,
+        IssuanceModuleData[] memory _allowedIssuanceModules,
         address _swapTarget
     )
         public
@@ -126,19 +133,19 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     /**
      * Whitelists an issuance module
      *
-     * @param _issuanceModule    Address of issuance module to add
+     * @param _issuanceModule    Struct containing data on issuance module to add
      */
-    function addIssuanceModule(address _issuanceModule) public onlyOwner {
+    function addIssuanceModule(IssuanceModuleData memory _issuanceModule) public onlyOwner {
         _addIssuanceModule(_issuanceModule);
     }
 
     /**
      * Removes an issuance module from the whitelist
      *
-     * @param _issuanceModule    Address of issuance module to remove
+     * @param _issuanceModuleAddress    Address of issuance module to remove
      */
-    function removeIssuanceModule(address _issuanceModule) public onlyOwner {
-        _removeIssuanceModule(_issuanceModule);
+    function removeIssuanceModule(address _issuanceModuleAddress) public onlyOwner {
+        _removeIssuanceModule(_issuanceModuleAddress);
     }
 
     /**
@@ -222,7 +229,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
         _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
 
-        uint256 totalInputTokenSold = _buyComponentsForInputToken(_setToken, _amountSetToken,  _componentQuotes, _inputToken);
+        uint256 totalInputTokenSold = _buyComponentsForInputToken(_setToken, _amountSetToken,  _componentQuotes, _inputToken, _issuanceModule);
         require(totalInputTokenSold <= _maxAmountInputToken, "ExchangeIssuance: OVERSPENT TOKEN");
 
         IBasicIssuanceModule(_issuanceModule).issue(_setToken, _amountSetToken, msg.sender);
@@ -262,7 +269,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         IWETH(WETH).deposit{value: msg.value}();
         _safeApprove(IERC20(WETH), swapTarget, msg.value);
 
-        uint256 totalEthSold = _buyComponentsForInputToken(_setToken, _amountSetToken, _componentQuotes, IERC20(WETH));
+        uint256 totalEthSold = _buyComponentsForInputToken(_setToken, _amountSetToken, _componentQuotes, IERC20(WETH), _issuanceModule);
 
         require(totalEthSold<= msg.value, "ExchangeIssuance: OVERSPENT ETH");
         IBasicIssuanceModule(_issuanceModule).issue(_setToken, _amountSetToken, msg.sender);
@@ -359,19 +366,19 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     /**
      * Whitelists an issuance module
      *
-     * @param _issuanceModule    Address of issuance module to add
+     * @param _issuanceModule    Struct containing data on issuance module to add
      */
-    function _addIssuanceModule(address _issuanceModule) internal {
-        allowedIssuanceModules[_issuanceModule] = true;
+    function _addIssuanceModule(IssuanceModuleData memory _issuanceModule) internal {
+        allowedIssuanceModules[_issuanceModule.moduleAddress] = _issuanceModule;
     }
 
     /**
      * Removes an issuance module from the whitelist
      *
-     * @param _issuanceModule    Address of issuance module to remove
+     * @param _issuanceModuleAddress    Address of issuance module to remove
      */
-    function _removeIssuanceModule(address _issuanceModule) internal {
-        allowedIssuanceModules[_issuanceModule] = false;
+    function _removeIssuanceModule(address _issuanceModuleAddress) internal {
+        allowedIssuanceModules[_issuanceModuleAddress].isAllowed = false;
     }
 
     /**
@@ -397,31 +404,27 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _amountSetToken    Amount of SetTokens to be issued
      *
      */
-    function _buyComponentsForInputToken(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _quotes, IERC20 _inputToken) internal returns (uint256 totalInputTokenSold) {
-        ISetToken.Position[] memory positions = _setToken.getPositions();
+    function _buyComponentsForInputToken(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _quotes, IERC20 _inputToken, address _issuanceModule) internal returns (uint256 totalInputTokenSold) {
+        uint256 componentAmountBought;
+        uint256 inputTokenAmountSold;
 
-        for (uint256 i = 0; i < positions.length; i++) {
-            ISetToken.Position memory position = positions[i];
+        (address[] memory components, uint256[] memory componentUnits) = IBasicIssuanceModule(_issuanceModule).getRequiredComponentUnitsForIssue(_setToken, _amountSetToken);
+        for (uint256 i = 0; i < components.length; i++) {
+            address component = components[i];
+            uint256 units = componentUnits[i];
             ZeroExSwapQuote memory quote = _quotes[i];
-            require(position.component == address(quote.buyToken), "ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
-            require(_inputToken == quote.sellToken, "ExchangeIssuance: INVALID SELL TOKEN");
-            // TODO: Had to reassign this variable to avoid CompilerError: Stack too deep - review if better solution possible
-            uint256 setAmount = _amountSetToken;
-            uint256 units = uint256(position.unit);
-            uint256 minComponentRequired = setAmount.mul(units).div(10**18);
 
-            uint256 componentAmountBought;
-            uint256 inputTokenAmountSold;
+            require(component == address(quote.buyToken), "ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
+            require(_inputToken == quote.sellToken, "ExchangeIssuance: INVALID SELL TOKEN");
 
             // If the component is equal to the input token we don't have to trade
-            if(position.component == address(quote.sellToken)){
-                componentAmountBought = minComponentRequired;
-                inputTokenAmountSold = minComponentRequired;
+            if(component == address(quote.sellToken)){
+                inputTokenAmountSold = units;
+                componentAmountBought = units;
             }
-
             else{
                 (componentAmountBought, inputTokenAmountSold) = _fillQuote(quote);
-                require(componentAmountBought >= minComponentRequired, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
+                require(componentAmountBought >= units, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
             }
 
             totalInputTokenSold = totalInputTokenSold.add(inputTokenAmountSold);

@@ -1,5 +1,5 @@
 import "module-alias/register";
-import { Address, Account } from "@utils/types";
+import { Address, Account, IssuanceModuleData } from "@utils/types";
 import { ADDRESS_ZERO, MAX_UINT_96, MAX_UINT_256, ETH_ADDRESS, ZERO, ONE } from "@utils/constants";
 import { SetToken } from "@utils/contracts/setV2";
 import {
@@ -84,12 +84,17 @@ describe("ExchangeIssuanceZeroEx", async () => {
   describe("#constructor", async () => {
     let subjectWethAddress: Address;
     let subjectControllerAddress: Address;
-    let subjectBasicIssuanceModuleAddress: Address;
+    let subjectBasicIssuanceModuleData: IssuanceModuleData;
     let subjectSwapTarget: Address;
 
     cacheBeforeEach(async () => {
       subjectWethAddress = weth.address;
-      subjectBasicIssuanceModuleAddress = setV2Setup.issuanceModule.address;
+      subjectBasicIssuanceModuleData = {
+        moduleAddress: setV2Setup.issuanceModule.address,
+        isAllowed: true,
+        issueUnitsSignature: "getRequiredComponentUnitsForIssue(addresss,uint256)",
+        redeemUnitsSignature: "getRequiredComponentUnitsForRedeem(addresss,uint256)",
+      };
       subjectControllerAddress = setV2Setup.controller.address;
       subjectSwapTarget = zeroExMock.address;
     });
@@ -98,7 +103,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
       return await deployer.extensions.deployExchangeIssuanceZeroEx(
         subjectWethAddress,
         subjectControllerAddress,
-        [subjectBasicIssuanceModuleAddress],
+        [subjectBasicIssuanceModuleData],
         subjectSwapTarget,
       );
     }
@@ -112,7 +117,9 @@ describe("ExchangeIssuanceZeroEx", async () => {
       const expectedControllerAddress = await exchangeIssuanceContract.setController();
       expect(expectedControllerAddress).to.eq(subjectControllerAddress);
 
-      const basicIssuanceModuleStatus = await exchangeIssuanceContract.allowedIssuanceModules(subjectBasicIssuanceModuleAddress);
+      const basicIssuanceModuleStatus = await exchangeIssuanceContract.allowedIssuanceModules(
+        subjectBasicIssuanceModuleData.moduleAddress,
+      );
       expect(basicIssuanceModuleStatus).to.eq(true);
 
       const swapTarget = await exchangeIssuanceContract.swapTarget();
@@ -123,6 +130,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
   context("when exchange issuance is deployed", async () => {
     let wethAddress: Address;
     let controllerAddress: Address;
+    let basicIssuanceModuleData: IssuanceModuleData;
     let basicIssuanceModuleAddress: Address;
     let exchangeIssuanceZeroEx: ExchangeIssuanceZeroEx;
     let setTokenExternal: SetToken;
@@ -146,12 +154,18 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       wethAddress = weth.address;
       controllerAddress = setV2Setup.controller.address;
-      basicIssuanceModuleAddress = setV2Setup.issuanceModule.address;
+        basicIssuanceModuleAddress = setV2Setup.issuanceModule.address;
+      basicIssuanceModuleData = {
+        moduleAddress: basicIssuanceModuleAddress,
+        isAllowed: true,
+        issueUnitsSignature: "getRequiredComponentUnitsForIssue(addresss,uint256)",
+        redeemUnitsSignature: "getRequiredComponentUnitsForRedeem(addresss,uint256)",
+      };
 
       exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
         wethAddress,
         controllerAddress,
-        [basicIssuanceModuleAddress],
+        [basicIssuanceModuleData],
         zeroExMock.address,
       );
     });

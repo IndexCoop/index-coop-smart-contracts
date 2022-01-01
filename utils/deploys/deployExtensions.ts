@@ -7,6 +7,7 @@ import {
   IncentiveSettings,
   ExchangeSettings,
   AaveContractSettings,
+  IssuanceModuleData,
 } from "../types";
 import {
   AaveLeverageStrategyExtension,
@@ -18,7 +19,7 @@ import {
   FeeSplitExtension,
   GIMExtension,
   GovernanceExtension,
-  StreamingFeeSplitExtension
+  StreamingFeeSplitExtension,
 } from "../contracts/index";
 
 import { AaveLeverageStrategyExtension__factory } from "../../typechain/factories/AaveLeverageStrategyExtension__factory";
@@ -44,14 +45,14 @@ export default class DeployExtensions {
     streamingFeeModule: Address,
     debtIssuanceModule: Address,
     operatorFeeSplit: BigNumber,
-    operatorFeeRecipient: Address
+    operatorFeeRecipient: Address,
   ): Promise<FeeSplitExtension> {
     return await new FeeSplitExtension__factory(this._deployerSigner).deploy(
       manager,
       streamingFeeModule,
       debtIssuanceModule,
       operatorFeeSplit,
-      operatorFeeRecipient
+      operatorFeeRecipient,
     );
   }
 
@@ -65,7 +66,7 @@ export default class DeployExtensions {
       manager,
       streamingFeeModule,
       operatorFeeSplit,
-      operatorFeeRecipient
+      operatorFeeRecipient,
     );
   }
 
@@ -75,7 +76,7 @@ export default class DeployExtensions {
   ): Promise<GovernanceExtension> {
     return await new GovernanceExtension__factory(this._deployerSigner).deploy(
       manager,
-      governanceModule
+      governanceModule,
     );
   }
 
@@ -85,7 +86,7 @@ export default class DeployExtensions {
   ): Promise<GIMExtension> {
     return await new GIMExtension__factory(this._deployerSigner).deploy(
       manager,
-      generalIndexModule
+      generalIndexModule,
     );
   }
 
@@ -96,7 +97,7 @@ export default class DeployExtensions {
     executionSettings: ExecutionSettings,
     incentiveSettings: IncentiveSettings,
     exchangeNames: string[],
-    exchangeSettings: ExchangeSettings[]
+    exchangeSettings: ExchangeSettings[],
   ): Promise<FlexibleLeverageStrategyExtension> {
     return await new FlexibleLeverageStrategyExtension__factory(this._deployerSigner).deploy(
       manager,
@@ -125,7 +126,7 @@ export default class DeployExtensions {
       sushiFactoryAddress,
       sushiRouterAddress,
       setControllerAddress,
-      basicIssuanceModuleAddress
+      basicIssuanceModuleAddress,
     );
   }
 
@@ -145,25 +146,28 @@ export default class DeployExtensions {
       sushiFactoryAddress,
       sushiRouterAddress,
       setControllerAddress,
-      basicIssuanceModuleAddress
+      basicIssuanceModuleAddress,
     );
   }
 
   public async deployExchangeIssuanceZeroEx(
     wethAddress: Address,
     setControllerAddress: Address,
-    issuanceModules: Address[],
-    swapTarget: Address
+    issuanceModules: IssuanceModuleData[],
+    swapTarget: Address,
   ): Promise<ExchangeIssuanceZeroEx> {
     return await new ExchangeIssuanceZeroEx__factory(this._deployerSigner).deploy(
       wethAddress,
       setControllerAddress,
       issuanceModules,
-      swapTarget
+      swapTarget,
     );
   }
 
-  public async deployAirdropExtension(manager: Address, airdropModule: Address): Promise<AirdropExtension> {
+  public async deployAirdropExtension(
+    manager: Address,
+    airdropModule: Address,
+  ): Promise<AirdropExtension> {
     return await new AirdropExtension__factory(this._deployerSigner).deploy(manager, airdropModule);
   }
 
@@ -174,7 +178,7 @@ export default class DeployExtensions {
     executionSettings: ExecutionSettings,
     incentiveSettings: IncentiveSettings,
     exchangeNames: string[],
-    exchangeSettings: ExchangeSettings[]
+    exchangeSettings: ExchangeSettings[],
   ): Promise<AaveLeverageStrategyExtension> {
     return await new AaveLeverageStrategyExtension__factory(this._deployerSigner).deploy(
       manager,
