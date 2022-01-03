@@ -63,12 +63,12 @@ if (process.env.INTEGRATIONTEST) {
 
     const setTokenScenarios: Partial<Record<TokenName, SetTokenScenario>> = {};
     // Test Parameterization
-    const SET_TOKEN_NAMES: TokenName[] = ["DPI"];
+    const SET_TOKEN_NAMES: TokenName[] = ["SimpleToken", "DPI"];
     const SET_TOKEN_AMOUNTS: Record<TokenName, number[]> = {
       SimpleToken: [1],
       // DPI issuance of 5000 failed due to underbuying Badger in a multihop
       // TODO: Investigate
-      DPI: [1],
+      DPI: [1, 1000],
     };
 
     async function deployExchangeIssuanceZeroEx() {
