@@ -91,7 +91,11 @@ describe("ExchangeIssuanceZeroEx", async () => {
     setToken = await setV2Setup.createSetToken(
       [setV2Setup.usdc.address, setV2Setup.wbtc.address],
       [usdcUnits, wbtcUnits],
-      [setV2Setup.debtIssuanceModule.address, setV2Setup.issuanceModule.address, setV2Setup.streamingFeeModule.address],
+      [
+        setV2Setup.debtIssuanceModule.address,
+        setV2Setup.issuanceModule.address,
+        setV2Setup.streamingFeeModule.address,
+      ],
     );
 
     await setV2Setup.issuanceModule.initialize(setToken.address, ADDRESS_ZERO);
@@ -101,7 +105,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
       ZERO,
       ZERO,
       owner.address,
-      ADDRESS_ZERO
+      ADDRESS_ZERO,
     );
   });
 
@@ -378,6 +382,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           let subjectAmountSetToken: number;
           let subjectAmountSetTokenWei: BigNumber;
           let subjectPositionSwapQuotes: ZeroExSwapQuote[];
+          let subjectIssuanceModuleAddress: Address;
 
           const initializeSubjectVariables = async () => {
             subjectCaller = user;
@@ -386,6 +391,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             subjectInputToken = dai;
             subjectAmountSetToken = 1;
             subjectAmountSetTokenWei = ether(subjectAmountSetToken);
+            subjectIssuanceModuleAddress = issuanceModuleAddress;
 
             const positions = await subjectSetToken.getPositions();
             subjectPositionSwapQuotes = positions.map((position: any) =>
@@ -402,7 +408,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             initializeSubjectVariables();
             await exchangeIssuanceZeroEx.approveSetToken(
               subjectSetToken.address,
-              issuanceModuleAddress,
+              subjectIssuanceModuleAddress,
             );
             dai.connect(subjectCaller.wallet).approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
             await dai.transfer(subjectCaller.address, subjectInputTokenAmount);
@@ -419,7 +425,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
                 subjectAmountSetTokenWei,
                 subjectInputTokenAmount,
                 subjectPositionSwapQuotes,
-                issuanceModuleAddress,
+                subjectIssuanceModuleAddress,
               );
           }
 
@@ -492,6 +498,17 @@ describe("ExchangeIssuanceZeroEx", async () => {
               const finalInputBalance = await subjectInputToken.balanceOf(subjectCaller.address);
               const expectedInputBalance = initialBalanceOfInput.sub(subjectInputTokenAmount);
               expect(finalInputBalance).to.eq(expectedInputBalance);
+            });
+          });
+
+          context("when an invalid issuance module address is provided", async () => {
+            beforeEach(async () => {
+              subjectIssuanceModuleAddress = subjectCaller.address;
+            });
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith(
+                "ExchangeIssuance: INVALID ISSUANCE MODULE",
+              );
             });
           });
 
@@ -740,6 +757,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           let subjectAmountSetToken: number;
           let subjectAmountSetTokenWei: BigNumber;
           let subjectPositionSwapQuotes: ZeroExSwapQuote[];
+          let subjectIssuanceModuleAddress: Address;
 
           const initializeSubjectVariables = async () => {
             subjectCaller = user;
@@ -748,6 +766,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             subjectOutputToken = dai;
             subjectAmountSetToken = 1;
             subjectAmountSetTokenWei = ether(subjectAmountSetToken);
+            subjectIssuanceModuleAddress = issuanceModuleAddress;
 
             const positions = await subjectSetToken.getPositions();
             subjectPositionSwapQuotes = positions.map(position =>
@@ -764,7 +783,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             await initializeSubjectVariables();
             await exchangeIssuanceZeroEx.approveSetToken(
               subjectSetToken.address,
-              issuanceModuleAddress,
+              subjectIssuanceModuleAddress,
             );
             await setV2Setup.approveAndIssueSetToken(
               subjectSetToken,
@@ -786,7 +805,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
                 subjectAmountSetTokenWei,
                 subjectOutputTokenAmount,
                 subjectPositionSwapQuotes,
-                issuanceModuleAddress,
+                subjectIssuanceModuleAddress,
               );
           }
 
@@ -813,6 +832,17 @@ describe("ExchangeIssuanceZeroEx", async () => {
             it("should revert", async () => {
               await expect(subject()).to.be.revertedWith(
                 "ExchangeIssuance: INVALID SET TOKEN AMOUNT",
+              );
+            });
+          });
+
+          context("when an invalid issuance module address is provided", async () => {
+            beforeEach(async () => {
+              subjectIssuanceModuleAddress = subjectCaller.address;
+            });
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith(
+                "ExchangeIssuance: INVALID ISSUANCE MODULE",
               );
             });
           });
@@ -893,10 +923,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
           beforeEach(async () => {
             await initializeSubjectVariables();
-            await exchangeIssuanceZeroEx.approveSetToken(
-              setToken.address,
-              issuanceModuleAddress,
-            );
+            await exchangeIssuanceZeroEx.approveSetToken(setToken.address, issuanceModuleAddress);
             await setV2Setup.approveAndIssueSetToken(
               setToken,
               subjectAmountSetTokenWei,
