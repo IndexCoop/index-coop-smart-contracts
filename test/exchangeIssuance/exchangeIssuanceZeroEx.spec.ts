@@ -85,7 +85,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
       moduleAddress: setV2Setup.issuanceModule.address,
       isAllowed: true,
       issueUnitsSignature: "getRequiredComponentUnitsForIssue(address,uint256)",
-      redeemUnitsSignature: "getRequiredComponentUnitsForRedeem(address,uint256)",
+      redeemUnitsSignature: "getRequiredComponentUnitsForIssue(address,uint256)",
     };
 
     setToken = await setV2Setup.createSetToken(

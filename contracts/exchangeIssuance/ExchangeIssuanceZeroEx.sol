@@ -316,7 +316,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         _redeemExactSet(_setToken, _amountSetToken, _issuanceModule);
 
         // Liquidate components for WETH and ignore _outputQuote
-        outputAmount = _sellComponentsForOutputToken(_setToken, _amountSetToken, _componentQuotes, _outputToken);
+        outputAmount = _sellComponentsForOutputToken(_setToken, _amountSetToken, _componentQuotes, _outputToken, _issuanceModule);
         require(outputAmount >= _minOutputReceive, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
 
         // Transfer sender output token
@@ -352,7 +352,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         returns (uint256)
     {
         _redeemExactSet(_setToken, _amountSetToken, _issuanceModule);
-        uint ethAmount = _sellComponentsForOutputToken(_setToken, _amountSetToken, _componentQuotes, IERC20(WETH));
+        uint ethAmount = _sellComponentsForOutputToken(_setToken, _amountSetToken, _componentQuotes, IERC20(WETH), _issuanceModule);
         require(ethAmount >= _minEthReceive, "ExchangeIssuance: INSUFFICIENT WETH RECEIVED");
 
         IWETH(WETH).withdraw(ethAmount);
@@ -441,16 +441,16 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      *
      * @return totalOutputTokenBought  Total amount of output token received after liquidating all SetToken components
      */
-    function _sellComponentsForOutputToken(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _swaps, IERC20 _outputToken)
+    function _sellComponentsForOutputToken(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _swaps, IERC20 _outputToken, address _issuanceModule)
         internal
         returns (uint256 totalOutputTokenBought)
     {
-        address[] memory components = _setToken.getComponents();
+        (address[] memory components, uint256[] memory componentUnits) = _getRequiredRedemptionComponents(_issuanceModule, _setToken, _amountSetToken);
         for (uint256 i = 0; i < _swaps.length; i++) {
             require(components[i] == address(_swaps[i].sellToken), "ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
             require(address(_swaps[i].buyToken) == address(_outputToken), "ExchangeIssuance: INVALID BUY TOKEN");
             uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
-            uint256 maxAmountSell = unit.preciseMul(_amountSetToken);
+            uint256 maxAmountSell = componentUnits[i];
 
             uint256 outputTokenAmountBought;
             uint256 componentAmountSold;
@@ -535,4 +535,20 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         return abi.decode(returndata, (address[], uint256[]));
 
     }
+
+    /**
+     * Returns component positions required for Redemption 
+     *
+     * @param _issuanceModule    Address of issuance Module to use 
+     * @param _setToken          Set token to issue
+     * @param _amountSetToken    Amount of set token to issue
+     */
+    function _getRequiredRedemptionComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) internal  returns(address[] memory, uint256[] memory){
+        bytes memory callData = abi.encodeWithSignature(allowedIssuanceModules[_issuanceModule].redeemUnitsSignature, _setToken, _amountSetToken);
+        (bool success, bytes memory returndata) = _issuanceModule.call(callData);
+        require(success, string(returndata));
+        return abi.decode(returndata, (address[], uint256[]));
+    }
+
+
 }
