@@ -408,7 +408,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 componentAmountBought;
         uint256 inputTokenAmountSold;
 
-        (address[] memory components, uint256[] memory componentUnits) = IBasicIssuanceModule(_issuanceModule).getRequiredComponentUnitsForIssue(_setToken, _amountSetToken);
+        (address[] memory components, uint256[] memory componentUnits) = _getRequiredIssuanceComponents(_issuanceModule, _setToken, _amountSetToken);
         for (uint256 i = 0; i < components.length; i++) {
             address component = components[i];
             uint256 units = componentUnits[i];
@@ -519,5 +519,20 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         if (amountTokenReturn > 0) {
             _inputToken.safeTransfer(msg.sender,  amountTokenReturn);
         }
+    }
+
+    /**
+     * Returns component positions required for issuance 
+     *
+     * @param _issuanceModule    Address of issuance Module to use 
+     * @param _setToken          Set token to issue
+     * @param _amountSetToken    Amount of set token to issue
+     */
+    function _getRequiredIssuanceComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) internal  returns(address[] memory, uint256[] memory){
+        bytes memory callData = abi.encodeWithSignature(allowedIssuanceModules[_issuanceModule].issueUnitsSignature, _setToken, _amountSetToken);
+        (bool success, bytes memory returndata) = _issuanceModule.call(callData);
+        require(success, string(returndata));
+        return abi.decode(returndata, (address[], uint256[]));
+
     }
 }

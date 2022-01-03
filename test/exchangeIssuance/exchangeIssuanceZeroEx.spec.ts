@@ -92,8 +92,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
       subjectBasicIssuanceModuleData = {
         moduleAddress: setV2Setup.issuanceModule.address,
         isAllowed: true,
-        issueUnitsSignature: "getRequiredComponentUnitsForIssue(addresss,uint256)",
-        redeemUnitsSignature: "getRequiredComponentUnitsForRedeem(addresss,uint256)",
+        issueUnitsSignature: "getRequiredComponentUnitsForIssue(address,uint256)",
+        redeemUnitsSignature: "getRequiredComponentUnitsForRedeem(address,uint256)",
       };
       subjectControllerAddress = setV2Setup.controller.address;
       subjectSwapTarget = zeroExMock.address;
@@ -117,10 +117,12 @@ describe("ExchangeIssuanceZeroEx", async () => {
       const expectedControllerAddress = await exchangeIssuanceContract.setController();
       expect(expectedControllerAddress).to.eq(subjectControllerAddress);
 
-      const basicIssuanceModuleStatus = await exchangeIssuanceContract.allowedIssuanceModules(
+      const basicIssuanceModuleData = await exchangeIssuanceContract.allowedIssuanceModules(
         subjectBasicIssuanceModuleData.moduleAddress,
       );
-      expect(basicIssuanceModuleStatus).to.eq(true);
+      expect(basicIssuanceModuleData).to.have.members(
+        Object.values(subjectBasicIssuanceModuleData),
+      );
 
       const swapTarget = await exchangeIssuanceContract.swapTarget();
       expect(swapTarget).to.eq(subjectSwapTarget);
@@ -154,12 +156,12 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       wethAddress = weth.address;
       controllerAddress = setV2Setup.controller.address;
-        basicIssuanceModuleAddress = setV2Setup.issuanceModule.address;
+      basicIssuanceModuleAddress = setV2Setup.issuanceModule.address;
       basicIssuanceModuleData = {
         moduleAddress: basicIssuanceModuleAddress,
         isAllowed: true,
-        issueUnitsSignature: "getRequiredComponentUnitsForIssue(addresss,uint256)",
-        redeemUnitsSignature: "getRequiredComponentUnitsForRedeem(addresss,uint256)",
+        issueUnitsSignature: "getRequiredComponentUnitsForIssue(address,uint256)",
+        redeemUnitsSignature: "getRequiredComponentUnitsForRedeem(address,uint256)",
       };
 
       exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
