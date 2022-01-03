@@ -14,7 +14,7 @@ const forkingConfig = {
   blockNumber: process.env.LATESTBLOCK ? undefined : 11649166,
 };
 
-const INTEGRATIONTEST_TIMEOUT = 300000;
+const INTEGRATIONTEST_TIMEOUT = 600000;
 
 const mochaConfig = {
   grep: "@forked-network",

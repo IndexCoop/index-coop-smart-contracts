@@ -1,5 +1,5 @@
 import "module-alias/register";
-import { Address, Account } from "@utils/types";
+import { Address, Account, IssuanceModuleData } from "@utils/types";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { SetToken } from "@utils/contracts/setV2";
 import { ether, getAccounts, getSetFixture, getWaffleExpect } from "@utils/index";
@@ -23,7 +23,7 @@ type ZeroExSwapQuote = {
 type SetTokenScenario = {
   setToken: Address;
   controller: Address;
-  issuanceModule: Address;
+  issuanceModuleData: IssuanceModuleData;
 };
 
 type TokenName = "SimpleToken" | "DPI";
@@ -47,6 +47,7 @@ if (process.env.INTEGRATIONTEST) {
     let dpiAddress: Address;
     let zeroExProxyAddress: Address;
     let controllerAddress: Address;
+    let issuanceModuleData: IssuanceModuleData;
     let issuanceModuleAddress: Address;
 
     // Contract Instances
@@ -62,19 +63,19 @@ if (process.env.INTEGRATIONTEST) {
 
     const setTokenScenarios: Partial<Record<TokenName, SetTokenScenario>> = {};
     // Test Parameterization
-    const SET_TOKEN_NAMES: TokenName[] = ["SimpleToken", "DPI"];
+    const SET_TOKEN_NAMES: TokenName[] = ["DPI"];
     const SET_TOKEN_AMOUNTS: Record<TokenName, number[]> = {
       SimpleToken: [1],
       // DPI issuance of 5000 failed due to underbuying Badger in a multihop
       // TODO: Investigate
-      DPI: [1, 1000],
+      DPI: [1],
     };
 
     async function deployExchangeIssuanceZeroEx() {
       exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
         wethAddress,
         controllerAddress,
-        issuanceModuleAddress,
+        [issuanceModuleData],
         zeroExProxyAddress,
       );
     }
@@ -110,7 +111,12 @@ if (process.env.INTEGRATIONTEST) {
       setTokenScenarios["SimpleToken"] = {
         setToken: simpleSetToken.address,
         controller: setV2Setup.controller.address,
-        issuanceModule: setV2Setup.issuanceModule.address,
+        issuanceModuleData: {
+          moduleAddress: setV2Setup.issuanceModule.address,
+          isAllowed: true,
+          issueUnitsSignature: "getRequiredComponentUnitsForIssue(address,uint256)",
+          redeemUnitsSignature: "getRequiredComponentUnitsForIssue(address,uint256)",
+        },
       };
 
       const dpiToken = simpleSetToken.attach(dpiAddress);
@@ -120,7 +126,12 @@ if (process.env.INTEGRATIONTEST) {
       setTokenScenarios["DPI"] = {
         setToken: dpiAddress,
         controller: dpiController,
-        issuanceModule: dpiIssuanceModule,
+        issuanceModuleData: {
+          moduleAddress: dpiIssuanceModule,
+          isAllowed: true,
+          issueUnitsSignature: "getRequiredComponentUnitsForIssue(address,uint256)",
+          redeemUnitsSignature: "getRequiredComponentUnitsForIssue(address,uint256)",
+        },
       };
     });
 
@@ -170,7 +181,8 @@ if (process.env.INTEGRATIONTEST) {
           const scenario = setTokenScenarios[tokenName];
           if (scenario != undefined) {
             controllerAddress = scenario.controller;
-            issuanceModuleAddress = scenario.issuanceModule;
+            issuanceModuleData = scenario.issuanceModuleData;
+            issuanceModuleAddress = issuanceModuleData.moduleAddress;
             setToken = simpleSetToken.attach(scenario.setToken);
           }
         });
@@ -293,12 +305,16 @@ if (process.env.INTEGRATIONTEST) {
                     subjectAmountSetTokenWei,
                     subjectInputTokenAmount,
                     subjectPositionSwapQuotes,
+                    issuanceModuleAddress,
                   );
               }
 
               beforeEach(async () => {
                 await deployExchangeIssuanceZeroEx();
-                await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+                await exchangeIssuanceZeroEx.approveSetToken(
+                  setToken.address,
+                  issuanceModuleAddress,
+                );
                 await initializeSubjectVariables(setTokenAmount);
                 await obtainAndApproveInputToken();
               });
@@ -394,11 +410,12 @@ if (process.env.INTEGRATIONTEST) {
                     subjectAmountSetTokenWei,
                     subjectOutputTokenAmount,
                     subjectPositionSwapQuotes,
+                    issuanceModuleAddress,
                   );
               }
               beforeEach(async () => {
                 await deployExchangeIssuanceZeroEx();
-                await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+                await exchangeIssuanceZeroEx.approveSetToken(setToken.address, issuanceModuleAddress);
                 await initializeSubjectVariables(setTokenAmount);
                 await setToken
                   .connect(user.wallet)
