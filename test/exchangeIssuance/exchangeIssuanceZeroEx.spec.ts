@@ -301,13 +301,15 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
         describe("#approveTokens", async () => {
           let subjectTokensToApprove: (StandardTokenMock | WETH9)[];
+          let subjectCaller: Account;
 
           beforeEach(async () => {
             subjectTokensToApprove = [setV2Setup.weth, setV2Setup.wbtc];
+            subjectCaller = owner;
           });
 
           async function subject() {
-            return await exchangeIssuanceZeroEx.approveTokens(
+            return await exchangeIssuanceZeroEx.connect(subjectCaller.wallet).approveTokens(
               subjectTokensToApprove.map(token => token.address),
               issuanceModuleAddress,
             );
@@ -350,6 +352,17 @@ describe("ExchangeIssuanceZeroEx", async () => {
                 const expectedAllowance = MAX_UINT_96;
                 expect(actualAllowance).to.eq(expectedAllowance);
               }
+            });
+          });
+
+          context("when the caller is not the owner", async () => {
+            beforeEach(() => {
+              subjectCaller = user;
+            });
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith(
+                "Ownable: caller is not the owner",
+              );
             });
           });
         });
