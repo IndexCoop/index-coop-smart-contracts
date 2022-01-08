@@ -464,11 +464,11 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             uint256 componentAmountSold;
 
             // If the component is equal to the input token we don't have to trade
-            if(components[i] == address(_swaps[i].buyToken)){
+            if(components[i] == address(_swaps[i].buyToken)) {
                 outputTokenAmountBought = maxAmountSell;
                 componentAmountSold = maxAmountSell;
             }
-            else{
+            else {
                 _safeApprove(_swaps[i].sellToken, address(swapTarget), maxAmountSell);
                 (outputTokenAmountBought, componentAmountSold) = _fillQuote(_swaps[i]);
             }
@@ -536,7 +536,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _setToken          Set token to issue
      * @param _amountSetToken    Amount of set token to issue
      */
-    function _getRequiredIssuanceComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) internal  returns(address[] memory components, uint256[] memory positions){
+    function _getRequiredIssuanceComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) internal  returns(address[] memory components, uint256[] memory positions) {
         if(allowedIssuanceModules[_issuanceModule].isDebtIssuanceModule) {
             // TODO: Check if possible to ignore third return parameter and avoid declaring an unused variable 
             uint256[] memory debtPositions;
@@ -555,7 +555,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _setToken          Set token to issue
      * @param _amountSetToken    Amount of set token to issue
      */
-    function _getRequiredRedemptionComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) internal  returns(address[] memory components, uint256[] memory positions){
+    function _getRequiredRedemptionComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) internal  returns(address[] memory components, uint256[] memory positions) {
         if(allowedIssuanceModules[_issuanceModule].isDebtIssuanceModule) {
             // TODO: Check if possible to ignore third return parameter and avoid declaring an unused variable 
             uint256[] memory debtPositions;

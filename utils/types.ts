@@ -93,9 +93,3 @@ export interface AirdropSettings {
   airdropFee: BigNumber;
   anyoneAbsorb: boolean;
 }
-
-export interface IssuanceModuleData {
-  isAllowed: boolean;
-  moduleAddress: string;
-  isDebtIssuanceModule: boolean;
-}
