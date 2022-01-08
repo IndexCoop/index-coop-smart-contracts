@@ -97,6 +97,5 @@ export interface AirdropSettings {
 export interface IssuanceModuleData {
   isAllowed: boolean;
   moduleAddress: string;
-  issueUnitsSignature: string;
-  redeemUnitsSignature: string;
+  isDebtIssuanceModule: boolean;
 }

@@ -23,6 +23,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import { IBasicIssuanceModule } from "../interfaces/IBasicIssuanceModule.sol";
+import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { IController } from "../interfaces/IController.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
@@ -45,9 +46,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
     struct IssuanceModuleData {
         bool isAllowed;
+        bool isDebtIssuanceModule;
         address moduleAddress;
-        string issueUnitsSignature;
-        string redeemUnitsSignature;
     }
 
     /* ============ Constants ============== */
@@ -95,8 +95,12 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
          _;
     }
 
-    modifier isValidInput(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _componentQuotes) {
+    modifier isWhitelistedIssuanceModule(address _issuanceModule) {
         require(allowedIssuanceModules[_issuanceModule].isAllowed, "ExchangeIssuance: INVALID ISSUANCE MODULE");
+         _;
+    }
+
+    modifier isValidInput(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _componentQuotes) {
         require(_amountSetToken > 0, "ExchangeIssuance: INVALID SET TOKEN AMOUNT");
         require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
          _;
@@ -164,8 +168,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      *
      * @param _token    Address of the token which needs approval
      */
-    // TODO: Added onlyOwner modifier here, check if correct
-    function approveToken(IERC20 _token, address _spender) public  onlyOwner {
+    function approveToken(IERC20 _token, address _spender) public  isWhitelistedIssuanceModule(_spender) {
         _safeApprove(_token, _spender, type(uint96).max);
     }
 
@@ -220,7 +223,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         address _issuanceModule
     )
         isSetToken(_setToken)
-        isValidInput(_issuanceModule, _setToken, _amountSetToken, _componentQuotes)
+        isWhitelistedIssuanceModule(_issuanceModule)
+        isValidInput(_setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         returns (uint256)
@@ -258,7 +262,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         address _issuanceModule
     )
         isSetToken(_setToken)
-        isValidInput(_issuanceModule, _setToken, _amountSetToken, _componentQuotes)
+        isWhitelistedIssuanceModule(_issuanceModule)
+        isValidInput(_setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         payable
@@ -306,7 +311,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         address _issuanceModule
     )
         isSetToken(_setToken)
-        isValidInput(_issuanceModule, _setToken, _amountSetToken, _componentQuotes)
+        isWhitelistedIssuanceModule(_issuanceModule)
+        isValidInput(_setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         returns (uint256)
@@ -346,7 +352,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         address _issuanceModule
     )
         isSetToken(_setToken)
-        isValidInput(_issuanceModule, _setToken, _amountSetToken, _componentQuotes)
+        isWhitelistedIssuanceModule(_issuanceModule)
+        isValidInput(_setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         returns (uint256)
@@ -418,11 +425,11 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             require(_inputToken == quote.sellToken, "ExchangeIssuance: INVALID SELL TOKEN");
 
             // If the component is equal to the input token we don't have to trade
-            if(component == address(quote.sellToken)){
+            if(component == address(quote.sellToken)) {
                 inputTokenAmountSold = units;
                 componentAmountBought = units;
             }
-            else{
+            else {
                 (componentAmountBought, inputTokenAmountSold) = _fillQuote(quote);
                 require(componentAmountBought >= units, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
             }
@@ -449,7 +456,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         for (uint256 i = 0; i < _swaps.length; i++) {
             require(components[i] == address(_swaps[i].sellToken), "ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
             require(address(_swaps[i].buyToken) == address(_outputToken), "ExchangeIssuance: INVALID BUY TOKEN");
-            uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
             uint256 maxAmountSell = componentUnits[i];
 
             uint256 outputTokenAmountBought;
@@ -514,7 +520,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _receivedAmount     Amount received by the caller
      * @param _spentAmount        Amount spent for issuance
      */
-    function _returnExcessInputToken(IERC20 _inputToken, uint256 _receivedAmount, uint256 _spentAmount) internal{
+    function _returnExcessInputToken(IERC20 _inputToken, uint256 _receivedAmount, uint256 _spentAmount) internal {
         uint256 amountTokenReturn = _receivedAmount.sub(_spentAmount);
         if (amountTokenReturn > 0) {
             _inputToken.safeTransfer(msg.sender,  amountTokenReturn);
@@ -528,11 +534,15 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _setToken          Set token to issue
      * @param _amountSetToken    Amount of set token to issue
      */
-    function _getRequiredIssuanceComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) internal  returns(address[] memory, uint256[] memory){
-        bytes memory callData = abi.encodeWithSignature(allowedIssuanceModules[_issuanceModule].issueUnitsSignature, _setToken, _amountSetToken);
-        (bool success, bytes memory returndata) = _issuanceModule.call(callData);
-        require(success, string(returndata));
-        return abi.decode(returndata, (address[], uint256[]));
+    function _getRequiredIssuanceComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) internal  returns(address[] memory components, uint256[] memory positions){
+        if(allowedIssuanceModules[_issuanceModule].isDebtIssuanceModule) {
+            // TODO: Check if possible to ignore third return parameter and avoid declaring an unused variable 
+            uint256[] memory debtPositions;
+            (components, positions, debtPositions) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
+        }
+        else {
+            (components, positions) = IBasicIssuanceModule(_issuanceModule).getRequiredComponentUnitsForIssue(_setToken, _amountSetToken);
+        }
 
     }
 
@@ -543,11 +553,15 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _setToken          Set token to issue
      * @param _amountSetToken    Amount of set token to issue
      */
-    function _getRequiredRedemptionComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) internal  returns(address[] memory, uint256[] memory){
-        bytes memory callData = abi.encodeWithSignature(allowedIssuanceModules[_issuanceModule].redeemUnitsSignature, _setToken, _amountSetToken);
-        (bool success, bytes memory returndata) = _issuanceModule.call(callData);
-        require(success, string(returndata));
-        return abi.decode(returndata, (address[], uint256[]));
+    function _getRequiredRedemptionComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) internal  returns(address[] memory components, uint256[] memory positions){
+        if(allowedIssuanceModules[_issuanceModule].isDebtIssuanceModule) {
+            // TODO: Check if possible to ignore third return parameter and avoid declaring an unused variable 
+            uint256[] memory debtPositions;
+            (components, positions, debtPositions) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
+        }
+        else {
+            (components, positions) = IBasicIssuanceModule(_issuanceModule).getRequiredComponentUnitsForIssue(_setToken, _amountSetToken);
+        }
     }
 
 

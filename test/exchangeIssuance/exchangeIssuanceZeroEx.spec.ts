@@ -78,14 +78,12 @@ describe("ExchangeIssuanceZeroEx", async () => {
     debtIssuanceModuleData = {
       moduleAddress: setV2Setup.debtIssuanceModule.address,
       isAllowed: true,
-      issueUnitsSignature: "getRequiredComponentIssuanceUnits(address,uint256)",
-      redeemUnitsSignature: "getRequiredComponentRedemptionUnits(address,uint256)",
+      isDebtIssuanceModule: true,
     };
     basicIssuanceModuleData = {
       moduleAddress: setV2Setup.issuanceModule.address,
       isAllowed: true,
-      issueUnitsSignature: "getRequiredComponentUnitsForIssue(address,uint256)",
-      redeemUnitsSignature: "getRequiredComponentUnitsForIssue(address,uint256)",
+      isDebtIssuanceModule: false,
     };
 
     setToken = await setV2Setup.createSetToken(
@@ -301,17 +299,17 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
         describe("#approveTokens", async () => {
           let subjectTokensToApprove: (StandardTokenMock | WETH9)[];
-          let subjectCaller: Account;
+          let subjectSpender: Address;
 
           beforeEach(async () => {
             subjectTokensToApprove = [setV2Setup.weth, setV2Setup.wbtc];
-            subjectCaller = owner;
+            subjectSpender = issuanceModuleAddress;
           });
 
           async function subject() {
-            return await exchangeIssuanceZeroEx.connect(subjectCaller.wallet).approveTokens(
+            return await exchangeIssuanceZeroEx.approveTokens(
               subjectTokensToApprove.map(token => token.address),
-              issuanceModuleAddress,
+              subjectSpender,
             );
           }
 
@@ -355,13 +353,13 @@ describe("ExchangeIssuanceZeroEx", async () => {
             });
           });
 
-          context("when the caller is not the owner", async () => {
+          context("when the spender address is not a whitelisted issuance module", async () => {
             beforeEach(() => {
-              subjectCaller = user;
+              subjectSpender = user.address;
             });
             it("should revert", async () => {
               await expect(subject()).to.be.revertedWith(
-                "Ownable: caller is not the owner",
+                "ExchangeIssuance: INVALID ISSUANCE MODULE",
               );
             });
           });
