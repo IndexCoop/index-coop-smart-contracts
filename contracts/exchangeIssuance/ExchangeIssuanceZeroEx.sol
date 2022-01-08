@@ -47,7 +47,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     struct IssuanceModuleData {
         bool isAllowed;
         bool isDebtIssuanceModule;
-        address moduleAddress;
     }
 
     /* ============ Constants ============== */
@@ -109,18 +108,20 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     constructor(
         address _weth,
         IController _setController,
-        IssuanceModuleData[] memory _allowedIssuanceModules,
+        address[] memory _issuanceModuleAddresses,
+        bool[] memory _issuanceModuleDebtIssuanceFlags,
         address _swapTarget
     )
         public
     {
+        require(_issuanceModuleAddresses.length == _issuanceModuleDebtIssuanceFlags.length, "ExchangeIssuance: ISSUANCE MODULE ADDRESSES / TYPE FLAGS LENGTH MISMATCH");
         setController = _setController;
 
         WETH = _weth;
         swapTarget = _swapTarget;
 
-        for (uint256 i = 0; i < _allowedIssuanceModules.length; i++) {
-            _addIssuanceModule(_allowedIssuanceModules[i]);
+        for (uint256 i = 0; i < _issuanceModuleAddresses.length; i++) {
+            _addIssuanceModule(_issuanceModuleAddresses[i], _issuanceModuleDebtIssuanceFlags[i]);
         }
 
     }
@@ -139,8 +140,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      *
      * @param _issuanceModule    Struct containing data on issuance module to add
      */
-    function addIssuanceModule(IssuanceModuleData memory _issuanceModule) public onlyOwner {
-        _addIssuanceModule(_issuanceModule);
+    function addIssuanceModule(address _issuanceModule, bool _isDebtIssuanceModule) public onlyOwner {
+        _addIssuanceModule(_issuanceModule, _isDebtIssuanceModule);
     }
 
     /**
@@ -375,8 +376,9 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      *
      * @param _issuanceModule    Struct containing data on issuance module to add
      */
-    function _addIssuanceModule(IssuanceModuleData memory _issuanceModule) internal {
-        allowedIssuanceModules[_issuanceModule.moduleAddress] = _issuanceModule;
+    function _addIssuanceModule(address _issuanceModule, bool _isDebtIssuanceModule) internal {
+        allowedIssuanceModules[_issuanceModule].isAllowed = true;
+        allowedIssuanceModules[_issuanceModule].isDebtIssuanceModule = _isDebtIssuanceModule;
     }
 
     /**

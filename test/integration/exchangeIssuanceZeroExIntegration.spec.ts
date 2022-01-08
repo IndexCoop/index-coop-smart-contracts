@@ -1,5 +1,5 @@
 import "module-alias/register";
-import { Address, Account, IssuanceModuleData } from "@utils/types";
+import { Address, Account } from "@utils/types";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { SetToken } from "@utils/contracts/setV2";
 import { ether, getAccounts, getSetFixture, getWaffleExpect } from "@utils/index";
@@ -23,7 +23,8 @@ type ZeroExSwapQuote = {
 type SetTokenScenario = {
   setToken: Address;
   controller: Address;
-  issuanceModuleData: IssuanceModuleData;
+  issuanceModuleAddress: Address;
+  isDebtIssuanceModule: boolean;
 };
 
 type TokenName = "SimpleToken" | "DPI";
@@ -47,7 +48,7 @@ if (process.env.INTEGRATIONTEST) {
     let dpiAddress: Address;
     let zeroExProxyAddress: Address;
     let controllerAddress: Address;
-    let issuanceModuleData: IssuanceModuleData;
+    let isDebtIssuanceModule: boolean;
     let issuanceModuleAddress: Address;
 
     // Contract Instances
@@ -75,7 +76,8 @@ if (process.env.INTEGRATIONTEST) {
       exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
         wethAddress,
         controllerAddress,
-        [issuanceModuleData],
+        [issuanceModuleAddress],
+        [isDebtIssuanceModule],
         zeroExProxyAddress,
       );
     }
@@ -111,12 +113,8 @@ if (process.env.INTEGRATIONTEST) {
       setTokenScenarios["SimpleToken"] = {
         setToken: simpleSetToken.address,
         controller: setV2Setup.controller.address,
-        issuanceModuleData: {
-          moduleAddress: setV2Setup.issuanceModule.address,
-          isAllowed: true,
-          issueUnitsSignature: "getRequiredComponentUnitsForIssue(address,uint256)",
-          redeemUnitsSignature: "getRequiredComponentUnitsForIssue(address,uint256)",
-        },
+        issuanceModuleAddress: setV2Setup.issuanceModule.address,
+        isDebtIssuanceModule: false,
       };
 
       const dpiToken = simpleSetToken.attach(dpiAddress);
@@ -126,12 +124,8 @@ if (process.env.INTEGRATIONTEST) {
       setTokenScenarios["DPI"] = {
         setToken: dpiAddress,
         controller: dpiController,
-        issuanceModuleData: {
-          moduleAddress: dpiIssuanceModule,
-          isAllowed: true,
-          issueUnitsSignature: "getRequiredComponentUnitsForIssue(address,uint256)",
-          redeemUnitsSignature: "getRequiredComponentUnitsForIssue(address,uint256)",
-        },
+        issuanceModuleAddress: dpiIssuanceModule,
+        isDebtIssuanceModule: true,
       };
     });
 
@@ -181,8 +175,8 @@ if (process.env.INTEGRATIONTEST) {
           const scenario = setTokenScenarios[tokenName];
           if (scenario != undefined) {
             controllerAddress = scenario.controller;
-            issuanceModuleData = scenario.issuanceModuleData;
-            issuanceModuleAddress = issuanceModuleData.moduleAddress;
+            issuanceModuleAddress = scenario.issuanceModuleAddress;
+            isDebtIssuanceModule = scenario.isDebtIssuanceModule;
             setToken = simpleSetToken.attach(scenario.setToken);
           }
         });
@@ -415,7 +409,10 @@ if (process.env.INTEGRATIONTEST) {
               }
               beforeEach(async () => {
                 await deployExchangeIssuanceZeroEx();
-                await exchangeIssuanceZeroEx.approveSetToken(setToken.address, issuanceModuleAddress);
+                await exchangeIssuanceZeroEx.approveSetToken(
+                  setToken.address,
+                  issuanceModuleAddress,
+                );
                 await initializeSubjectVariables(setTokenAmount);
                 await setToken
                   .connect(user.wallet)

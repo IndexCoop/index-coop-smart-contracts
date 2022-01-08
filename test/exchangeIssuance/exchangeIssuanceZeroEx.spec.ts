@@ -1,5 +1,5 @@
 import "module-alias/register";
-import { Address, Account, IssuanceModuleData } from "@utils/types";
+import { Address, Account } from "@utils/types";
 import { ADDRESS_ZERO, MAX_UINT_96, MAX_UINT_256, ETH_ADDRESS, ZERO, ONE } from "@utils/constants";
 import { SetToken } from "@utils/contracts/setV2";
 import {
@@ -55,9 +55,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
   let usdcUnits: BigNumber;
   let wbtcUnits: BigNumber;
 
-  let basicIssuanceModuleData: IssuanceModuleData;
-  let debtIssuanceModuleData: IssuanceModuleData;
-
   cacheBeforeEach(async () => {
     [owner, user, externalPositionModule] = await getAccounts();
     deployer = new DeployHelper(owner.wallet);
@@ -74,17 +71,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
     usdcUnits = UnitsUtils.usdc(1);
     wbtcUnits = UnitsUtils.wbtc(1);
-
-    debtIssuanceModuleData = {
-      moduleAddress: setV2Setup.debtIssuanceModule.address,
-      isAllowed: true,
-      isDebtIssuanceModule: true,
-    };
-    basicIssuanceModuleData = {
-      moduleAddress: setV2Setup.issuanceModule.address,
-      isAllowed: true,
-      isDebtIssuanceModule: false,
-    };
 
     setToken = await setV2Setup.createSetToken(
       [setV2Setup.usdc.address, setV2Setup.wbtc.address],
@@ -110,21 +96,27 @@ describe("ExchangeIssuanceZeroEx", async () => {
   describe("#constructor", async () => {
     let subjectWethAddress: Address;
     let subjectControllerAddress: Address;
-    let subjectIssuanceModules: IssuanceModuleData[];
+    let subjectIssuanceModuleAddresses: Address[];
+    let subjectIssuanceModuleDebtModuleFlags: boolean[];
     let subjectSwapTarget: Address;
 
     cacheBeforeEach(async () => {
       subjectWethAddress = weth.address;
       subjectControllerAddress = setV2Setup.controller.address;
       subjectSwapTarget = zeroExMock.address;
-      subjectIssuanceModules = [basicIssuanceModuleData, debtIssuanceModuleData];
+      subjectIssuanceModuleAddresses = [
+        setV2Setup.issuanceModule.address,
+        setV2Setup.debtIssuanceModule.address,
+      ];
+      subjectIssuanceModuleDebtModuleFlags = [false, true];
     });
 
     async function subject(): Promise<ExchangeIssuanceZeroEx> {
       return await deployer.extensions.deployExchangeIssuanceZeroEx(
         subjectWethAddress,
         subjectControllerAddress,
-        subjectIssuanceModules,
+        subjectIssuanceModuleAddresses,
+        subjectIssuanceModuleDebtModuleFlags,
         subjectSwapTarget,
       );
     }
@@ -139,16 +131,16 @@ describe("ExchangeIssuanceZeroEx", async () => {
       expect(expectedControllerAddress).to.eq(subjectControllerAddress);
 
       const returnedBasicIssuanceModuleData = await exchangeIssuanceContract.allowedIssuanceModules(
-        basicIssuanceModuleData.moduleAddress,
+        setV2Setup.issuanceModule.address,
       );
-      expect(returnedBasicIssuanceModuleData).to.have.members(
-        Object.values(basicIssuanceModuleData),
-      );
+      expect(returnedBasicIssuanceModuleData[0]).to.eq(true);
+      expect(returnedBasicIssuanceModuleData[1]).to.eq(false);
 
       const returnedDebtIssuanceModuleData = await exchangeIssuanceContract.allowedIssuanceModules(
-        debtIssuanceModuleData.moduleAddress,
+        setV2Setup.debtIssuanceModule.address,
       );
-      expect(returnedDebtIssuanceModuleData).to.have.members(Object.values(debtIssuanceModuleData));
+      expect(returnedDebtIssuanceModuleData[0]).to.eq(true);
+      expect(returnedDebtIssuanceModuleData[1]).to.eq(true);
 
       const swapTarget = await exchangeIssuanceContract.swapTarget();
       expect(swapTarget).to.eq(subjectSwapTarget);
@@ -181,24 +173,29 @@ describe("ExchangeIssuanceZeroEx", async () => {
       wethAddress = weth.address;
       controllerAddress = setV2Setup.controller.address;
 
+      const issuanceModuleAddresses = [
+        setV2Setup.issuanceModule.address,
+        setV2Setup.debtIssuanceModule.address,
+      ];
+      const issuanceModuleDebtModuleFlags = [false, true];
+
       exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
         wethAddress,
         controllerAddress,
-        [basicIssuanceModuleData, debtIssuanceModuleData],
+        issuanceModuleAddresses,
+        issuanceModuleDebtModuleFlags,
         zeroExMock.address,
       );
     });
 
     ["basicIssuanceModule", "debtIssuanceModule"].forEach((issuanceModuleName: string) => {
       context(`when issuance module is ${issuanceModuleName}`, () => {
-        let issuanceModuleData: IssuanceModuleData;
         let issuanceModuleAddress: Address;
         before(() => {
-          issuanceModuleData =
+          issuanceModuleAddress =
             issuanceModuleName === "basicIssuanceModule"
-              ? basicIssuanceModuleData
-              : debtIssuanceModuleData;
-          issuanceModuleAddress = issuanceModuleData.moduleAddress;
+              ? setV2Setup.issuanceModule.address
+              : setV2Setup.debtIssuanceModule.address;
         });
 
         describe("#approveSetToken", async () => {
