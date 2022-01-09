@@ -23,7 +23,8 @@ type ZeroExSwapQuote = {
 type SetTokenScenario = {
   setToken: Address;
   controller: Address;
-  issuanceModule: Address;
+  issuanceModuleAddress: Address;
+  isDebtIssuanceModule: boolean;
 };
 
 type TokenName = "SimpleToken" | "DPI";
@@ -47,6 +48,7 @@ if (process.env.INTEGRATIONTEST) {
     let dpiAddress: Address;
     let zeroExProxyAddress: Address;
     let controllerAddress: Address;
+    let isDebtIssuanceModule: boolean;
     let issuanceModuleAddress: Address;
 
     // Contract Instances
@@ -74,7 +76,8 @@ if (process.env.INTEGRATIONTEST) {
       exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
         wethAddress,
         controllerAddress,
-        issuanceModuleAddress,
+        [issuanceModuleAddress],
+        [isDebtIssuanceModule],
         zeroExProxyAddress,
       );
     }
@@ -110,7 +113,8 @@ if (process.env.INTEGRATIONTEST) {
       setTokenScenarios["SimpleToken"] = {
         setToken: simpleSetToken.address,
         controller: setV2Setup.controller.address,
-        issuanceModule: setV2Setup.issuanceModule.address,
+        issuanceModuleAddress: setV2Setup.issuanceModule.address,
+        isDebtIssuanceModule: false,
       };
 
       const dpiToken = simpleSetToken.attach(dpiAddress);
@@ -120,7 +124,8 @@ if (process.env.INTEGRATIONTEST) {
       setTokenScenarios["DPI"] = {
         setToken: dpiAddress,
         controller: dpiController,
-        issuanceModule: dpiIssuanceModule,
+        issuanceModuleAddress: dpiIssuanceModule,
+        isDebtIssuanceModule: true,
       };
     });
 
@@ -170,7 +175,8 @@ if (process.env.INTEGRATIONTEST) {
           const scenario = setTokenScenarios[tokenName];
           if (scenario != undefined) {
             controllerAddress = scenario.controller;
-            issuanceModuleAddress = scenario.issuanceModule;
+            issuanceModuleAddress = scenario.issuanceModuleAddress;
+            isDebtIssuanceModule = scenario.isDebtIssuanceModule;
             setToken = simpleSetToken.attach(scenario.setToken);
           }
         });
@@ -293,12 +299,16 @@ if (process.env.INTEGRATIONTEST) {
                     subjectAmountSetTokenWei,
                     subjectInputTokenAmount,
                     subjectPositionSwapQuotes,
+                    issuanceModuleAddress,
                   );
               }
 
               beforeEach(async () => {
                 await deployExchangeIssuanceZeroEx();
-                await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+                await exchangeIssuanceZeroEx.approveSetToken(
+                  setToken.address,
+                  issuanceModuleAddress,
+                );
                 await initializeSubjectVariables(setTokenAmount);
                 await obtainAndApproveInputToken();
               });
@@ -394,11 +404,15 @@ if (process.env.INTEGRATIONTEST) {
                     subjectAmountSetTokenWei,
                     subjectOutputTokenAmount,
                     subjectPositionSwapQuotes,
+                    issuanceModuleAddress,
                   );
               }
               beforeEach(async () => {
                 await deployExchangeIssuanceZeroEx();
-                await exchangeIssuanceZeroEx.approveSetToken(setToken.address);
+                await exchangeIssuanceZeroEx.approveSetToken(
+                  setToken.address,
+                  issuanceModuleAddress,
+                );
                 await initializeSubjectVariables(setTokenAmount);
                 await setToken
                   .connect(user.wallet)
