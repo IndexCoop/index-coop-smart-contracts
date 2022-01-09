@@ -17,3 +17,4 @@ export { SetTokenCreator } from "../../typechain/SetTokenCreator";
 export { SingleIndexModule } from "../../typechain/SingleIndexModule";
 export { StreamingFeeModule } from "../../typechain/StreamingFeeModule";
 export { UniswapV2ExchangeAdapter } from "../../typechain/UniswapV2ExchangeAdapter";
+export { WrapModule } from "../../typechain/WrapModule";

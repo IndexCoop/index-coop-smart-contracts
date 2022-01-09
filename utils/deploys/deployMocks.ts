@@ -8,6 +8,7 @@ import {
   StandardTokenMock,
   StringArrayUtilsMock,
   TradeAdapterMock,
+  WrapAdapterMock,
   ZeroExExchangeProxyMock
 } from "../contracts/index";
 
@@ -20,6 +21,7 @@ import { MutualUpgradeMock__factory } from "../../typechain/factories/MutualUpgr
 import { TradeAdapterMock__factory } from "../../typechain/factories/TradeAdapterMock__factory";
 import { StandardTokenMock__factory  } from "../../typechain/factories/StandardTokenMock__factory";
 import { StringArrayUtilsMock__factory  } from "../../typechain/factories/StringArrayUtilsMock__factory";
+import { WrapAdapterMock__factory } from "../../typechain/factories/WrapAdapterMock__factory";
 import { ZeroExExchangeProxyMock__factory  } from "../../typechain/factories/ZeroExExchangeProxyMock__factory";
 
 export default class DeployMocks {
@@ -63,6 +65,10 @@ export default class DeployMocks {
 
   public async deployFLIStrategyExtensionMock(): Promise<FLIStrategyExtensionMock> {
     return await new FLIStrategyExtensionMock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployWrapAdapterMock(owner: Address, initAmount: BigNumber): Promise<WrapAdapterMock> {
+    return await new WrapAdapterMock__factory(this._deployerSigner).deploy(owner, initAmount);
   }
 
   public async deployZeroExExchangeProxyMock(): Promise<ZeroExExchangeProxyMock> {

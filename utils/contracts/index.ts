@@ -11,6 +11,7 @@ export { ExchangeIssuanceV2 } from "../../typechain/ExchangeIssuanceV2";
 export { ExchangeIssuanceZeroEx } from "../../typechain/ExchangeIssuanceZeroEx";
 export { FeeSplitExtension } from "../../typechain/FeeSplitExtension";
 export { FlexibleLeverageStrategyExtension } from "../../typechain/FlexibleLeverageStrategyExtension";
+export { FLIStrategyExtensionMock } from "../../typechain/FLIStrategyExtensionMock";
 export { GIMExtension } from "../../typechain/GIMExtension";
 export { GovernanceExtension } from "../../typechain/GovernanceExtension";
 export { GovernanceAdapterMock } from "../../typechain/GovernanceAdapterMock";
@@ -31,6 +32,6 @@ export { SupplyCapIssuanceHook } from "../../typechain/SupplyCapIssuanceHook";
 export { TradeAdapterMock } from "../../typechain/TradeAdapterMock";
 export { Vesting } from "../../typechain/Vesting";
 export { WETH9 } from "../../typechain/WETH9";
-export { FLIStrategyExtensionMock } from "../../typechain/FLIStrategyExtensionMock";
+export { WrapAdapterMock } from "../../typechain/WrapAdapterMock";
+export { WrapExtension } from "../../typechain/WrapExtension";
 export { ZeroExExchangeProxyMock } from "../../typechain/ZeroExExchangeProxyMock";
-

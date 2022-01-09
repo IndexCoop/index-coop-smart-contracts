@@ -20,7 +20,8 @@ import {
   SetToken,
   SetTokenCreator,
   SingleIndexModule,
-  UniswapV2ExchangeAdapter
+  UniswapV2ExchangeAdapter,
+  WrapModule
 } from "../contracts/setV2";
 import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
@@ -44,6 +45,7 @@ import { SetTokenCreator__factory } from "../../typechain/factories/SetTokenCrea
 import { StandardTokenMock__factory } from "../../typechain/factories/StandardTokenMock__factory";
 import { UniswapV2ExchangeAdapter__factory } from "../../typechain/factories/UniswapV2ExchangeAdapter__factory";
 import { WETH9__factory } from "../../typechain/factories/WETH9__factory";
+import { WrapModule__factory } from "../../typechain/factories/WrapModule__factory";
 
 export default class DeploySetV2 {
   private _deployerSigner: Signer;
@@ -233,5 +235,9 @@ export default class DeploySetV2 {
 
   public async deployAirdropModule(controller: Address): Promise<AirdropModule> {
     return await new AirdropModule__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployWrapModule(controller: Address, weth: Address): Promise<WrapModule> {
+    return await new WrapModule__factory(this._deployerSigner).deploy(controller, weth);
   }
 }

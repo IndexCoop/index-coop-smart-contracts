@@ -19,6 +19,7 @@ import {
   GIMExtension,
   GovernanceExtension,
   StreamingFeeSplitExtension,
+  WrapExtension
 } from "../contracts/index";
 
 import { AaveLeverageStrategyExtension__factory } from "../../typechain/factories/AaveLeverageStrategyExtension__factory";
@@ -31,6 +32,7 @@ import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/fact
 import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
 import { GovernanceExtension__factory } from "../../typechain/factories/GovernanceExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
+import { WrapExtension__factory } from "../../typechain/factories/WrapExtension__factory";
 
 export default class DeployExtensions {
   private _deployerSigner: Signer;
@@ -190,5 +192,9 @@ export default class DeployExtensions {
       exchangeNames,
       exchangeSettings,
     );
+  }
+
+  public async deployWrapExtension(manager: Address, wrapModule: Address): Promise<WrapExtension> {
+    return await new WrapExtension__factory(this._deployerSigner).deploy(manager, wrapModule);
   }
 }
