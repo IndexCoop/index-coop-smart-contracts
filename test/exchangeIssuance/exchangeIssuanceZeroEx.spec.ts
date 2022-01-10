@@ -21,6 +21,7 @@ import {
   WETH9,
 } from "@utils/contracts/index";
 import { getAllowances } from "@utils/common/exchangeIssuanceUtils";
+import { getTxFee } from "@utils/test";
 
 const expect = getWaffleExpect();
 
@@ -29,14 +30,6 @@ type ZeroExSwapQuote = {
   buyToken: Address;
   swapCallData: string;
 };
-
-async function getTxFee(tx: ContractTransaction) {
-  const gasPrice = tx.gasPrice;
-  const receipt = await tx.wait();
-  const gasUsed = receipt.cumulativeGasUsed;
-  const transactionFee = gasPrice.mul(gasUsed);
-  return transactionFee;
-}
 
 describe("ExchangeIssuanceZeroEx", async () => {
   let owner: Account;
