@@ -3,7 +3,6 @@ export {
   getEthBalance,
   getRandomAccount,
   getRandomAddress,
-  getTxFee,
 } from "./accountUtils";
 export {
   addSnapshotBeforeRestoreAfterEach,
@@ -14,4 +13,5 @@ export {
   increaseTimeAsync,
   mineBlockAsync,
   cacheBeforeEach,
+  getTxFee,
 } from "./testingUtils";
