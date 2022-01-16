@@ -17,18 +17,34 @@ contract StakingRewardsV2 is RewardsDistributionRecipient, ReentrancyGuard {
 
     /* ========== STATE VARIABLES ========== */
 
+    /// @notice Token to be distributed to stakers
     IERC20 public rewardsToken;
+
+    /// @notice Token to be staked in the contract
     IERC20 public stakingToken;
+
+    /// @notice Timestamp at which the staking rewards end
     uint256 public periodFinish = 0;
+
+    /// @notice Number of tokens rewarded per unit time
     uint256 public rewardRate = 0;
+
+    /// @notice Duration for which rewards are applied
     uint256 public rewardsDuration;
+
     uint256 public lastUpdateTime;
     uint256 public rewardPerTokenStored;
 
     mapping(address => uint256) public userRewardPerTokenPaid;
+
+    /// @notice Accumulated number of `rewardsToken` per address remaining to be claimed.
+    ///         Once a staker claims the rewards, it is reset to 0.
     mapping(address => uint256) public rewards;
 
+    /// @notice Total number of staked tokens
     uint256 private _totalSupply;
+
+    /// @notice Number of staked tokens per address
     mapping(address => uint256) private _balances;
 
     /* ========== CONSTRUCTOR ========== */
@@ -47,14 +63,21 @@ contract StakingRewardsV2 is RewardsDistributionRecipient, ReentrancyGuard {
 
     /* ========== VIEWS ========== */
 
+    // Number of total staked tokens
     function totalSupply() external view returns (uint256) {
         return _totalSupply;
     }
 
+    /**
+     * @notice Get the number of tokens staked by the `account`
+     * @param account The address of the account to get the balance of
+     * @return The number of tokens staked
+     */
     function balanceOf(address account) external view returns (uint256) {
         return _balances[account];
     }
 
+    /// @return last time when the reward was applied.
     function lastTimeRewardApplicable() public view returns (uint256) {
         return Math.min(block.timestamp, periodFinish);
     }
@@ -69,16 +92,21 @@ contract StakingRewardsV2 is RewardsDistributionRecipient, ReentrancyGuard {
             );
     }
 
+    /**
+     * @notice Accumulated number of `rewardsToken` remaining to be claimed by `address`.
+     */
     function earned(address account) public view returns (uint256) {
         return _balances[account].mul(rewardPerToken().sub(userRewardPerTokenPaid[account])).div(1e18).add(rewards[account]);
     }
 
+    /// @notice Get the number of rewardsToken to be rewarded for `rewardsDuration`
     function getRewardForDuration() external view returns (uint256) {
         return rewardRate.mul(rewardsDuration);
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */
 
+    /// @notice Transfer `amount` of stakingToken from `msg.sender` to this contract for staking
     function stake(uint256 amount) external nonReentrant updateReward(msg.sender) {
         require(amount > 0, "Cannot stake 0");
         _totalSupply = _totalSupply.add(amount);
@@ -87,6 +115,7 @@ contract StakingRewardsV2 is RewardsDistributionRecipient, ReentrancyGuard {
         emit Staked(msg.sender, amount);
     }
 
+    /// @notice Unstake `amount` number of staked tokens by `msg.sender`
     function withdraw(uint256 amount) public nonReentrant updateReward(msg.sender) {
         require(amount > 0, "Cannot withdraw 0");
         _totalSupply = _totalSupply.sub(amount);
@@ -95,6 +124,7 @@ contract StakingRewardsV2 is RewardsDistributionRecipient, ReentrancyGuard {
         emit Withdrawn(msg.sender, amount);
     }
 
+    /// @notice Transfer the staking rewards from contract to `msg.sender`
     function getReward() public nonReentrant updateReward(msg.sender) {
         uint256 reward = rewards[msg.sender];
         if (reward > 0) {
@@ -104,6 +134,7 @@ contract StakingRewardsV2 is RewardsDistributionRecipient, ReentrancyGuard {
         }
     }
 
+    /// @notice Unstake all the staked tokens by `msg.sender` and claim the rewards
     function exit() external {
         withdraw(_balances[msg.sender]);
         getReward();
@@ -111,6 +142,14 @@ contract StakingRewardsV2 is RewardsDistributionRecipient, ReentrancyGuard {
 
     /* ========== RESTRICTED FUNCTIONS ========== */
 
+    /**
+     * @notice Update the number of `rewardsToken` to be rewarded to stakers.
+               The updated reward is only applicable from the next block.
+               If the staking period is over, ie, if the current block occurs at or after
+               `periodFinish` has passed, a fresh reward period starts with
+               duration=`rewardsDuration`.
+     * @param reward number of `rewardsToken` to to be rewarded from now on.
+     */
     function notifyRewardAmount(uint256 reward) external override onlyRewardsDistribution updateReward(address(0)) {
         if (block.timestamp >= periodFinish) {
             rewardRate = reward.div(rewardsDuration);
@@ -134,6 +173,7 @@ contract StakingRewardsV2 is RewardsDistributionRecipient, ReentrancyGuard {
 
     /* ========== MODIFIERS ========== */
 
+    /// @notice Update rewards for an address along with bookkeeping variables
     modifier updateReward(address account) {
         rewardPerTokenStored = rewardPerToken();
         lastUpdateTime = lastTimeRewardApplicable();
