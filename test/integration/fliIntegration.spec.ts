@@ -688,6 +688,29 @@ describe("FlexibleLeverageStrategyExtension", () => {
 
     // Add extension
     await baseManager.connect(owner.wallet).addExtension(flexibleLeverageStrategyExtension.address);
+
+    console.log(fliSettings.name);
+
+    const requiredComponentIssuanceUnits = await setV2Setup.debtIssuanceModule.getRequiredComponentIssuanceUnits(
+      setToken.address,
+      ether(1),
+    );
+    console.log("requiredComponentIssuanceUnits", {
+      components: requiredComponentIssuanceUnits[0],
+      equityPositions: requiredComponentIssuanceUnits[1].map(e => e.toString()),
+      debtPositions: requiredComponentIssuanceUnits[2].map(e => e.toString()),
+    });
+
+    const requiredComponentRedemptionUnits = await setV2Setup.debtIssuanceModule.getRequiredComponentRedemptionUnits(
+      setToken.address,
+      ether(1),
+    );
+    console.log("requiredComponentRedemptionUnits", {
+      components: requiredComponentRedemptionUnits[0],
+      equityPositions: requiredComponentRedemptionUnits[1].map(e => e.toString()),
+      debtPositions: requiredComponentRedemptionUnits[2].map(e => e.toString()),
+    });
+
   }
 
   async function issueFLITokens(collateralCToken: CERc20 | CEther, amount: BigNumber): Promise<void> {
