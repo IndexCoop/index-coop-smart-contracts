@@ -1,44 +1,411 @@
 import "module-alias/register";
 
-import { Address, Account } from "@utils/types";
-import { ADDRESS_ZERO, ZERO, MAX_UINT_256, MAX_UINT_96, MAX_INT_256 } from "@utils/constants";
-import { ExchangeIssuanceLeveraged, StandardTokenMock, WETH9 } from "@utils/contracts/index";
+import {
+  Address,
+  Account,
+  ContractSettings,
+  ExchangeSettings,
+  MethodologySettings,
+  ExecutionSettings,
+  IncentiveSettings,
+} from "@utils/types";
+import {
+  ADDRESS_ZERO,
+  ZERO,
+  EMPTY_BYTES,
+  MAX_INT_256,
+  MAX_UINT_96,
+  MAX_UINT_256,
+  PRECISE_UNIT,
+  ONE_DAY_IN_SECONDS,
+  ONE_HOUR_IN_SECONDS,
+} from "@utils/constants";
+import {
+  ChainlinkAggregatorV3Mock,
+  ExchangeIssuanceLeveraged,
+  FlexibleLeverageStrategyExtension,
+  BaseManagerV2,
+  StandardTokenMock,
+  WETH9,
+} from "@utils/contracts/index";
 import { UniswapV2Factory, UniswapV2Router02 } from "@utils/contracts/uniswap";
-import { SetToken } from "@utils/contracts/setV2";
+import { CompoundLeverageModule, SetToken } from "@utils/contracts/setV2";
+import { CEther, CERc20 } from "@utils/contracts/compound";
 import DeployHelper from "@utils/deploys";
 import {
+  bitcoin,
   cacheBeforeEach,
   ether,
   getAaveV2Fixture,
   getAccounts,
+  getCompoundFixture,
   getLastBlockTimestamp,
   getSetFixture,
   getUniswapFixture,
   getWaffleExpect,
+  preciseMul,
+  usdc,
 } from "@utils/index";
 import { UnitsUtils } from "@utils/common/unitsUtils";
-import { SetFixture } from "@utils/fixtures";
-import { UniswapFixture } from "@utils/fixtures";
-import { AaveV2Fixture } from "@utils/fixtures";
+import { AaveV2Fixture, CompoundFixture, SetFixture, UniswapFixture } from "@utils/fixtures";
 import { BigNumber, ContractTransaction } from "ethers";
 import { getAllowances, getIssueSetForExactToken } from "@utils/common/exchangeIssuanceUtils";
+import { UniswapV2Pair } from "@typechain/UniswapV2Pair";
 
+interface CheckpointSettings {
+  issueAmount: BigNumber;
+  redeemAmount: BigNumber;
+  collateralPrice: BigNumber;
+  borrowPrice: BigNumber;
+  wethPrice: BigNumber;
+  elapsedTime: BigNumber;
+  exchangeName: string;
+  exchangePools: UniswapV2Pair[];
+  router: UniswapV2Router02;
+}
+
+interface FLISettings {
+  name: string;
+  collateralAsset: StandardTokenMock | WETH9;
+  borrowAsset: StandardTokenMock | WETH9;
+  chainlinkCollateral: ChainlinkAggregatorV3Mock;
+  chainlinkBorrow: ChainlinkAggregatorV3Mock;
+  collateralCToken: CEther | CERc20;
+  borrowCToken: CEther | CERc20;
+  targetLeverageRatio: BigNumber;
+  collateralPerSet: BigNumber;
+  exchangeNames: string[];
+  exchanges: ExchangeSettings[];
+  checkpoints: CheckpointSettings[];
+}
 const expect = getWaffleExpect();
+
+// Across scenario constants
+const minLeverageBuffer = ether(0.15);
+const maxLeverageBuffer = ether(0.15);
+const recenteringSpeed = ether(0.05);
+const rebalanceInterval = BigNumber.from(86400);
+
+const unutilizedLeveragePercentage = ether(0.01);
+const twapCooldownPeriod = BigNumber.from(3000);
+const slippageTolerance = ether(0.02);
+
+const incentivizedTwapCooldownPeriod = BigNumber.from(60);
+const incentivizedSlippageTolerance = ether(0.05);
+const etherReward = ether(1);
+const incentivizedLeverageRatio = ether(2.6);
+
+// This integration test is sensitive to pool ratios and needs
+// to skip some initialization done for other suites.
+const minimumInit = true;
 
 describe("ExchangeIssuanceLeveraged", async () => {
   let owner: Account;
   let user: Account;
   let externalPositionModule: Account;
+  let methodologist: Account;
+
   let setV2Setup: SetFixture;
+  let uniswapSetup: UniswapFixture;
+  let sushiswapSetup: UniswapFixture;
 
   let deployer: DeployHelper;
   let setToken: SetToken;
+  let fliToken: SetToken;
   let setTokenWithWeth: SetToken;
 
   let exchangeIssuance: ExchangeIssuanceLeveraged;
 
+  let compoundSetup: CompoundFixture;
+  let compoundLeverageModule: CompoundLeverageModule;
+  let flexibleLeverageStrategyExtension: FlexibleLeverageStrategyExtension;
+  let baseManager: BaseManagerV2;
+  let cEther: CEther;
+  let cUSDC: CERc20;
+  let cWBTC: CERc20;
+
+  let strategy: ContractSettings;
+  let methodology: MethodologySettings;
+  let execution: ExecutionSettings;
+  let incentive: IncentiveSettings;
+
+  let wethUsdcPoolUni: UniswapV2Pair;
+  let wethUsdcPoolSushi: UniswapV2Pair;
+
+  let chainlinkETH: ChainlinkAggregatorV3Mock;
+  let chainlinkUSDC: ChainlinkAggregatorV3Mock;
+
+  async function deployChainlinkMocks(): Promise<void> {
+    chainlinkETH = await deployer.mocks.deployChainlinkAggregatorMock();
+    await chainlinkETH.setPrice(BigNumber.from(1000).mul(10 ** 8));
+    chainlinkUSDC = await deployer.mocks.deployChainlinkAggregatorMock();
+    await chainlinkUSDC.setPrice(10 ** 8);
+  }
+
+  async function setupExchanges(): Promise<void> {
+    console.log("Initialize Uniswap");
+    uniswapSetup = getUniswapFixture(owner.address);
+    await uniswapSetup.initialize(
+      owner,
+      setV2Setup.weth.address,
+      setV2Setup.wbtc.address,
+      setV2Setup.usdc.address,
+      minimumInit,
+    );
+
+    console.log("Initialize Sushiswap");
+    sushiswapSetup = getUniswapFixture(owner.address);
+    await sushiswapSetup.initialize(
+      owner,
+      setV2Setup.weth.address,
+      setV2Setup.wbtc.address,
+      setV2Setup.usdc.address,
+      minimumInit,
+    );
+
+    console.log("Create weth-usdc uniswap pair");
+    wethUsdcPoolUni = await uniswapSetup.createNewPair(
+      setV2Setup.weth.address,
+      setV2Setup.usdc.address,
+    );
+
+    console.log("Create weth-usdc sushiswap pair");
+    wethUsdcPoolSushi = await sushiswapSetup.createNewPair(
+      setV2Setup.weth.address,
+      setV2Setup.usdc.address,
+    );
+
+    console.log("Add Liquidity on uni");
+    await setV2Setup.weth.connect(owner.wallet).approve(uniswapSetup.router.address, MAX_UINT_256);
+    await setV2Setup.usdc.connect(owner.wallet).approve(uniswapSetup.router.address, MAX_UINT_256);
+    await uniswapSetup.router.addLiquidity(
+      setV2Setup.weth.address,
+      setV2Setup.usdc.address,
+      ether(10000),
+      usdc(10000000),
+      ether(9999),
+      usdc(9990000),
+      owner.address,
+      MAX_UINT_256,
+    );
+
+    console.log("Add Liquidity on sushi");
+    await setV2Setup.weth
+      .connect(owner.wallet)
+      .approve(sushiswapSetup.router.address, MAX_UINT_256);
+    await setV2Setup.usdc
+      .connect(owner.wallet)
+      .approve(sushiswapSetup.router.address, MAX_UINT_256);
+    await sushiswapSetup.router.addLiquidity(
+      setV2Setup.weth.address,
+      setV2Setup.usdc.address,
+      ether(4000),
+      usdc(4000000),
+      ether(399),
+      usdc(499000),
+      owner.address,
+      MAX_UINT_256,
+    );
+  }
+  async function setupCompound(): Promise<void> {
+    compoundSetup = getCompoundFixture(owner.address);
+    await compoundSetup.initialize();
+
+    cEther = await compoundSetup.createAndEnableCEther(
+      ether(200000000),
+      compoundSetup.comptroller.address,
+      compoundSetup.interestRateModel.address,
+      "Compound ether",
+      "cETH",
+      8,
+      ether(0.75), // 75% collateral factor
+      ether(1000), // $1000
+    );
+
+    cUSDC = await compoundSetup.createAndEnableCToken(
+      setV2Setup.usdc.address,
+      200000000000000,
+      compoundSetup.comptroller.address,
+      compoundSetup.interestRateModel.address,
+      "Compound USDC",
+      "cUSDC",
+      8,
+      ether(0.75), // 75% collateral factor
+      ether(1000000000000), // IMPORTANT: Compound oracles account for decimals scaled by 10e18. For USDC, this is $1 * 10^18 * 10^18 / 10^6 = 10^30
+    );
+
+    cWBTC = await compoundSetup.createAndEnableCToken(
+      setV2Setup.wbtc.address,
+      ether(0.02),
+      compoundSetup.comptroller.address,
+      compoundSetup.interestRateModel.address,
+      "Compound WBTC",
+      "cWBTC",
+      8,
+      ether(0.75),
+      ether(500000000000000), // $50,000
+    );
+
+    await compoundSetup.comptroller._setCompRate(ether(1));
+    await compoundSetup.comptroller._addCompMarkets([cEther.address, cUSDC.address, cWBTC.address]);
+
+    // Mint cTokens
+    await setV2Setup.usdc.approve(cUSDC.address, ether(100000));
+    await setV2Setup.wbtc.approve(cWBTC.address, ether(100000));
+    await cUSDC.mint(ether(1));
+    await cWBTC.mint(ether(1));
+    await cEther.mint({ value: ether(1000) });
+
+    // Deploy Compound leverage module and add to controller
+    compoundLeverageModule = await deployer.setV2.deployCompoundLeverageModule(
+      setV2Setup.controller.address,
+      compoundSetup.comp.address,
+      compoundSetup.comptroller.address,
+      cEther.address,
+      setV2Setup.weth.address,
+    );
+    await setV2Setup.controller.addModule(compoundLeverageModule.address);
+
+    // Set integrations for CompoundLeverageModule
+    await setV2Setup.integrationRegistry.addIntegration(
+      compoundLeverageModule.address,
+      "UniswapTradeAdapter",
+      uniswapSetup.uniswapTradeAdapter.address,
+    );
+
+    await setV2Setup.integrationRegistry.addIntegration(
+      compoundLeverageModule.address,
+      "SushiswapTradeAdapter",
+      sushiswapSetup.uniswapTradeAdapter.address,
+    );
+
+    await setV2Setup.integrationRegistry.addIntegration(
+      compoundLeverageModule.address,
+      "DefaultIssuanceModule",
+      setV2Setup.debtIssuanceModule.address,
+    );
+  }
+
+  async function deployFLISetup(fliSettings: FLISettings): Promise<void> {
+    console.log("Deploying FLI Strategy and SetToken...");
+
+    const unit = preciseMul(bitcoin(50), fliSettings.collateralPerSet); // User bitcoin(50) because a full unit of underlying is 50*10^8
+    console.log("Creating Set Token");
+    fliToken = await setV2Setup.createSetToken(
+      [fliSettings.collateralCToken.address],
+      [unit],
+      [
+        setV2Setup.streamingFeeModule.address,
+        compoundLeverageModule.address,
+        setV2Setup.debtIssuanceModule.address,
+      ],
+    );
+    await compoundLeverageModule.updateAnySetAllowed(true);
+
+    console.log("Initializing DI module");
+    // Initialize modules
+    await setV2Setup.debtIssuanceModule.initialize(
+      fliToken.address,
+      ether(1),
+      ZERO,
+      ZERO,
+      owner.address,
+      ADDRESS_ZERO,
+    );
+    const feeRecipient = owner.address;
+    const maxStreamingFeePercentage = ether(0.1);
+    const streamingFeePercentage = ether(0.02);
+    const streamingFeeSettings = {
+      feeRecipient,
+      maxStreamingFeePercentage,
+      streamingFeePercentage,
+      lastStreamingFeeTimestamp: ZERO,
+    };
+    console.log("Initializing Streaming fee module");
+    await setV2Setup.streamingFeeModule.initialize(fliToken.address, streamingFeeSettings);
+    console.log(
+      "Initializing Compound Leverage Module",
+      compoundLeverageModule.address,
+      fliToken.address,
+    );
+    await compoundLeverageModule.initialize(
+      fliToken.address,
+      [fliSettings.collateralAsset.address],
+      [fliSettings.borrowAsset.address],
+    );
+
+    console.log("Deploy Base Manager");
+    baseManager = await deployer.manager.deployBaseManagerV2(
+      fliToken.address,
+      owner.address,
+      methodologist.address,
+    );
+    await baseManager.connect(methodologist.wallet).authorizeInitialization();
+
+    console.log("Set base manager");
+    // Transfer ownership to ic manager
+    await fliToken.setManager(baseManager.address);
+
+    console.log("Define strategy");
+    strategy = {
+      setToken: fliToken.address,
+      leverageModule: compoundLeverageModule.address,
+      comptroller: compoundSetup.comptroller.address,
+      collateralPriceOracle: fliSettings.chainlinkCollateral.address,
+      borrowPriceOracle: fliSettings.chainlinkBorrow.address,
+      targetCollateralCToken: fliSettings.collateralCToken.address,
+      targetBorrowCToken: fliSettings.borrowCToken.address,
+      collateralAsset: fliSettings.collateralAsset.address,
+      borrowAsset: fliSettings.borrowAsset.address,
+      collateralDecimalAdjustment: BigNumber.from(
+        28 - (await fliSettings.collateralAsset.decimals()),
+      ),
+      borrowDecimalAdjustment: BigNumber.from(28 - (await fliSettings.borrowAsset.decimals())),
+    };
+
+    console.log("Define methodology");
+    methodology = {
+      targetLeverageRatio: fliSettings.targetLeverageRatio,
+      minLeverageRatio: preciseMul(
+        fliSettings.targetLeverageRatio,
+        PRECISE_UNIT.sub(minLeverageBuffer),
+      ),
+      maxLeverageRatio: preciseMul(
+        fliSettings.targetLeverageRatio,
+        PRECISE_UNIT.add(maxLeverageBuffer),
+      ),
+      recenteringSpeed: recenteringSpeed,
+      rebalanceInterval: rebalanceInterval,
+    };
+    console.log("Define execution");
+    execution = {
+      unutilizedLeveragePercentage: unutilizedLeveragePercentage,
+      twapCooldownPeriod: twapCooldownPeriod,
+      slippageTolerance: slippageTolerance,
+    };
+    console.log("Define incentive");
+    incentive = {
+      incentivizedTwapCooldownPeriod: incentivizedTwapCooldownPeriod,
+      incentivizedSlippageTolerance: incentivizedSlippageTolerance,
+      etherReward: etherReward,
+      incentivizedLeverageRatio: incentivizedLeverageRatio,
+    };
+
+    console.log("Deploy FLI extension");
+    flexibleLeverageStrategyExtension = await deployer.extensions.deployFlexibleLeverageStrategyExtension(
+      baseManager.address,
+      strategy,
+      methodology,
+      execution,
+      incentive,
+      fliSettings.exchangeNames,
+      fliSettings.exchanges,
+    );
+    await flexibleLeverageStrategyExtension.updateCallerStatus([owner.address], [true]);
+  }
+
   cacheBeforeEach(async () => {
-    [owner, user, externalPositionModule] = await getAccounts();
+    [owner, user, externalPositionModule, methodologist] = await getAccounts();
 
     deployer = new DeployHelper(owner.wallet);
 
@@ -77,6 +444,75 @@ describe("ExchangeIssuanceLeveraged", async () => {
       owner.address,
       ADDRESS_ZERO,
     );
+
+    await deployChainlinkMocks();
+    await setupExchanges();
+    await setupCompound();
+
+    const fliSettings: FLISettings = {
+      name: "ETH/USDC 2x",
+      collateralAsset: setV2Setup.weth,
+      borrowAsset: setV2Setup.usdc,
+      collateralCToken: cEther,
+      borrowCToken: cUSDC,
+      chainlinkCollateral: chainlinkETH,
+      chainlinkBorrow: chainlinkUSDC,
+      targetLeverageRatio: ether(2),
+      collateralPerSet: ether(1),
+      exchangeNames: ["UniswapTradeAdapter", "SushiswapTradeAdapter"],
+      exchanges: [
+        {
+          exchangeLastTradeTimestamp: BigNumber.from(0),
+          twapMaxTradeSize: ether(5),
+          incentivizedTwapMaxTradeSize: ether(10),
+          leverExchangeData: EMPTY_BYTES,
+          deleverExchangeData: EMPTY_BYTES,
+        },
+        {
+          exchangeLastTradeTimestamp: BigNumber.from(0),
+          twapMaxTradeSize: ether(5),
+          incentivizedTwapMaxTradeSize: ether(10),
+          leverExchangeData: EMPTY_BYTES,
+          deleverExchangeData: EMPTY_BYTES,
+        },
+      ],
+      checkpoints: [
+        {
+          issueAmount: ZERO,
+          redeemAmount: ZERO,
+          collateralPrice: ether(1000),
+          borrowPrice: ether(1),
+          elapsedTime: ONE_DAY_IN_SECONDS,
+          wethPrice: ether(1000),
+          exchangeName: "UniswapTradeAdapter",
+          exchangePools: [wethUsdcPoolUni],
+          router: uniswapSetup.router,
+        },
+        {
+          issueAmount: ZERO,
+          redeemAmount: ZERO,
+          collateralPrice: ether(1100),
+          borrowPrice: ether(1),
+          elapsedTime: ONE_DAY_IN_SECONDS,
+          wethPrice: ether(1100),
+          exchangeName: "SushiswapTradeAdapter",
+          exchangePools: [wethUsdcPoolSushi],
+          router: sushiswapSetup.router,
+        },
+        {
+          issueAmount: ZERO,
+          redeemAmount: ZERO,
+          collateralPrice: ether(800),
+          borrowPrice: ether(1),
+          elapsedTime: ONE_HOUR_IN_SECONDS.mul(12),
+          wethPrice: ether(800),
+          exchangeName: "UniswapTradeAdapter",
+          exchangePools: [wethUsdcPoolUni],
+          router: uniswapSetup.router,
+        },
+      ],
+    };
+    await deployFLISetup(fliSettings);
   });
 
   describe("#constructor", async () => {
@@ -710,6 +1146,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         });
       });
     });
+
     describe("#flashloan", async () => {
       let subjectAssets: Address[];
       let subjectAmounts: BigNumber[];
@@ -734,9 +1171,31 @@ describe("ExchangeIssuanceLeveraged", async () => {
         beforeEach(async () => {
           await dai.transfer(exchangeIssuance.address, availableTokenBalance);
         });
-
         it("should emit Flashloan event", async () => {
           await expect(subject()).to.emit(aaveV2Setup.lendingPool, "FlashLoan");
+        });
+      });
+    });
+
+    describe("#getLeveragedTokenData", async () => {
+      let subjectSetToken: Address;
+      let subjectSetAmount: BigNumber;
+      async function subject() {
+        return await exchangeIssuance.getLeveragedTokenData(subjectSetToken, subjectSetAmount);
+      }
+      context("when passed the FLI token", async () => {
+        before(() => {
+          subjectSetToken = fliToken.address;
+          subjectSetAmount = ether(1);
+        });
+        it("should return correct data", async () => {
+          const rawData = await setV2Setup.debtIssuanceModule.getRequiredComponentIssuanceUnits(
+            subjectSetToken,
+            subjectSetAmount,
+          );
+          console.log("rawData", rawData);
+          const result = await subject();
+          console.log("Result:", result);
         });
       });
     });

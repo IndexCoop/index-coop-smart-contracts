@@ -170,7 +170,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             IERC20(assets[i]).approve(address(LENDING_POOL), amountOwing);
         }
 
-        console.log("Execute Operation Done");
+        console.log("Execute Operation");
         return true;
     }
 
@@ -343,6 +343,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         nonReentrant
         returns (uint256)
     {
+        // 1. Loan Full Amount of Long Token 
+        // 2. Issue 
+        // 3. Swap returned short token for long token
+        // 4. Determine shortfall and get from user
+        // 5. Return loan
+
         require(_amountSetToken > 0 && _maxAmountInputToken > 0, "ExchangeIssuance: INVALID INPUTS");
 
         _inputToken.safeTransferFrom(msg.sender, address(this), _maxAmountInputToken);
