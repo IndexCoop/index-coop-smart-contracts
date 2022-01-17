@@ -31,6 +31,8 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { UniSushiV2Library } from "../../external/contracts/UniSushiV2Library.sol";
 import { FlashLoanReceiverBaseV2 } from "../../external/contracts/aaveV2/FlashLoanReceiverBaseV2.sol";
 
+import "hardhat/console.sol";
+
 /**
  * @title ExchangeIssuance
  * @author Index Coop
@@ -162,17 +164,20 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         // these amounts.
 
         // Approve the LendingPool contract allowance to *pull* the owed amount
+        console.log("Execute Operation");
         for (uint256 i = 0; i < assets.length; i++) {
             uint256 amountOwing = amounts[i].add(premiums[i]);
             IERC20(assets[i]).approve(address(LENDING_POOL), amountOwing);
         }
 
+        console.log("Execute Operation Done");
         return true;
     }
 
     function _flashloan(address[] memory assets, uint256[] memory amounts)
         internal
     {
+        console.log("Enter _flashloan");
         address receiverAddress = address(this);
 
         address onBehalfOf = address(this);
@@ -186,6 +191,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             modes[i] = 0;
         }
 
+        console.log("Sending Flashloan");
         LENDING_POOL.flashLoan(
             receiverAddress,
             assets,
