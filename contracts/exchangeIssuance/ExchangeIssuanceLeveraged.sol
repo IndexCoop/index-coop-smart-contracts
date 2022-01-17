@@ -279,6 +279,48 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     }
 
     /**
+    * Returns the long / short token addresses and amounts for a leveraged index 
+    *
+    * @param _setToken              Address of the SetToken to be issued
+    * @param _amountSetToken        Amount of SetTokens to issue
+    *
+    * @return longToken             Address of long token
+    * @return longAmount       Amount of long Token required for issuance
+    * @return shortToken            Address of short token
+    * @return shortAmount      Amount of short Token returned for issuance
+    */
+    function getLeveragedTokenData(
+        ISetToken _setToken,
+        uint256 _amountSetToken
+    )
+        isSetToken(_setToken)
+        public 
+        view
+        returns (address longToken, uint256 longAmount, address shortToken, uint256 shortAmount)
+    {
+            address[] memory components;
+            uint256[] memory equityPositions;
+            uint256[] memory debtPositions;
+            (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
+            require(components.length == 2, "ExchangeIssuance: TOO MANY COMPONENTS");
+            require(equityPositions[0] == 0 || equityPositions[1] == 0, "ExchangeIssuance: TOO MANY EQUITY POSITIONS");
+            require(debtPositions[0] == 0 || debtPositions[1] == 0, "ExchangeIssuance: TOO MANY DEBT POSITIONS");
+
+            if(equityPositions[0] > 0){
+                longToken = components[0];
+                longAmount = equityPositions[0];
+                shortToken = components[1];
+                shortAmount = equityPositions[1];
+            }
+            else {
+                longToken = components[1];
+                longAmount = equityPositions[1];
+                shortToken = components[0];
+                shortAmount = equityPositions[0];
+            }
+    }
+
+    /**
     * Issues an exact amount of SetTokens for given amount of input ERC20 tokens.
     * The excess amount of tokens is returned in an equivalent amount of ether.
     *

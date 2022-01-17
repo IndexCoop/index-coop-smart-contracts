@@ -21,10 +21,7 @@ import { SetFixture } from "@utils/fixtures";
 import { UniswapFixture } from "@utils/fixtures";
 import { AaveV2Fixture } from "@utils/fixtures";
 import { BigNumber, ContractTransaction } from "ethers";
-import {
-  getAllowances,
-  getIssueSetForExactToken,
-} from "@utils/common/exchangeIssuanceUtils";
+import { getAllowances, getIssueSetForExactToken } from "@utils/common/exchangeIssuanceUtils";
 
 const expect = getWaffleExpect();
 
@@ -717,30 +714,29 @@ describe("ExchangeIssuanceLeveraged", async () => {
       let subjectAssets: Address[];
       let subjectAmounts: BigNumber[];
       let availableTokenBalance: BigNumber;
-      before(async () => {
+      beforeEach(async () => {
         await setV2Setup.dai.approve(aaveV2Setup.lendingPool.address, MAX_UINT_256);
         await aaveV2Setup.lendingPool.deposit(dai.address, ether(1000), owner.address, 0);
+        console.log("Dai a token supply", await aaveV2Setup.daiReserveTokens.aToken.totalSupply());
+        availableTokenBalance = UnitsUtils.ether(10);
+        subjectAssets = [dai.address];
+        subjectAmounts = [availableTokenBalance.div(2)];
       });
-      context("when the ei module has not enough token to pay fees", async () => {
+      async function subject() {
+        return await exchangeIssuance.flashloan(subjectAssets, subjectAmounts);
+      }
+      context("when the ei module does not have enough token to pay fees", async () => {
+        it("should emit", async () => {
+          await expect(subject()).to.be.revertedWith("SafeERC20: low-level call failed");
+        });
+      });
+      context("when the ei module has enough token to pay fees", async () => {
         beforeEach(async () => {
-          availableTokenBalance = UnitsUtils.ether(10);
-          subjectAssets = [dai.address];
-          subjectAmounts = [availableTokenBalance.div(2)];
           await dai.transfer(exchangeIssuance.address, availableTokenBalance);
-          await dai.transfer(aaveV2Setup.daiReserveTokens.aToken.address, availableTokenBalance);
         });
 
-        async function subject() {
-          return await exchangeIssuance.flashloan(subjectAssets, subjectAmounts);
-        }
-
-        it("should revert", async () => {
-          const lendingPool = await exchangeIssuance.LENDING_POOL();
-          console.log("Lending pool addresses", lendingPool, aaveV2Setup.lendingPool.address);
-          console.log("Subject variables", subjectAssets, subjectAmounts);
-          console.log("Dai a token", aaveV2Setup.daiReserveTokens.aToken.address);
-          console.log("Dai a token supply", await aaveV2Setup.daiReserveTokens.aToken.totalSupply());
-          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        it("should emit Flashloan event", async () => {
+          await expect(subject()).to.emit(aaveV2Setup.lendingPool, "FlashLoan");
         });
       });
     });
