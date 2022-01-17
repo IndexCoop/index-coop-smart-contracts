@@ -20,7 +20,7 @@ import { UnitsUtils } from "@utils/common/unitsUtils";
 import { SetFixture } from "@utils/fixtures";
 import { UniswapFixture } from "@utils/fixtures";
 import { AaveV2Fixture } from "@utils/fixtures";
-import { BigNumber, ContractTransaction } from "ethers";
+import { BigNumber, ContractTransaction, utils } from "ethers";
 import {
   getAllowances,
   getIssueExactSetFromToken,
@@ -710,6 +710,25 @@ describe("ExchangeIssuanceLeveraged", async () => {
         beforeEach(async () => {
           subjectSetToken = setTokenIlliquid;
         });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
+        });
+      });
+    });
+    describe("#flashloan", async () => {
+      let subjectAssets: Address[];
+      let subjectAmounts: BigNumber[];
+      context("when the ei module has not enough token to pay fees", async () => {
+        beforeEach(async () => {
+          subjectAssets = [weth.address];
+          subjectAmounts = [utils.parseEther("1")];
+          await weth.transfer(exchangeIssuance.address, UnitsUtils.ether(2));
+        });
+
+        async function subject() {
+          return await exchangeIssuance.flashloan(subjectAssets, subjectAmounts);
+        }
 
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
