@@ -402,6 +402,14 @@ describe("ExchangeIssuanceLeveraged", async () => {
       fliSettings.exchanges,
     );
     await flexibleLeverageStrategyExtension.updateCallerStatus([owner.address], [true]);
+
+    await fliSettings.collateralCToken.approve(setV2Setup.debtIssuanceModule.address, MAX_UINT_256);
+    const amount = ether(1);
+    console.log("Issue fli token");
+    await setV2Setup.debtIssuanceModule.issue(fliToken.address, amount, owner.address);
+    await baseManager.addExtension(flexibleLeverageStrategyExtension.address);
+    console.log("Engage fli extension");
+    await flexibleLeverageStrategyExtension.engage(fliSettings.exchangeNames[0]);
   }
 
   cacheBeforeEach(async () => {
