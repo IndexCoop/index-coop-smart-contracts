@@ -316,7 +316,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
                 longToken = components[1];
                 longAmount = equityPositions[1];
                 shortToken = components[0];
-                shortAmount = equityPositions[0];
+                shortAmount = debtPositions[0];
             }
     }
 

@@ -135,6 +135,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
   let chainlinkETH: ChainlinkAggregatorV3Mock;
   let chainlinkUSDC: ChainlinkAggregatorV3Mock;
 
+  let fliSettings: FLISettings;
+
   async function deployChainlinkMocks(): Promise<void> {
     chainlinkETH = await deployer.mocks.deployChainlinkAggregatorMock();
     await chainlinkETH.setPrice(BigNumber.from(1000).mul(10 ** 8));
@@ -286,7 +288,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
     );
   }
 
-  async function deployFLISetup(fliSettings: FLISettings): Promise<void> {
+  async function deployFLISetup(): Promise<void> {
     console.log("Deploying FLI Strategy and SetToken...");
 
     const unit = preciseMul(bitcoin(50), fliSettings.collateralPerSet); // User bitcoin(50) because a full unit of underlying is 50*10^8
@@ -457,7 +459,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
     await setupExchanges();
     await setupCompound();
 
-    const fliSettings: FLISettings = {
+    fliSettings = {
       name: "ETH/USDC 2x",
       collateralAsset: setV2Setup.weth,
       borrowAsset: setV2Setup.usdc,
@@ -520,7 +522,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         },
       ],
     };
-    await deployFLISetup(fliSettings);
+    await deployFLISetup();
   });
 
   describe("#constructor", async () => {
@@ -1202,8 +1204,13 @@ describe("ExchangeIssuanceLeveraged", async () => {
             subjectSetAmount,
           );
           console.log("rawData", rawData);
-          const result = await subject();
-          console.log("Result:", result);
+          const { longToken, shortToken, longAmount, shortAmount } = await subject();
+          expect(longToken).to.eq(fliSettings.collateralCToken.address);
+          expect(shortToken).to.eq(fliSettings.borrowAsset.address);
+          console.log("Long Amount", longAmount.toString());
+          console.log("Short Amount", shortAmount.toString());
+          expect(longAmount).to.be.gt(ZERO);
+          expect(shortAmount).to.be.gt(ZERO);
         });
       });
     });
