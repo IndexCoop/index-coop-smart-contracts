@@ -51,7 +51,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
     /* ============ Enums ============ */
 
-    enum Exchange { Uniswap, Sushiswap, None }
+    enum Exchange { None, Uniswap, Sushiswap}
 
     /* ============ Constants ============= */
 
@@ -165,6 +165,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
         // Approve the LendingPool contract allowance to *pull* the owed amount
         console.log("Execute Operation");
+        console.log(string(params));
         for (uint256 i = 0; i < assets.length; i++) {
             uint256 amountOwing = amounts[i].add(premiums[i]);
             IERC20(assets[i]).approve(address(LENDING_POOL), amountOwing);
@@ -174,14 +175,13 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         return true;
     }
 
-    function _flashloan(address[] memory assets, uint256[] memory amounts)
+    function _flashloan(address[] memory assets, uint256[] memory amounts, bytes memory params)
         internal
     {
         console.log("Enter _flashloan");
         address receiverAddress = address(this);
 
         address onBehalfOf = address(this);
-        bytes memory params = "";
         uint16 referralCode = 0;
 
         uint256[] memory modes = new uint256[](assets.length);
@@ -209,7 +209,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     function flashloan(address[] memory assets, uint256[] memory amounts)
         public
     {
-        _flashloan(assets, amounts);
+        bytes memory params = "";
+        _flashloan(assets, amounts, params);
     }
 
     /**
@@ -242,6 +243,25 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         }
     }
 
+    function issueExactSetForLongToken(
+        ISetToken _setToken,
+        uint256 _amountSetToken
+    )
+        isSetToken(_setToken)
+        external
+        nonReentrant
+        returns (uint256)
+    {
+        (address longToken, uint256 longAmount, address shortToken, uint256 shortAmount) = getLeveragedTokenData(_setToken, _amountSetToken);
+
+        address[] memory assets = new address[](1);
+        assets[0] = shortToken;
+        uint[] memory amounts =  new uint[](1);
+        amounts[0] = shortAmount;
+
+        _flashloan(assets, amounts, "gimmeToken");
+
+    }
     /**
      * Issues SetTokens for an exact amount of input ERC20 tokens.
      * The ERC20 token must be approved by the sender to this contract.
@@ -285,9 +305,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     * @param _amountSetToken        Amount of SetTokens to issue
     *
     * @return longToken             Address of long token
-    * @return longAmount       Amount of long Token required for issuance
+    * @return longAmount            Amount of long Token required for issuance
     * @return shortToken            Address of short token
-    * @return shortAmount      Amount of short Token returned for issuance
+    * @return shortAmount           Amount of short Token returned for issuance
     */
     function getLeveragedTokenData(
         ISetToken _setToken,
@@ -310,7 +330,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
                 longToken = components[0];
                 longAmount = equityPositions[0];
                 shortToken = components[1];
-                shortAmount = equityPositions[1];
+                shortAmount = debtPositions[1];
             }
             else {
                 longToken = components[1];

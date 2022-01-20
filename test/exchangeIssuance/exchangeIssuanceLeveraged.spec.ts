@@ -49,7 +49,7 @@ import {
 import { UnitsUtils } from "@utils/common/unitsUtils";
 import { AaveV2Fixture, CompoundFixture, SetFixture, UniswapFixture } from "@utils/fixtures";
 import { BigNumber, ContractTransaction } from "ethers";
-import { getAllowances, getIssueSetForExactToken } from "@utils/common/exchangeIssuanceUtils";
+import { getAllowances } from "@utils/common/exchangeIssuanceUtils";
 import { UniswapV2Pair } from "@typechain/UniswapV2Pair";
 
 interface CheckpointSettings {
@@ -906,257 +906,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
       });
     });
 
-    describe("#issueSetForExactToken", async () => {
-      let subjectCaller: Account;
-      let subjectSetToken: SetToken;
-      let subjectInputToken: StandardTokenMock | WETH9;
-      let subjectAmountInput: BigNumber;
-      let subjectMinSetReceive: BigNumber;
-
-      const initializeSubjectVariables = () => {
-        subjectCaller = user;
-        subjectSetToken = setToken;
-        subjectInputToken = usdc;
-        subjectAmountInput = UnitsUtils.usdc(1000);
-        subjectMinSetReceive = ether(0);
-      };
-
-      cacheBeforeEach(async () => {
-        initializeSubjectVariables();
-        await exchangeIssuance.approveSetToken(subjectSetToken.address);
-        await subjectInputToken
-          .connect(subjectCaller.wallet)
-          .approve(exchangeIssuance.address, MAX_UINT_256);
-      });
-
-      beforeEach(initializeSubjectVariables);
-
-      async function subject(): Promise<ContractTransaction> {
-        return await exchangeIssuance
-          .connect(subjectCaller.wallet)
-          .issueSetForExactToken(
-            subjectSetToken.address,
-            subjectInputToken.address,
-            subjectAmountInput,
-            subjectMinSetReceive,
-            { gasLimit: 9000000 },
-          );
-      }
-
-      it("should issue the correct amount of Set to the caller", async () => {
-        const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
-        const expectedOutputOfSet = await getIssueSetForExactToken(
-          subjectSetToken,
-          subjectInputToken.address,
-          subjectAmountInput,
-          uniswapRouter,
-          uniswapFactory,
-          sushiswapRouter,
-          sushiswapFactory,
-          weth.address,
-        );
-
-        await subject();
-
-        const finalSetBalance = await subjectSetToken.balanceOf(subjectCaller.address);
-        const expectedSetBalance = initialBalanceOfSet.add(expectedOutputOfSet);
-        expect(finalSetBalance).to.eq(expectedSetBalance);
-      });
-
-      it("should use the correct amount of input token from the caller", async () => {
-        const initialBalanceOfInputToken = await subjectInputToken.balanceOf(subjectCaller.address);
-
-        await subject();
-
-        const finalBalanceOfInputToken = await subjectInputToken.balanceOf(subjectCaller.address);
-        const expectedTokenBalance = initialBalanceOfInputToken.sub(subjectAmountInput);
-        expect(finalBalanceOfInputToken).to.eq(expectedTokenBalance);
-      });
-
-      it("emits an ExchangeIssue log", async () => {
-        const expectedSetTokenAmount = await getIssueSetForExactToken(
-          subjectSetToken,
-          subjectInputToken.address,
-          subjectAmountInput,
-          uniswapRouter,
-          uniswapFactory,
-          sushiswapRouter,
-          sushiswapFactory,
-          weth.address,
-        );
-
-        await expect(subject())
-          .to.emit(exchangeIssuance, "ExchangeIssue")
-          .withArgs(
-            subjectCaller.address,
-            subjectSetToken.address,
-            subjectInputToken.address,
-            subjectAmountInput,
-            expectedSetTokenAmount,
-          );
-      });
-
-      context("when input erc20 token is weth", async () => {
-        cacheBeforeEach(async () => {
-          subjectInputToken = weth;
-          await subjectInputToken
-            .connect(subjectCaller.wallet)
-            .approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
-        });
-
-        it("should issue the correct amount of Set to the caller", async () => {
-          const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
-          const expectedOutputOfSet = await getIssueSetForExactToken(
-            subjectSetToken,
-            subjectInputToken.address,
-            subjectAmountInput,
-            uniswapRouter,
-            uniswapFactory,
-            sushiswapRouter,
-            sushiswapFactory,
-            weth.address,
-          );
-
-          await subject();
-
-          const finalSetBalance = await subjectSetToken.balanceOf(subjectCaller.address);
-          const expectedSetBalance = initialBalanceOfSet.add(expectedOutputOfSet);
-          expect(finalSetBalance).to.eq(expectedSetBalance);
-        });
-
-        it("should use the correct amount of input token from the caller", async () => {
-          const initialBalanceOfInputToken = await subjectInputToken.balanceOf(
-            subjectCaller.address,
-          );
-
-          await subject();
-
-          const finalBalanceOfInputToken = await subjectInputToken.balanceOf(subjectCaller.address);
-          const expectedTokenBalance = initialBalanceOfInputToken.sub(subjectAmountInput);
-          expect(finalBalanceOfInputToken).to.eq(expectedTokenBalance);
-        });
-
-        it("emits an ExchangeIssue log", async () => {
-          const expectedSetTokenAmount = await getIssueSetForExactToken(
-            subjectSetToken,
-            subjectInputToken.address,
-            subjectAmountInput,
-            uniswapRouter,
-            uniswapFactory,
-            sushiswapRouter,
-            sushiswapFactory,
-            weth.address,
-          );
-
-          await expect(subject())
-            .to.emit(exchangeIssuance, "ExchangeIssue")
-            .withArgs(
-              subjectCaller.address,
-              subjectSetToken.address,
-              subjectInputToken.address,
-              subjectAmountInput,
-              expectedSetTokenAmount,
-            );
-        });
-      });
-
-      context("when set contains weth", async () => {
-        cacheBeforeEach(async () => {
-          subjectSetToken = setTokenWithWeth;
-
-          await exchangeIssuance.approveSetToken(subjectSetToken.address);
-          await subjectInputToken
-            .connect(subjectCaller.wallet)
-            .approve(exchangeIssuance.address, MAX_UINT_256);
-        });
-
-        it("should issue the correct amount of Set to the caller", async () => {
-          const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
-          const expectedSetOutput = await getIssueSetForExactToken(
-            subjectSetToken,
-            subjectInputToken.address,
-            subjectAmountInput,
-            uniswapRouter,
-            uniswapFactory,
-            sushiswapRouter,
-            sushiswapFactory,
-            weth.address,
-          );
-
-          await subject();
-
-          const finalSetBalance = await subjectSetToken.balanceOf(subjectCaller.address);
-          const expectedBalance = initialBalanceOfSet.add(expectedSetOutput);
-          expect(finalSetBalance).to.eq(expectedBalance);
-        });
-
-        it("should use the correct amount of input token from the caller", async () => {
-          const initialBalanceOfToken = await subjectInputToken.balanceOf(subjectCaller.address);
-
-          await subject();
-
-          const finalTokenBalance = await subjectInputToken.balanceOf(subjectCaller.address);
-          const expectedBalance = initialBalanceOfToken.sub(subjectAmountInput);
-          expect(finalTokenBalance).to.eq(expectedBalance);
-        });
-
-        it("emits an ExchangeIssue log", async () => {
-          const expectedSetTokenAmount = await getIssueSetForExactToken(
-            subjectSetToken,
-            subjectInputToken.address,
-            subjectAmountInput,
-            uniswapRouter,
-            uniswapFactory,
-            sushiswapRouter,
-            sushiswapFactory,
-            weth.address,
-          );
-
-          await expect(subject())
-            .to.emit(exchangeIssuance, "ExchangeIssue")
-            .withArgs(
-              subjectCaller.address,
-              subjectSetToken.address,
-              subjectInputToken.address,
-              subjectAmountInput,
-              expectedSetTokenAmount,
-            );
-        });
-      });
-
-      context("when input amount is 0", async () => {
-        beforeEach(async () => {
-          subjectAmountInput = ZERO;
-        });
-
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID INPUTS");
-        });
-      });
-
-      context("when output set token amount is insufficient", async () => {
-        beforeEach(async () => {
-          subjectMinSetReceive = ether(100000);
-        });
-
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith(
-            "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT",
-          );
-        });
-      });
-
-      context("when the set token has an illiquid component", async () => {
-        beforeEach(async () => {
-          subjectSetToken = setTokenIlliquid;
-        });
-
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("ExchangeIssuance: ILLIQUID_SET_COMPONENT");
-        });
-      });
-    });
-
     describe("#flashloan", async () => {
       let subjectAssets: Address[];
       let subjectAmounts: BigNumber[];
@@ -1211,6 +960,61 @@ describe("ExchangeIssuanceLeveraged", async () => {
           console.log("Short Amount", shortAmount.toString());
           expect(longAmount).to.be.gt(ZERO);
           expect(shortAmount).to.be.gt(ZERO);
+        });
+      });
+    });
+
+    describe("#issueExactSetForLongToken", async () => {
+      let subjectSetToken: Address;
+      let subjectSetAmount: BigNumber;
+      async function subject() {
+        return await exchangeIssuance.issueExactSetForLongToken(subjectSetToken, subjectSetAmount);
+      }
+      beforeEach(async () => {
+        const usdcPriceInEth = ether(0.001);
+
+        // set initial asset prices in ETH
+        await aaveV2Setup.setAssetPriceInOracle(usdc.address, usdcPriceInEth);
+
+        // As per Aave's interest rate model, if U < U_optimal, R_t = R_0 + (U_t/U_optimal) * R_slope1, when U_t = 0, R_t = R_0
+        // R_0 is the interest rate when utilization is 0 (it's the intercept for the above linear equation)
+        // And for higher precision it is expressed in Rays
+        const oneRay = BigNumber.from(10).pow(27); // 1e27
+
+        await aaveV2Setup.setMarketBorrowRate(usdc.address, oneRay.mul(39).div(1000));
+
+        // Deploy and configure USDC reserve
+        await aaveV2Setup.createAndEnableReserve(
+          usdc.address,
+          "USDC",
+          BigNumber.from(18),
+          BigNumber.from(7500), // base LTV: 75%
+          BigNumber.from(8000), // liquidation threshold: 80%
+          BigNumber.from(10500), // liquidation bonus: 105.00%
+          BigNumber.from(1000), // reserve factor: 10%
+          true, // enable borrowing on reserve
+          true, // enable stable debts
+        );
+
+        const { shortAmount } = await exchangeIssuance.getLeveragedTokenData(
+          subjectSetToken,
+          subjectSetAmount,
+        );
+
+        await usdc.approve(aaveV2Setup.lendingPool.address, MAX_UINT_256);
+        console.log("Depositing short token");
+        await aaveV2Setup.lendingPool.deposit(usdc.address, shortAmount.mul(2), owner.address, 0);
+        console.log("Deposited short token");
+        await usdc.transfer(exchangeIssuance.address, shortAmount.div(2));
+        console.log("Sent some usdc to ei contract");
+      });
+      context("when passed the FLI token", async () => {
+        before(() => {
+          subjectSetToken = fliToken.address;
+          subjectSetAmount = ether(1);
+        });
+        it("should succeed", async () => {
+          await subject();
         });
       });
     });
