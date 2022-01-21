@@ -9,7 +9,7 @@ import {
   IncentiveSettings,
   ExchangeSettings,
 } from "@utils/types";
-import { ADDRESS_ZERO, ZERO, EMPTY_BYTES, MAX_UINT_256 } from "@utils/constants";
+import { ADDRESS_ZERO, ZERO, EMPTY_BYTES, MAX_INT_256, MAX_UINT_256 } from "@utils/constants";
 import {
   BaseManager,
   TradeAdapterMock,
@@ -27,11 +27,13 @@ import {
   ether,
   getAaveV2Fixture,
   getAccounts,
+  getLastBlockTimestamp,
   getSetFixture,
   getUniswapFixture,
   getWaffleExpect,
   usdc,
 } from "@utils/index";
+import { UnitsUtils } from "@utils/common/unitsUtils";
 import { AaveV2Fixture, SetFixture, UniswapFixture } from "@utils/fixtures";
 import { BigNumber } from "ethers";
 
@@ -167,6 +169,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
     uniswapSetup = getUniswapFixture(owner.address);
     await uniswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
+
+
     // Set integrations for CompoundLeverageModule
     await setV2Setup.integrationRegistry.addIntegration(
       aaveLeverageModule.address,
@@ -197,6 +201,20 @@ describe("ExchangeIssuanceLeveraged", async () => {
     debtIssuanceModuleAddress = debtIssuanceModule.address;
     addressProviderAddress = aaveSetup.lendingPoolAddressesProvider.address;
     console.log("Addresses setup");
+
+    // ETH-USDC pools
+    await setV2Setup.usdc.connect(owner.wallet).approve(uniswapRouter.address, MAX_INT_256);
+    await uniswapRouter
+      .connect(owner.wallet)
+      .addLiquidityETH(
+        setV2Setup.usdc.address,
+        UnitsUtils.usdc(100000),
+        MAX_UINT_256,
+        MAX_UINT_256,
+        owner.address,
+        (await getLastBlockTimestamp()).add(1),
+        { value: ether(100), gasLimit: 9000000 },
+      );
   });
 
   const initializeRootScopeContracts = async () => {

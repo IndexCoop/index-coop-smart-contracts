@@ -165,12 +165,22 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         _depositLongToken(assets[0], amounts[0]);
         _checkLongTokenBalance(setToken, setAmount);
 
-        _approveAssetsToReturn(assets, amounts, premiums);
         console.log("Issuing SET");
         debtIssuanceModule.issue(ISetToken(setToken), setAmount, msg.sender);
 
+        uint longTokenObtained = _swapShortForLongTokenUnderlying(setToken, setAmount, assets[0]);
+
+        _approveAssetsToReturn(assets, amounts, premiums);
         console.log("Executed Operation");
         return true;
+    }
+
+    function _swapShortForLongTokenUnderlying(address _setToken, uint256 _setAmount, address longTokenUnderlying) internal returns (uint256) {
+        (, , address shortToken, uint shortAmount) = getLeveragedTokenData(ISetToken(_setToken), _setAmount);
+        (, Exchange exchange, ) = _getMaxTokenForExactToken(shortAmount, shortToken, longTokenUnderlying);
+        IUniswapV2Router02 router = _getRouter(exchange);
+        _safeApprove(IERC20(shortToken), address(router), shortAmount);
+        return _swapExactTokensForTokens(exchange, shortToken, longTokenUnderlying, shortAmount);
     }
 
     function _checkLongTokenBalance(
