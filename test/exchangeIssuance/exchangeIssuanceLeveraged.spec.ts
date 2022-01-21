@@ -416,7 +416,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
           );
           console.log("rawData", rawData);
           const { longToken, shortToken, longAmount, shortAmount } = await subject();
-          expect(longToken).to.eq(strategy.collateralAsset);
+          expect(longToken).to.eq(strategy.targetCollateralAToken);
           expect(shortToken).to.eq(strategy.borrowAsset);
           console.log("Long Amount", longAmount.toString());
           console.log("Short Amount", shortAmount.toString());

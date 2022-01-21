@@ -154,26 +154,41 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         address initiator,
         bytes calldata params
     ) external override returns (bool) {
-        //
-        // This contract now has the funds requested.
-        // Your logic goes here.
-        //
-
-        // At the end of your logic above, this contract owes
-        // the flashloaned amounts + premiums.
-        // Therefore ensure your contract has enough to repay
-        // these amounts.
-
-        // Approve the LendingPool contract allowance to *pull* the owed amount
         console.log("Execute Operation");
         console.log(string(params));
+        (address setToken, uint256 setAmount) = abi.decode(params, (address, uint256));
+        console.log("Decoded params");
+        console.logAddress(setToken);
+        console.logUint(setAmount);
+
+        _depositLongToken(assets[0], amounts[0]);
+
+        _approveAssetsToReturn(assets, amounts, premiums);
+
+        console.log("Executed Operation");
+        return true;
+    }
+
+    function _depositLongToken(
+        address _longTokenUnderlying,
+        uint256 _depositAmount
+    ) internal {
+        console.log("Enter Deposit");
+        IERC20(_longTokenUnderlying).approve(address(LENDING_POOL), _depositAmount);
+        LENDING_POOL.deposit(_longTokenUnderlying, _depositAmount, address(this), 0);
+        console.log("DEPOSITED");
+    }
+
+
+    function _approveAssetsToReturn(
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        uint256[] calldata premiums
+    ) internal {
         for (uint256 i = 0; i < assets.length; i++) {
             uint256 amountOwing = amounts[i].add(premiums[i]);
             IERC20(assets[i]).approve(address(LENDING_POOL), amountOwing);
         }
-
-        console.log("Execute Operation");
-        return true;
     }
 
     function _flashloan(address[] memory assets, uint256[] memory amounts, bytes memory params)
@@ -253,14 +268,16 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         nonReentrant
         returns (uint256)
     {
-        (address longToken, uint256 longAmount, address shortToken, uint256 shortAmount) = getLeveragedTokenData(_setToken, _amountSetToken);
+        (address longToken, uint256 longAmount,,) = getLeveragedTokenData(_setToken, _amountSetToken);
 
         address[] memory assets = new address[](1);
-        assets[0] = longToken;
+        assets[0] = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
         uint[] memory amounts =  new uint[](1);
         amounts[0] = longAmount;
 
-        _flashloan(assets, amounts, "gimmeToken");
+        bytes memory params = abi.encode(_setToken, _amountSetToken);
+
+        _flashloan(assets, amounts, params);
 
     }
     /**
@@ -328,13 +345,13 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             require(debtPositions[0] == 0 || debtPositions[1] == 0, "ExchangeIssuance: TOO MANY DEBT POSITIONS");
 
             if(equityPositions[0] > 0){
-                longToken = IAToken(components[0]).UNDERLYING_ASSET_ADDRESS();
+                longToken = components[0];
                 longAmount = equityPositions[0];
                 shortToken = components[1];
                 shortAmount = debtPositions[1];
             }
             else {
-                longToken = IAToken(components[1]).UNDERLYING_ASSET_ADDRESS();
+                longToken = components[1];
                 longAmount = equityPositions[1];
                 shortToken = components[0];
                 shortAmount = debtPositions[0];
