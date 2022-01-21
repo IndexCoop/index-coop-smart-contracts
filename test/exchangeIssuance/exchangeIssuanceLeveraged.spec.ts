@@ -179,11 +179,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
     setTokenInitialBalance = ether(1);
     console.log("Issuing set");
     await aWeth.approve(debtIssuanceModule.address, MAX_UINT_256);
-    await debtIssuanceModule.issue(
-      setToken.address,
-      setTokenInitialBalance,
-      owner.address,
-    );
+    await debtIssuanceModule.issue(setToken.address, setTokenInitialBalance, owner.address);
     // Engage aave fli
     console.log("Engage aave leverage extension");
     await setV2Setup.weth.transfer(tradeAdapterMock.address, setTokenInitialBalance.mul(10));
@@ -435,64 +431,38 @@ describe("ExchangeIssuanceLeveraged", async () => {
         });
       });
     });
-  });
 
-  describe("#issueExactSetForLongToken", async () => {
-    let subjectSetToken: Address;
-    let subjectSetAmount: BigNumber;
-    async function subject() {
-      return await exchangeIssuance.issueExactSetForLongToken(subjectSetToken, subjectSetAmount);
-    }
-    beforeEach(async () => {
-      const usdcPriceInEth = ether(0.001);
-
-      // set initial asset prices in ETH
-      await aaveSetup.setAssetPriceInOracle(setV2Setup.usdc.address, usdcPriceInEth);
-
-      // As per Aave's interest rate model, if U < U_optimal, R_t = R_0 + (U_t/U_optimal) * R_slope1, when U_t = 0, R_t = R_0
-      // R_0 is the interest rate when utilization is 0 (it's the intercept for the above linear equation)
-      // And for higher precision it is expressed in Rays
-      const oneRay = BigNumber.from(10).pow(27); // 1e27
-
-      await aaveSetup.setMarketBorrowRate(setV2Setup.usdc.address, oneRay.mul(39).div(1000));
-
-      // Deploy and configure USDC reserve
-      await aaveSetup.createAndEnableReserve(
-        setV2Setup.usdc.address,
-        "USDC",
-        BigNumber.from(18),
-        BigNumber.from(7500), // base LTV: 75%
-        BigNumber.from(8000), // liquidation threshold: 80%
-        BigNumber.from(10500), // liquidation bonus: 105.00%
-        BigNumber.from(1000), // reserve factor: 10%
-        true, // enable borrowing on reserve
-        true, // enable stable debts
-      );
-
-      const { shortAmount } = await exchangeIssuance.getLeveragedTokenData(
-        subjectSetToken,
-        subjectSetAmount,
-      );
-
-      await setV2Setup.usdc.approve(aaveSetup.lendingPool.address, MAX_UINT_256);
-      console.log("Depositing short token");
-      await aaveSetup.lendingPool.deposit(
-        setV2Setup.usdc.address,
-        shortAmount.mul(2),
-        owner.address,
-        0,
-      );
-      console.log("Deposited short token");
-      await setV2Setup.usdc.transfer(exchangeIssuance.address, shortAmount.div(2));
-      console.log("Sent some usdc to ei contract");
-    });
-    context("when passed the FLI token", async () => {
-      before(() => {
-        subjectSetToken = setToken.address;
-        subjectSetAmount = ether(1);
+    describe("#issueExactSetForLongToken", async () => {
+      let subjectSetToken: Address;
+      let subjectSetAmount: BigNumber;
+      async function subject() {
+        return await exchangeIssuance.issueExactSetForLongToken(subjectSetToken, subjectSetAmount);
+      }
+      beforeEach(async () => {
+        const { shortAmount } = await exchangeIssuance.getLeveragedTokenData(
+          subjectSetToken,
+          subjectSetAmount,
+        );
+        await setV2Setup.usdc.approve(aaveSetup.lendingPool.address, MAX_UINT_256);
+        console.log("Depositing short token");
+        await aaveSetup.lendingPool.deposit(
+          setV2Setup.usdc.address,
+          shortAmount.mul(2),
+          owner.address,
+          0,
+        );
+        console.log("Deposited short token");
+        await setV2Setup.usdc.transfer(exchangeIssuance.address, shortAmount.div(2));
+        console.log("Sent some usdc to ei contract");
       });
-      it("should succeed", async () => {
-        await subject();
+      context("when passed the FLI token", async () => {
+        before(() => {
+          subjectSetToken = setToken.address;
+          subjectSetAmount = ether(1);
+        });
+        it("should succeed", async () => {
+          await subject();
+        });
       });
     });
   });
