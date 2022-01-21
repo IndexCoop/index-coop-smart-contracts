@@ -23,6 +23,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+import { IAToken } from "../interfaces/IAToken.sol";
 import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { IController } from "../interfaces/IController.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
@@ -255,9 +256,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         (address longToken, uint256 longAmount, address shortToken, uint256 shortAmount) = getLeveragedTokenData(_setToken, _amountSetToken);
 
         address[] memory assets = new address[](1);
-        assets[0] = shortToken;
+        assets[0] = longToken;
         uint[] memory amounts =  new uint[](1);
-        amounts[0] = shortAmount;
+        amounts[0] = longAmount;
 
         _flashloan(assets, amounts, "gimmeToken");
 
@@ -327,13 +328,13 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             require(debtPositions[0] == 0 || debtPositions[1] == 0, "ExchangeIssuance: TOO MANY DEBT POSITIONS");
 
             if(equityPositions[0] > 0){
-                longToken = components[0];
+                longToken = IAToken(components[0]).UNDERLYING_ASSET_ADDRESS();
                 longAmount = equityPositions[0];
                 shortToken = components[1];
                 shortAmount = debtPositions[1];
             }
             else {
-                longToken = components[1];
+                longToken = IAToken(components[1]).UNDERLYING_ASSET_ADDRESS();
                 longAmount = equityPositions[1];
                 shortToken = components[0];
                 shortAmount = debtPositions[0];

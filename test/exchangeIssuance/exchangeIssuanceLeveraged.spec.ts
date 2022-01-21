@@ -327,12 +327,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
     cacheBeforeEach(async () => {});
 
     async function subject(): Promise<ExchangeIssuanceLeveraged> {
-      console.log("calling subject", {
-        uniswapFactory,
-        uniswapRouter,
-        sushiswapFactory,
-        sushiswapRouter,
-      });
       const result = await deployer.extensions.deployExchangeIssuanceLeveraged(
         wethAddress,
         uniswapFactory.address,
@@ -422,7 +416,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
           );
           console.log("rawData", rawData);
           const { longToken, shortToken, longAmount, shortAmount } = await subject();
-          expect(longToken).to.eq(strategy.targetCollateralAToken);
+          expect(longToken).to.eq(strategy.collateralAsset);
           expect(shortToken).to.eq(strategy.borrowAsset);
           console.log("Long Amount", longAmount.toString());
           console.log("Short Amount", shortAmount.toString());
@@ -439,21 +433,12 @@ describe("ExchangeIssuanceLeveraged", async () => {
         return await exchangeIssuance.issueExactSetForLongToken(subjectSetToken, subjectSetAmount);
       }
       beforeEach(async () => {
-        const { shortAmount } = await exchangeIssuance.getLeveragedTokenData(
+        const { longAmount } = await exchangeIssuance.getLeveragedTokenData(
           subjectSetToken,
           subjectSetAmount,
         );
-        await setV2Setup.usdc.approve(aaveSetup.lendingPool.address, MAX_UINT_256);
-        console.log("Depositing short token");
-        await aaveSetup.lendingPool.deposit(
-          setV2Setup.usdc.address,
-          shortAmount.mul(2),
-          owner.address,
-          0,
-        );
-        console.log("Deposited short token");
-        await setV2Setup.usdc.transfer(exchangeIssuance.address, shortAmount.div(2));
-        console.log("Sent some usdc to ei contract");
+        await setV2Setup.weth.transfer(exchangeIssuance.address, longAmount.div(2));
+        console.log("Sent some weth to ei contract");
       });
       context("when passed the FLI token", async () => {
         before(() => {
