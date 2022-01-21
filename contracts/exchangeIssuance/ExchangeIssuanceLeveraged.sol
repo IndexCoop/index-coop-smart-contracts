@@ -161,12 +161,27 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         console.logAddress(setToken);
         console.logUint(setAmount);
 
+
         _depositLongToken(assets[0], amounts[0]);
+        _checkLongTokenBalance(setToken, setAmount);
 
         _approveAssetsToReturn(assets, amounts, premiums);
+        console.log("Issuing SET");
+        debtIssuanceModule.issue(ISetToken(setToken), setAmount, msg.sender);
 
         console.log("Executed Operation");
         return true;
+    }
+
+    function _checkLongTokenBalance(
+        address _setToken,
+        uint256 _setAmount
+    ) internal {
+        (address longToken, uint longAmount,,) = getLeveragedTokenData(ISetToken(_setToken), _setAmount);
+        uint longTokenBalance = IERC20(longToken).balanceOf(address(this));
+        console.log("Long token Balance");
+        console.logUint(longTokenBalance);
+        require(longTokenBalance >= longAmount, "insufficient long token");
     }
 
     function _depositLongToken(
@@ -248,15 +263,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _setToken    Address of the SetToken being initialized
      */
     function approveSetToken(ISetToken _setToken) isSetToken(_setToken) external {
-        address[] memory components = _setToken.getComponents();
-        for (uint256 i = 0; i < components.length; i++) {
-            // Check that the component does not have external positions
-            require(
-                _setToken.getExternalPositionModules(components[i]).length == 0,
-                "ExchangeIssuance: EXTERNAL_POSITIONS_NOT_ALLOWED"
-            );
-            approveToken(IERC20(components[i]));
-        }
+        (address longToken,,,) = getLeveragedTokenData(_setToken, 1 ether);
+        approveToken(IERC20(longToken));
     }
 
     function issueExactSetForLongToken(

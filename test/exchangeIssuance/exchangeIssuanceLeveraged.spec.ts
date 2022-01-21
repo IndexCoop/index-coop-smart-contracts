@@ -194,7 +194,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
     sushiswapFactory = sushiswapSetup.factory;
     sushiswapRouter = sushiswapSetup.router;
     controllerAddress = setV2Setup.controller.address;
-    debtIssuanceModuleAddress = setV2Setup.debtIssuanceModule.address;
+    debtIssuanceModuleAddress = debtIssuanceModule.address;
     addressProviderAddress = aaveSetup.lendingPoolAddressesProvider.address;
     console.log("Addresses setup");
   });
@@ -437,7 +437,10 @@ describe("ExchangeIssuanceLeveraged", async () => {
           subjectSetToken,
           subjectSetAmount,
         );
-        await setV2Setup.weth.transfer(exchangeIssuance.address, longAmount.div(2));
+        await setV2Setup.weth.transfer(exchangeIssuance.address, longAmount.mul(2));
+        // await aWeth.transfer(exchangeIssuance.address, longAmount.mul(2));
+        // await setV2Setup.usdc.transfer(debtIssuanceModule.address, shortAmount.mul(2));
+        await exchangeIssuance.approveSetToken(setToken.address);
         console.log("Sent some weth to ei contract");
       });
       context("when passed the FLI token", async () => {
