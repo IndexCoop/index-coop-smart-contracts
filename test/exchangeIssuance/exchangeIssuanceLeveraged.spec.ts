@@ -455,7 +455,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
           subjectSetToken,
           subjectSetAmount,
         );
-        await setV2Setup.weth.transfer(exchangeIssuance.address, longAmount.mul(2));
+        await setV2Setup.weth.approve(exchangeIssuance.address, longAmount.mul(2));
         // await aWeth.transfer(exchangeIssuance.address, longAmount.mul(2));
         // await setV2Setup.usdc.transfer(debtIssuanceModule.address, shortAmount.mul(2));
         await exchangeIssuance.approveSetToken(setToken.address);

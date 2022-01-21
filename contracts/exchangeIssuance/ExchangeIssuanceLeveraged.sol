@@ -156,7 +156,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     ) external override returns (bool) {
         console.log("Execute Operation");
         console.log(string(params));
-        (address setToken, uint256 setAmount) = abi.decode(params, (address, uint256));
+        (address setToken, uint256 setAmount, address originalSender) = abi.decode(params, (address, uint256, address));
         console.log("Decoded params");
         console.logAddress(setToken);
         console.logUint(setAmount);
@@ -166,14 +166,34 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         _checkLongTokenBalance(setToken, setAmount);
 
         console.log("Issuing SET");
-        debtIssuanceModule.issue(ISetToken(setToken), setAmount, msg.sender);
+        debtIssuanceModule.issue(ISetToken(setToken), setAmount, originalSender);
 
-        uint longTokenObtained = _swapShortForLongTokenUnderlying(setToken, setAmount, assets[0]);
+        _obtainLongTokens(setToken, setAmount, assets[0], amounts[0] + premiums[0], originalSender);
 
         _approveAssetsToReturn(assets, amounts, premiums);
         console.log("Executed Operation");
         return true;
     }
+
+    function _obtainLongTokens(address _setToken, uint256 _setAmount, address _longTokenUnderlying, uint256 _amountRequired, address _originalSender) internal {
+        uint longTokenObtained = _swapShortForLongTokenUnderlying(_setToken, _setAmount, _longTokenUnderlying);
+        _transferShortfallFromSender(_longTokenUnderlying, _amountRequired, longTokenObtained, _originalSender);
+    }
+
+    function _transferShortfallFromSender(address _token, uint256 _amountRequired, uint256 _amountObtained, address _originalSender) internal {
+        if(_amountObtained >= _amountRequired){ 
+            return;
+        }
+        uint256 shortfall = _amountRequired.sub(_amountObtained);
+        console.log("Transfering shortfall");
+        console.logUint(_amountRequired);
+        console.logUint(_amountObtained);
+        console.logUint(shortfall);
+        IERC20(_token).safeTransferFrom(_originalSender, address(this), shortfall);
+        console.log("Transfered shortfall");
+    }
+
+
 
     function _swapShortForLongTokenUnderlying(address _setToken, uint256 _setAmount, address longTokenUnderlying) internal returns (uint256) {
         (, , address shortToken, uint shortAmount) = getLeveragedTokenData(ISetToken(_setToken), _setAmount);
@@ -293,7 +313,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         uint[] memory amounts =  new uint[](1);
         amounts[0] = longAmount;
 
-        bytes memory params = abi.encode(_setToken, _amountSetToken);
+        bytes memory params = abi.encode(_setToken, _amountSetToken, msg.sender);
 
         _flashloan(assets, amounts, params);
 
