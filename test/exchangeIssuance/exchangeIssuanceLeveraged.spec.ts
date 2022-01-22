@@ -180,18 +180,12 @@ describe("ExchangeIssuanceLeveraged", async () => {
     await sushiswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
 
     setTokenInitialBalance = ether(1);
-    console.log("Issuing set");
     await aWeth.approve(debtIssuanceModule.address, MAX_UINT_256);
     await debtIssuanceModule.issue(setToken.address, setTokenInitialBalance, owner.address);
     // Engage aave fli
-    console.log("Engage aave leverage extension");
     await setV2Setup.weth.transfer(tradeAdapterMock.address, setTokenInitialBalance.mul(10));
     await leverageStrategyExtension.engage(exchangeName);
-    // await increaseTimeAsync(BigNumber.from(100000));
-    // console.log("iterate rebalance");
-    // await leverageStrategyExtension.iterateRebalance(exchangeName);
 
-    console.log("Setting up addresses");
     uniswapFactory = uniswapSetup.factory;
     uniswapRouter = uniswapSetup.router;
     sushiswapFactory = sushiswapSetup.factory;
@@ -199,7 +193,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
     controllerAddress = setV2Setup.controller.address;
     debtIssuanceModuleAddress = debtIssuanceModule.address;
     addressProviderAddress = aaveSetup.lendingPoolAddressesProvider.address;
-    console.log("Addresses setup");
 
     // ETH-USDC pools
     await setV2Setup.usdc.connect(owner.wallet).approve(uniswapRouter.address, MAX_INT_256);
@@ -354,7 +347,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
         debtIssuanceModuleAddress,
         addressProviderAddress,
       );
-      console.log("Called setup");
       return result;
     }
 
@@ -427,16 +419,9 @@ describe("ExchangeIssuanceLeveraged", async () => {
           subjectSetAmount = ether(1);
         });
         it("should return correct data", async () => {
-          const rawData = await setV2Setup.debtIssuanceModule.getRequiredComponentIssuanceUnits(
-            subjectSetToken,
-            subjectSetAmount,
-          );
-          console.log("rawData", rawData);
           const { longToken, shortToken, longAmount, shortAmount } = await subject();
           expect(longToken).to.eq(strategy.targetCollateralAToken);
           expect(shortToken).to.eq(strategy.borrowAsset);
-          console.log("Long Amount", longAmount.toString());
-          console.log("Short Amount", shortAmount.toString());
           expect(longAmount).to.be.gt(ZERO);
           expect(shortAmount).to.be.gt(ZERO);
         });
