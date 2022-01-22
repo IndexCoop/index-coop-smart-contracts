@@ -53,6 +53,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     /* ============ Enums ============ */
 
     enum Exchange { None, Uniswap, Sushiswap}
+    // Call parameter to control which token is used by the user to pay issuance / receive redemption amount
+    enum PaymentToken { None, LongToken, ERC20, Eth}
 
     /* ============ Constants ============= */
 
@@ -190,6 +192,23 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     /* ============ External Functions ============ */
 
     /**
+     * Trigger issuance of set token paying with the underlying of the collateral token directly
+     *
+     * @param _setToken       Set token to issue
+     * @param _amountSetToken Amount to issue
+     */
+    function issueExactSetForLongToken(
+        ISetToken _setToken,
+        uint256 _amountSetToken
+    )
+        isSetToken(_setToken)
+        external
+        nonReentrant
+    {
+        initiateIssuance(_setToken, _amountSetToken, PaymentToken.LongToken);
+    }
+
+    /**
      * This is the callback function that will be called by the AaveLending Pool after flashloaned tokens have been sent
      * to this contract.
      * After exiting this function the Lending Pool will attempt to transfer back the loaned tokens + interest. If it fails to do so
@@ -198,26 +217,23 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param assets     Addresses of all assets that were borrowed
      * @param amounts    Amounts that were borrowed
      * @param premiums   Interest to be paid on top of borrowed amount
-     * @param initiator  TODO: What is this ?
      * @param params     Encoded bytestring of other parameters from the original contract call to be used downstream
      */
     function executeOperation(
         address[] calldata assets,
         uint256[] calldata amounts,
         uint256[] calldata premiums,
-        address initiator,
+        address , // 
         bytes calldata params
     ) external override returns (bool) {
-        (address setToken, uint256 setAmount, address originalSender) = abi.decode(params, (address, uint256, address));
-
+        require(assets.length == 1, "Exchange Issuance Leveraged: TOO MANY ASSETS");
+        require(amounts.length == 1, "Exchange Issuance Leveraged: TOO MANY AMOUNTS");
+        require(premiums.length == 1, "Exchange Issuance Leveraged: TOO MANY PREMIUMS");
 
         _depositLongToken(assets[0], amounts[0]);
-
-        debtIssuanceModule.issue(ISetToken(setToken), setAmount, originalSender);
-
-        _obtainLongTokens(setToken, setAmount, assets[0], amounts[0] + premiums[0], originalSender);
-
-        _approveAssetsToReturn(assets, amounts, premiums);
+        _issueSet(params);
+        _obtainLongTokens(assets[0], amounts[0] + premiums[0], params);
+        _approveAssetToReturn(assets[0], amounts[0], premiums[0]);
         return true;
     }
 
@@ -245,13 +261,27 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         approveToken(IERC20(longToken));
     }
 
-    function issueExactSetForLongToken(
+
+
+    /* ============ Internal Functions ============ */
+
+
+
+    /**
+     * Initiates a flashloan call with the correct parameters for issuing set tokens in the callback
+     * Borrows correct amount of long token and and forwards encoded calldata to controll issuance in the callback.
+     *
+     * @param _setToken            Address of the SetToken being initialized
+     * @param _amountSetToken      Amount of the SetToken being initialized
+     * @param _paymentToken        Enum controlling what token the use to pay for issuance
+     */
+    function initiateIssuance(
         ISetToken _setToken,
-        uint256 _amountSetToken
+        uint256 _amountSetToken,
+        PaymentToken _paymentToken
     )
         isSetToken(_setToken)
-        external
-        nonReentrant
+        internal
         returns (uint256)
     {
         (address longToken, uint256 longAmount,,) = getLeveragedTokenData(_setToken, _amountSetToken);
@@ -261,27 +291,41 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         uint[] memory amounts =  new uint[](1);
         amounts[0] = longAmount;
 
-        bytes memory params = abi.encode(_setToken, _amountSetToken, msg.sender);
+        bytes memory params = abi.encode(_setToken, _amountSetToken, msg.sender, true, _paymentToken);
 
         _flashloan(assets, amounts, params);
 
     }
 
-    /* ============ Internal Functions ============ */
-
     /**
      * Obtains the tokens necessary to return the flashloan by swapping the short tokens obtained
      * from issuance and making up the shortfall using the users funds.
      *
-     * @param _setToken              Address of the SetToken being initialized
-     * @param _setAmount             Amount of the SetToken being initialized
      * @param _longTokenUnderlying   Underlying token of the collateral AToken, which is the token to be returned
      * @param _amountRequired        Amount of longTokenUnderlying required to repay the flashloan
+     * @param _params                Encoded data used to get setToken, setAmount, originalSender and paymentToken
      */
-    function _obtainLongTokens(address _setToken, uint256 _setAmount, address _longTokenUnderlying, uint256 _amountRequired, address _originalSender) internal {
-        uint longTokenObtained = _swapShortForLongTokenUnderlying(_setToken, _setAmount, _longTokenUnderlying);
-        _transferShortfallFromSender(_longTokenUnderlying, _amountRequired, longTokenObtained, _originalSender);
+    function _obtainLongTokens(address _longTokenUnderlying, uint256 _amountRequired, bytes memory _params) internal {
+        (address setToken, uint256 setAmount, address originalSender,, PaymentToken paymentToken) = _decodeParams(_params);
+        uint longTokenObtained = _swapShortForLongTokenUnderlying(setToken, setAmount, _longTokenUnderlying);
+        if(paymentToken == PaymentToken.LongToken){
+            _transferShortfallFromSender(_longTokenUnderlying, _amountRequired, longTokenObtained, originalSender);
+        }
+        else {
+            revert("Not Implemented");
+        }
     }
+
+    function _issueSet(bytes memory _params) internal {
+        (address setToken, uint256 setAmount, address originalSender,,) = _decodeParams(_params);
+        debtIssuanceModule.issue(ISetToken(setToken), setAmount, originalSender);
+    }
+
+    function _decodeParams(bytes memory params) internal pure returns(address setToken, uint256 setAmount, address originalSender, bool isIssuance, PaymentToken paymentToken){
+            (setToken, setAmount, originalSender, isIssuance, paymentToken) = abi.decode(params, (address, uint256, address, bool, PaymentToken));
+    }
+
+
 
     /**
      * Transfers the shortfall between the amount of tokens required to return flashloan and what was obtained
@@ -336,15 +380,13 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * Approves lending pool to transfer owed amount of borrowed tokens after flashloan operation is complete
      *
      */
-    function _approveAssetsToReturn(
-        address[] calldata assets,
-        uint256[] calldata amounts,
-        uint256[] calldata premiums
+    function _approveAssetToReturn(
+        address asset,
+        uint256 amount,
+        uint256 premium
     ) internal {
-        for (uint256 i = 0; i < assets.length; i++) {
-            uint256 amountOwing = amounts[i].add(premiums[i]);
-            IERC20(assets[i]).approve(address(LENDING_POOL), amountOwing);
-        }
+            uint256 amountOwing = amount.add(premium);
+            IERC20(asset).approve(address(LENDING_POOL), amountOwing);
     }
 
     /**
