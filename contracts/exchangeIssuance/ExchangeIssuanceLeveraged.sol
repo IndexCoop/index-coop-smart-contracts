@@ -367,8 +367,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         if(_amountObtained < _amountRequired){ 
             shortfall = _amountRequired.sub(_amountObtained);
             uint256 maxAmountInputToken =_decodePaymentParamsLongToken(paymentParams);
-            console.logUint(shortfall);
-            console.logUint(maxAmountInputToken);
             require(shortfall <= maxAmountInputToken, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
             IERC20(_token).safeTransferFrom(_originalSender, address(this), shortfall);
         }
