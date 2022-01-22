@@ -8,26 +8,10 @@ import {
   MethodologySettings,
   ExecutionSettings,
   IncentiveSettings,
-  ExchangeSettings,
+  ExchangeSettings
 } from "@utils/types";
-import {
-  ADDRESS_ZERO,
-  ZERO,
-  ONE,
-  TWO,
-  EMPTY_BYTES,
-  MAX_UINT_256,
-  PRECISE_UNIT,
-  ONE_DAY_IN_SECONDS,
-  ONE_HOUR_IN_SECONDS,
-} from "@utils/constants";
-import {
-  FlexibleLeverageStrategyExtension,
-  BaseManagerV2,
-  StandardTokenMock,
-  WETH9,
-  ChainlinkAggregatorV3Mock,
-} from "@utils/contracts/index";
+import { ADDRESS_ZERO, ZERO, ONE, TWO, EMPTY_BYTES, MAX_UINT_256, PRECISE_UNIT, ONE_DAY_IN_SECONDS, ONE_HOUR_IN_SECONDS } from "@utils/constants";
+import { FlexibleLeverageStrategyExtension, BaseManagerV2, StandardTokenMock, WETH9, ChainlinkAggregatorV3Mock } from "@utils/contracts/index";
 import { CompoundLeverageModule, SetToken } from "@utils/contracts/setV2";
 import { CEther, CERc20 } from "@utils/contracts/compound";
 import DeployHelper from "@utils/deploys";
@@ -44,7 +28,7 @@ import {
   increaseTimeAsync,
   preciseDiv,
   preciseMul,
-  usdc,
+  usdc
 } from "@utils/index";
 import { CompoundFixture, SetFixture, UniswapFixture } from "@utils/fixtures";
 import { UniswapV2Pair } from "@typechain/UniswapV2Pair";
@@ -82,8 +66,8 @@ interface FLISettings {
 }
 
 // Across scenario constants
-const minLeverageBuffer = ether(0.15);
-const maxLeverageBuffer = ether(0.15);
+const minLeverageBuffer = ether(.15);
+const maxLeverageBuffer = ether(.15);
 const recenteringSpeed = ether(0.05);
 const rebalanceInterval = BigNumber.from(86400);
 
@@ -135,7 +119,10 @@ describe("FlexibleLeverageStrategyExtension", () => {
   let scenarios: FLISettings[];
 
   before(async () => {
-    [owner, methodologist] = await getAccounts();
+    [
+      owner,
+      methodologist,
+    ] = await getAccounts();
 
     console.log("Deploying Base Protocols...");
 
@@ -153,7 +140,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       setV2Setup.weth.address,
       setV2Setup.wbtc.address,
       setV2Setup.usdc.address,
-      minimumInit,
+      minimumInit
     );
 
     sushiswapSetup = getUniswapFixture(owner.address);
@@ -162,26 +149,14 @@ describe("FlexibleLeverageStrategyExtension", () => {
       setV2Setup.weth.address,
       setV2Setup.wbtc.address,
       setV2Setup.usdc.address,
-      minimumInit,
+      minimumInit
     );
 
-    wethUsdcPoolUni = await uniswapSetup.createNewPair(
-      setV2Setup.weth.address,
-      setV2Setup.usdc.address,
-    );
-    wethWbtcPoolUni = await uniswapSetup.createNewPair(
-      setV2Setup.weth.address,
-      setV2Setup.wbtc.address,
-    );
+    wethUsdcPoolUni = await uniswapSetup.createNewPair(setV2Setup.weth.address, setV2Setup.usdc.address);
+    wethWbtcPoolUni = await uniswapSetup.createNewPair(setV2Setup.weth.address, setV2Setup.wbtc.address);
 
-    wethUsdcPoolSushi = await sushiswapSetup.createNewPair(
-      setV2Setup.weth.address,
-      setV2Setup.usdc.address,
-    );
-    wethWbtcPoolSushi = await sushiswapSetup.createNewPair(
-      setV2Setup.weth.address,
-      setV2Setup.wbtc.address,
-    );
+    wethUsdcPoolSushi = await sushiswapSetup.createNewPair(setV2Setup.weth.address, setV2Setup.usdc.address);
+    wethWbtcPoolSushi = await sushiswapSetup.createNewPair(setV2Setup.weth.address, setV2Setup.wbtc.address);
 
     await setV2Setup.weth.connect(owner.wallet).approve(uniswapSetup.router.address, MAX_UINT_256);
     await setV2Setup.usdc.connect(owner.wallet).approve(uniswapSetup.router.address, MAX_UINT_256);
@@ -193,7 +168,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       ether(9999),
       usdc(9990000),
       owner.address,
-      MAX_UINT_256,
+      MAX_UINT_256
     );
 
     await setV2Setup.wbtc.connect(owner.wallet).approve(uniswapSetup.router.address, MAX_UINT_256);
@@ -206,15 +181,11 @@ describe("FlexibleLeverageStrategyExtension", () => {
       bitcoin(99),
       ether(3900),
       owner.address,
-      MAX_UINT_256,
+      MAX_UINT_256
     );
 
-    await setV2Setup.weth
-      .connect(owner.wallet)
-      .approve(sushiswapSetup.router.address, MAX_UINT_256);
-    await setV2Setup.usdc
-      .connect(owner.wallet)
-      .approve(sushiswapSetup.router.address, MAX_UINT_256);
+    await setV2Setup.weth.connect(owner.wallet).approve(sushiswapSetup.router.address, MAX_UINT_256);
+    await setV2Setup.usdc.connect(owner.wallet).approve(sushiswapSetup.router.address, MAX_UINT_256);
     await sushiswapSetup.router.addLiquidity(
       setV2Setup.weth.address,
       setV2Setup.usdc.address,
@@ -223,15 +194,11 @@ describe("FlexibleLeverageStrategyExtension", () => {
       ether(399),
       usdc(499000),
       owner.address,
-      MAX_UINT_256,
+      MAX_UINT_256
     );
 
-    await setV2Setup.wbtc
-      .connect(owner.wallet)
-      .approve(sushiswapSetup.router.address, MAX_UINT_256);
-    await setV2Setup.weth
-      .connect(owner.wallet)
-      .approve(sushiswapSetup.router.address, MAX_UINT_256);
+    await setV2Setup.wbtc.connect(owner.wallet).approve(sushiswapSetup.router.address, MAX_UINT_256);
+    await setV2Setup.weth.connect(owner.wallet).approve(sushiswapSetup.router.address, MAX_UINT_256);
     await sushiswapSetup.router.addLiquidity(
       setV2Setup.wbtc.address,
       setV2Setup.weth.address,
@@ -240,7 +207,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       bitcoin(49),
       ether(1900),
       owner.address,
-      MAX_UINT_256,
+      MAX_UINT_256
     );
 
     cEther = await compoundSetup.createAndEnableCEther(
@@ -251,7 +218,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       "cETH",
       8,
       ether(0.75), // 75% collateral factor
-      ether(1000), // $1000
+      ether(1000)   // $1000
     );
 
     cUSDC = await compoundSetup.createAndEnableCToken(
@@ -263,7 +230,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       "cUSDC",
       8,
       ether(0.75), // 75% collateral factor
-      ether(1000000000000), // IMPORTANT: Compound oracles account for decimals scaled by 10e18. For USDC, this is $1 * 10^18 * 10^18 / 10^6 = 10^30
+      ether(1000000000000) // IMPORTANT: Compound oracles account for decimals scaled by 10e18. For USDC, this is $1 * 10^18 * 10^18 / 10^6 = 10^30
     );
 
     cWBTC = await compoundSetup.createAndEnableCToken(
@@ -275,7 +242,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       "cWBTC",
       8,
       ether(0.75),
-      ether(500000000000000), // $50,000
+      ether(500000000000000) // $50,000
     );
 
     await compoundSetup.comptroller._setCompRate(ether(1));
@@ -286,7 +253,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
     await setV2Setup.wbtc.approve(cWBTC.address, ether(100000));
     await cUSDC.mint(ether(1));
     await cWBTC.mint(ether(1));
-    await cEther.mint({ value: ether(1000) });
+    await cEther.mint({value: ether(1000)});
 
     // Deploy Compound leverage module and add to controller
     compoundLeverageModule = await deployer.setV2.deployCompoundLeverageModule(
@@ -294,7 +261,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       compoundSetup.comp.address,
       compoundSetup.comptroller.address,
       cEther.address,
-      setV2Setup.weth.address,
+      setV2Setup.weth.address
     );
     await setV2Setup.controller.addModule(compoundLeverageModule.address);
 
@@ -338,7 +305,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
         chainlinkBorrow: chainlinkUSDC,
         targetLeverageRatio: ether(2),
         collateralPerSet: ether(1),
-        exchangeNames: ["UniswapTradeAdapter", "SushiswapTradeAdapter"],
+        exchangeNames: [ "UniswapTradeAdapter", "SushiswapTradeAdapter" ],
         exchanges: [
           {
             exchangeLastTradeTimestamp: BigNumber.from(0),
@@ -401,7 +368,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
         chainlinkBorrow: chainlinkETH,
         targetLeverageRatio: ether(2),
         collateralPerSet: ether(100),
-        exchangeNames: ["UniswapTradeAdapter"],
+        exchangeNames: [ "UniswapTradeAdapter" ],
         exchanges: [
           {
             exchangeLastTradeTimestamp: BigNumber.from(0),
@@ -478,39 +445,27 @@ describe("FlexibleLeverageStrategyExtension", () => {
         chainlinkCollateral: chainlinkWBTC,
         chainlinkBorrow: chainlinkUSDC,
         targetLeverageRatio: ether(2),
-        collateralPerSet: ether(0.1),
-        exchangeNames: ["UniswapTradeAdapter", "SushiswapTradeAdapter"],
+        collateralPerSet: ether(.1),
+        exchangeNames: [ "UniswapTradeAdapter", "SushiswapTradeAdapter" ],
         exchanges: [
           {
             exchangeLastTradeTimestamp: BigNumber.from(0),
             twapMaxTradeSize: bitcoin(3),
             incentivizedTwapMaxTradeSize: bitcoin(5),
-            leverExchangeData: defaultAbiCoder.encode(
-              ["address[]"],
-              [[setV2Setup.usdc.address, setV2Setup.weth.address, setV2Setup.wbtc.address]],
-            ),
-            deleverExchangeData: defaultAbiCoder.encode(
-              ["address[]"],
-              [[setV2Setup.wbtc.address, setV2Setup.weth.address, setV2Setup.usdc.address]],
-            ),
+            leverExchangeData: defaultAbiCoder.encode(["address[]"], [[setV2Setup.usdc.address, setV2Setup.weth.address, setV2Setup.wbtc.address]]),
+            deleverExchangeData: defaultAbiCoder.encode(["address[]"], [[setV2Setup.wbtc.address, setV2Setup.weth.address, setV2Setup.usdc.address]]),
           },
           {
             exchangeLastTradeTimestamp: BigNumber.from(0),
             twapMaxTradeSize: bitcoin(3),
             incentivizedTwapMaxTradeSize: bitcoin(5),
-            leverExchangeData: defaultAbiCoder.encode(
-              ["address[]"],
-              [[setV2Setup.usdc.address, setV2Setup.weth.address, setV2Setup.wbtc.address]],
-            ),
-            deleverExchangeData: defaultAbiCoder.encode(
-              ["address[]"],
-              [[setV2Setup.wbtc.address, setV2Setup.weth.address, setV2Setup.usdc.address]],
-            ),
+            leverExchangeData: defaultAbiCoder.encode(["address[]"], [[setV2Setup.usdc.address, setV2Setup.weth.address, setV2Setup.wbtc.address]]),
+            deleverExchangeData: defaultAbiCoder.encode(["address[]"], [[setV2Setup.wbtc.address, setV2Setup.weth.address, setV2Setup.usdc.address]]),
           },
         ],
         checkpoints: [
           {
-            issueAmount: ether(0.5),
+            issueAmount: ether(.5),
             redeemAmount: ZERO,
             collateralPrice: ether(55000),
             borrowPrice: ether(1),
@@ -649,7 +604,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
         setV2Setup.streamingFeeModule.address,
         compoundLeverageModule.address,
         setV2Setup.debtIssuanceModule.address,
-      ],
+      ]
     );
     await compoundLeverageModule.updateAnySetAllowed(true);
 
@@ -660,11 +615,11 @@ describe("FlexibleLeverageStrategyExtension", () => {
       ZERO,
       ZERO,
       owner.address,
-      ADDRESS_ZERO,
+      ADDRESS_ZERO
     );
     const feeRecipient = owner.address;
-    const maxStreamingFeePercentage = ether(0.1);
-    const streamingFeePercentage = ether(0.02);
+    const maxStreamingFeePercentage = ether(.1);
+    const streamingFeePercentage = ether(.02);
     const streamingFeeSettings = {
       feeRecipient,
       maxStreamingFeePercentage,
@@ -675,13 +630,13 @@ describe("FlexibleLeverageStrategyExtension", () => {
     await compoundLeverageModule.initialize(
       setToken.address,
       [fliSettings.collateralAsset.address],
-      [fliSettings.borrowAsset.address],
+      [fliSettings.borrowAsset.address]
     );
 
     baseManager = await deployer.manager.deployBaseManagerV2(
       setToken.address,
       owner.address,
-      methodologist.address,
+      methodologist.address
     );
     await baseManager.connect(methodologist.wallet).authorizeInitialization();
 
@@ -698,21 +653,13 @@ describe("FlexibleLeverageStrategyExtension", () => {
       targetBorrowCToken: fliSettings.borrowCToken.address,
       collateralAsset: fliSettings.collateralAsset.address,
       borrowAsset: fliSettings.borrowAsset.address,
-      collateralDecimalAdjustment: BigNumber.from(
-        28 - (await fliSettings.collateralAsset.decimals()),
-      ),
-      borrowDecimalAdjustment: BigNumber.from(28 - (await fliSettings.borrowAsset.decimals())),
+      collateralDecimalAdjustment: BigNumber.from(28 - await fliSettings.collateralAsset.decimals()),
+      borrowDecimalAdjustment: BigNumber.from(28 - await fliSettings.borrowAsset.decimals()),
     };
     methodology = {
       targetLeverageRatio: fliSettings.targetLeverageRatio,
-      minLeverageRatio: preciseMul(
-        fliSettings.targetLeverageRatio,
-        PRECISE_UNIT.sub(minLeverageBuffer),
-      ),
-      maxLeverageRatio: preciseMul(
-        fliSettings.targetLeverageRatio,
-        PRECISE_UNIT.add(maxLeverageBuffer),
-      ),
+      minLeverageRatio: preciseMul(fliSettings.targetLeverageRatio, PRECISE_UNIT.sub(minLeverageBuffer)),
+      maxLeverageRatio: preciseMul(fliSettings.targetLeverageRatio, PRECISE_UNIT.add(maxLeverageBuffer)),
       recenteringSpeed: recenteringSpeed,
       rebalanceInterval: rebalanceInterval,
     };
@@ -735,41 +682,15 @@ describe("FlexibleLeverageStrategyExtension", () => {
       execution,
       incentive,
       fliSettings.exchangeNames,
-      fliSettings.exchanges,
+      fliSettings.exchanges
     );
     await flexibleLeverageStrategyExtension.updateCallerStatus([owner.address], [true]);
 
     // Add extension
     await baseManager.connect(owner.wallet).addExtension(flexibleLeverageStrategyExtension.address);
-
-    console.log(fliSettings.name);
-
-    const requiredComponentIssuanceUnits = await setV2Setup.debtIssuanceModule.getRequiredComponentIssuanceUnits(
-      setToken.address,
-      ether(1),
-    );
-    console.log("requiredComponentIssuanceUnits", {
-      components: requiredComponentIssuanceUnits[0],
-      equityPositions: requiredComponentIssuanceUnits[1].map(e => e.toString()),
-      debtPositions: requiredComponentIssuanceUnits[2].map(e => e.toString()),
-    });
-
-    const requiredComponentRedemptionUnits = await setV2Setup.debtIssuanceModule.getRequiredComponentRedemptionUnits(
-      setToken.address,
-      ether(1),
-    );
-    console.log("requiredComponentRedemptionUnits", {
-      components: requiredComponentRedemptionUnits[0],
-      equityPositions: requiredComponentRedemptionUnits[1].map(e => e.toString()),
-      debtPositions: requiredComponentRedemptionUnits[2].map(e => e.toString()),
-    });
-
   }
 
-  async function issueFLITokens(
-    collateralCToken: CERc20 | CEther,
-    amount: BigNumber,
-  ): Promise<void> {
+  async function issueFLITokens(collateralCToken: CERc20 | CEther, amount: BigNumber): Promise<void> {
     console.log(`Issuing ${amount.toString()} SetTokens`);
     if (amount.gt(ZERO)) {
       await collateralCToken.approve(setV2Setup.debtIssuanceModule.address, MAX_UINT_256);
@@ -791,10 +712,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
     await flexibleLeverageStrategyExtension.iterateRebalance(exchangeName);
   }
 
-  async function runScenarios(
-    fliSettings: FLISettings,
-    isMultihop: boolean,
-  ): Promise<[BigNumber[], BigNumber[]]> {
+  async function runScenarios(fliSettings: FLISettings, isMultihop: boolean): Promise<[BigNumber[], BigNumber[]]> {
     console.log(`Running Scenarios ${fliSettings.name}`);
     await increaseTimeAsync(rebalanceInterval);
 
@@ -831,19 +749,12 @@ describe("FlexibleLeverageStrategyExtension", () => {
       console.log("Leverage Ratio:", postRebalanceLeverageRatio.toString());
       console.log(
         "Debt Position:",
-        (
-          await setToken.getExternalPositionRealUnit(
-            fliSettings.borrowAsset.address,
-            compoundLeverageModule.address,
-          )
-        ).toString(),
+        (await setToken.getExternalPositionRealUnit(
+          fliSettings.borrowAsset.address,
+          compoundLeverageModule.address
+        )).toString()
       );
-      console.log(
-        "Collateral Position:",
-        (
-          await setToken.getDefaultPositionRealUnit(fliSettings.collateralCToken.address)
-        ).toString(),
-      );
+      console.log("Collateral Position:", (await setToken.getDefaultPositionRealUnit(fliSettings.collateralCToken.address)).toString());
       console.log("Borrow Asset Price:", fliSettings.checkpoints[i].borrowPrice.toString());
       console.log("Collateral Asset Price:", fliSettings.checkpoints[i].collateralPrice.toString());
       console.log("Set Value:", (await calculateSetValue(fliSettings, i)).toString());
@@ -855,33 +766,17 @@ describe("FlexibleLeverageStrategyExtension", () => {
   async function setPricesAndUniswapPool(
     fliSettings: FLISettings,
     checkpoint: number,
-    isMultihop: boolean,
+    isMultihop: boolean
   ): Promise<void> {
-    const collateralDecimals = BigNumber.from(10).pow(await fliSettings.collateralAsset.decimals());
-    const borrowDecimals = BigNumber.from(10).pow(await fliSettings.borrowAsset.decimals());
-    const scaledCollateralPrice = preciseDiv(
-      fliSettings.checkpoints[checkpoint].collateralPrice,
-      collateralDecimals,
-    );
-    const scaledBorrowPrice = preciseDiv(
-      fliSettings.checkpoints[checkpoint].borrowPrice,
-      borrowDecimals,
-    );
+    const collateralDecimals = BigNumber.from(10).pow((await fliSettings.collateralAsset.decimals()));
+    const borrowDecimals = BigNumber.from(10).pow((await fliSettings.borrowAsset.decimals()));
+    const scaledCollateralPrice = preciseDiv(fliSettings.checkpoints[checkpoint].collateralPrice, collateralDecimals);
+    const scaledBorrowPrice = preciseDiv(fliSettings.checkpoints[checkpoint].borrowPrice, borrowDecimals);
 
-    await compoundSetup.priceOracle.setUnderlyingPrice(
-      fliSettings.collateralCToken.address,
-      scaledCollateralPrice,
-    );
-    await fliSettings.chainlinkCollateral.setPrice(
-      fliSettings.checkpoints[checkpoint].collateralPrice.div(10 ** 10),
-    );
-    await compoundSetup.priceOracle.setUnderlyingPrice(
-      fliSettings.borrowCToken.address,
-      scaledBorrowPrice,
-    );
-    await fliSettings.chainlinkBorrow.setPrice(
-      fliSettings.checkpoints[checkpoint].borrowPrice.div(10 ** 10),
-    );
+    await compoundSetup.priceOracle.setUnderlyingPrice(fliSettings.collateralCToken.address, scaledCollateralPrice);
+    await fliSettings.chainlinkCollateral.setPrice(fliSettings.checkpoints[checkpoint].collateralPrice.div(10 ** 10));
+    await compoundSetup.priceOracle.setUnderlyingPrice(fliSettings.borrowCToken.address, scaledBorrowPrice);
+    await fliSettings.chainlinkBorrow.setPrice(fliSettings.checkpoints[checkpoint].borrowPrice.div(10 ** 10));
 
     const collateralPrice = fliSettings.checkpoints[checkpoint].collateralPrice;
     const borrowPrice = fliSettings.checkpoints[checkpoint].borrowPrice;
@@ -930,7 +825,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
       case 2: {
         await flexibleLeverageStrategyExtension.iterateRebalance(exchangeName);
         break;
-      }
+    }
       case 3: {
         await flexibleLeverageStrategyExtension.ripcord(exchangeName);
         break;
@@ -945,9 +840,9 @@ describe("FlexibleLeverageStrategyExtension", () => {
     assetTwo: StandardTokenMock | WETH9,
     assetOnePrice: BigNumber,
     assetTwoPrice: BigNumber,
-    uniswapPool: UniswapV2Pair,
+    uniswapPool: UniswapV2Pair
   ): Promise<void> {
-    const [assetOneAmount, buyAssetOne] = await calculateUniswapTradeAmount(
+    const [ assetOneAmount, buyAssetOne ] = await calculateUniswapTradeAmount(
       fliSettings,
       assetOne,
       assetTwo,
@@ -962,7 +857,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
         MAX_UINT_256,
         [assetTwo.address, assetOne.address],
         owner.address,
-        MAX_UINT_256,
+        MAX_UINT_256
       );
     } else {
       await router.swapExactTokensForTokens(
@@ -970,7 +865,7 @@ describe("FlexibleLeverageStrategyExtension", () => {
         ZERO,
         [assetOne.address, assetTwo.address],
         owner.address,
-        MAX_UINT_256,
+        MAX_UINT_256
       );
     }
   }
@@ -981,88 +876,55 @@ describe("FlexibleLeverageStrategyExtension", () => {
     assetTwo: StandardTokenMock | WETH9,
     assetOnePrice: BigNumber,
     assetTwoPrice: BigNumber,
-    uniswapPool: UniswapV2Pair,
+    uniswapPool: UniswapV2Pair
   ): Promise<[BigNumber, boolean]> {
-    const assetOneDecimals = BigNumber.from(10).pow(await assetOne.decimals());
-    const assetTwoDecimals = BigNumber.from(10).pow(await assetTwo.decimals());
-    const [assetOneReserve, assetTwoReserve] = await getUniswapReserves(
-      fliSettings,
-      uniswapPool,
-      assetOne,
-    );
+    const assetOneDecimals = BigNumber.from(10).pow((await assetOne.decimals()));
+    const assetTwoDecimals = BigNumber.from(10).pow((await assetTwo.decimals()));
+    const [ assetOneReserve, assetTwoReserve ] = await getUniswapReserves(fliSettings, uniswapPool, assetOne);
     const expectedPrice = preciseDiv(assetOnePrice, assetTwoPrice);
 
     const currentK = assetOneReserve.mul(assetTwoReserve);
-    const assetOneLeft = sqrt(
-      currentK.div(expectedPrice.mul(assetTwoDecimals).div(assetOneDecimals)),
-    ).mul(BigNumber.from(10).pow(9));
+    const assetOneLeft = sqrt(currentK.div(expectedPrice.mul(assetTwoDecimals).div(assetOneDecimals))).mul(BigNumber.from(10).pow(9));
 
-    return assetOneLeft.gt(assetOneReserve)
-      ? [assetOneLeft.sub(assetOneReserve), false]
-      : [assetOneReserve.sub(assetOneLeft), true];
+    return assetOneLeft.gt(assetOneReserve) ?
+      [ assetOneLeft.sub(assetOneReserve), false ] :
+      [ assetOneReserve.sub(assetOneLeft), true ];
   }
 
   async function getUniswapReserves(
     fliSettings: FLISettings,
     uniswapPool: UniswapV2Pair,
-    assetOne: StandardTokenMock | WETH9,
+    assetOne: StandardTokenMock | WETH9
   ): Promise<[BigNumber, BigNumber]> {
-    const [reserveOne, reserveTwo] = await uniswapPool.getReserves();
+    const [ reserveOne, reserveTwo ] = await uniswapPool.getReserves();
     const tokenOne = await uniswapPool.token0();
     return tokenOne == assetOne.address ? [reserveOne, reserveTwo] : [reserveTwo, reserveOne];
   }
 
   async function liquidateIfLiquidatable(fliSettings: FLISettings): Promise<void> {
-    const [, , shortfall] = await compoundSetup.comptroller.getAccountLiquidity(setToken.address);
+    const [ , , shortfall] = await compoundSetup.comptroller.getAccountLiquidity(setToken.address);
     if (shortfall.gt(0)) {
-      const debtUnits = await setToken.getExternalPositionRealUnit(
-        fliSettings.borrowAsset.address,
-        compoundLeverageModule.address,
-      );
-      const payDownAmount = preciseMul(debtUnits, await setToken.totalSupply())
-        .mul(-1)
-        .div(2);
+      const debtUnits = await setToken.getExternalPositionRealUnit(fliSettings.borrowAsset.address, compoundLeverageModule.address);
+      const payDownAmount = preciseMul(debtUnits, await setToken.totalSupply()).mul(-1).div(2);
 
       if (fliSettings.borrowAsset.address != setV2Setup.weth.address) {
-        const cToken = await new CERc20__factory(owner.wallet).attach(
-          fliSettings.borrowCToken.address,
-        );
-        await cToken.liquidateBorrow(
-          setToken.address,
-          payDownAmount,
-          fliSettings.collateralCToken.address,
-        );
+        const cToken = await new CERc20__factory(owner.wallet).attach(fliSettings.borrowCToken.address);
+        await cToken.liquidateBorrow(setToken.address, payDownAmount, fliSettings.collateralCToken.address);
       } else {
-        const cToken: CEther = await new CEther__factory(owner.wallet).attach(
-          fliSettings.borrowCToken.address,
-        );
-        await cToken.liquidateBorrow(setToken.address, fliSettings.collateralCToken.address, {
-          value: payDownAmount,
-        });
+        const cToken: CEther = await new CEther__factory(owner.wallet).attach(fliSettings.borrowCToken.address);
+        await cToken.liquidateBorrow(setToken.address, fliSettings.collateralCToken.address, { value: payDownAmount });
       }
     }
   }
 
-  async function calculateSetValue(
-    fliSettings: FLISettings,
-    checkpoint: number,
-  ): Promise<BigNumber> {
+  async function calculateSetValue(fliSettings: FLISettings, checkpoint: number): Promise<BigNumber> {
     const totalSupply = await setToken.totalSupply();
-    const collateralCTokenUnit = await setToken.getDefaultPositionRealUnit(
-      fliSettings.collateralCToken.address,
-    );
-    const borrowUnit = await setToken.getExternalPositionRealUnit(
-      fliSettings.borrowAsset.address,
-      compoundLeverageModule.address,
-    );
+    const collateralCTokenUnit = (await setToken.getDefaultPositionRealUnit(fliSettings.collateralCToken.address));
+    const borrowUnit = (await setToken.getExternalPositionRealUnit(fliSettings.borrowAsset.address, compoundLeverageModule.address));
     const borrowDecimals = BigNumber.from(10).pow(await fliSettings.borrowAsset.decimals());
 
-    const collateralValue = preciseMul(collateralCTokenUnit, totalSupply)
-      .mul(fliSettings.checkpoints[checkpoint].collateralPrice)
-      .div(bitcoin(50));
-    const borrowValue = preciseMul(borrowUnit, totalSupply)
-      .mul(fliSettings.checkpoints[checkpoint].borrowPrice)
-      .div(borrowDecimals);
+    const collateralValue = preciseMul(collateralCTokenUnit, totalSupply).mul(fliSettings.checkpoints[checkpoint].collateralPrice).div(bitcoin(50));
+    const borrowValue = preciseMul(borrowUnit, totalSupply).mul(fliSettings.checkpoints[checkpoint].borrowPrice).div(borrowDecimals);
 
     return collateralValue.add(borrowValue);
   }
@@ -1071,11 +933,8 @@ describe("FlexibleLeverageStrategyExtension", () => {
     let z = value.add(ONE).div(TWO);
     let y = value;
     while (z.sub(y).isNegative()) {
-      y = z;
-      z = value
-        .div(z)
-        .add(z)
-        .div(TWO);
+        y = z;
+        z = value.div(z).add(z).div(TWO);
     }
     return y;
   }
