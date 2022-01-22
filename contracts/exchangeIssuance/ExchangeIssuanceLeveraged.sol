@@ -32,8 +32,6 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { UniSushiV2Library } from "../../external/contracts/UniSushiV2Library.sol";
 import { FlashLoanReceiverBaseV2 } from "../../external/contracts/aaveV2/FlashLoanReceiverBaseV2.sol";
 
-import "hardhat/console.sol";
-
 /**
  * @title ExchangeIssuance
  * @author Index Coop
@@ -133,6 +131,48 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     /* ============ Public Functions ============ */
 
     /**
+    * Returns the long / short token addresses and amounts for a leveraged index 
+    *
+    * @param _setToken              Address of the SetToken to be issued
+    * @param _amountSetToken        Amount of SetTokens to issue
+    *
+    * @return longToken             Address of long token
+    * @return longAmount            Amount of long Token required for issuance
+    * @return shortToken            Address of short token
+    * @return shortAmount           Amount of short Token returned for issuance
+    */
+    function getLeveragedTokenData(
+        ISetToken _setToken,
+        uint256 _amountSetToken
+    )
+        isSetToken(_setToken)
+        public 
+        view
+        returns (address longToken, uint256 longAmount, address shortToken, uint256 shortAmount)
+    {
+            address[] memory components;
+            uint256[] memory equityPositions;
+            uint256[] memory debtPositions;
+            (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
+            require(components.length == 2, "ExchangeIssuance: TOO MANY COMPONENTS");
+            require(equityPositions[0] == 0 || equityPositions[1] == 0, "ExchangeIssuance: TOO MANY EQUITY POSITIONS");
+            require(debtPositions[0] == 0 || debtPositions[1] == 0, "ExchangeIssuance: TOO MANY DEBT POSITIONS");
+
+            if(equityPositions[0] > 0){
+                longToken = components[0];
+                longAmount = equityPositions[0];
+                shortToken = components[1];
+                shortAmount = debtPositions[1];
+            }
+            else {
+                longToken = components[1];
+                longAmount = equityPositions[1];
+                shortToken = components[0];
+                shortAmount = debtPositions[0];
+            }
+    }
+
+    /**
      * Runs all the necessary approval functions required for a given ERC20 token.
      * This function can be called when a new token is added to a SetToken during a
      * rebalance.
@@ -147,6 +187,14 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
     /* ============ External Functions ============ */
 
+    /**
+     * This is the callback function that will be called by the AaveLending Pool after flashloaned tokens have been sent
+     * to this contract.
+     * After exiting this function the Lending Pool will attempt to transfer back the loaned tokens + interest. If it fails to do so
+     * the whole transaction gets reverted
+     *
+     * @param _token    Address of the token which needs approval
+     */
     function executeOperation(
         address[] calldata assets,
         uint256[] calldata amounts,
@@ -154,24 +202,17 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         address initiator,
         bytes calldata params
     ) external override returns (bool) {
-        console.log("Execute Operation");
-        console.log(string(params));
         (address setToken, uint256 setAmount, address originalSender) = abi.decode(params, (address, uint256, address));
-        console.log("Decoded params");
-        console.logAddress(setToken);
-        console.logUint(setAmount);
 
 
         _depositLongToken(assets[0], amounts[0]);
         _checkLongTokenBalance(setToken, setAmount);
 
-        console.log("Issuing SET");
         debtIssuanceModule.issue(ISetToken(setToken), setAmount, originalSender);
 
         _obtainLongTokens(setToken, setAmount, assets[0], amounts[0] + premiums[0], originalSender);
 
         _approveAssetsToReturn(assets, amounts, premiums);
-        console.log("Executed Operation");
         return true;
     }
 
@@ -185,12 +226,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             return;
         }
         uint256 shortfall = _amountRequired.sub(_amountObtained);
-        console.log("Transfering shortfall");
-        console.logUint(_amountRequired);
-        console.logUint(_amountObtained);
-        console.logUint(shortfall);
         IERC20(_token).safeTransferFrom(_originalSender, address(this), shortfall);
-        console.log("Transfered shortfall");
     }
 
 
@@ -209,8 +245,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     ) internal {
         (address longToken, uint longAmount,,) = getLeveragedTokenData(ISetToken(_setToken), _setAmount);
         uint longTokenBalance = IERC20(longToken).balanceOf(address(this));
-        console.log("Long token Balance");
-        console.logUint(longTokenBalance);
         require(longTokenBalance >= longAmount, "insufficient long token");
     }
 
@@ -218,10 +252,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         address _longTokenUnderlying,
         uint256 _depositAmount
     ) internal {
-        console.log("Enter Deposit");
         IERC20(_longTokenUnderlying).approve(address(LENDING_POOL), _depositAmount);
         LENDING_POOL.deposit(_longTokenUnderlying, _depositAmount, address(this), 0);
-        console.log("DEPOSITED");
     }
 
 
@@ -239,7 +271,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     function _flashloan(address[] memory assets, uint256[] memory amounts, bytes memory params)
         internal
     {
-        console.log("Enter _flashloan");
         address receiverAddress = address(this);
 
         address onBehalfOf = address(this);
@@ -252,7 +283,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             modes[i] = 0;
         }
 
-        console.log("Sending Flashloan");
         LENDING_POOL.flashLoan(
             receiverAddress,
             assets,
@@ -262,16 +292,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             params,
             referralCode
         );
-    }
-
-    /*
-     *  Flash multiple assets
-     */
-    function flashloan(address[] memory assets, uint256[] memory amounts)
-        public
-    {
-        bytes memory params = "";
-        _flashloan(assets, amounts, params);
     }
 
     /**
@@ -318,281 +338,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         _flashloan(assets, amounts, params);
 
     }
-    /**
-     * Issues SetTokens for an exact amount of input ERC20 tokens.
-     * The ERC20 token must be approved by the sender to this contract.
-     *
-     * @param _setToken         Address of the SetToken being issued
-     * @param _inputToken       Address of input token
-     * @param _amountInput      Amount of the input token / ether to spend
-     * @param _minSetReceive    Minimum amount of SetTokens to receive. Prevents unnecessary slippage.
-     *
-     * @return setTokenAmount   Amount of SetTokens issued to the caller
-     */
-    function issueSetForExactToken(
-        ISetToken _setToken,
-        IERC20 _inputToken,
-        uint256 _amountInput,
-        uint256 _minSetReceive
-    )
-        isSetToken(_setToken)
-        external
-        nonReentrant
-        returns (uint256)
-    {
-        require(_amountInput > 0, "ExchangeIssuance: INVALID INPUTS");
-
-        _inputToken.safeTransferFrom(msg.sender, address(this), _amountInput);
-
-        uint256 amountEth = address(_inputToken) == WETH
-            ? _amountInput
-            : _swapTokenForWETH(_inputToken, _amountInput);
-
-        uint256 setTokenAmount = _issueSetForExactWETH(_setToken, _minSetReceive, amountEth);
-
-        emit ExchangeIssue(msg.sender, _setToken, _inputToken, _amountInput, setTokenAmount);
-        return setTokenAmount;
-    }
-
-    /**
-    * Returns the long / short token addresses and amounts for a leveraged index 
-    *
-    * @param _setToken              Address of the SetToken to be issued
-    * @param _amountSetToken        Amount of SetTokens to issue
-    *
-    * @return longToken             Address of long token
-    * @return longAmount            Amount of long Token required for issuance
-    * @return shortToken            Address of short token
-    * @return shortAmount           Amount of short Token returned for issuance
-    */
-    function getLeveragedTokenData(
-        ISetToken _setToken,
-        uint256 _amountSetToken
-    )
-        isSetToken(_setToken)
-        public 
-        view
-        returns (address longToken, uint256 longAmount, address shortToken, uint256 shortAmount)
-    {
-            address[] memory components;
-            uint256[] memory equityPositions;
-            uint256[] memory debtPositions;
-            (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
-            require(components.length == 2, "ExchangeIssuance: TOO MANY COMPONENTS");
-            require(equityPositions[0] == 0 || equityPositions[1] == 0, "ExchangeIssuance: TOO MANY EQUITY POSITIONS");
-            require(debtPositions[0] == 0 || debtPositions[1] == 0, "ExchangeIssuance: TOO MANY DEBT POSITIONS");
-
-            if(equityPositions[0] > 0){
-                longToken = components[0];
-                longAmount = equityPositions[0];
-                shortToken = components[1];
-                shortAmount = debtPositions[1];
-            }
-            else {
-                longToken = components[1];
-                longAmount = equityPositions[1];
-                shortToken = components[0];
-                shortAmount = debtPositions[0];
-            }
-    }
-
-    /**
-    * Issues an exact amount of SetTokens for given amount of input ERC20 tokens.
-    * The excess amount of tokens is returned in an equivalent amount of ether.
-    *
-    * @param _setToken              Address of the SetToken to be issued
-    * @param _inputToken            Address of the input token
-    * @param _amountSetToken        Amount of SetTokens to issue
-    * @param _maxAmountInputToken   Maximum amount of input tokens to be used to issue SetTokens. The unused
-    *                               input tokens are returned as ether.
-    *
-    * @return amountEthReturn       Amount of ether returned to the caller
-    */
-    function issueExactSetFromToken(
-        ISetToken _setToken,
-        IERC20 _inputToken,
-        uint256 _amountSetToken,
-        uint256 _maxAmountInputToken
-    )
-        isSetToken(_setToken)
-        external
-        nonReentrant
-        returns (uint256)
-    {
-        // 1. Loan Full Amount of Long Token 
-        // 2. Issue 
-        // 3. Swap returned short token for long token
-        // 4. Determine shortfall and get from user
-        // 5. Return loan
-
-        require(_amountSetToken > 0 && _maxAmountInputToken > 0, "ExchangeIssuance: INVALID INPUTS");
-
-        _inputToken.safeTransferFrom(msg.sender, address(this), _maxAmountInputToken);
-
-        uint256 initETHAmount = address(_inputToken) == WETH
-            ? _maxAmountInputToken
-            : _swapTokenForWETH(_inputToken, _maxAmountInputToken);
-
-        uint256 amountEthSpent = _issueExactSetFromWETH(_setToken, _amountSetToken, initETHAmount);
-
-        uint256 amountEthReturn = initETHAmount.sub(amountEthSpent);
-        if (amountEthReturn > 0) {
-            IERC20(WETH).safeTransfer(msg.sender,  amountEthReturn);
-        }
-
-        emit Refund(msg.sender, amountEthReturn);
-        emit ExchangeIssue(msg.sender, _setToken, _inputToken, _maxAmountInputToken, _amountSetToken);
-        return amountEthReturn;
-    }
-
-    /**
-     * Redeems an exact amount of SetTokens for an ERC20 token.
-     * The SetToken must be approved by the sender to this contract.
-     *
-     * @param _setToken             Address of the SetToken being redeemed
-     * @param _outputToken          Address of output token
-     * @param _amountSetToken       Amount SetTokens to redeem
-     * @param _minOutputReceive     Minimum amount of output token to receive
-     *
-     * @return outputAmount         Amount of output tokens sent to the caller
-     */
-    function redeemExactSetForToken(
-        ISetToken _setToken,
-        IERC20 _outputToken,
-        uint256 _amountSetToken,
-        uint256 _minOutputReceive
-    )
-        isSetToken(_setToken)
-        external
-        nonReentrant
-        returns (uint256)
-    {
-        require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-
-        address[] memory components = _setToken.getComponents();
-        (
-            uint256 totalEth,
-            uint256[] memory amountComponents,
-            Exchange[] memory exchanges
-        ) =  _getAmountETHForRedemption(_setToken, components, _amountSetToken);
-
-        uint256 outputAmount;
-        if (address(_outputToken) == WETH) {
-            require(totalEth > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
-            _redeemExactSet(_setToken, _amountSetToken);
-            outputAmount = _liquidateComponentsForWETH(components, amountComponents, exchanges);
-        } else {
-            (uint256 totalOutput, Exchange outTokenExchange, ) = _getMaxTokenForExactToken(totalEth, address(WETH), address(_outputToken));
-            require(totalOutput > _minOutputReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
-            _redeemExactSet(_setToken, _amountSetToken);
-            uint256 outputEth = _liquidateComponentsForWETH(components, amountComponents, exchanges);
-            outputAmount = _swapExactTokensForTokens(outTokenExchange, WETH, address(_outputToken), outputEth);
-        }
-
-        _outputToken.safeTransfer(msg.sender, outputAmount);
-        emit ExchangeRedeem(msg.sender, _setToken, _outputToken, _amountSetToken, outputAmount);
-        return outputAmount;
-    }
-
-
-    /**
-     * Returns an estimated amount of SetToken that can be issued given an amount of input ERC20 token.
-     *
-     * @param _setToken         Address of the SetToken being issued
-     * @param _amountInput      Amount of the input token to spend
-     * @param _inputToken       Address of input token.
-     *
-     * @return                  Estimated amount of SetTokens that will be received
-     */
-    function getEstimatedIssueSetAmount(
-        ISetToken _setToken,
-        IERC20 _inputToken,
-        uint256 _amountInput
-    )
-        isSetToken(_setToken)
-        external
-        view
-        returns (uint256)
-    {
-        require(_amountInput > 0, "ExchangeIssuance: INVALID INPUTS");
-
-        uint256 amountEth;
-        if (address(_inputToken) != WETH) {
-            // get max amount of WETH for the `_amountInput` amount of input tokens
-            (amountEth, , ) = _getMaxTokenForExactToken(_amountInput, address(_inputToken), WETH);
-        } else {
-            amountEth = _amountInput;
-        }
-
-        address[] memory components = _setToken.getComponents();
-        (uint256 setIssueAmount, , ) = _getSetIssueAmountForETH(_setToken, components, amountEth);
-        return setIssueAmount;
-    }
-
-    /**
-    * Returns the amount of input ERC20 tokens required to issue an exact amount of SetTokens.
-    *
-    * @param _setToken          Address of the SetToken being issued
-    * @param _amountSetToken    Amount of SetTokens to issue
-    *
-    * @return                   Amount of tokens needed to issue specified amount of SetTokens
-    */
-    function getAmountInToIssueExactSet(
-        ISetToken _setToken,
-        IERC20 _inputToken,
-        uint256 _amountSetToken
-    )
-        isSetToken(_setToken)
-        external
-        view
-        returns(uint256)
-    {
-        require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-
-        address[] memory components = _setToken.getComponents();
-        (uint256 totalEth, , , , ) = _getAmountETHForIssuance(_setToken, components, _amountSetToken);
-
-        if (address(_inputToken) == WETH) {
-            return totalEth;
-        }
-
-        (uint256 tokenAmount, , ) = _getMinTokenForExactToken(totalEth, address(_inputToken), address(WETH));
-        return tokenAmount;
-    }
-
-    /**
-     * Returns amount of output ERC20 tokens received upon redeeming a given amount of SetToken.
-     *
-     * @param _setToken             Address of SetToken to be redeemed
-     * @param _amountSetToken       Amount of SetToken to be redeemed
-     * @param _outputToken          Address of output token
-     *
-     * @return                      Estimated amount of ether/erc20 that will be received
-     */
-    function getAmountOutOnRedeemSet(
-        ISetToken _setToken,
-        address _outputToken,
-        uint256 _amountSetToken
-    )
-        isSetToken(_setToken)
-        external
-        view
-        returns (uint256)
-    {
-        require(_amountSetToken > 0, "ExchangeIssuance: INVALID INPUTS");
-
-        address[] memory components = _setToken.getComponents();
-        (uint256 totalEth, , ) = _getAmountETHForRedemption(_setToken, components, _amountSetToken);
-
-        if (_outputToken == WETH) {
-            return totalEth;
-        }
-
-        // get maximum amount of tokens for totalEth amount of ETH
-        (uint256 tokenAmount, , ) = _getMaxTokenForExactToken(totalEth, WETH, _outputToken);
-        return tokenAmount;
-    }
-
 
     /* ============ Internal Functions ============ */
 
@@ -610,65 +355,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         }
     }
 
-    /**
-     * Issues SetTokens for an exact amount of input WETH.
-     *
-     * @param _setToken         Address of the SetToken being issued
-     * @param _minSetReceive    Minimum amount of index to receive
-     * @param _totalEthAmount   Total amount of WETH to be used to purchase the SetToken components
-     *
-     * @return setTokenAmount   Amount of SetTokens issued
-     */
-    function _issueSetForExactWETH(ISetToken _setToken, uint256 _minSetReceive, uint256 _totalEthAmount) internal returns (uint256) {
 
-        address[] memory components = _setToken.getComponents();
-        (
-            uint256 setIssueAmount,
-            uint256[] memory amountEthIn,
-            Exchange[] memory exchanges
-        ) = _getSetIssueAmountForETH(_setToken, components, _totalEthAmount);
-
-        require(setIssueAmount > _minSetReceive, "ExchangeIssuance: INSUFFICIENT_OUTPUT_AMOUNT");
-
-        for (uint256 i = 0; i < components.length; i++) {
-            _swapExactTokensForTokens(exchanges[i], WETH, components[i], amountEthIn[i]);
-        }
-
-        debtIssuanceModule.issue(_setToken, setIssueAmount, msg.sender);
-        return setIssueAmount;
-    }
-
-    /**
-     * Issues an exact amount of SetTokens using WETH.
-     * Acquires SetToken components at the best price accross uniswap and sushiswap.
-     * Uses the acquired components to issue the SetTokens.
-     *
-     * @param _setToken          Address of the SetToken being issued
-     * @param _amountSetToken    Amount of SetTokens to be issued
-     * @param _maxEther          Max amount of ether that can be used to acquire the SetToken components
-     *
-     * @return totalEth          Total amount of ether used to acquire the SetToken components
-     */
-    function _issueExactSetFromWETH(ISetToken _setToken, uint256 _amountSetToken, uint256 _maxEther) internal returns (uint256) {
-
-        address[] memory components = _setToken.getComponents();
-        (
-            uint256 sumEth,
-            ,
-            Exchange[] memory exchanges,
-            uint256[] memory amountComponents,
-        ) = _getAmountETHForIssuance(_setToken, components, _amountSetToken);
-
-        require(sumEth <= _maxEther, "ExchangeIssuance: INSUFFICIENT_INPUT_AMOUNT");
-
-        uint256 totalEth = 0;
-        for (uint256 i = 0; i < components.length; i++) {
-            uint256 amountEth = _swapTokensForExactTokens(exchanges[i], WETH, components[i], amountComponents[i]);
-            totalEth = totalEth.add(amountEth);
-        }
-        debtIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
-        return totalEth;
-    }
 
     /**
      * Redeems a given amount of SetToken.
@@ -681,179 +368,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         debtIssuanceModule.redeem(_setToken, _amount, address(this));
     }
 
-    /**
-     * Liquidates a given list of SetToken components for WETH.
-     *
-     * @param _components           An array containing the address of SetToken components
-     * @param _amountComponents     An array containing the amount of each SetToken component
-     * @param _exchanges            An array containing the exchange on which to liquidate the SetToken component
-     *
-     * @return                      Total amount of WETH received after liquidating all SetToken components
-     */
-    function _liquidateComponentsForWETH(address[] memory _components, uint256[] memory _amountComponents, Exchange[] memory _exchanges)
-        internal
-        returns (uint256)
-    {
-        uint256 sumEth = 0;
-        for (uint256 i = 0; i < _components.length; i++) {
-            sumEth = _exchanges[i] == Exchange.None
-                ? sumEth.add(_amountComponents[i])
-                : sumEth.add(_swapExactTokensForTokens(_exchanges[i], _components[i], WETH, _amountComponents[i]));
-        }
-        return sumEth;
-    }
-
-    /**
-     * Gets the total amount of ether required for purchasing each component in a SetToken,
-     * to enable the issuance of a given amount of SetTokens.
-     *
-     * @param _setToken             Address of the SetToken to be issued
-     * @param _components           An array containing the addresses of the SetToken components
-     * @param _amountSetToken       Amount of SetToken to be issued
-     *
-     * @return sumEth               The total amount of Ether reuired to issue the set
-     * @return amountEthIn          An array containing the amount of ether to purchase each component of the SetToken
-     * @return exchanges            An array containing the exchange on which to perform the purchase
-     * @return amountComponents     An array containing the amount of each SetToken component required for issuing the given
-     *                              amount of SetToken
-     * @return pairAddresses        An array containing the pair addresses of ETH/component exchange pool
-     */
-    function _getAmountETHForIssuance(ISetToken _setToken, address[] memory _components, uint256 _amountSetToken)
-        internal
-        view
-        returns (
-            uint256 sumEth,
-            uint256[] memory amountEthIn,
-            Exchange[] memory exchanges,
-            uint256[] memory amountComponents,
-            address[] memory pairAddresses
-        )
-    {
-        sumEth = 0;
-        amountEthIn = new uint256[](_components.length);
-        amountComponents = new uint256[](_components.length);
-        exchanges = new Exchange[](_components.length);
-        pairAddresses = new address[](_components.length);
-
-        for (uint256 i = 0; i < _components.length; i++) {
-
-            // Check that the component does not have external positions
-            require(
-                _setToken.getExternalPositionModules(_components[i]).length == 0,
-                "ExchangeIssuance: EXTERNAL_POSITIONS_NOT_ALLOWED"
-            );
-
-            // Get minimum amount of ETH to be spent to acquire the required amount of SetToken component
-            uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(_components[i]));
-            amountComponents[i] = uint256(unit).preciseMulCeil(_amountSetToken);
-
-            (amountEthIn[i], exchanges[i], pairAddresses[i]) = _getMinTokenForExactToken(amountComponents[i], WETH, _components[i]);
-            sumEth = sumEth.add(amountEthIn[i]);
-        }
-        return (sumEth, amountEthIn, exchanges, amountComponents, pairAddresses);
-    }
-
-    /**
-     * Gets the total amount of ether returned from liquidating each component in a SetToken.
-     *
-     * @param _setToken             Address of the SetToken to be redeemed
-     * @param _components           An array containing the addresses of the SetToken components
-     * @param _amountSetToken       Amount of SetToken to be redeemed
-     *
-     * @return sumEth               The total amount of Ether that would be obtained from liquidating the SetTokens
-     * @return amountComponents     An array containing the amount of SetToken component to be liquidated
-     * @return exchanges            An array containing the exchange on which to liquidate the SetToken components
-     */
-    function _getAmountETHForRedemption(ISetToken _setToken, address[] memory _components, uint256 _amountSetToken)
-        internal
-        view
-        returns (uint256, uint256[] memory, Exchange[] memory)
-    {
-        uint256 sumEth = 0;
-        uint256 amountEth = 0;
-
-        uint256[] memory amountComponents = new uint256[](_components.length);
-        Exchange[] memory exchanges = new Exchange[](_components.length);
-
-        for (uint256 i = 0; i < _components.length; i++) {
-
-            // Check that the component does not have external positions
-            require(
-                _setToken.getExternalPositionModules(_components[i]).length == 0,
-                "ExchangeIssuance: EXTERNAL_POSITIONS_NOT_ALLOWED"
-            );
-
-            uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(_components[i]));
-            amountComponents[i] = unit.preciseMul(_amountSetToken);
-
-            // get maximum amount of ETH received for a given amount of SetToken component
-            (amountEth, exchanges[i], ) = _getMaxTokenForExactToken(amountComponents[i], _components[i], WETH);
-            sumEth = sumEth.add(amountEth);
-        }
-        return (sumEth, amountComponents, exchanges);
-    }
-
-    /**
-     * Returns an estimated amount of SetToken that can be issued given an amount of input ERC20 token.
-     *
-     * @param _setToken             Address of the SetToken to be issued
-     * @param _components           An array containing the addresses of the SetToken components
-     * @param _amountEth            Total amount of ether available for the purchase of SetToken components
-     *
-     * @return setIssueAmount       The max amount of SetTokens that can be issued
-     * @return amountEthIn          An array containing the amount ether required to purchase each SetToken component
-     * @return exchanges            An array containing the exchange on which to purchase the SetToken components
-     */
-    function _getSetIssueAmountForETH(ISetToken _setToken, address[] memory _components, uint256 _amountEth)
-        internal
-        view
-        returns (uint256 setIssueAmount, uint256[] memory amountEthIn, Exchange[] memory exchanges)
-    {
-        uint256 sumEth;
-        uint256[] memory unitAmountEthIn;
-        uint256[] memory unitAmountComponents;
-        address[] memory pairAddresses;
-        (
-            sumEth,
-            unitAmountEthIn,
-            exchanges,
-            unitAmountComponents,
-            pairAddresses
-        ) = _getAmountETHForIssuance(_setToken, _components, PreciseUnitMath.preciseUnit());
-
-        setIssueAmount = PreciseUnitMath.maxUint256();
-        amountEthIn = new uint256[](_components.length);
-
-        for (uint256 i = 0; i < _components.length; i++) {
-
-            amountEthIn[i] = unitAmountEthIn[i].mul(_amountEth).div(sumEth);
-
-            uint256 amountComponent;
-            if (exchanges[i] == Exchange.None) {
-                amountComponent = amountEthIn[i];
-            } else {
-                (uint256 reserveIn, uint256 reserveOut) = UniSushiV2Library.getReserves(pairAddresses[i], WETH, _components[i]);
-                amountComponent = UniSushiV2Library.getAmountOut(amountEthIn[i], reserveIn, reserveOut);
-            }
-            setIssueAmount = Math.min(amountComponent.preciseDiv(unitAmountComponents[i]), setIssueAmount);
-        }
-        return (setIssueAmount, amountEthIn, exchanges);
-    }
-
-    /**
-     * Swaps a given amount of an ERC20 token for WETH for the best price on Uniswap/Sushiswap.
-     *
-     * @param _token    Address of the ERC20 token to be swapped for WETH
-     * @param _amount   Amount of ERC20 token to be swapped
-     *
-     * @return          Amount of WETH received after the swap
-     */
-    function _swapTokenForWETH(IERC20 _token, uint256 _amount) internal returns (uint256) {
-        (, Exchange exchange, ) = _getMaxTokenForExactToken(_amount, address(_token), WETH);
-        IUniswapV2Router02 router = _getRouter(exchange);
-        _safeApprove(_token, address(router), _amount);
-        return _swapExactTokensForTokens(exchange, address(_token), WETH, _amount);
-    }
 
     /**
      * Swap exact tokens for another token on a given DEX.
@@ -999,5 +513,4 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      function _getRouter(Exchange _exchange) internal view returns(IUniswapV2Router02) {
          return (_exchange == Exchange.Uniswap) ? uniRouter : sushiRouter;
      }
-
 }

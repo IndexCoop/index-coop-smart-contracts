@@ -35,7 +35,7 @@ import {
 } from "@utils/index";
 import { UnitsUtils } from "@utils/common/unitsUtils";
 import { AaveV2Fixture, SetFixture, UniswapFixture } from "@utils/fixtures";
-import { BigNumber } from "ethers";
+import { BigNumber, utils } from "ethers";
 
 const expect = getWaffleExpect();
 
@@ -169,7 +169,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
     uniswapSetup = getUniswapFixture(owner.address);
     await uniswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
-
 
     // Set integrations for CompoundLeverageModule
     await setV2Setup.integrationRegistry.addIntegration(
@@ -447,19 +446,17 @@ describe("ExchangeIssuanceLeveraged", async () => {
     describe("#issueExactSetForLongToken", async () => {
       let subjectSetToken: Address;
       let subjectSetAmount: BigNumber;
+      let longAmount: BigNumber;
       async function subject() {
         return await exchangeIssuance.issueExactSetForLongToken(subjectSetToken, subjectSetAmount);
       }
       beforeEach(async () => {
-        const { longAmount } = await exchangeIssuance.getLeveragedTokenData(
+        ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
           subjectSetToken,
           subjectSetAmount,
-        );
-        await setV2Setup.weth.approve(exchangeIssuance.address, longAmount.mul(2));
-        // await aWeth.transfer(exchangeIssuance.address, longAmount.mul(2));
-        // await setV2Setup.usdc.transfer(debtIssuanceModule.address, shortAmount.mul(2));
+        ));
+        await setV2Setup.weth.approve(exchangeIssuance.address, longAmount);
         await exchangeIssuance.approveSetToken(setToken.address);
-        console.log("Sent some weth to ei contract");
       });
       context("when passed the FLI token", async () => {
         before(() => {
@@ -468,6 +465,15 @@ describe("ExchangeIssuanceLeveraged", async () => {
         });
         it("should succeed", async () => {
           await subject();
+        });
+        it("should cost less than the total long position", async () => {
+          const balanceBefore = await setV2Setup.weth.balanceOf(owner.address);
+          await subject();
+          const balanceAfter = await setV2Setup.weth.balanceOf(owner.address);
+          const diff = balanceBefore.sub(balanceAfter);
+          console.log("Diff and longAmount", utils.formatEther(diff), utils.formatEther(longAmount));
+          expect(diff.gt(0)).to.equal(true);
+          expect(diff.lt(longAmount)).to.equal(true);
         });
       });
     });
