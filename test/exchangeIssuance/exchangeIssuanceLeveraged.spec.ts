@@ -456,6 +456,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
         );
       }
       beforeEach(async () => {
+        subjectSetToken = setToken.address;
+        subjectSetAmount = ether(1);
         ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
           subjectSetToken,
           subjectSetAmount,
@@ -464,27 +466,56 @@ describe("ExchangeIssuanceLeveraged", async () => {
         await setV2Setup.weth.approve(exchangeIssuance.address, longAmount);
         await exchangeIssuance.approveSetToken(setToken.address);
       });
-      context("when passed the FLI token", async () => {
-        before(() => {
-          subjectSetToken = setToken.address;
-          subjectSetAmount = ether(1);
+      it("should succeed", async () => {
+        await subject();
+      });
+      it("should cost less than the total long position", async () => {
+        const balanceBefore = await setV2Setup.weth.balanceOf(owner.address);
+        await subject();
+        const balanceAfter = await setV2Setup.weth.balanceOf(owner.address);
+        const diff = balanceBefore.sub(balanceAfter);
+        console.log("Diff and longAmount", utils.formatEther(diff), utils.formatEther(longAmount));
+        expect(diff.gt(0)).to.equal(true);
+        expect(diff.lt(longAmount)).to.equal(true);
+      });
+      context("when subjectMaxInput is too low", async () => {
+        beforeEach(() => {
+          subjectMaxAmountInput = ZERO;
         });
-        it("should succeed", async () => {
-          await subject();
-        });
-        it("should cost less than the total long position", async () => {
-          const balanceBefore = await setV2Setup.weth.balanceOf(owner.address);
-          await subject();
-          const balanceAfter = await setV2Setup.weth.balanceOf(owner.address);
-          const diff = balanceBefore.sub(balanceAfter);
-          console.log(
-            "Diff and longAmount",
-            utils.formatEther(diff),
-            utils.formatEther(longAmount),
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith(
+            "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT",
           );
-          expect(diff.gt(0)).to.equal(true);
-          expect(diff.lt(longAmount)).to.equal(true);
         });
+      });
+    });
+    describe("#issueExactSetForEth", async () => {
+      let subjectSetToken: Address;
+      let subjectSetAmount: BigNumber;
+      let subjectMaxAmountInput: BigNumber;
+      let longAmount: BigNumber;
+      async function subject() {
+        return await exchangeIssuance.issueExactSetForEth(
+          subjectSetToken,
+          subjectSetAmount,
+          subjectMaxAmountInput,
+        );
+      }
+      beforeEach(async () => {
+        subjectSetToken = setToken.address;
+        subjectSetAmount = ether(1);
+        ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
+          subjectSetToken,
+          subjectSetAmount,
+        ));
+        subjectMaxAmountInput = longAmount;
+        await setV2Setup.weth.approve(exchangeIssuance.address, longAmount);
+        await exchangeIssuance.approveSetToken(setToken.address);
+      });
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith(
+          "revert Not Implemented",
+        );
       });
     });
   });
