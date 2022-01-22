@@ -36,8 +36,10 @@ import { FlashLoanReceiverBaseV2 } from "../../external/contracts/aaveV2/FlashLo
  * @title ExchangeIssuance
  * @author Index Coop
  *
- * Contract for issuing and redeeming any SetToken using ETH or an ERC20 as the paying/receiving currency.
- * All swaps are done using the best price found on Uniswap or Sushiswap.
+ * Contract for issuing and redeeming a leveraged Set Token
+ * Supports all tokens with one collateral Position in the form of an AToken and one debt position
+ * Both the underlying of the collateral as well as the debt token have to be available for flashloand and be 
+ * tradeable against each other on Sushi / Uniswap
  *
  */
 contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
@@ -136,7 +138,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     * @param _setToken              Address of the SetToken to be issued
     * @param _amountSetToken        Amount of SetTokens to issue
     *
-    * @return longToken             Address of long token
+    * @return longToken             Address of long token (AToken)
     * @return longAmount            Amount of long Token required for issuance
     * @return shortToken            Address of short token
     * @return shortAmount           Amount of short Token returned for issuance
@@ -193,7 +195,11 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * After exiting this function the Lending Pool will attempt to transfer back the loaned tokens + interest. If it fails to do so
      * the whole transaction gets reverted
      *
-     * @param _token    Address of the token which needs approval
+     * @param assets     Addresses of all assets that were borrowed
+     * @param amounts    Amounts that were borrowed
+     * @param premiums   Interest to be paid on top of borrowed amount
+     * @param initiator  TODO: What is this ?
+     * @param params     Encoded bytestring of other parameters from the original contract call to be used downstream
      */
     function executeOperation(
         address[] calldata assets,
@@ -206,7 +212,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
 
         _depositLongToken(assets[0], amounts[0]);
-        _checkLongTokenBalance(setToken, setAmount);
 
         debtIssuanceModule.issue(ISetToken(setToken), setAmount, originalSender);
 
@@ -216,83 +221,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         return true;
     }
 
-    function _obtainLongTokens(address _setToken, uint256 _setAmount, address _longTokenUnderlying, uint256 _amountRequired, address _originalSender) internal {
-        uint longTokenObtained = _swapShortForLongTokenUnderlying(_setToken, _setAmount, _longTokenUnderlying);
-        _transferShortfallFromSender(_longTokenUnderlying, _amountRequired, longTokenObtained, _originalSender);
-    }
-
-    function _transferShortfallFromSender(address _token, uint256 _amountRequired, uint256 _amountObtained, address _originalSender) internal {
-        if(_amountObtained >= _amountRequired){ 
-            return;
-        }
-        uint256 shortfall = _amountRequired.sub(_amountObtained);
-        IERC20(_token).safeTransferFrom(_originalSender, address(this), shortfall);
-    }
-
-
-
-    function _swapShortForLongTokenUnderlying(address _setToken, uint256 _setAmount, address longTokenUnderlying) internal returns (uint256) {
-        (, , address shortToken, uint shortAmount) = getLeveragedTokenData(ISetToken(_setToken), _setAmount);
-        (, Exchange exchange, ) = _getMaxTokenForExactToken(shortAmount, shortToken, longTokenUnderlying);
-        IUniswapV2Router02 router = _getRouter(exchange);
-        _safeApprove(IERC20(shortToken), address(router), shortAmount);
-        return _swapExactTokensForTokens(exchange, shortToken, longTokenUnderlying, shortAmount);
-    }
-
-    function _checkLongTokenBalance(
-        address _setToken,
-        uint256 _setAmount
-    ) internal {
-        (address longToken, uint longAmount,,) = getLeveragedTokenData(ISetToken(_setToken), _setAmount);
-        uint longTokenBalance = IERC20(longToken).balanceOf(address(this));
-        require(longTokenBalance >= longAmount, "insufficient long token");
-    }
-
-    function _depositLongToken(
-        address _longTokenUnderlying,
-        uint256 _depositAmount
-    ) internal {
-        IERC20(_longTokenUnderlying).approve(address(LENDING_POOL), _depositAmount);
-        LENDING_POOL.deposit(_longTokenUnderlying, _depositAmount, address(this), 0);
-    }
-
-
-    function _approveAssetsToReturn(
-        address[] calldata assets,
-        uint256[] calldata amounts,
-        uint256[] calldata premiums
-    ) internal {
-        for (uint256 i = 0; i < assets.length; i++) {
-            uint256 amountOwing = amounts[i].add(premiums[i]);
-            IERC20(assets[i]).approve(address(LENDING_POOL), amountOwing);
-        }
-    }
-
-    function _flashloan(address[] memory assets, uint256[] memory amounts, bytes memory params)
-        internal
-    {
-        address receiverAddress = address(this);
-
-        address onBehalfOf = address(this);
-        uint16 referralCode = 0;
-
-        uint256[] memory modes = new uint256[](assets.length);
-
-        // 0 = no debt (flash), 1 = stable, 2 = variable
-        for (uint256 i = 0; i < assets.length; i++) {
-            modes[i] = 0;
-        }
-
-        LENDING_POOL.flashLoan(
-            receiverAddress,
-            assets,
-            amounts,
-            modes,
-            onBehalfOf,
-            params,
-            referralCode
-        );
-    }
 
     /**
      * Runs all the necessary approval functions required for a list of ERC20 tokens.
@@ -341,6 +269,113 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
     /* ============ Internal Functions ============ */
 
+    /**
+     * Obtains the tokens necessary to return the flashloan by swapping the short tokens obtained
+     * from issuance and making up the shortfall using the users funds.
+     *
+     * @param _setToken              Address of the SetToken being initialized
+     * @param _setAmount             Amount of the SetToken being initialized
+     * @param _longTokenUnderlying   Underlying token of the collateral AToken, which is the token to be returned
+     * @param _amountRequired        Amount of longTokenUnderlying required to repay the flashloan
+     */
+    function _obtainLongTokens(address _setToken, uint256 _setAmount, address _longTokenUnderlying, uint256 _amountRequired, address _originalSender) internal {
+        uint longTokenObtained = _swapShortForLongTokenUnderlying(_setToken, _setAmount, _longTokenUnderlying);
+        _transferShortfallFromSender(_longTokenUnderlying, _amountRequired, longTokenObtained, _originalSender);
+    }
+
+    /**
+     * Transfers the shortfall between the amount of tokens required to return flashloan and what was obtained
+     * from swapping the debt tokens from the users address
+     *
+     * @param _token                 Address of the token to transfer from user
+     * @param _amountRequired        Amount required to repay flashloan
+     * @param _amountObtained        Amount obtained from swapping the short token
+     * @param _originalSender        Adress that initiated the token issuance, which is the adresss form which to transfer the tokens
+     */
+    function _transferShortfallFromSender(address _token, uint256 _amountRequired, uint256 _amountObtained, address _originalSender) internal {
+        if(_amountObtained >= _amountRequired){ 
+            return;
+        }
+        uint256 shortfall = _amountRequired.sub(_amountObtained);
+        IERC20(_token).safeTransferFrom(_originalSender, address(this), shortfall);
+    }
+
+
+
+    /**
+     * Swaps the debt tokens obtained from issuance for the underlying of the collateral
+     *
+     * @param _setToken                   Address of the SetToken to be issued
+     * @param _setAmount                  Amount of SetTokens to issue
+     * @param _longTokenUnderlying        Address of the underlying of the collateral token
+     */
+    function _swapShortForLongTokenUnderlying(address _setToken, uint256 _setAmount, address _longTokenUnderlying) internal returns (uint256) {
+        (, , address shortToken, uint shortAmount) = getLeveragedTokenData(ISetToken(_setToken), _setAmount);
+        (, Exchange exchange, ) = _getMaxTokenForExactToken(shortAmount, shortToken, _longTokenUnderlying);
+        IUniswapV2Router02 router = _getRouter(exchange);
+        _safeApprove(IERC20(shortToken), address(router), shortAmount);
+        return _swapExactTokensForTokens(exchange, shortToken, _longTokenUnderlying, shortAmount);
+    }
+
+    /**
+     * Deposit underlying of collateral to obtain actual collateral token for issuance
+     *
+     * @param _longTokenUnderlying    Address of underlying of the collateral token
+     * @param _depositAmount          Amount to deposit
+     */
+    function _depositLongToken(
+        address _longTokenUnderlying,
+        uint256 _depositAmount
+    ) internal {
+        IERC20(_longTokenUnderlying).approve(address(LENDING_POOL), _depositAmount);
+        LENDING_POOL.deposit(_longTokenUnderlying, _depositAmount, address(this), 0);
+    }
+
+
+    /**
+     * Approves lending pool to transfer owed amount of borrowed tokens after flashloan operation is complete
+     *
+     */
+    function _approveAssetsToReturn(
+        address[] calldata assets,
+        uint256[] calldata amounts,
+        uint256[] calldata premiums
+    ) internal {
+        for (uint256 i = 0; i < assets.length; i++) {
+            uint256 amountOwing = amounts[i].add(premiums[i]);
+            IERC20(assets[i]).approve(address(LENDING_POOL), amountOwing);
+        }
+    }
+
+    /**
+     * Trigger the flashloan
+     *
+     */
+    function _flashloan(address[] memory assets, uint256[] memory amounts, bytes memory params)
+        internal
+    {
+        address receiverAddress = address(this);
+
+        address onBehalfOf = address(this);
+        uint16 referralCode = 0;
+
+        uint256[] memory modes = new uint256[](assets.length);
+
+        // 0 = no debt (flash), 1 = stable, 2 = variable
+        for (uint256 i = 0; i < assets.length; i++) {
+            modes[i] = 0;
+        }
+
+        LENDING_POOL.flashLoan(
+            receiverAddress,
+            assets,
+            amounts,
+            modes,
+            onBehalfOf,
+            params,
+            referralCode
+        );
+    }
     /**
      * Sets a max approval limit for an ERC20 token, provided the current allowance
      * is less than the required allownce.
