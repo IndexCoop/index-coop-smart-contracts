@@ -35,7 +35,7 @@ import {
 } from "@utils/index";
 import { UnitsUtils } from "@utils/common/unitsUtils";
 import { AaveV2Fixture, SetFixture, UniswapFixture } from "@utils/fixtures";
-import { BigNumber, utils } from "ethers";
+import { BigNumber } from "ethers";
 
 const expect = getWaffleExpect();
 
@@ -448,6 +448,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
       let subjectSetAmount: BigNumber;
       let subjectMaxAmountInput: BigNumber;
       let longAmount: BigNumber;
+      let longAmountSpent: BigNumber;
       async function subject() {
         return await exchangeIssuance.issueExactSetForLongToken(
           subjectSetToken,
@@ -473,10 +474,20 @@ describe("ExchangeIssuanceLeveraged", async () => {
         const balanceBefore = await setV2Setup.weth.balanceOf(owner.address);
         await subject();
         const balanceAfter = await setV2Setup.weth.balanceOf(owner.address);
-        const diff = balanceBefore.sub(balanceAfter);
-        console.log("Diff and longAmount", utils.formatEther(diff), utils.formatEther(longAmount));
-        expect(diff.gt(0)).to.equal(true);
-        expect(diff.lt(longAmount)).to.equal(true);
+        longAmountSpent = balanceBefore.sub(balanceAfter);
+        expect(longAmountSpent.gt(0)).to.equal(true);
+        expect(longAmountSpent.lt(longAmount)).to.equal(true);
+      });
+      it("should emit ExchangeIssuance event", async () => {
+        await expect(subject())
+          .to.emit(exchangeIssuance, "ExchangeIssue")
+          .withArgs(
+            owner.address,
+            subjectSetToken,
+            setV2Setup.weth.address,
+            longAmountSpent,
+            subjectSetAmount,
+          );
       });
       context("when subjectMaxInput is too low", async () => {
         beforeEach(() => {
@@ -513,9 +524,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         await exchangeIssuance.approveSetToken(setToken.address);
       });
       it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith(
-          "revert Not Implemented",
-        );
+        await expect(subject()).to.be.revertedWith("revert Not Implemented");
       });
     });
   });

@@ -331,7 +331,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         (address setToken, uint256 setAmount, address originalSender,, PaymentToken paymentToken, bytes memory paymentParams) = _decodeParams(_params);
         uint longTokenObtained = _swapShortForLongTokenUnderlying(setToken, setAmount, _longTokenUnderlying);
         if(paymentToken == PaymentToken.LongToken){
-            _transferShortfallFromSender(_longTokenUnderlying, _amountRequired, longTokenObtained, originalSender, paymentParams);
+           uint amountInputToken =  _transferShortfallFromSender(_longTokenUnderlying, _amountRequired, longTokenObtained, originalSender, paymentParams);
+           emit ExchangeIssue(originalSender, ISetToken(setToken), IERC20(_longTokenUnderlying), amountInputToken, setAmount);
         }
         else {
             // TODO: Add Implementation of other payment options
@@ -362,14 +363,15 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _amountObtained        Amount obtained from swapping the short token
      * @param _originalSender        Adress that initiated the token issuance, which is the adresss form which to transfer the tokens
      */
-    function _transferShortfallFromSender(address _token, uint256 _amountRequired, uint256 _amountObtained, address _originalSender, bytes memory paymentParams) internal {
-        if(_amountObtained >= _amountRequired){ 
-            return;
+    function _transferShortfallFromSender(address _token, uint256 _amountRequired, uint256 _amountObtained, address _originalSender, bytes memory paymentParams) internal returns(uint256 shortfall) {
+        if(_amountObtained < _amountRequired){ 
+            shortfall = _amountRequired.sub(_amountObtained);
+            uint256 maxAmountInputToken =_decodePaymentParamsLongToken(paymentParams);
+            console.logUint(shortfall);
+            console.logUint(maxAmountInputToken);
+            require(shortfall <= maxAmountInputToken, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
+            IERC20(_token).safeTransferFrom(_originalSender, address(this), shortfall);
         }
-        uint256 shortfall = _amountRequired.sub(_amountObtained);
-        uint256 maxAmountInputToken =_decodePaymentParamsLongToken(paymentParams);
-        require(shortfall <= maxAmountInputToken, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
-        IERC20(_token).safeTransferFrom(_originalSender, address(this), shortfall);
     }
 
 
