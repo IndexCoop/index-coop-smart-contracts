@@ -446,15 +446,21 @@ describe("ExchangeIssuanceLeveraged", async () => {
     describe("#issueExactSetForLongToken", async () => {
       let subjectSetToken: Address;
       let subjectSetAmount: BigNumber;
+      let subjectMaxAmountInput: BigNumber;
       let longAmount: BigNumber;
       async function subject() {
-        return await exchangeIssuance.issueExactSetForLongToken(subjectSetToken, subjectSetAmount);
+        return await exchangeIssuance.issueExactSetForLongToken(
+          subjectSetToken,
+          subjectSetAmount,
+          subjectMaxAmountInput,
+        );
       }
       beforeEach(async () => {
         ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
           subjectSetToken,
           subjectSetAmount,
         ));
+        subjectMaxAmountInput = longAmount;
         await setV2Setup.weth.approve(exchangeIssuance.address, longAmount);
         await exchangeIssuance.approveSetToken(setToken.address);
       });
@@ -471,7 +477,11 @@ describe("ExchangeIssuanceLeveraged", async () => {
           await subject();
           const balanceAfter = await setV2Setup.weth.balanceOf(owner.address);
           const diff = balanceBefore.sub(balanceAfter);
-          console.log("Diff and longAmount", utils.formatEther(diff), utils.formatEther(longAmount));
+          console.log(
+            "Diff and longAmount",
+            utils.formatEther(diff),
+            utils.formatEther(longAmount),
+          );
           expect(diff.gt(0)).to.equal(true);
           expect(diff.lt(longAmount)).to.equal(true);
         });

@@ -199,13 +199,34 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      */
     function issueExactSetForLongToken(
         ISetToken _setToken,
-        uint256 _amountSetToken
+        uint256 _amountSetToken,
+        uint256 _maxAmountInputToken
     )
         isSetToken(_setToken)
         external
         nonReentrant
     {
-        initiateIssuance(_setToken, _amountSetToken, PaymentToken.LongToken);
+        bytes memory paymentParams = abi.encode(_maxAmountInputToken);
+        initiateIssuance(_setToken, _amountSetToken, PaymentToken.LongToken, paymentParams);
+    }
+
+    /**
+     * Trigger issuance of set token paying with the underlying of the collateral token directly
+     *
+     * @param _setToken       Set token to issue
+     * @param _amountSetToken Amount to issue
+     */
+    function issueExactSetForEth(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        uint256 _maxAmountInputToken
+    )
+        isSetToken(_setToken)
+        external
+        nonReentrant
+    {
+        bytes memory paymentParams = abi.encode(_maxAmountInputToken);
+        initiateIssuance(_setToken, _amountSetToken, PaymentToken.Eth, paymentParams);
     }
 
     /**
@@ -273,12 +294,13 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      *
      * @param _setToken            Address of the SetToken being initialized
      * @param _amountSetToken      Amount of the SetToken being initialized
-     * @param _paymentToken        Enum controlling what token the use to pay for issuance
+     * @param _paymentParams        Enum controlling what token the use to pay for issuance
      */
     function initiateIssuance(
         ISetToken _setToken,
         uint256 _amountSetToken,
-        PaymentToken _paymentToken
+        PaymentToken _paymentToken,
+        bytes memory _paymentParams
     )
         isSetToken(_setToken)
         internal
@@ -291,7 +313,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         uint[] memory amounts =  new uint[](1);
         amounts[0] = longAmount;
 
-        bytes memory params = abi.encode(_setToken, _amountSetToken, msg.sender, true, _paymentToken);
+        bytes memory params = abi.encode(_setToken, _amountSetToken, msg.sender, true, _paymentToken, _paymentParams);
 
         _flashloan(assets, amounts, params);
 
@@ -306,25 +328,29 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _params                Encoded data used to get setToken, setAmount, originalSender and paymentToken
      */
     function _obtainLongTokens(address _longTokenUnderlying, uint256 _amountRequired, bytes memory _params) internal {
-        (address setToken, uint256 setAmount, address originalSender,, PaymentToken paymentToken) = _decodeParams(_params);
+        (address setToken, uint256 setAmount, address originalSender,, PaymentToken paymentToken, bytes memory paymentParams) = _decodeParams(_params);
         uint longTokenObtained = _swapShortForLongTokenUnderlying(setToken, setAmount, _longTokenUnderlying);
         if(paymentToken == PaymentToken.LongToken){
-            _transferShortfallFromSender(_longTokenUnderlying, _amountRequired, longTokenObtained, originalSender);
+            _transferShortfallFromSender(_longTokenUnderlying, _amountRequired, longTokenObtained, originalSender, paymentParams);
         }
         else {
+            // TODO: Add Implementation of other payment options
             revert("Not Implemented");
         }
     }
 
     function _issueSet(bytes memory _params) internal {
-        (address setToken, uint256 setAmount, address originalSender,,) = _decodeParams(_params);
+        (address setToken, uint256 setAmount, address originalSender,,,) = _decodeParams(_params);
         debtIssuanceModule.issue(ISetToken(setToken), setAmount, originalSender);
     }
 
-    function _decodeParams(bytes memory params) internal pure returns(address setToken, uint256 setAmount, address originalSender, bool isIssuance, PaymentToken paymentToken){
-            (setToken, setAmount, originalSender, isIssuance, paymentToken) = abi.decode(params, (address, uint256, address, bool, PaymentToken));
+    function _decodeParams(bytes memory params) internal pure returns(address setToken, uint256 setAmount, address originalSender, bool isIssuance, PaymentToken paymentToken, bytes memory paymentParams){
+            (setToken, setAmount, originalSender, isIssuance, paymentToken, paymentParams) = abi.decode(params, (address, uint256, address, bool, PaymentToken, bytes));
     }
 
+    function _decodePaymentParamsLongToken(bytes memory _paymentParams) internal pure returns(uint256 maxAmountInputToken){
+            maxAmountInputToken = abi.decode(_paymentParams, (uint256));
+    }
 
 
     /**
@@ -336,11 +362,13 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _amountObtained        Amount obtained from swapping the short token
      * @param _originalSender        Adress that initiated the token issuance, which is the adresss form which to transfer the tokens
      */
-    function _transferShortfallFromSender(address _token, uint256 _amountRequired, uint256 _amountObtained, address _originalSender) internal {
+    function _transferShortfallFromSender(address _token, uint256 _amountRequired, uint256 _amountObtained, address _originalSender, bytes memory paymentParams) internal {
         if(_amountObtained >= _amountRequired){ 
             return;
         }
         uint256 shortfall = _amountRequired.sub(_amountObtained);
+        uint256 maxAmountInputToken =_decodePaymentParamsLongToken(paymentParams);
+        require(shortfall <= maxAmountInputToken, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
         IERC20(_token).safeTransferFrom(_originalSender, address(this), shortfall);
     }
 
