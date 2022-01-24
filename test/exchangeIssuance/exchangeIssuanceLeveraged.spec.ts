@@ -37,6 +37,12 @@ import { UnitsUtils } from "@utils/common/unitsUtils";
 import { AaveV2Fixture, SetFixture, UniswapFixture } from "@utils/fixtures";
 import { BigNumber } from "ethers";
 
+enum Exchange {
+  None,
+  Uniswap,
+  Sushiswap,
+}
+
 const expect = getWaffleExpect();
 
 describe("ExchangeIssuanceLeveraged", async () => {
@@ -196,6 +202,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
     // ETH-USDC pools
     await setV2Setup.usdc.connect(owner.wallet).approve(uniswapRouter.address, MAX_INT_256);
+    // Set up uniswap with sufficient liquidity
     await uniswapRouter
       .connect(owner.wallet)
       .addLiquidityETH(
@@ -432,6 +439,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
       let subjectSetToken: Address;
       let subjectSetAmount: BigNumber;
       let subjectMaxAmountInput: BigNumber;
+      let subjectExchange: Exchange;
       let longAmount: BigNumber;
       let longAmountSpent: BigNumber;
       async function subject() {
@@ -439,11 +447,13 @@ describe("ExchangeIssuanceLeveraged", async () => {
           subjectSetToken,
           subjectSetAmount,
           subjectMaxAmountInput,
+          subjectExchange,
         );
       }
       beforeEach(async () => {
         subjectSetToken = setToken.address;
         subjectSetAmount = ether(1);
+        subjectExchange = Exchange.Uniswap;
         ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
           subjectSetToken,
           subjectSetAmount,
@@ -484,22 +494,60 @@ describe("ExchangeIssuanceLeveraged", async () => {
           );
         });
       });
+      context("when exchange without any liquidity is specified", async () => {
+        beforeEach(async () => {
+          subjectExchange = Exchange.Sushiswap;
+        });
+        it("should revert", async () => {
+          // TODO: Check why this is failing without any reason. Would have expected something more descriptive coming from the router
+          await expect(subject()).to.be.revertedWith(
+            "revert",
+          );
+        });
+      });
+      context("when exchange with too little liquidity is specified", async () => {
+        beforeEach(async () => {
+          // Set up sushiswap with INsufficient liquidity
+          await setV2Setup.usdc.connect(owner.wallet).approve(sushiswapRouter.address, MAX_INT_256);
+          await sushiswapRouter
+            .connect(owner.wallet)
+            .addLiquidityETH(
+              setV2Setup.usdc.address,
+              UnitsUtils.usdc(10),
+              MAX_UINT_256,
+              MAX_UINT_256,
+              owner.address,
+              (await getLastBlockTimestamp()).add(1),
+              { value: ether(0.001), gasLimit: 9000000 },
+            );
+
+          subjectExchange = Exchange.Sushiswap;
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith(
+            "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT",
+          );
+        });
+      });
     });
     describe("#issueExactSetForEth", async () => {
       let subjectSetToken: Address;
       let subjectSetAmount: BigNumber;
       let subjectMaxAmountInput: BigNumber;
+      let subjectExchange: Exchange;
       let longAmount: BigNumber;
       async function subject() {
         return await exchangeIssuance.issueExactSetForEth(
           subjectSetToken,
           subjectSetAmount,
           subjectMaxAmountInput,
+          subjectExchange,
         );
       }
       beforeEach(async () => {
         subjectSetToken = setToken.address;
         subjectSetAmount = ether(1);
+        subjectExchange = Exchange.Uniswap;
         ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
           subjectSetToken,
           subjectSetAmount,

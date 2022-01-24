@@ -200,14 +200,15 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     function issueExactSetForLongToken(
         ISetToken _setToken,
         uint256 _amountSetToken,
-        uint256 _maxAmountInputToken
+        uint256 _maxAmountInputToken,
+        Exchange _exchange
     )
         isSetToken(_setToken)
         external
         nonReentrant
     {
         bytes memory paymentParams = abi.encode(_maxAmountInputToken);
-        initiateIssuance(_setToken, _amountSetToken, PaymentToken.LongToken, paymentParams);
+        initiateIssuance(_setToken, _amountSetToken, _exchange, PaymentToken.LongToken, paymentParams);
     }
 
     /**
@@ -219,14 +220,15 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     function issueExactSetForEth(
         ISetToken _setToken,
         uint256 _amountSetToken,
-        uint256 _maxAmountInputToken
+        uint256 _maxAmountInputToken,
+        Exchange _exchange
     )
         isSetToken(_setToken)
         external
         nonReentrant
     {
         bytes memory paymentParams = abi.encode(_maxAmountInputToken);
-        initiateIssuance(_setToken, _amountSetToken, PaymentToken.Eth, paymentParams);
+        initiateIssuance(_setToken, _amountSetToken, _exchange, PaymentToken.Eth, paymentParams);
     }
 
     /**
@@ -299,6 +301,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     function initiateIssuance(
         ISetToken _setToken,
         uint256 _amountSetToken,
+        Exchange _exchange,
         PaymentToken _paymentToken,
         bytes memory _paymentParams
     )
@@ -313,7 +316,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         uint[] memory amounts =  new uint[](1);
         amounts[0] = longAmount;
 
-        bytes memory params = abi.encode(_setToken, _amountSetToken, msg.sender, true, _paymentToken, _paymentParams);
+        bytes memory params = abi.encode(_setToken, _amountSetToken, msg.sender, true, _exchange, _paymentToken, _paymentParams);
 
         _flashloan(assets, amounts, params);
 
@@ -328,8 +331,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _params                Encoded data used to get setToken, setAmount, originalSender and paymentToken
      */
     function _obtainLongTokens(address _longTokenUnderlying, uint256 _amountRequired, bytes memory _params) internal {
-        (address setToken, uint256 setAmount, address originalSender,, PaymentToken paymentToken, bytes memory paymentParams) = _decodeParams(_params);
-        uint longTokenObtained = _swapShortForLongTokenUnderlying(setToken, setAmount, _longTokenUnderlying);
+        (address setToken, uint256 setAmount, address originalSender,, Exchange exchange, PaymentToken paymentToken, bytes memory paymentParams) = _decodeParams(_params);
+        uint longTokenObtained = _swapShortForLongTokenUnderlying(setToken, setAmount, _longTokenUnderlying, exchange);
         if(paymentToken == PaymentToken.LongToken){
            uint amountInputToken =  _transferShortfallFromSender(_longTokenUnderlying, _amountRequired, longTokenObtained, originalSender, paymentParams);
            emit ExchangeIssue(originalSender, ISetToken(setToken), IERC20(_longTokenUnderlying), amountInputToken, setAmount);
@@ -341,12 +344,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     }
 
     function _issueSet(bytes memory _params) internal {
-        (address setToken, uint256 setAmount, address originalSender,,,) = _decodeParams(_params);
+        (address setToken, uint256 setAmount, address originalSender,,,,) = _decodeParams(_params);
         debtIssuanceModule.issue(ISetToken(setToken), setAmount, originalSender);
     }
 
-    function _decodeParams(bytes memory params) internal pure returns(address setToken, uint256 setAmount, address originalSender, bool isIssuance, PaymentToken paymentToken, bytes memory paymentParams){
-            (setToken, setAmount, originalSender, isIssuance, paymentToken, paymentParams) = abi.decode(params, (address, uint256, address, bool, PaymentToken, bytes));
+    function _decodeParams(bytes memory params) internal pure returns(address setToken, uint256 setAmount, address originalSender, bool isIssuance, Exchange exchange, PaymentToken paymentToken, bytes memory paymentParams){
+            (setToken, setAmount, originalSender, isIssuance, exchange, paymentToken, paymentParams) = abi.decode(params, (address, uint256, address, bool, Exchange, PaymentToken, bytes));
     }
 
     function _decodePaymentParamsLongToken(bytes memory _paymentParams) internal pure returns(uint256 maxAmountInputToken){
@@ -381,12 +384,11 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _setAmount                  Amount of SetTokens to issue
      * @param _longTokenUnderlying        Address of the underlying of the collateral token
      */
-    function _swapShortForLongTokenUnderlying(address _setToken, uint256 _setAmount, address _longTokenUnderlying) internal returns (uint256) {
+    function _swapShortForLongTokenUnderlying(address _setToken, uint256 _setAmount, address _longTokenUnderlying, Exchange _exchange) internal returns (uint256) {
         (, , address shortToken, uint shortAmount) = getLeveragedTokenData(ISetToken(_setToken), _setAmount);
-        (, Exchange exchange, ) = _getMaxTokenForExactToken(shortAmount, shortToken, _longTokenUnderlying);
-        IUniswapV2Router02 router = _getRouter(exchange);
+        IUniswapV2Router02 router = _getRouter(_exchange);
         _safeApprove(IERC20(shortToken), address(router), shortAmount);
-        return _swapExactTokensForTokens(exchange, shortToken, _longTokenUnderlying, shortAmount);
+        return _swapExactTokensForTokens(_exchange, shortToken, _longTokenUnderlying, shortAmount);
     }
 
     /**
