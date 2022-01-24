@@ -413,6 +413,31 @@ describe("ExchangeIssuanceLeveraged", async () => {
         addressProviderAddress,
       );
     });
+    describe("#approveSetToken", async () => {
+      let subjectSetToken: Address;
+      beforeEach(async () => {
+        subjectSetToken = setToken.address;
+      });
+      async function subject() {
+        await exchangeIssuance.approveSetToken(subjectSetToken);
+      }
+      it("should succeed", async () => {
+        await subject();
+      });
+      it("should approve underlying collateral token to lending pool", async () => {
+        const allowanceBefore = await setV2Setup.weth.allowance(
+          exchangeIssuance.address,
+          aaveSetup.lendingPool.address,
+        );
+        expect(allowanceBefore).to.equal(ZERO);
+        await subject();
+        const allowanceAfter = await setV2Setup.weth.allowance(
+          exchangeIssuance.address,
+          aaveSetup.lendingPool.address,
+        );
+        expect(allowanceAfter).to.equal(MAX_UINT_256);
+      });
+    });
 
     describe("#getLeveragedTokenData", async () => {
       let subjectSetToken: Address;
@@ -421,7 +446,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         return await exchangeIssuance.getLeveragedTokenData(subjectSetToken, subjectSetAmount);
       }
       context("when passed the FLI token", async () => {
-        before(() => {
+        beforeEach(() => {
           subjectSetToken = setToken.address;
           subjectSetAmount = ether(1);
         });
@@ -500,9 +525,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         });
         it("should revert", async () => {
           // TODO: Check why this is failing without any reason. Would have expected something more descriptive coming from the router
-          await expect(subject()).to.be.revertedWith(
-            "revert",
-          );
+          await expect(subject()).to.be.revertedWith("revert");
         });
       });
       context("when exchange with too little liquidity is specified", async () => {

@@ -58,7 +58,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
     /* ============ Constants ============= */
 
-    uint256 constant private MAX_UINT96 = 2**96 - 1;
+    uint256 constant private MAX_UINT96 = type(uint96).max;
+    uint256 constant private MAX_UINT256 = type(uint256).max;
     address constant public ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /* ============ State Variables ============ */
@@ -256,7 +257,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         _depositLongToken(assets[0], amounts[0]);
         _issueSet(params);
         _obtainLongTokens(assets[0], amounts[0] + premiums[0], params);
-        _approveAssetToReturn(assets[0], amounts[0], premiums[0]);
         return true;
     }
 
@@ -282,6 +282,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     function approveSetToken(ISetToken _setToken) isSetToken(_setToken) external {
         (address longToken,,,) = getLeveragedTokenData(_setToken, 1 ether);
         approveToken(IERC20(longToken));
+        _approveUnderlyingToLendingPool(IAToken(longToken));
     }
 
 
@@ -401,22 +402,22 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         address _longTokenUnderlying,
         uint256 _depositAmount
     ) internal {
-        IERC20(_longTokenUnderlying).approve(address(LENDING_POOL), _depositAmount);
         LENDING_POOL.deposit(_longTokenUnderlying, _depositAmount, address(this), 0);
     }
 
 
     /**
-     * Approves lending pool to transfer owed amount of borrowed tokens after flashloan operation is complete
+     * Approves max amount of underlying token to lending pool, to enable both depositing and returning the flashloan
      *
      */
-    function _approveAssetToReturn(
-        address asset,
-        uint256 amount,
-        uint256 premium
+    function _approveUnderlyingToLendingPool(
+        IAToken longToken
     ) internal {
-            uint256 amountOwing = amount.add(premium);
-            IERC20(asset).approve(address(LENDING_POOL), amountOwing);
+        IERC20 underlying = IERC20(longToken.UNDERLYING_ASSET_ADDRESS());
+        uint256 allowance = underlying.allowance(address(this), address(LENDING_POOL));
+        if (allowance < MAX_UINT256) {
+            underlying.approve( address(LENDING_POOL), MAX_UINT256);
+        }
     }
 
     /**
