@@ -195,8 +195,10 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     /**
      * Trigger issuance of set token paying with the underlying of the collateral token directly
      *
-     * @param _setToken       Set token to issue
-     * @param _amountSetToken Amount to issue
+     * @param _setToken            Set token to issue
+     * @param _amountSetToken      Amount to issue
+     * @param _maxAmountInputToken Maximum amount of input token to spend
+     * @param _exchange            Exchange to use in swap from short to long token
      */
     function issueExactSetForLongToken(
         ISetToken _setToken,
@@ -215,8 +217,10 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     /**
      * Trigger issuance of set token paying with the underlying of the collateral token directly
      *
-     * @param _setToken       Set token to issue
-     * @param _amountSetToken Amount to issue
+     * @param _setToken            Set token to issue
+     * @param _amountSetToken      Amount to issue
+     * @param _maxAmountInputToken Maximum amount of input token to spend
+     * @param _exchange            Exchange to use in swap from short to long token
      */
     function issueExactSetForEth(
         ISetToken _setToken,
@@ -409,11 +413,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     /**
      * Approves max amount of underlying token to lending pool, to enable both depositing and returning the flashloan
      *
+     * @param _longToken     Address of underlying of the collateral token
      */
     function _approveUnderlyingToLendingPool(
-        IAToken longToken
+        IAToken _longToken
     ) internal {
-        IERC20 underlying = IERC20(longToken.UNDERLYING_ASSET_ADDRESS());
+        IERC20 underlying = IERC20(_longToken.UNDERLYING_ASSET_ADDRESS());
         uint256 allowance = underlying.allowance(address(this), address(LENDING_POOL));
         // TODO: Review
         if (allowance > 0) {
@@ -423,17 +428,18 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     }
 
     /**
-     * Trigger the flashloan
+     * Triggers the flashloan from the Lending Pool
      *
+     * @param assets  Addresses of tokens to loan 
+     * @param amounts Amounts to loan
+     * @param params  Encoded calldata to forward to the executeOperation method
      */
     function _flashloan(address[] memory assets, uint256[] memory amounts, bytes memory params)
         internal
     {
         address receiverAddress = address(this);
-
         address onBehalfOf = address(this);
         uint16 referralCode = 0;
-
         uint256[] memory modes = new uint256[](assets.length);
 
         // 0 = no debt (flash), 1 = stable, 2 = variable
