@@ -415,9 +415,11 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     ) internal {
         IERC20 underlying = IERC20(longToken.UNDERLYING_ASSET_ADDRESS());
         uint256 allowance = underlying.allowance(address(this), address(LENDING_POOL));
-        if (allowance < MAX_UINT256) {
-            underlying.approve( address(LENDING_POOL), MAX_UINT256);
+        // TODO: Review
+        if (allowance > 0) {
+            underlying.approve( address(LENDING_POOL), 0);
         }
+        underlying.approve( address(LENDING_POOL), MAX_UINT256);
     }
 
     /**
