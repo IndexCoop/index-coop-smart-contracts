@@ -4,6 +4,7 @@ import {
   Address,
   Account,
   AaveContractSettings,
+  Bytes,
   MethodologySettings,
   ExecutionSettings,
   IncentiveSettings,
@@ -581,6 +582,35 @@ describe("ExchangeIssuanceLeveraged", async () => {
       });
       it("should revert", async () => {
         await expect(subject()).to.be.revertedWith("revert Not Implemented");
+      });
+    });
+
+    describe("#executeOperation", async () => {
+      context("When caller is not the lending pool", () => {
+        let subjectAssets: Address[];
+        let subjectAmounts: BigNumber[];
+        let subjectPremiums: BigNumber[];
+        let subjectInitiator: Address;
+        let subjectParams: Bytes;
+        beforeEach(async () => {
+          subjectAssets = [ADDRESS_ZERO];
+          subjectAmounts = [ZERO];
+          subjectPremiums = [ZERO];
+          subjectInitiator = ADDRESS_ZERO;
+          subjectParams = EMPTY_BYTES;
+        });
+        async function subject() {
+          await exchangeIssuance.executeOperation(
+            subjectAssets,
+            subjectAmounts,
+            subjectPremiums,
+            subjectInitiator,
+            subjectParams,
+          );
+        }
+        it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("ExchangeIssuance: LENDING POOL ONLY");
+        });
       });
     });
   });

@@ -104,6 +104,11 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
          _;
     }
 
+    modifier onlyLendingPool() {
+         require(msg.sender == address(LENDING_POOL), "ExchangeIssuance: LENDING POOL ONLY");
+         _;
+    }
+
     /* ============ Constructor ============ */
 
     constructor(
@@ -253,7 +258,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         uint256[] calldata premiums,
         address , // 
         bytes calldata params
-    ) external override returns (bool) {
+    ) external override  onlyLendingPool returns (bool) {
         require(assets.length == 1, "Exchange Issuance Leveraged: TOO MANY ASSETS");
         require(amounts.length == 1, "Exchange Issuance Leveraged: TOO MANY AMOUNTS");
         require(premiums.length == 1, "Exchange Issuance Leveraged: TOO MANY PREMIUMS");
