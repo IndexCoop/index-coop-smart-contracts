@@ -203,6 +203,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
     // ETH-USDC pools
     await setV2Setup.usdc.connect(owner.wallet).approve(uniswapRouter.address, MAX_INT_256);
+    await setV2Setup.weth.connect(owner.wallet).approve(uniswapRouter.address, MAX_INT_256);
     // Set up uniswap with sufficient liquidity
     await uniswapRouter
       .connect(owner.wallet)
@@ -214,6 +215,19 @@ describe("ExchangeIssuanceLeveraged", async () => {
         owner.address,
         (await getLastBlockTimestamp()).add(1),
         { value: ether(100), gasLimit: 9000000 },
+      );
+
+    await uniswapRouter
+      .connect(owner.wallet)
+      .addLiquidity(
+        setV2Setup.weth.address,
+        setV2Setup.usdc.address,
+        UnitsUtils.ether(10000),
+        UnitsUtils.usdc(10000000),
+        UnitsUtils.ether(9999),
+        UnitsUtils.usdc(9990000),
+        owner.address,
+        MAX_UINT_256,
       );
   });
 
@@ -443,13 +457,19 @@ describe("ExchangeIssuanceLeveraged", async () => {
     describe("#getLeveragedTokenData", async () => {
       let subjectSetToken: Address;
       let subjectSetAmount: BigNumber;
+      let subjectIsIssuance: boolean;
       async function subject() {
-        return await exchangeIssuance.getLeveragedTokenData(subjectSetToken, subjectSetAmount);
+        return await exchangeIssuance.getLeveragedTokenData(
+          subjectSetToken,
+          subjectSetAmount,
+          subjectIsIssuance,
+        );
       }
       context("when passed the FLI token", async () => {
         beforeEach(() => {
           subjectSetToken = setToken.address;
           subjectSetAmount = ether(1);
+          subjectIsIssuance = true;
         });
         it("should return correct data", async () => {
           const { longToken, shortToken, longAmount, shortAmount } = await subject();
@@ -458,6 +478,44 @@ describe("ExchangeIssuanceLeveraged", async () => {
           expect(longAmount).to.be.gt(ZERO);
           expect(shortAmount).to.be.gt(ZERO);
         });
+      });
+    });
+    describe("#redeemExactSetForLongToken", async () => {
+      let subjectSetToken: Address;
+      let subjectSetAmount: BigNumber;
+      let subjectMaxAmountInput: BigNumber;
+      let subjectExchange: Exchange;
+      let longAmount: BigNumber;
+      async function subject() {
+        return await exchangeIssuance.redeemExactSetForLongToken(
+          subjectSetToken,
+          subjectSetAmount,
+          subjectMaxAmountInput,
+          subjectExchange,
+        );
+      }
+      beforeEach(async () => {
+        subjectSetToken = setToken.address;
+        subjectSetAmount = ether(1);
+        subjectExchange = Exchange.Uniswap;
+        ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
+          subjectSetToken,
+          subjectSetAmount,
+          false,
+        ));
+        subjectMaxAmountInput = longAmount;
+        await setV2Setup.weth.approve(exchangeIssuance.address, longAmount);
+        await exchangeIssuance.approveSetToken(setToken.address);
+        await exchangeIssuance.issueExactSetForLongToken(
+          subjectSetToken,
+          subjectSetAmount,
+          subjectMaxAmountInput,
+          subjectExchange,
+        );
+        await setToken.approve(exchangeIssuance.address, subjectSetAmount);
+      });
+      it("should succeed", async () => {
+          await subject();
       });
     });
 
@@ -483,6 +541,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
           subjectSetToken,
           subjectSetAmount,
+          true,
         ));
         subjectMaxAmountInput = longAmount;
         await setV2Setup.weth.approve(exchangeIssuance.address, longAmount);
@@ -490,6 +549,12 @@ describe("ExchangeIssuanceLeveraged", async () => {
       });
       it("should succeed", async () => {
         await subject();
+      });
+      it("should return the requested amount of set", async () => {
+        const balanceBefore = await setToken.balanceOf(owner.address);
+        await subject();
+        const balanceAfter = await setToken.balanceOf(owner.address);
+        expect(balanceAfter.sub(balanceBefore)).to.equal(subjectSetAmount);
       });
       it("should cost less than the total long position", async () => {
         const balanceBefore = await setV2Setup.weth.balanceOf(owner.address);
@@ -575,6 +640,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
           subjectSetToken,
           subjectSetAmount,
+          true,
         ));
         subjectMaxAmountInput = longAmount;
         await setV2Setup.weth.approve(exchangeIssuance.address, longAmount);
@@ -609,7 +675,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
           );
         }
         it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("ExchangeIssuance: LENDING POOL ONLY");
+          await expect(subject()).to.be.revertedWith("ExchangeIssuance: LENDING POOL ONLY");
         });
       });
     });
