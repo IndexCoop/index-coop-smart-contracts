@@ -304,7 +304,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             _redeemSet(params);
             _withdrawLongToken(params);
             uint256 longTokenSpent = _obtainShortTokens(assets[0], amounts[0] + premiums[0], params);
-            _payUser(longTokenSpent, params);
+            _liquidateLongTokens(longTokenSpent, params);
         }
 
         return true;
@@ -422,7 +422,14 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         return _swapLongForShortToken(setToken, setAmount, _amountRequired, _shortToken, exchange);
     }
 
-    function _payUser(uint256 _longTokenSpent, bytes memory _params) internal {
+    /**
+     * Gets rid of the obtained long tokens from redemption by either sending them to the user
+     * directly or converting them to the payment token and sending those out.
+     *
+     * @param _longTokenSpent    Amount of long token spent to obtain the short token required for redemption
+     * @param _params            Encoded data used to get setToken, setAmount, originalSender and paymentToken/Params
+     */
+    function _liquidateLongTokens(uint256 _longTokenSpent, bytes memory _params) internal {
         (address setToken, uint256 setAmount, address originalSender,,, PaymentToken paymentToken, bytes memory paymentParams) = _decodeParams(_params);
         (address longToken , uint256 longAmount,,) = getLeveragedTokenData(ISetToken(setToken), setAmount, true);
         address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();

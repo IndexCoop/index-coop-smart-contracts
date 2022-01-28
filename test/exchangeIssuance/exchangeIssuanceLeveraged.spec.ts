@@ -516,7 +516,30 @@ describe("ExchangeIssuanceLeveraged", async () => {
         await setToken.approve(exchangeIssuance.address, subjectSetAmount);
       });
       it("should succeed", async () => {
-          await subject();
+        await subject();
+      });
+      it("should reduce set balance by the expected amount", async () => {
+        const balanceBefore = await setToken.balanceOf(owner.address);
+        await subject();
+        const balanceAfter = await setToken.balanceOf(owner.address);
+        expect(balanceBefore.sub(balanceAfter)).to.equal(subjectSetAmount);
+      });
+      it("should return at least the expected amount of long token", async () => {
+        const balanceBefore = await setV2Setup.weth.balanceOf(owner.address);
+        await subject();
+        const balanceAfter = await setV2Setup.weth.balanceOf(owner.address);
+        const amountReturned = balanceAfter.sub(balanceBefore);
+        expect(amountReturned.gt(subjectMinAmountOutput)).to.equal(true);
+      });
+      context("when minAmountOutputToken is too high", async () => {
+        beforeEach(() => {
+          subjectMinAmountOutput = longAmount;
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith(
+            "revert ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT",
+          );
+        });
       });
     });
 
