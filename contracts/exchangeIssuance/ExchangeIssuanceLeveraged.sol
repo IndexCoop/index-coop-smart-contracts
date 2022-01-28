@@ -211,20 +211,20 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      *
      * @param _setToken            Set token to redeem
      * @param _amountSetToken      Amount to redeem
-     * @param _maxAmountInputToken Maximum amount of input token to spend
+     * @param _minAmountOutputToken Maximum amount of input token to spend
      * @param _exchange            Exchange to use in swap from short to long token
      */
     function redeemExactSetForLongToken(
         ISetToken _setToken,
         uint256 _amountSetToken,
-        uint256 _maxAmountInputToken,
+        uint256 _minAmountOutputToken,
         Exchange _exchange
     )
         isSetToken(_setToken)
         external
         nonReentrant
     {
-        bytes memory paymentParams = abi.encode(_maxAmountInputToken);
+        bytes memory paymentParams = abi.encode(_minAmountOutputToken);
         initiateRedemption(_setToken, _amountSetToken, _exchange, PaymentToken.LongToken, paymentParams);
     }
 
@@ -423,12 +423,14 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     }
 
     function _payUser(uint256 _longTokenSpent, bytes memory _params) internal {
-        (address setToken, uint256 setAmount, address originalSender,,, PaymentToken paymentToken,) = _decodeParams(_params);
+        (address setToken, uint256 setAmount, address originalSender,,, PaymentToken paymentToken, bytes memory paymentParams) = _decodeParams(_params);
         (address longToken , uint256 longAmount,,) = getLeveragedTokenData(ISetToken(setToken), setAmount, true);
         address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
-        require(longAmount >= _longTokenSpent, "Spent more long tokens than received");
+        require(longAmount >= _longTokenSpent, "ExchangeIssuance: OVERSPENT LONG TOKEN");
         uint256 amountToReturn = longAmount.sub(_longTokenSpent);
         if(paymentToken == PaymentToken.LongToken){
+            uint256 minAmountOutputToken = _decodePaymentParamsLongToken(paymentParams);
+            require(amountToReturn >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
             IERC20(longTokenUnderlying).transfer(originalSender, amountToReturn);
         }
         else {
@@ -472,8 +474,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             (setToken, setAmount, originalSender, isIssuance, exchange, paymentToken, paymentParams) = abi.decode(params, (address, uint256, address, bool, Exchange, PaymentToken, bytes));
     }
 
-    function _decodePaymentParamsLongToken(bytes memory _paymentParams) internal pure returns(uint256 maxAmountInputToken){
-            maxAmountInputToken = abi.decode(_paymentParams, (uint256));
+    function _decodePaymentParamsLongToken(bytes memory _paymentParams) internal pure returns(uint256 limitAmount){
+            limitAmount = abi.decode(_paymentParams, (uint256));
     }
 
 

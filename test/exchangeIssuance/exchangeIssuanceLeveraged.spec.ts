@@ -483,14 +483,14 @@ describe("ExchangeIssuanceLeveraged", async () => {
     describe("#redeemExactSetForLongToken", async () => {
       let subjectSetToken: Address;
       let subjectSetAmount: BigNumber;
-      let subjectMaxAmountInput: BigNumber;
+      let subjectMinAmountOutput: BigNumber;
       let subjectExchange: Exchange;
       let longAmount: BigNumber;
       async function subject() {
         return await exchangeIssuance.redeemExactSetForLongToken(
           subjectSetToken,
           subjectSetAmount,
-          subjectMaxAmountInput,
+          subjectMinAmountOutput,
           subjectExchange,
         );
       }
@@ -503,13 +503,14 @@ describe("ExchangeIssuanceLeveraged", async () => {
           subjectSetAmount,
           false,
         ));
-        subjectMaxAmountInput = longAmount;
+        subjectMinAmountOutput = ZERO;
+
         await setV2Setup.weth.approve(exchangeIssuance.address, longAmount);
         await exchangeIssuance.approveSetToken(setToken.address);
         await exchangeIssuance.issueExactSetForLongToken(
           subjectSetToken,
           subjectSetAmount,
-          subjectMaxAmountInput,
+          longAmount,
           subjectExchange,
         );
         await setToken.approve(exchangeIssuance.address, subjectSetAmount);
