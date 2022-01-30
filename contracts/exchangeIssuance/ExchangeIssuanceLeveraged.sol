@@ -33,6 +33,7 @@ import { UniSushiV2Library } from "../../external/contracts/UniSushiV2Library.so
 import { FlashLoanReceiverBaseV2 } from "../../external/contracts/aaveV2/FlashLoanReceiverBaseV2.sol";
 
 
+
 /**
  * @title ExchangeIssuance
  * @author Index Coop
@@ -265,6 +266,21 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         initiateIssuance(_setToken, _amountSetToken, _exchange, PaymentToken.LongToken, paymentParams);
     }
 
+    function issueExactSetForERC20(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        address _inputToken,
+        uint256 _maxAmountInputToken,
+        Exchange _exchange
+    )
+        isSetToken(_setToken)
+        external
+        nonReentrant
+    {
+        bytes memory paymentParams = abi.encode(_maxAmountInputToken, _inputToken);
+        initiateIssuance(_setToken, _amountSetToken, _exchange, PaymentToken.ERC20, paymentParams);
+    }
+
     /**
      * Trigger issuance of set token paying with the underlying of the collateral token directly
      *
@@ -454,12 +470,14 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             uint256 minAmountOutputToken = _decodePaymentParamsLongToken(paymentParams);
             require(amountToReturn >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
             IERC20(longTokenUnderlying).transfer(originalSender, amountToReturn);
+            emit ExchangeRedeem(originalSender, ISetToken(setToken), IERC20(longTokenUnderlying), setAmount, amountToReturn);
         }
         else if(paymentToken == PaymentToken.ERC20){
             (uint256 minAmountOutputToken, address outputToken) = _decodePaymentParamsERC20(paymentParams);
             uint256 outputTokenAmount = _swapLongForOutputToken(longTokenUnderlying, amountToReturn, outputToken, exchange);
             require(outputTokenAmount >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
             IERC20(outputToken).transfer(originalSender, outputTokenAmount);
+            emit ExchangeRedeem(originalSender, ISetToken(setToken), IERC20(outputToken), setAmount, outputTokenAmount);
         }
         else {
             revert("Payment token not implemented yet");
@@ -477,9 +495,18 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     function _obtainLongTokens(address _longTokenUnderlying, uint256 _amountRequired, bytes memory _params) internal {
         (address setToken, uint256 setAmount, address originalSender,, Exchange exchange, PaymentToken paymentToken, bytes memory paymentParams) = _decodeParams(_params);
         uint longTokenObtained = _swapShortForLongTokenUnderlying(setToken, setAmount, _longTokenUnderlying, exchange);
+        uint amountInputToken;
         if(paymentToken == PaymentToken.LongToken){
-           uint amountInputToken =  _transferShortfallFromSender(_longTokenUnderlying, _amountRequired, longTokenObtained, originalSender, paymentParams);
+           amountInputToken =  _transferShortfallFromSender(_longTokenUnderlying, _amountRequired, longTokenObtained, originalSender, paymentParams);
            emit ExchangeIssue(originalSender, ISetToken(setToken), IERC20(_longTokenUnderlying), amountInputToken, setAmount);
+        }
+        else if(paymentToken == PaymentToken.ERC20){
+            (uint256 maxAmountInputToken, address inputToken) = _decodePaymentParamsERC20(paymentParams);
+            IERC20(inputToken).transferFrom(originalSender, address(this), maxAmountInputToken);
+            amountInputToken = _swapInputForLongToken(_longTokenUnderlying, _amountRequired, inputToken, maxAmountInputToken, exchange);
+            require(amountInputToken <= maxAmountInputToken, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
+            IERC20(inputToken).transfer(originalSender, maxAmountInputToken.sub(amountInputToken));
+           emit ExchangeIssue(originalSender, ISetToken(setToken), IERC20(inputToken), amountInputToken, setAmount);
         }
         else {
             // TODO: Add Implementation of other payment options
@@ -555,6 +582,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         _safeApprove(IERC20(longToken), address(router), longAmount);
         address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
         longAmountSpent = _swapTokensForExactTokens(_exchange, longTokenUnderlying, _shortToken, _amountRequired);
+    }
+
+    function _swapInputForLongToken(address _longTokenUnderlying, uint256 _amountRequired, address _inputToken, uint256 _maxAmountInputToken, Exchange _exchange) internal returns (uint256 inputAmountSpent) {
+        IUniswapV2Router02 router = _getRouter(_exchange);
+        _safeApprove(IERC20(_inputToken), address(router), _maxAmountInputToken);
+        inputAmountSpent = _swapTokensForExactTokens(_exchange, _inputToken, _longTokenUnderlying, _amountRequired);
     }
 
 
@@ -708,7 +741,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         address[] memory path = new address[](2);
         path[0] = _tokenIn;
         path[1] = _tokenOut;
-        return _getRouter(_exchange).swapTokensForExactTokens(_amountOut, PreciseUnitMath.maxUint256(), path, address(this), block.timestamp)[0];
+        uint256 result = _getRouter(_exchange).swapTokensForExactTokens(_amountOut, PreciseUnitMath.maxUint256(), path, address(this), block.timestamp)[0];
+        return result;
     }
 
     /**

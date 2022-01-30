@@ -18,6 +18,7 @@ import {
   AaveLeverageStrategyExtension,
   ExchangeIssuanceLeveraged,
   StandardTokenMock,
+  WETH9,
 } from "@utils/contracts/index";
 import { UniswapV2Factory, UniswapV2Router02 } from "@utils/contracts/uniswap";
 import { AaveLeverageModule, DebtIssuanceModule, SetToken } from "@utils/contracts/setV2";
@@ -482,338 +483,229 @@ describe("ExchangeIssuanceLeveraged", async () => {
       });
     });
 
-    describe("#redeemExactSetForLongToken", async () => {
-      let subjectSetToken: Address;
-      let subjectSetAmount: BigNumber;
-      let subjectMinAmountOutput: BigNumber;
-      let subjectExchange: Exchange;
-      let longAmount: BigNumber;
-      async function subject() {
-        return await exchangeIssuance.redeemExactSetForLongToken(
-          subjectSetToken,
-          subjectSetAmount,
-          subjectMinAmountOutput,
-          subjectExchange,
-        );
-      }
-      beforeEach(async () => {
-        subjectSetToken = setToken.address;
-        subjectSetAmount = ether(1);
-        subjectExchange = Exchange.Uniswap;
-        ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
-          subjectSetToken,
-          subjectSetAmount,
-          false,
-        ));
-        subjectMinAmountOutput = ZERO;
+    ["LongToken", "ERC20"].forEach(tokenName => {
+      describe(`#redeemExactSetFor${tokenName}`, async () => {
+        let subjectSetToken: Address;
+        let subjectSetAmount: BigNumber;
+        let subjectMinAmountOutput: BigNumber;
+        let subjectExchange: Exchange;
+        let amountReturned: BigNumber;
+        let longAmount: BigNumber;
+        let subjectOutputToken: Address;
+        let outputToken: StandardTokenMock | WETH9;
 
-        await setV2Setup.weth.approve(exchangeIssuance.address, longAmount);
-        await exchangeIssuance.approveSetToken(setToken.address);
-        await exchangeIssuance.issueExactSetForLongToken(
-          subjectSetToken,
-          subjectSetAmount,
-          longAmount,
-          subjectExchange,
-        );
-        await setToken.approve(exchangeIssuance.address, subjectSetAmount);
-      });
-      it("should succeed", async () => {
-        await subject();
-      });
-      it("should reduce set balance by the expected amount", async () => {
-        const balanceBefore = await setToken.balanceOf(owner.address);
-        await subject();
-        const balanceAfter = await setToken.balanceOf(owner.address);
-        expect(balanceBefore.sub(balanceAfter)).to.equal(subjectSetAmount);
-      });
-      it("should return at least the expected amount of long token", async () => {
-        const balanceBefore = await setV2Setup.weth.balanceOf(owner.address);
-        await subject();
-        const balanceAfter = await setV2Setup.weth.balanceOf(owner.address);
-        const amountReturned = balanceAfter.sub(balanceBefore);
-        expect(amountReturned.gt(subjectMinAmountOutput)).to.equal(true);
-      });
-      context("when minAmountOutputToken is too high", async () => {
-        beforeEach(() => {
-          subjectMinAmountOutput = longAmount;
-        });
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith(
-            "revert ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT",
-          );
-        });
-      });
-    });
-
-    describe("#redeemExactSetForERC20", async () => {
-      let subjectSetToken: Address;
-      let subjectSetAmount: BigNumber;
-      let subjectMinAmountOutput: BigNumber;
-      let subjectExchange: Exchange;
-      let subjectOutputToken: Address;
-      let outputToken: StandardTokenMock;
-      let longAmount: BigNumber;
-      async function subject() {
-        return await exchangeIssuance.redeemExactSetForERC20(
-          subjectSetToken,
-          subjectSetAmount,
-          subjectOutputToken,
-          subjectMinAmountOutput,
-          subjectExchange,
-        );
-      }
-      beforeEach(async () => {
-        subjectSetToken = setToken.address;
-        subjectSetAmount = ether(1);
-        outputToken = setV2Setup.usdc;
-        subjectOutputToken = outputToken.address;
-        subjectExchange = Exchange.Uniswap;
-        ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
-          subjectSetToken,
-          subjectSetAmount,
-          false,
-        ));
-        subjectMinAmountOutput = ZERO;
-
-        await setV2Setup.weth.approve(exchangeIssuance.address, longAmount);
-        await exchangeIssuance.approveSetToken(setToken.address);
-        await exchangeIssuance.issueExactSetForLongToken(
-          subjectSetToken,
-          subjectSetAmount,
-          longAmount,
-          subjectExchange,
-        );
-        await setToken.approve(exchangeIssuance.address, subjectSetAmount);
-      });
-      it("should succeed", async () => {
-        await subject();
-      });
-      it("should reduce set balance by the expected amount", async () => {
-        const balanceBefore = await setToken.balanceOf(owner.address);
-        await subject();
-        const balanceAfter = await setToken.balanceOf(owner.address);
-        expect(balanceBefore.sub(balanceAfter)).to.equal(subjectSetAmount);
-      });
-      it("should return at least the expected amount of output token", async () => {
-        const balanceBefore = await outputToken.balanceOf(owner.address);
-        await subject();
-        const balanceAfter = await outputToken.balanceOf(owner.address);
-        const amountReturned = balanceAfter.sub(balanceBefore);
-        expect(amountReturned.gt(subjectMinAmountOutput)).to.equal(true);
-      });
-      context("when minAmountOutputToken is too high", async () => {
-        beforeEach(() => {
-          subjectMinAmountOutput = longAmount;
-        });
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith(
-            "revert ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT",
-          );
-        });
-      });
-    });
-
-    describe("#issueExactSetForLongToken", async () => {
-      let subjectSetToken: Address;
-      let subjectSetAmount: BigNumber;
-      let subjectMaxAmountInput: BigNumber;
-      let subjectExchange: Exchange;
-      let longAmount: BigNumber;
-      let longAmountSpent: BigNumber;
-      async function subject() {
-        return await exchangeIssuance.issueExactSetForLongToken(
-          subjectSetToken,
-          subjectSetAmount,
-          subjectMaxAmountInput,
-          subjectExchange,
-        );
-      }
-      beforeEach(async () => {
-        subjectSetToken = setToken.address;
-        subjectSetAmount = ether(1);
-        subjectExchange = Exchange.Uniswap;
-        ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
-          subjectSetToken,
-          subjectSetAmount,
-          true,
-        ));
-        subjectMaxAmountInput = longAmount;
-        await setV2Setup.weth.approve(exchangeIssuance.address, longAmount);
-        await exchangeIssuance.approveSetToken(setToken.address);
-      });
-      it("should succeed", async () => {
-        await subject();
-      });
-      it("should return the requested amount of set", async () => {
-        const balanceBefore = await setToken.balanceOf(owner.address);
-        await subject();
-        const balanceAfter = await setToken.balanceOf(owner.address);
-        expect(balanceAfter.sub(balanceBefore)).to.equal(subjectSetAmount);
-      });
-      it("should cost less than the total long position", async () => {
-        const balanceBefore = await setV2Setup.weth.balanceOf(owner.address);
-        await subject();
-        const balanceAfter = await setV2Setup.weth.balanceOf(owner.address);
-        longAmountSpent = balanceBefore.sub(balanceAfter);
-        expect(longAmountSpent.gt(0)).to.equal(true);
-        expect(longAmountSpent.lt(longAmount)).to.equal(true);
-      });
-      it("should emit ExchangeIssuance event", async () => {
-        await expect(subject())
-          .to.emit(exchangeIssuance, "ExchangeIssue")
-          .withArgs(
-            owner.address,
-            subjectSetToken,
-            setV2Setup.weth.address,
-            longAmountSpent,
-            subjectSetAmount,
-          );
-      });
-      context("when subjectMaxInput is too low", async () => {
-        beforeEach(() => {
-          subjectMaxAmountInput = ZERO;
-        });
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith(
-            "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT",
-          );
-        });
-      });
-      context("when exchange without any liquidity is specified", async () => {
-        beforeEach(async () => {
-          subjectExchange = Exchange.Sushiswap;
-        });
-        it("should revert", async () => {
-          // TODO: Check why this is failing without any reason. Would have expected something more descriptive coming from the router
-          await expect(subject()).to.be.revertedWith("revert");
-        });
-      });
-      context("when exchange with too little liquidity is specified", async () => {
-        beforeEach(async () => {
-          // Set up sushiswap with INsufficient liquidity
-          await setV2Setup.usdc.connect(owner.wallet).approve(sushiswapRouter.address, MAX_INT_256);
-          await sushiswapRouter
-            .connect(owner.wallet)
-            .addLiquidityETH(
-              setV2Setup.usdc.address,
-              UnitsUtils.usdc(10),
-              MAX_UINT_256,
-              MAX_UINT_256,
-              owner.address,
-              (await getLastBlockTimestamp()).add(1),
-              { value: ether(0.001), gasLimit: 9000000 },
+        async function subject() {
+          if (tokenName === "LongToken") {
+            return await exchangeIssuance.redeemExactSetForLongToken(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectMinAmountOutput,
+              subjectExchange,
             );
-
-          subjectExchange = Exchange.Sushiswap;
-        });
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith(
-            "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT",
-          );
-        });
-      });
-    });
-
-    describe("#issueExactSetForLongToken", async () => {
-      let subjectSetToken: Address;
-      let subjectSetAmount: BigNumber;
-      let subjectMaxAmountInput: BigNumber;
-      let subjectExchange: Exchange;
-      let longAmount: BigNumber;
-      let longAmountSpent: BigNumber;
-      async function subject() {
-        return await exchangeIssuance.issueExactSetForLongToken(
-          subjectSetToken,
-          subjectSetAmount,
-          subjectMaxAmountInput,
-          subjectExchange,
-        );
-      }
-      beforeEach(async () => {
-        subjectSetToken = setToken.address;
-        subjectSetAmount = ether(1);
-        subjectExchange = Exchange.Uniswap;
-        ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
-          subjectSetToken,
-          subjectSetAmount,
-          true,
-        ));
-        subjectMaxAmountInput = longAmount;
-        await setV2Setup.weth.approve(exchangeIssuance.address, longAmount);
-        await exchangeIssuance.approveSetToken(setToken.address);
-      });
-      it("should succeed", async () => {
-        await subject();
-      });
-      it("should return the requested amount of set", async () => {
-        const balanceBefore = await setToken.balanceOf(owner.address);
-        await subject();
-        const balanceAfter = await setToken.balanceOf(owner.address);
-        expect(balanceAfter.sub(balanceBefore)).to.equal(subjectSetAmount);
-      });
-      it("should cost less than the total long position", async () => {
-        const balanceBefore = await setV2Setup.weth.balanceOf(owner.address);
-        await subject();
-        const balanceAfter = await setV2Setup.weth.balanceOf(owner.address);
-        longAmountSpent = balanceBefore.sub(balanceAfter);
-        expect(longAmountSpent.gt(0)).to.equal(true);
-        expect(longAmountSpent.lt(longAmount)).to.equal(true);
-      });
-      it("should emit ExchangeIssuance event", async () => {
-        await expect(subject())
-          .to.emit(exchangeIssuance, "ExchangeIssue")
-          .withArgs(
-            owner.address,
-            subjectSetToken,
-            setV2Setup.weth.address,
-            longAmountSpent,
-            subjectSetAmount,
-          );
-      });
-      context("when subjectMaxInput is too low", async () => {
-        beforeEach(() => {
-          subjectMaxAmountInput = ZERO;
-        });
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith(
-            "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT",
-          );
-        });
-      });
-      context("when exchange without any liquidity is specified", async () => {
-        beforeEach(async () => {
-          subjectExchange = Exchange.Sushiswap;
-        });
-        it("should revert", async () => {
-          // TODO: Check why this is failing without any reason. Would have expected something more descriptive coming from the router
-          await expect(subject()).to.be.revertedWith("revert");
-        });
-      });
-      context("when exchange with too little liquidity is specified", async () => {
-        beforeEach(async () => {
-          // Set up sushiswap with INsufficient liquidity
-          await setV2Setup.usdc.connect(owner.wallet).approve(sushiswapRouter.address, MAX_INT_256);
-          await sushiswapRouter
-            .connect(owner.wallet)
-            .addLiquidityETH(
-              setV2Setup.usdc.address,
-              UnitsUtils.usdc(10),
-              MAX_UINT_256,
-              MAX_UINT_256,
-              owner.address,
-              (await getLastBlockTimestamp()).add(1),
-              { value: ether(0.001), gasLimit: 9000000 },
+          } else {
+            return await exchangeIssuance.redeemExactSetForERC20(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectOutputToken,
+              subjectMinAmountOutput,
+              subjectExchange,
             );
+          }
+        }
+        beforeEach(async () => {
+          subjectSetToken = setToken.address;
+          subjectSetAmount = ether(1);
+          subjectExchange = Exchange.Uniswap;
+          ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
+            subjectSetToken,
+            subjectSetAmount,
+            false,
+          ));
+          subjectMinAmountOutput = ZERO;
+          const outputTokenMapping: { [key: string]: StandardTokenMock | WETH9 } = {
+            LongToken: setV2Setup.weth,
+            ERC20: setV2Setup.usdc,
+          };
+          outputToken = outputTokenMapping[tokenName];
+          subjectOutputToken = outputToken.address;
 
-          subjectExchange = Exchange.Sushiswap;
-        });
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith(
-            "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT",
+          await setV2Setup.weth.approve(exchangeIssuance.address, longAmount);
+          await exchangeIssuance.approveSetToken(setToken.address);
+          await exchangeIssuance.issueExactSetForLongToken(
+            subjectSetToken,
+            subjectSetAmount,
+            longAmount,
+            subjectExchange,
           );
+          await setToken.approve(exchangeIssuance.address, subjectSetAmount);
+        });
+        it("should succeed", async () => {
+          await subject();
+        });
+        it("should reduce set balance by the expected amount", async () => {
+          const balanceBefore = await setToken.balanceOf(owner.address);
+          await subject();
+          const balanceAfter = await setToken.balanceOf(owner.address);
+          expect(balanceBefore.sub(balanceAfter)).to.equal(subjectSetAmount);
+        });
+        it("should return at least the expected amount of the output token", async () => {
+          const balanceBefore = await outputToken.balanceOf(owner.address);
+          await subject();
+          const balanceAfter = await outputToken.balanceOf(owner.address);
+          amountReturned = balanceAfter.sub(balanceBefore);
+          expect(amountReturned.gt(subjectMinAmountOutput)).to.equal(true);
+        });
+        it("should emit ExchangeRedeem event", async () => {
+          await expect(subject())
+            .to.emit(exchangeIssuance, "ExchangeRedeem")
+            .withArgs(
+              owner.address,
+              subjectSetToken,
+              subjectOutputToken,
+              subjectSetAmount,
+              amountReturned,
+            );
+        });
+        context("when minAmountOutputToken is too high", async () => {
+          beforeEach(() => {
+            subjectMinAmountOutput = longAmount;
+          });
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith(
+              "revert ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT",
+            );
+          });
+        });
+      });
+      describe(`#issueExactSetFor${tokenName}`, async () => {
+        let subjectSetToken: Address;
+        let subjectSetAmount: BigNumber;
+        let subjectMaxAmountInput: BigNumber;
+        let subjectExchange: Exchange;
+        let subjectInputToken: Address;
+        let inputToken: StandardTokenMock | WETH9;
+        let longAmount: BigNumber;
+        let inputAmountSpent: BigNumber;
+        async function subject() {
+          if (tokenName === "LongToken") {
+            return await exchangeIssuance.issueExactSetForLongToken(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectMaxAmountInput,
+              subjectExchange,
+            );
+          } else {
+            return await exchangeIssuance.issueExactSetForERC20(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectInputToken,
+              subjectMaxAmountInput,
+              subjectExchange,
+            );
+          }
+        }
+        beforeEach(async () => {
+          subjectSetToken = setToken.address;
+          subjectSetAmount = ether(1);
+          subjectExchange = Exchange.Uniswap;
+          ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
+            subjectSetToken,
+            subjectSetAmount,
+            true,
+          ));
+          subjectMaxAmountInput = tokenName == "LongToken" ? longAmount : UnitsUtils.usdc(20000);
+          const inputTokenMapping: { [key: string]: StandardTokenMock | WETH9 } = {
+            LongToken: setV2Setup.weth,
+            ERC20: setV2Setup.usdc,
+          };
+          inputToken = inputTokenMapping[tokenName];
+          subjectInputToken = inputToken.address;
+
+          await inputToken.approve(exchangeIssuance.address, subjectMaxAmountInput);
+          await exchangeIssuance.approveSetToken(setToken.address);
+        });
+        it("should succeed", async () => {
+          await subject();
+        });
+        it("should return the requested amount of set", async () => {
+          const balanceBefore = await setToken.balanceOf(owner.address);
+          await subject();
+          const balanceAfter = await setToken.balanceOf(owner.address);
+          expect(balanceAfter.sub(balanceBefore)).to.equal(subjectSetAmount);
+        });
+        it("should cost less than the total long position", async () => {
+          const balanceBefore = await inputToken.balanceOf(owner.address);
+          await subject();
+          const balanceAfter = await inputToken.balanceOf(owner.address);
+          inputAmountSpent = balanceBefore.sub(balanceAfter);
+          expect(inputAmountSpent.gt(0)).to.equal(true);
+          expect(inputAmountSpent.lt(longAmount)).to.equal(true);
+        });
+        it("should emit ExchangeIssuance event", async () => {
+          await expect(subject())
+            .to.emit(exchangeIssuance, "ExchangeIssue")
+            .withArgs(
+              owner.address,
+              subjectSetToken,
+              subjectInputToken,
+              inputAmountSpent,
+              subjectSetAmount,
+            );
+        });
+        context("when subjectMaxInput is too low", async () => {
+          beforeEach(() => {
+            subjectMaxAmountInput = ZERO;
+          });
+          it("should revert", async () => {
+            const revertReason =
+              tokenName == "LongToken"
+                ? "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT"
+                : // TODO: This revertion comes from the router, maybe investigate to understand where it is exactly raised
+                  "revert TransferHelper: TRANSFER_FROM_FAILED";
+            await expect(subject()).to.be.revertedWith(revertReason);
+          });
+        });
+        context("when exchange without any liquidity is specified", async () => {
+          beforeEach(async () => {
+            subjectExchange = Exchange.Sushiswap;
+          });
+          it("should revert", async () => {
+            // TODO: Check why this is failing without any reason. Would have expected something more descriptive coming from the router
+            await expect(subject()).to.be.revertedWith("revert");
+          });
+        });
+        context("when exchange with too little liquidity is specified", async () => {
+          beforeEach(async () => {
+            // Set up sushiswap with INsufficient liquidity
+            await setV2Setup.usdc
+              .connect(owner.wallet)
+              .approve(sushiswapRouter.address, MAX_INT_256);
+            await sushiswapRouter
+              .connect(owner.wallet)
+              .addLiquidityETH(
+                setV2Setup.usdc.address,
+                UnitsUtils.usdc(10),
+                MAX_UINT_256,
+                MAX_UINT_256,
+                owner.address,
+                (await getLastBlockTimestamp()).add(1),
+                { value: ether(0.001), gasLimit: 9000000 },
+              );
+
+            subjectExchange = Exchange.Sushiswap;
+          });
+          it("should revert", async () => {
+            const revertReason =
+              tokenName == "LongToken"
+                ? "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT"
+                : // TODO: This revertion comes from the router, maybe investigate to understand where it is exactly raised
+                  "revert ds-math-sub-underflow";
+            await expect(subject()).to.be.revertedWith(revertReason);
+          });
         });
       });
     });
+
     describe("#issueExactSetForEth", async () => {
       let subjectSetToken: Address;
       let subjectSetAmount: BigNumber;
