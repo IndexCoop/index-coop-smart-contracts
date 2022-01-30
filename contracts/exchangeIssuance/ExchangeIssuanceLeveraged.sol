@@ -228,6 +228,21 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         initiateRedemption(_setToken, _amountSetToken, _exchange, PaymentToken.LongToken, paymentParams);
     }
 
+    function redeemExactSetForERC20(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        address _outputToken,
+        uint256 _minAmountOutputToken,
+        Exchange _exchange
+    )
+        isSetToken(_setToken)
+        external
+        nonReentrant
+    {
+        bytes memory paymentParams = abi.encode(_minAmountOutputToken, _outputToken);
+        initiateRedemption(_setToken, _amountSetToken, _exchange, PaymentToken.ERC20, paymentParams);
+    }
+
     /**
      * Trigger issuance of set token paying with the underlying of the collateral token directly
      *
@@ -430,7 +445,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _params            Encoded data used to get setToken, setAmount, originalSender and paymentToken/Params
      */
     function _liquidateLongTokens(uint256 _longTokenSpent, bytes memory _params) internal {
-        (address setToken, uint256 setAmount, address originalSender,,, PaymentToken paymentToken, bytes memory paymentParams) = _decodeParams(_params);
+        (address setToken, uint256 setAmount, address originalSender,,Exchange exchange, PaymentToken paymentToken, bytes memory paymentParams) = _decodeParams(_params);
         (address longToken , uint256 longAmount,,) = getLeveragedTokenData(ISetToken(setToken), setAmount, true);
         address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
         require(longAmount >= _longTokenSpent, "ExchangeIssuance: OVERSPENT LONG TOKEN");
@@ -439,6 +454,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             uint256 minAmountOutputToken = _decodePaymentParamsLongToken(paymentParams);
             require(amountToReturn >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
             IERC20(longTokenUnderlying).transfer(originalSender, amountToReturn);
+        }
+        else if(paymentToken == PaymentToken.ERC20){
+            (uint256 minAmountOutputToken, address outputToken) = _decodePaymentParamsERC20(paymentParams);
+            uint256 outputTokenAmount = _swapLongForOutputToken(longTokenUnderlying, amountToReturn, outputToken, exchange);
+            require(outputTokenAmount >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+            IERC20(outputToken).transfer(originalSender, outputTokenAmount);
         }
         else {
             revert("Payment token not implemented yet");
@@ -483,6 +504,10 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
     function _decodePaymentParamsLongToken(bytes memory _paymentParams) internal pure returns(uint256 limitAmount){
             limitAmount = abi.decode(_paymentParams, (uint256));
+    }
+
+    function _decodePaymentParamsERC20(bytes memory _paymentParams) internal pure returns(uint256 limitAmount, address outputToken){
+            (limitAmount, outputToken) = abi.decode(_paymentParams, (uint256, address));
     }
 
 
@@ -530,6 +555,19 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         _safeApprove(IERC20(longToken), address(router), longAmount);
         address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
         longAmountSpent = _swapTokensForExactTokens(_exchange, longTokenUnderlying, _shortToken, _amountRequired);
+    }
+
+
+
+    /**
+     * Swaps the debt tokens obtained from issuance for the underlying of the collateral
+     *
+     */
+    function _swapLongForOutputToken(address _longTokenUnderlying, uint256 _longTokenAmount, address _outputToken, Exchange _exchange) internal returns (uint256) {
+        if(_longTokenUnderlying == _outputToken) return _longTokenAmount;
+        IUniswapV2Router02 router = _getRouter(_exchange);
+        _safeApprove(IERC20(_longTokenUnderlying), address(router), _longTokenAmount);
+        return _swapExactTokensForTokens(_exchange, _longTokenUnderlying, _outputToken, _longTokenAmount);
     }
 
 
