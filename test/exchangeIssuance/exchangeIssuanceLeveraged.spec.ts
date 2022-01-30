@@ -483,7 +483,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
       });
     });
 
-    ["LongToken", "ERC20"].forEach(tokenName => {
+    ["LongToken", "ERC20", "ETH"].forEach(tokenName => {
       describe(`#redeemExactSetFor${tokenName}`, async () => {
         let subjectSetToken: Address;
         let subjectSetAmount: BigNumber;
@@ -502,13 +502,21 @@ describe("ExchangeIssuanceLeveraged", async () => {
               subjectMinAmountOutput,
               subjectExchange,
             );
-          } else {
+          } else if (tokenName === "ERC20") {
             return await exchangeIssuance.redeemExactSetForERC20(
               subjectSetToken,
               subjectSetAmount,
               subjectOutputToken,
               subjectMinAmountOutput,
               subjectExchange,
+            );
+          } else {
+            return await exchangeIssuance.redeemExactSetForETH(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectMinAmountOutput,
+              subjectExchange,
+              { gasPrice: 0 },
             );
           }
         }
@@ -524,6 +532,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
           subjectMinAmountOutput = ZERO;
           const outputTokenMapping: { [key: string]: StandardTokenMock | WETH9 } = {
             LongToken: setV2Setup.weth,
+            ETH: setV2Setup.weth,
             ERC20: setV2Setup.usdc,
           };
           outputToken = outputTokenMapping[tokenName];
@@ -549,9 +558,15 @@ describe("ExchangeIssuanceLeveraged", async () => {
           expect(balanceBefore.sub(balanceAfter)).to.equal(subjectSetAmount);
         });
         it("should return at least the expected amount of the output token", async () => {
-          const balanceBefore = await outputToken.balanceOf(owner.address);
+          const balanceBefore =
+            tokenName == "ETH"
+              ? await owner.wallet.getBalance()
+              : await outputToken.balanceOf(owner.address);
           await subject();
-          const balanceAfter = await outputToken.balanceOf(owner.address);
+          const balanceAfter =
+            tokenName == "ETH"
+              ? await owner.wallet.getBalance()
+              : await outputToken.balanceOf(owner.address);
           amountReturned = balanceAfter.sub(balanceBefore);
           expect(amountReturned.gt(subjectMinAmountOutput)).to.equal(true);
         });
@@ -594,13 +609,20 @@ describe("ExchangeIssuanceLeveraged", async () => {
               subjectMaxAmountInput,
               subjectExchange,
             );
-          } else {
+          } else if (tokenName === "ERC20") {
             return await exchangeIssuance.issueExactSetForERC20(
               subjectSetToken,
               subjectSetAmount,
               subjectInputToken,
               subjectMaxAmountInput,
               subjectExchange,
+            );
+          } else {
+            return await exchangeIssuance.issueExactSetForETH(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectExchange,
+              { value: subjectMaxAmountInput },
             );
           }
         }
@@ -613,9 +635,10 @@ describe("ExchangeIssuanceLeveraged", async () => {
             subjectSetAmount,
             true,
           ));
-          subjectMaxAmountInput = tokenName == "LongToken" ? longAmount : UnitsUtils.usdc(20000);
+          subjectMaxAmountInput = tokenName == "ERC20" ? UnitsUtils.usdc(20000) : longAmount;
           const inputTokenMapping: { [key: string]: StandardTokenMock | WETH9 } = {
             LongToken: setV2Setup.weth,
+            ETH: setV2Setup.weth,
             ERC20: setV2Setup.usdc,
           };
           inputToken = inputTokenMapping[tokenName];
@@ -704,65 +727,33 @@ describe("ExchangeIssuanceLeveraged", async () => {
           });
         });
       });
-    });
 
-    describe("#issueExactSetForEth", async () => {
-      let subjectSetToken: Address;
-      let subjectSetAmount: BigNumber;
-      let subjectMaxAmountInput: BigNumber;
-      let subjectExchange: Exchange;
-      let longAmount: BigNumber;
-      async function subject() {
-        return await exchangeIssuance.issueExactSetForEth(
-          subjectSetToken,
-          subjectSetAmount,
-          subjectMaxAmountInput,
-          subjectExchange,
-        );
-      }
-      beforeEach(async () => {
-        subjectSetToken = setToken.address;
-        subjectSetAmount = ether(1);
-        subjectExchange = Exchange.Uniswap;
-        ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
-          subjectSetToken,
-          subjectSetAmount,
-          true,
-        ));
-        subjectMaxAmountInput = longAmount;
-        await setV2Setup.weth.approve(exchangeIssuance.address, longAmount);
-        await exchangeIssuance.approveSetToken(setToken.address);
-      });
-      it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("revert Not Implemented");
-      });
-    });
-
-    describe("#executeOperation", async () => {
-      context("When caller is not the lending pool", () => {
-        let subjectAssets: Address[];
-        let subjectAmounts: BigNumber[];
-        let subjectPremiums: BigNumber[];
-        let subjectInitiator: Address;
-        let subjectParams: Bytes;
-        beforeEach(async () => {
-          subjectAssets = [ADDRESS_ZERO];
-          subjectAmounts = [ZERO];
-          subjectPremiums = [ZERO];
-          subjectInitiator = ADDRESS_ZERO;
-          subjectParams = EMPTY_BYTES;
-        });
-        async function subject() {
-          await exchangeIssuance.executeOperation(
-            subjectAssets,
-            subjectAmounts,
-            subjectPremiums,
-            subjectInitiator,
-            subjectParams,
-          );
-        }
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("ExchangeIssuance: LENDING POOL ONLY");
+      describe("#executeOperation", async () => {
+        context("When caller is not the lending pool", () => {
+          let subjectAssets: Address[];
+          let subjectAmounts: BigNumber[];
+          let subjectPremiums: BigNumber[];
+          let subjectInitiator: Address;
+          let subjectParams: Bytes;
+          beforeEach(async () => {
+            subjectAssets = [ADDRESS_ZERO];
+            subjectAmounts = [ZERO];
+            subjectPremiums = [ZERO];
+            subjectInitiator = ADDRESS_ZERO;
+            subjectParams = EMPTY_BYTES;
+          });
+          async function subject() {
+            await exchangeIssuance.executeOperation(
+              subjectAssets,
+              subjectAmounts,
+              subjectPremiums,
+              subjectInitiator,
+              subjectParams,
+            );
+          }
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("ExchangeIssuance: LENDING POOL ONLY");
+          });
         });
       });
     });

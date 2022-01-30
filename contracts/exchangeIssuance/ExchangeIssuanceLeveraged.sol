@@ -32,6 +32,8 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { UniSushiV2Library } from "../../external/contracts/UniSushiV2Library.sol";
 import { FlashLoanReceiverBaseV2 } from "../../external/contracts/aaveV2/FlashLoanReceiverBaseV2.sol";
 
+import "hardhat/console.sol";
+
 
 
 /**
@@ -56,7 +58,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
     enum Exchange { None, Uniswap, Sushiswap}
     // Call parameter to control which token is used by the user to pay issuance / receive redemption amount
-    enum PaymentToken { None, LongToken, ERC20, Eth}
+    enum PaymentToken { None, LongToken, ERC20, ETH}
 
     /* ============ Constants ============= */
 
@@ -229,6 +231,20 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         initiateRedemption(_setToken, _amountSetToken, _exchange, PaymentToken.LongToken, paymentParams);
     }
 
+    function redeemExactSetForETH(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        uint256 _minAmountOutputToken,
+        Exchange _exchange
+    )
+        isSetToken(_setToken)
+        external
+        nonReentrant
+    {
+        bytes memory paymentParams = abi.encode(_minAmountOutputToken);
+        initiateRedemption(_setToken, _amountSetToken, _exchange, PaymentToken.ETH, paymentParams);
+    }
+
     function redeemExactSetForERC20(
         ISetToken _setToken,
         uint256 _amountSetToken,
@@ -286,21 +302,20 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      *
      * @param _setToken            Set token to issue
      * @param _amountSetToken      Amount to issue
-     * @param _maxAmountInputToken Maximum amount of input token to spend
      * @param _exchange            Exchange to use in swap from short to long token
      */
-    function issueExactSetForEth(
+    function issueExactSetForETH(
         ISetToken _setToken,
         uint256 _amountSetToken,
-        uint256 _maxAmountInputToken,
         Exchange _exchange
     )
         isSetToken(_setToken)
         external
+        payable
         nonReentrant
     {
-        bytes memory paymentParams = abi.encode(_maxAmountInputToken);
-        initiateIssuance(_setToken, _amountSetToken, _exchange, PaymentToken.Eth, paymentParams);
+        bytes memory paymentParams = abi.encode(msg.value);
+        initiateIssuance(_setToken, _amountSetToken, _exchange, PaymentToken.ETH, paymentParams);
     }
 
     /**
@@ -467,7 +482,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         require(longAmount >= _longTokenSpent, "ExchangeIssuance: OVERSPENT LONG TOKEN");
         uint256 amountToReturn = longAmount.sub(_longTokenSpent);
         if(paymentToken == PaymentToken.LongToken){
-            uint256 minAmountOutputToken = _decodePaymentParamsLongToken(paymentParams);
+            uint256 minAmountOutputToken = _decodePaymentParams(paymentParams);
             require(amountToReturn >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
             IERC20(longTokenUnderlying).transfer(originalSender, amountToReturn);
             emit ExchangeRedeem(originalSender, ISetToken(setToken), IERC20(longTokenUnderlying), setAmount, amountToReturn);
@@ -480,7 +495,14 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             emit ExchangeRedeem(originalSender, ISetToken(setToken), IERC20(outputToken), setAmount, outputTokenAmount);
         }
         else {
-            revert("Payment token not implemented yet");
+            uint256 minAmountOutputToken = _decodePaymentParams(paymentParams);
+            uint256 outputTokenAmount = _swapLongForOutputToken(longTokenUnderlying, amountToReturn, WETH, exchange);
+            require(outputTokenAmount >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+            if (outputTokenAmount > 0) {
+                IWETH(WETH).withdraw(outputTokenAmount);
+                (payable(originalSender)).sendValue(outputTokenAmount);
+            }
+            emit ExchangeRedeem(originalSender, ISetToken(setToken), IERC20(WETH), setAmount, outputTokenAmount);
         }
     }
 
@@ -506,11 +528,21 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             amountInputToken = _swapInputForLongToken(_longTokenUnderlying, _amountRequired, inputToken, maxAmountInputToken, exchange);
             require(amountInputToken <= maxAmountInputToken, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
             IERC20(inputToken).transfer(originalSender, maxAmountInputToken.sub(amountInputToken));
-           emit ExchangeIssue(originalSender, ISetToken(setToken), IERC20(inputToken), amountInputToken, setAmount);
+            emit ExchangeIssue(originalSender, ISetToken(setToken), IERC20(inputToken), amountInputToken, setAmount);
         }
         else {
-            // TODO: Add Implementation of other payment options
-            revert("Not Implemented");
+            (uint256 maxAmountEth ) = _decodePaymentParams(paymentParams);
+            IWETH(WETH).deposit{value: maxAmountEth}();
+            amountInputToken = _swapInputForLongToken(_longTokenUnderlying, _amountRequired, WETH, maxAmountEth, exchange);
+            console.log("Eth params");
+            console.logUint(amountInputToken);
+            console.logUint(maxAmountEth);
+            uint256 amountEthReturn = maxAmountEth.sub(amountInputToken);
+            console.log("Returning eth");
+            if (amountEthReturn > 0) {
+                IWETH(WETH).withdraw(amountEthReturn);
+                (payable(originalSender)).sendValue(amountEthReturn);
+            }
         }
     }
 
@@ -529,7 +561,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             (setToken, setAmount, originalSender, isIssuance, exchange, paymentToken, paymentParams) = abi.decode(params, (address, uint256, address, bool, Exchange, PaymentToken, bytes));
     }
 
-    function _decodePaymentParamsLongToken(bytes memory _paymentParams) internal pure returns(uint256 limitAmount){
+    function _decodePaymentParams(bytes memory _paymentParams) internal pure returns(uint256 limitAmount){
             limitAmount = abi.decode(_paymentParams, (uint256));
     }
 
@@ -550,7 +582,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     function _transferShortfallFromSender(address _token, uint256 _amountRequired, uint256 _amountObtained, address _originalSender, bytes memory paymentParams) internal returns(uint256 shortfall) {
         if(_amountObtained < _amountRequired){ 
             shortfall = _amountRequired.sub(_amountObtained);
-            uint256 maxAmountInputToken =_decodePaymentParamsLongToken(paymentParams);
+            uint256 maxAmountInputToken =_decodePaymentParams(paymentParams);
             require(shortfall <= maxAmountInputToken, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
             IERC20(_token).safeTransferFrom(_originalSender, address(this), shortfall);
         }
@@ -585,6 +617,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     }
 
     function _swapInputForLongToken(address _longTokenUnderlying, uint256 _amountRequired, address _inputToken, uint256 _maxAmountInputToken, Exchange _exchange) internal returns (uint256 inputAmountSpent) {
+        if(_longTokenUnderlying == _inputToken) return _amountRequired;
         IUniswapV2Router02 router = _getRouter(_exchange);
         _safeApprove(IERC20(_inputToken), address(router), _maxAmountInputToken);
         inputAmountSpent = _swapTokensForExactTokens(_exchange, _inputToken, _longTokenUnderlying, _amountRequired);
