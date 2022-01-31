@@ -42,7 +42,6 @@ import { BigNumber } from "ethers";
 
 enum Exchange {
   None,
-  Uniswap,
   Sushiswap,
 }
 
@@ -84,15 +83,12 @@ describe("ExchangeIssuanceLeveraged", async () => {
   let wethAddress: Address;
   let wbtcAddress: Address;
   let daiAddress: Address;
-  let uniswapFactory: UniswapV2Factory;
-  let uniswapRouter: UniswapV2Router02;
   let sushiswapFactory: UniswapV2Factory;
   let sushiswapRouter: UniswapV2Router02;
   let controllerAddress: Address;
   let debtIssuanceModuleAddress: Address;
   let addressProviderAddress: Address;
 
-  let uniswapSetup: UniswapFixture;
   let sushiswapSetup: UniswapFixture;
   let setTokenInitialBalance: BigNumber;
 
@@ -184,17 +180,14 @@ describe("ExchangeIssuanceLeveraged", async () => {
     wbtcAddress = setV2Setup.wbtc.address;
     daiAddress = setV2Setup.dai.address;
 
-    uniswapSetup = getUniswapFixture(owner.address);
-    await uniswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
-
+    sushiswapSetup = getUniswapFixture(owner.address);
+    await sushiswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
     // Set integrations for CompoundLeverageModule
     await setV2Setup.integrationRegistry.addIntegration(
       aaveLeverageModule.address,
       "UniswapTradeAdapter",
-      uniswapSetup.uniswapTradeAdapter.address,
+      sushiswapSetup.uniswapTradeAdapter.address,
     );
-    sushiswapSetup = getUniswapFixture(owner.address);
-    await sushiswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
 
     setTokenInitialBalance = ether(1);
     await collateralAToken.approve(debtIssuanceModule.address, MAX_UINT_256);
@@ -203,8 +196,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
     await collateralToken.transfer(tradeAdapterMock.address, setTokenInitialBalance.mul(10));
     await leverageStrategyExtension.engage(exchangeName);
 
-    uniswapFactory = uniswapSetup.factory;
-    uniswapRouter = uniswapSetup.router;
     sushiswapFactory = sushiswapSetup.factory;
     sushiswapRouter = sushiswapSetup.router;
     controllerAddress = setV2Setup.controller.address;
@@ -212,10 +203,10 @@ describe("ExchangeIssuanceLeveraged", async () => {
     addressProviderAddress = aaveSetup.lendingPoolAddressesProvider.address;
 
     // ETH-USDC pools
-    await setV2Setup.usdc.connect(owner.wallet).approve(uniswapRouter.address, MAX_INT_256);
-    await collateralToken.connect(owner.wallet).approve(uniswapRouter.address, MAX_INT_256);
-    // Set up uniswap with sufficient liquidity
-    await uniswapRouter
+    await setV2Setup.usdc.connect(owner.wallet).approve(sushiswapRouter.address, MAX_INT_256);
+    await collateralToken.connect(owner.wallet).approve(sushiswapRouter.address, MAX_INT_256);
+    // Set up sushiswap with sufficient liquidity
+    await sushiswapRouter
       .connect(owner.wallet)
       .addLiquidityETH(
         setV2Setup.usdc.address,
@@ -228,7 +219,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
       );
 
     if (collateralToken.address !== wethAddress) {
-      await uniswapRouter
+      await sushiswapRouter
         .connect(owner.wallet)
         .addLiquidityETH(
           collateralToken.address,
@@ -373,8 +364,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
       const result = await deployer.extensions.deployExchangeIssuanceLeveraged(
         wethAddress,
         wethAddress,
-        uniswapFactory.address,
-        uniswapRouter.address,
         sushiswapFactory.address,
         sushiswapRouter.address,
         controllerAddress,
@@ -393,12 +382,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
       const expectedIntermediateAddress = await exchangeIssuanceContract.INTERMEDIATE_TOKEN();
       expect(expectedIntermediateAddress).to.eq(wethAddress);
 
-      const expectedUniRouterAddress = await exchangeIssuanceContract.uniRouter();
-      expect(expectedUniRouterAddress).to.eq(uniswapRouter.address);
-
-      const expectedUniFactoryAddress = await exchangeIssuanceContract.uniFactory();
-      expect(expectedUniFactoryAddress).to.eq(uniswapFactory.address);
-
       const expectedSushiRouterAddress = await exchangeIssuanceContract.sushiRouter();
       expect(expectedSushiRouterAddress).to.eq(sushiswapRouter.address);
 
@@ -415,13 +398,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
     it("approves WETH to the uniswap and sushiswap router", async () => {
       const exchangeIssuance: ExchangeIssuanceLeveraged = await subject();
 
-      // validate the allowance of WETH between uniswap, sushiswap, and the deployed exchange issuance contract
-      const uniswapWethAllowance = await collateralToken.allowance(
-        exchangeIssuance.address,
-        uniswapRouter.address,
-      );
-      expect(uniswapWethAllowance).to.eq(MAX_UINT_256);
-
       const sushiswapWethAllownace = await collateralToken.allowance(
         exchangeIssuance.address,
         sushiswapRouter.address,
@@ -435,8 +411,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
       exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveraged(
         wethAddress,
         wethAddress,
-        uniswapFactory.address,
-        uniswapRouter.address,
         sushiswapFactory.address,
         sushiswapRouter.address,
         controllerAddress,
@@ -537,7 +511,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         beforeEach(async () => {
           subjectSetToken = setToken.address;
           subjectSetAmount = ether(1);
-          subjectExchange = Exchange.Uniswap;
+          subjectExchange = Exchange.Sushiswap;
           ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
             subjectSetToken,
             subjectSetAmount,
@@ -643,7 +617,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         beforeEach(async () => {
           subjectSetToken = setToken.address;
           subjectSetAmount = ether(1);
-          subjectExchange = Exchange.Uniswap;
+          subjectExchange = Exchange.Sushiswap;
           ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
             subjectSetToken,
             subjectSetAmount,
@@ -705,44 +679,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
               tokenName == "ERC20"
                 ? // TODO: This revertion comes from the router, maybe investigate to understand where it is exactly raised
                   "revert TransferHelper: TRANSFER_FROM_FAILED"
-                : "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT";
-            await expect(subject()).to.be.revertedWith(revertReason);
-          });
-        });
-        context("when exchange without any liquidity is specified", async () => {
-          beforeEach(async () => {
-            subjectExchange = Exchange.Sushiswap;
-          });
-          it("should revert", async () => {
-            // TODO: Check why this is failing without any reason. Would have expected something more descriptive coming from the router
-            await expect(subject()).to.be.revertedWith("revert");
-          });
-        });
-        context("when exchange with too little liquidity is specified", async () => {
-          beforeEach(async () => {
-            // Set up sushiswap with INsufficient liquidity
-            await setV2Setup.usdc
-              .connect(owner.wallet)
-              .approve(sushiswapRouter.address, MAX_INT_256);
-            await sushiswapRouter
-              .connect(owner.wallet)
-              .addLiquidityETH(
-                setV2Setup.usdc.address,
-                UnitsUtils.usdc(10),
-                MAX_UINT_256,
-                MAX_UINT_256,
-                owner.address,
-                (await getLastBlockTimestamp()).add(1),
-                { value: ether(0.001), gasLimit: 9000000 },
-              );
-
-            subjectExchange = Exchange.Sushiswap;
-          });
-          it("should revert", async () => {
-            const revertReason =
-              tokenName == "ERC20"
-                ? // TODO: This revertion comes from the router, maybe investigate to understand where it is exactly raised
-                  "revert ds-math-sub-underflow"
                 : "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT";
             await expect(subject()).to.be.revertedWith(revertReason);
           });
