@@ -484,7 +484,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         address outputToken;
         uint256 outputAmount;
         if(paymentToken == PaymentToken.LongToken){
-            _returnLongTokensToSender(longTokenUnderlying, amountToReturn, paymentParams, originalSender);
+            _returnLongTokensToSender(longTokenUnderlying, amountToReturn, originalSender, paymentParams);
             outputToken = longTokenUnderlying;
             outputAmount = amountToReturn;
         }
@@ -498,12 +498,29 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         emit ExchangeRedeem(originalSender, ISetToken(setToken), IERC20(outputToken), setAmount, outputAmount);
     }
 
-    function _returnLongTokensToSender(address _longTokenUnderlying, uint256 _amountToReturn, bytes memory _paymentParams, address _originalSender) internal {
+    /**
+     * Returns underlying of the longToken directly to the user
+     *
+     * @param _longTokenUnderlying   Address of the underlying of the long token
+     * @param _amountToReturn        Amount of the underlying long token to return
+     * @param _originalSender        Address of the original sender to return the tokens to
+     * @param _paymentParams         Encoded payment data used to get the minimum output amount
+     */
+    function _returnLongTokensToSender(address _longTokenUnderlying, uint256 _amountToReturn, address _originalSender, bytes memory _paymentParams) internal {
             uint256 minAmountOutputToken = _decodePaymentParams(_paymentParams);
             require(_amountToReturn >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
             IERC20(_longTokenUnderlying).transfer(_originalSender, _amountToReturn);
     }
 
+    /**
+     * Sells the long tokens for the selected output ERC20 and returns that to the user
+     *
+     * @param _longTokenUnderlying   Address of the underlying of the long token
+     * @param _amountToReturn        Amount of the underlying long token to return
+     * @param _exchange              Enum indicating which exchange to use
+     * @param _originalSender        Address of the original sender to return the tokens to
+     * @param _paymentParams         Encoded payment data used to get the minimum output amount and output token
+     */
     function _liquidateLongTokensForERC20(address _longTokenUnderlying, uint256 _amountToReturn, Exchange _exchange, address _originalSender, bytes memory _paymentParams) internal returns(address, uint256) {
             (uint256 minAmountOutputToken, address outputToken) = _decodePaymentParamsERC20(_paymentParams);
             uint256 outputTokenAmount = _swapLongForOutputToken(_longTokenUnderlying, _amountToReturn, outputToken, _exchange);
@@ -512,6 +529,15 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             return(outputToken, outputTokenAmount);
     }
 
+    /**
+     * Sells the long tokens for weth, withdraws that and returns native eth to the user
+     *
+     * @param _longTokenUnderlying   Address of the underlying of the long token
+     * @param _amountToReturn        Amount of the underlying long token to return
+     * @param _exchange              Enum indicating which exchange to use
+     * @param _paymentParams         Encoded payment data used to get the minimum output amount
+     * @param _originalSender        Address of the original sender to return the eth to
+     */
     function _liquidateLongTokensForETH(address _longTokenUnderlying, uint256 _amountToReturn, Exchange _exchange, address _originalSender, bytes memory _paymentParams) internal returns(uint256) {
             uint256 minAmountOutputToken = _decodePaymentParams(_paymentParams);
             uint256 ethAmount = _swapLongForOutputToken(_longTokenUnderlying, _amountToReturn, WETH, _exchange);
@@ -593,6 +619,15 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         }
     }
 
+    /**
+     * Makes up the long token shortfall with user specified ERC20 token
+     *
+     * @param _longTokenUnderlying   Address of the underlying of the long token
+     * @param _longTokenShortfall    Shortfall of long token that was not covered by selling the short tokens
+     * @param _exchange              Enum indicating which exchange to use
+     * @param _originalSender        Address of the original sender to return the tokens to
+     * @param _paymentParams         Encoded payment data used to get the minimum output amount and output token
+     */
     function _makeUpShortfallWithERC20(address _longTokenUnderlying, uint256 _longTokenShortfall, Exchange _exchange, address _originalSender, bytes memory _paymentParams) internal returns(address, uint256) {
             (uint256 maxAmountInputToken, address inputToken) = _decodePaymentParamsERC20(_paymentParams);
             IERC20(inputToken).transferFrom(_originalSender, address(this), maxAmountInputToken);
@@ -604,6 +639,15 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             return(inputToken, amountInputToken);
     }
 
+    /**
+     * Makes up the long token shortfall with native eth
+     *
+     * @param _longTokenUnderlying   Address of the underlying of the long token
+     * @param _longTokenShortfall    Shortfall of long token that was not covered by selling the short tokens
+     * @param _exchange              Enum indicating which exchange to use
+     * @param _originalSender        Address of the original sender to return the tokens to
+     * @param _paymentParams         Encoded payment data used to get the minimum output amount and output token
+     */
     function _makeUpShortfallWithETH(address _longTokenUnderlying, uint256 _longTokenShortfall, Exchange _exchange, address _originalSender, bytes memory _paymentParams) internal returns(uint256) {
             (uint256 maxAmountEth ) = _decodePaymentParams(_paymentParams);
             IWETH(WETH).deposit{value: maxAmountEth}();
