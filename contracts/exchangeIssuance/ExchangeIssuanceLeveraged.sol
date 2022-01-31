@@ -68,6 +68,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
     /* ============ State Variables ============ */
 
+    // Token to trade via 
+    address public INTERMEDIATE_TOKEN;
+    // Wrapped native token
     address public WETH;
     IUniswapV2Router02 public uniRouter;
     IUniswapV2Router02 public sushiRouter;
@@ -117,6 +120,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
     constructor(
         address _weth,
+        address _intermediateToken,
         address _uniFactory,
         IUniswapV2Router02 _uniRouter,
         address _sushiFactory,
@@ -140,6 +144,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         WETH = _weth;
         IERC20(WETH).safeApprove(address(uniRouter), PreciseUnitMath.maxUint256());
         IERC20(WETH).safeApprove(address(sushiRouter), PreciseUnitMath.maxUint256());
+
+        INTERMEDIATE_TOKEN = _intermediateToken;
+        if(_intermediateToken != _weth) {
+            IERC20(INTERMEDIATE_TOKEN).safeApprove(address(uniRouter), PreciseUnitMath.maxUint256());
+            IERC20(INTERMEDIATE_TOKEN).safeApprove(address(sushiRouter), PreciseUnitMath.maxUint256());
+        }
     }
 
     /* ============ Public Functions ============ */

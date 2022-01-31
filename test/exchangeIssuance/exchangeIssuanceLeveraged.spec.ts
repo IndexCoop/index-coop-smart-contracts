@@ -363,6 +363,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
     async function subject(): Promise<ExchangeIssuanceLeveraged> {
       const result = await deployer.extensions.deployExchangeIssuanceLeveraged(
         wethAddress,
+        wethAddress,
         uniswapFactory.address,
         uniswapRouter.address,
         sushiswapFactory.address,
@@ -379,6 +380,9 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
       const expectedWethAddress = await exchangeIssuanceContract.WETH();
       expect(expectedWethAddress).to.eq(wethAddress);
+
+      const expectedIntermediateAddress = await exchangeIssuanceContract.INTERMEDIATE_TOKEN();
+      expect(expectedIntermediateAddress).to.eq(wethAddress);
 
       const expectedUniRouterAddress = await exchangeIssuanceContract.uniRouter();
       expect(expectedUniRouterAddress).to.eq(uniswapRouter.address);
@@ -420,6 +424,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
   describe("When exchangeIssuacne is deployed", () => {
     beforeEach(async () => {
       exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveraged(
+        wethAddress,
         wethAddress,
         uniswapFactory.address,
         uniswapRouter.address,
