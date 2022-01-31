@@ -481,30 +481,48 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
         require(longAmount >= _longTokenSpent, "ExchangeIssuance: OVERSPENT LONG TOKEN");
         uint256 amountToReturn = longAmount.sub(_longTokenSpent);
+        address outputToken;
+        uint256 outputAmount;
         if(paymentToken == PaymentToken.LongToken){
-            uint256 minAmountOutputToken = _decodePaymentParams(paymentParams);
-            require(amountToReturn >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
-            IERC20(longTokenUnderlying).transfer(originalSender, amountToReturn);
-            emit ExchangeRedeem(originalSender, ISetToken(setToken), IERC20(longTokenUnderlying), setAmount, amountToReturn);
+            _returnLongTokensToSender(longTokenUnderlying, amountToReturn, paymentParams, originalSender);
+            outputToken = longTokenUnderlying;
+            outputAmount = amountToReturn;
         }
         else if(paymentToken == PaymentToken.ERC20){
-            (uint256 minAmountOutputToken, address outputToken) = _decodePaymentParamsERC20(paymentParams);
-            uint256 outputTokenAmount = _swapLongForOutputToken(longTokenUnderlying, amountToReturn, outputToken, exchange);
-            require(outputTokenAmount >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
-            IERC20(outputToken).transfer(originalSender, outputTokenAmount);
-            emit ExchangeRedeem(originalSender, ISetToken(setToken), IERC20(outputToken), setAmount, outputTokenAmount);
+            (outputToken, outputAmount) = _liquidateLongTokensForERC20(longTokenUnderlying, amountToReturn, exchange, originalSender, paymentParams);
         }
         else {
-            uint256 minAmountOutputToken = _decodePaymentParams(paymentParams);
-            uint256 outputTokenAmount = _swapLongForOutputToken(longTokenUnderlying, amountToReturn, WETH, exchange);
-            require(outputTokenAmount >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
-            if (outputTokenAmount > 0) {
-                IWETH(WETH).withdraw(outputTokenAmount);
-                (payable(originalSender)).sendValue(outputTokenAmount);
-            }
-            emit ExchangeRedeem(originalSender, ISetToken(setToken), IERC20(WETH), setAmount, outputTokenAmount);
+            outputAmount = _liquidateLongTokensForETH(longTokenUnderlying, amountToReturn, exchange, originalSender, paymentParams);
+            outputToken = WETH;
         }
+        emit ExchangeRedeem(originalSender, ISetToken(setToken), IERC20(outputToken), setAmount, outputAmount);
     }
+
+    function _returnLongTokensToSender(address _longTokenUnderlying, uint256 _amountToReturn, bytes memory _paymentParams, address _originalSender) internal {
+            uint256 minAmountOutputToken = _decodePaymentParams(_paymentParams);
+            require(_amountToReturn >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+            IERC20(_longTokenUnderlying).transfer(_originalSender, _amountToReturn);
+    }
+
+    function _liquidateLongTokensForERC20(address _longTokenUnderlying, uint256 _amountToReturn, Exchange _exchange, address _originalSender, bytes memory _paymentParams) internal returns(address, uint256) {
+            (uint256 minAmountOutputToken, address outputToken) = _decodePaymentParamsERC20(_paymentParams);
+            uint256 outputTokenAmount = _swapLongForOutputToken(_longTokenUnderlying, _amountToReturn, outputToken, _exchange);
+            require(outputTokenAmount >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+            IERC20(outputToken).transfer(_originalSender, outputTokenAmount);
+            return(outputToken, outputTokenAmount);
+    }
+
+    function _liquidateLongTokensForETH(address _longTokenUnderlying, uint256 _amountToReturn, Exchange _exchange, address _originalSender, bytes memory _paymentParams) internal returns(uint256) {
+            uint256 minAmountOutputToken = _decodePaymentParams(_paymentParams);
+            uint256 ethAmount = _swapLongForOutputToken(_longTokenUnderlying, _amountToReturn, WETH, _exchange);
+            require(ethAmount >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+            if (ethAmount > 0) {
+                IWETH(WETH).withdraw(ethAmount);
+                (payable(_originalSender)).sendValue(ethAmount);
+            }
+            return ethAmount;
+    }
+
 
     /**
      * Obtains the tokens necessary to return the flashloan by swapping the short tokens obtained
