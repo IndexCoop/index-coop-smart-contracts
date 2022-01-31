@@ -622,7 +622,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
               subjectSetToken,
               subjectSetAmount,
               subjectExchange,
-              { value: subjectMaxAmountInput },
+              { value: subjectMaxAmountInput, gasPrice: 0 },
             );
           }
         }
@@ -656,13 +656,20 @@ describe("ExchangeIssuanceLeveraged", async () => {
           const balanceAfter = await setToken.balanceOf(owner.address);
           expect(balanceAfter.sub(balanceBefore)).to.equal(subjectSetAmount);
         });
-        it("should cost less than the total long position", async () => {
-          const balanceBefore = await inputToken.balanceOf(owner.address);
+        it("should cost less than the max amount", async () => {
+          const balanceBefore =
+            tokenName == "ETH"
+              ? await owner.wallet.getBalance()
+              : await inputToken.balanceOf(owner.address);
           await subject();
-          const balanceAfter = await inputToken.balanceOf(owner.address);
+          const balanceAfter =
+            tokenName == "ETH"
+              ? await owner.wallet.getBalance()
+              : await inputToken.balanceOf(owner.address);
           inputAmountSpent = balanceBefore.sub(balanceAfter);
+          console.log("inputAmountSpent", inputAmountSpent.toString());
           expect(inputAmountSpent.gt(0)).to.equal(true);
-          expect(inputAmountSpent.lt(longAmount)).to.equal(true);
+          expect(inputAmountSpent.lt(subjectMaxAmountInput)).to.equal(true);
         });
         it("should emit ExchangeIssuance event", async () => {
           await expect(subject())
@@ -681,10 +688,10 @@ describe("ExchangeIssuanceLeveraged", async () => {
           });
           it("should revert", async () => {
             const revertReason =
-              tokenName == "LongToken"
-                ? "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT"
-                : // TODO: This revertion comes from the router, maybe investigate to understand where it is exactly raised
-                  "revert TransferHelper: TRANSFER_FROM_FAILED";
+              tokenName == "ERC20"
+                ? // TODO: This revertion comes from the router, maybe investigate to understand where it is exactly raised
+                  "revert TransferHelper: TRANSFER_FROM_FAILED"
+                : "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT";
             await expect(subject()).to.be.revertedWith(revertReason);
           });
         });
@@ -719,10 +726,10 @@ describe("ExchangeIssuanceLeveraged", async () => {
           });
           it("should revert", async () => {
             const revertReason =
-              tokenName == "LongToken"
-                ? "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT"
-                : // TODO: This revertion comes from the router, maybe investigate to understand where it is exactly raised
-                  "revert ds-math-sub-underflow";
+              tokenName == "ERC20"
+                ? // TODO: This revertion comes from the router, maybe investigate to understand where it is exactly raised
+                  "revert ds-math-sub-underflow"
+                : "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT";
             await expect(subject()).to.be.revertedWith(revertReason);
           });
         });
