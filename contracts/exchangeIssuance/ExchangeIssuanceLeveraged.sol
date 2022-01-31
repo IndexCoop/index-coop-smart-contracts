@@ -837,9 +837,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         if (_tokenIn == _tokenOut) {
             return _amountIn;
         }
-        address[] memory path = new address[](2);
-        path[0] = _tokenIn;
-        path[1] = _tokenOut;
+
+        address[] memory path = _generatePath(_tokenIn, _tokenOut);
         return _getRouter(_exchange).swapExactTokensForTokens(_amountIn, 0, path, address(this), block.timestamp)[1];
     }
 
@@ -857,11 +856,25 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         if (_tokenIn == _tokenOut) {
             return _amountOut;
         }
-        address[] memory path = new address[](2);
-        path[0] = _tokenIn;
-        path[1] = _tokenOut;
+        address[] memory path = _generatePath(_tokenIn, _tokenOut);
         uint256 result = _getRouter(_exchange).swapTokensForExactTokens(_amountOut, PreciseUnitMath.maxUint256(), path, address(this), block.timestamp)[0];
         return result;
+    }
+
+    function _generatePath(address _tokenIn, address _tokenOut) internal view returns (address[] memory) {
+        address[] memory path;
+        if(_tokenIn == INTERMEDIATE_TOKEN || _tokenOut == INTERMEDIATE_TOKEN){
+            path = new address[](2);
+            path[0] = _tokenIn;
+            path[1] = _tokenOut;
+        }
+        else {
+            path = new address[](3);
+            path[0] = _tokenIn;
+            path[1] = INTERMEDIATE_TOKEN;
+            path[2] = _tokenOut;
+        }
+        return path;
     }
 
     /**
