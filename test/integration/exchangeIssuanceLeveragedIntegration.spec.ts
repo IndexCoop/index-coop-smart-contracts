@@ -4,10 +4,15 @@ import DeployHelper from "@utils/deploys";
 import { getAccounts, getWaffleExpect } from "@utils/index";
 import { SetToken } from "@utils/contracts/setV2";
 import { ethers } from "hardhat";
-import { utils } from "ethers";
+import { utils, BigNumber } from "ethers";
 import { ExchangeIssuanceLeveraged } from "@utils/contracts/index";
 
 const expect = getWaffleExpect();
+
+enum Exchange {
+  None,
+  Sushiswap,
+}
 
 if (process.env.INTEGRATIONTEST) {
   describe("ExchangeIssuanceLeveraged - Integration Test", async () => {
@@ -35,13 +40,12 @@ if (process.env.INTEGRATIONTEST) {
     });
 
     it("fli token should return correct components", async () => {
-      console.log(deployer.extensions);
       const components = await eth2xFli.getComponents();
       expect(components[0]).to.equal(wethAmAddress);
       expect(components[1]).to.equal(usdcAddress);
     });
 
-    context("When exchange issuance is deployed", async () => {
+    context("When exchange issuance is deployed", () => {
       let exchangeIssuance: ExchangeIssuanceLeveraged;
       before(async () => {
         exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveraged(
@@ -53,6 +57,7 @@ if (process.env.INTEGRATIONTEST) {
           debtIssuanceModuleAddress,
           addressProviderAddress,
         );
+        await exchangeIssuance.approveSetToken(eth2xFliPAddress);
       });
       it("verify state set properly via constructor", async () => {
         const expectedWethAddress = await exchangeIssuance.WETH();
@@ -74,6 +79,38 @@ if (process.env.INTEGRATIONTEST) {
         expect(expectedDebtIssuanceModuleAddress).to.eq(
           utils.getAddress(debtIssuanceModuleAddress),
         );
+      });
+      context("#issueExactSetForETH", () => {
+        let subjectSetToken: Address;
+        let subjectSetAmount: BigNumber;
+        let subjectMaxAmountInput: BigNumber;
+        let subjectExchange: Exchange;
+        before(async () => {
+          const ownerBalance = await owner.wallet.getBalance();
+          console.log("ownerBalance", utils.formatEther(ownerBalance));
+          subjectSetToken = eth2xFliPAddress;
+          subjectSetAmount = utils.parseEther("10000");
+          subjectMaxAmountInput = ownerBalance.div(2);
+          subjectExchange = Exchange.Sushiswap;
+        });
+        async function subject() {
+          return await exchangeIssuance.issueExactSetForETH(
+            subjectSetToken,
+            subjectSetAmount,
+            subjectExchange,
+            { value: subjectMaxAmountInput },
+          );
+        }
+        it("should work", async () => {
+          const maticBalanceBefore = await owner.wallet.getBalance();
+          const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
+          await subject();
+          const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
+          const maticBalanceAfter = await owner.wallet.getBalance();
+          const price = maticBalanceBefore.sub(maticBalanceAfter);
+          console.log("Price paid: ", utils.formatEther(price));
+          expect(setBalanceAfter.sub(setBalanceBefore)).to.eq(subjectSetAmount);
+        });
       });
     });
   });

@@ -9,6 +9,8 @@ import "solidity-coverage";
 import "hardhat-deploy";
 import "./tasks";
 
+const INTEGRATIONTEST_TIMEOUT = 600000;
+
 const polygonForkingConfig = {
   url: process.env.POLYGON_RPC_URL ?? "",
 };
@@ -24,7 +26,7 @@ const forkingConfig =
 const mochaConfig = {
   grep: "@forked-network",
   invert: process.env.FORK ? false : true,
-  timeout: process.env.FORK ? 50000 : 40000,
+  timeout: INTEGRATIONTEST_TIMEOUT,
 } as Mocha.MochaOptions;
 
 const isPolygon = process.env.NETWORK === "polygon";
@@ -45,11 +47,15 @@ const config: HardhatUserConfig = {
       accounts: getHardhatPrivateKeys(),
       gas: isPolygon ? undefined : 12000000,
       blockGasLimit: isPolygon ? 20000000 : 12000000,
+      // @ts-ignore
+      timeout: INTEGRATIONTEST_TIMEOUT,
     },
     localhost: {
       url: "http://127.0.0.1:8545",
       gas: isPolygon ? undefined : 12000000,
       blockGasLimit: isPolygon ? 20000000 : 12000000,
+      // @ts-ignore
+      timeout: INTEGRATIONTEST_TIMEOUT,
     },
     kovan: {
       url: "https://kovan.infura.io/v3/" + process.env.INFURA_TOKEN,
