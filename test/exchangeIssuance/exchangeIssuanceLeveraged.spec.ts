@@ -58,7 +58,10 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
   let deployer: DeployHelper;
   let setToken: SetToken;
-  let aWeth: AaveV2AToken;
+  let collateralToken: StandardTokenMock | WETH9;
+  let collateralLiquidity: BigNumber;
+  let collateralLiquidityEther: BigNumber;
+  let collateralAToken: AaveV2AToken;
   let usdcVariableDebtToken: AaveV2VariableDebtToken;
   let tradeAdapterMock: TradeAdapterMock;
   let tradeAdapterMock2: TradeAdapterMock;
@@ -100,8 +103,13 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
     setV2Setup = getSetFixture(owner.address);
     await setV2Setup.initialize();
+
+    collateralToken = setV2Setup.weth;
+    collateralLiquidity = UnitsUtils.ether(1000);
+    collateralLiquidityEther = UnitsUtils.ether(1000);
+
     aaveSetup = getAaveV2Fixture(owner.address);
-    await aaveSetup.initialize(setV2Setup.weth.address, setV2Setup.dai.address);
+    await aaveSetup.initialize(collateralToken.address, setV2Setup.dai.address);
 
     const usdcReserveTokens = await aaveSetup.createAndEnableReserve(
       setV2Setup.usdc.address,
@@ -117,15 +125,15 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
     usdcVariableDebtToken = usdcReserveTokens.variableDebtToken;
 
-    aWeth = aaveSetup.wethReserveTokens.aToken;
+    collateralAToken = aaveSetup.wethReserveTokens.aToken;
 
     const oneRay = BigNumber.from(10).pow(27); // 1e27
     await aaveSetup.setMarketBorrowRate(setV2Setup.usdc.address, oneRay.mul(39).div(1000));
     await aaveSetup.setAssetPriceInOracle(setV2Setup.usdc.address, ether(0.001));
 
     // Mint aTokens
-    await setV2Setup.weth.approve(aaveSetup.lendingPool.address, MAX_UINT_256);
-    await aaveSetup.lendingPool.deposit(setV2Setup.weth.address, ether(1000), owner.address, 0);
+    await collateralToken.approve(aaveSetup.lendingPool.address, MAX_UINT_256);
+    await aaveSetup.lendingPool.deposit(collateralToken.address, ether(1000), owner.address, 0);
     await setV2Setup.usdc.approve(aaveSetup.lendingPool.address, MAX_UINT_256);
     await aaveSetup.lendingPool.deposit(setV2Setup.usdc.address, usdc(2000000), owner.address, 0);
 
@@ -189,10 +197,10 @@ describe("ExchangeIssuanceLeveraged", async () => {
     await sushiswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
 
     setTokenInitialBalance = ether(1);
-    await aWeth.approve(debtIssuanceModule.address, MAX_UINT_256);
+    await collateralAToken.approve(debtIssuanceModule.address, MAX_UINT_256);
     await debtIssuanceModule.issue(setToken.address, setTokenInitialBalance, owner.address);
     // Engage aave fli
-    await setV2Setup.weth.transfer(tradeAdapterMock.address, setTokenInitialBalance.mul(10));
+    await collateralToken.transfer(tradeAdapterMock.address, setTokenInitialBalance.mul(10));
     await leverageStrategyExtension.engage(exchangeName);
 
     uniswapFactory = uniswapSetup.factory;
@@ -205,7 +213,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
     // ETH-USDC pools
     await setV2Setup.usdc.connect(owner.wallet).approve(uniswapRouter.address, MAX_INT_256);
-    await setV2Setup.weth.connect(owner.wallet).approve(uniswapRouter.address, MAX_INT_256);
+    await collateralToken.connect(owner.wallet).approve(uniswapRouter.address, MAX_INT_256);
     // Set up uniswap with sufficient liquidity
     await uniswapRouter
       .connect(owner.wallet)
@@ -219,23 +227,24 @@ describe("ExchangeIssuanceLeveraged", async () => {
         { value: ether(100), gasLimit: 9000000 },
       );
 
-    await uniswapRouter
-      .connect(owner.wallet)
-      .addLiquidity(
-        setV2Setup.weth.address,
-        setV2Setup.usdc.address,
-        UnitsUtils.ether(10000),
-        UnitsUtils.usdc(10000000),
-        UnitsUtils.ether(9999),
-        UnitsUtils.usdc(9990000),
-        owner.address,
-        MAX_UINT_256,
-      );
+    if (collateralToken.address !== wethAddress) {
+      await uniswapRouter
+        .connect(owner.wallet)
+        .addLiquidityETH(
+          collateralToken.address,
+          collateralLiquidity,
+          MAX_UINT_256,
+          MAX_UINT_256,
+          owner.address,
+          (await getLastBlockTimestamp()).add(1),
+          { value: collateralLiquidityEther, gasLimit: 9000000 },
+        );
+    }
   });
 
   const initializeRootScopeContracts = async () => {
     setToken = await setV2Setup.createSetToken(
-      [aWeth.address],
+      [collateralAToken.address],
       [ether(1)],
       [
         setV2Setup.issuanceModule.address,
@@ -270,7 +279,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
     await setV2Setup.streamingFeeModule.initialize(setToken.address, streamingFeeSettings);
     await aaveLeverageModule.initialize(
       setToken.address,
-      [setV2Setup.weth.address],
+      [collateralToken.address],
       [setV2Setup.usdc.address],
     );
 
@@ -309,9 +318,9 @@ describe("ExchangeIssuanceLeveraged", async () => {
       aaveProtocolDataProvider: aaveSetup.protocolDataProvider.address,
       collateralPriceOracle: chainlinkCollateralPriceMock.address,
       borrowPriceOracle: chainlinkBorrowPriceMock.address,
-      targetCollateralAToken: aWeth.address,
+      targetCollateralAToken: collateralAToken.address,
       targetBorrowDebtToken: usdcVariableDebtToken.address,
-      collateralAsset: setV2Setup.weth.address,
+      collateralAsset: collateralToken.address,
       borrowAsset: setV2Setup.usdc.address,
       collateralDecimalAdjustment: BigNumber.from(10),
       borrowDecimalAdjustment: BigNumber.from(22),
@@ -407,13 +416,13 @@ describe("ExchangeIssuanceLeveraged", async () => {
       const exchangeIssuance: ExchangeIssuanceLeveraged = await subject();
 
       // validate the allowance of WETH between uniswap, sushiswap, and the deployed exchange issuance contract
-      const uniswapWethAllowance = await setV2Setup.weth.allowance(
+      const uniswapWethAllowance = await collateralToken.allowance(
         exchangeIssuance.address,
         uniswapRouter.address,
       );
       expect(uniswapWethAllowance).to.eq(MAX_UINT_256);
 
-      const sushiswapWethAllownace = await setV2Setup.weth.allowance(
+      const sushiswapWethAllownace = await collateralToken.allowance(
         exchangeIssuance.address,
         sushiswapRouter.address,
       );
@@ -447,13 +456,13 @@ describe("ExchangeIssuanceLeveraged", async () => {
         await subject();
       });
       it("should approve underlying collateral token to lending pool", async () => {
-        const allowanceBefore = await setV2Setup.weth.allowance(
+        const allowanceBefore = await collateralToken.allowance(
           exchangeIssuance.address,
           aaveSetup.lendingPool.address,
         );
         expect(allowanceBefore).to.equal(ZERO);
         await subject();
-        const allowanceAfter = await setV2Setup.weth.allowance(
+        const allowanceAfter = await collateralToken.allowance(
           exchangeIssuance.address,
           aaveSetup.lendingPool.address,
         );
@@ -536,14 +545,14 @@ describe("ExchangeIssuanceLeveraged", async () => {
           ));
           subjectMinAmountOutput = ZERO;
           const outputTokenMapping: { [key: string]: StandardTokenMock | WETH9 } = {
-            LongToken: setV2Setup.weth,
+            LongToken: collateralToken,
             ETH: setV2Setup.weth,
             ERC20: setV2Setup.usdc,
           };
           outputToken = outputTokenMapping[tokenName];
           subjectOutputToken = outputToken.address;
 
-          await setV2Setup.weth.approve(exchangeIssuance.address, longAmount);
+          await collateralToken.approve(exchangeIssuance.address, longAmount);
           await exchangeIssuance.approveSetToken(setToken.address);
           await exchangeIssuance.issueExactSetForLongToken(
             subjectSetToken,
@@ -642,7 +651,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
           ));
           subjectMaxAmountInput = tokenName == "ERC20" ? UnitsUtils.usdc(20000) : longAmount;
           const inputTokenMapping: { [key: string]: StandardTokenMock | WETH9 } = {
-            LongToken: setV2Setup.weth,
+            LongToken: collateralToken,
             ETH: setV2Setup.weth,
             ERC20: setV2Setup.usdc,
           };
