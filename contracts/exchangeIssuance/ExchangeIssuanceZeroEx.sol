@@ -497,7 +497,12 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
 
         (bool success, bytes memory returndata) = swapTarget.call(_quote.swapCallData);
-        require(success, string(returndata));
+        if (!success) {
+            if (returndata.length == 0) revert();
+            assembly {
+                revert(add(32, returndata), mload(returndata))
+            }
+        }
 
         boughtAmount = _quote.buyToken.balanceOf(address(this)).sub(buyTokenBalanceBefore);
         spentAmount = sellTokenBalanceBefore.sub(_quote.sellToken.balanceOf(address(this)));
