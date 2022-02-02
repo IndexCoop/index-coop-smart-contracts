@@ -5,9 +5,18 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract ZeroExExchangeProxyMock {
 
+    enum ErrorType {
+        None,
+        RevertMessage,
+        CustomError
+    }
     // Mappings to control amount of buy / sell token transfered
     mapping(address => uint256) public buyAmountMultipliers;
     mapping(address => uint256) public sellAmountMultipliers;
+    mapping(address => ErrorType) public errorMapping;
+
+
+    string public constant testRevertMessage = "test revert message";
 
     // Method mocking the UniswapFeature of the zeroEx setup in tests
     // Returns the `minBuyAmount` of target token to the caller, which needs to be deposited into this contract beforehand
@@ -25,12 +34,22 @@ contract ZeroExExchangeProxyMock {
         require(tokens.length > 1, "UniswapFeature/InvalidTokensLength");
         IERC20 sellToken = tokens[0];
         IERC20 buyToken = tokens[tokens.length - 1];
+        _throwErrorIfNeeded(sellToken);
 
         uint256 multipliedSellAmount = getSellAmount(sellToken, sellAmount);
         sellToken.transferFrom(msg.sender, address(this), multipliedSellAmount);
 
         buyAmount = getBuyAmount(buyToken, minBuyAmount);
         buyToken.transfer(msg.sender, buyAmount);
+    }
+
+    function _throwErrorIfNeeded(ERC20Interface sellToken) internal
+    {
+        if (errorMapping[address(sellToken)] == ErrorType.RevertMessage) {
+            revert(testRevertMessage);
+        } else if (errorMapping[address(sellToken)] == ErrorType.CustomError) {
+            revert MyCustomError(address(sellToken));
+        }
     }
 
     function getBuyAmount(
@@ -71,9 +90,16 @@ contract ZeroExExchangeProxyMock {
     // Function to adjust the amount of sell token that will be returned 
     // Set to 0 to disable / i.e. always return exact minSellAmount
     function setSellMultiplier(
-        IERC20 sellToken,
+        ERC20Interface sellToken,
         uint256 multiplier
     ) public {
         sellAmountMultipliers[address(sellToken)] = multiplier;
+    }
+
+    function setErrorMapping(
+        address sellToken,
+        ErrorType errorType
+    ) public {
+        errorMapping[sellToken] = errorType;
     }
 }

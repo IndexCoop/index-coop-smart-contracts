@@ -497,6 +497,9 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
 
         (bool success, bytes memory returndata) = swapTarget.call(_quote.swapCallData);
+
+        // Forwarding errors including new custom errors
+        // Taken from: https://ethereum.stackexchange.com/a/111187/73805
         if (!success) {
             if (returndata.length == 0) revert();
             assembly {
