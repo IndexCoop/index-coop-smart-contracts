@@ -1,0 +1,14 @@
+name: Publish to NPM
+
+on: []
+
+jobs:
+  publish-to-npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build
+        run: yarn chain
+      - name: Run tests
+        with:
+          test: yarn test
