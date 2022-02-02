@@ -553,8 +553,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     function getRequiredIssuanceComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) public returns(address[] memory components, uint256[] memory positions) {
         if(allowedIssuanceModules[_issuanceModule].isDebtIssuanceModule) {
             // TODO: Check if possible to ignore third return parameter and avoid declaring an unused variable 
-            uint256[] memory debtPositions;
-            (components, positions, debtPositions) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
+            (components, positions,) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
         }
         else {
             (components, positions) = IBasicIssuanceModule(_issuanceModule).getRequiredComponentUnitsForIssue(_setToken, _amountSetToken);
@@ -573,8 +572,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     function getRequiredRedemptionComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) public  returns(address[] memory components, uint256[] memory positions) {
         if(allowedIssuanceModules[_issuanceModule].isDebtIssuanceModule) {
             // TODO: Check if possible to ignore third return parameter and avoid declaring an unused variable 
-            uint256[] memory debtPositions;
-            (components, positions, debtPositions) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
+            (components, positions,) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
         }
         else {
             components = _setToken.getComponents();
