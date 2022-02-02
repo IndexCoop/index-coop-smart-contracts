@@ -1,6 +1,6 @@
 name: Publish to NPM
 
-on: [push]
+on: []
 
 jobs:
   publish-to-npm:
