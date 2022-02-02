@@ -5,11 +5,15 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract ZeroExExchangeProxyMock {
 
+    // Originally I also wanted to test Custom error handling,
+    // but refrained from doing so, since the necessary upgrade of ethers lead to a lot of typescript issues.
+    // TODO: Add Custom error handling test when ethers.js is upgraded to a compatible version
     enum ErrorType {
         None,
         RevertMessage,
         CustomError
     }
+
     // Mappings to control amount of buy / sell token transfered
     mapping(address => uint256) public buyAmountMultipliers;
     mapping(address => uint256) public sellAmountMultipliers;

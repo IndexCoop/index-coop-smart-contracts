@@ -560,6 +560,16 @@ describe("ExchangeIssuanceZeroEx", async () => {
             });
           });
 
+          context("When the zero ex router call fails with normal revert errror", async () => {
+            beforeEach(async () => {
+              await zeroExMock.setErrorMapping(subjectInputToken.address, 1);
+            });
+            it("should forward revert reason correctly", async () => {
+              const errorMessage = await zeroExMock.testRevertMessage();
+              await expect(subject()).to.be.revertedWith(errorMessage);
+            });
+          });
+
           context("when a component swap yields insufficient component token", async () => {
             beforeEach(async () => {
               // Simulating left over component balance left in contract
