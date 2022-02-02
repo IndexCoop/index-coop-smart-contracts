@@ -13,7 +13,5 @@ jobs:
         run: yarn
       - name: Build
         run: yarn build
-      - name: Chain
-        run: yarn chain
-      - name: Run tests
-        run: yarn test
+      - name: Prepare publish
+        run: yarn prepublishOnly
