@@ -21,7 +21,7 @@ import {
   AaveV2VariableDebtToken,
   Executor,
   GovernanceStrategy
-} from "../contracts/aaveV2"
+} from "../contracts/aaveV2";
 
 
 import { ether } from "../common";
