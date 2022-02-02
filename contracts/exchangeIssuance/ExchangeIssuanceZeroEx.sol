@@ -417,7 +417,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 componentAmountBought;
         uint256 inputTokenAmountSold;
 
-        (address[] memory components, uint256[] memory componentUnits) = _getRequiredIssuanceComponents(_issuanceModule, _setToken, _amountSetToken);
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(_issuanceModule, _setToken, _amountSetToken);
         for (uint256 i = 0; i < components.length; i++) {
             address component = components[i];
             uint256 units = componentUnits[i];
@@ -454,7 +454,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         internal
         returns (uint256 totalOutputTokenBought)
     {
-        (address[] memory components, uint256[] memory componentUnits) = _getRequiredRedemptionComponents(_issuanceModule, _setToken, _amountSetToken);
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(_issuanceModule, _setToken, _amountSetToken);
         for (uint256 i = 0; i < _swaps.length; i++) {
             require(components[i] == address(_swaps[i].sellToken), "ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
             require(address(_swaps[i].buyToken) == address(_outputToken), "ExchangeIssuance: INVALID BUY TOKEN");
@@ -544,7 +544,9 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _setToken          Set token to issue
      * @param _amountSetToken    Amount of set token to issue
      */
-    function _getRequiredIssuanceComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) internal  returns(address[] memory components, uint256[] memory positions) {
+    // I can't make this a view since the methods on the issuance module interface are not marked as view
+    //  TODO: Review if the interfaces are correct or should be changed
+    function getRequiredIssuanceComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) public returns(address[] memory components, uint256[] memory positions) {
         if(allowedIssuanceModules[_issuanceModule].isDebtIssuanceModule) {
             // TODO: Check if possible to ignore third return parameter and avoid declaring an unused variable 
             uint256[] memory debtPositions;
@@ -563,7 +565,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _setToken          Set token to issue
      * @param _amountSetToken    Amount of set token to issue
      */
-    function _getRequiredRedemptionComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) internal  returns(address[] memory components, uint256[] memory positions) {
+    // TODO: Check if this could be a view. See above
+    function getRequiredRedemptionComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) public  returns(address[] memory components, uint256[] memory positions) {
         if(allowedIssuanceModules[_issuanceModule].isDebtIssuanceModule) {
             // TODO: Check if possible to ignore third return parameter and avoid declaring an unused variable 
             uint256[] memory debtPositions;
