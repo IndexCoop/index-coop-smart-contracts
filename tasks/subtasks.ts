@@ -26,3 +26,4 @@ subtask(TASK_COMPILE_SOLIDITY_GET_ARTIFACT_FROM_COMPILATION_OUTPUT)
 internalTask(TASK_COMPILE_SOLIDITY_COMPILE).setAction(setupNativeSolc);
 
 export {};
+
