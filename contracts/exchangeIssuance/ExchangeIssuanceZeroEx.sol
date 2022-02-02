@@ -30,6 +30,8 @@ import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 
+
+
 contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
     using Address for address payable;
@@ -460,6 +462,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             require(address(_swaps[i].buyToken) == address(_outputToken), "ExchangeIssuance: INVALID BUY TOKEN");
             uint256 maxAmountSell = componentUnits[i];
 
+            require(maxAmountSell <= IERC20(components[i]).balanceOf(address(this)), "ExchangeIssuance: INSUFFICIENT COMPONENT BALANCE");
+
             uint256 outputTokenAmountBought;
             uint256 componentAmountSold;
 
@@ -573,7 +577,13 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             (components, positions, debtPositions) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
         }
         else {
-            (components, positions) = IBasicIssuanceModule(_issuanceModule).getRequiredComponentUnitsForIssue(_setToken, _amountSetToken);
+            components = _setToken.getComponents();
+            positions = new uint256[](components.length);
+            for(uint256 i = 0; i < components.length; i++) {
+                uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
+                positions[i] = unit.preciseMul(_amountSetToken);
+            }
+
         }
     }
 

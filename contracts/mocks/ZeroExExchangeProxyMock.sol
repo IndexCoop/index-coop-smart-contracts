@@ -39,6 +39,8 @@ contract ZeroExExchangeProxyMock {
         require(tokens.length > 1, "UniswapFeature/InvalidTokensLength");
         IERC20 sellToken = tokens[0];
         IERC20 buyToken = tokens[tokens.length - 1];
+
+
         _throwErrorIfNeeded(sellToken);
 
         uint256 multipliedSellAmount = getSellAmount(sellToken, sellAmount);

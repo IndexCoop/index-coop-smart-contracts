@@ -802,8 +802,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
             subjectSetToken = setToken;
             subjectOutputTokenAmount = ether(1000);
             subjectOutputToken = dai;
-            subjectAmountSetToken = 1;
-            subjectAmountSetTokenWei = ether(subjectAmountSetToken);
+            subjectAmountSetToken = 1.234567891234;
+            subjectAmountSetTokenWei = UnitsUtils.ether(subjectAmountSetToken);
             subjectIssuanceModuleAddress = issuanceModuleAddress;
 
             [
@@ -955,8 +955,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
           const initializeSubjectVariables = async () => {
             subjectWethAmount = ether(1);
-            subjectAmountSetToken = 1;
-            subjectAmountSetTokenWei = ether(subjectAmountSetToken);
+            subjectAmountSetToken = 1.234567891234;
+            subjectAmountSetTokenWei = UnitsUtils.ether(subjectAmountSetToken);
             subjectSetToken = setToken;
 
             [
@@ -967,6 +967,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
               subjectSetToken.address,
               subjectAmountSetTokenWei,
             );
+
             subjectPositionSwapQuotes = positions.map((position: any, index: number) => {
               return getUniswapV2Quote(
                 components[index],
@@ -1055,12 +1056,14 @@ describe("ExchangeIssuanceZeroEx", async () => {
           });
 
           context("when the swap consumes an excessive amount of component token", async () => {
-            const wbtcMultiplier = 2;
+            const multiplier = 2;
             beforeEach(async () => {
-              await zeroExMock.setSellMultiplier(wbtc.address, ether(wbtcMultiplier));
+              const componentAddress = components[1];
+              const position = positions[1];
+              await zeroExMock.setSellMultiplier(componentAddress, ether(multiplier));
               await wbtc.transfer(
                 exchangeIssuanceZeroEx.address,
-                wbtcUnits.mul(wbtcMultiplier - 1),
+                position.mul(multiplier - 1),
               );
             });
             it("should revert", async () => {
