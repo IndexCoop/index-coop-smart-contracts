@@ -10,5 +10,4 @@ jobs:
       - name: Build
         run: yarn chain
       - name: Run tests
-        with:
-          test: yarn test
+        run: yarn test
