@@ -43,13 +43,11 @@ contract ZeroExExchangeProxyMock {
         buyToken.transfer(msg.sender, buyAmount);
     }
 
-    function _throwErrorIfNeeded(ERC20Interface sellToken) internal
+    function _throwErrorIfNeeded(IERC20 sellToken) internal
     {
         if (errorMapping[address(sellToken)] == ErrorType.RevertMessage) {
             revert(testRevertMessage);
-        } else if (errorMapping[address(sellToken)] == ErrorType.CustomError) {
-            revert MyCustomError(address(sellToken));
-        }
+        } 
     }
 
     function getBuyAmount(
@@ -90,7 +88,7 @@ contract ZeroExExchangeProxyMock {
     // Function to adjust the amount of sell token that will be returned 
     // Set to 0 to disable / i.e. always return exact minSellAmount
     function setSellMultiplier(
-        ERC20Interface sellToken,
+        IERC20 sellToken,
         uint256 multiplier
     ) public {
         sellAmountMultipliers[address(sellToken)] = multiplier;
