@@ -546,11 +546,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _setToken          Set token to issue
      * @param _amountSetToken    Amount of set token to issue
      */
-    // I can't make this a view since the methods on the issuance module interface are not marked as view
-    //  TODO: Review if the interfaces are correct or should be changed
     function getRequiredIssuanceComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) public view returns(address[] memory components, uint256[] memory positions) {
         if(allowedIssuanceModules[_issuanceModule].isDebtIssuanceModule) {
-            // TODO: Check if possible to ignore third return parameter and avoid declaring an unused variable 
             (components, positions,) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
         }
         else {
@@ -566,10 +563,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _setToken          Set token to issue
      * @param _amountSetToken    Amount of set token to issue
      */
-    // TODO: Check if this could be a view. See above
     function getRequiredRedemptionComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) public view returns(address[] memory components, uint256[] memory positions) {
         if(allowedIssuanceModules[_issuanceModule].isDebtIssuanceModule) {
-            // TODO: Check if possible to ignore third return parameter and avoid declaring an unused variable 
             (components, positions,) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
         }
         else {
