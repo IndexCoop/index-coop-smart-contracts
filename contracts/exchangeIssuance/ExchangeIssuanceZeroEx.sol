@@ -417,7 +417,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 componentAmountBought;
         uint256 inputTokenAmountSold;
 
-        (address[] memory components, uint256[] memory componentUnits) = _getRequiredIssuanceComponents(_issuanceModule, _setToken, _amountSetToken);
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(_issuanceModule, _setToken, _amountSetToken);
         for (uint256 i = 0; i < components.length; i++) {
             address component = components[i];
             uint256 units = componentUnits[i];
@@ -454,11 +454,13 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         internal
         returns (uint256 totalOutputTokenBought)
     {
-        (address[] memory components, uint256[] memory componentUnits) = _getRequiredRedemptionComponents(_issuanceModule, _setToken, _amountSetToken);
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(_issuanceModule, _setToken, _amountSetToken);
         for (uint256 i = 0; i < _swaps.length; i++) {
             require(components[i] == address(_swaps[i].sellToken), "ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
             require(address(_swaps[i].buyToken) == address(_outputToken), "ExchangeIssuance: INVALID BUY TOKEN");
             uint256 maxAmountSell = componentUnits[i];
+
+            require(maxAmountSell <= IERC20(components[i]).balanceOf(address(this)), "ExchangeIssuance: INSUFFICIENT COMPONENT BALANCE");
 
             uint256 outputTokenAmountBought;
             uint256 componentAmountSold;
@@ -497,7 +499,15 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
 
         (bool success, bytes memory returndata) = swapTarget.call(_quote.swapCallData);
-        require(success, string(returndata));
+
+        // Forwarding errors including new custom errors
+        // Taken from: https://ethereum.stackexchange.com/a/111187/73805
+        if (!success) {
+            if (returndata.length == 0) revert();
+            assembly {
+                revert(add(32, returndata), mload(returndata))
+            }
+        }
 
         boughtAmount = _quote.buyToken.balanceOf(address(this)).sub(buyTokenBalanceBefore);
         spentAmount = sellTokenBalanceBefore.sub(_quote.sellToken.balanceOf(address(this)));
@@ -536,11 +546,9 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _setToken          Set token to issue
      * @param _amountSetToken    Amount of set token to issue
      */
-    function _getRequiredIssuanceComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) internal  returns(address[] memory components, uint256[] memory positions) {
+    function getRequiredIssuanceComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) public view returns(address[] memory components, uint256[] memory positions) {
         if(allowedIssuanceModules[_issuanceModule].isDebtIssuanceModule) {
-            // TODO: Check if possible to ignore third return parameter and avoid declaring an unused variable 
-            uint256[] memory debtPositions;
-            (components, positions, debtPositions) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
+            (components, positions,) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
         }
         else {
             (components, positions) = IBasicIssuanceModule(_issuanceModule).getRequiredComponentUnitsForIssue(_setToken, _amountSetToken);
@@ -555,14 +563,18 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _setToken          Set token to issue
      * @param _amountSetToken    Amount of set token to issue
      */
-    function _getRequiredRedemptionComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) internal  returns(address[] memory components, uint256[] memory positions) {
+    function getRequiredRedemptionComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) public view returns(address[] memory components, uint256[] memory positions) {
         if(allowedIssuanceModules[_issuanceModule].isDebtIssuanceModule) {
-            // TODO: Check if possible to ignore third return parameter and avoid declaring an unused variable 
-            uint256[] memory debtPositions;
-            (components, positions, debtPositions) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
+            (components, positions,) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
         }
         else {
-            (components, positions) = IBasicIssuanceModule(_issuanceModule).getRequiredComponentUnitsForIssue(_setToken, _amountSetToken);
+            components = _setToken.getComponents();
+            positions = new uint256[](components.length);
+            for(uint256 i = 0; i < components.length; i++) {
+                uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
+                positions[i] = unit.preciseMul(_amountSetToken);
+            }
+
         }
     }
 

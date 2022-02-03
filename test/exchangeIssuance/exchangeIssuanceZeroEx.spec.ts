@@ -62,8 +62,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
     zeroExMock = await deployer.mocks.deployZeroExExchangeProxyMock();
 
-    usdcUnits = UnitsUtils.usdc(1);
-    wbtcUnits = UnitsUtils.wbtc(1);
+    usdcUnits = UnitsUtils.usdc(1.234567);
+    wbtcUnits = UnitsUtils.wbtc(1.2345678);
 
     setToken = await setV2Setup.createSetToken(
       [setV2Setup.usdc.address, setV2Setup.wbtc.address],
@@ -184,11 +184,14 @@ describe("ExchangeIssuanceZeroEx", async () => {
     ["basicIssuanceModule", "debtIssuanceModule"].forEach((issuanceModuleName: string) => {
       context(`when issuance module is ${issuanceModuleName}`, () => {
         let issuanceModuleAddress: Address;
+        let issuanceModule: any;
         before(() => {
-          issuanceModuleAddress =
+          issuanceModule =
             issuanceModuleName === "basicIssuanceModule"
-              ? setV2Setup.issuanceModule.address
-              : setV2Setup.debtIssuanceModule.address;
+              ? setV2Setup.issuanceModule
+              : setV2Setup.debtIssuanceModule;
+
+          issuanceModuleAddress = issuanceModule.address;
         });
 
         describe("#approveSetToken", async () => {
@@ -384,25 +387,34 @@ describe("ExchangeIssuanceZeroEx", async () => {
           let subjectAmountSetTokenWei: BigNumber;
           let subjectPositionSwapQuotes: ZeroExSwapQuote[];
           let subjectIssuanceModuleAddress: Address;
+          let components: Address[];
+          let positions: BigNumber[];
 
           const initializeSubjectVariables = async () => {
             subjectCaller = user;
             subjectSetToken = setToken;
             subjectInputTokenAmount = ether(1000);
             subjectInputToken = dai;
-            subjectAmountSetToken = 1;
-            subjectAmountSetTokenWei = ether(subjectAmountSetToken);
+            subjectAmountSetToken = 1.123456789123456;
+            subjectAmountSetTokenWei = UnitsUtils.ether(subjectAmountSetToken);
             subjectIssuanceModuleAddress = issuanceModuleAddress;
 
-            const positions = await subjectSetToken.getPositions();
-            subjectPositionSwapQuotes = positions.map((position: any) =>
-              getUniswapV2Quote(
+            [
+              components,
+              positions,
+            ] = await exchangeIssuanceZeroEx.getRequiredIssuanceComponents(
+              issuanceModuleAddress,
+              subjectSetToken.address,
+              subjectAmountSetTokenWei,
+            );
+            subjectPositionSwapQuotes = positions.map((position: any, index: number) => {
+              return getUniswapV2Quote(
                 subjectInputToken.address,
                 subjectInputTokenAmount.div(2),
-                position.component,
-                position.unit.mul(subjectAmountSetToken),
-              ),
-            );
+                components[index],
+                position,
+              );
+            });
           };
 
           beforeEach(async () => {
@@ -413,8 +425,11 @@ describe("ExchangeIssuanceZeroEx", async () => {
             );
             dai.connect(subjectCaller.wallet).approve(exchangeIssuanceZeroEx.address, MAX_UINT_256);
             await dai.transfer(subjectCaller.address, subjectInputTokenAmount);
-            await wbtc.transfer(zeroExMock.address, wbtcUnits.mul(subjectAmountSetToken));
-            await usdc.transfer(zeroExMock.address, usdcUnits.mul(subjectAmountSetToken));
+
+            positions.forEach(async (position: any, index: number) => {
+              const component = components[index];
+              await usdc.attach(component).transfer(zeroExMock.address, position);
+            });
           });
 
           async function subject(): Promise<ContractTransaction> {
@@ -470,15 +485,14 @@ describe("ExchangeIssuanceZeroEx", async () => {
             beforeEach(async () => {
               subjectInputToken = weth;
               subjectInputTokenAmount = UnitsUtils.ether(2);
-              const positions = await subjectSetToken.getPositions();
-              subjectPositionSwapQuotes = positions.map(position =>
-                getUniswapV2Quote(
+              subjectPositionSwapQuotes = positions.map((position: any, index: number) => {
+                return getUniswapV2Quote(
                   subjectInputToken.address,
                   subjectInputTokenAmount.div(2),
-                  position.component,
-                  position.unit.mul(subjectAmountSetToken),
-                ),
-              );
+                  components[index],
+                  position,
+                );
+              });
               await weth
                 .connect(user.wallet)
                 .approve(exchangeIssuanceZeroEx.address, subjectInputTokenAmount);
@@ -560,6 +574,16 @@ describe("ExchangeIssuanceZeroEx", async () => {
             });
           });
 
+          context("When the zero ex router call fails with normal revert errror", async () => {
+            beforeEach(async () => {
+              await zeroExMock.setErrorMapping(subjectInputToken.address, 1);
+            });
+            it("should forward revert reason correctly", async () => {
+              const errorMessage = await zeroExMock.testRevertMessage();
+              await expect(subject()).to.be.revertedWith(errorMessage);
+            });
+          });
+
           context("when a component swap yields insufficient component token", async () => {
             beforeEach(async () => {
               // Simulating left over component balance left in contract
@@ -589,23 +613,32 @@ describe("ExchangeIssuanceZeroEx", async () => {
           let subjectAmountSetToken: number;
           let subjectAmountSetTokenWei: BigNumber;
           let subjectPositionSwapQuotes: ZeroExSwapQuote[];
+          let components: Address[];
+          let positions: BigNumber[];
 
           const initializeSubjectVariables = async () => {
             subjectCaller = user;
             subjectSetToken = setToken;
             subjectAmountETHInput = ether(4);
-            subjectAmountSetToken = 2;
-            subjectAmountSetTokenWei = ether(subjectAmountSetToken);
+            subjectAmountSetToken = 1.23456789;
+            subjectAmountSetTokenWei = UnitsUtils.ether(subjectAmountSetToken);
 
-            const positions = await subjectSetToken.getPositions();
-            subjectPositionSwapQuotes = positions.map(position =>
-              getUniswapV2Quote(
+            [
+              components,
+              positions,
+            ] = await exchangeIssuanceZeroEx.callStatic.getRequiredIssuanceComponents(
+              issuanceModuleAddress,
+              subjectSetToken.address,
+              subjectAmountSetTokenWei,
+            );
+            subjectPositionSwapQuotes = positions.map((position: any, index: number) => {
+              return getUniswapV2Quote(
                 weth.address,
                 subjectAmountETHInput.div(2),
-                position.component,
-                position.unit.mul(subjectAmountSetToken),
-              ),
-            );
+                components[index],
+                position,
+              );
+            });
           };
 
           beforeEach(async () => {
@@ -615,8 +648,10 @@ describe("ExchangeIssuanceZeroEx", async () => {
               issuanceModuleAddress,
             );
             await weth.transfer(subjectCaller.address, subjectAmountETHInput);
-            await wbtc.transfer(zeroExMock.address, wbtcUnits.mul(subjectAmountSetToken));
-            await usdc.transfer(zeroExMock.address, usdcUnits.mul(subjectAmountSetToken));
+            positions.forEach(async (position: any, index: number) => {
+              const component = components[index];
+              await usdc.attach(component).transfer(zeroExMock.address, position);
+            });
           });
 
           async function subject(): Promise<ContractTransaction> {
@@ -759,25 +794,34 @@ describe("ExchangeIssuanceZeroEx", async () => {
           let subjectAmountSetTokenWei: BigNumber;
           let subjectPositionSwapQuotes: ZeroExSwapQuote[];
           let subjectIssuanceModuleAddress: Address;
+          let components: Address[];
+          let positions: BigNumber[];
 
           const initializeSubjectVariables = async () => {
             subjectCaller = user;
             subjectSetToken = setToken;
             subjectOutputTokenAmount = ether(1000);
             subjectOutputToken = dai;
-            subjectAmountSetToken = 1;
-            subjectAmountSetTokenWei = ether(subjectAmountSetToken);
+            subjectAmountSetToken = 1.234567891234;
+            subjectAmountSetTokenWei = UnitsUtils.ether(subjectAmountSetToken);
             subjectIssuanceModuleAddress = issuanceModuleAddress;
 
-            const positions = await subjectSetToken.getPositions();
-            subjectPositionSwapQuotes = positions.map(position =>
-              getUniswapV2Quote(
-                position.component,
-                position.unit.mul(subjectAmountSetToken),
+            [
+              components,
+              positions,
+            ] = await exchangeIssuanceZeroEx.getRequiredRedemptionComponents(
+              issuanceModuleAddress,
+              subjectSetToken.address,
+              subjectAmountSetTokenWei,
+            );
+            subjectPositionSwapQuotes = positions.map((position: any, index: number) => {
+              return getUniswapV2Quote(
+                components[index],
+                position,
                 subjectOutputToken.address,
                 subjectOutputTokenAmount.div(2),
-              ),
-            );
+              );
+            });
           };
 
           beforeEach(async () => {
@@ -905,21 +949,33 @@ describe("ExchangeIssuanceZeroEx", async () => {
           let subjectAmountSetToken: number;
           let subjectAmountSetTokenWei: BigNumber;
           let subjectPositionSwapQuotes: ZeroExSwapQuote[];
+          let subjectSetToken: SetToken;
+          let components: Address[];
+          let positions: BigNumber[];
 
           const initializeSubjectVariables = async () => {
             subjectWethAmount = ether(1);
-            subjectAmountSetToken = 1;
-            subjectAmountSetTokenWei = ether(subjectAmountSetToken);
+            subjectAmountSetToken = 1.234567891234;
+            subjectAmountSetTokenWei = UnitsUtils.ether(subjectAmountSetToken);
+            subjectSetToken = setToken;
 
-            const positions = await setToken.getPositions();
-            subjectPositionSwapQuotes = positions.map((position: any) =>
-              getUniswapV2Quote(
-                position.component,
-                position.unit.mul(subjectAmountSetToken),
+            [
+              components,
+              positions,
+            ] = await exchangeIssuanceZeroEx.callStatic.getRequiredRedemptionComponents(
+              issuanceModuleAddress,
+              subjectSetToken.address,
+              subjectAmountSetTokenWei,
+            );
+
+            subjectPositionSwapQuotes = positions.map((position: any, index: number) => {
+              return getUniswapV2Quote(
+                components[index],
+                position,
                 weth.address,
                 subjectWethAmount.div(2),
-              ),
-            );
+              );
+            });
           };
 
           beforeEach(async () => {
@@ -1000,12 +1056,14 @@ describe("ExchangeIssuanceZeroEx", async () => {
           });
 
           context("when the swap consumes an excessive amount of component token", async () => {
-            const wbtcMultiplier = 2;
+            const multiplier = 2;
             beforeEach(async () => {
-              await zeroExMock.setSellMultiplier(wbtc.address, ether(wbtcMultiplier));
+              const componentAddress = components[1];
+              const position = positions[1];
+              await zeroExMock.setSellMultiplier(componentAddress, ether(multiplier));
               await wbtc.transfer(
                 exchangeIssuanceZeroEx.address,
-                wbtcUnits.mul(wbtcMultiplier - 1),
+                position.mul(multiplier - 1),
               );
             });
             it("should revert", async () => {
