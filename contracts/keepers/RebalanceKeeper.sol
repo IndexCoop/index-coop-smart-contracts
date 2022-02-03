@@ -15,20 +15,62 @@
 */
 
 pragma solidity 0.6.10;
+pragma experimental ABIEncoderV2;
 
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 // KeeperCompatible.sol imports the functions from both ./KeeperBase.sol and
 // ./interfaces/KeeperCompatibleInterface.sol
 import "@chainlink/contracts/src/v0.7/KeeperCompatible.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract RebalanceKeeper is KeeperCompatibleInterface {
+/**
+ * @title RebalanceKeeper
+ * @author Index Cooperative
+ * 
+ * Chainlink Keeper which automatically rebalances SetTokens.
+ */
+contract RebalanceKeeper is Ownable, KeeperCompatibleInterface {
+    using Address for address;
 
-    constructor() {
+    /* ============ State Variables ============ */
+    bool internal paused;
 
+    /* ============ Constructor ============ */
+
+    address internal extension;
+
+    /**
+     * @param extension         The adapter address
+     */
+    constructor(address _extension) public {
+        paused = true;
+        extension = _extension;
     }    
 
     function checkUpkeep(bytes calldata /* checkData */) external override returns (bool upkeepNeeded, bytes memory /* performData */) {
+        if (isPaused()) {
+            return (false,);
+        }
+        bytes memory shouldRebalanceCalldata = abi.encodeWithSignature("shouldRebalance()", []);
+        (string[] memory exchangeNames, int[] memory shouldRebalance) = extension.functionCallWithValue(shouldRebelanceCalldata, 0);
     }
 
-    function performUpkeep(bytes calldata /* performData */) external override {
+    function performUpkeep(bytes calldata performData) external override {
+        if (isPaused()) {
+            return;
+        }
+        extension.functionCallWithValue(performData, 0);
+    }
+
+    function pause() onlyOwner {
+        paused = true;
+    }
+
+    function unpause() onlyOwner {
+        paused = false;
+    }
+
+    function isPaused() onlyOwner returns (bool paused) {
+        return paused;
     }
 }
