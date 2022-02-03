@@ -19,7 +19,7 @@ interface IBasicIssuanceModule {
     function getRequiredComponentUnitsForIssue(
         ISetToken _setToken,
         uint256 _quantity
-    ) external returns(address[] memory, uint256[] memory);
+    ) external view returns(address[] memory, uint256[] memory);
     function issue(ISetToken _setToken, uint256 _quantity, address _to) external;
     function redeem(ISetToken _token, uint256 _quantity, address _to) external;
 }

@@ -402,7 +402,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             [
               components,
               positions,
-            ] = await exchangeIssuanceZeroEx.callStatic.getRequiredIssuanceComponents(
+            ] = await exchangeIssuanceZeroEx.getRequiredIssuanceComponents(
               issuanceModuleAddress,
               subjectSetToken.address,
               subjectAmountSetTokenWei,
@@ -809,7 +809,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             [
               components,
               positions,
-            ] = await exchangeIssuanceZeroEx.callStatic.getRequiredRedemptionComponents(
+            ] = await exchangeIssuanceZeroEx.getRequiredRedemptionComponents(
               issuanceModuleAddress,
               subjectSetToken.address,
               subjectAmountSetTokenWei,
