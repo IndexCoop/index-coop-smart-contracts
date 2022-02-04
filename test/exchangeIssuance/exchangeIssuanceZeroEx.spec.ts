@@ -701,13 +701,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
               );
           });
 
-          context("when exact amount of eth needed is supplied", () => {
-            it("should not refund any eth", async () => {
-              await expect(subject())
-                .to.emit(exchangeIssuanceZeroEx, "Refund")
-                .withArgs(subjectCaller.address, BigNumber.from(0));
-            });
-          });
 
           context("when not all eth is used up in the transaction", async () => {
             const shareSpent = 0.5;
