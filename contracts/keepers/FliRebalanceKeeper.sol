@@ -20,8 +20,7 @@ pragma experimental ABIEncoderV2;
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 // KeeperCompatible.sol imports the functions from both ./KeeperBase.sol and
 // ./interfaces/KeeperCompatibleInterface.sol
-import "@chainlink/contracts/src/v0.7/KeeperCompatible.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import "@chainlink/contracts/src/v0.6/KeeperCompatible.sol";
 
 /**
  * @title RebalanceKeeper
@@ -38,18 +37,15 @@ contract FliRebalanceKeeper is KeeperCompatibleInterface {
 
     address internal fliExtension;
 
-    /**
-     * @param fliExtension         The adapter address
-     */
     constructor(address _fliExtension) public {
         fliExtension = _fliExtension;
     }    
 
     function checkUpkeep(bytes calldata /* checkData */) external override returns (bool upkeepNeeded, bytes memory performData) {
-        bytes memory shouldRebalanceCalldata = abi.encodeWithSignature("shouldRebalance()", []);
-        bytes memory shouldRebalanceResponse = address(this).functionCall(address(fliExtension), shouldRebalanceCalldata, "Failed to execute shouldRebalance()");
-        (string[] exchangeNames, uint256[] shouldRebalances) = abi.decode(shouldRebalanceResponse);
-        string name = exchangeNames[0];
+        bytes memory shouldRebalanceCalldata = abi.encodeWithSignature("shouldRebalance()");
+        bytes memory shouldRebalanceResponse = Address.functionCall(address(fliExtension), shouldRebalanceCalldata, "Failed to execute shouldRebalance()");
+        (string[] memory exchangeNames, uint256[] memory shouldRebalances) = abi.decode(shouldRebalanceResponse, (string[], uint256[]));
+        string memory name = exchangeNames[0];
         uint256 shouldRebalance = shouldRebalances[0];
 
         if (shouldRebalance == 1) {
@@ -62,10 +58,10 @@ contract FliRebalanceKeeper is KeeperCompatibleInterface {
             bytes memory callData = abi.encodeWithSignature("ripcord(string)", [name]);
             return (true, callData);
         }
-        return (false,);
+        return (false, new bytes(0));
     }
 
     function performUpkeep(bytes calldata performData) external override {
-        address(this).functionCall(address(fliExtension), performData);
+        Address.functionCall(address(fliExtension), performData);
     }
 }
