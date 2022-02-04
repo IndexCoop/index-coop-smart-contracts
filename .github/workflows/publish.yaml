@@ -29,6 +29,8 @@ jobs:
     needs: [build]
     steps:
       - uses: actions/checkout@v2
+      - name: install
+        run: yarn
       - name: prepublish
         run: yarn prepublishOnly
       - name: release
