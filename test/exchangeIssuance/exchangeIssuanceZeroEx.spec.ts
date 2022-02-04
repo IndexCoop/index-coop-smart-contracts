@@ -233,7 +233,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             });
 
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID SET");
+              await expect(subject()).to.be.revertedWith("function selector was not recognized and there's no fallback function");
             });
           });
 

@@ -82,11 +82,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
     /* ============ Modifiers ============ */
 
-    modifier isSetToken(ISetToken _setToken) {
-         require(setController.isSet(address(_setToken)), "ExchangeIssuance: INVALID SET");
-         _;
-    }
-
     modifier isWhitelistedIssuanceModule(address _issuanceModule) {
         require(allowedIssuanceModules[_issuanceModule].isAllowed, "ExchangeIssuance: INVALID ISSUANCE MODULE");
          _;
@@ -178,7 +173,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      *
      * @param _setToken    Address of the SetToken being initialized
      */
-    function approveSetToken(ISetToken _setToken, address _issuanceModule) isSetToken(_setToken) external {
+    function approveSetToken(ISetToken _setToken, address _issuanceModule) external {
         address[] memory components = _setToken.getComponents();
         for (uint256 i = 0; i < components.length; i++) {
             // Check that the component does not have external positions
@@ -210,7 +205,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         ZeroExSwapQuote[] memory _componentQuotes,
         address _issuanceModule
     )
-        isSetToken(_setToken)
         isWhitelistedIssuanceModule(_issuanceModule)
         external
         nonReentrant
@@ -248,7 +242,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         ZeroExSwapQuote[] memory _componentQuotes,
         address _issuanceModule
     )
-        isSetToken(_setToken)
         isWhitelistedIssuanceModule(_issuanceModule)
         external
         nonReentrant
@@ -295,7 +288,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         ZeroExSwapQuote[] memory _componentQuotes,
         address _issuanceModule
     )
-        isSetToken(_setToken)
         isWhitelistedIssuanceModule(_issuanceModule)
         external
         nonReentrant
@@ -335,7 +327,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         ZeroExSwapQuote[] memory _componentQuotes,
         address _issuanceModule
     )
-        isSetToken(_setToken)
         isWhitelistedIssuanceModule(_issuanceModule)
         external
         nonReentrant
