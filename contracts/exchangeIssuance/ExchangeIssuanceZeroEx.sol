@@ -391,6 +391,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 inputTokenAmountSold;
 
         (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(_issuanceModule, _setToken, _amountSetToken);
+
+        uint256 inputTokenBalanceBefore = _inputToken.balanceOf(address(this));
         for (uint256 i = 0; i < components.length; i++) {
             address component = components[i];
             uint256 units = componentUnits[i];
@@ -400,17 +402,20 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             require(_inputToken == quote.sellToken, "ExchangeIssuance: INVALID SELL TOKEN");
 
             // If the component is equal to the input token we don't have to trade
-            if(component == address(quote.sellToken)) {
-                inputTokenAmountSold = units;
+            if(component == address(_inputToken)) {
+                totalInputTokenSold = totalInputTokenSold.add(units);
                 componentAmountBought = units;
             }
             else {
-                (componentAmountBought, inputTokenAmountSold) = _fillQuote(quote);
+                uint256 componentBalanceBefore = IERC20(component).balanceOf(address(this));
+                _fillQuote(quote);
+                uint256 componentBalanceAfter = IERC20(component).balanceOf(address(this));
+                componentAmountBought = componentBalanceAfter.sub(componentBalanceBefore);
                 require(componentAmountBought >= units, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
             }
-
-            totalInputTokenSold = totalInputTokenSold.add(inputTokenAmountSold);
         }
+        uint256 inputTokenBalanceAfter = _inputToken.balanceOf(address(this));
+        totalInputTokenSold = totalInputTokenSold.add(inputTokenBalanceBefore.sub(inputTokenBalanceAfter));
     }
 
     /**
@@ -428,29 +433,32 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         returns (uint256 totalOutputTokenBought)
     {
         (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(_issuanceModule, _setToken, _amountSetToken);
+        uint256 outputTokenBalanceBefore = _outputToken.balanceOf(address(this));
         for (uint256 i = 0; i < _swaps.length; i++) {
             require(components[i] == address(_swaps[i].sellToken), "ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
             require(address(_swaps[i].buyToken) == address(_outputToken), "ExchangeIssuance: INVALID BUY TOKEN");
             uint256 maxAmountSell = componentUnits[i];
-
-            require(maxAmountSell <= IERC20(components[i]).balanceOf(address(this)), "ExchangeIssuance: INSUFFICIENT COMPONENT BALANCE");
 
             uint256 outputTokenAmountBought;
             uint256 componentAmountSold;
 
             // If the component is equal to the input token we don't have to trade
             if(components[i] == address(_swaps[i].buyToken)) {
-                outputTokenAmountBought = maxAmountSell;
+                totalOutputTokenBought = totalOutputTokenBought.add(maxAmountSell);
                 componentAmountSold = maxAmountSell;
             }
             else {
                 _safeApprove(_swaps[i].sellToken, address(swapTarget), maxAmountSell);
-                (outputTokenAmountBought, componentAmountSold) = _fillQuote(_swaps[i]);
+                uint256 componentBalanceBefore = IERC20(components[i]).balanceOf(address(this));
+                _fillQuote(_swaps[i]);
+                uint256 componentBalanceAfter = IERC20(components[i]).balanceOf(address(this));
+                componentAmountSold = componentBalanceBefore.sub(componentBalanceAfter);
+                require(maxAmountSell >= componentAmountSold, "ExchangeIssuance: OVERSOLD COMPONENT");
             }
 
-            require(maxAmountSell >= componentAmountSold, "ExchangeIssuance: OVERSOLD COMPONENT");
-            totalOutputTokenBought = totalOutputTokenBought.add(outputTokenAmountBought);
         }
+        uint256 outputTokenBalanceAfter = _outputToken.balanceOf(address(this));
+        totalOutputTokenBought = totalOutputTokenBought.add(outputTokenBalanceAfter.sub(outputTokenBalanceBefore));
     }
 
     /**
@@ -458,18 +466,13 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      *
      * @param _quote          Swap quote as returned by 0x API
      *
-     * @return boughtAmount   The amount of _quote.buyToken obtained
-     * @return spentAmount    The amount of _quote.sellToken spent
      */
     function _fillQuote(
         ZeroExSwapQuote memory _quote
     )
         internal
-        returns(uint256 boughtAmount, uint256 spentAmount)
+        
     {
-        uint256 buyTokenBalanceBefore = _quote.buyToken.balanceOf(address(this));
-        uint256 sellTokenBalanceBefore = _quote.sellToken.balanceOf(address(this));
-
 
         (bool success, bytes memory returndata) = swapTarget.call(_quote.swapCallData);
 
@@ -482,8 +485,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             }
         }
 
-        boughtAmount = _quote.buyToken.balanceOf(address(this)).sub(buyTokenBalanceBefore);
-        spentAmount = sellTokenBalanceBefore.sub(_quote.sellToken.balanceOf(address(this)));
     }
 
     /**
