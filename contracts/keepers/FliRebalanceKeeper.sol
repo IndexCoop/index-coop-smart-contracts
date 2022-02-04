@@ -27,28 +27,27 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  * @title RebalanceKeeper
  * @author Index Cooperative
  * 
- * Chainlink Keeper which automatically rebalances SetTokens.
+ * Chainlink Keeper which automatically rebalances FLI SetTokens.
  */
-contract RebalanceKeeper is KeeperCompatibleInterface {
+contract FliRebalanceKeeper is KeeperCompatibleInterface {
     using Address for address;
 
     /* ============ State Variables ============ */
-    bool internal paused;
 
     /* ============ Constructor ============ */
 
-    address internal extension;
+    address internal fliExtension;
 
     /**
-     * @param extension         The adapter address
+     * @param fliExtension         The adapter address
      */
-    constructor(address _extension) public {
-        extension = _extension;
+    constructor(address _fliExtension) public {
+        fliExtension = _fliExtension;
     }    
 
     function checkUpkeep(bytes calldata /* checkData */) external override returns (bool upkeepNeeded, bytes memory /* performData */) {
         bytes memory shouldRebalanceCalldata = abi.encodeWithSignature("shouldRebalance()", []);
-        bytes memory shouldRebalanceResponse = address(this).functionCall(address(extension), shouldRebalanceCalldata, "Failed to execute shouldRebalance()");
+        bytes memory shouldRebalanceResponse = address(this).functionCall(address(fliExtension), shouldRebalanceCalldata, "Failed to execute shouldRebalance()");
         (string[] exchangeNames, uint256[] shouldRebalances) = abi.decode(shouldRebalanceResponse);
         string name = exchangeNames[0];
         uint256 shouldRebalance = shouldRebalances[0];
@@ -67,6 +66,6 @@ contract RebalanceKeeper is KeeperCompatibleInterface {
     }
 
     function performUpkeep(bytes calldata performData) external override {
-        address(this).functionCall(address(extension), performData);
+        address(this).functionCall(address(fliExtension), performData);
     }
 }
