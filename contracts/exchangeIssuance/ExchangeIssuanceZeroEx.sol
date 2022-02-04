@@ -80,8 +80,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 _amountOutputToken      // The amount of output tokens received by the recipient
     );
 
-    event BoughtTokens(IERC20 sellToken, IERC20 buyToken, uint256 boughtAmount);
-
     /* ============ Modifiers ============ */
 
     modifier isSetToken(ISetToken _setToken) {
@@ -505,7 +503,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
         boughtAmount = _quote.buyToken.balanceOf(address(this)).sub(buyTokenBalanceBefore);
         spentAmount = sellTokenBalanceBefore.sub(_quote.sellToken.balanceOf(address(this)));
-        emit BoughtTokens(_quote.sellToken, _quote.buyToken, boughtAmount);
     }
 
     /**
