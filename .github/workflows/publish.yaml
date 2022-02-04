@@ -8,7 +8,7 @@ on:
 
 jobs:
 
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -18,14 +18,14 @@ jobs:
         run: yarn
       - name: build
         run: yarn build
-      # - name: test
-      #   run: |
-      #     yarn chain &
-      #     yarn test
+      - name: test
+        run: |
+          yarn chain &
+          yarn test
 
   publish:
     runs-on: ubuntu-latest
-    # if: ${{ github.ref == 'refs/heads/master' }}
+    if: ${{ github.ref == 'refs/heads/master' }}
     needs: [build]
     steps:
       - uses: actions/checkout@v2
