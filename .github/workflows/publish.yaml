@@ -35,7 +35,7 @@ jobs:
         with:
           node-version: '16'
       - run: yarn ci
-      - name: Release
+      - name: release
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
