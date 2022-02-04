@@ -29,7 +29,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  * 
  * Chainlink Keeper which automatically rebalances SetTokens.
  */
-contract RebalanceKeeper is Ownable, KeeperCompatibleInterface {
+contract RebalanceKeeper is KeeperCompatibleInterface {
     using Address for address;
 
     /* ============ State Variables ============ */
@@ -43,34 +43,30 @@ contract RebalanceKeeper is Ownable, KeeperCompatibleInterface {
      * @param extension         The adapter address
      */
     constructor(address _extension) public {
-        paused = true;
         extension = _extension;
     }    
 
     function checkUpkeep(bytes calldata /* checkData */) external override returns (bool upkeepNeeded, bytes memory /* performData */) {
-        if (isPaused()) {
-            return (false,);
-        }
         bytes memory shouldRebalanceCalldata = abi.encodeWithSignature("shouldRebalance()", []);
-        (string[] memory exchangeNames, int[] memory shouldRebalance) = extension.functionCallWithValue(shouldRebelanceCalldata, 0);
+        bytes memory shouldRebalanceResponse = address(this).functionCall(address(extension), shouldRebalanceCalldata, "Failed to execute shouldRebalance()");
+        (string[] exchangeNames, uint256[] shouldRebalances) = abi.decode(shouldRebalanceResponse);
+        string name = exchangeNames[0];
+        uint256 shouldRebalance = shouldRebalances[0];
+
+        if (shouldRebalance == 1) {
+            bytes memory callData = abi.encodeWithSignature("rebalance(string)", [name]);
+            return (true, callData);
+        } else if (shouldRebalance == 2) {
+            bytes memory callData = abi.encodeWithSignature("iterateRebalance(string)", [name]);
+            return (true, callData);
+        } else if (shouldRebalance == 3) {
+            bytes memory callData = abi.encodeWithSignature("ripcord(string)", [name]);
+            return (true, callData);
+        }
+        return (false,);
     }
 
     function performUpkeep(bytes calldata performData) external override {
-        if (isPaused()) {
-            return;
-        }
-        extension.functionCallWithValue(performData, 0);
-    }
-
-    function pause() onlyOwner {
-        paused = true;
-    }
-
-    function unpause() onlyOwner {
-        paused = false;
-    }
-
-    function isPaused() onlyOwner returns (bool paused) {
-        return paused;
+        address(this).functionCall(address(extension), performData);
     }
 }
