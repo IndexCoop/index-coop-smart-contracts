@@ -59,7 +59,7 @@ jobs:
 
   test_forked_network:
     docker:
-      - image: cimg/node:16.3.2
+      - image: cimg/node:lts
     working_directory: ~/index-coop-private
     steps:
       - setup_remote_docker:
