@@ -4,7 +4,7 @@ jobs:
   checkout_and_compile:
     docker:
       - image: cimg/node:lts
-    working_directory: ~/index-coop-smart-contracts
+    working_directory: ~/index-coop-private
     steps:
       - checkout
       - setup_remote_docker:
@@ -34,7 +34,7 @@ jobs:
   test:
     docker:
       - image: cimg/node:lts
-    working_directory: ~/index-coop-smart-contracts
+    working_directory: ~/index-coop-private
     parallelism: 2
     steps:
       - setup_remote_docker:
@@ -60,7 +60,7 @@ jobs:
   test_forked_network:
     docker:
       - image: cimg/node:16.3.2
-    working_directory: ~/index-coop-smart-contracts
+    working_directory: ~/index-coop-private
     steps:
       - setup_remote_docker:
           docker_layer_caching: false
@@ -83,7 +83,7 @@ jobs:
   coverage:
     docker:
       - image: cimg/node:lts
-    working_directory: ~/index-coop-smart-contracts
+    working_directory: ~/index-coop-private
     parallelism: 2
     steps:
       - setup_remote_docker:
@@ -119,7 +119,7 @@ jobs:
   coverage_forked_network:
     docker:
       - image: cimg/node:lts
-    working_directory: ~/index-coop-smart-contracts
+    working_directory: ~/index-coop-private
     steps:
       - setup_remote_docker:
           docker_layer_caching: false
@@ -151,7 +151,7 @@ jobs:
   report_coverage:
     docker:
       - image: cimg/node:lts
-    working_directory: ~/index-coop-smart-contracts
+    working_directory: ~/index-coop-private
     steps:
       - attach_workspace:
           at: /tmp/coverage
