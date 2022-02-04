@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: prepublish
-        run: yarn prepublish
+        run: yarn prepublishOnly
       - name: release
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
