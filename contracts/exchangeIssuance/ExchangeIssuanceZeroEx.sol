@@ -195,7 +195,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     * @param _maxAmountInputToken   Amount of SetTokens to issue
     * @param _componentQuotes       The encoded 0x transactions to execute 
     *
-    * @return amountEthReturn       Amount of ether returned to the caller
+    * @return totalInputTokenSold   Amount of input token spent for issuance
     */
     function issueExactSetFromToken(
         ISetToken _setToken,
@@ -261,7 +261,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 amountEthReturn = msg.value.sub(totalEthSold);
         if (amountEthReturn > 0) {
             IWETH(WETH).withdraw(amountEthReturn);
-            (payable(msg.sender)).sendValue(amountEthReturn);
+            payable(msg.sender).sendValue(amountEthReturn);
         }
 
         emit ExchangeIssue(msg.sender, _setToken, IERC20(ETH_ADDRESS), totalEthSold, _amountSetToken);
@@ -487,7 +487,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     }
 
     /**
-     * Redeems a given amount of SetToken.
+     * Transfers given amount of set token from the sender and redeems it for underlying components.
+     * Obtained component tokens are sent to this contract. 
      *
      * @param _setToken     Address of the SetToken to be redeemed
      * @param _amount       Amount of SetToken to be redeemed
