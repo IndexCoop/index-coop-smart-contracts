@@ -45,7 +45,7 @@ contract FliRebalanceKeeper is KeeperCompatibleInterface {
         fliExtension = _fliExtension;
     }    
 
-    function checkUpkeep(bytes calldata /* checkData */) external override returns (bool upkeepNeeded, bytes memory /* performData */) {
+    function checkUpkeep(bytes calldata /* checkData */) external override returns (bool upkeepNeeded, bytes memory performData) {
         bytes memory shouldRebalanceCalldata = abi.encodeWithSignature("shouldRebalance()", []);
         bytes memory shouldRebalanceResponse = address(this).functionCall(address(fliExtension), shouldRebalanceCalldata, "Failed to execute shouldRebalance()");
         (string[] exchangeNames, uint256[] shouldRebalances) = abi.decode(shouldRebalanceResponse);
