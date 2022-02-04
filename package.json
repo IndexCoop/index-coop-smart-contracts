@@ -36,6 +36,7 @@
     "prepare": "yarn build",
     "prepublishOnly": "yarn clean && yarn build:npm",
     "rename-extensions": "for f in typechain/*.d.ts; do mv -- \"$f\" \"${f%.d.ts}.ts\"; done",
+    "semnatic-release": "semantic-release --branches master",
     "test": "npx hardhat test --network localhost",
     "test:fast": "TS_NODE_TRANSPILE_ONLY=1 npx hardhat test --network localhost --no-compile",
     "test:fast:compile": "TS_NODE_TRANSPILE_ONLY=1 npx hardhat test --network localhost",
@@ -96,6 +97,7 @@
     "fs-extra": "^5.0.0",
     "module-alias": "^2.2.2",
     "replace-in-file": "^6.1.0",
+    "semantic-release": "^19.0.2",
     "typechain": "^4.0.1"
   },
   "peerDependencies": {

@@ -1,0 +1,34 @@
+name: publish
+
+on: []
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: copy env
+        run: cp .env.default .env
+      - name: build
+        run: yarn build
+      - name: test
+        run: yarn chain && yarn test
+      - name: prepublish
+        run: yarn prepublishOnly
+
+  publish:
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/main' }}
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: '16'
+      - run: yarn ci
+      - name: Release
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: yarn semantic-release
