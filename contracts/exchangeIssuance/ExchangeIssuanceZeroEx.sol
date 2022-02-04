@@ -92,12 +92,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
          _;
     }
 
-    modifier isValidInput(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _componentQuotes) {
-        require(_amountSetToken > 0, "ExchangeIssuance: INVALID SET TOKEN AMOUNT");
-        require(_setToken.getComponents().length == _componentQuotes.length, "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES");
-         _;
-    }
-
     constructor(
         address _weth,
         IController _setController,
@@ -218,7 +212,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     )
         isSetToken(_setToken)
         isWhitelistedIssuanceModule(_issuanceModule)
-        isValidInput(_setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         returns (uint256)
@@ -257,7 +250,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     )
         isSetToken(_setToken)
         isWhitelistedIssuanceModule(_issuanceModule)
-        isValidInput(_setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         payable
@@ -305,7 +297,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     )
         isSetToken(_setToken)
         isWhitelistedIssuanceModule(_issuanceModule)
-        isValidInput(_setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         returns (uint256)
@@ -346,7 +337,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     )
         isSetToken(_setToken)
         isWhitelistedIssuanceModule(_issuanceModule)
-        isValidInput(_setToken, _amountSetToken, _componentQuotes)
         external
         nonReentrant
         returns (uint256)

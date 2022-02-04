@@ -532,9 +532,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
               subjectPositionSwapQuotes = [subjectPositionSwapQuotes[0]];
             });
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith(
-                "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES",
-              );
+              await expect(subject()).to.be.reverted;
             });
           });
 
@@ -544,7 +542,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             });
             it("should revert", async () => {
               await expect(subject()).to.be.revertedWith(
-                "ExchangeIssuance: INVALID SET TOKEN AMOUNT",
+                "Issue quantity must be > 0",
               );
             });
           });
@@ -738,9 +736,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             });
 
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith(
-                "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES",
-              );
+              await expect(subject()).to.be.reverted;
             });
           });
 
@@ -761,7 +757,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
             it("should revert", async () => {
               await expect(subject()).to.be.revertedWith(
-                "ExchangeIssuance: INVALID SET TOKEN AMOUNT",
+                "Issue quantity must be > 0",
               );
             });
           });
@@ -869,7 +865,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             });
             it("should revert", async () => {
               await expect(subject()).to.be.revertedWith(
-                "ExchangeIssuance: INVALID SET TOKEN AMOUNT",
+                "Redeem quantity must be > 0",
               );
             });
           });
@@ -891,7 +887,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             });
             it("should revert", async () => {
               await expect(subject()).to.be.revertedWith(
-                "ExchangeIssuance: WRONG NUMBER OF COMPONENT QUOTES",
+                "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT",
               );
             });
           });
