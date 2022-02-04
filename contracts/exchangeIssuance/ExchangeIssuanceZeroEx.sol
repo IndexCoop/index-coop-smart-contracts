@@ -80,11 +80,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 _amountOutputToken      // The amount of output tokens received by the recipient
     );
 
-    event Refund(
-        address indexed _recipient,     // The recipient address which redeemed the SetTokens
-        uint256 _refundAmount           // The amount of ETH redunded to the recipient
-    );
-
     event BoughtTokens(IERC20 sellToken, IERC20 buyToken, uint256 boughtAmount);
 
     /* ============ Modifiers ============ */
@@ -286,7 +281,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             (payable(msg.sender)).sendValue(amountEthReturn);
         }
 
-        emit Refund(msg.sender, amountEthReturn);
         emit ExchangeIssue(msg.sender, _setToken, IERC20(ETH_ADDRESS), totalEthSold, _amountSetToken);
         return amountEthReturn; 
     }
