@@ -33,7 +33,7 @@ jobs:
             - ~/index-coop-private
   test:
     docker:
-      - image: circleci/node:10.11.0
+      - image: cimg/node:16.3.2
     working_directory: ~/index-coop-private
     parallelism: 2
     steps:
@@ -59,7 +59,7 @@ jobs:
 
   test_forked_network:
     docker:
-      - image: circleci/node:10.11.0
+      - image: cimg/node:16.3.2
     working_directory: ~/index-coop-private
     steps:
       - setup_remote_docker:
@@ -82,7 +82,7 @@ jobs:
 
   coverage:
     docker:
-      - image: circleci/node:10.16.0
+      - image: cimg/node:16.3.2
     working_directory: ~/index-coop-private
     parallelism: 2
     steps:
@@ -118,7 +118,7 @@ jobs:
 
   coverage_forked_network:
     docker:
-      - image: circleci/node:10.16.0
+      - image: cimg/node:16.3.2
     working_directory: ~/index-coop-private
     steps:
       - setup_remote_docker:
@@ -150,7 +150,7 @@ jobs:
 
   report_coverage:
     docker:
-      - image: circleci/node:10.11.0
+      - image: cimg/node:16.3.2
     working_directory: ~/index-coop-private
     steps:
       - attach_workspace:
