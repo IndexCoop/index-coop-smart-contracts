@@ -14,12 +14,6 @@ import hre, { ethers } from "hardhat";
 
 const expect = getWaffleExpect();
 
-type ZeroExSwapQuote = {
-  sellToken: Address;
-  buyToken: Address;
-  swapCallData: string;
-};
-
 type SetTokenScenario = {
   setToken: Address;
   controller: Address;
@@ -187,7 +181,7 @@ if (process.env.INTEGRATIONTEST) {
               let subjectInputTokenAmount: BigNumber;
               let subjectAmountSetToken: number;
               let subjectAmountSetTokenWei: BigNumber;
-              let subjectPositionSwapQuotes: ZeroExSwapQuote[];
+              let subjectPositionSwapQuotes: string[];
 
               async function getIssuanceQuotes(
                 setToken: SetToken,
@@ -195,9 +189,9 @@ if (process.env.INTEGRATIONTEST) {
                 setAmount: number,
                 slippagePercents: number,
                 excludedSources: string | undefined = undefined,
-              ): Promise<[ZeroExSwapQuote[], BigNumber]> {
+              ): Promise<[string[], BigNumber]> {
                 const positions = await setToken.getPositions();
-                const positionQuotes: ZeroExSwapQuote[] = [];
+                const positionQuotes: string[] = [];
                 let inputTokenAmount = BigNumber.from(0);
                 // 0xAPI expects percentage as value between 0-1 e.g. 5% -> 0.05
                 const slippagePercentage = slippagePercents / 100;
@@ -209,11 +203,7 @@ if (process.env.INTEGRATIONTEST) {
                   const sellToken = inputTokenAddress;
                   if (ethers.utils.getAddress(buyToken) == ethers.utils.getAddress(sellToken)) {
                     logVerbose("Component equal to input token skipping zero ex api call");
-                    positionQuotes.push({
-                      sellToken: sellToken,
-                      buyToken: buyToken,
-                      swapCallData: ethers.utils.formatBytes32String("FOOBAR"),
-                    });
+                    positionQuotes.push(ethers.utils.formatBytes32String("FOOBAR"));
                     inputTokenAmount = inputTokenAmount.add(position.unit.mul(setAmount));
                   } else {
                     const quote = await getQuote({
@@ -224,11 +214,7 @@ if (process.env.INTEGRATIONTEST) {
                       slippagePercentage,
                     });
                     await logQuote(quote);
-                    positionQuotes.push({
-                      sellToken: sellToken,
-                      buyToken: buyToken,
-                      swapCallData: quote.data,
-                    });
+                    positionQuotes.push(quote.data);
                     inputTokenAmount = inputTokenAmount.add(BigNumber.from(quote.sellAmount));
                   }
                 }
@@ -329,7 +315,7 @@ if (process.env.INTEGRATIONTEST) {
               let subjectOutputTokenAmount: BigNumber;
               let subjectAmountSetToken: number;
               let subjectAmountSetTokenWei: BigNumber;
-              let subjectPositionSwapQuotes: ZeroExSwapQuote[];
+              let subjectPositionSwapQuotes: string[];
 
               // Helper function to generate 0xAPI quote for UniswapV2
               async function getRedemptionQuotes(
@@ -338,9 +324,9 @@ if (process.env.INTEGRATIONTEST) {
                 setAmount: number,
                 slippagePercents: number,
                 excludedSources: string | undefined = undefined,
-              ): Promise<[ZeroExSwapQuote[], BigNumber]> {
+              ): Promise<[string[], BigNumber]> {
                 const positions = await setToken.getPositions();
-                const positionQuotes: ZeroExSwapQuote[] = [];
+                const positionQuotes: string[] = [];
                 let outputTokenAmount = BigNumber.from(0);
                 const slippagePercentage = slippagePercents / 100;
 
@@ -351,11 +337,7 @@ if (process.env.INTEGRATIONTEST) {
                   const buyToken = outputTokenAddress;
                   if (ethers.utils.getAddress(buyToken) == ethers.utils.getAddress(sellToken)) {
                     logVerbose("Component equal to output token skipping zero ex api call");
-                    positionQuotes.push({
-                      sellToken: sellToken,
-                      buyToken: buyToken,
-                      swapCallData: ethers.utils.formatBytes32String("FOOBAR"),
-                    });
+                    positionQuotes.push(ethers.utils.formatBytes32String("FOOBAR"));
                     outputTokenAmount = outputTokenAmount.add(position.unit.mul(setAmount));
                   } else {
                     const quote = await getQuote({
@@ -366,11 +348,7 @@ if (process.env.INTEGRATIONTEST) {
                       slippagePercentage,
                     });
                     await logQuote(quote);
-                    positionQuotes.push({
-                      sellToken: sellToken,
-                      buyToken: buyToken,
-                      swapCallData: quote.data,
-                    });
+                    positionQuotes.push(quote.data);
                     outputTokenAmount = outputTokenAmount.add(BigNumber.from(quote.buyAmount));
                   }
                 }

@@ -38,12 +38,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeERC20 for ISetToken;
 
-    struct ZeroExSwapQuote {
-        IERC20 sellToken;
-        IERC20 buyToken;
-        bytes swapCallData;
-    }
-
     struct IssuanceModuleData {
         bool isAllowed;
         bool isDebtIssuanceModule;
@@ -202,7 +196,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         IERC20 _inputToken,
         uint256 _amountSetToken,
         uint256 _maxAmountInputToken,
-        ZeroExSwapQuote[] memory _componentQuotes,
+        bytes[] memory _componentQuotes,
         address _issuanceModule
     )
         isWhitelistedIssuanceModule(_issuanceModule)
@@ -239,7 +233,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     function issueExactSetFromETH(
         ISetToken _setToken,
         uint256 _amountSetToken,
-        ZeroExSwapQuote[] memory _componentQuotes,
+        bytes[] memory _componentQuotes,
         address _issuanceModule
     )
         isWhitelistedIssuanceModule(_issuanceModule)
@@ -285,7 +279,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         IERC20 _outputToken,
         uint256 _amountSetToken,
         uint256 _minOutputReceive,
-        ZeroExSwapQuote[] memory _componentQuotes,
+        bytes[] memory _componentQuotes,
         address _issuanceModule
     )
         isWhitelistedIssuanceModule(_issuanceModule)
@@ -324,7 +318,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         ISetToken _setToken,
         uint256 _amountSetToken,
         uint256 _minEthReceive,
-        ZeroExSwapQuote[] memory _componentQuotes,
+        bytes[] memory _componentQuotes,
         address _issuanceModule
     )
         isWhitelistedIssuanceModule(_issuanceModule)
@@ -386,7 +380,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _amountSetToken    Amount of SetTokens to be issued
      *
      */
-    function _buyComponentsForInputToken(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _quotes, IERC20 _inputToken, address _issuanceModule) internal returns (uint256 totalInputTokenSold) {
+    function _buyComponentsForInputToken(ISetToken _setToken, uint256 _amountSetToken, bytes[] memory _quotes, IERC20 _inputToken, address _issuanceModule) internal returns (uint256 totalInputTokenSold) {
         uint256 componentAmountBought;
         uint256 inputTokenAmountSold;
 
@@ -396,10 +390,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         for (uint256 i = 0; i < components.length; i++) {
             address component = components[i];
             uint256 units = componentUnits[i];
-            ZeroExSwapQuote memory quote = _quotes[i];
-
-            require(component == address(quote.buyToken), "ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
-            require(_inputToken == quote.sellToken, "ExchangeIssuance: INVALID SELL TOKEN");
 
             // If the component is equal to the input token we don't have to trade
             if(component == address(_inputToken)) {
@@ -408,7 +398,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             }
             else {
                 uint256 componentBalanceBefore = IERC20(component).balanceOf(address(this));
-                _fillQuote(quote);
+                _fillQuote(_quotes[i]);
                 uint256 componentBalanceAfter = IERC20(component).balanceOf(address(this));
                 componentAmountBought = componentBalanceAfter.sub(componentBalanceBefore);
                 require(componentAmountBought >= units, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
@@ -428,27 +418,25 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      *
      * @return totalOutputTokenBought  Total amount of output token received after liquidating all SetToken components
      */
-    function _sellComponentsForOutputToken(ISetToken _setToken, uint256 _amountSetToken, ZeroExSwapQuote[] memory _swaps, IERC20 _outputToken, address _issuanceModule)
+    function _sellComponentsForOutputToken(ISetToken _setToken, uint256 _amountSetToken, bytes[] memory _swaps, IERC20 _outputToken, address _issuanceModule)
         internal
         returns (uint256 totalOutputTokenBought)
     {
         (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(_issuanceModule, _setToken, _amountSetToken);
         uint256 outputTokenBalanceBefore = _outputToken.balanceOf(address(this));
         for (uint256 i = 0; i < _swaps.length; i++) {
-            require(components[i] == address(_swaps[i].sellToken), "ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH");
-            require(address(_swaps[i].buyToken) == address(_outputToken), "ExchangeIssuance: INVALID BUY TOKEN");
             uint256 maxAmountSell = componentUnits[i];
 
             uint256 outputTokenAmountBought;
             uint256 componentAmountSold;
 
             // If the component is equal to the input token we don't have to trade
-            if(components[i] == address(_swaps[i].buyToken)) {
+            if(components[i] == address(_outputToken)) {
                 totalOutputTokenBought = totalOutputTokenBought.add(maxAmountSell);
                 componentAmountSold = maxAmountSell;
             }
             else {
-                _safeApprove(_swaps[i].sellToken, address(swapTarget), maxAmountSell);
+                _safeApprove(IERC20(components[i]), address(swapTarget), maxAmountSell);
                 uint256 componentBalanceBefore = IERC20(components[i]).balanceOf(address(this));
                 _fillQuote(_swaps[i]);
                 uint256 componentBalanceAfter = IERC20(components[i]).balanceOf(address(this));
@@ -468,13 +456,13 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      *
      */
     function _fillQuote(
-        ZeroExSwapQuote memory _quote
+        bytes memory _quote
     )
         internal
         
     {
 
-        (bool success, bytes memory returndata) = swapTarget.call(_quote.swapCallData);
+        (bool success, bytes memory returndata) = swapTarget.call(_quote);
 
         // Forwarding errors including new custom errors
         // Taken from: https://ethereum.stackexchange.com/a/111187/73805

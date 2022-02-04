@@ -25,12 +25,6 @@ import { getTxFee } from "@utils/test";
 
 const expect = getWaffleExpect();
 
-type ZeroExSwapQuote = {
-  sellToken: Address;
-  buyToken: Address;
-  swapCallData: string;
-};
-
 describe("ExchangeIssuanceZeroEx", async () => {
   let owner: Account;
   let user: Account;
@@ -233,7 +227,9 @@ describe("ExchangeIssuanceZeroEx", async () => {
             });
 
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("function selector was not recognized and there's no fallback function");
+              await expect(subject()).to.be.revertedWith(
+                "function selector was not recognized and there's no fallback function",
+              );
             });
           });
 
@@ -364,18 +360,14 @@ describe("ExchangeIssuanceZeroEx", async () => {
           sellAmount: BigNumber,
           buyToken: Address,
           minBuyAmount: BigNumber,
-        ): ZeroExSwapQuote => {
+        ): string => {
           const isSushi = false;
-          return {
-            sellToken,
-            buyToken,
-            swapCallData: zeroExMock.interface.encodeFunctionData("sellToUniswap", [
-              [sellToken, buyToken],
-              sellAmount,
-              minBuyAmount,
-              isSushi,
-            ]),
-          };
+          return zeroExMock.interface.encodeFunctionData("sellToUniswap", [
+            [sellToken, buyToken],
+            sellAmount,
+            minBuyAmount,
+            isSushi,
+          ]);
         };
 
         describe("#issueExactSetFromToken", async () => {
@@ -385,7 +377,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           let subjectInputTokenAmount: BigNumber;
           let subjectAmountSetToken: number;
           let subjectAmountSetTokenWei: BigNumber;
-          let subjectPositionSwapQuotes: ZeroExSwapQuote[];
+          let subjectPositionSwapQuotes: string[];
           let subjectIssuanceModuleAddress: Address;
           let components: Address[];
           let positions: BigNumber[];
@@ -399,10 +391,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             subjectAmountSetTokenWei = UnitsUtils.ether(subjectAmountSetToken);
             subjectIssuanceModuleAddress = issuanceModuleAddress;
 
-            [
-              components,
-              positions,
-            ] = await exchangeIssuanceZeroEx.getRequiredIssuanceComponents(
+            [components, positions] = await exchangeIssuanceZeroEx.getRequiredIssuanceComponents(
               issuanceModuleAddress,
               subjectSetToken.address,
               subjectAmountSetTokenWei,
@@ -541,20 +530,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
               subjectAmountSetTokenWei = ether(0);
             });
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith(
-                "Issue quantity must be > 0",
-              );
-            });
-          });
-
-          context("when a position quote has the wrong buyTokenAddress", async () => {
-            beforeEach(async () => {
-              subjectPositionSwapQuotes[0].buyToken = await getRandomAddress();
-            });
-            it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith(
-                "ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH",
-              );
+              await expect(subject()).to.be.revertedWith("Issue quantity must be > 0");
             });
           });
 
@@ -610,7 +586,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           let subjectAmountETHInput: BigNumber;
           let subjectAmountSetToken: number;
           let subjectAmountSetTokenWei: BigNumber;
-          let subjectPositionSwapQuotes: ZeroExSwapQuote[];
+          let subjectPositionSwapQuotes: string[];
           let components: Address[];
           let positions: BigNumber[];
 
@@ -699,7 +675,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
               );
           });
 
-
           context("when not all eth is used up in the transaction", async () => {
             const shareSpent = 0.5;
 
@@ -756,9 +731,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             });
 
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith(
-                "Issue quantity must be > 0",
-              );
+              await expect(subject()).to.be.revertedWith("Issue quantity must be > 0");
             });
           });
 
@@ -781,7 +754,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           let subjectOutputTokenAmount: BigNumber;
           let subjectAmountSetToken: number;
           let subjectAmountSetTokenWei: BigNumber;
-          let subjectPositionSwapQuotes: ZeroExSwapQuote[];
+          let subjectPositionSwapQuotes: string[];
           let subjectIssuanceModuleAddress: Address;
           let components: Address[];
           let positions: BigNumber[];
@@ -795,10 +768,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             subjectAmountSetTokenWei = UnitsUtils.ether(subjectAmountSetToken);
             subjectIssuanceModuleAddress = issuanceModuleAddress;
 
-            [
-              components,
-              positions,
-            ] = await exchangeIssuanceZeroEx.getRequiredRedemptionComponents(
+            [components, positions] = await exchangeIssuanceZeroEx.getRequiredRedemptionComponents(
               issuanceModuleAddress,
               subjectSetToken.address,
               subjectAmountSetTokenWei,
@@ -864,9 +834,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
               subjectAmountSetTokenWei = ether(0);
             });
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith(
-                "Redeem quantity must be > 0",
-              );
+              await expect(subject()).to.be.revertedWith("Redeem quantity must be > 0");
             });
           });
 
@@ -889,26 +857,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
               await expect(subject()).to.be.revertedWith(
                 "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT",
               );
-            });
-          });
-
-          context("when a position quote has the wrong sellTokenAddress", async () => {
-            beforeEach(async () => {
-              subjectPositionSwapQuotes[0].sellToken = await getRandomAddress();
-            });
-            it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith(
-                "ExchangeIssuance: COMPONENT / QUOTE ADDRESS MISMATCH",
-              );
-            });
-          });
-
-          context("when a position quote has a non-WETH buyToken address", async () => {
-            beforeEach(async () => {
-              subjectPositionSwapQuotes[0].buyToken = await getRandomAddress();
-            });
-            it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID BUY TOKEN");
             });
           });
 
@@ -937,7 +885,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           let subjectWethAmount: BigNumber;
           let subjectAmountSetToken: number;
           let subjectAmountSetTokenWei: BigNumber;
-          let subjectPositionSwapQuotes: ZeroExSwapQuote[];
+          let subjectPositionSwapQuotes: string[];
           let subjectSetToken: SetToken;
           let components: Address[];
           let positions: BigNumber[];
@@ -1050,10 +998,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
               const componentAddress = components[1];
               const position = positions[1];
               await zeroExMock.setSellMultiplier(componentAddress, ether(multiplier));
-              await wbtc.transfer(
-                exchangeIssuanceZeroEx.address,
-                position.mul(multiplier - 1),
-              );
+              await wbtc.transfer(exchangeIssuanceZeroEx.address, position.mul(multiplier - 1));
             });
             it("should revert", async () => {
               await expect(subject()).to.be.revertedWith("ExchangeIssuance: OVERSOLD COMPONENT");
