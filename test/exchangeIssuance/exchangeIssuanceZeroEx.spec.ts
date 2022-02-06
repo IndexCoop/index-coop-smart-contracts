@@ -201,7 +201,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
         });
 
         const wethSigner = ethers.provider.getSigner(weth.address);
-        ethAmount = await ethers.provider.getBalance(owner.address);
+        ethAmount = (await ethers.provider.getBalance(owner.address)).div(10);
         await owner.wallet.sendTransaction({ to: weth.address, value: ethAmount });
         wethSigner.sendTransaction({ to: exchangeIssuanceZeroEx.address, value: ethAmount });
 
