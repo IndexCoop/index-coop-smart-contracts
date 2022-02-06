@@ -22,6 +22,7 @@ import {
 } from "@utils/contracts/index";
 import { getAllowances } from "@utils/common/exchangeIssuanceUtils";
 import { getTxFee } from "@utils/test";
+import { network, ethers } from "hardhat";
 
 const expect = getWaffleExpect();
 
@@ -173,6 +174,81 @@ describe("ExchangeIssuanceZeroEx", async () => {
         issuanceModuleDebtModuleFlags,
         zeroExMock.address,
       );
+    });
+
+    describe("#withdrawTokens()", async () => {
+      let subjectTokens: Address[];
+      let erc20Amounts: BigNumber[];
+      let ethAmount: BigNumber;
+      let erc20Tokens: StandardTokenMock[];
+      let subjectReceiver: Address;
+      let caller: Account;
+      beforeEach(async () => {
+        erc20Tokens = [dai, wbtc, usdc];
+        erc20Amounts = await Promise.all(erc20Tokens.map(t => t.balanceOf(owner.address)));
+
+        await Promise.all(
+          erc20Tokens.map(t =>
+            t
+              .connect(owner.wallet)
+              .transfer(exchangeIssuanceZeroEx.address, erc20Amounts[erc20Tokens.indexOf(t)]),
+          ),
+        );
+
+        await network.provider.request({
+          method: "hardhat_impersonateAccount",
+          params: [weth.address],
+        });
+
+        const wethSigner = ethers.provider.getSigner(weth.address);
+        ethAmount = await ethers.provider.getBalance(owner.address);
+        await owner.wallet.sendTransaction({ to: weth.address, value: ethAmount });
+        wethSigner.sendTransaction({ to: exchangeIssuanceZeroEx.address, value: ethAmount });
+
+        subjectReceiver = user.address;
+        subjectTokens = [
+          await exchangeIssuanceZeroEx.ETH_ADDRESS(),
+          ...erc20Tokens.map(t => t.address),
+        ];
+        caller = owner;
+      });
+      async function subject() {
+        return exchangeIssuanceZeroEx
+          .connect(caller.wallet)
+          .withdrawTokens(subjectTokens, subjectReceiver);
+      }
+      it("should succeed", async () => {
+        await subject();
+      });
+
+      it("should send erc20 amounts to receiver", async () => {
+        const balancesBefore = await Promise.all(
+          erc20Tokens.map(token => token.balanceOf(subjectReceiver)),
+        );
+        await subject();
+        const balancesAfter = await Promise.all(
+          erc20Tokens.map(token => token.balanceOf(subjectReceiver)),
+        );
+        for (let i = 0; i < balancesBefore.length; i++) {
+          expect(balancesAfter[i]).to.eq(balancesBefore[i].add(erc20Amounts[i]));
+        }
+      });
+
+      it("should send ether to receiver", async () => {
+        const balanceBefore = await ethers.provider.getBalance(subjectReceiver);
+        await subject();
+        const balanceAfter = await ethers.provider.getBalance(subjectReceiver);
+        expect(balanceAfter).to.eq(balanceBefore.add(ethAmount));
+      });
+
+      context("when the caller is not the owner", async () => {
+        beforeEach(async () => {
+          caller = user;
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Ownable: caller is not the owner");
+        });
+      });
     });
 
     ["basicIssuanceModule", "debtIssuanceModule"].forEach((issuanceModuleName: string) => {

@@ -104,6 +104,23 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
     /* ============ External Functions ============ */
 
+    /**
+     * Withdraw slippage to selected address
+     *
+     * @param _tokens    Addresses of tokens to withdraw, specifiy ETH_ADDRESS to withdraw ETH
+     * @param _to        Address to send the tokens to
+     */
+    function withdrawTokens(IERC20[] calldata _tokens, address payable _to) external onlyOwner payable {
+        for(uint256 i = 0; i < _tokens.length; i++) {
+            if(address(_tokens[i]) == ETH_ADDRESS){
+                _to.sendValue(address(this).balance);
+            }
+            else{
+                _tokens[i].safeTransfer(_to, _tokens[i].balanceOf(address(this)));
+            }
+        }
+    }
+
     receive() external payable {
         // required for weth.withdraw() to work properly
         require(msg.sender == WETH, "ExchangeIssuance: Direct deposits not allowed");
