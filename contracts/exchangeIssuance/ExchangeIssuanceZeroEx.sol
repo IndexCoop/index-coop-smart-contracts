@@ -222,7 +222,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         returns (uint256)
     {
 
-        _inputToken.transferFrom(msg.sender, address(this), _maxAmountInputToken);
+        _inputToken.safeTransferFrom(msg.sender, address(this), _maxAmountInputToken);
         _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
 
         uint256 totalInputTokenSold = _buyComponentsForInputToken(_setToken, _amountSetToken,  _componentQuotes, _inputToken, _issuanceModule);
