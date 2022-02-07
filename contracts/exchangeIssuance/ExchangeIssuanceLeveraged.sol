@@ -478,7 +478,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      */
     function _liquidateLongTokens(uint256 _longTokenSpent, bytes memory _params) internal {
         (address setToken, uint256 setAmount, address originalSender,,Exchange exchange, PaymentToken paymentToken, bytes memory paymentParams) = _decodeParams(_params);
-        (address longToken , uint256 longAmount,,) = getLeveragedTokenData(ISetToken(setToken), setAmount, true);
+        (address longToken , uint256 longAmount,,) = getLeveragedTokenData(ISetToken(setToken), setAmount, false);
         address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
         require(longAmount >= _longTokenSpent, "ExchangeIssuance: OVERSPENT LONG TOKEN");
         uint256 amountToReturn = longAmount.sub(_longTokenSpent);
