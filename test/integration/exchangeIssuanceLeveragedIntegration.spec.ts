@@ -97,6 +97,62 @@ if (process.env.INTEGRATIONTEST) {
           utils.getAddress(debtIssuanceModuleAddress),
         );
       });
+      context("Payment Token: ETH", () => {
+        let pricePaid: BigNumber;
+        context("#issueExactSetForETH", () => {
+          let subjectMaxAmountInput: BigNumber;
+          before(async () => {
+            const ownerBalance = await owner.wallet.getBalance();
+            subjectMaxAmountInput = ownerBalance.div(2);
+          });
+          async function subject() {
+            return await exchangeIssuance.issueExactSetForETH(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectExchange,
+              { value: subjectMaxAmountInput },
+            );
+          }
+          it("should update balance correctly", async () => {
+            const maticBalanceBefore = await owner.wallet.getBalance();
+            const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
+            await subject();
+            const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
+            const maticBalanceAfter = await owner.wallet.getBalance();
+            pricePaid = maticBalanceBefore.sub(maticBalanceAfter);
+            console.log("pricePaid paid: ", utils.formatEther(pricePaid));
+            expect(setBalanceAfter.sub(setBalanceBefore)).to.eq(subjectSetAmount);
+          });
+        });
+
+        context("#redeemExactSetForETH", () => {
+          let subjectMinAmountOutput: BigNumber;
+          before(async () => {
+            expect(pricePaid.gt(0)).to.be.true;
+            subjectMinAmountOutput = pricePaid.div(10);
+            eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
+          });
+          async function subject() {
+            return await exchangeIssuance.redeemExactSetForETH(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectMinAmountOutput,
+              subjectExchange,
+            );
+          }
+          it("should update balance correctly", async () => {
+            const maticBalanceBefore = await owner.wallet.getBalance();
+            const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
+            expect(setBalanceBefore.gte(subjectSetAmount)).to.be.true;
+            await subject();
+            const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
+            const maticBalanceAfter = await owner.wallet.getBalance();
+            expect(setBalanceBefore.sub(setBalanceAfter)).to.eq(subjectSetAmount);
+            expect(maticBalanceAfter.sub(maticBalanceBefore).gte(subjectMinAmountOutput)).to.be
+              .true;
+          });
+        });
+      });
       context("Payment Token: LongToken", () => {
         let pricePaid: BigNumber;
         context("#issueExactSetForLongToken", () => {
@@ -134,12 +190,13 @@ if (process.env.INTEGRATIONTEST) {
           });
         });
 
-        context("#redeemExactSetForETH", () => {
+        context("#redeemExactSetForLongToken", () => {
           let subjectMinAmountOutput: BigNumber;
           before(async () => {
             expect(pricePaid.gt(0)).to.be.true;
             subjectMinAmountOutput = pricePaid.div(2);
             eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
+
           });
           async function subject() {
             return await exchangeIssuance.redeemExactSetForLongToken(
@@ -158,63 +215,6 @@ if (process.env.INTEGRATIONTEST) {
             const wethBalanceAfter = await weth.balanceOf(owner.address);
             expect(setBalanceBefore.sub(setBalanceAfter)).to.eq(subjectSetAmount);
             expect(wethBalanceAfter.sub(wethBalanceBefore).gte(subjectMinAmountOutput)).to.be.true;
-          });
-        });
-      });
-
-      context("Payment Token: ETH", () => {
-        let pricePaid: BigNumber;
-        context("#issueExactSetForETH", () => {
-          let subjectMaxAmountInput: BigNumber;
-          before(async () => {
-            const ownerBalance = await owner.wallet.getBalance();
-            subjectMaxAmountInput = ownerBalance.div(2);
-          });
-          async function subject() {
-            return await exchangeIssuance.issueExactSetForETH(
-              subjectSetToken,
-              subjectSetAmount,
-              subjectExchange,
-              { value: subjectMaxAmountInput },
-            );
-          }
-          it("should update balance correctly", async () => {
-            const maticBalanceBefore = await owner.wallet.getBalance();
-            const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
-            await subject();
-            const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
-            const maticBalanceAfter = await owner.wallet.getBalance();
-            pricePaid = maticBalanceBefore.sub(maticBalanceAfter);
-            console.log("pricePaid paid: ", utils.formatEther(pricePaid));
-            expect(setBalanceAfter.sub(setBalanceBefore)).to.eq(subjectSetAmount);
-          });
-        });
-
-        context("#redeemExactSetForETH", () => {
-          let subjectMinAmountOutput: BigNumber;
-          before(async () => {
-            expect(pricePaid.gt(0)).to.be.true;
-            subjectMinAmountOutput = pricePaid.div(2);
-            eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
-          });
-          async function subject() {
-            return await exchangeIssuance.redeemExactSetForETH(
-              subjectSetToken,
-              subjectSetAmount,
-              subjectMinAmountOutput,
-              subjectExchange,
-            );
-          }
-          it("should update balance correctly", async () => {
-            const maticBalanceBefore = await owner.wallet.getBalance();
-            const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
-            expect(setBalanceBefore.gte(subjectSetAmount)).to.be.true;
-            await subject();
-            const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
-            const maticBalanceAfter = await owner.wallet.getBalance();
-            expect(setBalanceBefore.sub(setBalanceAfter)).to.eq(subjectSetAmount);
-            expect(maticBalanceAfter.sub(maticBalanceBefore).gte(subjectMinAmountOutput)).to.be
-              .true;
           });
         });
       });
