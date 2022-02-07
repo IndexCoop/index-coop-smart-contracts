@@ -32,7 +32,6 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { UniSushiV2Library } from "../../external/contracts/UniSushiV2Library.sol";
 import { FlashLoanReceiverBaseV2 } from "../../external/contracts/aaveV2/FlashLoanReceiverBaseV2.sol";
 
-import "hardhat/console.sol";
 
 
 
@@ -193,6 +192,10 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
                 longAmount = equityPositions[1];
                 shortToken = components[0];
                 shortAmount = debtPositions[0];
+            }
+            // TODO: Had to add this to make it work on polygon. Check why that is. Debt data from issuance module incorrect ?
+            if(!isIssuance){
+                shortAmount = shortAmount + 10;
             }
     }
 
