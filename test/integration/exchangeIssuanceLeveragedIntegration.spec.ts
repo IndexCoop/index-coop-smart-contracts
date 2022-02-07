@@ -5,7 +5,9 @@ import { getAccounts, getWaffleExpect } from "@utils/index";
 import { SetToken } from "@utils/contracts/setV2";
 import { ethers } from "hardhat";
 import { utils, BigNumber } from "ethers";
-import { ExchangeIssuanceLeveraged } from "@utils/contracts/index";
+import { ExchangeIssuanceLeveraged, StandardTokenMock } from "@utils/contracts/index";
+import { IUniswapV2Router } from "../../typechain";
+import { MAX_UINT_256, ZERO } from "@utils/constants";
 
 const expect = getWaffleExpect();
 
@@ -30,13 +32,28 @@ if (process.env.INTEGRATIONTEST) {
 
     let owner: Account;
     let eth2xFli: SetToken;
+    let weth: StandardTokenMock;
     let deployer: DeployHelper;
+    let sushiRouter: IUniswapV2Router;
+
+    let subjectSetToken: Address;
+    let subjectSetAmount: BigNumber;
+    let subjectExchange: Exchange;
 
     before(async () => {
       [owner] = await getAccounts();
       deployer = new DeployHelper(owner.wallet);
 
       eth2xFli = (await ethers.getContractAt("ISetToken", eth2xFliPAddress)) as SetToken;
+      weth = (await ethers.getContractAt("StandardTokenMock", wethAddress)) as StandardTokenMock;
+      sushiRouter = (await ethers.getContractAt(
+        "IUniswapV2Router",
+        sushiswapRouterAddress,
+      )) as IUniswapV2Router;
+
+      subjectSetToken = eth2xFliPAddress;
+      subjectSetAmount = utils.parseEther("10000");
+      subjectExchange = Exchange.Sushiswap;
     });
 
     it("fli token should return correct components", async () => {
@@ -80,16 +97,73 @@ if (process.env.INTEGRATIONTEST) {
           utils.getAddress(debtIssuanceModuleAddress),
         );
       });
-      context("Payment Token: ETH", () => {
-        let subjectSetToken: Address;
-        let subjectSetAmount: BigNumber;
-        let subjectExchange: Exchange;
+      context("Payment Token: LongToken", () => {
         let pricePaid: BigNumber;
-        before(async () => {
-          subjectSetToken = eth2xFliPAddress;
-          subjectSetAmount = utils.parseEther("10000");
-          subjectExchange = Exchange.Sushiswap;
+        context("#issueExactSetForLongToken", () => {
+          let subjectMaxAmountInput: BigNumber;
+          before(async () => {
+            const ownerBalance = await owner.wallet.getBalance();
+            await sushiRouter.swapExactETHForTokens(
+              ZERO,
+              [wmaticAddress, wethAddress],
+              owner.address,
+              MAX_UINT_256,
+              { value: ownerBalance.div(2) },
+            );
+            subjectMaxAmountInput = await weth.balanceOf(owner.address);
+            console.log("Owner weth balance: ", ownerBalance.toString());
+            await weth.approve(exchangeIssuance.address, subjectMaxAmountInput);
+          });
+          async function subject() {
+            return await exchangeIssuance.issueExactSetForLongToken(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectMaxAmountInput,
+              subjectExchange,
+            );
+          }
+          it("should update balance correctly", async () => {
+            const wethBalanceBefore = await weth.balanceOf(owner.address);
+            const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
+            await subject();
+            const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
+            const wethBalanceAfter = await weth.balanceOf(owner.address);
+            pricePaid = wethBalanceBefore.sub(wethBalanceAfter);
+            console.log("pricePaid paid: ", utils.formatEther(pricePaid));
+            expect(setBalanceAfter.sub(setBalanceBefore)).to.eq(subjectSetAmount);
+          });
         });
+
+        context("#redeemExactSetForETH", () => {
+          let subjectMinAmountOutput: BigNumber;
+          before(async () => {
+            expect(pricePaid.gt(0)).to.be.true;
+            subjectMinAmountOutput = pricePaid.div(2);
+            eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
+          });
+          async function subject() {
+            return await exchangeIssuance.redeemExactSetForLongToken(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectMinAmountOutput,
+              subjectExchange,
+            );
+          }
+          it("should update balance correctly", async () => {
+            const wethBalanceBefore = await weth.balanceOf(owner.address);
+            const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
+            expect(setBalanceBefore.gte(subjectSetAmount)).to.be.true;
+            await subject();
+            const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
+            const wethBalanceAfter = await weth.balanceOf(owner.address);
+            expect(setBalanceBefore.sub(setBalanceAfter)).to.eq(subjectSetAmount);
+            expect(wethBalanceAfter.sub(wethBalanceBefore).gte(subjectMinAmountOutput)).to.be.true;
+          });
+        });
+      });
+
+      context("Payment Token: ETH", () => {
+        let pricePaid: BigNumber;
         context("#issueExactSetForETH", () => {
           let subjectMaxAmountInput: BigNumber;
           before(async () => {
@@ -139,7 +213,8 @@ if (process.env.INTEGRATIONTEST) {
             const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
             const maticBalanceAfter = await owner.wallet.getBalance();
             expect(setBalanceBefore.sub(setBalanceAfter)).to.eq(subjectSetAmount);
-            expect(maticBalanceAfter.sub(maticBalanceBefore).gte(subjectMinAmountOutput)).to.be.true;
+            expect(maticBalanceAfter.sub(maticBalanceBefore).gte(subjectMinAmountOutput)).to.be
+              .true;
           });
         });
       });
