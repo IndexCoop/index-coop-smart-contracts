@@ -1,34 +1,41 @@
-import { FliRebalanceKeeper__factory } from "../../typechain/factories/FliRebalanceKeeper__factory";
-import { addSnapshotBeforeRestoreAfterEach, getAccounts } from "@utils/test";
+import "module-alias/register";
+import { addSnapshotBeforeRestoreAfterEach, getAccounts, getWaffleExpect } from "@utils/index";
 import { Account } from "@utils/types";
 import { FliRebalanceKeeper } from "../../typechain/FliRebalanceKeeper";
-import { expect } from "chai";
+import DeployHelper from "@utils/deploys";
+import { ZERO_BYTES } from "@utils/constants";
+
+const expect = getWaffleExpect();
 
 describe("fliRebalanceKeeper", async () => {
 
     let owner: Account;
+    let deployer: DeployHelper;
 
     before(async () => {
         [
             owner,
         ] = await getAccounts();
+
+        deployer = new DeployHelper(owner.wallet);
     });
 
     addSnapshotBeforeRestoreAfterEach();
 
-    describe("#constructor", async () => {
-        async function subject(): Promise<FliRebalanceKeeper> {
-            return new FliRebalanceKeeper__factory(owner.wallet).deploy(owner.address);
+    describe("#checkUpkeep", async () => {
+        let subjectKeeper: FliRebalanceKeeper;
+
+        beforeEach(async () => {
+            subjectKeeper = await deployer.keepers.deployFliRebalanceKeeper(owner.address);
+        });
+
+        async function subject(): Promise<any> {
+            return subjectKeeper.checkUpkeep(ZERO_BYTES);
         }
 
-        it("should have the correct fliExtension address", async () => {
-            const keeper = await subject();
-            expect(keeper.fliExtension()).to.eq(owner.address);
+        it("should revert", async () => {
+            await expect(subject()).to.be.reverted;
         });
-    });
-
-    describe("#checkUpkeep", async () => {
-
     });
 
     describe("#performUpkeep", async () => {
