@@ -195,7 +195,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             }
             // TODO: Had to add this to make it work on polygon. Check why that is. Debt data from issuance module incorrect ?
             if(!isIssuance){
-                shortAmount = shortAmount + 10;
+                shortAmount = shortAmount.add(shortAmount.div(1000));
             }
     }
 
