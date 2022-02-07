@@ -34,6 +34,7 @@ describe("fliRebalanceKeeper", async () => {
         }
 
         it("should revert", async () => {
+            // currently reverting because fli extension hasn't been deployed properly
             await expect(subject()).to.be.reverted;
         });
     });
