@@ -797,7 +797,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
             });
 
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID ETH AMOUNT");
+              await expect(subject()).to.be.revertedWith("ExchangeIssuance: NO ETH SENT");
             });
           });
 

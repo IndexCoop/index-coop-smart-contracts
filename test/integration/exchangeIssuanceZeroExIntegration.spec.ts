@@ -61,8 +61,6 @@ if (process.env.INTEGRATIONTEST) {
     const SET_TOKEN_NAMES: TokenName[] = ["DPI", "SimpleToken"];
     const SET_TOKEN_AMOUNTS: Record<TokenName, number[]> = {
       SimpleToken: [1],
-      // DPI issuance of 5000 failed due to underbuying Badger in a multihop
-      // TODO: Investigate
       DPI: [3000, 1],
     };
 

@@ -45,6 +45,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
     /* ============ Constants ============== */
 
+    // Placeholder address to identify ETH where it is treated as if it was an ERC20 token
     address constant public ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /* ============ State Variables ============ */
@@ -203,7 +204,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     * @param _setToken              Address of the SetToken to be issued
     * @param _inputToken            Address of the input token
     * @param _amountSetToken        Amount of SetTokens to issue
-    * @param _maxAmountInputToken   Amount of SetTokens to issue
+    * @param _maxAmountInputToken   Maximum amount of input tokens to be used to issue SetTokens.
     * @param _componentQuotes       The encoded 0x transactions to execute 
     *
     * @return totalInputTokenSold   Amount of input token spent for issuance
@@ -259,14 +260,14 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         payable
         returns (uint256)
     {
-        require(msg.value > 0, "ExchangeIssuance: INVALID ETH AMOUNT");
+        require(msg.value > 0, "ExchangeIssuance: NO ETH SENT");
 
         IWETH(WETH).deposit{value: msg.value}();
         _safeApprove(IERC20(WETH), swapTarget, msg.value);
 
         uint256 totalEthSold = _buyComponentsForInputToken(_setToken, _amountSetToken, _componentQuotes, IERC20(WETH), _issuanceModule);
 
-        require(totalEthSold<= msg.value, "ExchangeIssuance: OVERSPENT ETH");
+        require(totalEthSold <= msg.value, "ExchangeIssuance: OVERSPENT ETH");
         IBasicIssuanceModule(_issuanceModule).issue(_setToken, _amountSetToken, msg.sender);
 
         uint256 amountEthReturn = msg.value.sub(totalEthSold);
@@ -308,7 +309,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 outputAmount;
         _redeemExactSet(_setToken, _amountSetToken, _issuanceModule);
 
-        // Liquidate components for WETH and ignore _outputQuote
         outputAmount = _sellComponentsForOutputToken(_setToken, _amountSetToken, _componentQuotes, _outputToken, _issuanceModule);
         require(outputAmount >= _minOutputReceive, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
 
@@ -390,16 +390,28 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
     /**
      * Issues an exact amount of SetTokens using WETH.
-     * Acquires SetToken components at the best price accross uniswap and sushiswap.
+     * Acquires SetToken components by executing the 0x swaps whose callata is passed in _quotes.
      * Uses the acquired components to issue the SetTokens.
      *
-     * @param _setToken          Address of the SetToken being issued
-     * @param _amountSetToken    Amount of SetTokens to be issued
+     * @param _setToken             Address of the SetToken being issued
+     * @param _amountSetToken       Amount of SetTokens to be issued
+     * @param _quotes               The encoded 0x transaction calldata to execute against the 0x ExchangeProxy
+     * @param _inputToken           Token to use to pay for issuance. Must be the sellToken of the 0x trades.
+     * @param _issuanceModule       Issuance module to use for set token issuance.
      *
+     * @return totalInputTokenSold  Total amount of input token spent on this issuance
      */
-    function _buyComponentsForInputToken(ISetToken _setToken, uint256 _amountSetToken, bytes[] memory _quotes, IERC20 _inputToken, address _issuanceModule) internal returns (uint256 totalInputTokenSold) {
+    function _buyComponentsForInputToken(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        bytes[] memory _quotes,
+        IERC20 _inputToken,
+        address _issuanceModule
+    ) 
+    internal
+    returns (uint256 totalInputTokenSold)
+    {
         uint256 componentAmountBought;
-        uint256 inputTokenAmountSold;
 
         (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(_issuanceModule, _setToken, _amountSetToken);
 
@@ -444,7 +456,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         for (uint256 i = 0; i < _swaps.length; i++) {
             uint256 maxAmountSell = componentUnits[i];
 
-            uint256 outputTokenAmountBought;
             uint256 componentAmountSold;
 
             // If the component is equal to the input token we don't have to trade
