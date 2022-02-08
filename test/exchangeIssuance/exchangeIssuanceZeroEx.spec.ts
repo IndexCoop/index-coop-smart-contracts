@@ -546,10 +546,11 @@ describe("ExchangeIssuanceZeroEx", async () => {
             });
           });
 
-          context("when the input token is weth", async () => {
+          context("when the input token is also a component", async () => {
             beforeEach(async () => {
-              subjectInputToken = weth;
-              subjectInputTokenAmount = UnitsUtils.ether(2);
+              subjectInputToken = wbtc;
+              subjectAmountSetTokenWei = UnitsUtils.ether(1);
+              subjectInputTokenAmount = wbtcUnits.mul(2);
               subjectPositionSwapQuotes = positions.map((position: any, index: number) => {
                 return getUniswapV2Quote(
                   subjectInputToken.address,
@@ -558,10 +559,10 @@ describe("ExchangeIssuanceZeroEx", async () => {
                   position,
                 );
               });
-              await weth
+              await wbtc
                 .connect(user.wallet)
                 .approve(exchangeIssuanceZeroEx.address, subjectInputTokenAmount);
-              await weth.transfer(user.address, subjectInputTokenAmount);
+              await wbtc.transfer(user.address, subjectInputTokenAmount);
             });
             it("should issue correct amount of set tokens", async () => {
               const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
