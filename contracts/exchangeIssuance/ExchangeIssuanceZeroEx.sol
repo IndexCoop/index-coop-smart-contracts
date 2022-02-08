@@ -443,7 +443,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _setToken             The set token being swapped.
      * @param _amountSetToken       The amount of set token being swapped.
      * @param _swaps                An array containing ZeroExSwap swaps.
-     * @param _outputToken          The token for which to sell the index components
+     * @param _outputToken          The token for which to sell the index components must be the same as the buyToken that was specified when generating the swaps
      *
      * @return totalOutputTokenBought  Total amount of output token received after liquidating all SetToken components
      */
@@ -458,7 +458,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
             uint256 componentAmountSold;
 
-            // If the component is equal to the input token we don't have to trade
+            // If the component is equal to the output token we don't have to trade
             if(components[i] == address(_outputToken)) {
                 totalOutputTokenBought = totalOutputTokenBought.add(maxAmountSell);
                 componentAmountSold = maxAmountSell;
