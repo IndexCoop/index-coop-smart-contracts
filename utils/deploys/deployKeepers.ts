@@ -3,16 +3,17 @@ import { FliRebalanceKeeper__factory } from "../../typechain/factories/FliRebala
 import { Address } from "../types";
 import { Signer } from "ethers";
 
-
 export default class DeployKeepers {
-    private _deployerSigner: Signer;
+  private _deployerSigner: Signer;
 
-    constructor(deployerSigner: Signer) {
-      this._deployerSigner = deployerSigner;
-    }
+  constructor(deployerSigner: Signer) {
+    this._deployerSigner = deployerSigner;
+  }
 
-    public async deployFliRebalanceKeeper(fliExtension: Address): Promise<FliRebalanceKeeper> {
-        return new FliRebalanceKeeper__factory(this._deployerSigner).deploy(fliExtension);
-    }
-
+  public async deployFliRebalanceKeeper(
+    fliExtension: Address,
+    registry: Address,
+  ): Promise<FliRebalanceKeeper> {
+    return new FliRebalanceKeeper__factory(this._deployerSigner).deploy(fliExtension, registry);
+  }
 }

@@ -12,6 +12,7 @@ export { ExchangeIssuanceLeveraged } from "../../typechain/ExchangeIssuanceLever
 export { ExchangeIssuanceZeroEx } from "../../typechain/ExchangeIssuanceZeroEx";
 export { FeeSplitExtension } from "../../typechain/FeeSplitExtension";
 export { FlexibleLeverageStrategyExtension } from "../../typechain/FlexibleLeverageStrategyExtension";
+export { FlexibleLeverageStrategyExtensionMock } from "../../typechain/FlexibleLeverageStrategyExtensionMock";
 export { FLIStrategyExtensionMock } from "../../typechain/FLIStrategyExtensionMock";
 export { GIMExtension } from "../../typechain/GIMExtension";
 export { GovernanceExtension } from "../../typechain/GovernanceExtension";

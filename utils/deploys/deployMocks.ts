@@ -3,24 +3,29 @@ import { Address } from "../types";
 import {
   BaseExtensionMock,
   FLIStrategyExtensionMock,
+  FlexibleLeverageStrategyExtensionMock,
   GovernanceAdapterMock,
   MutualUpgradeMock,
   StandardTokenMock,
   StringArrayUtilsMock,
   TradeAdapterMock,
   WrapAdapterMock,
+<<<<<<< HEAD
   ZeroExExchangeProxyMock
+=======
+>>>>>>> 51a51bb (formatting)
 } from "../contracts/index";
 
 import { BaseExtensionMock__factory } from "../../typechain/factories/BaseExtensionMock__factory";
-import { ChainlinkAggregatorV3Mock__factory  } from "../../typechain/factories/ChainlinkAggregatorV3Mock__factory";
+import { ChainlinkAggregatorV3Mock__factory } from "../../typechain/factories/ChainlinkAggregatorV3Mock__factory";
 import { FLIStrategyExtensionMock__factory } from "../../typechain/factories/FLIStrategyExtensionMock__factory";
-import { GovernanceAdapterMock__factory  } from "../../typechain/factories/GovernanceAdapterMock__factory";
+import { FlexibleLeverageStrategyExtensionMock__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtensionMock__factory";
+import { GovernanceAdapterMock__factory } from "../../typechain/factories/GovernanceAdapterMock__factory";
 import { MasterChefMock__factory } from "../../typechain/factories/MasterChefMock__factory";
 import { MutualUpgradeMock__factory } from "../../typechain/factories/MutualUpgradeMock__factory";
 import { TradeAdapterMock__factory } from "../../typechain/factories/TradeAdapterMock__factory";
-import { StandardTokenMock__factory  } from "../../typechain/factories/StandardTokenMock__factory";
-import { StringArrayUtilsMock__factory  } from "../../typechain/factories/StringArrayUtilsMock__factory";
+import { StandardTokenMock__factory } from "../../typechain/factories/StandardTokenMock__factory";
+import { StringArrayUtilsMock__factory } from "../../typechain/factories/StringArrayUtilsMock__factory";
 import { WrapAdapterMock__factory } from "../../typechain/factories/WrapAdapterMock__factory";
 import { ZeroExExchangeProxyMock__factory  } from "../../typechain/factories/ZeroExExchangeProxyMock__factory";
 
@@ -39,16 +44,30 @@ export default class DeployMocks {
     return await new TradeAdapterMock__factory(this._deployerSigner).deploy();
   }
 
-  public async deployGovernanceAdapterMock(initialProposal: BigNumber): Promise<GovernanceAdapterMock> {
+  public async deployGovernanceAdapterMock(
+    initialProposal: BigNumber,
+  ): Promise<GovernanceAdapterMock> {
     return await new GovernanceAdapterMock__factory(this._deployerSigner).deploy(initialProposal);
   }
 
-  public async deployMutualUpgradeMock(owner: Address, methodologist: string): Promise<MutualUpgradeMock> {
+  public async deployMutualUpgradeMock(
+    owner: Address,
+    methodologist: string,
+  ): Promise<MutualUpgradeMock> {
     return await new MutualUpgradeMock__factory(this._deployerSigner).deploy(owner, methodologist);
   }
 
-  public async deployStandardTokenMock(owner: Address, decimals: number): Promise<StandardTokenMock> {
-    return await new StandardTokenMock__factory(this._deployerSigner).deploy(owner, BigNumber.from(1000000).mul(BigNumber.from(10).pow(decimals)), "USDCoin", "USDC", decimals);
+  public async deployStandardTokenMock(
+    owner: Address,
+    decimals: number,
+  ): Promise<StandardTokenMock> {
+    return await new StandardTokenMock__factory(this._deployerSigner).deploy(
+      owner,
+      BigNumber.from(1000000).mul(BigNumber.from(10).pow(decimals)),
+      "USDCoin",
+      "USDC",
+      decimals,
+    );
   }
 
   public async deployChainlinkAggregatorMock() {
@@ -67,7 +86,22 @@ export default class DeployMocks {
     return await new FLIStrategyExtensionMock__factory(this._deployerSigner).deploy();
   }
 
-  public async deployWrapAdapterMock(owner: Address, initAmount: BigNumber): Promise<WrapAdapterMock> {
+  public async deployFlexibleLeverageStrategyExtensionMock(
+    manager: Address,
+    leverageRatio: number,
+    exchangeName: string,
+  ): Promise<FlexibleLeverageStrategyExtensionMock> {
+    return await new FlexibleLeverageStrategyExtensionMock__factory(this._deployerSigner).deploy(
+      manager,
+      leverageRatio,
+      exchangeName,
+    );
+  }
+
+  public async deployWrapAdapterMock(
+    owner: Address,
+    initAmount: BigNumber,
+  ): Promise<WrapAdapterMock> {
     return await new WrapAdapterMock__factory(this._deployerSigner).deploy(owner, initAmount);
   }
 

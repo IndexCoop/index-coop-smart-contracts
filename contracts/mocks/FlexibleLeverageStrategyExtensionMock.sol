@@ -19,13 +19,17 @@ contract FlexibleLeverageStrategyExtensionMock is BaseExtension {
 
     /* ============ State Variables ============ */
     uint256 public currentLeverageRatio;             // The current leverage ratio
+    string public exchangeName;                      // The exchange name
 
     /**
      * Instantiate addresses, methodology parameters, execution parameters, and incentive parameters.
      *
      * @param _manager                  Address of IBaseManager contract
      */
-    constructor(IBaseManager _manager) public BaseExtension(_manager) {}
+    constructor(IBaseManager _manager, uint256 _currentLeverageRatio, string memory _exchangeName) public BaseExtension(_manager) {
+        currentLeverageRatio = _currentLeverageRatio;
+        exchangeName = _exchangeName;
+    }
 
     /**
      * Helper that checks if conditions are met for rebalance or ripcord. Returns an enum with 0 = no rebalance, 1 = call rebalance(), 2 = call iterateRebalance()
@@ -33,7 +37,21 @@ contract FlexibleLeverageStrategyExtensionMock is BaseExtension {
      *
      * @return (string[] memory, ShouldRebalance[] memory)      List of exchange names and a list of enums representing whether that exchange should rebalance
      */
-    function shouldRebalance() external view returns(string[] memory, ShouldRebalance[] memory) {
+    function shouldRebalance() external view returns (string[] memory, ShouldRebalance[] memory) {
+        ShouldRebalance shouldRebalance = ShouldRebalance.NONE;
+        if (currentLeverageRatio == 1) {
+            shouldRebalance = ShouldRebalance.REBALANCE;
+        } else if (currentLeverageRatio == 2) {
+            shouldRebalance = ShouldRebalance.ITERATE_REBALANCE;
+        } else if (currentLeverageRatio == 3) {
+            shouldRebalance = ShouldRebalance.RIPCORD;
+        }
+        string[] memory exchangeNames = new string[](1);
+        exchangeNames[0] = exchangeName;
+
+        ShouldRebalance[] memory shouldRebalances = new ShouldRebalance[](1);
+        shouldRebalances[0] = shouldRebalance;
+        return (exchangeNames, shouldRebalances);
     }
 
     /**
@@ -47,7 +65,6 @@ contract FlexibleLeverageStrategyExtensionMock is BaseExtension {
      * @param _exchangeName     the exchange used for trading
      */
     function rebalance(string memory _exchangeName) external onlyEOA onlyAllowedCaller(msg.sender) {
-
     }
 
     /**
@@ -57,7 +74,6 @@ contract FlexibleLeverageStrategyExtensionMock is BaseExtension {
      * @param _exchangeName     the exchange used for trading
      */
     function iterateRebalance(string memory _exchangeName) external onlyEOA onlyAllowedCaller(msg.sender) {
-
     }
 
     /**
@@ -68,7 +84,6 @@ contract FlexibleLeverageStrategyExtensionMock is BaseExtension {
      *
      * @param _exchangeName     the exchange used for trading
      */
-    function ripcord(string memory _exchangeName) external onlyEOA {
-
+    function ripcord(string memory _exchangeName) external onlyEOA { 
     }
 }

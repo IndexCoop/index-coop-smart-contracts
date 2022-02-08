@@ -18,9 +18,7 @@ pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-// KeeperCompatible.sol imports the functions from both ./KeeperBase.sol and
-// ./interfaces/KeeperCompatibleInterface.sol
-import "@chainlink/contracts/src/v0.6/KeeperCompatible.sol";
+import { KeeperCompatibleInterface } from "@chainlink/contracts/src/v0.6/KeeperCompatible.sol";
 
 /**
  * @title RebalanceKeeper
@@ -31,17 +29,35 @@ import "@chainlink/contracts/src/v0.6/KeeperCompatible.sol";
 contract FliRebalanceKeeper is KeeperCompatibleInterface {
     using Address for address;
 
+    /* ============ Modifiers ============ */
+    modifier onlyRegistry() {
+        require(msg.sender == registryAddress, "Only registry address can call this function");
+        _;
+    }
+
     /* ============ State Variables ============ */
 
+    address public fliExtension;                          // Address of the fli extension contract
+    address public registryAddress;                       // Address of the chainlink keeper registry
+
     /* ============ Constructor ============ */
-
-    address internal fliExtension;
-
-    constructor(address _fliExtension) public {
+    constructor(address _fliExtension, address _registryAddress) public {
         fliExtension = _fliExtension;
+        registryAddress = _registryAddress;
     }    
 
-    function checkUpkeep(bytes calldata /* checkData */) external override returns (bool upkeepNeeded, bytes memory performData) {
+    function checkUpkeep(bytes calldata /* checkData */) external override onlyRegistry returns (bool, bytes memory) {
+        bytes memory callData = getRebalanceCalldata(); 
+        return (callData.length > 0, callData);
+    }
+
+    function performUpkeep(bytes calldata performData) external override onlyRegistry {
+        bytes memory callData = getRebalanceCalldata();
+        // require(callData.equals(performData), "Rebalance callData not equal to performData");
+        Address.functionCall(fliExtension, callData);
+    }
+
+    function getRebalanceCalldata() private returns (bytes memory) {
         bytes memory shouldRebalanceCalldata = abi.encodeWithSignature("shouldRebalance()");
         bytes memory shouldRebalanceResponse = Address.functionCall(address(fliExtension), shouldRebalanceCalldata, "Failed to execute shouldRebalance()");
         (string[] memory exchangeNames, uint256[] memory shouldRebalances) = abi.decode(shouldRebalanceResponse, (string[], uint256[]));
@@ -49,19 +65,12 @@ contract FliRebalanceKeeper is KeeperCompatibleInterface {
         uint256 shouldRebalance = shouldRebalances[0];
 
         if (shouldRebalance == 1) {
-            bytes memory callData = abi.encodeWithSignature("rebalance(string)", [name]);
-            return (true, callData);
+            return abi.encodeWithSignature("rebalance(string)", [name]);
         } else if (shouldRebalance == 2) {
-            bytes memory callData = abi.encodeWithSignature("iterateRebalance(string)", [name]);
-            return (true, callData);
+            return abi.encodeWithSignature("iterateRebalance(string)", [name]);
         } else if (shouldRebalance == 3) {
-            bytes memory callData = abi.encodeWithSignature("ripcord(string)", [name]);
-            return (true, callData);
+            return abi.encodeWithSignature("ripcord(string)", [name]);
         }
-        return (false, new bytes(0));
-    }
-
-    function performUpkeep(bytes calldata performData) external override {
-        Address.functionCall(address(fliExtension), performData);
+        return new bytes(0);
     }
 }
