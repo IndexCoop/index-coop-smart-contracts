@@ -6,7 +6,7 @@ import { SetToken } from "@utils/contracts/setV2";
 import { ethers } from "hardhat";
 import { utils, BigNumber } from "ethers";
 import { ExchangeIssuanceLeveraged, StandardTokenMock } from "@utils/contracts/index";
-import { IUniswapV2Router } from "../../typechain";
+import { ILeverageModule, IUniswapV2Router } from "../../typechain";
 import { MAX_UINT_256, ZERO } from "@utils/constants";
 
 const expect = getWaffleExpect();
@@ -29,12 +29,14 @@ if (process.env.INTEGRATIONTEST) {
     const controllerAddress: Address = "0x75FBBDEAfE23a48c0736B2731b956b7a03aDcfB2";
     const debtIssuanceModuleAddress: Address = "0xf2dC2f456b98Af9A6bEEa072AF152a7b0EaA40C9";
     const addressProviderAddress: Address = "0xd05e3E715d945B59290df0ae8eF85c1BdB684744";
+    const aaveLeverageModuleAddress: Address = "0xB7F72e15239197021480EB720E1495861A1ABdce";
 
     let owner: Account;
     let eth2xFli: SetToken;
     let weth: StandardTokenMock;
     let deployer: DeployHelper;
     let sushiRouter: IUniswapV2Router;
+    let aaveLeverageModule: ILeverageModule;
 
     let subjectSetToken: Address;
     let subjectSetAmount: BigNumber;
@@ -46,6 +48,11 @@ if (process.env.INTEGRATIONTEST) {
 
       eth2xFli = (await ethers.getContractAt("ISetToken", eth2xFliPAddress)) as SetToken;
       weth = (await ethers.getContractAt("StandardTokenMock", wethAddress)) as StandardTokenMock;
+      aaveLeverageModule = (await ethers.getContractAt(
+        "ILeverageModule",
+        aaveLeverageModuleAddress,
+      )) as ILeverageModule;
+
       sushiRouter = (await ethers.getContractAt(
         "IUniswapV2Router",
         sushiswapRouterAddress,
@@ -54,6 +61,11 @@ if (process.env.INTEGRATIONTEST) {
       subjectSetToken = eth2xFliPAddress;
       subjectSetAmount = utils.parseEther("10000");
       subjectExchange = Exchange.Sushiswap;
+    });
+
+    beforeEach(async () => {
+      // TODO: Check if we should include this call in the Exchange Issuance contract
+      await aaveLeverageModule.sync(eth2xFliPAddress);
     });
 
     it("fli token should return correct components", async () => {
@@ -196,7 +208,6 @@ if (process.env.INTEGRATIONTEST) {
             expect(pricePaid.gt(0)).to.be.true;
             subjectMinAmountOutput = pricePaid.div(2);
             eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
-
           });
           async function subject() {
             return await exchangeIssuance.redeemExactSetForLongToken(
