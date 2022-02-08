@@ -176,6 +176,49 @@ describe("ExchangeIssuanceZeroEx", async () => {
       );
     });
 
+    describe("#removeIssuanceModule()", async () => {
+      let subjectIssuanceModuleAddress: Address;
+      beforeEach(async () => {
+        subjectIssuanceModuleAddress = setV2Setup.issuanceModule.address;
+      });
+      const subject = async () => {
+        await exchangeIssuanceZeroEx.removeIssuanceModule(subjectIssuanceModuleAddress);
+      };
+      it("should succeed", async () => {
+        await subject();
+      });
+      it("should update status correctly", async () => {
+        await subject();
+        const returnedBasicIssuanceModuleData = await exchangeIssuanceZeroEx.allowedIssuanceModules(
+          subjectIssuanceModuleAddress,
+        );
+        expect(returnedBasicIssuanceModuleData[0]).to.eq(false);
+      });
+    });
+
+    describe("#addIssuanceModule()", async () => {
+      let subjectIssuanceModuleAddress: Address;
+      beforeEach(async () => {
+        const newSetV2Setup = getSetFixture(owner.address);
+        await newSetV2Setup.initialize();
+        subjectIssuanceModuleAddress = newSetV2Setup.issuanceModule.address;
+      });
+      const subject = async () => {
+        await exchangeIssuanceZeroEx.addIssuanceModule(subjectIssuanceModuleAddress, false);
+      };
+      it("should succeed", async () => {
+        await subject();
+      });
+      it("should update status correctly", async () => {
+        await subject();
+        const returnedBasicIssuanceModuleData = await exchangeIssuanceZeroEx.allowedIssuanceModules(
+          subjectIssuanceModuleAddress,
+        );
+        expect(returnedBasicIssuanceModuleData[0]).to.eq(true);
+        expect(returnedBasicIssuanceModuleData[1]).to.eq(false);
+      });
+    });
+
     describe("#withdrawTokens()", async () => {
       let subjectTokens: Address[];
       let erc20Amounts: BigNumber[];
