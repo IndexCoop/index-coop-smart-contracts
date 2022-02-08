@@ -957,6 +957,50 @@ describe("ExchangeIssuanceZeroEx", async () => {
               await expect(subject()).to.be.revertedWith("revert");
             });
           });
+
+          context("when the output token is also a component", async () => {
+            beforeEach(async () => {
+              subjectOutputToken = wbtc;
+              subjectAmountSetTokenWei = UnitsUtils.ether(1);
+              subjectOutputTokenAmount = wbtcUnits.mul(2);
+              [
+                components,
+                positions,
+              ] = await exchangeIssuanceZeroEx.getRequiredRedemptionComponents(
+                issuanceModuleAddress,
+                subjectSetToken.address,
+                subjectAmountSetTokenWei,
+              );
+              subjectPositionSwapQuotes = positions.map((position: any, index: number) => {
+                return getUniswapV2Quote(
+                  components[index],
+                  position,
+                  subjectOutputToken.address,
+                  subjectOutputTokenAmount.div(2),
+                );
+              });
+              await wbtc.transfer(zeroExMock.address, subjectOutputTokenAmount);
+            });
+            it("should succeed", async () => {
+              await subject();
+            });
+
+            it("should redeem the correct number of set tokens", async () => {
+              const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
+              await subject();
+              const finalSetBalance = await subjectSetToken.balanceOf(subjectCaller.address);
+              const expectedSetBalance = initialBalanceOfSet.sub(subjectAmountSetTokenWei);
+              expect(finalSetBalance).to.eq(expectedSetBalance);
+            });
+
+            it("should give the correct number of output tokens", async () => {
+              const initialWbtcBalance = await wbtc.balanceOf(subjectCaller.address);
+              await subject();
+              const finalWbtcBalance = await wbtc.balanceOf(subjectCaller.address);
+              const expectedWbtcBalance = initialWbtcBalance.add(subjectOutputTokenAmount);
+              expect(finalWbtcBalance).to.eq(expectedWbtcBalance);
+            });
+          });
         });
         describe("#redeemExactSetForEth", async () => {
           let subjectWethAmount: BigNumber;
