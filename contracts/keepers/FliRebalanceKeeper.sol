@@ -48,15 +48,14 @@ contract FliRebalanceKeeper is KeeperCompatibleInterface {
 
     /**
      * As checkUpkeep is not a view function, calling this function will actually consume gas.
-     * In this case, we skip the checks and if a keeper calls this function, it will always
-     * return true so that performUpkeep will be called.
+     * As such if a keeper calls this function, it will always return true so that performUpkeep will be called.
      */    
     function checkUpkeep(bytes calldata /* checkData */) external override onlyRegistry returns (bool, bytes memory) {
         return (true, new bytes(0));
     }
 
     /**
-     * performUpkeep checks that a rebalance is required, otherwise the contract call will revert.
+     * performUpkeep checks that a rebalance is required. Otherwise the contract call will revert.
      */
     function performUpkeep(bytes calldata /* performData */) external override onlyRegistry {
         Address.functionCall(fliExtension, getRebalanceCalldata());
