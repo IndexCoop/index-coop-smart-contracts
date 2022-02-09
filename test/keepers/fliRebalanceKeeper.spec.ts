@@ -7,14 +7,15 @@ import {
   getWaffleExpect,
 } from "@utils/index";
 import { Account, Address } from "@utils/types";
-import { FliRebalanceKeeper } from "../../typechain/FliRebalanceKeeper";
 import DeployHelper from "@utils/deploys";
-import { ADDRESS_ZERO, EMPTY_BYTES, ZERO_BYTES } from "@utils/constants";
 import { cacheBeforeEach } from "@utils/test";
+import { SetFixture } from "@utils/fixtures";
+import { ADDRESS_ZERO, EMPTY_BYTES, ZERO_BYTES } from "@utils/constants";
+
+import { FliRebalanceKeeper } from "../../typechain/FliRebalanceKeeper";
 import { FlexibleLeverageStrategyExtensionMock } from "../../typechain/FlexibleLeverageStrategyExtensionMock";
 import { BaseManager } from "../../typechain/BaseManager";
 import { SetToken } from "../../typechain/SetToken";
-import { SetFixture } from "@utils/fixtures";
 
 const expect = getWaffleExpect();
 
