@@ -164,7 +164,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _token    Address of the token which needs approval
      */
     function approveToken(IERC20 _token, address _spender) public  isWhitelistedIssuanceModule(_spender) {
-        _safeApprove(_token, _spender, type(uint96).max);
+        _safeApprove(_token, _spender, type(uint256).max);
     }
 
     /**
@@ -384,7 +384,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     function _safeApprove(IERC20 _token, address _spender, uint256 _requiredAllowance) internal {
         uint256 allowance = _token.allowance(address(this), _spender);
         if (allowance < _requiredAllowance) {
-            _token.safeIncreaseAllowance(_spender, type(uint96).max - allowance);
+            _token.safeIncreaseAllowance(_spender, type(uint256).max - allowance);
         }
     }
 
