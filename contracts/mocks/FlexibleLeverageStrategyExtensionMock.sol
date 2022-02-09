@@ -5,7 +5,6 @@ pragma experimental ABIEncoderV2;
 
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { BaseExtension } from "../lib/BaseExtension.sol";
-import "hardhat/console.sol";
 
 contract FlexibleLeverageStrategyExtensionMock is BaseExtension {
 

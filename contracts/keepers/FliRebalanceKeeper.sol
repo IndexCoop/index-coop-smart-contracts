@@ -19,7 +19,6 @@ pragma experimental ABIEncoderV2;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { KeeperCompatibleInterface } from "@chainlink/contracts/src/v0.6/KeeperCompatible.sol";
-import "hardhat/console.sol";
 
 /**
  * @title RebalanceKeeper
