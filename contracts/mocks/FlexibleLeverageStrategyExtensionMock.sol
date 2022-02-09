@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { BaseExtension } from "../lib/BaseExtension.sol";
+import "hardhat/console.sol";
 
 contract FlexibleLeverageStrategyExtensionMock is BaseExtension {
 
@@ -20,6 +21,9 @@ contract FlexibleLeverageStrategyExtensionMock is BaseExtension {
     /* ============ State Variables ============ */
     uint256 public currentLeverageRatio;             // The current leverage ratio
     string public exchangeName;                      // The exchange name
+
+    /* ============ Events ============ */
+    event RebalanceEvent(ShouldRebalance _rebalance);    // A rebalance occurred
 
     /**
      * Instantiate addresses, methodology parameters, execution parameters, and incentive parameters.
@@ -38,19 +42,19 @@ contract FlexibleLeverageStrategyExtensionMock is BaseExtension {
      * @return (string[] memory, ShouldRebalance[] memory)      List of exchange names and a list of enums representing whether that exchange should rebalance
      */
     function shouldRebalance() external view returns (string[] memory, ShouldRebalance[] memory) {
-        ShouldRebalance shouldRebalance = ShouldRebalance.NONE;
+        ShouldRebalance rebalanceStrategy = ShouldRebalance.NONE;
         if (currentLeverageRatio == 1) {
-            shouldRebalance = ShouldRebalance.REBALANCE;
+            rebalanceStrategy = ShouldRebalance.REBALANCE;
         } else if (currentLeverageRatio == 2) {
-            shouldRebalance = ShouldRebalance.ITERATE_REBALANCE;
+            rebalanceStrategy = ShouldRebalance.ITERATE_REBALANCE;
         } else if (currentLeverageRatio == 3) {
-            shouldRebalance = ShouldRebalance.RIPCORD;
+            rebalanceStrategy = ShouldRebalance.RIPCORD;
         }
         string[] memory exchangeNames = new string[](1);
         exchangeNames[0] = exchangeName;
 
         ShouldRebalance[] memory shouldRebalances = new ShouldRebalance[](1);
-        shouldRebalances[0] = shouldRebalance;
+        shouldRebalances[0] = rebalanceStrategy;
         return (exchangeNames, shouldRebalances);
     }
 
@@ -64,7 +68,9 @@ contract FlexibleLeverageStrategyExtensionMock is BaseExtension {
      *
      * @param _exchangeName     the exchange used for trading
      */
-    function rebalance(string memory _exchangeName) external onlyEOA onlyAllowedCaller(msg.sender) {
+    function rebalance(string memory _exchangeName) external onlyAllowedCaller(msg.sender) {
+        require(keccak256(abi.encodePacked(_exchangeName)) == keccak256(abi.encodePacked(exchangeName)), "Exchange names are not equal");
+        emit RebalanceEvent(ShouldRebalance.REBALANCE);
     }
 
     /**
@@ -73,7 +79,9 @@ contract FlexibleLeverageStrategyExtensionMock is BaseExtension {
      *
      * @param _exchangeName     the exchange used for trading
      */
-    function iterateRebalance(string memory _exchangeName) external onlyEOA onlyAllowedCaller(msg.sender) {
+    function iterateRebalance(string memory _exchangeName) external onlyAllowedCaller(msg.sender) {
+        require(keccak256(abi.encodePacked(_exchangeName)) == keccak256(abi.encodePacked(exchangeName)), "Exchange names are not equal");
+        emit RebalanceEvent(ShouldRebalance.ITERATE_REBALANCE);
     }
 
     /**
@@ -84,6 +92,8 @@ contract FlexibleLeverageStrategyExtensionMock is BaseExtension {
      *
      * @param _exchangeName     the exchange used for trading
      */
-    function ripcord(string memory _exchangeName) external onlyEOA { 
+    function ripcord(string memory _exchangeName) external { 
+        require(keccak256(abi.encodePacked(_exchangeName)) == keccak256(abi.encodePacked(exchangeName)), "Exchange names are not equal");
+        emit RebalanceEvent(ShouldRebalance.RIPCORD);
     }
 }

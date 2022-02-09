@@ -66,6 +66,10 @@ describe("fliRebalanceKeeper", async () => {
     );
   };
 
+  const deploySubjectKeeper = async (fliExtension: Address): Promise<FliRebalanceKeeper> => {
+    return deployer.keepers.deployFliRebalanceKeeper(fliExtension, registry.address);
+  };
+
   describe("#constructor", async () => {
     let subjectKeeper: FliRebalanceKeeper;
 
@@ -85,10 +89,6 @@ describe("fliRebalanceKeeper", async () => {
     });
   });
 
-  const deploySubjectKeeper = async (fliExtension: Address): Promise<FliRebalanceKeeper> => {
-    return deployer.keepers.deployFliRebalanceKeeper(fliExtension, registry.address);
-  };
-
   describe("#checkUpkeep", async () => {
     let subjectKeeper: FliRebalanceKeeper;
 
@@ -98,113 +98,57 @@ describe("fliRebalanceKeeper", async () => {
         subjectKeeper = await deploySubjectKeeper(fliExtension.address);
         return subjectKeeper.connect(owner.wallet).checkUpkeep(ZERO_BYTES);
       }
-
       it("should revert when call is not a registry address", async () => {
         await expect(subject()).to.be.revertedWith("Only registry address can call this function");
       });
     });
 
-    context("when leverage ratio is 0", async () => {
-      let subjectLeverageRatio: number;
-      beforeEach(async () => {
-        subjectLeverageRatio = 0;
-        fliExtension = await deployFliExtension(subjectLeverageRatio);
-        subjectKeeper = await deploySubjectKeeper(fliExtension.address);
-      });
-
+    context("when caller is registry", async () => {
       async function subject(): Promise<[boolean, string]> {
+        fliExtension = await deployFliExtension(1);
+        subjectKeeper = await deploySubjectKeeper(fliExtension.address);
         return subjectKeeper.connect(registry.wallet).callStatic.checkUpkeep(ZERO_BYTES);
       }
-
-      it("should return false and empty bytes", async () => {
+      it("should always return true and empty bytes", async () => {
         const response = await subject();
-        expect(response[0]).to.be.false;
-        expect(response[1]).to.equal(EMPTY_BYTES);
-      });
-    });
-
-    context("when leverage ratio is 1", async () => {
-      let subjectLeverageRatio: number;
-      beforeEach(async () => {
-        subjectLeverageRatio = 1;
-        fliExtension = await deployFliExtension(subjectLeverageRatio);
-        subjectKeeper = await deploySubjectKeeper(fliExtension.address);
-      });
-
-      async function subject(): Promise<[boolean, string]> {
-        return subjectKeeper.connect(registry.wallet).callStatic.checkUpkeep(ZERO_BYTES);
-      }
-
-      it("should return true and rebalance(string)", async () => {
-        const expectedCalldata = fliExtension.interface.encodeFunctionData("rebalance", [
-          exchangeName,
-        ]);
-
-        const response = await subject();
-
         expect(response[0]).to.be.true;
-        expect(response[1]).to.eq(expectedCalldata);
-      });
-    });
-
-    context("when leverage ratio is 2", async () => {
-      let subjectLeverageRatio: number;
-
-      beforeEach(async () => {
-        subjectLeverageRatio = 2;
-        fliExtension = await deployFliExtension(subjectLeverageRatio);
-        subjectKeeper = await deploySubjectKeeper(fliExtension.address);
-      });
-
-      async function subject(): Promise<[boolean, string]> {
-        return subjectKeeper.connect(registry.wallet).callStatic.checkUpkeep(ZERO_BYTES);
-      }
-
-      it("should return true and iterateRebalance(string)", async () => {
-        const expectedCalldata = fliExtension.interface.encodeFunctionData("iterateRebalance", [
-          exchangeName,
-        ]);
-
-        const response = await subject();
-
-        expect(response[0]).to.be.true;
-        expect(response[1]).to.eq(expectedCalldata);
-      });
-    });
-
-    context("when leverage ratio is 3", async () => {
-      let subjectLeverageRatio: number;
-      beforeEach(async () => {
-        subjectLeverageRatio = 3;
-        fliExtension = await deployFliExtension(subjectLeverageRatio);
-        subjectKeeper = await deploySubjectKeeper(fliExtension.address);
-      });
-
-      async function subject(): Promise<[boolean, string]> {
-        return subjectKeeper.connect(registry.wallet).callStatic.checkUpkeep(ZERO_BYTES);
-      }
-
-      it("should return true and ripcord(string)", async () => {
-        const expectedCalldata = fliExtension.interface.encodeFunctionData("ripcord", [
-          exchangeName,
-        ]);
-
-        const response = await subject();
-
-        expect(response[0]).to.be.true;
-        expect(response[1]).to.eq(expectedCalldata);
+        expect(response[1]).to.eq(EMPTY_BYTES);
       });
     });
   });
 
   describe("#performUpkeep", async () => {
     let subjectKeeper: FliRebalanceKeeper;
+    let rebalanceCalldata: string;
+
+    async function getRebalanceCalldata(leverageRatio: number): Promise<string> {
+      switch (leverageRatio) {
+        case 1:
+          return fliExtension.interface.encodeFunctionData("rebalance", [exchangeName]);
+        case 2:
+          return fliExtension.interface.encodeFunctionData("iterateRebalance", [exchangeName]);
+        case 3:
+          return fliExtension.interface.encodeFunctionData("ripcord", [exchangeName]);
+        default:
+          return ZERO_BYTES;
+      }
+    }
+
+    async function setup(leverageRatio: number) {
+      fliExtension = await deployFliExtension(leverageRatio);
+      subjectKeeper = await deploySubjectKeeper(fliExtension.address);
+      await fliExtension.updateCallerStatus([subjectKeeper.address], [true]);
+      rebalanceCalldata = await getRebalanceCalldata(leverageRatio);
+    }
 
     context("when caller is not an registry address", async () => {
-      async function subject(): Promise<void> {
-        fliExtension = await deployFliExtension(1);
-        subjectKeeper = await deploySubjectKeeper(fliExtension.address);
-        return subjectKeeper.connect(owner.wallet).callStatic.performUpkeep(ZERO_BYTES);
+      beforeEach(async () => {
+        const leverageRatio = 0;
+        await setup(leverageRatio);
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return subjectKeeper.connect(owner.wallet).performUpkeep(rebalanceCalldata);
       }
 
       it("should revert", async () => {
@@ -212,64 +156,67 @@ describe("fliRebalanceKeeper", async () => {
       });
     });
 
-    context("when arbitrary callData is passed in", async () => {
-      async function subject(): Promise<void> {
-        fliExtension = await deployFliExtension(1);
-        subjectKeeper = await deploySubjectKeeper(fliExtension.address);
-        return subjectKeeper.connect(registry.wallet).callStatic.performUpkeep(ZERO_BYTES);
-      }
-
-      it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Only registry address can call this function");
+    context("when leverage ratio is 0", async () => {
+      beforeEach(async () => {
+        const leverageRatio = 0;
+        await setup(leverageRatio);
       });
-    });
 
-    context("when leverage ratio is 0 and rebalance callData is passed in", async () => {
-      async function subject(): Promise<void> {
-        fliExtension = await deployFliExtension(0);
-        subjectKeeper = await deploySubjectKeeper(fliExtension.address);
-        return subjectKeeper.connect(registry.wallet).callStatic.performUpkeep(ZERO_BYTES);
+      async function subject(): Promise<ContractTransaction> {
+        return subjectKeeper.connect(registry.wallet).performUpkeep(rebalanceCalldata);
       }
 
       it("should revert when call is not a registry address", async () => {
-        await expect(subject()).to.be.revertedWith("Only registry address can call this function");
+        await expect(subject()).to.be.revertedWith("No rebalance required");
       });
     });
 
-    context("when leverage ratio is 1 and rebalance callData is passed in", async () => {
-      async function subject(): Promise<void> {
-        fliExtension = await deployFliExtension(1);
-        subjectKeeper = await deploySubjectKeeper(fliExtension.address);
-        return subjectKeeper.connect(registry.wallet).callStatic.performUpkeep(ZERO_BYTES);
+    context("when leverage ratio is 1", async () => {
+      beforeEach(async () => {
+        const leverageRatio = 1;
+        await setup(leverageRatio);
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return subjectKeeper.connect(registry.wallet).performUpkeep(rebalanceCalldata);
       }
 
-      it("should revert when call is not a registry address", async () => {
-        await expect(subject()).to.be.revertedWith("Only registry address can call this function");
+      it("should call rebalance on fliExtension and emit RebalanceEvent with arg of 1", async () => {
+        await expect(subject()).to.emit(fliExtension, "RebalanceEvent");
       });
     });
 
-    context("when leverage ratio is 2 and rebalance callData is passed in", async () => {
-      async function subject(): Promise<void> {
-        fliExtension = await deployFliExtension(2);
-        subjectKeeper = await deploySubjectKeeper(fliExtension.address);
-        return subjectKeeper.connect(registry.wallet).callStatic.performUpkeep(ZERO_BYTES);
+    context("when leverage ratio is 2", async () => {
+      beforeEach(async () => {
+        const leverageRatio = 2;
+        await setup(leverageRatio);
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return subjectKeeper.connect(registry.wallet).performUpkeep(rebalanceCalldata);
       }
 
-      it("should revert when call is not a registry address", async () => {
-        await expect(subject()).to.be.revertedWith("Only registry address can call this function");
+      it("should call iterateRebalance on fliExtension and emit RebalanceEvent with arg of 2", async () => {
+        await expect(subject())
+          .to.emit(fliExtension, "RebalanceEvent")
+          .withArgs(2);
       });
     });
 
-    context("when leverage ratio is 3 and rebalance callData is passed in", async () => {
-      async function subject(): Promise<void> {
-        fliExtension = await deployFliExtension(3);
-        subjectKeeper = await deploySubjectKeeper(fliExtension.address);
-        const ripcord = await fliExtension.ripcord(exchangeName);
-        return subjectKeeper.connect(registry.wallet).callStatic.performUpkeep(ripcord.data);
+    context("when leverage ratio is 3", async () => {
+      beforeEach(async () => {
+        const leverageRatio = 3;
+        await setup(leverageRatio);
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return subjectKeeper.connect(registry.wallet).performUpkeep(rebalanceCalldata);
       }
 
-      it("should revert when call is not a registry address", async () => {
-        await expect(subject()).to.be.revertedWith("Only registry address can call this function");
+      it("should call ripcord on fliExtension and emit RebalanceEvent with arg of 3", async () => {
+        await expect(subject())
+          .to.emit(fliExtension, "RebalanceEvent")
+          .withArgs(3);
       });
     });
   });

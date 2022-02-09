@@ -19,6 +19,7 @@ pragma experimental ABIEncoderV2;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { KeeperCompatibleInterface } from "@chainlink/contracts/src/v0.6/KeeperCompatible.sol";
+import "hardhat/console.sol";
 
 /**
  * @title RebalanceKeeper
@@ -46,31 +47,35 @@ contract FliRebalanceKeeper is KeeperCompatibleInterface {
         registryAddress = _registryAddress;
     }    
 
+    /**
+     * As checkUpkeep is not a view function, calling this function will actually consume gas.
+     * In this case, we skip the checks and if a keeper calls this function, it will always
+     * return true so that performUpkeep will be called.
+     */    
     function checkUpkeep(bytes calldata /* checkData */) external override onlyRegistry returns (bool, bytes memory) {
-        bytes memory callData = getRebalanceCalldata(); 
-        return (callData.length > 0, callData);
+        return (true, new bytes(0));
     }
 
-    function performUpkeep(bytes calldata performData) external override onlyRegistry {
-        bytes memory callData = getRebalanceCalldata();
-        // require(callData.equals(performData), "Rebalance callData not equal to performData");
-        Address.functionCall(fliExtension, callData);
+    /**
+     * performUpkeep checks that a rebalance is required, otherwise the contract call will revert.
+     */
+    function performUpkeep(bytes calldata /* performData */) external override onlyRegistry {
+        Address.functionCall(fliExtension, getRebalanceCalldata());
     }
 
     function getRebalanceCalldata() private returns (bytes memory) {
         bytes memory shouldRebalanceCalldata = abi.encodeWithSignature("shouldRebalance()");
         bytes memory shouldRebalanceResponse = Address.functionCall(address(fliExtension), shouldRebalanceCalldata, "Failed to execute shouldRebalance()");
         (string[] memory exchangeNames, uint256[] memory shouldRebalances) = abi.decode(shouldRebalanceResponse, (string[], uint256[]));
-        string memory name = exchangeNames[0];
-        uint256 shouldRebalance = shouldRebalances[0];
 
+        uint256 shouldRebalance = shouldRebalances[0];
         if (shouldRebalance == 1) {
-            return abi.encodeWithSignature("rebalance(string)", [name]);
+            return abi.encodeWithSignature("rebalance(string)", exchangeNames[0]);
         } else if (shouldRebalance == 2) {
-            return abi.encodeWithSignature("iterateRebalance(string)", [name]);
+            return abi.encodeWithSignature("iterateRebalance(string)", exchangeNames[0]);
         } else if (shouldRebalance == 3) {
-            return abi.encodeWithSignature("ripcord(string)", [name]);
+            return abi.encodeWithSignature("ripcord(string)", exchangeNames[0]);
         }
-        return new bytes(0);
+        revert("No rebalance required");
     }
 }
