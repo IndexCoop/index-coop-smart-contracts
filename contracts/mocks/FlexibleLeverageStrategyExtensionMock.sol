@@ -58,13 +58,6 @@ contract FlexibleLeverageStrategyExtensionMock is BaseExtension {
     }
 
     /**
-     * ONLY EOA AND ALLOWED CALLER: Rebalance according to flexible leverage methodology. If current leverage ratio is between the max and min bounds, then rebalance
-     * can only be called once the rebalance interval has elapsed since last timestamp. If outside the max and min, rebalance can be called anytime to bring leverage
-     * ratio back to the max or min bounds. The methodology will determine whether to delever or lever.
-     *
-     * Note: If the calculated current leverage ratio is above the incentivized leverage ratio or in TWAP then rebalance cannot be called. Instead, you must call
-     * ripcord() which is incentivized with a reward in Ether or iterateRebalance().
-     *
      * @param _exchangeName     the exchange used for trading
      */
     function rebalance(string memory _exchangeName) external onlyAllowedCaller(msg.sender) {
@@ -73,9 +66,6 @@ contract FlexibleLeverageStrategyExtensionMock is BaseExtension {
     }
 
     /**
-     * ONLY EOA AND ALLOWED CALLER: Iterate a rebalance when in TWAP. TWAP cooldown period must have elapsed. If price moves advantageously, then exit without rebalancing
-     * and clear TWAP state. This function can only be called when below incentivized leverage ratio and in TWAP state.
-     *
      * @param _exchangeName     the exchange used for trading
      */
     function iterateRebalance(string memory _exchangeName) external onlyAllowedCaller(msg.sender) {
@@ -84,10 +74,6 @@ contract FlexibleLeverageStrategyExtensionMock is BaseExtension {
     }
 
     /**
-     * ONLY EOA: In case the current leverage ratio exceeds the incentivized leverage threshold, the ripcord function can be called by anyone to return leverage ratio
-     * back to the max leverage ratio. This function typically would only be called during times of high downside volatility and / or normal keeper malfunctions. The caller
-     * of ripcord() will receive a reward in Ether. The ripcord function uses it's own TWAP cooldown period, slippage tolerance and TWAP max trade size which are typically
-     * looser than in regular rebalances.
      *
      * @param _exchangeName     the exchange used for trading
      */
