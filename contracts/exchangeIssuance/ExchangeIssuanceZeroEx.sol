@@ -162,6 +162,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * rebalance.
      *
      * @param _token    Address of the token which needs approval
+     * @param _spender  Address of the spender which will be approved to spend token. (Must be a whitlisted issuance module)
      */
     function approveToken(IERC20 _token, address _spender) public  isWhitelistedIssuanceModule(_spender) {
         _safeApprove(_token, _spender, type(uint256).max);
@@ -171,6 +172,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * Runs all the necessary approval functions required for a list of ERC20 tokens.
      *
      * @param _tokens    Addresses of the tokens which need approval
+     * @param _spender   Address of the spender which will be approved to spend token. (Must be a whitlisted issuance module)
      */
     function approveTokens(IERC20[] calldata _tokens, address _spender) external {
         for (uint256 i = 0; i < _tokens.length; i++) {
@@ -183,7 +185,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * or redeeming a SetToken. This function need to be called only once before the first time
      * this smart contract is used on any particular SetToken.
      *
-     * @param _setToken    Address of the SetToken being initialized
+     * @param _setToken          Address of the SetToken being initialized
+     * @param _issuanceModule    Address of the issuance module which will be approved to spend component tokens.
      */
     function approveSetToken(ISetToken _setToken, address _issuanceModule) external {
         address[] memory components = _setToken.getComponents();
