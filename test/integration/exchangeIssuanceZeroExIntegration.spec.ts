@@ -18,7 +18,6 @@ type SetTokenScenario = {
   setToken: Address;
   controller: Address;
   issuanceModuleAddress: Address;
-  isDebtIssuanceModule: boolean;
 };
 
 type TokenName = "SimpleToken" | "DPI";
@@ -42,7 +41,6 @@ if (process.env.INTEGRATIONTEST) {
     let dpiAddress: Address;
     let zeroExProxyAddress: Address;
     let controllerAddress: Address;
-    let isDebtIssuanceModule: boolean;
     let issuanceModuleAddress: Address;
 
     // Contract Instances
@@ -68,8 +66,6 @@ if (process.env.INTEGRATIONTEST) {
       exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
         wethAddress,
         controllerAddress,
-        [issuanceModuleAddress],
-        [isDebtIssuanceModule],
         zeroExProxyAddress,
       );
     }
@@ -106,7 +102,6 @@ if (process.env.INTEGRATIONTEST) {
         setToken: simpleSetToken.address,
         controller: setV2Setup.controller.address,
         issuanceModuleAddress: setV2Setup.issuanceModule.address,
-        isDebtIssuanceModule: false,
       };
 
       const dpiToken = simpleSetToken.attach(dpiAddress);
@@ -117,7 +112,6 @@ if (process.env.INTEGRATIONTEST) {
         setToken: dpiAddress,
         controller: dpiController,
         issuanceModuleAddress: dpiIssuanceModule,
-        isDebtIssuanceModule: false,
       };
     });
 
@@ -168,7 +162,6 @@ if (process.env.INTEGRATIONTEST) {
           if (scenario != undefined) {
             controllerAddress = scenario.controller;
             issuanceModuleAddress = scenario.issuanceModuleAddress;
-            isDebtIssuanceModule = scenario.isDebtIssuanceModule;
             setToken = simpleSetToken.attach(scenario.setToken);
           }
         });

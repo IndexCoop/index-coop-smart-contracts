@@ -51,7 +51,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     /* ============ State Variables ============ */
 
     address public immutable WETH;
-    mapping(address => IssuanceModuleData) public allowedIssuanceModules;
 
     IController public immutable setController;
     address public immutable swapTarget;
@@ -76,30 +75,22 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
     /* ============ Modifiers ============ */
 
-    modifier isWhitelistedIssuanceModule(address _issuanceModule) {
-        require(allowedIssuanceModules[_issuanceModule].isAllowed, "ExchangeIssuance: INVALID ISSUANCE MODULE");
+    modifier isValidModule(address _issuanceModule) {
+        require(setController.isModule(_issuanceModule), "ExchangeIssuance: INVALID ISSUANCE MODULE");
          _;
     }
 
     constructor(
         address _weth,
         IController _setController,
-        address[] memory _issuanceModuleAddresses,
-        bool[] memory _issuanceModuleDebtIssuanceFlags,
         address _swapTarget
     )
         public
     {
-        require(_issuanceModuleAddresses.length == _issuanceModuleDebtIssuanceFlags.length, "ExchangeIssuance: ISSUANCE MODULE ADDRESSES / TYPE FLAGS LENGTH MISMATCH");
         setController = _setController;
 
         WETH = _weth;
         swapTarget = _swapTarget;
-
-        for (uint256 i = 0; i < _issuanceModuleAddresses.length; i++) {
-            _addIssuanceModule(_issuanceModuleAddresses[i], _issuanceModuleDebtIssuanceFlags[i]);
-        }
-
     }
 
     /* ============ External Functions ============ */
@@ -128,23 +119,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
 
     /* ============ Public Functions ============ */
 
-    /**
-     * Whitelists an issuance module
-     *
-     * @param _issuanceModule    Struct containing data on issuance module to add
-     */
-    function addIssuanceModule(address _issuanceModule, bool _isDebtIssuanceModule) public onlyOwner {
-        _addIssuanceModule(_issuanceModule, _isDebtIssuanceModule);
-    }
-
-    /**
-     * Removes an issuance module from the whitelist
-     *
-     * @param _issuanceModuleAddress    Address of issuance module to remove
-     */
-    function removeIssuanceModule(address _issuanceModuleAddress) public onlyOwner {
-        _removeIssuanceModule(_issuanceModuleAddress);
-    }
 
     /**
      * Runs all the necessary approval functions required for a given ERC20 token.
@@ -154,7 +128,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _token    Address of the token which needs approval
      * @param _spender  Address of the spender which will be approved to spend token. (Must be a whitlisted issuance module)
      */
-    function approveToken(IERC20 _token, address _spender) public  isWhitelistedIssuanceModule(_spender) {
+    function approveToken(IERC20 _token, address _spender) public  isValidModule(_spender) {
         _safeApprove(_token, _spender, type(uint256).max);
     }
 
@@ -205,7 +179,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         bytes[] memory _componentQuotes,
         address _issuanceModule
     )
-        isWhitelistedIssuanceModule(_issuanceModule)
+        isValidModule(_issuanceModule)
         external
         nonReentrant
         returns (uint256)
@@ -242,7 +216,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         bytes[] memory _componentQuotes,
         address _issuanceModule
     )
-        isWhitelistedIssuanceModule(_issuanceModule)
+        isValidModule(_issuanceModule)
         external
         nonReentrant
         payable
@@ -288,7 +262,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         bytes[] memory _componentQuotes,
         address _issuanceModule
     )
-        isWhitelistedIssuanceModule(_issuanceModule)
+        isValidModule(_issuanceModule)
         external
         nonReentrant
         returns (uint256)
@@ -326,7 +300,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         bytes[] memory _componentQuotes,
         address _issuanceModule
     )
-        isWhitelistedIssuanceModule(_issuanceModule)
+        isValidModule(_issuanceModule)
         external
         nonReentrant
         returns (uint256)
@@ -343,24 +317,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
          
     }
     
-    /**
-     * Whitelists an issuance module
-     *
-     * @param _issuanceModule    Struct containing data on issuance module to add
-     */
-    function _addIssuanceModule(address _issuanceModule, bool _isDebtIssuanceModule) internal {
-        allowedIssuanceModules[_issuanceModule].isAllowed = true;
-        allowedIssuanceModules[_issuanceModule].isDebtIssuanceModule = _isDebtIssuanceModule;
-    }
-
-    /**
-     * Removes an issuance module from the whitelist
-     *
-     * @param _issuanceModuleAddress    Address of issuance module to remove
-     */
-    function _removeIssuanceModule(address _issuanceModuleAddress) internal {
-        allowedIssuanceModules[_issuanceModuleAddress].isAllowed = false;
-    }
 
     /**
      * Sets a max approval limit for an ERC20 token, provided the current allowance
@@ -525,10 +481,12 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _amountSetToken    Amount of set token to issue
      */
     function getRequiredIssuanceComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) public view returns(address[] memory components, uint256[] memory positions) {
-        if(allowedIssuanceModules[_issuanceModule].isDebtIssuanceModule) {
-            (components, positions,) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
-        }
-        else {
+        try IDebtIssuanceModule(_issuanceModule).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken) 
+            returns(address[] memory returnedComponents, uint256[] memory returnedPositions, uint256[] memory debtPositions) {
+                components = returnedComponents;
+                positions = returnedPositions;
+            }
+        catch {
             (components, positions) = IBasicIssuanceModule(_issuanceModule).getRequiredComponentUnitsForIssue(_setToken, _amountSetToken);
         }
 
@@ -542,17 +500,18 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _amountSetToken    Amount of set token to issue
      */
     function getRequiredRedemptionComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) public view returns(address[] memory components, uint256[] memory positions) {
-        if(allowedIssuanceModules[_issuanceModule].isDebtIssuanceModule) {
-            (components, positions,) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
-        }
-        else {
+        try IDebtIssuanceModule(_issuanceModule).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken)
+            returns(address[] memory returnedComponents, uint256[] memory returnedPositions, uint256[] memory debtPositions) {
+                components = returnedComponents;
+                positions = returnedPositions;
+            }
+        catch {
             components = _setToken.getComponents();
             positions = new uint256[](components.length);
             for(uint256 i = 0; i < components.length; i++) {
                 uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
                 positions[i] = unit.preciseMul(_amountSetToken);
             }
-
         }
     }
 

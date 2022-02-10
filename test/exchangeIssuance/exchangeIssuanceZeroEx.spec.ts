@@ -83,27 +83,18 @@ describe("ExchangeIssuanceZeroEx", async () => {
   describe("#constructor", async () => {
     let subjectWethAddress: Address;
     let subjectControllerAddress: Address;
-    let subjectIssuanceModuleAddresses: Address[];
-    let subjectIssuanceModuleDebtModuleFlags: boolean[];
     let subjectSwapTarget: Address;
 
     cacheBeforeEach(async () => {
       subjectWethAddress = weth.address;
       subjectControllerAddress = setV2Setup.controller.address;
       subjectSwapTarget = zeroExMock.address;
-      subjectIssuanceModuleAddresses = [
-        setV2Setup.issuanceModule.address,
-        setV2Setup.debtIssuanceModule.address,
-      ];
-      subjectIssuanceModuleDebtModuleFlags = [false, true];
     });
 
     async function subject(): Promise<ExchangeIssuanceZeroEx> {
       return await deployer.extensions.deployExchangeIssuanceZeroEx(
         subjectWethAddress,
         subjectControllerAddress,
-        subjectIssuanceModuleAddresses,
-        subjectIssuanceModuleDebtModuleFlags,
         subjectSwapTarget,
       );
     }
@@ -116,18 +107,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       const expectedControllerAddress = await exchangeIssuanceContract.setController();
       expect(expectedControllerAddress).to.eq(subjectControllerAddress);
-
-      const returnedBasicIssuanceModuleData = await exchangeIssuanceContract.allowedIssuanceModules(
-        setV2Setup.issuanceModule.address,
-      );
-      expect(returnedBasicIssuanceModuleData[0]).to.eq(true);
-      expect(returnedBasicIssuanceModuleData[1]).to.eq(false);
-
-      const returnedDebtIssuanceModuleData = await exchangeIssuanceContract.allowedIssuanceModules(
-        setV2Setup.debtIssuanceModule.address,
-      );
-      expect(returnedDebtIssuanceModuleData[0]).to.eq(true);
-      expect(returnedDebtIssuanceModuleData[1]).to.eq(true);
 
       const swapTarget = await exchangeIssuanceContract.swapTarget();
       expect(swapTarget).to.eq(subjectSwapTarget);
@@ -160,62 +139,12 @@ describe("ExchangeIssuanceZeroEx", async () => {
       wethAddress = weth.address;
       controllerAddress = setV2Setup.controller.address;
 
-      const issuanceModuleAddresses = [
-        setV2Setup.issuanceModule.address,
-        setV2Setup.debtIssuanceModule.address,
-      ];
-      const issuanceModuleDebtModuleFlags = [false, true];
 
       exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
         wethAddress,
         controllerAddress,
-        issuanceModuleAddresses,
-        issuanceModuleDebtModuleFlags,
         zeroExMock.address,
       );
-    });
-
-    describe("#removeIssuanceModule()", async () => {
-      let subjectIssuanceModuleAddress: Address;
-      beforeEach(async () => {
-        subjectIssuanceModuleAddress = setV2Setup.issuanceModule.address;
-      });
-      const subject = async () => {
-        await exchangeIssuanceZeroEx.removeIssuanceModule(subjectIssuanceModuleAddress);
-      };
-      it("should succeed", async () => {
-        await subject();
-      });
-      it("should update status correctly", async () => {
-        await subject();
-        const returnedBasicIssuanceModuleData = await exchangeIssuanceZeroEx.allowedIssuanceModules(
-          subjectIssuanceModuleAddress,
-        );
-        expect(returnedBasicIssuanceModuleData[0]).to.eq(false);
-      });
-    });
-
-    describe("#addIssuanceModule()", async () => {
-      let subjectIssuanceModuleAddress: Address;
-      beforeEach(async () => {
-        const newSetV2Setup = getSetFixture(owner.address);
-        await newSetV2Setup.initialize();
-        subjectIssuanceModuleAddress = newSetV2Setup.issuanceModule.address;
-      });
-      const subject = async () => {
-        await exchangeIssuanceZeroEx.addIssuanceModule(subjectIssuanceModuleAddress, false);
-      };
-      it("should succeed", async () => {
-        await subject();
-      });
-      it("should update status correctly", async () => {
-        await subject();
-        const returnedBasicIssuanceModuleData = await exchangeIssuanceZeroEx.allowedIssuanceModules(
-          subjectIssuanceModuleAddress,
-        );
-        expect(returnedBasicIssuanceModuleData[0]).to.eq(true);
-        expect(returnedBasicIssuanceModuleData[1]).to.eq(false);
-      });
     });
 
     describe("#withdrawTokens()", async () => {

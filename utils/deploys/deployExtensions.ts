@@ -154,15 +154,11 @@ export default class DeployExtensions {
   public async deployExchangeIssuanceZeroEx(
     wethAddress: Address,
     setControllerAddress: Address,
-    issuanceModuleAddresses: Address[],
-    issuanceModuleDebtModuleFlags: boolean[],
     swapTarget: Address,
   ): Promise<ExchangeIssuanceZeroEx> {
     return await new ExchangeIssuanceZeroEx__factory(this._deployerSigner).deploy(
       wethAddress,
       setControllerAddress,
-      issuanceModuleAddresses,
-      issuanceModuleDebtModuleFlags,
       swapTarget,
     );
   }
