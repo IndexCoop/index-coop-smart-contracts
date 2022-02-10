@@ -48,7 +48,7 @@ The distribution comes with fixtures for mocking and testing interactions with o
 including Uniswap and Compound. To use these you'll need to install the peer dependencies listed in `package.json`.
 
 ```
-npm install @setprotocol/index-coop-contracts
+npm install @indexcoop/index-coop-smart-contracts
 ```
 
 [22]: https://www.npmjs.com/package/hardhat
@@ -72,7 +72,7 @@ The disclosure of security vulnerabilities helps us ensure the security of our u
 **How to report a security vulnerability?**
 
 If you believe you’ve found a security vulnerability in one of our contracts or platforms,
-send it to us by emailing [security@setprotocol.com](mailto:security@setprotocol.com).
+send it to us by emailing [security@indexcoop.com](mailto:security@indexcoop.com).
 Please include the following details with your report:
 
 * A description of the location and potential impact of the vulnerability.
