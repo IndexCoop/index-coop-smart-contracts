@@ -1,5 +1,5 @@
 /*
-    Copyright 2021 Index Cooperative.
+    Copyright 2022 Index Cooperative.
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ pragma experimental ABIEncoderV2;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { KeeperCompatibleInterface } from "@chainlink/contracts/src/v0.6/KeeperCompatible.sol";
+import { IFlexibleLeverageStrategyExtension } from "../interfaces/IFlexibleLeverageStrategyExtension.sol";
 
 /**
  * @title RebalanceKeeper
@@ -37,11 +38,11 @@ contract FliRebalanceKeeper is KeeperCompatibleInterface {
 
     /* ============ State Variables ============ */
 
-    address public fliExtension;                          // Address of the fli extension contract
-    address public registryAddress;                       // Address of the chainlink keeper registry
+    IFlexibleLeverageStrategyExtension public fliExtension;         // Address of the fli extension contract
+    address public registryAddress;                                 // Address of the chainlink keeper registry
 
     /* ============ Constructor ============ */
-    constructor(address _fliExtension, address _registryAddress) public {
+    constructor(IFlexibleLeverageStrategyExtension _fliExtension, address _registryAddress) public {
         fliExtension = _fliExtension;
         registryAddress = _registryAddress;
     }    
@@ -50,30 +51,31 @@ contract FliRebalanceKeeper is KeeperCompatibleInterface {
      * As checkUpkeep is not a view function, calling this function will actually consume gas.
      * As such if a keeper calls this function, it will always return true so that performUpkeep will be called.
      */    
-    function checkUpkeep(bytes calldata /* checkData */) external override onlyRegistry returns (bool, bytes memory) {
-        return (true, new bytes(0));
+    function checkUpkeep(bytes calldata /* checkData */) external override returns (bool, bytes memory) {
+        bytes memory callData = getRebalanceCalldata();
+        return (callData.length > 0, callData);
     }
 
     /**
      * performUpkeep checks that a rebalance is required. Otherwise the contract call will revert.
      */
-    function performUpkeep(bytes calldata /* performData */) external override onlyRegistry {
-        Address.functionCall(fliExtension, getRebalanceCalldata());
+    function performUpkeep(bytes calldata performData) external override onlyRegistry {
+        Address.functionCall(address(fliExtension), performData);
     }
 
     function getRebalanceCalldata() private returns (bytes memory) {
-        bytes memory shouldRebalanceCalldata = abi.encodeWithSignature("shouldRebalance()");
+        bytes memory shouldRebalanceCalldata = abi.encodeWithSelector(fliExtension.shouldRebalance.selector);
         bytes memory shouldRebalanceResponse = Address.functionCall(address(fliExtension), shouldRebalanceCalldata, "Failed to execute shouldRebalance()");
         (string[] memory exchangeNames, uint256[] memory shouldRebalances) = abi.decode(shouldRebalanceResponse, (string[], uint256[]));
 
         uint256 shouldRebalance = shouldRebalances[0];
         if (shouldRebalance == 1) {
-            return abi.encodeWithSignature("rebalance(string)", exchangeNames[0]);
+            return abi.encodeWithSelector(fliExtension.rebalance.selector, exchangeNames[0]);
         } else if (shouldRebalance == 2) {
-            return abi.encodeWithSignature("iterateRebalance(string)", exchangeNames[0]);
+            return abi.encodeWithSelector(fliExtension.iterateRebalance.selector, exchangeNames[0]);
         } else if (shouldRebalance == 3) {
-            return abi.encodeWithSignature("ripcord(string)", exchangeNames[0]);
+            return abi.encodeWithSelector(fliExtension.ripcord.selector, exchangeNames[0]);
         }
-        revert("No rebalance required");
+        return new bytes(0);
     }
 }
