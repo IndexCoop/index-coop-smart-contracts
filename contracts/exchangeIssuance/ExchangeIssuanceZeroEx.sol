@@ -191,11 +191,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     function approveSetToken(ISetToken _setToken, address _issuanceModule) external {
         address[] memory components = _setToken.getComponents();
         for (uint256 i = 0; i < components.length; i++) {
-            // Check that the component does not have external positions
-            require(
-                _setToken.getExternalPositionModules(components[i]).length == 0,
-                "ExchangeIssuance: EXTERNAL_POSITIONS_NOT_ALLOWED"
-            );
             approveToken(IERC20(components[i]), _issuanceModule);
         }
     }

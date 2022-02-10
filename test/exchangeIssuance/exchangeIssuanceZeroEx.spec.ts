@@ -351,18 +351,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
               );
             });
           });
-
-          context("when set token has external positions", async () => {
-            beforeEach(async () => {
-              subjectSetToApprove = setTokenExternal;
-            });
-
-            it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith(
-                "ExchangeIssuance: EXTERNAL_POSITIONS_NOT_ALLOWED",
-              );
-            });
-          });
         });
 
         describe("#receive", async () => {
