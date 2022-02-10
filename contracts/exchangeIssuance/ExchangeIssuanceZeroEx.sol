@@ -51,7 +51,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     /* ============ State Variables ============ */
 
     address public immutable WETH;
-
     IController public immutable setController;
     address public immutable swapTarget;
 
@@ -514,6 +513,4 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
             }
         }
     }
-
-
 }
