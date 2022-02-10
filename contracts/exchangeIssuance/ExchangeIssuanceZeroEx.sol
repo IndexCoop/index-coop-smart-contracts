@@ -54,8 +54,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
     mapping(address => IssuanceModuleData) public allowedIssuanceModules;
 
     IController public immutable setController;
-
-    address public swapTarget;
+    address public immutable swapTarget;
 
     /* ============ Events ============ */
 
@@ -145,15 +144,6 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      */
     function removeIssuanceModule(address _issuanceModuleAddress) public onlyOwner {
         _removeIssuanceModule(_issuanceModuleAddress);
-    }
-
-    /**
-     * Change the _swapTarget
-     *
-     * @param _swapTarget    Address of the swap target contract. (Usually ZeroEx ExchangeProxy)
-     */
-    function setSwapTarget(address _swapTarget) public onlyOwner {
-        swapTarget = _swapTarget;
     }
 
     /**

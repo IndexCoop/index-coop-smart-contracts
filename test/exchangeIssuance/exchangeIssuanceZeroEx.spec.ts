@@ -6,7 +6,6 @@ import {
   cacheBeforeEach,
   ether,
   getAccounts,
-  getRandomAddress,
   getSetFixture,
   getWaffleExpect,
 } from "@utils/index";
@@ -376,22 +375,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
           });
         });
 
-        describe("#setSwapTarget", async () => {
-          let subjectSwapTarget: Address;
-
-          beforeEach(async () => {
-            subjectSwapTarget = await getRandomAddress();
-          });
-
-          async function subject(): Promise<ContractTransaction> {
-            return await exchangeIssuanceZeroEx.setSwapTarget(subjectSwapTarget);
-          }
-          it("should update the swap target correctly", async () => {
-            await subject();
-            const swapTarget = await exchangeIssuanceZeroEx.swapTarget();
-            expect(swapTarget).to.eq(subjectSwapTarget);
-          });
-        });
 
         describe("#approveTokens", async () => {
           let subjectTokensToApprove: (StandardTokenMock | WETH9)[];
