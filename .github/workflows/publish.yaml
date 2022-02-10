@@ -26,7 +26,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     if: ${{ github.ref == 'refs/heads/master' }}
-    needs: [build]
+    needs: [build-and-test]
     steps:
       - uses: actions/checkout@v2
       - name: copy env
