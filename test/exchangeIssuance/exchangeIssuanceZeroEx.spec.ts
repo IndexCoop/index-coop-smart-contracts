@@ -2,13 +2,7 @@ import "module-alias/register";
 import { Address, Account } from "@utils/types";
 import { ADDRESS_ZERO, MAX_UINT_96, MAX_UINT_256, ETH_ADDRESS, ZERO, ONE } from "@utils/constants";
 import { SetToken } from "@utils/contracts/setV2";
-import {
-  cacheBeforeEach,
-  ether,
-  getAccounts,
-  getSetFixture,
-  getWaffleExpect,
-} from "@utils/index";
+import { cacheBeforeEach, ether, getAccounts, getSetFixture, getWaffleExpect } from "@utils/index";
 import DeployHelper from "@utils/deploys";
 import { UnitsUtils } from "@utils/common/unitsUtils";
 import { SetFixture } from "@utils/fixtures";
@@ -138,7 +132,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
       wethAddress = weth.address;
       controllerAddress = setV2Setup.controller.address;
-
 
       exchangeIssuanceZeroEx = await deployer.extensions.deployExchangeIssuanceZeroEx(
         wethAddress,
@@ -304,7 +297,6 @@ describe("ExchangeIssuanceZeroEx", async () => {
           });
         });
 
-
         describe("#approveTokens", async () => {
           let subjectTokensToApprove: (StandardTokenMock | WETH9)[];
           let subjectSpender: Address;
@@ -398,6 +390,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           let subjectAmountSetTokenWei: BigNumber;
           let subjectPositionSwapQuotes: string[];
           let subjectIssuanceModuleAddress: Address;
+          let subjectIsDebtIssuance: boolean;
           let components: Address[];
           let positions: BigNumber[];
 
@@ -409,9 +402,11 @@ describe("ExchangeIssuanceZeroEx", async () => {
             subjectAmountSetToken = 1.123456789123456;
             subjectAmountSetTokenWei = UnitsUtils.ether(subjectAmountSetToken);
             subjectIssuanceModuleAddress = issuanceModuleAddress;
+            subjectIsDebtIssuance = issuanceModuleAddress == setV2Setup.debtIssuanceModule.address;
 
             [components, positions] = await exchangeIssuanceZeroEx.getRequiredIssuanceComponents(
-              issuanceModuleAddress,
+              subjectIssuanceModuleAddress,
+              subjectIsDebtIssuance,
               subjectSetToken.address,
               subjectAmountSetTokenWei,
             );
@@ -450,6 +445,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
                 subjectInputTokenAmount,
                 subjectPositionSwapQuotes,
                 subjectIssuanceModuleAddress,
+                subjectIsDebtIssuance,
               );
           }
 
@@ -607,6 +603,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
           let subjectAmountSetToken: number;
           let subjectAmountSetTokenWei: BigNumber;
           let subjectPositionSwapQuotes: string[];
+          let subjectIssuanceModuleAddress: Address;
+          let subjectIsDebtIssuance: boolean;
           let components: Address[];
           let positions: BigNumber[];
 
@@ -616,12 +614,15 @@ describe("ExchangeIssuanceZeroEx", async () => {
             subjectAmountETHInput = ether(4);
             subjectAmountSetToken = 1.23456789;
             subjectAmountSetTokenWei = UnitsUtils.ether(subjectAmountSetToken);
+            subjectIssuanceModuleAddress = issuanceModuleAddress;
+            subjectIsDebtIssuance = issuanceModuleAddress == setV2Setup.debtIssuanceModule.address;
 
             [
               components,
               positions,
             ] = await exchangeIssuanceZeroEx.callStatic.getRequiredIssuanceComponents(
-              issuanceModuleAddress,
+              subjectIssuanceModuleAddress,
+              subjectIsDebtIssuance,
               subjectSetToken.address,
               subjectAmountSetTokenWei,
             );
@@ -655,7 +656,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
                 subjectSetToken.address,
                 subjectAmountSetTokenWei,
                 subjectPositionSwapQuotes,
-                issuanceModuleAddress,
+                subjectIssuanceModuleAddress,
+                subjectIsDebtIssuance,
                 { value: subjectAmountETHInput },
               );
           }
@@ -776,6 +778,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
           let subjectAmountSetTokenWei: BigNumber;
           let subjectPositionSwapQuotes: string[];
           let subjectIssuanceModuleAddress: Address;
+          let subjectIsDebtIssuance: boolean;
           let components: Address[];
           let positions: BigNumber[];
 
@@ -787,9 +790,11 @@ describe("ExchangeIssuanceZeroEx", async () => {
             subjectAmountSetToken = 1.234567891234;
             subjectAmountSetTokenWei = UnitsUtils.ether(subjectAmountSetToken);
             subjectIssuanceModuleAddress = issuanceModuleAddress;
+            subjectIsDebtIssuance = issuanceModuleAddress == setV2Setup.debtIssuanceModule.address;
 
             [components, positions] = await exchangeIssuanceZeroEx.getRequiredRedemptionComponents(
-              issuanceModuleAddress,
+              subjectIssuanceModuleAddress,
+              subjectIsDebtIssuance,
               subjectSetToken.address,
               subjectAmountSetTokenWei,
             );
@@ -830,6 +835,7 @@ describe("ExchangeIssuanceZeroEx", async () => {
                 subjectOutputTokenAmount,
                 subjectPositionSwapQuotes,
                 subjectIssuanceModuleAddress,
+                subjectIsDebtIssuance,
               );
           }
 
@@ -910,7 +916,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
                 components,
                 positions,
               ] = await exchangeIssuanceZeroEx.getRequiredRedemptionComponents(
-                issuanceModuleAddress,
+                subjectIssuanceModuleAddress,
+                subjectIsDebtIssuance,
                 subjectSetToken.address,
                 subjectAmountSetTokenWei,
               );
@@ -951,6 +958,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
           let subjectAmountSetTokenWei: BigNumber;
           let subjectPositionSwapQuotes: string[];
           let subjectSetToken: SetToken;
+          let subjectIssuanceModuleAddress: Address;
+          let subjectIsDebtIssuance: boolean;
           let components: Address[];
           let positions: BigNumber[];
 
@@ -959,12 +968,15 @@ describe("ExchangeIssuanceZeroEx", async () => {
             subjectAmountSetToken = 1.234567891234;
             subjectAmountSetTokenWei = UnitsUtils.ether(subjectAmountSetToken);
             subjectSetToken = setToken;
+            subjectIssuanceModuleAddress = issuanceModuleAddress;
+            subjectIsDebtIssuance = issuanceModuleAddress == setV2Setup.debtIssuanceModule.address;
 
             [
               components,
               positions,
             ] = await exchangeIssuanceZeroEx.callStatic.getRequiredRedemptionComponents(
-              issuanceModuleAddress,
+              subjectIssuanceModuleAddress,
+              subjectIsDebtIssuance,
               subjectSetToken.address,
               subjectAmountSetTokenWei,
             );
@@ -997,7 +1009,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
               subjectAmountSetTokenWei,
               subjectWethAmount,
               subjectPositionSwapQuotes,
-              issuanceModuleAddress,
+              subjectIssuanceModuleAddress,
+              subjectIsDebtIssuance,
             );
           }
 

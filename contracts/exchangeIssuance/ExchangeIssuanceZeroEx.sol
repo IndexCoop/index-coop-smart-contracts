@@ -176,7 +176,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 _amountSetToken,
         uint256 _maxAmountInputToken,
         bytes[] memory _componentQuotes,
-        address _issuanceModule
+        address _issuanceModule,
+        bool _isDebtIssuance
     )
         isValidModule(_issuanceModule)
         external
@@ -187,7 +188,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         _inputToken.safeTransferFrom(msg.sender, address(this), _maxAmountInputToken);
         _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
 
-        uint256 totalInputTokenSold = _buyComponentsForInputToken(_setToken, _amountSetToken,  _componentQuotes, _inputToken, _issuanceModule);
+        uint256 totalInputTokenSold = _buyComponentsForInputToken(_setToken, _amountSetToken,  _componentQuotes, _inputToken, _issuanceModule, _isDebtIssuance);
         require(totalInputTokenSold <= _maxAmountInputToken, "ExchangeIssuance: OVERSPENT TOKEN");
 
         IBasicIssuanceModule(_issuanceModule).issue(_setToken, _amountSetToken, msg.sender);
@@ -213,7 +214,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         ISetToken _setToken,
         uint256 _amountSetToken,
         bytes[] memory _componentQuotes,
-        address _issuanceModule
+        address _issuanceModule,
+        bool _isDebtIssuance
     )
         isValidModule(_issuanceModule)
         external
@@ -226,7 +228,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         IWETH(WETH).deposit{value: msg.value}();
         _safeApprove(IERC20(WETH), swapTarget, msg.value);
 
-        uint256 totalEthSold = _buyComponentsForInputToken(_setToken, _amountSetToken, _componentQuotes, IERC20(WETH), _issuanceModule);
+        uint256 totalEthSold = _buyComponentsForInputToken(_setToken, _amountSetToken, _componentQuotes, IERC20(WETH), _issuanceModule, _isDebtIssuance);
 
         require(totalEthSold <= msg.value, "ExchangeIssuance: OVERSPENT ETH");
         IBasicIssuanceModule(_issuanceModule).issue(_setToken, _amountSetToken, msg.sender);
@@ -250,6 +252,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _amountSetToken       Amount SetTokens to redeem
      * @param _minOutputReceive     Minimum amount of output token to receive
      * @param _componentQuotes      The encoded 0x transactions execute (components -> WETH).
+     * @param _issuanceModule       Address of issuance Module to use 
+     * @param _isDebtIssuance       Flag indicating wether given issuance module is a debt issuance module
      *
      * @return outputAmount         Amount of output tokens sent to the caller
      */
@@ -259,7 +263,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 _amountSetToken,
         uint256 _minOutputReceive,
         bytes[] memory _componentQuotes,
-        address _issuanceModule
+        address _issuanceModule,
+        bool _isDebtIssuance
     )
         isValidModule(_issuanceModule)
         external
@@ -270,7 +275,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 outputAmount;
         _redeemExactSet(_setToken, _amountSetToken, _issuanceModule);
 
-        outputAmount = _sellComponentsForOutputToken(_setToken, _amountSetToken, _componentQuotes, _outputToken, _issuanceModule);
+        outputAmount = _sellComponentsForOutputToken(_setToken, _amountSetToken, _componentQuotes, _outputToken, _issuanceModule, _isDebtIssuance);
         require(outputAmount >= _minOutputReceive, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
 
         // Transfer sender output token
@@ -289,6 +294,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _amountSetToken       Amount SetTokens to redeem
      * @param _minEthReceive        Minimum amount of Eth to receive
      * @param _componentQuotes      The encoded 0x transactions execute
+     * @param _issuanceModule       Address of issuance Module to use 
+     * @param _isDebtIssuance       Flag indicating wether given issuance module is a debt issuance module
      *
      * @return outputAmount         Amount of output tokens sent to the caller
      */
@@ -297,7 +304,8 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 _amountSetToken,
         uint256 _minEthReceive,
         bytes[] memory _componentQuotes,
-        address _issuanceModule
+        address _issuanceModule,
+        bool _isDebtIssuance
     )
         isValidModule(_issuanceModule)
         external
@@ -305,7 +313,7 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         returns (uint256)
     {
         _redeemExactSet(_setToken, _amountSetToken, _issuanceModule);
-        uint ethAmount = _sellComponentsForOutputToken(_setToken, _amountSetToken, _componentQuotes, IERC20(WETH), _issuanceModule);
+        uint ethAmount = _sellComponentsForOutputToken(_setToken, _amountSetToken, _componentQuotes, IERC20(WETH), _issuanceModule, _isDebtIssuance);
         require(ethAmount >= _minEthReceive, "ExchangeIssuance: INSUFFICIENT WETH RECEIVED");
 
         IWETH(WETH).withdraw(ethAmount);
@@ -349,14 +357,15 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
         uint256 _amountSetToken,
         bytes[] memory _quotes,
         IERC20 _inputToken,
-        address _issuanceModule
+        address _issuanceModule,
+        bool _isDebtIssuance
     ) 
     internal
     returns (uint256 totalInputTokenSold)
     {
         uint256 componentAmountBought;
 
-        (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(_issuanceModule, _setToken, _amountSetToken);
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(_issuanceModule, _isDebtIssuance, _setToken, _amountSetToken);
 
         uint256 inputTokenBalanceBefore = _inputToken.balanceOf(address(this));
         for (uint256 i = 0; i < components.length; i++) {
@@ -387,14 +396,16 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * @param _amountSetToken       The amount of set token being swapped.
      * @param _swaps                An array containing ZeroExSwap swaps.
      * @param _outputToken          The token for which to sell the index components must be the same as the buyToken that was specified when generating the swaps
+     * @param _issuanceModule    Address of issuance Module to use 
+     * @param _isDebtIssuance    Flag indicating wether given issuance module is a debt issuance module
      *
      * @return totalOutputTokenBought  Total amount of output token received after liquidating all SetToken components
      */
-    function _sellComponentsForOutputToken(ISetToken _setToken, uint256 _amountSetToken, bytes[] memory _swaps, IERC20 _outputToken, address _issuanceModule)
+    function _sellComponentsForOutputToken(ISetToken _setToken, uint256 _amountSetToken, bytes[] memory _swaps, IERC20 _outputToken, address _issuanceModule, bool _isDebtIssuance)
         internal
         returns (uint256 totalOutputTokenBought)
     {
-        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(_issuanceModule, _setToken, _amountSetToken);
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(_issuanceModule, _isDebtIssuance, _setToken, _amountSetToken);
         uint256 outputTokenBalanceBefore = _outputToken.balanceOf(address(this));
         for (uint256 i = 0; i < _swaps.length; i++) {
             uint256 maxAmountSell = componentUnits[i];
@@ -476,16 +487,15 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * Returns component positions required for issuance 
      *
      * @param _issuanceModule    Address of issuance Module to use 
+     * @param _isDebtIssuance    Flag indicating wether given issuance module is a debt issuance module
      * @param _setToken          Set token to issue
      * @param _amountSetToken    Amount of set token to issue
      */
-    function getRequiredIssuanceComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) public view returns(address[] memory components, uint256[] memory positions) {
-        try IDebtIssuanceModule(_issuanceModule).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken) 
-            returns(address[] memory returnedComponents, uint256[] memory returnedPositions, uint256[] memory debtPositions) {
-                components = returnedComponents;
-                positions = returnedPositions;
-            }
-        catch {
+    function getRequiredIssuanceComponents(address _issuanceModule, bool _isDebtIssuance, ISetToken _setToken, uint256 _amountSetToken) public view returns(address[] memory components, uint256[] memory positions) {
+        if(_isDebtIssuance) { 
+            (components, positions, ) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
+        }
+        else {
             (components, positions) = IBasicIssuanceModule(_issuanceModule).getRequiredComponentUnitsForIssue(_setToken, _amountSetToken);
         }
 
@@ -495,16 +505,15 @@ contract ExchangeIssuanceZeroEx is Ownable, ReentrancyGuard {
      * Returns component positions required for Redemption 
      *
      * @param _issuanceModule    Address of issuance Module to use 
+     * @param _isDebtIssuance    Flag indicating wether given issuance module is a debt issuance module
      * @param _setToken          Set token to issue
      * @param _amountSetToken    Amount of set token to issue
      */
-    function getRequiredRedemptionComponents(address _issuanceModule, ISetToken _setToken, uint256 _amountSetToken) public view returns(address[] memory components, uint256[] memory positions) {
-        try IDebtIssuanceModule(_issuanceModule).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken)
-            returns(address[] memory returnedComponents, uint256[] memory returnedPositions, uint256[] memory debtPositions) {
-                components = returnedComponents;
-                positions = returnedPositions;
-            }
-        catch {
+    function getRequiredRedemptionComponents(address _issuanceModule, bool _isDebtIssuance, ISetToken _setToken, uint256 _amountSetToken) public view returns(address[] memory components, uint256[] memory positions) {
+        if(_isDebtIssuance) { 
+            (components, positions, ) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
+        }
+        else {
             components = _setToken.getComponents();
             positions = new uint256[](components.length);
             for(uint256 i = 0; i < components.length; i++) {
