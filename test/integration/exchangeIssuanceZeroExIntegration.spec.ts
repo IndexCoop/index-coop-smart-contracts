@@ -18,6 +18,7 @@ type SetTokenScenario = {
   setToken: Address;
   controller: Address;
   issuanceModuleAddress: Address;
+  isDebtIssuance: boolean;
 };
 
 type TokenName = "SimpleToken" | "DPI";
@@ -42,6 +43,7 @@ if (process.env.INTEGRATIONTEST) {
     let zeroExProxyAddress: Address;
     let controllerAddress: Address;
     let issuanceModuleAddress: Address;
+    let isDebtIssuance: boolean;
 
     // Contract Instances
     let wbtc: StandardTokenMock;
@@ -102,6 +104,7 @@ if (process.env.INTEGRATIONTEST) {
         setToken: simpleSetToken.address,
         controller: setV2Setup.controller.address,
         issuanceModuleAddress: setV2Setup.issuanceModule.address,
+        isDebtIssuance: false,
       };
 
       const dpiToken = simpleSetToken.attach(dpiAddress);
@@ -112,6 +115,7 @@ if (process.env.INTEGRATIONTEST) {
         setToken: dpiAddress,
         controller: dpiController,
         issuanceModuleAddress: dpiIssuanceModule,
+        isDebtIssuance: false,
       };
     });
 
@@ -162,6 +166,7 @@ if (process.env.INTEGRATIONTEST) {
           if (scenario != undefined) {
             controllerAddress = scenario.controller;
             issuanceModuleAddress = scenario.issuanceModuleAddress;
+            isDebtIssuance = scenario.isDebtIssuance;
             setToken = simpleSetToken.attach(scenario.setToken);
           }
         });
@@ -277,6 +282,7 @@ if (process.env.INTEGRATIONTEST) {
                     subjectInputTokenAmount,
                     subjectPositionSwapQuotes,
                     issuanceModuleAddress,
+                    isDebtIssuance,
                   );
               }
 
@@ -374,6 +380,7 @@ if (process.env.INTEGRATIONTEST) {
                     subjectOutputTokenAmount,
                     subjectPositionSwapQuotes,
                     issuanceModuleAddress,
+                    isDebtIssuance,
                   );
               }
               beforeEach(async () => {
