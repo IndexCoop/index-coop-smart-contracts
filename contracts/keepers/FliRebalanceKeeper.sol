@@ -20,6 +20,7 @@ pragma experimental ABIEncoderV2;
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { KeeperCompatibleInterface } from "@chainlink/contracts/src/v0.6/KeeperCompatible.sol";
 import { IFlexibleLeverageStrategyExtension } from "../interfaces/IFlexibleLeverageStrategyExtension.sol";
+import "hardhat/console.sol";
 
 /**
  * @title RebalanceKeeper
@@ -60,6 +61,7 @@ contract FliRebalanceKeeper is KeeperCompatibleInterface {
      * performUpkeep checks that a rebalance is required. Otherwise the contract call will revert.
      */
     function performUpkeep(bytes calldata performData) external override onlyRegistry {
+        require(performData.length > 0, "Invalid performData");
         Address.functionCall(address(fliExtension), performData);
     }
 
