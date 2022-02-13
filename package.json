@@ -1,7 +1,7 @@
 {
   "name": "@indexcoop/index-coop-smart-contracts",
-  "version": "0.0.29",
-  "description": "",
+  "version": "0.0.30",
+  "description": "IndexCoop smart contracts",
   "main": "dist",
   "types": "dist/types",
   "files": [
