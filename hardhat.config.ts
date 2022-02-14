@@ -11,13 +11,15 @@ import "./tasks";
 
 const forkingConfig = {
   url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
-  blockNumber: 11649166,
+  blockNumber: process.env.LATESTBLOCK ? undefined : 11649166,
 };
+
+const INTEGRATIONTEST_TIMEOUT = 600000;
 
 const mochaConfig = {
   grep: "@forked-network",
-  invert: (process.env.FORK) ? false : true,
-  timeout: (process.env.FORK) ? 50000 : 40000,
+  invert: process.env.FORK ? false : true,
+  timeout: process.env.INTEGRATIONTEST ? INTEGRATIONTEST_TIMEOUT : process.env.FORK ? 50000 : 40000,
 } as Mocha.MochaOptions;
 
 const config: HardhatUserConfig = {
@@ -32,15 +34,19 @@ const config: HardhatUserConfig = {
   },
   networks: {
     hardhat: {
-      forking: (process.env.FORK) ? forkingConfig : undefined,
+      forking: process.env.FORK ? forkingConfig : undefined,
       accounts: getHardhatPrivateKeys(),
       gas: 12000000,
       blockGasLimit: 12000000,
+      // @ts-ignore
+      timeout: INTEGRATIONTEST_TIMEOUT,
+      initialBaseFeePerGas: 0,
     },
     localhost: {
       url: "http://127.0.0.1:8545",
       gas: 12000000,
       blockGasLimit: 12000000,
+      timeout:  INTEGRATIONTEST_TIMEOUT,
     },
     kovan: {
       url: "https://kovan.infura.io/v3/" + process.env.INFURA_TOKEN,
@@ -61,7 +67,7 @@ const config: HardhatUserConfig = {
 };
 
 function getHardhatPrivateKeys() {
-  return privateKeys.map(key => {
+  return privateKeys.map((key) => {
     const TEN_MILLION_ETH = "10000000000000000000000000";
     return {
       privateKey: key,

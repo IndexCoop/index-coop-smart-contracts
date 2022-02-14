@@ -478,7 +478,7 @@ describe("ExchangeIssuanceV2", async () => {
       context("when input erc20 token is weth", async () => {
         cacheBeforeEach(async () => {
           subjectInputToken = weth;
-          await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+          await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
         });
 
         it("should issue the correct amount of Set to the caller", async () => {
@@ -641,8 +641,8 @@ describe("ExchangeIssuanceV2", async () => {
 
       cacheBeforeEach(async () => {
         initializeSubjectVariables();
-        await exchangeIssuance.approveSetToken(subjectSetToken.address, { gasPrice: 0 });
-        await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+        await exchangeIssuance.approveSetToken(subjectSetToken.address, { gasPrice: 9 });
+        await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
       });
 
       beforeEach(initializeSubjectVariables);
@@ -653,7 +653,7 @@ describe("ExchangeIssuanceV2", async () => {
           subjectInputToken.address,
           subjectAmountSetToken,
           subjectMaxAmountInput,
-          { gasPrice: 0 }
+          { gasPrice: 9 }
         );
       }
 
@@ -736,7 +736,7 @@ describe("ExchangeIssuanceV2", async () => {
 
         cacheBeforeEach(async () => {
           initializeSubjectVariables();
-          await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+          await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
         });
 
         beforeEach(initializeSubjectVariables);
@@ -854,8 +854,8 @@ describe("ExchangeIssuanceV2", async () => {
           subjectSetToken = setTokenWithWeth;
           subjectAmountSetToken = ether(0.00001);
 
-          await exchangeIssuance.approveSetToken(subjectSetToken.address, { gasPrice: 0 });
-          await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+          await exchangeIssuance.approveSetToken(subjectSetToken.address, { gasPrice: 9 });
+          await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
         });
 
         it("should issue the correct amount of Set to the caller", async () => {
@@ -963,8 +963,8 @@ describe("ExchangeIssuanceV2", async () => {
         beforeEach(async () => {
           subjectSetToken = setTokenIlliquid;
 
-          await exchangeIssuance.approveSetToken(subjectSetToken.address, { gasPrice: 0 });
-          await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+          await exchangeIssuance.approveSetToken(subjectSetToken.address, { gasPrice: 9 });
+          await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
         });
 
         it("should revert", async () => {
@@ -1018,7 +1018,7 @@ describe("ExchangeIssuanceV2", async () => {
         // acquire set tokens to redeem
         await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
         await exchangeIssuance.approveSetToken(subjectSetToken.address);
-        await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+        await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
       });
 
       beforeEach(initializeSubjectVariables);
@@ -1029,7 +1029,7 @@ describe("ExchangeIssuanceV2", async () => {
           subjectOutputToken.address,
           subjectAmountSetToken,
           subjectMinTokenReceived,
-          { gasPrice: 0 }
+          { gasPrice: 9 }
         );
       }
 
@@ -1160,7 +1160,7 @@ describe("ExchangeIssuanceV2", async () => {
           initializeSubjectVariables();
           await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
           await exchangeIssuance.approveSetToken(subjectSetToken.address);
-          await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+          await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
         });
 
         beforeEach(initializeSubjectVariables);
@@ -1232,7 +1232,7 @@ describe("ExchangeIssuanceV2", async () => {
           subjectSetToken = setTokenIlliquid;
           await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
           await exchangeIssuance.approveSetToken(subjectSetToken.address);
-          await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+          await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
         });
 
         it("should revert", async () => {

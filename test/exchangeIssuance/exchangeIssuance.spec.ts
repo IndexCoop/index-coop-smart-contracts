@@ -29,10 +29,9 @@ import {
   getIssueSetForExactETH,
   getRedeemExactSetForETH,
 } from "@utils/common/exchangeIssuanceUtils";
-
+import { getTxFee } from "@utils/test";
 
 const expect = getWaffleExpect();
-
 
 describe("ExchangeIssuance", async () => {
   let owner: Account;
@@ -499,7 +498,9 @@ describe("ExchangeIssuance", async () => {
       context("when input erc20 token is weth", async () => {
         cacheBeforeEach(async () => {
           subjectInputToken = weth;
-          await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+          await subjectInputToken
+            .connect(subjectCaller.wallet)
+            .approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
         });
 
         it("should issue the correct amount of Set to the caller", async () => {
@@ -666,11 +667,12 @@ describe("ExchangeIssuance", async () => {
       beforeEach(initializeSubjectVariables);
 
       async function subject(): Promise<ContractTransaction> {
-        return await exchangeIssuance.connect(subjectCaller.wallet).issueSetForExactETH(
-          subjectSetToken.address,
-          subjectMinSetReceive,
-          { value: subjectAmountETHInput, gasPrice: 0 }
-        );
+        return await exchangeIssuance
+          .connect(subjectCaller.wallet)
+          .issueSetForExactETH(subjectSetToken.address, subjectMinSetReceive, {
+            value: subjectAmountETHInput,
+            gasPrice: 9,
+          });
       }
 
       it("should issue the correct amount of Set to the caller", async () => {
@@ -695,10 +697,13 @@ describe("ExchangeIssuance", async () => {
       it("should use the correct amount of ether from the caller", async () => {
         const initialBalanceOfEth = await user.wallet.getBalance();
 
-        await subject();
+        const tx = await subject();
+        const transactionFee = await getTxFee(tx);
+        const expectedEthBalance = initialBalanceOfEth
+          .sub(subjectAmountETHInput)
+          .sub(transactionFee);
 
         const finalEthBalance = await user.wallet.getBalance();
-        const expectedEthBalance = initialBalanceOfEth.sub(subjectAmountETHInput);
         expect(finalEthBalance).to.eq(expectedEthBalance);
       });
 
@@ -771,20 +776,24 @@ describe("ExchangeIssuance", async () => {
 
       cacheBeforeEach(async () => {
         initializeSubjectVariables();
-        await exchangeIssuance.approveSetToken(subjectSetToken.address, { gasPrice: 0 });
-        await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+        await exchangeIssuance.approveSetToken(subjectSetToken.address, { gasPrice: 9 });
+        await subjectInputToken
+          .connect(subjectCaller.wallet)
+          .approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
       });
 
       beforeEach(initializeSubjectVariables);
 
       async function subject(): Promise<ContractTransaction> {
-        return await exchangeIssuance.connect(subjectCaller.wallet).issueExactSetFromToken(
-          subjectSetToken.address,
-          subjectInputToken.address,
-          subjectAmountSetToken,
-          subjectMaxAmountInput,
-          { gasPrice: 0 }
-        );
+        return await exchangeIssuance
+          .connect(subjectCaller.wallet)
+          .issueExactSetFromToken(
+            subjectSetToken.address,
+            subjectInputToken.address,
+            subjectAmountSetToken,
+            subjectMaxAmountInput,
+            { gasPrice: 9 },
+          );
       }
 
       it("should issue the correct amount of Set to the caller", async () => {
@@ -821,10 +830,11 @@ describe("ExchangeIssuance", async () => {
           weth.address
         );
 
-        await subject();
+        const tx = await subject();
+        const transactionFee = await getTxFee(tx);
+        const expectedEthBalance = initialBalanceOfEth.add(expectedRefund).sub(transactionFee);
 
         const finalEthBalance = await subjectCaller.wallet.getBalance();
-        const expectedEthBalance = initialBalanceOfEth.add(expectedRefund);
         expect(finalEthBalance).to.eq(expectedEthBalance);
       });
 
@@ -866,7 +876,9 @@ describe("ExchangeIssuance", async () => {
 
         cacheBeforeEach(async () => {
           initializeSubjectVariables();
-          await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+          await subjectInputToken
+            .connect(subjectCaller.wallet)
+            .approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
         });
 
         beforeEach(initializeSubjectVariables);
@@ -905,10 +917,11 @@ describe("ExchangeIssuance", async () => {
             weth.address
           );
 
-          await subject();
+          const tx = await subject();
+          const transactionFee = await getTxFee(tx);
+          const expectedEthBalance = initialBalanceOfEth.add(expectedRefund).sub(transactionFee);
 
           const finalEthBalance = await subjectCaller.wallet.getBalance();
-          const expectedEthBalance = initialBalanceOfEth.add(expectedRefund);
           expect(finalEthBalance).to.eq(expectedEthBalance);
         });
 
@@ -969,8 +982,10 @@ describe("ExchangeIssuance", async () => {
           subjectSetToken = setTokenWithWeth;
           subjectAmountSetToken = ether(0.00001);
 
-          await exchangeIssuance.approveSetToken(subjectSetToken.address, { gasPrice: 0 });
-          await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+          await exchangeIssuance.approveSetToken(subjectSetToken.address, { gasPrice: 9 });
+          await subjectInputToken
+            .connect(subjectCaller.wallet)
+            .approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
         });
 
         it("should issue the correct amount of Set to the caller", async () => {
@@ -1007,11 +1022,12 @@ describe("ExchangeIssuance", async () => {
             weth.address
           );
 
-          await subject();
+          const tx = await subject();
+          const transactionFee = await getTxFee(tx);
+          const expectedEthBalance = initialBalanceOfEth.add(expectedRefund).sub(transactionFee);
 
           const finalEthBalance = await subjectCaller.wallet.getBalance();
-          const expectedBalance = initialBalanceOfEth.add(expectedRefund);
-          expect(finalEthBalance).to.eq(expectedBalance);
+          expect(finalEthBalance).to.eq(expectedEthBalance);
         });
 
         it("emits an ExchangeIssue log", async () => {
@@ -1078,8 +1094,10 @@ describe("ExchangeIssuance", async () => {
         beforeEach(async () => {
           subjectSetToken = setTokenIlliquid;
 
-          await exchangeIssuance.approveSetToken(subjectSetToken.address, { gasPrice: 0 });
-          await subjectInputToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+          await exchangeIssuance.approveSetToken(subjectSetToken.address, { gasPrice: 9 });
+          await subjectInputToken
+            .connect(subjectCaller.wallet)
+            .approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
         });
 
         it("should revert", async () => {
@@ -1119,11 +1137,12 @@ describe("ExchangeIssuance", async () => {
       beforeEach(initializeSubjectVariables);
 
       async function subject(): Promise<ContractTransaction> {
-        return await exchangeIssuance.connect(subjectCaller.wallet).issueExactSetFromETH(
-          subjectSetToken.address,
-          subjectAmountSetToken,
-          { value: subjectAmountETHInput, gasPrice: 0 }
-        );
+        return await exchangeIssuance
+          .connect(subjectCaller.wallet)
+          .issueExactSetFromETH(subjectSetToken.address, subjectAmountSetToken, {
+            value: subjectAmountETHInput,
+            gasPrice: 9,
+          });
       }
 
       it("should issue the correct amount of Set to the caller", async () => {
@@ -1148,10 +1167,11 @@ describe("ExchangeIssuance", async () => {
           weth.address
         );
 
-        await subject();
+        const tx = await subject();
+        const transactionFee = await getTxFee(tx);
+        const expectedEthBalance = initialBalanceOfEth.sub(expectedCost).sub(transactionFee);
 
         const finalEthBalance = await user.wallet.getBalance();
-        const expectedEthBalance = initialBalanceOfEth.sub(expectedCost);
         expect(finalEthBalance).to.eq(expectedEthBalance);
       });
 
@@ -1281,18 +1301,22 @@ describe("ExchangeIssuance", async () => {
         initializeSubjectVariables();
         await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
         await exchangeIssuance.approveSetToken(subjectSetToken.address);
-        await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+        await subjectSetToken
+          .connect(subjectCaller.wallet)
+          .approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
       });
 
       beforeEach(initializeSubjectVariables);
 
       async function subject(): Promise<ContractTransaction> {
-        return await exchangeIssuance.connect(subjectCaller.wallet).redeemExactSetForETH(
-          subjectSetToken.address,
-          subjectAmountSetToken,
-          subjectMinEthReceived,
-          { gasPrice: 0 }
-        );
+        return await exchangeIssuance
+          .connect(subjectCaller.wallet)
+          .redeemExactSetForETH(
+            subjectSetToken.address,
+            subjectAmountSetToken,
+            subjectMinEthReceived,
+            { gasPrice: 9 },
+          );
       }
 
       it("should redeem the correct amount of a set to the caller", async () => {
@@ -1317,10 +1341,11 @@ describe("ExchangeIssuance", async () => {
           weth.address
         );
 
-        await subject();
+        const tx = await subject();
+        const transactionFee = await getTxFee(tx);
+        const expectedEthBalance = initialBalanceOfEth.add(expectedEthReturned).sub(transactionFee);
 
         const finalEthBalance = await subjectCaller.wallet.getBalance();
-        const expectedEthBalance = initialBalanceOfEth.add(expectedEthReturned);
         expect(finalEthBalance).to.eq(expectedEthBalance);
       });
 
@@ -1370,7 +1395,9 @@ describe("ExchangeIssuance", async () => {
 
           await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
           await exchangeIssuance.approveSetToken(subjectSetToken.address);
-          await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+          await subjectSetToken
+            .connect(subjectCaller.wallet)
+            .approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
         });
 
         it("should revert", async () => {
@@ -1397,21 +1424,29 @@ describe("ExchangeIssuance", async () => {
       cacheBeforeEach(async () => {
         initializeSubjectVariables();
         // acquire set tokens to redeem
-        await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
+        await setV2Setup.approveAndIssueSetToken(
+          subjectSetToken,
+          subjectAmountSetToken,
+          subjectCaller.address,
+        );
         await exchangeIssuance.approveSetToken(subjectSetToken.address);
-        await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+        await subjectSetToken
+          .connect(subjectCaller.wallet)
+          .approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
       });
 
       beforeEach(initializeSubjectVariables);
 
       async function subject(): Promise<ContractTransaction> {
-        return await exchangeIssuance.connect(subjectCaller.wallet).redeemExactSetForToken(
-          subjectSetToken.address,
-          subjectOutputToken.address,
-          subjectAmountSetToken,
-          subjectMinTokenReceived,
-          { gasPrice: 0 }
-        );
+        return await exchangeIssuance
+          .connect(subjectCaller.wallet)
+          .redeemExactSetForToken(
+            subjectSetToken.address,
+            subjectOutputToken.address,
+            subjectAmountSetToken,
+            subjectMinTokenReceived,
+            { gasPrice: 9 },
+          );
       }
 
       it("should redeem the correct amount of a set to the caller", async () => {
@@ -1541,7 +1576,9 @@ describe("ExchangeIssuance", async () => {
           initializeSubjectVariables();
           await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
           await exchangeIssuance.approveSetToken(subjectSetToken.address);
-          await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+          await subjectSetToken
+            .connect(subjectCaller.wallet)
+            .approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
         });
 
         beforeEach(initializeSubjectVariables);
@@ -1613,7 +1650,9 @@ describe("ExchangeIssuance", async () => {
           subjectSetToken = setTokenIlliquid;
           await setV2Setup.approveAndIssueSetToken(subjectSetToken, subjectAmountSetToken, subjectCaller.address);
           await exchangeIssuance.approveSetToken(subjectSetToken.address);
-          await subjectSetToken.connect(subjectCaller.wallet).approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 0 });
+          await subjectSetToken
+            .connect(subjectCaller.wallet)
+            .approve(exchangeIssuance.address, MAX_UINT_256, { gasPrice: 9 });
         });
 
         it("should revert", async () => {
