@@ -17,10 +17,10 @@
 pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { KeeperCompatibleInterface } from "@chainlink/contracts/src/v0.6/KeeperCompatible.sol";
 import { IFlexibleLeverageStrategyExtension } from "../interfaces/IFlexibleLeverageStrategyExtension.sol";
-import "hardhat/console.sol";
 
 /**
  * @title RebalanceKeeper
@@ -28,7 +28,7 @@ import "hardhat/console.sol";
  * 
  * Chainlink Keeper which automatically rebalances FLI SetTokens.
  */
-contract FliRebalanceKeeper is KeeperCompatibleInterface {
+contract FliRebalanceKeeper is Ownable, KeeperCompatibleInterface {
     using Address for address;
 
     /* ============ Modifiers ============ */
@@ -41,11 +41,13 @@ contract FliRebalanceKeeper is KeeperCompatibleInterface {
 
     IFlexibleLeverageStrategyExtension public fliExtension;         // Address of the fli extension contract
     address public registryAddress;                                 // Address of the chainlink keeper registry
+    uint256 public exchangeIndex;                                   // The index of the exchange to use
 
     /* ============ Constructor ============ */
     constructor(IFlexibleLeverageStrategyExtension _fliExtension, address _registryAddress) public {
         fliExtension = _fliExtension;
         registryAddress = _registryAddress;
+        exchangeIndex = 0;
     }    
 
     /**
@@ -69,15 +71,20 @@ contract FliRebalanceKeeper is KeeperCompatibleInterface {
         bytes memory shouldRebalanceCalldata = abi.encodeWithSelector(fliExtension.shouldRebalance.selector);
         bytes memory shouldRebalanceResponse = Address.functionCall(address(fliExtension), shouldRebalanceCalldata, "Failed to execute shouldRebalance()");
         (string[] memory exchangeNames, uint256[] memory shouldRebalances) = abi.decode(shouldRebalanceResponse, (string[], uint256[]));
+        require(exchangeIndex < exchangeNames.length, "Invalid exchangeIndex");
 
-        uint256 shouldRebalance = shouldRebalances[0];
+        uint256 shouldRebalance = shouldRebalances[exchangeIndex];
         if (shouldRebalance == 1) {
-            return abi.encodeWithSelector(fliExtension.rebalance.selector, exchangeNames[0]);
+            return abi.encodeWithSelector(fliExtension.rebalance.selector, exchangeNames[exchangeIndex]);
         } else if (shouldRebalance == 2) {
-            return abi.encodeWithSelector(fliExtension.iterateRebalance.selector, exchangeNames[0]);
+            return abi.encodeWithSelector(fliExtension.iterateRebalance.selector, exchangeNames[exchangeIndex]);
         } else if (shouldRebalance == 3) {
-            return abi.encodeWithSelector(fliExtension.ripcord.selector, exchangeNames[0]);
+            return abi.encodeWithSelector(fliExtension.ripcord.selector, exchangeNames[exchangeIndex]);
         }
         return new bytes(0);
+    }
+
+    function setExchangeIndex(uint256 _exchangeIndex) external onlyOwner {
+        exchangeIndex = _exchangeIndex;
     }
 }

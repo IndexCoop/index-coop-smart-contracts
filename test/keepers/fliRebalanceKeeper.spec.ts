@@ -111,10 +111,14 @@ describe("fliRebalanceKeeper", async () => {
       subjectKeeper = await subject();
       expect(await subjectKeeper.registryAddress()).to.eq(registry.address);
     });
+
+    it("should have the correct exchange index", async () => {
+      subjectKeeper = await subject();
+      expect(await subjectKeeper.exchangeIndex()).to.eq(0);
+    });
   });
 
   describe("#checkUpkeep", async () => {
-
     context("when leverage ratio is 0", async () => {
       beforeEach(async () => {
         const leverageRatio = 0;
@@ -164,7 +168,9 @@ describe("fliRebalanceKeeper", async () => {
       }
 
       it("should call iterateRebalance on fliExtension and emit RebalanceEvent with arg of 2", async () => {
-        const callData = fliExtension.interface.encodeFunctionData("iterateRebalance", [exchangeName]);
+        const callData = fliExtension.interface.encodeFunctionData("iterateRebalance", [
+          exchangeName,
+        ]);
 
         const response = await subject();
 
@@ -195,7 +201,6 @@ describe("fliRebalanceKeeper", async () => {
   });
 
   describe("#performUpkeep", async () => {
-
     context("when leverage ratio is 0", async () => {
       beforeEach(async () => {
         const leverageRatio = 0;
@@ -257,6 +262,42 @@ describe("fliRebalanceKeeper", async () => {
         await expect(subject())
           .to.emit(fliExtension, "RebalanceEvent")
           .withArgs(3);
+      });
+    });
+  });
+
+  describe("#setExchangeIndex", async () => {
+    context("when changing the exchange index to 1", async () => {
+      beforeEach(async () => {
+        await setup(1);
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return subjectKeeper.connect(owner.wallet).setExchangeIndex(1);
+      }
+
+      it("should set the exchange index", async () => {
+        const beforeIndex = await subjectKeeper.exchangeIndex();
+        expect(beforeIndex).to.eq(0);
+
+        await subject();
+
+        const afterIndex = await subjectKeeper.exchangeIndex();
+        expect(afterIndex).to.eq(1);
+      });
+    });
+
+    context("when caller is not the owner address", async () => {
+      beforeEach(async () => {
+        await setup(1);
+      });
+
+      async function subject(): Promise<ContractTransaction> {
+        return subjectKeeper.connect(registry.wallet).setExchangeIndex(1);
+      }
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Ownable: caller is not the owner");
       });
     });
   });
