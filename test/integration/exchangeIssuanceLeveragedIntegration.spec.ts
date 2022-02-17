@@ -131,7 +131,6 @@ if (process.env.INTEGRATIONTEST) {
               { value: ethToSpend },
             );
             subjectMaxAmountInput = await inputToken.balanceOf(owner.address);
-            console.log("Input token balance", ethers.utils.formatEther(subjectMaxAmountInput));
             await inputToken.approve(exchangeIssuance.address, subjectMaxAmountInput);
           });
           async function subject() {
@@ -258,7 +257,6 @@ if (process.env.INTEGRATIONTEST) {
               { value: ownerBalance.div(2) },
             );
             subjectMaxAmountInput = await weth.balanceOf(owner.address);
-            console.log("Owner weth balance: ", ownerBalance.toString());
             await weth.approve(exchangeIssuance.address, subjectMaxAmountInput);
           });
           async function subject() {

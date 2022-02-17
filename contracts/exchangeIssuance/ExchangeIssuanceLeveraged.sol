@@ -69,7 +69,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
     // Token to trade via 
     address public INTERMEDIATE_TOKEN;
-    // Wrapped native token
+    // Wrapped native token (WMATIC on polygon)
     address public WETH;
     IUniswapV2Router02 public sushiRouter;
 
