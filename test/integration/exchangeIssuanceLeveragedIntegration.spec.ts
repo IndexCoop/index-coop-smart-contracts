@@ -59,7 +59,7 @@ if (process.env.INTEGRATIONTEST) {
       )) as IUniswapV2Router;
 
       subjectSetToken = eth2xFliPAddress;
-      subjectSetAmount = utils.parseEther("10000");
+      subjectSetAmount = utils.parseEther("100");
       subjectExchange = Exchange.Sushiswap;
     });
 
