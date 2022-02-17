@@ -17,6 +17,8 @@ import {
   ChainlinkAggregatorV3Mock,
   AaveLeverageStrategyExtension,
   ExchangeIssuanceLeveraged,
+  StandardTokenMock,
+  WETH9,
 } from "@utils/contracts/index";
 import { UniswapV2Factory, UniswapV2Router02 } from "@utils/contracts/uniswap";
 import { AaveLeverageModule, DebtIssuanceModule, SetToken } from "@utils/contracts/setV2";
@@ -40,7 +42,6 @@ import { BigNumber } from "ethers";
 
 enum Exchange {
   None,
-  Uniswap,
   Sushiswap,
 }
 
@@ -56,7 +57,10 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
   let deployer: DeployHelper;
   let setToken: SetToken;
-  let aWeth: AaveV2AToken;
+  let collateralToken: StandardTokenMock | WETH9;
+  let collateralLiquidity: BigNumber;
+  let collateralLiquidityEther: BigNumber;
+  let collateralAToken: AaveV2AToken;
   let usdcVariableDebtToken: AaveV2VariableDebtToken;
   let tradeAdapterMock: TradeAdapterMock;
   let tradeAdapterMock2: TradeAdapterMock;
@@ -79,15 +83,12 @@ describe("ExchangeIssuanceLeveraged", async () => {
   let wethAddress: Address;
   let wbtcAddress: Address;
   let daiAddress: Address;
-  let uniswapFactory: UniswapV2Factory;
-  let uniswapRouter: UniswapV2Router02;
   let sushiswapFactory: UniswapV2Factory;
   let sushiswapRouter: UniswapV2Router02;
   let controllerAddress: Address;
   let debtIssuanceModuleAddress: Address;
   let addressProviderAddress: Address;
 
-  let uniswapSetup: UniswapFixture;
   let sushiswapSetup: UniswapFixture;
   let setTokenInitialBalance: BigNumber;
 
@@ -98,8 +99,13 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
     setV2Setup = getSetFixture(owner.address);
     await setV2Setup.initialize();
+
+    collateralToken = setV2Setup.weth;
+    collateralLiquidity = UnitsUtils.ether(1000);
+    collateralLiquidityEther = UnitsUtils.ether(1000);
+
     aaveSetup = getAaveV2Fixture(owner.address);
-    await aaveSetup.initialize(setV2Setup.weth.address, setV2Setup.dai.address);
+    await aaveSetup.initialize(collateralToken.address, setV2Setup.dai.address);
 
     const usdcReserveTokens = await aaveSetup.createAndEnableReserve(
       setV2Setup.usdc.address,
@@ -115,15 +121,15 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
     usdcVariableDebtToken = usdcReserveTokens.variableDebtToken;
 
-    aWeth = aaveSetup.wethReserveTokens.aToken;
+    collateralAToken = aaveSetup.wethReserveTokens.aToken;
 
     const oneRay = BigNumber.from(10).pow(27); // 1e27
     await aaveSetup.setMarketBorrowRate(setV2Setup.usdc.address, oneRay.mul(39).div(1000));
     await aaveSetup.setAssetPriceInOracle(setV2Setup.usdc.address, ether(0.001));
 
     // Mint aTokens
-    await setV2Setup.weth.approve(aaveSetup.lendingPool.address, MAX_UINT_256);
-    await aaveSetup.lendingPool.deposit(setV2Setup.weth.address, ether(1000), owner.address, 0);
+    await collateralToken.approve(aaveSetup.lendingPool.address, MAX_UINT_256);
+    await aaveSetup.lendingPool.deposit(collateralToken.address, ether(1000), owner.address, 0);
     await setV2Setup.usdc.approve(aaveSetup.lendingPool.address, MAX_UINT_256);
     await aaveSetup.lendingPool.deposit(setV2Setup.usdc.address, usdc(2000000), owner.address, 0);
 
@@ -174,27 +180,22 @@ describe("ExchangeIssuanceLeveraged", async () => {
     wbtcAddress = setV2Setup.wbtc.address;
     daiAddress = setV2Setup.dai.address;
 
-    uniswapSetup = getUniswapFixture(owner.address);
-    await uniswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
-
+    sushiswapSetup = getUniswapFixture(owner.address);
+    await sushiswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
     // Set integrations for CompoundLeverageModule
     await setV2Setup.integrationRegistry.addIntegration(
       aaveLeverageModule.address,
       "UniswapTradeAdapter",
-      uniswapSetup.uniswapTradeAdapter.address,
+      sushiswapSetup.uniswapTradeAdapter.address,
     );
-    sushiswapSetup = getUniswapFixture(owner.address);
-    await sushiswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
 
     setTokenInitialBalance = ether(1);
-    await aWeth.approve(debtIssuanceModule.address, MAX_UINT_256);
+    await collateralAToken.approve(debtIssuanceModule.address, MAX_UINT_256);
     await debtIssuanceModule.issue(setToken.address, setTokenInitialBalance, owner.address);
     // Engage aave fli
-    await setV2Setup.weth.transfer(tradeAdapterMock.address, setTokenInitialBalance.mul(10));
+    await collateralToken.transfer(tradeAdapterMock.address, setTokenInitialBalance.mul(10));
     await leverageStrategyExtension.engage(exchangeName);
 
-    uniswapFactory = uniswapSetup.factory;
-    uniswapRouter = uniswapSetup.router;
     sushiswapFactory = sushiswapSetup.factory;
     sushiswapRouter = sushiswapSetup.router;
     controllerAddress = setV2Setup.controller.address;
@@ -202,9 +203,10 @@ describe("ExchangeIssuanceLeveraged", async () => {
     addressProviderAddress = aaveSetup.lendingPoolAddressesProvider.address;
 
     // ETH-USDC pools
-    await setV2Setup.usdc.connect(owner.wallet).approve(uniswapRouter.address, MAX_INT_256);
-    // Set up uniswap with sufficient liquidity
-    await uniswapRouter
+    await setV2Setup.usdc.connect(owner.wallet).approve(sushiswapRouter.address, MAX_INT_256);
+    await collateralToken.connect(owner.wallet).approve(sushiswapRouter.address, MAX_INT_256);
+    // Set up sushiswap with sufficient liquidity
+    await sushiswapRouter
       .connect(owner.wallet)
       .addLiquidityETH(
         setV2Setup.usdc.address,
@@ -215,11 +217,25 @@ describe("ExchangeIssuanceLeveraged", async () => {
         (await getLastBlockTimestamp()).add(1),
         { value: ether(100), gasLimit: 9000000 },
       );
+
+    if (collateralToken.address !== wethAddress) {
+      await sushiswapRouter
+        .connect(owner.wallet)
+        .addLiquidityETH(
+          collateralToken.address,
+          collateralLiquidity,
+          MAX_UINT_256,
+          MAX_UINT_256,
+          owner.address,
+          (await getLastBlockTimestamp()).add(1),
+          { value: collateralLiquidityEther, gasLimit: 9000000 },
+        );
+    }
   });
 
   const initializeRootScopeContracts = async () => {
     setToken = await setV2Setup.createSetToken(
-      [aWeth.address],
+      [collateralAToken.address],
       [ether(1)],
       [
         setV2Setup.issuanceModule.address,
@@ -254,7 +270,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
     await setV2Setup.streamingFeeModule.initialize(setToken.address, streamingFeeSettings);
     await aaveLeverageModule.initialize(
       setToken.address,
-      [setV2Setup.weth.address],
+      [collateralToken.address],
       [setV2Setup.usdc.address],
     );
 
@@ -293,9 +309,9 @@ describe("ExchangeIssuanceLeveraged", async () => {
       aaveProtocolDataProvider: aaveSetup.protocolDataProvider.address,
       collateralPriceOracle: chainlinkCollateralPriceMock.address,
       borrowPriceOracle: chainlinkBorrowPriceMock.address,
-      targetCollateralAToken: aWeth.address,
+      targetCollateralAToken: collateralAToken.address,
       targetBorrowDebtToken: usdcVariableDebtToken.address,
-      collateralAsset: setV2Setup.weth.address,
+      collateralAsset: collateralToken.address,
       borrowAsset: setV2Setup.usdc.address,
       collateralDecimalAdjustment: BigNumber.from(10),
       borrowDecimalAdjustment: BigNumber.from(22),
@@ -347,8 +363,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
     async function subject(): Promise<ExchangeIssuanceLeveraged> {
       const result = await deployer.extensions.deployExchangeIssuanceLeveraged(
         wethAddress,
-        uniswapFactory.address,
-        uniswapRouter.address,
+        wethAddress,
         sushiswapFactory.address,
         sushiswapRouter.address,
         controllerAddress,
@@ -364,11 +379,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
       const expectedWethAddress = await exchangeIssuanceContract.WETH();
       expect(expectedWethAddress).to.eq(wethAddress);
 
-      const expectedUniRouterAddress = await exchangeIssuanceContract.uniRouter();
-      expect(expectedUniRouterAddress).to.eq(uniswapRouter.address);
-
-      const expectedUniFactoryAddress = await exchangeIssuanceContract.uniFactory();
-      expect(expectedUniFactoryAddress).to.eq(uniswapFactory.address);
+      const expectedIntermediateAddress = await exchangeIssuanceContract.INTERMEDIATE_TOKEN();
+      expect(expectedIntermediateAddress).to.eq(wethAddress);
 
       const expectedSushiRouterAddress = await exchangeIssuanceContract.sushiRouter();
       expect(expectedSushiRouterAddress).to.eq(sushiswapRouter.address);
@@ -386,14 +398,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
     it("approves WETH to the uniswap and sushiswap router", async () => {
       const exchangeIssuance: ExchangeIssuanceLeveraged = await subject();
 
-      // validate the allowance of WETH between uniswap, sushiswap, and the deployed exchange issuance contract
-      const uniswapWethAllowance = await setV2Setup.weth.allowance(
-        exchangeIssuance.address,
-        uniswapRouter.address,
-      );
-      expect(uniswapWethAllowance).to.eq(MAX_UINT_256);
-
-      const sushiswapWethAllownace = await setV2Setup.weth.allowance(
+      const sushiswapWethAllownace = await collateralToken.allowance(
         exchangeIssuance.address,
         sushiswapRouter.address,
       );
@@ -405,8 +410,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
     beforeEach(async () => {
       exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveraged(
         wethAddress,
-        uniswapFactory.address,
-        uniswapRouter.address,
+        wethAddress,
         sushiswapFactory.address,
         sushiswapRouter.address,
         controllerAddress,
@@ -426,13 +430,13 @@ describe("ExchangeIssuanceLeveraged", async () => {
         await subject();
       });
       it("should approve underlying collateral token to lending pool", async () => {
-        const allowanceBefore = await setV2Setup.weth.allowance(
+        const allowanceBefore = await collateralToken.allowance(
           exchangeIssuance.address,
           aaveSetup.lendingPool.address,
         );
         expect(allowanceBefore).to.equal(ZERO);
         await subject();
-        const allowanceAfter = await setV2Setup.weth.allowance(
+        const allowanceAfter = await collateralToken.allowance(
           exchangeIssuance.address,
           aaveSetup.lendingPool.address,
         );
@@ -443,13 +447,19 @@ describe("ExchangeIssuanceLeveraged", async () => {
     describe("#getLeveragedTokenData", async () => {
       let subjectSetToken: Address;
       let subjectSetAmount: BigNumber;
+      let subjectIsIssuance: boolean;
       async function subject() {
-        return await exchangeIssuance.getLeveragedTokenData(subjectSetToken, subjectSetAmount);
+        return await exchangeIssuance.getLeveragedTokenData(
+          subjectSetToken,
+          subjectSetAmount,
+          subjectIsIssuance,
+        );
       }
       context("when passed the FLI token", async () => {
         beforeEach(() => {
           subjectSetToken = setToken.address;
           subjectSetAmount = ether(1);
+          subjectIsIssuance = true;
         });
         it("should return correct data", async () => {
           const { longToken, shortToken, longAmount, shortAmount } = await subject();
@@ -461,155 +471,246 @@ describe("ExchangeIssuanceLeveraged", async () => {
       });
     });
 
-    describe("#issueExactSetForLongToken", async () => {
-      let subjectSetToken: Address;
-      let subjectSetAmount: BigNumber;
-      let subjectMaxAmountInput: BigNumber;
-      let subjectExchange: Exchange;
-      let longAmount: BigNumber;
-      let longAmountSpent: BigNumber;
-      async function subject() {
-        return await exchangeIssuance.issueExactSetForLongToken(
-          subjectSetToken,
-          subjectSetAmount,
-          subjectMaxAmountInput,
-          subjectExchange,
-        );
-      }
-      beforeEach(async () => {
-        subjectSetToken = setToken.address;
-        subjectSetAmount = ether(1);
-        subjectExchange = Exchange.Uniswap;
-        ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
-          subjectSetToken,
-          subjectSetAmount,
-        ));
-        subjectMaxAmountInput = longAmount;
-        await setV2Setup.weth.approve(exchangeIssuance.address, longAmount);
-        await exchangeIssuance.approveSetToken(setToken.address);
-      });
-      it("should succeed", async () => {
-        await subject();
-      });
-      it("should cost less than the total long position", async () => {
-        const balanceBefore = await setV2Setup.weth.balanceOf(owner.address);
-        await subject();
-        const balanceAfter = await setV2Setup.weth.balanceOf(owner.address);
-        longAmountSpent = balanceBefore.sub(balanceAfter);
-        expect(longAmountSpent.gt(0)).to.equal(true);
-        expect(longAmountSpent.lt(longAmount)).to.equal(true);
-      });
-      it("should emit ExchangeIssuance event", async () => {
-        await expect(subject())
-          .to.emit(exchangeIssuance, "ExchangeIssue")
-          .withArgs(
-            owner.address,
-            subjectSetToken,
-            setV2Setup.weth.address,
-            longAmountSpent,
-            subjectSetAmount,
-          );
-      });
-      context("when subjectMaxInput is too low", async () => {
-        beforeEach(() => {
-          subjectMaxAmountInput = ZERO;
-        });
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith(
-            "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT",
-          );
-        });
-      });
-      context("when exchange without any liquidity is specified", async () => {
-        beforeEach(async () => {
-          subjectExchange = Exchange.Sushiswap;
-        });
-        it("should revert", async () => {
-          // TODO: Check why this is failing without any reason. Would have expected something more descriptive coming from the router
-          await expect(subject()).to.be.revertedWith("revert");
-        });
-      });
-      context("when exchange with too little liquidity is specified", async () => {
-        beforeEach(async () => {
-          // Set up sushiswap with INsufficient liquidity
-          await setV2Setup.usdc.connect(owner.wallet).approve(sushiswapRouter.address, MAX_INT_256);
-          await sushiswapRouter
-            .connect(owner.wallet)
-            .addLiquidityETH(
-              setV2Setup.usdc.address,
-              UnitsUtils.usdc(10),
-              MAX_UINT_256,
-              MAX_UINT_256,
-              owner.address,
-              (await getLastBlockTimestamp()).add(1),
-              { value: ether(0.001), gasLimit: 9000000 },
-            );
+    ["LongToken", "ERC20", "ETH"].forEach(tokenName => {
+      describe(`#redeemExactSetFor${tokenName}`, async () => {
+        let subjectSetToken: Address;
+        let subjectSetAmount: BigNumber;
+        let subjectMinAmountOutput: BigNumber;
+        let subjectExchange: Exchange;
+        let amountReturned: BigNumber;
+        let longAmount: BigNumber;
+        let subjectOutputToken: Address;
+        let outputToken: StandardTokenMock | WETH9;
 
-          subjectExchange = Exchange.Sushiswap;
-        });
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith(
-            "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT",
-          );
-        });
-      });
-    });
-    describe("#issueExactSetForEth", async () => {
-      let subjectSetToken: Address;
-      let subjectSetAmount: BigNumber;
-      let subjectMaxAmountInput: BigNumber;
-      let subjectExchange: Exchange;
-      let longAmount: BigNumber;
-      async function subject() {
-        return await exchangeIssuance.issueExactSetForEth(
-          subjectSetToken,
-          subjectSetAmount,
-          subjectMaxAmountInput,
-          subjectExchange,
-        );
-      }
-      beforeEach(async () => {
-        subjectSetToken = setToken.address;
-        subjectSetAmount = ether(1);
-        subjectExchange = Exchange.Uniswap;
-        ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
-          subjectSetToken,
-          subjectSetAmount,
-        ));
-        subjectMaxAmountInput = longAmount;
-        await setV2Setup.weth.approve(exchangeIssuance.address, longAmount);
-        await exchangeIssuance.approveSetToken(setToken.address);
-      });
-      it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("revert Not Implemented");
-      });
-    });
-
-    describe("#executeOperation", async () => {
-      context("When caller is not the lending pool", () => {
-        let subjectAssets: Address[];
-        let subjectAmounts: BigNumber[];
-        let subjectPremiums: BigNumber[];
-        let subjectInitiator: Address;
-        let subjectParams: Bytes;
-        beforeEach(async () => {
-          subjectAssets = [ADDRESS_ZERO];
-          subjectAmounts = [ZERO];
-          subjectPremiums = [ZERO];
-          subjectInitiator = ADDRESS_ZERO;
-          subjectParams = EMPTY_BYTES;
-        });
         async function subject() {
-          await exchangeIssuance.executeOperation(
-            subjectAssets,
-            subjectAmounts,
-            subjectPremiums,
-            subjectInitiator,
-            subjectParams,
-          );
+          if (tokenName === "LongToken") {
+            return await exchangeIssuance.redeemExactSetForLongToken(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectMinAmountOutput,
+              subjectExchange,
+            );
+          } else if (tokenName === "ERC20") {
+            return await exchangeIssuance.redeemExactSetForERC20(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectOutputToken,
+              subjectMinAmountOutput,
+              subjectExchange,
+            );
+          } else {
+            return await exchangeIssuance.redeemExactSetForETH(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectMinAmountOutput,
+              subjectExchange,
+              { gasPrice: 0 },
+            );
+          }
         }
-        it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("ExchangeIssuance: LENDING POOL ONLY");
+        beforeEach(async () => {
+          subjectSetToken = setToken.address;
+          subjectSetAmount = ether(1);
+          subjectExchange = Exchange.Sushiswap;
+          ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
+            subjectSetToken,
+            subjectSetAmount,
+            false,
+          ));
+          subjectMinAmountOutput = ZERO;
+          const outputTokenMapping: { [key: string]: StandardTokenMock | WETH9 } = {
+            LongToken: collateralToken,
+            ETH: setV2Setup.weth,
+            ERC20: setV2Setup.usdc,
+          };
+          outputToken = outputTokenMapping[tokenName];
+          subjectOutputToken = outputToken.address;
+
+          await collateralToken.approve(exchangeIssuance.address, longAmount);
+          await exchangeIssuance.approveSetToken(setToken.address);
+          await exchangeIssuance.issueExactSetForLongToken(
+            subjectSetToken,
+            subjectSetAmount,
+            longAmount,
+            subjectExchange,
+          );
+          await setToken.approve(exchangeIssuance.address, subjectSetAmount);
+        });
+        it("should succeed", async () => {
+          await subject();
+        });
+        it("should reduce set balance by the expected amount", async () => {
+          const balanceBefore = await setToken.balanceOf(owner.address);
+          await subject();
+          const balanceAfter = await setToken.balanceOf(owner.address);
+          expect(balanceBefore.sub(balanceAfter)).to.equal(subjectSetAmount);
+        });
+        it("should return at least the expected amount of the output token", async () => {
+          const balanceBefore =
+            tokenName == "ETH"
+              ? await owner.wallet.getBalance()
+              : await outputToken.balanceOf(owner.address);
+          await subject();
+          const balanceAfter =
+            tokenName == "ETH"
+              ? await owner.wallet.getBalance()
+              : await outputToken.balanceOf(owner.address);
+          amountReturned = balanceAfter.sub(balanceBefore);
+          expect(amountReturned.gt(subjectMinAmountOutput)).to.equal(true);
+        });
+        it("should emit ExchangeRedeem event", async () => {
+          await expect(subject())
+            .to.emit(exchangeIssuance, "ExchangeRedeem")
+            .withArgs(
+              owner.address,
+              subjectSetToken,
+              subjectOutputToken,
+              subjectSetAmount,
+              amountReturned,
+            );
+        });
+        context("when minAmountOutputToken is too high", async () => {
+          beforeEach(() => {
+            subjectMinAmountOutput = longAmount;
+          });
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith(
+              "revert ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT",
+            );
+          });
+        });
+      });
+      describe(`#issueExactSetFor${tokenName}`, async () => {
+        let subjectSetToken: Address;
+        let subjectSetAmount: BigNumber;
+        let subjectMaxAmountInput: BigNumber;
+        let subjectExchange: Exchange;
+        let subjectInputToken: Address;
+        let inputToken: StandardTokenMock | WETH9;
+        let longAmount: BigNumber;
+        let inputAmountSpent: BigNumber;
+        async function subject() {
+          if (tokenName === "LongToken") {
+            return await exchangeIssuance.issueExactSetForLongToken(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectMaxAmountInput,
+              subjectExchange,
+            );
+          } else if (tokenName === "ERC20") {
+            return await exchangeIssuance.issueExactSetForERC20(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectInputToken,
+              subjectMaxAmountInput,
+              subjectExchange,
+            );
+          } else {
+            return await exchangeIssuance.issueExactSetForETH(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectExchange,
+              { value: subjectMaxAmountInput, gasPrice: 0 },
+            );
+          }
+        }
+        beforeEach(async () => {
+          subjectSetToken = setToken.address;
+          subjectSetAmount = ether(1);
+          subjectExchange = Exchange.Sushiswap;
+          ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
+            subjectSetToken,
+            subjectSetAmount,
+            true,
+          ));
+          subjectMaxAmountInput = tokenName == "ERC20" ? UnitsUtils.usdc(20000) : longAmount;
+          const inputTokenMapping: { [key: string]: StandardTokenMock | WETH9 } = {
+            LongToken: collateralToken,
+            ETH: setV2Setup.weth,
+            ERC20: setV2Setup.usdc,
+          };
+          inputToken = inputTokenMapping[tokenName];
+          subjectInputToken = inputToken.address;
+
+          await inputToken.approve(exchangeIssuance.address, subjectMaxAmountInput);
+          await exchangeIssuance.approveSetToken(setToken.address);
+        });
+        it("should succeed", async () => {
+          await subject();
+        });
+        it("should return the requested amount of set", async () => {
+          const balanceBefore = await setToken.balanceOf(owner.address);
+          await subject();
+          const balanceAfter = await setToken.balanceOf(owner.address);
+          expect(balanceAfter.sub(balanceBefore)).to.equal(subjectSetAmount);
+        });
+        it("should cost less than the max amount", async () => {
+          const balanceBefore =
+            tokenName == "ETH"
+              ? await owner.wallet.getBalance()
+              : await inputToken.balanceOf(owner.address);
+          await subject();
+          const balanceAfter =
+            tokenName == "ETH"
+              ? await owner.wallet.getBalance()
+              : await inputToken.balanceOf(owner.address);
+          inputAmountSpent = balanceBefore.sub(balanceAfter);
+          console.log("inputAmountSpent", inputAmountSpent.toString());
+          expect(inputAmountSpent.gt(0)).to.equal(true);
+          expect(inputAmountSpent.lt(subjectMaxAmountInput)).to.equal(true);
+        });
+        it("should emit ExchangeIssuance event", async () => {
+          await expect(subject())
+            .to.emit(exchangeIssuance, "ExchangeIssue")
+            .withArgs(
+              owner.address,
+              subjectSetToken,
+              subjectInputToken,
+              inputAmountSpent,
+              subjectSetAmount,
+            );
+        });
+        context("when subjectMaxInput is too low", async () => {
+          beforeEach(() => {
+            subjectMaxAmountInput = ZERO;
+          });
+          it("should revert", async () => {
+            const revertReason =
+              tokenName == "ERC20"
+                ? // TODO: This revertion comes from the router, maybe investigate to understand where it is exactly raised
+                  "revert TransferHelper: TRANSFER_FROM_FAILED"
+                : "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT";
+            await expect(subject()).to.be.revertedWith(revertReason);
+          });
+        });
+      });
+
+      describe("#executeOperation", async () => {
+        context("When caller is not the lending pool", () => {
+          let subjectAssets: Address[];
+          let subjectAmounts: BigNumber[];
+          let subjectPremiums: BigNumber[];
+          let subjectInitiator: Address;
+          let subjectParams: Bytes;
+          beforeEach(async () => {
+            subjectAssets = [ADDRESS_ZERO];
+            subjectAmounts = [ZERO];
+            subjectPremiums = [ZERO];
+            subjectInitiator = ADDRESS_ZERO;
+            subjectParams = EMPTY_BYTES;
+          });
+          async function subject() {
+            await exchangeIssuance.executeOperation(
+              subjectAssets,
+              subjectAmounts,
+              subjectPremiums,
+              subjectInitiator,
+              subjectParams,
+            );
+          }
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("ExchangeIssuance: LENDING POOL ONLY");
+          });
         });
       });
     });
