@@ -707,8 +707,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
           it("should revert", async () => {
             const revertReason =
               tokenName == "ERC20"
-                ? // TODO: This revertion comes from the router, maybe investigate to understand where it is exactly raised
-                  "TransferHelper: TRANSFER_FROM_FAILED"
+                ? "UniswapV2Router: EXCESSIVE_INPUT_AMOUNT'"
                 : "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT";
             await expect(subject()).to.be.revertedWith(revertReason);
           });

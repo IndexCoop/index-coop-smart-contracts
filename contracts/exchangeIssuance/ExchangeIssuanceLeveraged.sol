@@ -698,14 +698,14 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         IUniswapV2Router02 router = _getRouter(_exchange);
         _safeApprove(IERC20(longToken), address(router), longAmount);
         address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
-        longAmountSpent = _swapTokensForExactTokens(_exchange, longTokenUnderlying, _shortToken, _amountRequired);
+        longAmountSpent = _swapTokensForExactTokens(_exchange, longTokenUnderlying, _shortToken, _amountRequired, longAmount);
     }
 
     function _swapInputForLongToken(address _longTokenUnderlying, uint256 _amountRequired, address _inputToken, uint256 _maxAmountInputToken, Exchange _exchange) internal returns (uint256 inputAmountSpent) {
         if(_longTokenUnderlying == _inputToken) return _amountRequired;
         IUniswapV2Router02 router = _getRouter(_exchange);
         _safeApprove(IERC20(_inputToken), address(router), _maxAmountInputToken);
-        inputAmountSpent = _swapTokensForExactTokens(_exchange, _inputToken, _longTokenUnderlying, _amountRequired);
+        inputAmountSpent = _swapTokensForExactTokens(_exchange, _inputToken, _longTokenUnderlying, _amountRequired, _maxAmountInputToken);
     }
 
 
@@ -838,6 +838,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         }
 
         address[] memory path = _generatePath(_tokenIn, _tokenOut);
+        //TODO: Review if we have to set a non-zero minAmountOut
         return _getRouter(_exchange).swapExactTokensForTokens(_amountIn, 0, path, address(this), block.timestamp)[1];
     }
 
@@ -848,15 +849,16 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _tokenIn      The address of the input token
      * @param _tokenOut     The address of the output token
      * @param _amountOut    The amount of output token required
+     * @param _maxAmountIn  Maximum amount of input token to be spent
      *
      * @return              The amount of input tokens spent
      */
-    function _swapTokensForExactTokens(Exchange _exchange, address _tokenIn, address _tokenOut, uint256 _amountOut) internal returns (uint256) {
+    function _swapTokensForExactTokens(Exchange _exchange, address _tokenIn, address _tokenOut, uint256 _amountOut, uint256 _maxAmountIn) internal returns (uint256) {
         if (_tokenIn == _tokenOut) {
             return _amountOut;
         }
         address[] memory path = _generatePath(_tokenIn, _tokenOut);
-        uint256 result = _getRouter(_exchange).swapTokensForExactTokens(_amountOut, PreciseUnitMath.maxUint256(), path, address(this), block.timestamp)[0];
+        uint256 result = _getRouter(_exchange).swapTokensForExactTokens(_amountOut, _maxAmountIn, path, address(this), block.timestamp)[0];
         return result;
     }
 
