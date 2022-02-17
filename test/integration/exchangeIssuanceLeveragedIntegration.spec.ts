@@ -25,6 +25,7 @@ if (process.env.INTEGRATIONTEST) {
     const sushiswapFactoryAddress: Address = "0xc35DADB65012eC5796536bD9864eD8773aBc74C4";
     const sushiswapRouterAddress: Address = "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506";
     const wethAddress: Address = "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619";
+    const daiAddress: Address = "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063";
     const wmaticAddress: Address = "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270";
     const controllerAddress: Address = "0x75FBBDEAfE23a48c0736B2731b956b7a03aDcfB2";
     const debtIssuanceModuleAddress: Address = "0xf2dC2f456b98Af9A6bEEa072AF152a7b0EaA40C9";
@@ -34,6 +35,7 @@ if (process.env.INTEGRATIONTEST) {
     let owner: Account;
     let eth2xFli: SetToken;
     let weth: StandardTokenMock;
+    let dai: StandardTokenMock;
     let deployer: DeployHelper;
     let sushiRouter: IUniswapV2Router;
     let aaveLeverageModule: ILeverageModule;
@@ -48,6 +50,7 @@ if (process.env.INTEGRATIONTEST) {
 
       eth2xFli = (await ethers.getContractAt("ISetToken", eth2xFliPAddress)) as SetToken;
       weth = (await ethers.getContractAt("StandardTokenMock", wethAddress)) as StandardTokenMock;
+      dai = (await ethers.getContractAt("StandardTokenMock", daiAddress)) as StandardTokenMock;
       aaveLeverageModule = (await ethers.getContractAt(
         "ILeverageModule",
         aaveLeverageModuleAddress,
@@ -109,6 +112,82 @@ if (process.env.INTEGRATIONTEST) {
           utils.getAddress(debtIssuanceModuleAddress),
         );
       });
+      context("Payment Token: ERC20", () => {
+        let pricePaid: BigNumber;
+        let inputToken: StandardTokenMock;
+        let subjectInputToken: Address;
+        context("#issueExactSetForERC20", () => {
+          let subjectMaxAmountInput: BigNumber;
+          before(async () => {
+            const ownerBalance = await owner.wallet.getBalance();
+            const ethToSpend = ownerBalance.div(2);
+            inputToken = dai;
+            subjectInputToken = inputToken.address;
+            await sushiRouter.swapExactETHForTokens(
+              ZERO,
+              [wmaticAddress, subjectInputToken],
+              owner.address,
+              MAX_UINT_256,
+              { value: ethToSpend },
+            );
+            subjectMaxAmountInput = await inputToken.balanceOf(owner.address);
+            console.log("Input token balance", ethers.utils.formatEther(subjectMaxAmountInput));
+            await inputToken.approve(exchangeIssuance.address, subjectMaxAmountInput);
+          });
+          async function subject() {
+            return await exchangeIssuance.issueExactSetForERC20(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectInputToken,
+              subjectMaxAmountInput,
+              subjectExchange,
+            );
+          }
+          it("should update balance correctly", async () => {
+            const inputBalanceBefore = await inputToken.balanceOf(owner.address);
+            const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
+            await subject();
+            const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
+            const inputBalanceAfter = await inputToken.balanceOf(owner.address);
+            pricePaid = inputBalanceBefore.sub(inputBalanceAfter);
+            expect(setBalanceAfter.sub(setBalanceBefore)).to.eq(subjectSetAmount);
+          });
+        });
+
+        context("#redeemExactSetForERC20", () => {
+          let subjectMinAmountOutput: BigNumber;
+          let outputToken: StandardTokenMock;
+          let subjectOutputToken: Address;
+          before(async () => {
+            // Check to avoid running test when issuance failed and there are no tokens to redeem
+            expect(pricePaid.gt(0)).to.be.true;
+            subjectMinAmountOutput = pricePaid.div(10);
+            eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
+            outputToken = dai;
+            subjectOutputToken = outputToken.address;
+          });
+          async function subject() {
+            return await exchangeIssuance.redeemExactSetForERC20(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectOutputToken,
+              subjectMinAmountOutput,
+              subjectExchange,
+            );
+          }
+          it("should update balance correctly", async () => {
+            const outputBalanceBefore = await outputToken.balanceOf(owner.address);
+            const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
+            expect(setBalanceBefore.gte(subjectSetAmount)).to.be.true;
+            await subject();
+            const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
+            const outputBalanceAfter = await outputToken.balanceOf(owner.address);
+            expect(setBalanceBefore.sub(setBalanceAfter)).to.eq(subjectSetAmount);
+            expect(outputBalanceAfter.sub(outputBalanceBefore).gte(subjectMinAmountOutput)).to.be
+              .true;
+          });
+        });
+      });
       context("Payment Token: ETH", () => {
         let pricePaid: BigNumber;
         context("#issueExactSetForETH", () => {
@@ -132,7 +211,6 @@ if (process.env.INTEGRATIONTEST) {
             const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
             const maticBalanceAfter = await owner.wallet.getBalance();
             pricePaid = maticBalanceBefore.sub(maticBalanceAfter);
-            console.log("pricePaid paid: ", utils.formatEther(pricePaid));
             expect(setBalanceAfter.sub(setBalanceBefore)).to.eq(subjectSetAmount);
           });
         });
@@ -140,6 +218,7 @@ if (process.env.INTEGRATIONTEST) {
         context("#redeemExactSetForETH", () => {
           let subjectMinAmountOutput: BigNumber;
           before(async () => {
+            // Check to avoid running test when issuance failed and there are no tokens to redeem
             expect(pricePaid.gt(0)).to.be.true;
             subjectMinAmountOutput = pricePaid.div(10);
             eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
@@ -197,7 +276,6 @@ if (process.env.INTEGRATIONTEST) {
             const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
             const wethBalanceAfter = await weth.balanceOf(owner.address);
             pricePaid = wethBalanceBefore.sub(wethBalanceAfter);
-            console.log("pricePaid paid: ", utils.formatEther(pricePaid));
             expect(setBalanceAfter.sub(setBalanceBefore)).to.eq(subjectSetAmount);
           });
         });
@@ -205,6 +283,7 @@ if (process.env.INTEGRATIONTEST) {
         context("#redeemExactSetForLongToken", () => {
           let subjectMinAmountOutput: BigNumber;
           before(async () => {
+            // Check to avoid running test when issuance failed and there are no tokens to redeem
             expect(pricePaid.gt(0)).to.be.true;
             subjectMinAmountOutput = pricePaid.div(2);
             eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
