@@ -42,7 +42,7 @@ import { FlashLoanReceiverBaseV2 } from "../../external/contracts/aaveV2/FlashLo
  * Contract for issuing and redeeming a leveraged Set Token
  * Supports all tokens with one collateral Position in the form of an AToken and one debt position
  * Both the underlying of the collateral as well as the debt token have to be available for flashloand and be 
- * tradeable against each other on Sushi / Uniswap
+ * tradeable against each other on Sushi / Quickswap
  *
  */
 contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
@@ -55,7 +55,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
     /* ============ Enums ============ */
 
-    enum Exchange { None, Uniswap, Sushiswap}
+    enum Exchange { None, Quickswap, Sushiswap}
     // Call parameter to control which token is used by the user to pay issuance / receive redemption amount
     enum PaymentToken { None, LongToken, ERC20, ETH}
 
@@ -71,10 +71,10 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     address public INTERMEDIATE_TOKEN;
     // Wrapped native token (WMATIC on polygon)
     address public WETH;
-    IUniswapV2Router02 public uniRouter;
+    IUniswapV2Router02 public quickRouter;
     IUniswapV2Router02 public sushiRouter;
 
-    address public immutable uniFactory;
+    address public immutable quickFactory;
     address public immutable sushiFactory;
 
     IController public immutable setController;
@@ -120,8 +120,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     constructor(
         address _weth,
         address _intermediateToken,
-        address _uniFactory,
-        IUniswapV2Router02 _uniRouter,
+        address _quickFactory,
+        IUniswapV2Router02 _quickRouter,
         address _sushiFactory,
         IUniswapV2Router02 _sushiRouter,
         IController _setController,
@@ -131,8 +131,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         public
         FlashLoanReceiverBaseV2(_addressProvider)
     {
-        uniFactory = _uniFactory;
-        uniRouter = _uniRouter;
+        quickFactory = _quickFactory;
+        quickRouter = _quickRouter;
 
         sushiFactory = _sushiFactory;
         sushiRouter = _sushiRouter;
@@ -141,12 +141,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         debtIssuanceModule = _debtIssuanceModule;
 
         WETH = _weth;
-        IERC20(WETH).safeApprove(address(uniRouter), PreciseUnitMath.maxUint256());
+        IERC20(WETH).safeApprove(address(quickRouter), PreciseUnitMath.maxUint256());
         IERC20(WETH).safeApprove(address(sushiRouter), PreciseUnitMath.maxUint256());
 
         INTERMEDIATE_TOKEN = _intermediateToken;
         if(_intermediateToken != _weth) {
-            IERC20(INTERMEDIATE_TOKEN).safeApprove(address(uniRouter), PreciseUnitMath.maxUint256());
+            IERC20(INTERMEDIATE_TOKEN).safeApprove(address(quickRouter), PreciseUnitMath.maxUint256());
             IERC20(INTERMEDIATE_TOKEN).safeApprove(address(sushiRouter), PreciseUnitMath.maxUint256());
         }
     }
@@ -211,7 +211,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _token    Address of the token which needs approval
      */
     function approveToken(IERC20 _token) public {
-        _safeApprove(_token, address(uniRouter), MAX_UINT96);
+        _safeApprove(_token, address(quickRouter), MAX_UINT96);
         _safeApprove(_token, address(sushiRouter), MAX_UINT96);
         _safeApprove(_token, address(debtIssuanceModule), MAX_UINT96);
     }
@@ -886,7 +886,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      *
      * @return              The min amount of tokenA required across both exchanges
      * @return              The Exchange on which minimum amount of tokenA is required
-     * @return              The pair address of the uniswap/sushiswap pool containing _tokenA and _tokenB
+     * @return              The pair address of the quickswap/sushiswap pool containing _tokenA and _tokenB
      */
     function _getMinTokenForExactToken(uint256 _amountOut, address _tokenA, address _tokenB) internal view returns (uint256, Exchange, address) {
         if (_tokenA == _tokenB) {
@@ -897,9 +897,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         uint256 uniTokenIn = maxIn;
         uint256 sushiTokenIn = maxIn;
 
-        address uniswapPair = _getPair(uniFactory, _tokenA, _tokenB);
-        if (uniswapPair != address(0)) {
-            (uint256 reserveIn, uint256 reserveOut) = UniSushiV2Library.getReserves(uniswapPair, _tokenA, _tokenB);
+        address quickswapPair = _getPair(quickFactory, _tokenA, _tokenB);
+        if (quickswapPair != address(0)) {
+            (uint256 reserveIn, uint256 reserveOut) = UniSushiV2Library.getReserves(quickswapPair, _tokenA, _tokenB);
             // Prevent subtraction overflow by making sure pool reserves are greater than swap amount
             if (reserveOut > _amountOut) {
                 uniTokenIn = UniSushiV2Library.getAmountIn(_amountOut, reserveIn, reserveOut);
@@ -917,7 +917,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
         // Fails if both the values are maxIn
         require(!(uniTokenIn == maxIn && sushiTokenIn == maxIn), "ExchangeIssuance: ILLIQUID_SET_COMPONENT");
-        return (uniTokenIn <= sushiTokenIn) ? (uniTokenIn, Exchange.Uniswap, uniswapPair) : (sushiTokenIn, Exchange.Sushiswap, sushiswapPair);
+        return (uniTokenIn <= sushiTokenIn) ? (uniTokenIn, Exchange.Quickswap, quickswapPair) : (sushiTokenIn, Exchange.Sushiswap, sushiswapPair);
     }
 
     /**
@@ -930,7 +930,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      *
      * @return              The max amount of tokens that can be received across both exchanges
      * @return              The Exchange on which maximum amount of token can be received
-     * @return              The pair address of the uniswap/sushiswap pool containing _tokenA and _tokenB
+     * @return              The pair address of the quickswap/sushiswap pool containing _tokenA and _tokenB
      */
     function _getMaxTokenForExactToken(uint256 _amountIn, address _tokenA, address _tokenB) internal view returns (uint256, Exchange, address) {
         if (_tokenA == _tokenB) {
@@ -940,9 +940,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         uint256 uniTokenOut = 0;
         uint256 sushiTokenOut = 0;
 
-        address uniswapPair = _getPair(uniFactory, _tokenA, _tokenB);
-        if(uniswapPair != address(0)) {
-            (uint256 reserveIn, uint256 reserveOut) = UniSushiV2Library.getReserves(uniswapPair, _tokenA, _tokenB);
+        address quickswapPair = _getPair(quickFactory, _tokenA, _tokenB);
+        if(quickswapPair != address(0)) {
+            (uint256 reserveIn, uint256 reserveOut) = UniSushiV2Library.getReserves(quickswapPair, _tokenA, _tokenB);
             uniTokenOut = UniSushiV2Library.getAmountOut(_amountIn, reserveIn, reserveOut);
         }
 
@@ -954,7 +954,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
         // Fails if both the values are 0
         require(!(uniTokenOut == 0 && sushiTokenOut == 0), "ExchangeIssuance: ILLIQUID_SET_COMPONENT");
-        return (uniTokenOut >= sushiTokenOut) ? (uniTokenOut, Exchange.Uniswap, uniswapPair) : (sushiTokenOut, Exchange.Sushiswap, sushiswapPair);
+        return (uniTokenOut >= sushiTokenOut) ? (uniTokenOut, Exchange.Quickswap, quickswapPair) : (sushiTokenOut, Exchange.Sushiswap, sushiswapPair);
     }
 
     /**
@@ -978,6 +978,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @return              IUniswapV2Router02 router of the given exchange
      */
      function _getRouter(Exchange _exchange) internal view returns(IUniswapV2Router02) {
-         return (_exchange == Exchange.Uniswap) ? uniRouter : sushiRouter;
+         return (_exchange == Exchange.Quickswap) ? quickRouter : sushiRouter;
      }
 }

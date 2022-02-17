@@ -43,7 +43,7 @@ import { getTxFee } from "@utils/test";
 
 enum Exchange {
   None,
-  Uniswap,
+  Quickswap,
   Sushiswap,
 }
 
@@ -85,15 +85,15 @@ describe("ExchangeIssuanceLeveraged", async () => {
   let wethAddress: Address;
   let wbtcAddress: Address;
   let daiAddress: Address;
-  let uniswapFactory: UniswapV2Factory;
-  let uniswapRouter: UniswapV2Router02;
+  let quickswapFactory: UniswapV2Factory;
+  let quickswapRouter: UniswapV2Router02;
   let sushiswapFactory: UniswapV2Factory;
   let sushiswapRouter: UniswapV2Router02;
   let controllerAddress: Address;
   let debtIssuanceModuleAddress: Address;
   let addressProviderAddress: Address;
 
-  let uniswapSetup: UniswapFixture;
+  let quickswapSetup: UniswapFixture;
   let sushiswapSetup: UniswapFixture;
   let setTokenInitialBalance: BigNumber;
 
@@ -185,14 +185,14 @@ describe("ExchangeIssuanceLeveraged", async () => {
     wbtcAddress = setV2Setup.wbtc.address;
     daiAddress = setV2Setup.dai.address;
 
-    uniswapSetup = getUniswapFixture(owner.address);
-    await uniswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
+    quickswapSetup = getUniswapFixture(owner.address);
+    await quickswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
 
     // Set integrations for CompoundLeverageModule
     await setV2Setup.integrationRegistry.addIntegration(
       aaveLeverageModule.address,
       "UniswapTradeAdapter",
-      uniswapSetup.uniswapTradeAdapter.address,
+      quickswapSetup.uniswapTradeAdapter.address,
     );
     sushiswapSetup = getUniswapFixture(owner.address);
     await sushiswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
@@ -204,8 +204,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
     await collateralToken.transfer(tradeAdapterMock.address, setTokenInitialBalance.mul(10));
     await leverageStrategyExtension.engage(exchangeName);
 
-    uniswapFactory = uniswapSetup.factory;
-    uniswapRouter = uniswapSetup.router;
+    quickswapFactory = quickswapSetup.factory;
+    quickswapRouter = quickswapSetup.router;
     sushiswapFactory = sushiswapSetup.factory;
     sushiswapRouter = sushiswapSetup.router;
     controllerAddress = setV2Setup.controller.address;
@@ -213,10 +213,10 @@ describe("ExchangeIssuanceLeveraged", async () => {
     addressProviderAddress = aaveSetup.lendingPoolAddressesProvider.address;
 
     // ETH-USDC pools
-    await setV2Setup.usdc.connect(owner.wallet).approve(uniswapRouter.address, MAX_INT_256);
-    await collateralToken.connect(owner.wallet).approve(uniswapRouter.address, MAX_INT_256);
-    // Set up uniswap with sufficient liquidity
-    await uniswapRouter
+    await setV2Setup.usdc.connect(owner.wallet).approve(quickswapRouter.address, MAX_INT_256);
+    await collateralToken.connect(owner.wallet).approve(quickswapRouter.address, MAX_INT_256);
+    // Set up quickswap with sufficient liquidity
+    await quickswapRouter
       .connect(owner.wallet)
       .addLiquidityETH(
         setV2Setup.usdc.address,
@@ -229,7 +229,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
       );
 
     if (collateralToken.address !== wethAddress) {
-      await uniswapRouter
+      await quickswapRouter
         .connect(owner.wallet)
         .addLiquidityETH(
           collateralToken.address,
@@ -374,8 +374,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
       const result = await deployer.extensions.deployExchangeIssuanceLeveraged(
         wethAddress,
         wethAddress,
-        uniswapFactory.address,
-        uniswapRouter.address,
+        quickswapFactory.address,
+        quickswapRouter.address,
         sushiswapFactory.address,
         sushiswapRouter.address,
         controllerAddress,
@@ -394,11 +394,11 @@ describe("ExchangeIssuanceLeveraged", async () => {
       const expectedIntermediateAddress = await exchangeIssuanceContract.INTERMEDIATE_TOKEN();
       expect(expectedIntermediateAddress).to.eq(wethAddress);
 
-      const expectedUniRouterAddress = await exchangeIssuanceContract.uniRouter();
-      expect(expectedUniRouterAddress).to.eq(uniswapRouter.address);
+      const expectedUniRouterAddress = await exchangeIssuanceContract.quickRouter();
+      expect(expectedUniRouterAddress).to.eq(quickswapRouter.address);
 
-      const expectedUniFactoryAddress = await exchangeIssuanceContract.uniFactory();
-      expect(expectedUniFactoryAddress).to.eq(uniswapFactory.address);
+      const expectedUniFactoryAddress = await exchangeIssuanceContract.quickFactory();
+      expect(expectedUniFactoryAddress).to.eq(quickswapFactory.address);
 
       const expectedSushiRouterAddress = await exchangeIssuanceContract.sushiRouter();
       expect(expectedSushiRouterAddress).to.eq(sushiswapRouter.address);
@@ -413,15 +413,15 @@ describe("ExchangeIssuanceLeveraged", async () => {
       expect(expectedDebtIssuanceModuleAddress).to.eq(debtIssuanceModuleAddress);
     });
 
-    it("approves WETH to the uniswap and sushiswap router", async () => {
+    it("approves WETH to the quickswap and sushiswap router", async () => {
       const exchangeIssuance: ExchangeIssuanceLeveraged = await subject();
 
-      // validate the allowance of WETH between uniswap, sushiswap, and the deployed exchange issuance contract
-      const uniswapWethAllowance = await collateralToken.allowance(
+      // validate the allowance of WETH between quickswap, sushiswap, and the deployed exchange issuance contract
+      const quickswapWethAllowance = await collateralToken.allowance(
         exchangeIssuance.address,
-        uniswapRouter.address,
+        quickswapRouter.address,
       );
-      expect(uniswapWethAllowance).to.eq(MAX_UINT_256);
+      expect(quickswapWethAllowance).to.eq(MAX_UINT_256);
 
       const sushiswapWethAllownace = await collateralToken.allowance(
         exchangeIssuance.address,
@@ -436,8 +436,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
       exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveraged(
         wethAddress,
         wethAddress,
-        uniswapFactory.address,
-        uniswapRouter.address,
+        quickswapFactory.address,
+        quickswapRouter.address,
         sushiswapFactory.address,
         sushiswapRouter.address,
         controllerAddress,
@@ -537,7 +537,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         beforeEach(async () => {
           subjectSetToken = setToken.address;
           subjectSetAmount = ether(1);
-          subjectExchange = Exchange.Uniswap;
+          subjectExchange = Exchange.Quickswap;
           ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
             subjectSetToken,
             subjectSetAmount,
@@ -645,7 +645,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         beforeEach(async () => {
           subjectSetToken = setToken.address;
           subjectSetAmount = ether(1);
-          subjectExchange = Exchange.Uniswap;
+          subjectExchange = Exchange.Quickswap;
           ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
             subjectSetToken,
             subjectSetAmount,
