@@ -530,7 +530,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
               subjectSetAmount,
               subjectMinAmountOutput,
               subjectExchange,
-              { gasPrice: 0 },
             );
           }
         }
@@ -601,7 +600,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
           });
           it("should revert", async () => {
             await expect(subject()).to.be.revertedWith(
-              "revert ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT",
+              "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT",
             );
           });
         });
@@ -636,7 +635,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
               subjectSetToken,
               subjectSetAmount,
               subjectExchange,
-              { value: subjectMaxAmountInput, gasPrice: 0 },
+              { value: subjectMaxAmountInput },
             );
           }
         }
@@ -704,8 +703,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
             const revertReason =
               tokenName == "ERC20"
                 ? // TODO: This revertion comes from the router, maybe investigate to understand where it is exactly raised
-                  "revert TransferHelper: TRANSFER_FROM_FAILED"
-                : "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT";
+                  "TransferHelper: TRANSFER_FROM_FAILED"
+                : "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT";
             await expect(subject()).to.be.revertedWith(revertReason);
           });
         });
@@ -742,8 +741,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
             const revertReason =
               tokenName == "ERC20"
                 ? // TODO: This revertion comes from the router, maybe investigate to understand where it is exactly raised
-                  "revert ds-math-sub-underflow"
-                : "revert ExchangeIssuance: INSUFFICIENT INPUT AMOUNT";
+                  "ds-math-sub-underflow"
+                : "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT";
             await expect(subject()).to.be.revertedWith(revertReason);
           });
         });
