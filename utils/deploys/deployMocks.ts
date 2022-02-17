@@ -8,7 +8,8 @@ import {
   StandardTokenMock,
   StringArrayUtilsMock,
   TradeAdapterMock,
-  WrapAdapterMock
+  WrapAdapterMock,
+  ZeroExExchangeProxyMock
 } from "../contracts/index";
 
 import { BaseExtensionMock__factory } from "../../typechain/factories/BaseExtensionMock__factory";
@@ -21,6 +22,7 @@ import { TradeAdapterMock__factory } from "../../typechain/factories/TradeAdapte
 import { StandardTokenMock__factory  } from "../../typechain/factories/StandardTokenMock__factory";
 import { StringArrayUtilsMock__factory  } from "../../typechain/factories/StringArrayUtilsMock__factory";
 import { WrapAdapterMock__factory } from "../../typechain/factories/WrapAdapterMock__factory";
+import { ZeroExExchangeProxyMock__factory  } from "../../typechain/factories/ZeroExExchangeProxyMock__factory";
 
 export default class DeployMocks {
   private _deployerSigner: Signer;
@@ -67,5 +69,9 @@ export default class DeployMocks {
 
   public async deployWrapAdapterMock(owner: Address, initAmount: BigNumber): Promise<WrapAdapterMock> {
     return await new WrapAdapterMock__factory(this._deployerSigner).deploy(owner, initAmount);
+  }
+
+  public async deployZeroExExchangeProxyMock(): Promise<ZeroExExchangeProxyMock> {
+    return await new ZeroExExchangeProxyMock__factory(this._deployerSigner).deploy();
   }
 }

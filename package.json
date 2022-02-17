@@ -1,7 +1,7 @@
 {
-  "name": "@setprotocol/index-coop-contracts",
-  "version": "0.0.29",
-  "description": "",
+  "name": "@indexcoop/index-coop-smart-contracts",
+  "version": "0.0.30",
+  "description": "IndexCoop smart contracts",
   "main": "dist",
   "types": "dist/types",
   "files": [
@@ -36,6 +36,7 @@
     "prepare": "yarn build",
     "prepublishOnly": "yarn clean && yarn build:npm",
     "rename-extensions": "for f in typechain/*.d.ts; do mv -- \"$f\" \"${f%.d.ts}.ts\"; done",
+    "semantic-release": "semantic-release --branches master",
     "test": "npx hardhat test --network localhost",
     "test:fast": "TS_NODE_TRANSPILE_ONLY=1 npx hardhat test --network localhost --no-compile",
     "test:fast:compile": "TS_NODE_TRANSPILE_ONLY=1 npx hardhat test --network localhost",
@@ -50,11 +51,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SetProtocol/index-coop-contracts.git"
+    "url": "git+https://github.com/IndexCoop/index-coop-smart-contracts.git"
   },
-  "author": "felix2feng",
+  "author": "IndexCoop",
   "license": "MIT",
-  "homepage": "https://github.com/SetProtocol",
+  "homepage": "https://github.com/IndexCoop",
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
@@ -76,6 +77,7 @@
     "husky": "^4.2.5",
     "lint-staged": "^10.2.11",
     "lodash": "^4.17.4",
+    "semantic-release": "^19.0.2",
     "solc": "^0.6.10",
     "solhint": "^3.1.0",
     "solidity-coverage": "^0.7.13",

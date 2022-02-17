@@ -1,11 +1,10 @@
 import chai from "chai";
 import { solidity } from "ethereum-waffle";
-
 chai.use(solidity);
 
 // Use HARDHAT version of providers
 import { ethers } from "hardhat";
-import { BigNumber } from "@ethersproject/bignumber";
+import { BigNumber, ContractTransaction } from "ethers";
 import { JsonRpcProvider } from "@ethersproject/providers";
 import { Blockchain } from "../common";
 
@@ -92,4 +91,12 @@ async function sendJSONRpcRequestAsync(
     method,
     params,
   );
+}
+
+export async function getTxFee(tx: ContractTransaction) {
+  const gasPrice = tx.gasPrice;
+  const receipt = await tx.wait();
+  const gasUsed = receipt.cumulativeGasUsed;
+  const transactionFee = gasPrice.mul(gasUsed);
+  return transactionFee;
 }
