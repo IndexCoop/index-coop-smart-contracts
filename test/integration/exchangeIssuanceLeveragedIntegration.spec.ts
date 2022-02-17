@@ -22,6 +22,8 @@ if (process.env.INTEGRATIONTEST) {
     const eth2xFliPAddress: Address = "0x3ad707da309f3845cd602059901e39c4dcd66473";
     const wethAmAddress: Address = "0x28424507fefb6f7f8E9D3860F56504E4e5f5f390";
     const usdcAddress: Address = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+    const quickswapFactoryAddress: Address = "0x5757371414417b8C6CAad45bAeF941aBc7d3Ab32";
+    const quickswapRouterAddress: Address = "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff";
     const sushiswapFactoryAddress: Address = "0xc35DADB65012eC5796536bD9864eD8773aBc74C4";
     const sushiswapRouterAddress: Address = "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506";
     const wethAddress: Address = "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619";
@@ -83,6 +85,8 @@ if (process.env.INTEGRATIONTEST) {
         exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveraged(
           wmaticAddress,
           wethAddress,
+          quickswapFactoryAddress,
+          quickswapRouterAddress,
           sushiswapFactoryAddress,
           sushiswapRouterAddress,
           controllerAddress,

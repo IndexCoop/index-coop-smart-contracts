@@ -39,6 +39,7 @@ import {
 import { UnitsUtils } from "@utils/common/unitsUtils";
 import { AaveV2Fixture, SetFixture, UniswapFixture } from "@utils/fixtures";
 import { BigNumber } from "ethers";
+import { getTxFee } from "@utils/test";
 
 enum Exchange {
   None,
@@ -575,12 +576,14 @@ describe("ExchangeIssuanceLeveraged", async () => {
             tokenName == "ETH"
               ? await owner.wallet.getBalance()
               : await outputToken.balanceOf(owner.address);
-          await subject();
+          const tx = await subject();
+          const transactionFee = await getTxFee(tx);
           const balanceAfter =
             tokenName == "ETH"
               ? await owner.wallet.getBalance()
               : await outputToken.balanceOf(owner.address);
           amountReturned = balanceAfter.sub(balanceBefore);
+          if (tokenName == "ETH") amountReturned = amountReturned.add(transactionFee);
           expect(amountReturned.gt(subjectMinAmountOutput)).to.equal(true);
         });
         it("should emit ExchangeRedeem event", async () => {
@@ -674,12 +677,14 @@ describe("ExchangeIssuanceLeveraged", async () => {
             tokenName == "ETH"
               ? await owner.wallet.getBalance()
               : await inputToken.balanceOf(owner.address);
-          await subject();
+          const tx = await subject();
+          const transactionFee = await getTxFee(tx);
           const balanceAfter =
             tokenName == "ETH"
               ? await owner.wallet.getBalance()
               : await inputToken.balanceOf(owner.address);
           inputAmountSpent = balanceBefore.sub(balanceAfter);
+          if (tokenName == "ETH") inputAmountSpent = inputAmountSpent.sub(transactionFee);
           console.log("inputAmountSpent", inputAmountSpent.toString());
           expect(inputAmountSpent.gt(0)).to.equal(true);
           expect(inputAmountSpent.lt(subjectMaxAmountInput)).to.equal(true);

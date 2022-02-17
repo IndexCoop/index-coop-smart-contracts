@@ -135,8 +135,8 @@ export default class DeployExtensions {
 
   public async deployExchangeIssuanceV2(
     wethAddress: Address,
-    uniFactoryAddress: Address,
-    uniRouterAddress: Address,
+    quickSwapFactoryAddress: Address,
+    quickSwapRouterAddress: Address,
     sushiFactoryAddress: Address,
     sushiRouterAddress: Address,
     setControllerAddress: Address,
@@ -144,8 +144,8 @@ export default class DeployExtensions {
   ): Promise<ExchangeIssuanceV2> {
     return await new ExchangeIssuanceV2__factory(this._deployerSigner).deploy(
       wethAddress,
-      uniFactoryAddress,
-      uniRouterAddress,
+      quickSwapFactoryAddress,
+      quickSwapRouterAddress,
       sushiFactoryAddress,
       sushiRouterAddress,
       setControllerAddress,
