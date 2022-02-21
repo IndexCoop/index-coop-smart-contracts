@@ -1,5 +1,6 @@
 /*
-    Copyright 2021 Index Cooperative
+    Copyright 2022 Index Cooperative
+
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
     You may obtain a copy of the License at
@@ -9,6 +10,7 @@
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
     See the License for the specific language governing permissions and
     limitations under the License.
+
     SPDX-License-Identifier: Apache License, Version 2.0
 */
 pragma solidity 0.6.10;
@@ -96,11 +98,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         IERC20 indexed _outputToken,    // The address of output asset(ERC20/ETH) received by the recipient
         uint256 _amountSetRedeemed,     // The amount of SetTokens redeemed for output tokens
         uint256 _amountOutputToken      // The amount of output tokens received by the recipient
-    );
-
-    event Refund(
-        address indexed _recipient,     // The recipient address which redeemed the SetTokens
-        uint256 _refundAmount           // The amount of ETH redunded to the recipient
     );
 
     /* ============ Modifiers ============ */
@@ -684,8 +681,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      */
     function _swapShortForLongTokenUnderlying(address _setToken, uint256 _setAmount, address _longTokenUnderlying, Exchange _exchange) internal returns (uint256) {
         (, , address shortToken, uint shortAmount) = getLeveragedTokenData(ISetToken(_setToken), _setAmount, true);
-        IUniswapV2Router02 router = _getRouter(_exchange);
-        _safeApprove(IERC20(shortToken), address(router), shortAmount);
         return _swapExactTokensForTokens(_exchange, shortToken, _longTokenUnderlying, shortAmount);
     }
 
@@ -695,16 +690,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      */
     function _swapLongForShortToken(address _setToken, uint256 _setAmount, uint256 _amountRequired, address _shortToken, Exchange _exchange) internal returns (uint256 longAmountSpent) {
         (address longToken, uint longAmount,,) = getLeveragedTokenData(ISetToken(_setToken), _setAmount, false);
-        IUniswapV2Router02 router = _getRouter(_exchange);
-        _safeApprove(IERC20(longToken), address(router), longAmount);
         address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
         longAmountSpent = _swapTokensForExactTokens(_exchange, longTokenUnderlying, _shortToken, _amountRequired, longAmount);
     }
 
     function _swapInputForLongToken(address _longTokenUnderlying, uint256 _amountRequired, address _inputToken, uint256 _maxAmountInputToken, Exchange _exchange) internal returns (uint256 inputAmountSpent) {
         if(_longTokenUnderlying == _inputToken) return _amountRequired;
-        IUniswapV2Router02 router = _getRouter(_exchange);
-        _safeApprove(IERC20(_inputToken), address(router), _maxAmountInputToken);
         inputAmountSpent = _swapTokensForExactTokens(_exchange, _inputToken, _longTokenUnderlying, _amountRequired, _maxAmountInputToken);
     }
 
@@ -716,8 +707,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      */
     function _swapLongForOutputToken(address _longTokenUnderlying, uint256 _longTokenAmount, address _outputToken, Exchange _exchange) internal returns (uint256) {
         if(_longTokenUnderlying == _outputToken) return _longTokenAmount;
-        IUniswapV2Router02 router = _getRouter(_exchange);
-        _safeApprove(IERC20(_longTokenUnderlying), address(router), _longTokenAmount);
         return _swapExactTokensForTokens(_exchange, _longTokenUnderlying, _outputToken, _longTokenAmount);
     }
 
@@ -838,8 +827,10 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         }
 
         address[] memory path = _generatePath(_tokenIn, _tokenOut);
+        IUniswapV2Router02 router = _getRouter(_exchange);
+        _safeApprove(IERC20(_tokenIn), address(router), _amountIn);
         //TODO: Review if we have to set a non-zero minAmountOut
-        return _getRouter(_exchange).swapExactTokensForTokens(_amountIn, 0, path, address(this), block.timestamp)[1];
+        return router.swapExactTokensForTokens(_amountIn, 0, path, address(this), block.timestamp)[1];
     }
 
     /**
@@ -857,8 +848,10 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         if (_tokenIn == _tokenOut) {
             return _amountOut;
         }
+        IUniswapV2Router02 router = _getRouter(_exchange);
+        _safeApprove(IERC20(_tokenIn), address(router), _maxAmountIn);
         address[] memory path = _generatePath(_tokenIn, _tokenOut);
-        uint256 result = _getRouter(_exchange).swapTokensForExactTokens(_amountOut, _maxAmountIn, path, address(this), block.timestamp)[0];
+        uint256 result = router.swapTokensForExactTokens(_amountOut, _maxAmountIn, path, address(this), block.timestamp)[0];
         return result;
     }
 
@@ -876,100 +869,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             path[2] = _tokenOut;
         }
         return path;
-    }
-
-    /**
-     * Compares the amount of token required for an exact amount of another token across both exchanges,
-     * and returns the min amount.
-     *
-     * @param _amountOut    The amount of output token
-     * @param _tokenA       The address of tokenA
-     * @param _tokenB       The address of tokenB
-     *
-     * @return              The min amount of tokenA required across both exchanges
-     * @return              The Exchange on which minimum amount of tokenA is required
-     * @return              The pair address of the quickswap/sushiswap pool containing _tokenA and _tokenB
-     */
-    function _getMinTokenForExactToken(uint256 _amountOut, address _tokenA, address _tokenB) internal view returns (uint256, Exchange, address) {
-        if (_tokenA == _tokenB) {
-            return (_amountOut, Exchange.None, ETH_ADDRESS);
-        }
-
-        uint256 maxIn = PreciseUnitMath.maxUint256() ;
-        uint256 uniTokenIn = maxIn;
-        uint256 sushiTokenIn = maxIn;
-
-        address quickswapPair = _getPair(quickFactory, _tokenA, _tokenB);
-        if (quickswapPair != address(0)) {
-            (uint256 reserveIn, uint256 reserveOut) = UniSushiV2Library.getReserves(quickswapPair, _tokenA, _tokenB);
-            // Prevent subtraction overflow by making sure pool reserves are greater than swap amount
-            if (reserveOut > _amountOut) {
-                uniTokenIn = UniSushiV2Library.getAmountIn(_amountOut, reserveIn, reserveOut);
-            }
-        }
-
-        address sushiswapPair = _getPair(sushiFactory, _tokenA, _tokenB);
-        if (sushiswapPair != address(0)) {
-            (uint256 reserveIn, uint256 reserveOut) = UniSushiV2Library.getReserves(sushiswapPair, _tokenA, _tokenB);
-            // Prevent subtraction overflow by making sure pool reserves are greater than swap amount
-            if (reserveOut > _amountOut) {
-                sushiTokenIn = UniSushiV2Library.getAmountIn(_amountOut, reserveIn, reserveOut);
-            }
-        }
-
-        // Fails if both the values are maxIn
-        require(!(uniTokenIn == maxIn && sushiTokenIn == maxIn), "ExchangeIssuance: ILLIQUID_SET_COMPONENT");
-        return (uniTokenIn <= sushiTokenIn) ? (uniTokenIn, Exchange.Quickswap, quickswapPair) : (sushiTokenIn, Exchange.Sushiswap, sushiswapPair);
-    }
-
-    /**
-     * Compares the amount of token received for an exact amount of another token across both exchanges,
-     * and returns the max amount.
-     *
-     * @param _amountIn     The amount of input token
-     * @param _tokenA       The address of tokenA
-     * @param _tokenB       The address of tokenB
-     *
-     * @return              The max amount of tokens that can be received across both exchanges
-     * @return              The Exchange on which maximum amount of token can be received
-     * @return              The pair address of the quickswap/sushiswap pool containing _tokenA and _tokenB
-     */
-    function _getMaxTokenForExactToken(uint256 _amountIn, address _tokenA, address _tokenB) internal view returns (uint256, Exchange, address) {
-        if (_tokenA == _tokenB) {
-            return (_amountIn, Exchange.None, ETH_ADDRESS);
-        }
-
-        uint256 uniTokenOut = 0;
-        uint256 sushiTokenOut = 0;
-
-        address quickswapPair = _getPair(quickFactory, _tokenA, _tokenB);
-        if(quickswapPair != address(0)) {
-            (uint256 reserveIn, uint256 reserveOut) = UniSushiV2Library.getReserves(quickswapPair, _tokenA, _tokenB);
-            uniTokenOut = UniSushiV2Library.getAmountOut(_amountIn, reserveIn, reserveOut);
-        }
-
-        address sushiswapPair = _getPair(sushiFactory, _tokenA, _tokenB);
-        if(sushiswapPair != address(0)) {
-            (uint256 reserveIn, uint256 reserveOut) = UniSushiV2Library.getReserves(sushiswapPair, _tokenA, _tokenB);
-            sushiTokenOut = UniSushiV2Library.getAmountOut(_amountIn, reserveIn, reserveOut);
-        }
-
-        // Fails if both the values are 0
-        require(!(uniTokenOut == 0 && sushiTokenOut == 0), "ExchangeIssuance: ILLIQUID_SET_COMPONENT");
-        return (uniTokenOut >= sushiTokenOut) ? (uniTokenOut, Exchange.Quickswap, quickswapPair) : (sushiTokenOut, Exchange.Sushiswap, sushiswapPair);
-    }
-
-    /**
-     * Returns the pair address for on a given DEX.
-     *
-     * @param _factory   The factory to address
-     * @param _tokenA    The address of tokenA
-     * @param _tokenB    The address of tokenB
-     *
-     * @return           The pair address (Note: address(0) is returned by default if the pair is not available on that DEX)
-     */
-    function _getPair(address _factory, address _tokenA, address _tokenB) internal view returns (address) {
-        return IUniswapV2Factory(_factory).getPair(_tokenA, _tokenB);
     }
 
     /**
