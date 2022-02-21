@@ -60,6 +60,17 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     // Call parameter to control which token is used by the user to pay issuance / receive redemption amount
     enum PaymentToken { None, LongToken, ERC20, ETH}
 
+    /* ============ Structs ============ */
+    struct DecodedParams {
+        ISetToken setToken;
+        uint256 setAmount;
+        address originalSender;
+        bool isIssuance;
+        Exchange exchange;
+        PaymentToken paymentToken;
+        bytes paymentParams;
+    }
+
     /* ============ Constants ============= */
 
     uint256 constant private MAX_UINT96 = type(uint96).max;
@@ -350,17 +361,25 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         require(amounts.length == 1, "Exchange Issuance Leveraged: TOO MANY AMOUNTS");
         require(premiums.length == 1, "Exchange Issuance Leveraged: TOO MANY PREMIUMS");
 
-        (,,,bool isIssuance,,,) = _decodeParams(params);
-        if(isIssuance){
+        DecodedParams memory decodedParams = abi.decode(params, (DecodedParams));
+        if(decodedParams.isIssuance){
             _depositLongToken(assets[0], amounts[0]);
-            _issueSet(params);
-            _obtainLongTokens(assets[0], amounts[0] + premiums[0], params);
+            _issueSet(decodedParams.setToken, decodedParams.setAmount, decodedParams.originalSender);
+            _obtainLongTokens(assets[0], amounts[0] + premiums[0], decodedParams.setToken, decodedParams.setAmount, decodedParams.originalSender, decodedParams.exchange, decodedParams.paymentToken, decodedParams.paymentParams);
         }
         else {
-            _redeemSet(params);
-            _withdrawLongToken(params);
-            uint256 longTokenSpent = _obtainShortTokens(assets[0], amounts[0] + premiums[0], params);
-            _liquidateLongTokens(longTokenSpent, params);
+            _redeemSet(decodedParams.setToken, decodedParams.setAmount, decodedParams.originalSender);
+            _withdrawLongToken(decodedParams.setToken, decodedParams.setAmount);
+            uint256 longTokenSpent = _obtainShortTokens(assets[0], amounts[0] + premiums[0], decodedParams.setToken, decodedParams.setAmount, decodedParams.exchange);
+            _liquidateLongTokens(
+                longTokenSpent,
+                decodedParams.setToken,
+                decodedParams.setAmount,
+                decodedParams.originalSender,
+                decodedParams.exchange,
+                decodedParams.paymentToken,
+                decodedParams.paymentParams
+            );
         }
 
         return true;
@@ -428,7 +447,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         uint[] memory amounts =  new uint[](1);
         amounts[0] = longAmount;
 
-        bytes memory params = abi.encode(_setToken, _amountSetToken, msg.sender, true, _exchange, _paymentToken, _paymentParams);
+        bytes memory params = abi.encode(DecodedParams(_setToken, _amountSetToken, msg.sender, true, _exchange, _paymentToken, _paymentParams));
 
         _flashloan(assets, amounts, params);
 
@@ -459,7 +478,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         uint[] memory amounts =  new uint[](1);
         amounts[0] = shortAmount;
 
-        bytes memory params = abi.encode(_setToken, _amountSetToken, msg.sender, false, _exchange, _paymentToken, _paymentParams);
+        bytes memory params = abi.encode(DecodedParams(_setToken, _amountSetToken, msg.sender, false, _exchange, _paymentToken, _paymentParams));
 
         _flashloan(assets, amounts, params);
 
@@ -469,13 +488,14 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * Obtains the tokens necessary to return the flashloan by swapping the long tokens obtained
      * from issuance and making up the longfall using the users funds.
      *
-     * @param _shortToken    token of the collateral AToken, which is the token to be returned
-     * @param _amountRequired        Amount of shortToken required to repay the flashloan
-     * @param _params                Encoded data used to get setToken, setAmount, originalSender and paymentToken
+     * @param _shortToken                 token of the collateral AToken, which is the token to be returned
+     * @param _amountRequired             Amount of shortToken required to repay the flashloan
+     * @param _setToken                   Address of the SetToken to be issued
+     * @param _setAmount                  Amount of SetTokens to issue
+     * @param _exchange                   Exchange to use for swap
      */
-    function _obtainShortTokens(address _shortToken, uint256 _amountRequired, bytes memory _params) internal returns(uint256){
-        (address setToken, uint256 setAmount,,, Exchange exchange,,) = _decodeParams(_params);
-        return _swapLongForShortToken(setToken, setAmount, _amountRequired, _shortToken, exchange);
+    function _obtainShortTokens(address _shortToken, uint256 _amountRequired, ISetToken _setToken, uint256 _setAmount, Exchange _exchange) internal returns(uint256){
+        return _swapLongForShortToken(_setToken, _setAmount, _amountRequired, _shortToken, _exchange);
     }
 
     /**
@@ -483,29 +503,41 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * directly or converting them to the payment token and sending those out.
      *
      * @param _longTokenSpent    Amount of long token spent to obtain the short token required for redemption
-     * @param _params            Encoded data used to get setToken, setAmount, originalSender and paymentToken/Params
+     * @param _setToken          Address of the SetToken to be issued
+     * @param _setAmount         Amount of SetTokens to issue
+     * @param _originalSender    Address of the user who initiated the redemption
+     * @param _exchange          Exchange to use for swap
+     * @param _paymentToken      Enum controlling what token the user will receive
+     * @param _paymentParams     Encoded parameters for given payment method
      */
-    function _liquidateLongTokens(uint256 _longTokenSpent, bytes memory _params) internal {
-        (address setToken, uint256 setAmount, address originalSender,,Exchange exchange, PaymentToken paymentToken, bytes memory paymentParams) = _decodeParams(_params);
-        (address longToken , uint256 longAmount,,) = getLeveragedTokenData(ISetToken(setToken), setAmount, false);
+    function _liquidateLongTokens(
+        uint256 _longTokenSpent,
+        ISetToken _setToken,
+        uint256 _setAmount,
+        address _originalSender,
+        Exchange _exchange,
+        PaymentToken _paymentToken,
+        bytes memory _paymentParams
+    ) internal {
+        (address longToken , uint256 longAmount,,) = getLeveragedTokenData(_setToken, _setAmount, false);
         address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
         require(longAmount >= _longTokenSpent, "ExchangeIssuance: OVERSPENT LONG TOKEN");
         uint256 amountToReturn = longAmount.sub(_longTokenSpent);
         address outputToken;
         uint256 outputAmount;
-        if(paymentToken == PaymentToken.LongToken){
-            _returnLongTokensToSender(longTokenUnderlying, amountToReturn, originalSender, paymentParams);
+        if(_paymentToken == PaymentToken.LongToken){
+            _returnLongTokensToSender(longTokenUnderlying, amountToReturn, _originalSender, _paymentParams);
             outputToken = longTokenUnderlying;
             outputAmount = amountToReturn;
         }
-        else if(paymentToken == PaymentToken.ERC20){
-            (outputToken, outputAmount) = _liquidateLongTokensForERC20(longTokenUnderlying, amountToReturn, exchange, originalSender, paymentParams);
+        else if(_paymentToken == PaymentToken.ERC20){
+            (outputToken, outputAmount) = _liquidateLongTokensForERC20(longTokenUnderlying, amountToReturn, _exchange, _originalSender, _paymentParams);
         }
         else {
-            outputAmount = _liquidateLongTokensForETH(longTokenUnderlying, amountToReturn, exchange, originalSender, paymentParams);
+            outputAmount = _liquidateLongTokensForETH(longTokenUnderlying, amountToReturn, _exchange, _originalSender, _paymentParams);
             outputToken = WETH;
         }
-        emit ExchangeRedeem(originalSender, ISetToken(setToken), IERC20(outputToken), setAmount, outputAmount);
+        emit ExchangeRedeem(_originalSender, _setToken, IERC20(outputToken), _setAmount, outputAmount);
     }
 
     /**
@@ -566,42 +598,49 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      *
      * @param _longTokenUnderlying   Underlying token of the collateral AToken, which is the token to be returned
      * @param _amountRequired        Amount of longTokenUnderlying required to repay the flashloan
-     * @param _params                Encoded data used to get setToken, setAmount, originalSender and paymentToken
+     * @param _setToken          Address of the SetToken to be issued
+     * @param _setAmount         Amount of SetTokens to issue
+     * @param _originalSender    Address of the user who initiated the redemption
+     * @param _exchange          Exchange to use for swap
+     * @param _paymentToken      Enum controlling what token the user will receive
+     * @param _paymentParams     Encoded parameters for given payment method
      */
-    function _obtainLongTokens(address _longTokenUnderlying, uint256 _amountRequired, bytes memory _params) internal {
-        (address setToken, uint256 setAmount, address originalSender,, Exchange exchange, PaymentToken paymentToken, bytes memory paymentParams) = _decodeParams(_params);
-        uint longTokenObtained = _swapShortForLongTokenUnderlying(setToken, setAmount, _longTokenUnderlying, exchange);
+    function _obtainLongTokens(
+        address _longTokenUnderlying,
+        uint256 _amountRequired,
+        ISetToken _setToken,
+        uint256 _setAmount,
+        address _originalSender,
+        Exchange _exchange,
+        PaymentToken _paymentToken,
+        bytes memory _paymentParams
+    ) internal {
+        uint longTokenObtained = _swapShortForLongTokenUnderlying(_setToken, _setAmount, _longTokenUnderlying, _exchange);
         uint longTokenShortfall = _amountRequired.sub(longTokenObtained);
         uint amountInputToken;
         address inputToken;
-        if(paymentToken == PaymentToken.LongToken){
-           _transferShortfallFromSender(_longTokenUnderlying, longTokenShortfall, originalSender, paymentParams);
+        if(_paymentToken == PaymentToken.LongToken){
+           _transferShortfallFromSender(_longTokenUnderlying, longTokenShortfall, _originalSender, _paymentParams);
            inputToken = _longTokenUnderlying;
            amountInputToken = longTokenShortfall;
         }
-        else if(paymentToken == PaymentToken.ERC20){
-            (inputToken, amountInputToken) = _makeUpShortfallWithERC20(_longTokenUnderlying, longTokenShortfall, exchange, originalSender, paymentParams);
+        else if(_paymentToken == PaymentToken.ERC20){
+            (inputToken, amountInputToken) = _makeUpShortfallWithERC20(_longTokenUnderlying, longTokenShortfall, _exchange, _originalSender, _paymentParams);
         }
         else {
-            amountInputToken = _makeUpShortfallWithETH(_longTokenUnderlying, longTokenShortfall, exchange, originalSender, paymentParams);
+            amountInputToken = _makeUpShortfallWithETH(_longTokenUnderlying, longTokenShortfall, _exchange, _originalSender, _paymentParams);
             inputToken = WETH;
         }
-        emit ExchangeIssue(originalSender, ISetToken(setToken), IERC20(inputToken), amountInputToken, setAmount);
+        emit ExchangeIssue(_originalSender, _setToken, IERC20(inputToken), amountInputToken, _setAmount);
     }
 
-    function _issueSet(bytes memory _params) internal {
-        (address setToken, uint256 setAmount, address originalSender,,,,) = _decodeParams(_params);
-        debtIssuanceModule.issue(ISetToken(setToken), setAmount, originalSender);
+    function _issueSet(ISetToken _setToken, uint256 _setAmount, address _originalSender) internal {
+        debtIssuanceModule.issue(_setToken, _setAmount, _originalSender);
     }
 
-    function _redeemSet(bytes memory _params) internal {
-        (address setToken, uint256 setAmount, address originalSender ,,,,) = _decodeParams(_params);
-        IERC20(setToken).safeTransferFrom(originalSender, address(this), setAmount);
-        debtIssuanceModule.redeem(ISetToken(setToken), setAmount, address(this));
-    }
-
-    function _decodeParams(bytes memory params) internal pure returns(address setToken, uint256 setAmount, address originalSender, bool isIssuance, Exchange exchange, PaymentToken paymentToken, bytes memory paymentParams){
-            (setToken, setAmount, originalSender, isIssuance, exchange, paymentToken, paymentParams) = abi.decode(params, (address, uint256, address, bool, Exchange, PaymentToken, bytes));
+    function _redeemSet(ISetToken _setToken, uint256 _setAmount, address _originalSender) internal {
+        IERC20(_setToken).safeTransferFrom(_originalSender, address(this), _setAmount);
+        debtIssuanceModule.redeem(_setToken, _setAmount, address(this));
     }
 
     function _decodePaymentParams(bytes memory _paymentParams) internal pure returns(uint256 limitAmount){
@@ -683,8 +722,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _setAmount                  Amount of SetTokens to issue
      * @param _longTokenUnderlying        Address of the underlying of the collateral token
      */
-    function _swapShortForLongTokenUnderlying(address _setToken, uint256 _setAmount, address _longTokenUnderlying, Exchange _exchange) internal returns (uint256) {
-        (, , address shortToken, uint shortAmount) = getLeveragedTokenData(ISetToken(_setToken), _setAmount, true);
+    function _swapShortForLongTokenUnderlying(ISetToken _setToken, uint256 _setAmount, address _longTokenUnderlying, Exchange _exchange) internal returns (uint256) {
+        (, , address shortToken, uint shortAmount) = getLeveragedTokenData(_setToken, _setAmount, true);
         return _swapExactTokensForTokens(_exchange, shortToken, _longTokenUnderlying, shortAmount);
     }
 
@@ -692,8 +731,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * Swaps the debt tokens obtained from issuance for the underlying of the collateral
      *
      */
-    function _swapLongForShortToken(address _setToken, uint256 _setAmount, uint256 _amountRequired, address _shortToken, Exchange _exchange) internal returns (uint256 longAmountSpent) {
-        (address longToken, uint longAmount,,) = getLeveragedTokenData(ISetToken(_setToken), _setAmount, false);
+    function _swapLongForShortToken(ISetToken _setToken, uint256 _setAmount, uint256 _amountRequired, address _shortToken, Exchange _exchange) internal returns (uint256 longAmountSpent) {
+        (address longToken, uint longAmount,,) = getLeveragedTokenData(_setToken, _setAmount, false);
         address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
         longAmountSpent = _swapTokensForExactTokens(_exchange, longTokenUnderlying, _shortToken, _amountRequired, longAmount);
     }
@@ -734,10 +773,10 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      *
      */
     function _withdrawLongToken(
-        bytes memory _params
+        ISetToken _setToken,
+        uint256 _setAmount
     ) internal {
-        (address setToken, uint256 setAmount,,,,,) = _decodeParams(_params);
-        (address longToken, uint256 longAmount,,) = getLeveragedTokenData(ISetToken(setToken), setAmount, false);
+        (address longToken, uint256 longAmount,,) = getLeveragedTokenData(_setToken, _setAmount, false);
         address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
         LENDING_POOL.withdraw(longTokenUnderlying, longAmount, address(this));
     }
