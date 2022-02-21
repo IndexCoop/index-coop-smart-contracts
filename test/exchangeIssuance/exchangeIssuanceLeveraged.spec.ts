@@ -20,7 +20,7 @@ import {
   StandardTokenMock,
   WETH9,
 } from "@utils/contracts/index";
-import { UniswapV2Factory, UniswapV2Router02 } from "@utils/contracts/uniswap";
+import { UniswapV2Router02 } from "@utils/contracts/uniswap";
 import { AaveLeverageModule, DebtIssuanceModule, SetToken } from "@utils/contracts/setV2";
 import { AaveV2AToken } from "@typechain/AaveV2AToken";
 import { AaveV2VariableDebtToken } from "@typechain/AaveV2VariableDebtToken";
@@ -85,9 +85,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
   let wethAddress: Address;
   let wbtcAddress: Address;
   let daiAddress: Address;
-  let quickswapFactory: UniswapV2Factory;
   let quickswapRouter: UniswapV2Router02;
-  let sushiswapFactory: UniswapV2Factory;
   let sushiswapRouter: UniswapV2Router02;
   let controllerAddress: Address;
   let debtIssuanceModuleAddress: Address;
@@ -204,9 +202,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
     await collateralToken.transfer(tradeAdapterMock.address, setTokenInitialBalance.mul(10));
     await leverageStrategyExtension.engage(exchangeName);
 
-    quickswapFactory = quickswapSetup.factory;
     quickswapRouter = quickswapSetup.router;
-    sushiswapFactory = sushiswapSetup.factory;
     sushiswapRouter = sushiswapSetup.router;
     controllerAddress = setV2Setup.controller.address;
     debtIssuanceModuleAddress = debtIssuanceModule.address;
@@ -374,9 +370,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
       const result = await deployer.extensions.deployExchangeIssuanceLeveraged(
         wethAddress,
         wethAddress,
-        quickswapFactory.address,
         quickswapRouter.address,
-        sushiswapFactory.address,
         sushiswapRouter.address,
         controllerAddress,
         debtIssuanceModuleAddress,
@@ -397,14 +391,10 @@ describe("ExchangeIssuanceLeveraged", async () => {
       const expectedUniRouterAddress = await exchangeIssuanceContract.quickRouter();
       expect(expectedUniRouterAddress).to.eq(quickswapRouter.address);
 
-      const expectedUniFactoryAddress = await exchangeIssuanceContract.quickFactory();
-      expect(expectedUniFactoryAddress).to.eq(quickswapFactory.address);
 
       const expectedSushiRouterAddress = await exchangeIssuanceContract.sushiRouter();
       expect(expectedSushiRouterAddress).to.eq(sushiswapRouter.address);
 
-      const expectedSushiFactoryAddress = await exchangeIssuanceContract.sushiFactory();
-      expect(expectedSushiFactoryAddress).to.eq(sushiswapFactory.address);
 
       const expectedControllerAddress = await exchangeIssuanceContract.setController();
       expect(expectedControllerAddress).to.eq(controllerAddress);
@@ -436,9 +426,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
       exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveraged(
         wethAddress,
         wethAddress,
-        quickswapFactory.address,
         quickswapRouter.address,
-        sushiswapFactory.address,
         sushiswapRouter.address,
         controllerAddress,
         debtIssuanceModuleAddress,

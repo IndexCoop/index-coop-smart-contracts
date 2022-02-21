@@ -18,7 +18,6 @@ pragma experimental ABIEncoderV2;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IUniswapV2Factory } from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import { IUniswapV2Router02 } from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import { Math } from "@openzeppelin/contracts/math/Math.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
@@ -70,14 +69,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     /* ============ State Variables ============ */
 
     // Token to trade via 
-    address public INTERMEDIATE_TOKEN;
+    address immutable public INTERMEDIATE_TOKEN;
     // Wrapped native token (WMATIC on polygon)
-    address public WETH;
-    IUniswapV2Router02 public quickRouter;
-    IUniswapV2Router02 public sushiRouter;
+    address immutable public WETH;
+    IUniswapV2Router02 immutable public quickRouter;
+    IUniswapV2Router02 immutable public sushiRouter;
 
-    address public immutable quickFactory;
-    address public immutable sushiFactory;
 
     IController public immutable setController;
     IDebtIssuanceModule public immutable debtIssuanceModule;
@@ -114,12 +111,21 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
     /* ============ Constructor ============ */
 
+    /**
+    * Sets various contract addresses and approves intermediate token to the routers
+    * 
+    * @param _weth                  Address of wrapped native token
+    * @param _intermediateToken     Address of high liquidity token to trade via
+    * @param _quickRouter           Address of quickswap router
+    * @param _sushiRouter           Address of sushiswap router
+    * @param _setController         SetToken controller used to verify a given token is a set
+    * @param _debtIssuanceModule    DebtIssuanceModule used to issue and redeem tokens
+    * @param _addressProvider       Address of DebtIssuanceModule used to issue and redeem tokens
+    */
     constructor(
         address _weth,
         address _intermediateToken,
-        address _quickFactory,
         IUniswapV2Router02 _quickRouter,
-        address _sushiFactory,
         IUniswapV2Router02 _sushiRouter,
         IController _setController,
         IDebtIssuanceModule _debtIssuanceModule,
@@ -128,23 +134,21 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         public
         FlashLoanReceiverBaseV2(_addressProvider)
     {
-        quickFactory = _quickFactory;
         quickRouter = _quickRouter;
 
-        sushiFactory = _sushiFactory;
         sushiRouter = _sushiRouter;
 
         setController = _setController;
         debtIssuanceModule = _debtIssuanceModule;
 
         WETH = _weth;
-        IERC20(WETH).safeApprove(address(quickRouter), PreciseUnitMath.maxUint256());
-        IERC20(WETH).safeApprove(address(sushiRouter), PreciseUnitMath.maxUint256());
+        IERC20(_weth).safeApprove(address(_quickRouter), PreciseUnitMath.maxUint256());
+        IERC20(_weth).safeApprove(address(_sushiRouter), PreciseUnitMath.maxUint256());
 
         INTERMEDIATE_TOKEN = _intermediateToken;
         if(_intermediateToken != _weth) {
-            IERC20(INTERMEDIATE_TOKEN).safeApprove(address(quickRouter), PreciseUnitMath.maxUint256());
-            IERC20(INTERMEDIATE_TOKEN).safeApprove(address(sushiRouter), PreciseUnitMath.maxUint256());
+            IERC20(_intermediateToken).safeApprove(address(_quickRouter), PreciseUnitMath.maxUint256());
+            IERC20(_intermediateToken).safeApprove(address(_sushiRouter), PreciseUnitMath.maxUint256());
         }
     }
 
