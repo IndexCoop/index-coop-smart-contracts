@@ -391,10 +391,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
       const expectedUniRouterAddress = await exchangeIssuanceContract.quickRouter();
       expect(expectedUniRouterAddress).to.eq(quickswapRouter.address);
 
-
       const expectedSushiRouterAddress = await exchangeIssuanceContract.sushiRouter();
       expect(expectedSushiRouterAddress).to.eq(sushiswapRouter.address);
-
 
       const expectedControllerAddress = await exchangeIssuanceContract.setController();
       expect(expectedControllerAddress).to.eq(controllerAddress);
@@ -487,7 +485,9 @@ describe("ExchangeIssuanceLeveraged", async () => {
     });
 
     ["LongToken", "ERC20", "ETH"].forEach(tokenName => {
-      describe(`#redeemExactSetFor${tokenName}`, async () => {
+      describe(`#redeemExactSetFor${tokenName == "LongToken" ? "ERC20" : tokenName} ${
+        tokenName == "LongToken" ? "paying with LongToken" : ""
+      }`, async () => {
         let subjectSetToken: Address;
         let subjectSetAmount: BigNumber;
         let subjectMinAmountOutput: BigNumber;
@@ -499,9 +499,10 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
         async function subject() {
           if (tokenName === "LongToken") {
-            return await exchangeIssuance.redeemExactSetForLongToken(
+            return await exchangeIssuance.redeemExactSetForERC20(
               subjectSetToken,
               subjectSetAmount,
+              collateralToken.address,
               subjectMinAmountOutput,
               subjectExchange,
             );
@@ -542,9 +543,10 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
           await collateralToken.approve(exchangeIssuance.address, longAmount);
           await exchangeIssuance.approveSetToken(setToken.address);
-          await exchangeIssuance.issueExactSetFromLongToken(
+          await exchangeIssuance.issueExactSetFromERC20(
             subjectSetToken,
             subjectSetAmount,
+            collateralToken.address,
             longAmount,
             subjectExchange,
           );
@@ -596,7 +598,9 @@ describe("ExchangeIssuanceLeveraged", async () => {
           });
         });
       });
-      describe(`#issueExactSetFrom${tokenName}`, async () => {
+      describe(`#issueExactSetFrom${tokenName == "LongToken" ? "ERC20" : tokenName} ${
+        tokenName == "LongToken" ? "paying with LongToken" : ""
+      }`, async () => {
         let subjectSetToken: Address;
         let subjectSetAmount: BigNumber;
         let subjectMaxAmountInput: BigNumber;
@@ -607,9 +611,10 @@ describe("ExchangeIssuanceLeveraged", async () => {
         let inputAmountSpent: BigNumber;
         async function subject() {
           if (tokenName === "LongToken") {
-            return await exchangeIssuance.issueExactSetFromLongToken(
+            return await exchangeIssuance.issueExactSetFromERC20(
               subjectSetToken,
               subjectSetAmount,
+              collateralToken.address,
               subjectMaxAmountInput,
               subjectExchange,
             );

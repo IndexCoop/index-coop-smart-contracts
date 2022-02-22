@@ -242,8 +242,9 @@ if (process.env.INTEGRATIONTEST) {
       });
       context("Payment Token: LongToken", () => {
         let pricePaid: BigNumber;
-        context("#issueExactSetFromLongToken", () => {
+        context("#issueExactSetFromERC20", () => {
           let subjectMaxAmountInput: BigNumber;
+          let subjectInputToken: Address;
           before(async () => {
             const ownerBalance = await owner.wallet.getBalance();
             await sushiRouter.swapExactETHForTokens(
@@ -254,12 +255,14 @@ if (process.env.INTEGRATIONTEST) {
               { value: ownerBalance.div(2) },
             );
             subjectMaxAmountInput = await weth.balanceOf(owner.address);
+            subjectInputToken = weth.address;
             await weth.approve(exchangeIssuance.address, subjectMaxAmountInput);
           });
           async function subject() {
-            return await exchangeIssuance.issueExactSetFromLongToken(
+            return await exchangeIssuance.issueExactSetFromERC20(
               subjectSetToken,
               subjectSetAmount,
+              subjectInputToken,
               subjectMaxAmountInput,
               subjectExchange,
             );
@@ -275,18 +278,21 @@ if (process.env.INTEGRATIONTEST) {
           });
         });
 
-        context("#redeemExactSetForLongToken", () => {
+        context("#redeemExactSetForERC20", () => {
           let subjectMinAmountOutput: BigNumber;
+          let subjectOutputToken: Address;
           before(async () => {
             // Check to avoid running test when issuance failed and there are no tokens to redeem
             expect(pricePaid.gt(0)).to.be.true;
             subjectMinAmountOutput = pricePaid.div(2);
+            subjectOutputToken = weth.address;
             eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
           });
           async function subject() {
-            return await exchangeIssuance.redeemExactSetForLongToken(
+            return await exchangeIssuance.redeemExactSetForERC20(
               subjectSetToken,
               subjectSetAmount,
+              subjectOutputToken,
               subjectMinAmountOutput,
               subjectExchange,
             );

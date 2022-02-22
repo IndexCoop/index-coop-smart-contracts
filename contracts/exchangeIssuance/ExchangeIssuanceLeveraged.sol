@@ -203,30 +203,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
 
     /**
-     * Trigger redemption of set token to pay the user with the underlying collateral token 
-     *
-     * @param _setToken               Set token to redeem
-     * @param _amountSetToken         Amount to redeem
-     * @param _minAmountOutputToken   Minimum amount of underlying collateral token to send to the user
-     * @param _exchange               Exchange to use in swap from short to long token
-     */
-    function redeemExactSetForLongToken(
-        ISetToken _setToken,
-        uint256 _amountSetToken,
-        uint256 _minAmountOutputToken,
-        Exchange _exchange
-    )
-        isSetToken(_setToken)
-        external
-        nonReentrant
-    {
-        (address longToken ,,,) = _getLeveragedTokenData(_setToken, _amountSetToken, false);
-        address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
-        bytes memory paymentParams = abi.encode(_minAmountOutputToken, longTokenUnderlying);
-        _initiateRedemption(_setToken, _amountSetToken, _exchange, PaymentToken.ERC20, paymentParams);
-    }
-
-    /**
      * Trigger redemption of set token to pay the user with Eth
      *
      * @param _setToken               Set token to redeem
@@ -270,30 +246,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     {
         bytes memory paymentParams = abi.encode(_minAmountOutputToken, _outputToken);
         _initiateRedemption(_setToken, _amountSetToken, _exchange, PaymentToken.ERC20, paymentParams);
-    }
-
-    /**
-     * Trigger issuance of set token paying with the underlying of the collateral token directly
-     *
-     * @param _setToken            Set token to issue
-     * @param _amountSetToken      Amount to issue
-     * @param _maxAmountInputToken Maximum amount of input token to spend
-     * @param _exchange            Exchange to use in swap from short to long token
-     */
-    function issueExactSetFromLongToken(
-        ISetToken _setToken,
-        uint256 _amountSetToken,
-        uint256 _maxAmountInputToken,
-        Exchange _exchange
-    )
-        isSetToken(_setToken)
-        external
-        nonReentrant
-    {
-        (address longToken ,,,) = _getLeveragedTokenData(_setToken, _amountSetToken, false);
-        address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
-        bytes memory paymentParams = abi.encode(_maxAmountInputToken, longTokenUnderlying);
-        _initiateIssuance(_setToken, _amountSetToken, _exchange, PaymentToken.ERC20, paymentParams);
     }
 
     /**
