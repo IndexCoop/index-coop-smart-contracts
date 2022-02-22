@@ -58,7 +58,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
     enum Exchange { None, Quickswap, Sushiswap}
     // Call parameter to control which token is used by the user to pay issuance / receive redemption amount
-    enum PaymentToken { None, LongToken, ERC20, ETH}
+    enum PaymentToken { None, ERC20, ETH}
 
     /* ============ Structs ============ */
     struct DecodedParams {
@@ -220,8 +220,10 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         external
         nonReentrant
     {
-        bytes memory paymentParams = abi.encode(_minAmountOutputToken);
-        _initiateRedemption(_setToken, _amountSetToken, _exchange, PaymentToken.LongToken, paymentParams);
+        (address longToken ,,,) = _getLeveragedTokenData(_setToken, _amountSetToken, false);
+        address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
+        bytes memory paymentParams = abi.encode(_minAmountOutputToken, longTokenUnderlying);
+        _initiateRedemption(_setToken, _amountSetToken, _exchange, PaymentToken.ERC20, paymentParams);
     }
 
     /**
@@ -288,8 +290,10 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         external
         nonReentrant
     {
-        bytes memory paymentParams = abi.encode(_maxAmountInputToken);
-        _initiateIssuance(_setToken, _amountSetToken, _exchange, PaymentToken.LongToken, paymentParams);
+        (address longToken ,,,) = _getLeveragedTokenData(_setToken, _amountSetToken, false);
+        address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
+        bytes memory paymentParams = abi.encode(_maxAmountInputToken, longTokenUnderlying);
+        _initiateIssuance(_setToken, _amountSetToken, _exchange, PaymentToken.ERC20, paymentParams);
     }
 
     /**
@@ -567,12 +571,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         uint256 amountToReturn = longAmount.sub(_longTokenSpent);
         address outputToken;
         uint256 outputAmount;
-        if(_paymentToken == PaymentToken.LongToken){
-            _returnLongTokensToSender(longTokenUnderlying, amountToReturn, _originalSender, _paymentParams);
-            outputToken = longTokenUnderlying;
-            outputAmount = amountToReturn;
-        }
-        else if(_paymentToken == PaymentToken.ERC20){
+        if(_paymentToken == PaymentToken.ERC20){
             (outputToken, outputAmount) = _liquidateLongTokensForERC20(longTokenUnderlying, amountToReturn, _exchange, _originalSender, _paymentParams);
         }
         else {
@@ -607,6 +606,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      */
     function _liquidateLongTokensForERC20(address _longTokenUnderlying, uint256 _amountToReturn, Exchange _exchange, address _originalSender, bytes memory _paymentParams) internal returns(address, uint256) {
             (uint256 minAmountOutputToken, address outputToken) = _decodePaymentParamsERC20(_paymentParams);
+
+            if(outputToken == _longTokenUnderlying){
+                _returnLongTokensToSender(_longTokenUnderlying, _amountToReturn, _originalSender, _paymentParams);
+                return(_longTokenUnderlying, _amountToReturn);
+            }
+
             uint256 outputTokenAmount = _swapLongForOutputToken(_longTokenUnderlying, _amountToReturn, outputToken, _exchange);
             require(outputTokenAmount >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
             IERC20(outputToken).transfer(_originalSender, outputTokenAmount);
@@ -661,12 +666,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         uint longTokenShortfall = _amountRequired.sub(longTokenObtained);
         uint amountInputToken;
         address inputToken;
-        if(_paymentToken == PaymentToken.LongToken){
-           _transferShortfallFromSender(_longTokenUnderlying, longTokenShortfall, _originalSender, _paymentParams);
-           inputToken = _longTokenUnderlying;
-           amountInputToken = longTokenShortfall;
-        }
-        else if(_paymentToken == PaymentToken.ERC20){
+        if(_paymentToken == PaymentToken.ERC20){
             (inputToken, amountInputToken) = _makeUpShortfallWithERC20(_longTokenUnderlying, longTokenShortfall, _exchange, _originalSender, _paymentParams);
         }
         else {
@@ -721,13 +721,19 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      */
     function _makeUpShortfallWithERC20(address _longTokenUnderlying, uint256 _longTokenShortfall, Exchange _exchange, address _originalSender, bytes memory _paymentParams) internal returns(address, uint256) {
             (uint256 maxAmountInputToken, address inputToken) = _decodePaymentParamsERC20(_paymentParams);
-            IERC20(inputToken).transferFrom(_originalSender, address(this), maxAmountInputToken);
-            uint256 amountInputToken = _swapInputForLongToken(_longTokenUnderlying, _longTokenShortfall, inputToken, maxAmountInputToken, _exchange);
-            require(amountInputToken <= maxAmountInputToken, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
-            if(amountInputToken < maxAmountInputToken){
-                IERC20(inputToken).transfer(_originalSender, maxAmountInputToken.sub(amountInputToken));
+            if(inputToken == _longTokenUnderlying){
+                _transferShortfallFromSender(_longTokenUnderlying, _longTokenShortfall, _originalSender, _paymentParams);
+                return (inputToken, _longTokenShortfall);
             }
-            return(inputToken, amountInputToken);
+            else{
+                IERC20(inputToken).transferFrom(_originalSender, address(this), maxAmountInputToken);
+                uint256 amountInputToken = _swapInputForLongToken(_longTokenUnderlying, _longTokenShortfall, inputToken, maxAmountInputToken, _exchange);
+                require(amountInputToken <= maxAmountInputToken, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
+                if(amountInputToken < maxAmountInputToken){
+                    IERC20(inputToken).transfer(_originalSender, maxAmountInputToken.sub(amountInputToken));
+                }
+                return(inputToken, amountInputToken);
+            }
     }
 
     /**
