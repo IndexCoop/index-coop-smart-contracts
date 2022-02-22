@@ -651,7 +651,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
             ERC20: setV2Setup.usdc,
           };
           inputToken = inputTokenMapping[tokenName];
-          subjectInputToken = inputToken.address;
+          const ethAddress = await exchangeIssuance.ETH_ADDRESS();
+          subjectInputToken = tokenName == "ETH" ? ethAddress : inputToken.address;
 
           await inputToken.approve(exchangeIssuance.address, subjectMaxAmountInput);
           await exchangeIssuance.approveSetToken(setToken.address);
