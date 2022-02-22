@@ -29,9 +29,18 @@ import { IFlexibleLeverageStrategyExtension } from "../interfaces/IFlexibleLever
  * Chainlink Keeper which automatically rebalances FLI SetTokens.
  */
 contract FliRebalanceKeeper is Ownable, KeeperCompatibleInterface {
+
     using Address for address;
 
+    /* ============ Structs ============ */
+
+    struct LeverageSettings {
+        uint256 customMinLeverageRatio;                             // The minimum leverage ratio
+        uint256 customMaxLeverageRatio;                             // The maximum leverage ratio
+    }
+
     /* ============ Modifiers ============ */
+
     modifier onlyRegistry() {
         require(msg.sender == registryAddress, "Only registry address can call this function");
         _;
@@ -42,12 +51,20 @@ contract FliRebalanceKeeper is Ownable, KeeperCompatibleInterface {
     IFlexibleLeverageStrategyExtension public fliExtension;         // Address of the fli extension contract
     address public registryAddress;                                 // Address of the chainlink keeper registry
     uint256 public exchangeIndex;                                   // The index of the exchange to use
+    LeverageSettings public leverageSettings;                       // The leverage settings to check whether should rebalance
 
     /* ============ Constructor ============ */
-    constructor(IFlexibleLeverageStrategyExtension _fliExtension, address _registryAddress) public {
+
+    constructor(
+        IFlexibleLeverageStrategyExtension _fliExtension,
+        address _registryAddress,
+        uint256 _exchangeIndex,
+        LeverageSettings memory _leverageSettings
+    ) public {
         fliExtension = _fliExtension;
         registryAddress = _registryAddress;
-        exchangeIndex = 0;
+        exchangeIndex = _exchangeIndex;
+        leverageSettings = _leverageSettings;
     }    
 
     /**
@@ -55,8 +72,13 @@ contract FliRebalanceKeeper is Ownable, KeeperCompatibleInterface {
      * As such if a keeper calls this function, it will always return true so that performUpkeep will be called.
      */    
     function checkUpkeep(bytes calldata /* checkData */) external override returns (bool, bytes memory) {
-        bytes memory callData = getRebalanceCalldata();
-        return (callData.length > 0, callData);
+        (string[] memory exchangeNames, IFlexibleLeverageStrategyExtension.ShouldRebalance[] memory shouldRebalances) = fliExtension.shouldRebalanceWithBounds(
+            leverageSettings.customMinLeverageRatio,
+            leverageSettings.customMaxLeverageRatio
+        );
+        IFlexibleLeverageStrategyExtension.ShouldRebalance shouldRebalance = shouldRebalances[exchangeIndex];
+        bytes memory performData = abi.encode(shouldRebalance, exchangeNames[exchangeIndex]);
+        return (shouldRebalance != IFlexibleLeverageStrategyExtension.ShouldRebalance.NONE, performData);
     }
 
     /**
@@ -64,27 +86,27 @@ contract FliRebalanceKeeper is Ownable, KeeperCompatibleInterface {
      */
     function performUpkeep(bytes calldata performData) external override onlyRegistry {
         require(performData.length > 0, "Invalid performData");
-        Address.functionCall(address(fliExtension), performData);
-    }
-
-    function getRebalanceCalldata() private returns (bytes memory) {
-        bytes memory shouldRebalanceCalldata = abi.encodeWithSelector(fliExtension.shouldRebalance.selector);
-        bytes memory shouldRebalanceResponse = Address.functionCall(address(fliExtension), shouldRebalanceCalldata, "Failed to execute shouldRebalance()");
-        (string[] memory exchangeNames, uint256[] memory shouldRebalances) = abi.decode(shouldRebalanceResponse, (string[], uint256[]));
-        require(exchangeIndex < exchangeNames.length, "Invalid exchangeIndex");
-
-        uint256 shouldRebalance = shouldRebalances[exchangeIndex];
-        if (shouldRebalance == 1) {
-            return abi.encodeWithSelector(fliExtension.rebalance.selector, exchangeNames[exchangeIndex]);
-        } else if (shouldRebalance == 2) {
-            return abi.encodeWithSelector(fliExtension.iterateRebalance.selector, exchangeNames[exchangeIndex]);
-        } else if (shouldRebalance == 3) {
-            return abi.encodeWithSelector(fliExtension.ripcord.selector, exchangeNames[exchangeIndex]);
+        (IFlexibleLeverageStrategyExtension.ShouldRebalance shouldRebalance, string memory exchangeName) = abi.decode(
+            performData,
+            (IFlexibleLeverageStrategyExtension.ShouldRebalance, string)
+        );
+        if (shouldRebalance == IFlexibleLeverageStrategyExtension.ShouldRebalance.REBALANCE) {
+            fliExtension.rebalance(exchangeName);
+            return;
+        } else if (shouldRebalance == IFlexibleLeverageStrategyExtension.ShouldRebalance.ITERATE_REBALANCE) {
+            fliExtension.iterateRebalance(exchangeName);
+            return;
+        } else if (shouldRebalance == IFlexibleLeverageStrategyExtension.ShouldRebalance.RIPCORD) {
+            fliExtension.ripcord(exchangeName);
+            return;
         }
-        return new bytes(0);
+        revert("FliRebalanceKeeper: invalid shouldRebalance or no rebalance required");
     }
-
     function setExchangeIndex(uint256 _exchangeIndex) external onlyOwner {
         exchangeIndex = _exchangeIndex;
+    }
+
+    function setLeverageSettings(LeverageSettings memory _leverageSettings) external onlyOwner {
+        leverageSettings = _leverageSettings;
     }
 }

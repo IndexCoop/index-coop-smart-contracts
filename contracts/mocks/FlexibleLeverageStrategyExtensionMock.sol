@@ -41,20 +41,11 @@ contract FlexibleLeverageStrategyExtensionMock is BaseExtension {
      * @return (string[] memory, ShouldRebalance[] memory)      List of exchange names and a list of enums representing whether that exchange should rebalance
      */
     function shouldRebalance() external view returns (string[] memory, ShouldRebalance[] memory) {
-        ShouldRebalance rebalanceStrategy = ShouldRebalance.NONE;
-        if (currentLeverageRatio == 1) {
-            rebalanceStrategy = ShouldRebalance.REBALANCE;
-        } else if (currentLeverageRatio == 2) {
-            rebalanceStrategy = ShouldRebalance.ITERATE_REBALANCE;
-        } else if (currentLeverageRatio == 3) {
-            rebalanceStrategy = ShouldRebalance.RIPCORD;
-        }
-        string[] memory exchangeNames = new string[](1);
-        exchangeNames[0] = exchangeName;
+        return _shouldRebalance(); 
+    }
 
-        ShouldRebalance[] memory shouldRebalances = new ShouldRebalance[](1);
-        shouldRebalances[0] = rebalanceStrategy;
-        return (exchangeNames, shouldRebalances);
+    function shouldRebalanceWithBounds(uint256 _customMinLeverageRatio, uint256 _customMaxLeverageRatio) external view returns (string[] memory, ShouldRebalance[] memory) {
+        return _shouldRebalance();
     }
 
     /**
@@ -80,5 +71,22 @@ contract FlexibleLeverageStrategyExtensionMock is BaseExtension {
     function ripcord(string memory _exchangeName) external { 
         require(keccak256(abi.encodePacked(_exchangeName)) == keccak256(abi.encodePacked(exchangeName)), "Exchange names are not equal");
         emit RebalanceEvent(ShouldRebalance.RIPCORD);
+    }
+
+    function _shouldRebalance() private view returns (string[] memory, ShouldRebalance[] memory) {
+        ShouldRebalance rebalanceStrategy = ShouldRebalance.NONE;
+        if (currentLeverageRatio == 1) {
+            rebalanceStrategy = ShouldRebalance.REBALANCE;
+        } else if (currentLeverageRatio == 2) {
+            rebalanceStrategy = ShouldRebalance.ITERATE_REBALANCE;
+        } else if (currentLeverageRatio == 3) {
+            rebalanceStrategy = ShouldRebalance.RIPCORD;
+        }
+        string[] memory exchangeNames = new string[](1);
+        exchangeNames[0] = exchangeName;
+
+        ShouldRebalance[] memory shouldRebalances = new ShouldRebalance[](1);
+        shouldRebalances[0] = rebalanceStrategy;
+        return (exchangeNames, shouldRebalances);
     }
 }

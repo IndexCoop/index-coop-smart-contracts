@@ -29,4 +29,5 @@ interface IFlexibleLeverageStrategyExtension {
     function rebalance(string memory _exchangeName) external;
     function iterateRebalance(string memory _exchageName) external;
     function ripcord(string memory _exchangeName) external;
+    function shouldRebalanceWithBounds(uint256 _customMinLeverageRatio, uint256 _customMaxLeverageRatio) external view returns (string[] memory, ShouldRebalance[] memory);
 }
