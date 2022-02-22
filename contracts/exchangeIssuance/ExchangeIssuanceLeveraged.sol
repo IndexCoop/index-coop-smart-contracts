@@ -162,7 +162,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         }
     }
 
-    /* ============ Public Functions ============ */
+    /* ============ External Functions ============ */
+
 
     /**
     * Returns the long / short token addresses and amounts for a leveraged index 
@@ -182,37 +183,11 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         bool _isIssuance
     )
         isSetToken(_setToken)
-        public 
+        external 
         view
         returns (address longToken, uint256 longAmount, address shortToken, uint256 shortAmount)
     {
-            address[] memory components;
-            uint256[] memory equityPositions;
-            uint256[] memory debtPositions;
-
-            if(_isIssuance){
-                (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
-            }
-            else {
-                (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
-            }
-
-            require(components.length == 2, "ExchangeIssuance: TOO MANY COMPONENTS");
-            require(equityPositions[0] == 0 || equityPositions[1] == 0, "ExchangeIssuance: TOO MANY EQUITY POSITIONS");
-            require(debtPositions[0] == 0 || debtPositions[1] == 0, "ExchangeIssuance: TOO MANY DEBT POSITIONS");
-
-            if(equityPositions[0] > 0){
-                longToken = components[0];
-                longAmount = equityPositions[0];
-                shortToken = components[1];
-                shortAmount = debtPositions[1];
-            }
-            else {
-                longToken = components[1];
-                longAmount = equityPositions[1];
-                shortToken = components[0];
-                shortAmount = debtPositions[0];
-            }
+        return _getLeveragedTokenData(_setToken, _amountSetToken, _isIssuance);
     }
 
     /**
@@ -222,13 +197,10 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      *
      * @param _token    Address of the token which needs approval
      */
-    function approveToken(IERC20 _token) public {
-        _safeApprove(_token, address(quickRouter), MAX_UINT256);
-        _safeApprove(_token, address(sushiRouter), MAX_UINT256);
-        _safeApprove(_token, address(debtIssuanceModule), MAX_UINT256);
+    function approveToken(IERC20 _token) external {
+        _approveToken(_token);
     }
 
-    /* ============ External Functions ============ */
 
     /**
      * Trigger redemption of set token to pay the user with the underlying collateral token 
@@ -418,7 +390,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      */
     function approveTokens(IERC20[] calldata _tokens) external {
         for (uint256 i = 0; i < _tokens.length; i++) {
-            approveToken(_tokens[i]);
+            _approveToken(_tokens[i]);
         }
     }
 
@@ -430,13 +402,13 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _setToken    Address of the SetToken being initialized
      */
     function approveSetToken(ISetToken _setToken) isSetToken(_setToken) external {
-        (address longToken,,address shortToken,) = getLeveragedTokenData(_setToken, 1 ether, true);
-        approveToken(IERC20(longToken));
+        (address longToken,,address shortToken,) = _getLeveragedTokenData(_setToken, 1 ether, true);
+        _approveToken(IERC20(longToken));
 
         IERC20 underlyingLongToken = IERC20(IAToken(longToken).UNDERLYING_ASSET_ADDRESS());
         _approveTokenToLendingPool(underlyingLongToken);
 
-        approveToken(IERC20(shortToken));
+        _approveToken(IERC20(shortToken));
         _approveTokenToLendingPool(IERC20(shortToken));
     }
 
@@ -445,6 +417,51 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     /* ============ Internal Functions ============ */
 
 
+    function _getLeveragedTokenData(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        bool _isIssuance
+    )
+        internal 
+        view
+        returns (address longToken, uint256 longAmount, address shortToken, uint256 shortAmount)
+    {
+            address[] memory components;
+            uint256[] memory equityPositions;
+            uint256[] memory debtPositions;
+
+            if(_isIssuance){
+                (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
+            }
+            else {
+                (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
+            }
+
+            require(components.length == 2, "ExchangeIssuance: TOO MANY COMPONENTS");
+            require(equityPositions[0] == 0 || equityPositions[1] == 0, "ExchangeIssuance: TOO MANY EQUITY POSITIONS");
+            require(debtPositions[0] == 0 || debtPositions[1] == 0, "ExchangeIssuance: TOO MANY DEBT POSITIONS");
+
+            if(equityPositions[0] > 0){
+                longToken = components[0];
+                longAmount = equityPositions[0];
+                shortToken = components[1];
+                shortAmount = debtPositions[1];
+            }
+            else {
+                longToken = components[1];
+                longAmount = equityPositions[1];
+                shortToken = components[0];
+                shortAmount = debtPositions[0];
+            }
+    }
+
+
+
+    function _approveToken(IERC20 _token) internal {
+        _safeApprove(_token, address(quickRouter), MAX_UINT256);
+        _safeApprove(_token, address(sushiRouter), MAX_UINT256);
+        _safeApprove(_token, address(debtIssuanceModule), MAX_UINT256);
+    }
 
     /**
      * Initiates a flashloan call with the correct parameters for issuing set tokens in the callback
@@ -465,7 +482,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         internal
         returns (uint256)
     {
-        (address longToken, uint256 longAmount,,) = getLeveragedTokenData(_setToken, _amountSetToken, true);
+        (address longToken, uint256 longAmount,,) = _getLeveragedTokenData(_setToken, _amountSetToken, true);
 
         address[] memory assets = new address[](1);
         assets[0] = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
@@ -496,7 +513,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         internal
         returns (uint256)
     {
-        (,,address shortToken, uint256 shortAmount) = getLeveragedTokenData(_setToken, _amountSetToken, false);
+        (,,address shortToken, uint256 shortAmount) = _getLeveragedTokenData(_setToken, _amountSetToken, false);
 
         address[] memory assets = new address[](1);
         assets[0] = shortToken;
@@ -544,7 +561,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         PaymentToken _paymentToken,
         bytes memory _paymentParams
     ) internal {
-        (address longToken , uint256 longAmount,,) = getLeveragedTokenData(_setToken, _setAmount, false);
+        (address longToken , uint256 longAmount,,) = _getLeveragedTokenData(_setToken, _setAmount, false);
         address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
         require(longAmount >= _longTokenSpent, "ExchangeIssuance: OVERSPENT LONG TOKEN");
         uint256 amountToReturn = longAmount.sub(_longTokenSpent);
@@ -748,7 +765,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _longTokenUnderlying        Address of the underlying of the collateral token
      */
     function _swapShortForLongTokenUnderlying(ISetToken _setToken, uint256 _setAmount, address _longTokenUnderlying, Exchange _exchange) internal returns (uint256) {
-        (, , address shortToken, uint shortAmount) = getLeveragedTokenData(_setToken, _setAmount, true);
+        (, , address shortToken, uint shortAmount) = _getLeveragedTokenData(_setToken, _setAmount, true);
         return _swapExactTokensForTokens(_exchange, shortToken, _longTokenUnderlying, shortAmount);
     }
 
@@ -757,7 +774,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      *
      */
     function _swapLongForShortToken(ISetToken _setToken, uint256 _setAmount, uint256 _amountRequired, address _shortToken, Exchange _exchange) internal returns (uint256 longAmountSpent) {
-        (address longToken, uint longAmount,,) = getLeveragedTokenData(_setToken, _setAmount, false);
+        (address longToken, uint longAmount,,) = _getLeveragedTokenData(_setToken, _setAmount, false);
         address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
         longAmountSpent = _swapTokensForExactTokens(_exchange, longTokenUnderlying, _shortToken, _amountRequired, longAmount);
     }
@@ -801,7 +818,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         ISetToken _setToken,
         uint256 _setAmount
     ) internal {
-        (address longToken, uint256 longAmount,,) = getLeveragedTokenData(_setToken, _setAmount, false);
+        (address longToken, uint256 longAmount,,) = _getLeveragedTokenData(_setToken, _setAmount, false);
         address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
         LENDING_POOL.withdraw(longTokenUnderlying, longAmount, address(this));
     }
