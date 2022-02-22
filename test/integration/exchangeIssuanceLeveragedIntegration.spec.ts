@@ -113,7 +113,7 @@ if (process.env.INTEGRATIONTEST) {
         let pricePaid: BigNumber;
         let inputToken: StandardTokenMock;
         let subjectInputToken: Address;
-        context("#issueExactSetForERC20", () => {
+        context("#issueExactSetFromERC20", () => {
           let subjectMaxAmountInput: BigNumber;
           before(async () => {
             const ownerBalance = await owner.wallet.getBalance();
@@ -131,7 +131,7 @@ if (process.env.INTEGRATIONTEST) {
             await inputToken.approve(exchangeIssuance.address, subjectMaxAmountInput);
           });
           async function subject() {
-            return await exchangeIssuance.issueExactSetForERC20(
+            return await exchangeIssuance.issueExactSetFromERC20(
               subjectSetToken,
               subjectSetAmount,
               subjectInputToken,
@@ -186,14 +186,14 @@ if (process.env.INTEGRATIONTEST) {
       });
       context("Payment Token: ETH", () => {
         let pricePaid: BigNumber;
-        context("#issueExactSetForETH", () => {
+        context("#issueExactSetFromETH", () => {
           let subjectMaxAmountInput: BigNumber;
           before(async () => {
             const ownerBalance = await owner.wallet.getBalance();
             subjectMaxAmountInput = ownerBalance.div(2);
           });
           async function subject() {
-            return await exchangeIssuance.issueExactSetForETH(
+            return await exchangeIssuance.issueExactSetFromETH(
               subjectSetToken,
               subjectSetAmount,
               subjectExchange,
@@ -242,7 +242,7 @@ if (process.env.INTEGRATIONTEST) {
       });
       context("Payment Token: LongToken", () => {
         let pricePaid: BigNumber;
-        context("#issueExactSetForLongToken", () => {
+        context("#issueExactSetFromLongToken", () => {
           let subjectMaxAmountInput: BigNumber;
           before(async () => {
             const ownerBalance = await owner.wallet.getBalance();
@@ -257,7 +257,7 @@ if (process.env.INTEGRATIONTEST) {
             await weth.approve(exchangeIssuance.address, subjectMaxAmountInput);
           });
           async function subject() {
-            return await exchangeIssuance.issueExactSetForLongToken(
+            return await exchangeIssuance.issueExactSetFromLongToken(
               subjectSetToken,
               subjectSetAmount,
               subjectMaxAmountInput,
