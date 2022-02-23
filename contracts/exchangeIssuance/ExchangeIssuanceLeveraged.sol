@@ -321,7 +321,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             // Issue set using the aToken returned by deposit step
             _issueSet(decodedParams.setToken, decodedParams.setAmount, decodedParams.originalSender);
             // Obtain necessary long tokens to repay flashloan 
-            _obtainLongTokens(
+            uint amountInputToken = _obtainLongTokens(
                 assets[0],
                 amounts[0] + premiums[0],
                 decodedParams.setToken,
@@ -331,6 +331,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
                 decodedParams.paymentToken,
                 decodedParams.limitAmount
             );
+            require(amountInputToken <= decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
         } else {
             // Redeem set using short tokens obtained from flashloan
             _redeemSet(decodedParams.setToken, decodedParams.setAmount, decodedParams.originalSender);
@@ -345,7 +346,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
                 decodedParams.exchange
             );
             // Liquidate remaining long tokens for the payment token specified by user
-            _liquidateLongTokens(
+            uint256 amountOutputToken = _liquidateLongTokens(
                 longTokenSpent,
                 decodedParams.setToken,
                 decodedParams.setAmount,
@@ -354,6 +355,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
                 decodedParams.paymentToken,
                 decodedParams.limitAmount
             );
+            require(amountOutputToken >= decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
         }
 
         return true;
@@ -520,6 +522,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         uint256 _minAmountOutputToken
     )
     internal
+    returns(uint256)
     {
         (address longToken , uint256 longAmount,,) = _getLeveragedTokenData(_setToken, _setAmount, false);
         address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
@@ -532,6 +535,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             outputAmount = _liquidateLongTokensForERC20(longTokenUnderlying, amountToReturn, _exchange, _originalSender, IERC20(_outputToken), _minAmountOutputToken);
         }
         emit ExchangeRedeem(_originalSender, _setToken, _outputToken, _setAmount, outputAmount);
+        return outputAmount;
     }
 
     /**
@@ -550,7 +554,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     )
     internal
     {
-            require(_amountToReturn >= _minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
             IERC20(_longTokenUnderlying).transfer(_originalSender, _amountToReturn);
     }
 
@@ -575,14 +578,11 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     internal
     returns(uint256)
     {
-
             if(address(_outputToken) == _longTokenUnderlying){
                 _returnLongTokensToSender(_longTokenUnderlying, _amountToReturn, _originalSender, _minAmountOutputToken);
                 return _amountToReturn;
             }
-
             uint256 outputTokenAmount = _swapLongForOutputToken(_longTokenUnderlying, _amountToReturn, address(_outputToken), _exchange);
-            require(outputTokenAmount >= _minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
             _outputToken.transfer(_originalSender, outputTokenAmount);
             return outputTokenAmount;
     }
@@ -607,7 +607,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     returns(uint256)
     {
             uint256 ethAmount = _swapLongForOutputToken(_longTokenUnderlying, _amountToReturn, WETH, _exchange);
-            require(ethAmount >= _minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
             if (ethAmount > 0) {
                 IWETH(WETH).withdraw(ethAmount);
                 (payable(_originalSender)).sendValue(ethAmount);
@@ -637,7 +636,10 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         Exchange _exchange,
         address _inputToken,
         uint256 _maxAmountInputToken
-    ) internal {
+    )
+    internal
+    returns(uint256)
+    {
         uint longTokenObtained = _swapShortForLongTokenUnderlying(_setToken, _setAmount, _longTokenUnderlying, _exchange);
         uint longTokenShortfall = _amountRequired.sub(longTokenObtained);
         uint amountInputToken;
@@ -654,6 +656,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             );
         }
         emit ExchangeIssue(_originalSender, _setToken, _inputToken, amountInputToken, _setAmount);
+        return amountInputToken;
     }
 
     function _issueSet(ISetToken _setToken, uint256 _setAmount, address _originalSender) internal {
@@ -682,7 +685,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     internal
     {
         if(_shortfall>0){ 
-            require(_shortfall <= _maxAmountInputToken, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
             IERC20(_token).safeTransferFrom(_originalSender, address(this), _shortfall);
         }
     }
@@ -720,7 +722,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
                 _maxAmountInputToken,
                 _exchange
             );
-            require(amountInputToken <= _maxAmountInputToken, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
             if(amountInputToken < _maxAmountInputToken){
                 _inputToken.transfer(_originalSender, _maxAmountInputToken.sub(amountInputToken));
             }
@@ -749,7 +750,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     {
         IWETH(WETH).deposit{value: _maxAmountEth}();
         uint256 amountEth = _swapInputForLongToken(_longTokenUnderlying, _longTokenShortfall, WETH, _maxAmountEth, _exchange);
-        require(_maxAmountEth >= amountEth, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
         if(_maxAmountEth > amountEth){
             uint256 amountEthReturn = _maxAmountEth.sub(amountEth);
             IWETH(WETH).withdraw(amountEthReturn);

@@ -737,12 +737,12 @@ describe("ExchangeIssuanceLeveraged", async () => {
             subjectExchange = Exchange.Sushiswap;
           });
           it("should revert", async () => {
-            const revertReason =
-              tokenName == "ERC20"
-                ? // TODO: This revertion comes from the router, maybe investigate to understand where it is exactly raised
-                  "ds-math-sub-underflow"
-                : "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT";
-            await expect(subject()).to.be.revertedWith(revertReason);
+            const revertReasonMapping: Record<string, string> = {
+              ERC20: "ds-math-sub-underflow",
+              ETH: "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT",
+              LongToken: "SafeERC20: low-level call failed",
+            };
+            await expect(subject()).to.be.revertedWith(revertReasonMapping[tokenName]);
           });
         });
       });
@@ -803,7 +803,9 @@ describe("ExchangeIssuanceLeveraged", async () => {
             );
           }
           it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID FLASHLOAN INITIATOR");
+            await expect(subject()).to.be.revertedWith(
+              "ExchangeIssuance: INVALID FLASHLOAN INITIATOR",
+            );
           });
         });
       });
