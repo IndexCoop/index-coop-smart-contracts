@@ -175,14 +175,14 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     * Returns the collateral / debt token addresses and amounts for a leveraged index 
     *
     * @param _setToken              Address of the SetToken to be issued / redeemed
-    * @param _amountSetToken        Amount of SetTokens to issue / redeem
+    * @param _setAmount        Amount of SetTokens to issue / redeem
     * @param _isIssuance            Boolean indicating if the SetToken is to be issued or redeemed
     *
     * @return Struct containing the collateral / debt token addresses and amounts
     */
     function getLeveragedTokenData(
         ISetToken _setToken,
-        uint256 _amountSetToken,
+        uint256 _setAmount,
         bool _isIssuance
     )
         isSetToken(_setToken)
@@ -190,7 +190,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         view
         returns (LeveragedTokenData memory)
     {
-        return _getLeveragedTokenData(_setToken, _amountSetToken, _isIssuance);
+        return _getLeveragedTokenData(_setToken, _setAmount, _isIssuance);
     }
 
     /**
@@ -209,13 +209,13 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * Trigger redemption of set token to pay the user with Eth
      *
      * @param _setToken               Set token to redeem
-     * @param _amountSetToken         Amount to redeem
+     * @param _setAmount              Amount to redeem
      * @param _minAmountOutputToken   Minimum amount of ETH to send to the user
      * @param _exchange               Exchange to use in swap from debt to collateral token
      */
     function redeemExactSetForETH(
         ISetToken _setToken,
-        uint256 _amountSetToken,
+        uint256 _setAmount,
         uint256 _minAmountOutputToken,
         Exchange _exchange
     )
@@ -223,21 +223,21 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         external
         nonReentrant
     {
-        _initiateRedemption(_setToken, _amountSetToken, _exchange, ETH_ADDRESS, _minAmountOutputToken);
+        _initiateRedemption(_setToken, _setAmount, _exchange, ETH_ADDRESS, _minAmountOutputToken);
     }
 
     /**
      * Trigger redemption of set token to pay the user with an arbitrary ERC20 
      *
      * @param _setToken               Set token to redeem
-     * @param _amountSetToken         Amount to redeem
+     * @param _setAmount              Amount to redeem
      * @param _outputToken            Address of the ERC20 token to send to the user
      * @param _minAmountOutputToken   Minimum amount of output token to send to the user
      * @param _exchange               Exchange to use in swap from debt to collateral token
      */
     function redeemExactSetForERC20(
         ISetToken _setToken,
-        uint256 _amountSetToken,
+        uint256 _setAmount,
         address _outputToken,
         uint256 _minAmountOutputToken,
         Exchange _exchange
@@ -246,21 +246,21 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         external
         nonReentrant
     {
-        _initiateRedemption(_setToken, _amountSetToken, _exchange, _outputToken, _minAmountOutputToken);
+        _initiateRedemption(_setToken, _setAmount, _exchange, _outputToken, _minAmountOutputToken);
     }
 
     /**
      * Trigger issuance of set token paying with any arbitrary ERC20 token
      *
      * @param _setToken            Set token to issue
-     * @param _amountSetToken      Amount to issue
+     * @param _setAmount           Amount to issue
      * @param _inputToken          Input token to pay with
      * @param _maxAmountInputToken Maximum amount of input token to spend
      * @param _exchange            Exchange to use in swap from debt to collateral token
      */
     function issueExactSetFromERC20(
         ISetToken _setToken,
-        uint256 _amountSetToken,
+        uint256 _setAmount,
         address _inputToken,
         uint256 _maxAmountInputToken,
         Exchange _exchange
@@ -269,19 +269,19 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         external
         nonReentrant
     {
-        _initiateIssuance(_setToken, _amountSetToken, _exchange, _inputToken, _maxAmountInputToken);
+        _initiateIssuance(_setToken, _setAmount, _exchange, _inputToken, _maxAmountInputToken);
     }
 
     /**
      * Trigger issuance of set token paying with Eth
      *
      * @param _setToken            Set token to issue
-     * @param _amountSetToken      Amount to issue
+     * @param _setAmount           Amount to issue
      * @param _exchange            Exchange to use in swap from debt to collateral token
      */
     function issueExactSetFromETH(
         ISetToken _setToken,
-        uint256 _amountSetToken,
+        uint256 _setAmount,
         Exchange _exchange
     )
         isSetToken(_setToken)
@@ -289,7 +289,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         payable
         nonReentrant
     {
-        _initiateIssuance(_setToken, _amountSetToken, _exchange, ETH_ADDRESS, msg.value);
+        _initiateIssuance(_setToken, _setAmount, _exchange, ETH_ADDRESS, msg.value);
     }
 
     /**
@@ -450,14 +450,14 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     * Returns the collateral / debt token addresses and amounts for a leveraged index 
     *
     * @param _setToken              Address of the SetToken to be issued / redeemed
-    * @param _amountSetToken        Amount of SetTokens to issue / redeem
+    * @param _setAmount             Amount of SetTokens to issue / redeem
     * @param _isIssuance            Boolean indicating if the SetToken is to be issued or redeemed
     *
     * @return Struct containing the collateral / debt token addresses and amounts
     */
     function _getLeveragedTokenData(
         ISetToken _setToken,
-        uint256 _amountSetToken,
+        uint256 _setAmount,
         bool _isIssuance
     )
         internal 
@@ -470,9 +470,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
 
             if(_isIssuance){
-                (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
+                (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentIssuanceUnits(_setToken, _setAmount);
             } else {
-                (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
+                (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentRedemptionUnits(_setToken, _setAmount);
             }
 
             require(components.length == 2, "ExchangeIssuance: TOO MANY COMPONENTS");
@@ -500,6 +500,11 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
 
 
+    /**
+     * Approves max amount of given token to all exchange routers and the debt issuance module
+     *
+     * @param _token  Address of the token to be approved
+     */
     function _approveToken(IERC20 _token) internal {
         _safeApprove(_token, address(quickRouter), MAX_UINT256);
         _safeApprove(_token, address(sushiRouter), MAX_UINT256);
@@ -511,13 +516,13 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * Borrows correct amount of collateral token and and forwards encoded calldata to controll issuance in the callback.
      *
      * @param _setToken                     Address of the SetToken being initialized
-     * @param _amountSetToken               Amount of the SetToken being initialized
+     * @param _setAmount                    Amount of the SetToken being initialized
      * @param _inputToken                   Address of the input token to pay with
      * @param _maxAmountInputToken          Maximum amount of input token to pay
      */
     function _initiateIssuance(
         ISetToken _setToken,
-        uint256 _amountSetToken,
+        uint256 _setAmount,
         Exchange _exchange,
         address _inputToken,
         uint256 _maxAmountInputToken
@@ -526,14 +531,14 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         internal
         returns (uint256)
     {
-        LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _amountSetToken, true);
+        LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, true);
 
         address[] memory assets = new address[](1);
         assets[0] = leveragedTokenData.collateralToken;
         uint[] memory amounts =  new uint[](1);
         amounts[0] = leveragedTokenData.collateralAmount;
 
-        bytes memory params = abi.encode(DecodedParams(_setToken, _amountSetToken, msg.sender, true, _exchange, _inputToken, _maxAmountInputToken, leveragedTokenData));
+        bytes memory params = abi.encode(DecodedParams(_setToken, _setAmount, msg.sender, true, _exchange, _inputToken, _maxAmountInputToken, leveragedTokenData));
 
         _flashloan(assets, amounts, params);
 
@@ -543,12 +548,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * Initiates a flashloan call with the correct parameters for redeeming set tokens in the callback
      *
      * @param _setToken            Address of the SetToken to redeem
-     * @param _amountSetToken      Amount of the SetToken to redeem
+     * @param _setAmount           Amount of the SetToken to redeem
      * @param _outputToken         Address of token to return to the user
      */
     function _initiateRedemption(
         ISetToken _setToken,
-        uint256 _amountSetToken,
+        uint256 _setAmount,
         Exchange _exchange,
         address  _outputToken,
         uint256 _minAmountOutputToken
@@ -557,14 +562,14 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         internal
         returns (uint256)
     {
-        LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _amountSetToken, false);
+        LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, false);
 
         address[] memory assets = new address[](1);
         assets[0] = leveragedTokenData.debtToken;
         uint[] memory amounts =  new uint[](1);
         amounts[0] = leveragedTokenData.debtAmount;
 
-        bytes memory params = abi.encode(DecodedParams(_setToken, _amountSetToken, msg.sender, false, _exchange, _outputToken, _minAmountOutputToken, leveragedTokenData));
+        bytes memory params = abi.encode(DecodedParams(_setToken, _setAmount, msg.sender, false, _exchange, _outputToken, _minAmountOutputToken, leveragedTokenData));
 
         _flashloan(assets, amounts, params);
 
@@ -724,7 +729,13 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         uint collateralTokenShortfall = _amountRequired.sub(collateralTokenObtained);
         uint amountInputToken;
         if(_inputToken == ETH_ADDRESS){
-            amountInputToken = _makeUpShortfallWithETH(_collateralToken, collateralTokenShortfall, _exchange, _originalSender, _maxAmountInputToken);
+            amountInputToken = _makeUpShortfallWithETH(
+                _collateralToken,
+                collateralTokenShortfall,
+                _exchange,
+                _originalSender,
+                _maxAmountInputToken
+            );
         } else {
             amountInputToken = _makeUpShortfallWithERC20(
                 _collateralToken,
@@ -739,10 +750,26 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         return amountInputToken;
     }
 
+    /**
+     * Issues set token using the previously obtained collateral token
+     * Results in debt token being returned to the contract
+     *
+     * @param _setToken         Address of the SetToken to be issued
+     * @param _setAmount        Amount of SetTokens to issue
+     * @param _originalSender   Adress that initiated the token issuance, which will receive the set tokens
+     */
     function _issueSet(ISetToken _setToken, uint256 _setAmount, address _originalSender) internal {
         debtIssuanceModule.issue(_setToken, _setAmount, _originalSender);
     }
 
+    /**
+     * Redeems set token using the previously obtained debt token
+     * Results in collateral token being returned to the contract
+     *
+     * @param _setToken         Address of the SetToken to be redeemed
+     * @param _setAmount        Amount of SetTokens to redeem
+     * @param _originalSender   Adress that initiated the token redemption which is the source of the set tokens to be redeemed
+     */
     function _redeemSet(ISetToken _setToken, uint256 _setAmount, address _originalSender) internal {
         _setToken.safeTransferFrom(_originalSender, address(this), _setAmount);
         debtIssuanceModule.redeem(_setToken, _setAmount, address(this));
@@ -895,7 +922,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     }
 
     /**
-     * Swaps the colllateral tokens obtained from redemption for the selected output token
+     * Swaps the collateral tokens obtained from redemption for the selected output token
      * If both tokens are the same, does nothing
      *
      * @param _collateralToken        Address of collateral token
