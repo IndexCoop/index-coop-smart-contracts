@@ -477,30 +477,30 @@ describe("ExchangeIssuanceLeveraged", async () => {
           subjectIsIssuance = true;
         });
         it("should return correct data", async () => {
-          const { longToken, shortToken, longAmount, shortAmount } = await subject();
-          expect(longToken).to.eq(strategy.targetCollateralAToken);
-          expect(shortToken).to.eq(strategy.borrowAsset);
-          expect(longAmount).to.be.gt(ZERO);
-          expect(shortAmount).to.be.gt(ZERO);
+          const { collateralAToken, debtToken, collateralAmount, debtAmount } = await subject();
+          expect(collateralAToken).to.eq(strategy.targetCollateralAToken);
+          expect(debtToken).to.eq(strategy.borrowAsset);
+          expect(collateralAmount).to.be.gt(ZERO);
+          expect(debtAmount).to.be.gt(ZERO);
         });
       });
     });
 
-    ["LongToken", "ERC20", "ETH"].forEach(tokenName => {
-      describe(`#redeemExactSetFor${tokenName == "LongToken" ? "ERC20" : tokenName} ${
-        tokenName == "LongToken" ? "paying with LongToken" : ""
+    ["CollateralToken", "ERC20", "ETH"].forEach(tokenName => {
+      describe(`#redeemExactSetFor${tokenName == "CollateralToken" ? "ERC20" : tokenName} ${
+        tokenName == "CollateralToken" ? "paying with CollateralToken" : ""
       }`, async () => {
         let subjectSetToken: Address;
         let subjectSetAmount: BigNumber;
         let subjectMinAmountOutput: BigNumber;
         let subjectExchange: Exchange;
         let amountReturned: BigNumber;
-        let longAmount: BigNumber;
+        let collateralAmount: BigNumber;
         let subjectOutputToken: Address;
         let outputToken: StandardTokenMock | WETH9;
 
         async function subject() {
-          if (tokenName === "LongToken") {
+          if (tokenName === "CollateralToken") {
             return await exchangeIssuance.redeemExactSetForERC20(
               subjectSetToken,
               subjectSetAmount,
@@ -529,27 +529,27 @@ describe("ExchangeIssuanceLeveraged", async () => {
           subjectSetToken = setToken.address;
           subjectSetAmount = ether(1);
           subjectExchange = Exchange.Quickswap;
-          ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
+          ({ collateralAmount } = await exchangeIssuance.getLeveragedTokenData(
             subjectSetToken,
             subjectSetAmount,
             false,
           ));
           subjectMinAmountOutput = ZERO;
           const outputTokenMapping: { [key: string]: StandardTokenMock | WETH9 } = {
-            LongToken: collateralToken,
+            CollateralToken: collateralToken,
             ETH: setV2Setup.weth,
             ERC20: setV2Setup.usdc,
           };
           outputToken = outputTokenMapping[tokenName];
           subjectOutputToken = tokenName == "ETH" ? ethAddress : outputToken.address;
 
-          await collateralToken.approve(exchangeIssuance.address, longAmount);
+          await collateralToken.approve(exchangeIssuance.address, collateralAmount);
           await exchangeIssuance.approveSetToken(setToken.address);
           await exchangeIssuance.issueExactSetFromERC20(
             subjectSetToken,
             subjectSetAmount,
             collateralToken.address,
-            longAmount,
+            collateralAmount,
             subjectExchange,
           );
           await setToken.approve(exchangeIssuance.address, subjectSetAmount);
@@ -591,7 +591,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         });
         context("when minAmountOutputToken is too high", async () => {
           beforeEach(() => {
-            subjectMinAmountOutput = longAmount;
+            subjectMinAmountOutput = collateralAmount;
           });
           it("should revert", async () => {
             await expect(subject()).to.be.revertedWith(
@@ -600,8 +600,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
           });
         });
       });
-      describe(`#issueExactSetFrom${tokenName == "LongToken" ? "ERC20" : tokenName} ${
-        tokenName == "LongToken" ? "paying with LongToken" : ""
+      describe(`#issueExactSetFrom${tokenName == "CollateralToken" ? "ERC20" : tokenName} ${
+        tokenName == "CollateralToken" ? "paying with CollateralToken" : ""
       }`, async () => {
         let subjectSetToken: Address;
         let subjectSetAmount: BigNumber;
@@ -609,10 +609,10 @@ describe("ExchangeIssuanceLeveraged", async () => {
         let subjectExchange: Exchange;
         let subjectInputToken: Address;
         let inputToken: StandardTokenMock | WETH9;
-        let longAmount: BigNumber;
+        let collateralAmount: BigNumber;
         let inputAmountSpent: BigNumber;
         async function subject() {
-          if (tokenName === "LongToken") {
+          if (tokenName === "CollateralToken") {
             return await exchangeIssuance.issueExactSetFromERC20(
               subjectSetToken,
               subjectSetAmount,
@@ -641,14 +641,14 @@ describe("ExchangeIssuanceLeveraged", async () => {
           subjectSetToken = setToken.address;
           subjectSetAmount = ether(1);
           subjectExchange = Exchange.Quickswap;
-          ({ longAmount } = await exchangeIssuance.getLeveragedTokenData(
+          ({ collateralAmount } = await exchangeIssuance.getLeveragedTokenData(
             subjectSetToken,
             subjectSetAmount,
             true,
           ));
-          subjectMaxAmountInput = tokenName == "ERC20" ? UnitsUtils.usdc(20000) : longAmount;
+          subjectMaxAmountInput = tokenName == "ERC20" ? UnitsUtils.usdc(20000) : collateralAmount;
           const inputTokenMapping: { [key: string]: StandardTokenMock | WETH9 } = {
-            LongToken: collateralToken,
+            CollateralToken: collateralToken,
             ETH: setV2Setup.weth,
             ERC20: setV2Setup.usdc,
           };
@@ -739,7 +739,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
             const revertReasonMapping: Record<string, string> = {
               ERC20: "ds-math-sub-underflow",
               ETH: "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT",
-              LongToken: "SafeERC20: low-level call failed",
+              CollateralToken: "SafeERC20: low-level call failed",
             };
             await expect(subject()).to.be.revertedWith(revertReasonMapping[tokenName]);
           });
