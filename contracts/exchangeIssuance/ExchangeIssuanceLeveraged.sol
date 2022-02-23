@@ -368,6 +368,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _collateralToken            Address of the underlying collateral token that was loaned
      * @param _collateralTokenAmountNet   Amount of collateral token that was received as flashloan
      * @param _premium                    Premium / Interest that has to be returned to the lending pool on top of the loaned amount
+     * @param _decodedParams              Struct containing token addresses / amounts to perform issuance
      */
     function _performIssuance(
         address _collateralToken,
@@ -402,6 +403,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _debtToken           Address of the debt token that was loaned
      * @param _debtTokenAmountNet  Amount of debt token that was received as flashloan
      * @param _premium             Premium / Interest that has to be returned to the lending pool on top of the loaned amount
+     * @param _decodedParams       Struct containing token addresses / amounts to perform redemption
      */
     function _performRedemption(
         address _debtToken,
