@@ -316,46 +316,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
         DecodedParams memory decodedParams = abi.decode(params, (DecodedParams));
         if(decodedParams.isIssuance){
-            // Deposit long token obtained from flashloan to get the respective aToken position required for issuance
-            _depositLongToken(assets[0], amounts[0]);
-            // Issue set using the aToken returned by deposit step
-            _issueSet(decodedParams.setToken, decodedParams.setAmount, decodedParams.originalSender);
-            // Obtain necessary long tokens to repay flashloan 
-            uint amountInputToken = _obtainLongTokens(
-                assets[0],
-                amounts[0] + premiums[0],
-                decodedParams.setToken,
-                decodedParams.setAmount,
-                decodedParams.originalSender,
-                decodedParams.exchange,
-                decodedParams.paymentToken,
-                decodedParams.limitAmount
-            );
-            require(amountInputToken <= decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
+            _performIssuance(assets[0], amounts[0], premiums[0], decodedParams);
         } else {
-            // Redeem set using short tokens obtained from flashloan
-            _redeemSet(decodedParams.setToken, decodedParams.setAmount, decodedParams.originalSender);
-            // Withdraw underlying long token from the aToken position returned by redeem step
-            _withdrawLongToken(decodedParams.setToken, decodedParams.setAmount);
-            // Obtain short tokens required to repay flashloan by swapping the underlying long tokens obtained in withdraw step
-            uint256 longTokenSpent = _swapLongForShortToken(
-                decodedParams.setToken,
-                decodedParams.setAmount,
-                amounts[0] + premiums[0],
-                assets[0],
-                decodedParams.exchange
-            );
-            // Liquidate remaining long tokens for the payment token specified by user
-            uint256 amountOutputToken = _liquidateLongTokens(
-                longTokenSpent,
-                decodedParams.setToken,
-                decodedParams.setAmount,
-                decodedParams.originalSender,
-                decodedParams.exchange,
-                decodedParams.paymentToken,
-                decodedParams.limitAmount
-            );
-            require(amountOutputToken >= decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+            _performRedemption(assets[0], amounts[0], premiums[0], decodedParams);
         }
 
         return true;
@@ -391,6 +354,80 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     }
 
     /* ============ Internal Functions ============ */
+
+    /**
+     * Performs all the necessary steps for issuance using the long tokens obtained in the flashloan
+     *
+     * @param _longTokenUnderlying  Address of the underlying long token that was loaned
+     * @param _longTokenAmountNet   Amount of long token that was received as flashloan
+     * @param _premium              Premium / Interest that has to be returned to the lending pool on top of the loaned amount
+     */
+    function _performIssuance(
+        address _longTokenUnderlying,
+        uint256 _longTokenAmountNet,
+        uint256 _premium,
+        DecodedParams memory _decodedParams
+    ) 
+    internal 
+    {
+        // Deposit long token obtained from flashloan to get the respective aToken position required for issuance
+        _depositLongToken(_longTokenUnderlying, _longTokenAmountNet);
+        // Issue set using the aToken returned by deposit step
+        _issueSet(_decodedParams.setToken, _decodedParams.setAmount, _decodedParams.originalSender);
+        // Obtain necessary long tokens to repay flashloan 
+        uint amountInputToken = _obtainLongTokens(
+            _longTokenUnderlying,
+            _longTokenAmountNet + _premium,
+            _decodedParams.setToken,
+            _decodedParams.setAmount,
+            _decodedParams.originalSender,
+            _decodedParams.exchange,
+            _decodedParams.paymentToken,
+            _decodedParams.limitAmount
+        );
+        require(amountInputToken <= _decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
+    }
+
+    /**
+     * Performs all the necessary steps for redemption using the short tokens obtained in the flashloan
+     *
+     * @param _shortToken           Address of the short token that was loaned
+     * @param _shortTokenAmountNet  Amount of short token that was received as flashloan
+     * @param _premium              Premium / Interest that has to be returned to the lending pool on top of the loaned amount
+     */
+    function _performRedemption(
+        address _shortToken,
+        uint256 _shortTokenAmountNet,
+        uint256 _premium,
+        DecodedParams memory _decodedParams
+    ) 
+    internal 
+    {
+        // Redeem set using short tokens obtained from flashloan
+        _redeemSet(_decodedParams.setToken, _decodedParams.setAmount, _decodedParams.originalSender);
+        // Withdraw underlying long token from the aToken position returned by redeem step
+        _withdrawLongToken(_decodedParams.setToken, _decodedParams.setAmount);
+        // Obtain short tokens required to repay flashloan by swapping the underlying long tokens obtained in withdraw step
+        uint256 longTokenSpent = _swapLongForShortToken(
+            _decodedParams.setToken,
+            _decodedParams.setAmount,
+            _shortTokenAmountNet + _premium,
+            _shortToken,
+            _decodedParams.exchange
+        );
+        // Liquidate remaining long tokens for the payment token specified by user
+        uint256 amountOutputToken = _liquidateLongTokens(
+            longTokenSpent,
+            _decodedParams.setToken,
+            _decodedParams.setAmount,
+            _decodedParams.originalSender,
+            _decodedParams.exchange,
+            _decodedParams.paymentToken,
+            _decodedParams.limitAmount
+        );
+        require(amountOutputToken >= _decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+    }
+
 
     function _getLeveragedTokenData(
         ISetToken _setToken,
@@ -511,6 +548,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _exchange                Exchange to use for swap
      * @param _outputToken             Address of token to return to the user
      * @param _minAmountOutputToken    Minimum amount of output token to return to the user
+     *
+     * @return Amount of output token returned to the user
      */
     function _liquidateLongTokens(
         uint256 _longTokenSpent,
@@ -626,6 +665,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _exchange              Exchange to use for swap
      * @param _inputToken            Input token to pay with
      * @param _maxAmountInputToken   Maximum amount of input token to spend
+     *
+     * @return Amount of input token spent
      */
     function _obtainLongTokens(
         address _longTokenUnderlying,

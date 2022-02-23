@@ -680,7 +680,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
               : await inputToken.balanceOf(owner.address);
           inputAmountSpent = balanceBefore.sub(balanceAfter);
           if (tokenName == "ETH") inputAmountSpent = inputAmountSpent.sub(transactionFee);
-          console.log("inputAmountSpent", inputAmountSpent.toString());
           expect(inputAmountSpent.gt(0)).to.equal(true);
           expect(inputAmountSpent.lt(subjectMaxAmountInput)).to.equal(true);
         });
