@@ -420,6 +420,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
   });
 
   describe("When exchangeIssuacne is deployed", () => {
+    let ethAddress: Address;
     beforeEach(async () => {
       exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveraged(
         wethAddress,
@@ -430,6 +431,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         debtIssuanceModuleAddress,
         addressProviderAddress,
       );
+      ethAddress = await exchangeIssuance.ETH_ADDRESS();
     });
     describe("#approveSetToken", async () => {
       let subjectSetToken: Address;
@@ -539,7 +541,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
             ERC20: setV2Setup.usdc,
           };
           outputToken = outputTokenMapping[tokenName];
-          subjectOutputToken = outputToken.address;
+          subjectOutputToken = tokenName == "ETH" ? ethAddress : outputToken.address;
 
           await collateralToken.approve(exchangeIssuance.address, longAmount);
           await exchangeIssuance.approveSetToken(setToken.address);
@@ -651,7 +653,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
             ERC20: setV2Setup.usdc,
           };
           inputToken = inputTokenMapping[tokenName];
-          const ethAddress = await exchangeIssuance.ETH_ADDRESS();
           subjectInputToken = tokenName == "ETH" ? ethAddress : inputToken.address;
 
           await inputToken.approve(exchangeIssuance.address, subjectMaxAmountInput);

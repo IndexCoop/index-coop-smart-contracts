@@ -34,8 +34,6 @@ import { UniSushiV2Library } from "../../external/contracts/UniSushiV2Library.so
 import { FlashLoanReceiverBaseV2 } from "../../external/contracts/aaveV2/FlashLoanReceiverBaseV2.sol";
 
 
-
-
 /**
  * @title ExchangeIssuance
  * @author Index Coop
@@ -57,8 +55,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     /* ============ Enums ============ */
 
     enum Exchange { None, Quickswap, Sushiswap}
-    // Call parameter to control which token is used by the user to pay issuance / receive redemption amount
-    enum PaymentToken { None, ERC20, ETH}
 
     /* ============ Structs ============ */
     struct DecodedParams {
@@ -67,8 +63,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         address originalSender;
         bool isIssuance;
         Exchange exchange;
-        PaymentToken paymentToken;
-        bytes paymentParams;
+        address paymentToken;
+        uint256 limitAmount;
     }
 
     /* ============ Constants ============= */
@@ -94,7 +90,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     event ExchangeIssue(
         address indexed _recipient,     // The recipient address of the issued SetTokens
         ISetToken indexed _setToken,    // The issued SetToken
-        IERC20 indexed _inputToken,     // The address of the input asset(ERC20/ETH) used to issue the SetTokens
+        address indexed _inputToken,     // The address of the input asset(ERC20/ETH) used to issue the SetTokens
         uint256 _amountInputToken,      // The amount of input tokens used for issuance
         uint256 _amountSetIssued        // The amount of SetTokens received by the recipient
     );
@@ -102,7 +98,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     event ExchangeRedeem(
         address indexed _recipient,     // The recipient address which redeemed the SetTokens
         ISetToken indexed _setToken,    // The redeemed SetToken
-        IERC20 indexed _outputToken,    // The address of output asset(ERC20/ETH) received by the recipient
+        address indexed _outputToken,    // The address of output asset(ERC20/ETH) received by the recipient
         uint256 _amountSetRedeemed,     // The amount of SetTokens redeemed for output tokens
         uint256 _amountOutputToken      // The amount of output tokens received by the recipient
     );
@@ -220,8 +216,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         external
         nonReentrant
     {
-        bytes memory paymentParams = abi.encode(_minAmountOutputToken);
-        _initiateRedemption(_setToken, _amountSetToken, _exchange, PaymentToken.ETH, paymentParams);
+        _initiateRedemption(_setToken, _amountSetToken, _exchange, ETH_ADDRESS, _minAmountOutputToken);
     }
 
     /**
@@ -244,8 +239,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         external
         nonReentrant
     {
-        bytes memory paymentParams = abi.encode(_minAmountOutputToken, _outputToken);
-        _initiateRedemption(_setToken, _amountSetToken, _exchange, PaymentToken.ERC20, paymentParams);
+        _initiateRedemption(_setToken, _amountSetToken, _exchange, _outputToken, _minAmountOutputToken);
     }
 
     /**
@@ -253,6 +247,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      *
      * @param _setToken            Set token to issue
      * @param _amountSetToken      Amount to issue
+     * @param _inputToken          Input token to pay with
      * @param _maxAmountInputToken Maximum amount of input token to spend
      * @param _exchange            Exchange to use in swap from short to long token
      */
@@ -267,8 +262,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         external
         nonReentrant
     {
-        bytes memory paymentParams = abi.encode(_maxAmountInputToken, _inputToken);
-        _initiateIssuance(_setToken, _amountSetToken, _exchange, PaymentToken.ERC20, paymentParams);
+        _initiateIssuance(_setToken, _amountSetToken, _exchange, _inputToken, _maxAmountInputToken);
     }
 
     /**
@@ -288,8 +282,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         payable
         nonReentrant
     {
-        bytes memory paymentParams = abi.encode(msg.value);
-        _initiateIssuance(_setToken, _amountSetToken, _exchange, PaymentToken.ETH, paymentParams);
+        _initiateIssuance(_setToken, _amountSetToken, _exchange, ETH_ADDRESS, msg.value);
     }
 
     /**
@@ -334,7 +327,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
                 decodedParams.originalSender,
                 decodedParams.exchange,
                 decodedParams.paymentToken,
-                decodedParams.paymentParams
+                decodedParams.limitAmount
             );
         } else {
             // Redeem set using short tokens obtained from flashloan
@@ -357,13 +350,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
                 decodedParams.originalSender,
                 decodedParams.exchange,
                 decodedParams.paymentToken,
-                decodedParams.paymentParams
+                decodedParams.limitAmount
             );
         }
 
         return true;
     }
-
 
     /**
      * Runs all the necessary approval functions required for a list of ERC20 tokens.
@@ -394,10 +386,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         _approveTokenToLendingPool(IERC20(shortToken));
     }
 
-
-
     /* ============ Internal Functions ============ */
-
 
     function _getLeveragedTokenData(
         ISetToken _setToken,
@@ -447,16 +436,17 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * Initiates a flashloan call with the correct parameters for issuing set tokens in the callback
      * Borrows correct amount of long token and and forwards encoded calldata to controll issuance in the callback.
      *
-     * @param _setToken            Address of the SetToken being initialized
-     * @param _amountSetToken      Amount of the SetToken being initialized
-     * @param _paymentParams       Enum controlling what token the use to pay for issuance
+     * @param _setToken                     Address of the SetToken being initialized
+     * @param _amountSetToken               Amount of the SetToken being initialized
+     * @param _inputToken                   Address of the input token to pay with
+     * @param _maxAmountInputToken          Maximum amount of input token to pay
      */
     function _initiateIssuance(
         ISetToken _setToken,
         uint256 _amountSetToken,
         Exchange _exchange,
-        PaymentToken _paymentToken,
-        bytes memory _paymentParams
+        address _inputToken,
+        uint256 _maxAmountInputToken
     )
         isSetToken(_setToken)
         internal
@@ -469,7 +459,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         uint[] memory amounts =  new uint[](1);
         amounts[0] = longAmount;
 
-        bytes memory params = abi.encode(DecodedParams(_setToken, _amountSetToken, msg.sender, true, _exchange, _paymentToken, _paymentParams));
+        bytes memory params = abi.encode(DecodedParams(_setToken, _amountSetToken, msg.sender, true, _exchange, _inputToken, _maxAmountInputToken));
 
         _flashloan(assets, amounts, params);
 
@@ -480,14 +470,14 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      *
      * @param _setToken            Address of the SetToken to redeem
      * @param _amountSetToken      Amount of the SetToken to redeem
-     * @param _paymentToken        Enum controlling what token the user will receive
+     * @param _outputToken         Address of token to return to the user
      */
     function _initiateRedemption(
         ISetToken _setToken,
         uint256 _amountSetToken,
         Exchange _exchange,
-        PaymentToken _paymentToken,
-        bytes memory _paymentParams
+        address  _outputToken,
+        uint256 _minAmountOutputToken
     )
         isSetToken(_setToken)
         internal
@@ -500,7 +490,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         uint[] memory amounts =  new uint[](1);
         amounts[0] = shortAmount;
 
-        bytes memory params = abi.encode(DecodedParams(_setToken, _amountSetToken, msg.sender, false, _exchange, _paymentToken, _paymentParams));
+        bytes memory params = abi.encode(DecodedParams(_setToken, _amountSetToken, msg.sender, false, _exchange, _outputToken, _minAmountOutputToken));
 
         _flashloan(assets, amounts, params);
 
@@ -510,13 +500,13 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * Gets rid of the obtained long tokens from redemption by either sending them to the user
      * directly or converting them to the payment token and sending those out.
      *
-     * @param _longTokenSpent    Amount of long token spent to obtain the short token required for redemption
-     * @param _setToken          Address of the SetToken to be issued
-     * @param _setAmount         Amount of SetTokens to issue
-     * @param _originalSender    Address of the user who initiated the redemption
-     * @param _exchange          Exchange to use for swap
-     * @param _paymentToken      Enum controlling what token the user will receive
-     * @param _paymentParams     Encoded parameters for given payment method
+     * @param _longTokenSpent          Amount of long token spent to obtain the short token required for redemption
+     * @param _setToken                Address of the SetToken to be issued
+     * @param _setAmount               Amount of SetTokens to issue
+     * @param _originalSender          Address of the user who initiated the redemption
+     * @param _exchange                Exchange to use for swap
+     * @param _outputToken             Address of token to return to the user
+     * @param _minAmountOutputToken    Minimum amount of output token to return to the user
      */
     function _liquidateLongTokens(
         uint256 _longTokenSpent,
@@ -524,8 +514,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         uint256 _setAmount,
         address _originalSender,
         Exchange _exchange,
-        PaymentToken _paymentToken,
-        bytes memory _paymentParams
+        address _outputToken,
+        uint256 _minAmountOutputToken
     )
     internal
     {
@@ -533,15 +523,13 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         address longTokenUnderlying = IAToken(longToken).UNDERLYING_ASSET_ADDRESS();
         require(longAmount >= _longTokenSpent, "ExchangeIssuance: OVERSPENT LONG TOKEN");
         uint256 amountToReturn = longAmount.sub(_longTokenSpent);
-        address outputToken;
         uint256 outputAmount;
-        if(_paymentToken == PaymentToken.ERC20){
-            (outputToken, outputAmount) = _liquidateLongTokensForERC20(longTokenUnderlying, amountToReturn, _exchange, _originalSender, _paymentParams);
+        if(_outputToken == ETH_ADDRESS){
+            outputAmount = _liquidateLongTokensForETH(longTokenUnderlying, amountToReturn, _exchange, _originalSender, _minAmountOutputToken);
         } else {
-            outputAmount = _liquidateLongTokensForETH(longTokenUnderlying, amountToReturn, _exchange, _originalSender, _paymentParams);
-            outputToken = WETH;
+            outputAmount = _liquidateLongTokensForERC20(longTokenUnderlying, amountToReturn, _exchange, _originalSender, IERC20(_outputToken), _minAmountOutputToken);
         }
-        emit ExchangeRedeem(_originalSender, _setToken, IERC20(outputToken), _setAmount, outputAmount);
+        emit ExchangeRedeem(_originalSender, _setToken, _outputToken, _setAmount, outputAmount);
     }
 
     /**
@@ -550,18 +538,17 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _longTokenUnderlying   Address of the underlying of the long token
      * @param _amountToReturn        Amount of the underlying long token to return
      * @param _originalSender        Address of the original sender to return the tokens to
-     * @param _paymentParams         Encoded payment data used to get the minimum output amount
+     * @param _minAmountOutputToken  Minimum amount of output token to return to the user
      */
     function _returnLongTokensToSender(
         address _longTokenUnderlying,
         uint256 _amountToReturn,
         address _originalSender,
-        bytes memory _paymentParams
+        uint256 _minAmountOutputToken
     )
     internal
     {
-            uint256 minAmountOutputToken = _decodePaymentParams(_paymentParams);
-            require(_amountToReturn >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+            require(_amountToReturn >= _minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
             IERC20(_longTokenUnderlying).transfer(_originalSender, _amountToReturn);
     }
 
@@ -572,29 +559,30 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _amountToReturn        Amount of the underlying long token to return
      * @param _exchange              Enum indicating which exchange to use
      * @param _originalSender        Address of the original sender to return the tokens to
-     * @param _paymentParams         Encoded payment data used to get the minimum output amount and output token
+     * @param _outputToken             Address of token to return to the user
+     * @param _minAmountOutputToken    Minimum amount of output token to return to the user
      */
     function _liquidateLongTokensForERC20(
         address _longTokenUnderlying,
         uint256 _amountToReturn,
         Exchange _exchange,
         address _originalSender,
-        bytes memory _paymentParams
+        IERC20 _outputToken,
+        uint256 _minAmountOutputToken
     )
     internal
-    returns(address, uint256)
+    returns(uint256)
     {
-            (uint256 minAmountOutputToken, address outputToken) = _decodePaymentParamsERC20(_paymentParams);
 
-            if(outputToken == _longTokenUnderlying){
-                _returnLongTokensToSender(_longTokenUnderlying, _amountToReturn, _originalSender, _paymentParams);
-                return(_longTokenUnderlying, _amountToReturn);
+            if(address(_outputToken) == _longTokenUnderlying){
+                _returnLongTokensToSender(_longTokenUnderlying, _amountToReturn, _originalSender, _minAmountOutputToken);
+                return _amountToReturn;
             }
 
-            uint256 outputTokenAmount = _swapLongForOutputToken(_longTokenUnderlying, _amountToReturn, outputToken, _exchange);
-            require(outputTokenAmount >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
-            IERC20(outputToken).transfer(_originalSender, outputTokenAmount);
-            return(outputToken, outputTokenAmount);
+            uint256 outputTokenAmount = _swapLongForOutputToken(_longTokenUnderlying, _amountToReturn, address(_outputToken), _exchange);
+            require(outputTokenAmount >= _minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+            _outputToken.transfer(_originalSender, outputTokenAmount);
+            return outputTokenAmount;
     }
 
     /**
@@ -603,22 +591,21 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _longTokenUnderlying   Address of the underlying of the long token
      * @param _amountToReturn        Amount of the underlying long token to return
      * @param _exchange              Enum indicating which exchange to use
-     * @param _paymentParams         Encoded payment data used to get the minimum output amount
      * @param _originalSender        Address of the original sender to return the eth to
+     * @param _minAmountOutputToken  Minimum amount of output token to return to user
      */
     function _liquidateLongTokensForETH(
         address _longTokenUnderlying,
         uint256 _amountToReturn,
         Exchange _exchange,
         address _originalSender,
-        bytes memory _paymentParams
+        uint256 _minAmountOutputToken
     )
     internal
     returns(uint256)
     {
-            uint256 minAmountOutputToken = _decodePaymentParams(_paymentParams);
             uint256 ethAmount = _swapLongForOutputToken(_longTokenUnderlying, _amountToReturn, WETH, _exchange);
-            require(ethAmount >= minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+            require(ethAmount >= _minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
             if (ethAmount > 0) {
                 IWETH(WETH).withdraw(ethAmount);
                 (payable(_originalSender)).sendValue(ethAmount);
@@ -626,19 +613,18 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
             return ethAmount;
     }
 
-
     /**
      * Obtains the tokens necessary to return the flashloan by swapping the short tokens obtained
      * from issuance and making up the shortfall using the users funds.
      *
      * @param _longTokenUnderlying   Underlying token of the collateral AToken, which is the token to be returned
      * @param _amountRequired        Amount of longTokenUnderlying required to repay the flashloan
-     * @param _setToken          Address of the SetToken to be issued
-     * @param _setAmount         Amount of SetTokens to issue
-     * @param _originalSender    Address of the user who initiated the redemption
-     * @param _exchange          Exchange to use for swap
-     * @param _paymentToken      Enum controlling what token the user will receive
-     * @param _paymentParams     Encoded parameters for given payment method
+     * @param _setToken              Address of the SetToken to be issued
+     * @param _setAmount             Amount of SetTokens to issue
+     * @param _originalSender        Address of the user who initiated the redemption
+     * @param _exchange              Exchange to use for swap
+     * @param _inputToken            Input token to pay with
+     * @param _maxAmountInputToken   Maximum amount of input token to spend
      */
     function _obtainLongTokens(
         address _longTokenUnderlying,
@@ -647,20 +633,25 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         uint256 _setAmount,
         address _originalSender,
         Exchange _exchange,
-        PaymentToken _paymentToken,
-        bytes memory _paymentParams
+        address _inputToken,
+        uint256 _maxAmountInputToken
     ) internal {
         uint longTokenObtained = _swapShortForLongTokenUnderlying(_setToken, _setAmount, _longTokenUnderlying, _exchange);
         uint longTokenShortfall = _amountRequired.sub(longTokenObtained);
         uint amountInputToken;
-        address inputToken;
-        if(_paymentToken == PaymentToken.ERC20){
-            (inputToken, amountInputToken) = _makeUpShortfallWithERC20(_longTokenUnderlying, longTokenShortfall, _exchange, _originalSender, _paymentParams);
+        if(_inputToken == ETH_ADDRESS){
+            amountInputToken = _makeUpShortfallWithETH(_longTokenUnderlying, longTokenShortfall, _exchange, _originalSender, _maxAmountInputToken);
         } else {
-            amountInputToken = _makeUpShortfallWithETH(_longTokenUnderlying, longTokenShortfall, _exchange, _originalSender, _paymentParams);
-            inputToken = ETH_ADDRESS;
+            amountInputToken = _makeUpShortfallWithERC20(
+                _longTokenUnderlying,
+                longTokenShortfall,
+                _exchange,
+                _originalSender,
+                IERC20(_inputToken),
+                _maxAmountInputToken
+            );
         }
-        emit ExchangeIssue(_originalSender, _setToken, IERC20(inputToken), amountInputToken, _setAmount);
+        emit ExchangeIssue(_originalSender, _setToken, _inputToken, amountInputToken, _setAmount);
     }
 
     function _issueSet(ISetToken _setToken, uint256 _setAmount, address _originalSender) internal {
@@ -671,15 +662,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         _setToken.safeTransferFrom(_originalSender, address(this), _setAmount);
         debtIssuanceModule.redeem(_setToken, _setAmount, address(this));
     }
-
-    function _decodePaymentParams(bytes memory _paymentParams) internal pure returns(uint256 limitAmount){
-            limitAmount = abi.decode(_paymentParams, (uint256));
-    }
-
-    function _decodePaymentParamsERC20(bytes memory _paymentParams) internal pure returns(uint256 limitAmount, address outputToken){
-            (limitAmount, outputToken) = abi.decode(_paymentParams, (uint256, address));
-    }
-
 
     /**
      * Transfers the shortfall between the amount of tokens required to return flashloan and what was obtained
@@ -693,13 +675,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         address _token,
         uint256 _shortfall,
         address _originalSender,
-        bytes memory paymentParams
+        uint256 _maxAmountInputToken
     )
     internal
     {
         if(_shortfall>0){ 
-            uint256 maxAmountInputToken =_decodePaymentParams(paymentParams);
-            require(_shortfall <= maxAmountInputToken, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
+            require(_shortfall <= _maxAmountInputToken, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
             IERC20(_token).safeTransferFrom(_originalSender, address(this), _shortfall);
         }
     }
@@ -711,30 +692,37 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _longTokenShortfall    Shortfall of long token that was not covered by selling the short tokens
      * @param _exchange              Enum indicating which exchange to use
      * @param _originalSender        Address of the original sender to return the tokens to
-     * @param _paymentParams         Encoded payment data used to get the minimum output amount and output token
+     * @param _inputToken            Input token to pay with
+     * @param _maxAmountInputToken   Maximum amount of input token to spend
      */
     function _makeUpShortfallWithERC20(
         address _longTokenUnderlying,
         uint256 _longTokenShortfall,
         Exchange _exchange,
         address _originalSender,
-        bytes memory _paymentParams
+        IERC20 _inputToken,
+        uint256 _maxAmountInputToken
     )
     internal
-    returns(address, uint256)
+    returns(uint256)
     {
-        (uint256 maxAmountInputToken, address inputToken) = _decodePaymentParamsERC20(_paymentParams);
-        if(inputToken == _longTokenUnderlying){
-            _transferShortfallFromSender(_longTokenUnderlying, _longTokenShortfall, _originalSender, _paymentParams);
-            return (inputToken, _longTokenShortfall);
+        if(address(_inputToken) == _longTokenUnderlying){
+            _transferShortfallFromSender(_longTokenUnderlying, _longTokenShortfall, _originalSender, _maxAmountInputToken);
+            return _longTokenShortfall;
         } else {
-            IERC20(inputToken).transferFrom(_originalSender, address(this), maxAmountInputToken);
-            uint256 amountInputToken = _swapInputForLongToken(_longTokenUnderlying, _longTokenShortfall, inputToken, maxAmountInputToken, _exchange);
-            require(amountInputToken <= maxAmountInputToken, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
-            if(amountInputToken < maxAmountInputToken){
-                IERC20(inputToken).transfer(_originalSender, maxAmountInputToken.sub(amountInputToken));
+            _inputToken.transferFrom(_originalSender, address(this), _maxAmountInputToken);
+            uint256 amountInputToken = _swapInputForLongToken(
+                _longTokenUnderlying,
+                _longTokenShortfall,
+                address(_inputToken),
+                _maxAmountInputToken,
+                _exchange
+            );
+            require(amountInputToken <= _maxAmountInputToken, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
+            if(amountInputToken < _maxAmountInputToken){
+                _inputToken.transfer(_originalSender, _maxAmountInputToken.sub(amountInputToken));
             }
-            return(inputToken, amountInputToken);
+            return amountInputToken;
         }
     }
 
@@ -745,24 +733,23 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param _longTokenShortfall    Shortfall of long token that was not covered by selling the short tokens
      * @param _exchange              Enum indicating which exchange to use
      * @param _originalSender        Address of the original sender to return the tokens to
-     * @param _paymentParams         Encoded payment data used to get the minimum output amount and output token
+     * @param _maxAmountEth          Maximum amount of eth to pay
      */
     function _makeUpShortfallWithETH(
         address _longTokenUnderlying,
         uint256 _longTokenShortfall,
         Exchange _exchange,
         address _originalSender,
-        bytes memory _paymentParams
+        uint256 _maxAmountEth
     )
     internal
     returns(uint256)
     {
-        (uint256 maxAmountEth ) = _decodePaymentParams(_paymentParams);
-        IWETH(WETH).deposit{value: maxAmountEth}();
-        uint256 amountEth = _swapInputForLongToken(_longTokenUnderlying, _longTokenShortfall, WETH, maxAmountEth, _exchange);
-        require(maxAmountEth >= amountEth, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
-        if(maxAmountEth > amountEth){
-            uint256 amountEthReturn = maxAmountEth.sub(amountEth);
+        IWETH(WETH).deposit{value: _maxAmountEth}();
+        uint256 amountEth = _swapInputForLongToken(_longTokenUnderlying, _longTokenShortfall, WETH, _maxAmountEth, _exchange);
+        require(_maxAmountEth >= amountEth, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
+        if(_maxAmountEth > amountEth){
+            uint256 amountEthReturn = _maxAmountEth.sub(amountEth);
             IWETH(WETH).withdraw(amountEthReturn);
             (payable(_originalSender)).sendValue(amountEthReturn);
         }
@@ -821,8 +808,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         if(_longTokenUnderlying == _inputToken) return _amountRequired;
         inputAmountSpent = _swapTokensForExactTokens(_exchange, _inputToken, _longTokenUnderlying, _amountRequired, _maxAmountInputToken);
     }
-
-
 
     /**
      * Swaps the debt tokens obtained from issuance for the underlying of the collateral
