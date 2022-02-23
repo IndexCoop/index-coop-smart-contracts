@@ -294,13 +294,14 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
      * @param assets     Addresses of all assets that were borrowed
      * @param amounts    Amounts that were borrowed
      * @param premiums   Interest to be paid on top of borrowed amount
+     * @param initiator  Address that initiated the flashloan
      * @param params     Encoded bytestring of other parameters from the original contract call to be used downstream
      */
     function executeOperation(
         address[] calldata assets,
         uint256[] calldata amounts,
         uint256[] calldata premiums,
-        address , 
+        address initiator, 
         bytes calldata params
     )
     external
@@ -308,9 +309,10 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     onlyLendingPool
     returns (bool)
     {
-        require(assets.length == 1, "Exchange Issuance Leveraged: TOO MANY ASSETS");
-        require(amounts.length == 1, "Exchange Issuance Leveraged: TOO MANY AMOUNTS");
-        require(premiums.length == 1, "Exchange Issuance Leveraged: TOO MANY PREMIUMS");
+        require(initiator == address(this), "ExchangeIssuance: INVALID FLASHLOAN INITIATOR");
+        require(assets.length == 1, "ExchangeIssuance: TOO MANY ASSETS");
+        require(amounts.length == 1, "ExchangeIssuance: TOO MANY AMOUNTS");
+        require(premiums.length == 1, "ExchangeIssuance: TOO MANY PREMIUMS");
 
         DecodedParams memory decodedParams = abi.decode(params, (DecodedParams));
         if(decodedParams.isIssuance){

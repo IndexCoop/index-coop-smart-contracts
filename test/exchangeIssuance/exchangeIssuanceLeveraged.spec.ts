@@ -38,7 +38,7 @@ import {
 } from "@utils/index";
 import { UnitsUtils } from "@utils/common/unitsUtils";
 import { AaveV2Fixture, SetFixture, UniswapFixture } from "@utils/fixtures";
-import { BigNumber } from "ethers";
+import { BigNumber, utils } from "ethers";
 import { getTxFee } from "@utils/test";
 
 enum Exchange {
@@ -772,6 +772,38 @@ describe("ExchangeIssuanceLeveraged", async () => {
           }
           it("should revert", async () => {
             await expect(subject()).to.be.revertedWith("ExchangeIssuance: LENDING POOL ONLY");
+          });
+        });
+        context("When flashloan initiator is not the Exchange Issuance contract", () => {
+          let subjectReceiver: Address;
+          let subjectAssets: Address[];
+          let subjectAmounts: BigNumber[];
+          let subjectModes: BigNumber[];
+          let subjectOnBehalfOf: Address;
+          let subjectParams: Bytes;
+          let subjectReferalCode: BigNumber;
+          beforeEach(async () => {
+            subjectReceiver = exchangeIssuance.address;
+            subjectAssets = [wethAddress];
+            subjectAmounts = [utils.parseEther("1")];
+            subjectModes = [ZERO];
+            subjectOnBehalfOf = exchangeIssuance.address;
+            subjectParams = EMPTY_BYTES;
+            subjectReferalCode = ZERO;
+          });
+          async function subject() {
+            await aaveSetup.lendingPool.flashLoan(
+              subjectReceiver,
+              subjectAssets,
+              subjectAmounts,
+              subjectModes,
+              subjectOnBehalfOf,
+              subjectParams,
+              subjectReferalCode,
+            );
+          }
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("ExchangeIssuance: INVALID FLASHLOAN INITIATOR");
           });
         });
       });
