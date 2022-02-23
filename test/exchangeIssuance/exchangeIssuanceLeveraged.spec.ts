@@ -419,7 +419,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
     });
   });
 
-  describe("When exchangeIssuacne is deployed", () => {
+  describe("When exchangeIssuance is deployed", () => {
     let ethAddress: Address;
     beforeEach(async () => {
       exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveraged(
@@ -477,8 +477,15 @@ describe("ExchangeIssuanceLeveraged", async () => {
           subjectIsIssuance = true;
         });
         it("should return correct data", async () => {
-          const { collateralAToken, debtToken, collateralAmount, debtAmount } = await subject();
+          const {
+            collateralToken: collateralTokenReturned,
+            collateralAToken,
+            debtToken,
+            collateralAmount,
+            debtAmount,
+          } = await subject();
           expect(collateralAToken).to.eq(strategy.targetCollateralAToken);
+          expect(collateralTokenReturned).to.eq(collateralToken.address);
           expect(debtToken).to.eq(strategy.borrowAsset);
           expect(collateralAmount).to.be.gt(ZERO);
           expect(debtAmount).to.be.gt(ZERO);
