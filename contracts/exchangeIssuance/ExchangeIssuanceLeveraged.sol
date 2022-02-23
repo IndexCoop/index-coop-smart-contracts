@@ -32,6 +32,7 @@ import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { UniSushiV2Library } from "../../external/contracts/UniSushiV2Library.sol";
 import { FlashLoanReceiverBaseV2 } from "../../external/contracts/aaveV2/FlashLoanReceiverBaseV2.sol";
+import { DEXAdapter } from "./DEXAdapter.sol";
 
 
 /**
@@ -44,7 +45,7 @@ import { FlashLoanReceiverBaseV2 } from "../../external/contracts/aaveV2/FlashLo
  * tradeable against each other on Sushi / Quickswap
  *
  */
-contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
+contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, DEXAdapter {
 
     using Address for address payable;
     using SafeMath for uint256;
@@ -52,9 +53,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     using SafeERC20 for IERC20;
     using SafeERC20 for ISetToken;
 
-    /* ============ Enums ============ */
-
-    enum Exchange { None, Quickswap, Sushiswap}
 
     /* ============ Structs ============ */
     struct LeveragedTokenData {
@@ -84,14 +82,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
     /* ============ State Variables ============ */
 
-    // Token to trade via 
-    address immutable public INTERMEDIATE_TOKEN;
     // Wrapped native token (WMATIC on polygon)
     address immutable public WETH;
-    IUniswapV2Router02 immutable public quickRouter;
-    IUniswapV2Router02 immutable public sushiRouter;
-
-
     IController public immutable setController;
     IDebtIssuanceModule public immutable debtIssuanceModule;
 
@@ -149,23 +141,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     )
         public
         FlashLoanReceiverBaseV2(_addressProvider)
+        DEXAdapter(_weth, _intermediateToken, _quickRouter, _sushiRouter)
     {
-        quickRouter = _quickRouter;
-
-        sushiRouter = _sushiRouter;
-
         setController = _setController;
         debtIssuanceModule = _debtIssuanceModule;
 
         WETH = _weth;
-        IERC20(_weth).safeApprove(address(_quickRouter), PreciseUnitMath.maxUint256());
-        IERC20(_weth).safeApprove(address(_sushiRouter), PreciseUnitMath.maxUint256());
-
-        INTERMEDIATE_TOKEN = _intermediateToken;
-        if(_intermediateToken != _weth) {
-            IERC20(_intermediateToken).safeApprove(address(_quickRouter), PreciseUnitMath.maxUint256());
-            IERC20(_intermediateToken).safeApprove(address(_sushiRouter), PreciseUnitMath.maxUint256());
-        }
     }
 
     /* ============ External Functions ============ */
@@ -1027,21 +1008,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
     }
 
     /**
-     * Sets a max approval limit for an ERC20 token, provided the current allowance
-     * is less than the required allownce.
-     *
-     * @param _token              Token to approve
-     * @param _spender            Spender address to approve
-     * @param _requiredAllowance  Target allowance to set
-     */
-    function _safeApprove(IERC20 _token, address _spender, uint256 _requiredAllowance) internal {
-        uint256 allowance = _token.allowance(address(this), _spender);
-        if (allowance < _requiredAllowance) {
-            _token.safeIncreaseAllowance(_spender, MAX_UINT256 - allowance);
-        }
-    }
-
-    /**
      * Redeems a given amount of SetToken.
      *
      * @param _setToken     Address of the SetToken to be redeemed
@@ -1052,90 +1018,4 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2 {
         debtIssuanceModule.redeem(_setToken, _amount, address(this));
     }
 
-    /**
-     * Swap exact tokens for another token on a given DEX.
-     *
-     * @param _exchange     The exchange on which to peform the swap
-     * @param _tokenIn      The address of the input token
-     * @param _tokenOut     The address of the output token
-     * @param _amountIn     The amount of input token to be spent
-     *
-     * @return              The amount of output tokens
-     */
-    function _swapExactTokensForTokens(
-        Exchange _exchange,
-        address _tokenIn,
-        address _tokenOut,
-        uint256 _amountIn
-    )
-    internal
-    returns (uint256)
-    {
-        if (_tokenIn == _tokenOut) {
-            return _amountIn;
-        }
-
-        address[] memory path = _generatePath(_tokenIn, _tokenOut);
-        IUniswapV2Router02 router = _getRouter(_exchange);
-        _safeApprove(IERC20(_tokenIn), address(router), _amountIn);
-        //TODO: Review if we have to set a non-zero minAmountOut
-        return router.swapExactTokensForTokens(_amountIn, 0, path, address(this), block.timestamp)[1];
-    }
-
-    /**
-     * Swap tokens for exact amount of output tokens on a given DEX.
-     *
-     * @param _exchange     The exchange on which to peform the swap
-     * @param _tokenIn      The address of the input token
-     * @param _tokenOut     The address of the output token
-     * @param _amountOut    The amount of output token required
-     * @param _maxAmountIn  Maximum amount of input token to be spent
-     *
-     * @return              The amount of input tokens spent
-     */
-    function _swapTokensForExactTokens(
-        Exchange _exchange,
-        address _tokenIn,
-        address _tokenOut,
-        uint256 _amountOut,
-        uint256 _maxAmountIn
-    )
-    internal
-    returns (uint256)
-    {
-        if (_tokenIn == _tokenOut) {
-            return _amountOut;
-        }
-        IUniswapV2Router02 router = _getRouter(_exchange);
-        _safeApprove(IERC20(_tokenIn), address(router), _maxAmountIn);
-        address[] memory path = _generatePath(_tokenIn, _tokenOut);
-        uint256 result = router.swapTokensForExactTokens(_amountOut, _maxAmountIn, path, address(this), block.timestamp)[0];
-        return result;
-    }
-
-    function _generatePath(address _tokenIn, address _tokenOut) internal view returns (address[] memory) {
-        address[] memory path;
-        if(_tokenIn == INTERMEDIATE_TOKEN || _tokenOut == INTERMEDIATE_TOKEN){
-            path = new address[](2);
-            path[0] = _tokenIn;
-            path[1] = _tokenOut;
-        } else {
-            path = new address[](3);
-            path[0] = _tokenIn;
-            path[1] = INTERMEDIATE_TOKEN;
-            path[2] = _tokenOut;
-        }
-        return path;
-    }
-
-    /**
-     * Returns the router address of a given exchange.
-     *
-     * @param _exchange     The Exchange whose router address is needed
-     *
-     * @return              IUniswapV2Router02 router of the given exchange
-     */
-     function _getRouter(Exchange _exchange) internal view returns(IUniswapV2Router02) {
-         return (_exchange == Exchange.Quickswap) ? quickRouter : sushiRouter;
-     }
 }
