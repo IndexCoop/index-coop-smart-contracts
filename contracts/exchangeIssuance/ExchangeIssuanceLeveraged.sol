@@ -24,6 +24,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+import { ISwapRouter} from "../interfaces/external/ISwapRouter.sol";
 import { IAToken } from "../interfaces/IAToken.sol";
 import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { IController } from "../interfaces/IController.sol";
@@ -135,13 +136,14 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         address _intermediateToken,
         IUniswapV2Router02 _quickRouter,
         IUniswapV2Router02 _sushiRouter,
+        ISwapRouter _uniV3Router,
         IController _setController,
         IDebtIssuanceModule _debtIssuanceModule,
         address _addressProvider
     )
         public
         FlashLoanReceiverBaseV2(_addressProvider)
-        DEXAdapter(_weth, _intermediateToken, _quickRouter, _sushiRouter)
+        DEXAdapter(_weth, _intermediateToken, _quickRouter, _sushiRouter, _uniV3Router)
     {
         setController = _setController;
         debtIssuanceModule = _debtIssuanceModule;

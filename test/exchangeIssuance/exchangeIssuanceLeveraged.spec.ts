@@ -95,6 +95,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
   let sushiswapSetup: UniswapFixture;
   let setTokenInitialBalance: BigNumber;
 
+  const uniswapV3RouterAddress = ADDRESS_ZERO;
+
   cacheBeforeEach(async () => {
     [owner, methodologist] = await getAccounts();
 
@@ -372,6 +374,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         wethAddress,
         quickswapRouter.address,
         sushiswapRouter.address,
+        uniswapV3RouterAddress,
         controllerAddress,
         debtIssuanceModuleAddress,
         addressProviderAddress,
@@ -427,6 +430,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         wethAddress,
         quickswapRouter.address,
         sushiswapRouter.address,
+        uniswapV3RouterAddress,
         controllerAddress,
         debtIssuanceModuleAddress,
         addressProviderAddress,

@@ -14,6 +14,8 @@ const expect = getWaffleExpect();
 enum Exchange {
   None,
   Sushiswap,
+  Quickswap,
+  UniV3,
 }
 
 if (process.env.INTEGRATIONTEST) {
@@ -24,6 +26,7 @@ if (process.env.INTEGRATIONTEST) {
     const usdcAddress: Address = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
     const quickswapRouterAddress: Address = "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff";
     const sushiswapRouterAddress: Address = "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506";
+    const uniV3RouterAddress: Address = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
     const wethAddress: Address = "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619";
     const daiAddress: Address = "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063";
     const wmaticAddress: Address = "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270";
@@ -62,250 +65,256 @@ if (process.env.INTEGRATIONTEST) {
       )) as IUniswapV2Router;
 
       subjectSetToken = eth2xFliPAddress;
-      subjectSetAmount = utils.parseEther("100");
-      subjectExchange = Exchange.Sushiswap;
+      subjectSetAmount = utils.parseEther("10");
     });
 
-    beforeEach(async () => {
-      // TODO: Check if we should include this call in the Exchange Issuance contract
-      await aaveLeverageModule.sync(eth2xFliPAddress);
-    });
-
-    it("fli token should return correct components", async () => {
-      const components = await eth2xFli.getComponents();
-      expect(components[0]).to.equal(wethAmAddress);
-      expect(components[1]).to.equal(usdcAddress);
-    });
-
-    context("When exchange issuance is deployed", () => {
-      let exchangeIssuance: ExchangeIssuanceLeveraged;
-      before(async () => {
-        exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveraged(
-          wmaticAddress,
-          wethAddress,
-          quickswapRouterAddress,
-          sushiswapRouterAddress,
-          controllerAddress,
-          debtIssuanceModuleAddress,
-          addressProviderAddress,
-        );
-        await exchangeIssuance.approveSetToken(eth2xFliPAddress);
-      });
-      it("verify state set properly via constructor", async () => {
-        const expectedWethAddress = await exchangeIssuance.WETH();
-        expect(expectedWethAddress).to.eq(utils.getAddress(wmaticAddress));
-
-        const expectedIntermediateAddress = await exchangeIssuance.INTERMEDIATE_TOKEN();
-        expect(expectedIntermediateAddress).to.eq(utils.getAddress(wethAddress));
-
-        const expectedSushiRouterAddress = await exchangeIssuance.sushiRouter();
-        expect(expectedSushiRouterAddress).to.eq(utils.getAddress(sushiswapRouterAddress));
-
-        const expectedControllerAddress = await exchangeIssuance.setController();
-        expect(expectedControllerAddress).to.eq(utils.getAddress(controllerAddress));
-
-        const expectedDebtIssuanceModuleAddress = await exchangeIssuance.debtIssuanceModule();
-        expect(expectedDebtIssuanceModuleAddress).to.eq(
-          utils.getAddress(debtIssuanceModuleAddress),
-        );
-      });
-      context("Payment Token: ERC20", () => {
-        let pricePaid: BigNumber;
-        let inputToken: StandardTokenMock;
-        let subjectInputToken: Address;
-        context("#issueExactSetFromERC20", () => {
-          let subjectMaxAmountInput: BigNumber;
-          before(async () => {
-            const ownerBalance = await owner.wallet.getBalance();
-            const ethToSpend = ownerBalance.div(2);
-            inputToken = dai;
-            subjectInputToken = inputToken.address;
-            await sushiRouter.swapExactETHForTokens(
-              ZERO,
-              [wmaticAddress, subjectInputToken],
-              owner.address,
-              MAX_UINT_256,
-              { value: ethToSpend },
-            );
-            subjectMaxAmountInput = await inputToken.balanceOf(owner.address);
-            await inputToken.approve(exchangeIssuance.address, subjectMaxAmountInput);
-          });
-          async function subject() {
-            return await exchangeIssuance.issueExactSetFromERC20(
-              subjectSetToken,
-              subjectSetAmount,
-              subjectInputToken,
-              subjectMaxAmountInput,
-              subjectExchange,
-            );
-          }
-          it("should update balance correctly", async () => {
-            const inputBalanceBefore = await inputToken.balanceOf(owner.address);
-            const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
-            await subject();
-            const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
-            const inputBalanceAfter = await inputToken.balanceOf(owner.address);
-            pricePaid = inputBalanceBefore.sub(inputBalanceAfter);
-            expect(setBalanceAfter.sub(setBalanceBefore)).to.eq(subjectSetAmount);
-          });
+    [Exchange.UniV3, Exchange.Sushiswap].forEach(exchange => {
+      describe(`when the exchange is ${Exchange[exchange]}`, () => {
+        beforeEach(async () => {
+          subjectExchange = Exchange.UniV3;
+          // TODO: Check if we should include this call in the Exchange Issuance contract
+          await aaveLeverageModule.sync(eth2xFliPAddress);
         });
 
-        context("#redeemExactSetForERC20", () => {
-          let subjectMinAmountOutput: BigNumber;
-          let outputToken: StandardTokenMock;
-          let subjectOutputToken: Address;
-          before(async () => {
-            // Check to avoid running test when issuance failed and there are no tokens to redeem
-            expect(pricePaid.gt(0)).to.be.true;
-            subjectMinAmountOutput = pricePaid.div(10);
-            eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
-            outputToken = dai;
-            subjectOutputToken = outputToken.address;
-          });
-          async function subject() {
-            return await exchangeIssuance.redeemExactSetForERC20(
-              subjectSetToken,
-              subjectSetAmount,
-              subjectOutputToken,
-              subjectMinAmountOutput,
-              subjectExchange,
-            );
-          }
-          it("should update balance correctly", async () => {
-            const outputBalanceBefore = await outputToken.balanceOf(owner.address);
-            const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
-            expect(setBalanceBefore.gte(subjectSetAmount)).to.be.true;
-            await subject();
-            const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
-            const outputBalanceAfter = await outputToken.balanceOf(owner.address);
-            expect(setBalanceBefore.sub(setBalanceAfter)).to.eq(subjectSetAmount);
-            expect(outputBalanceAfter.sub(outputBalanceBefore).gte(subjectMinAmountOutput)).to.be
-              .true;
-          });
-        });
-      });
-      context("Payment Token: ETH", () => {
-        let pricePaid: BigNumber;
-        context("#issueExactSetFromETH", () => {
-          let subjectMaxAmountInput: BigNumber;
-          before(async () => {
-            const ownerBalance = await owner.wallet.getBalance();
-            subjectMaxAmountInput = ownerBalance.div(2);
-          });
-          async function subject() {
-            return await exchangeIssuance.issueExactSetFromETH(
-              subjectSetToken,
-              subjectSetAmount,
-              subjectExchange,
-              { value: subjectMaxAmountInput },
-            );
-          }
-          it("should update balance correctly", async () => {
-            const maticBalanceBefore = await owner.wallet.getBalance();
-            const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
-            await subject();
-            const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
-            const maticBalanceAfter = await owner.wallet.getBalance();
-            pricePaid = maticBalanceBefore.sub(maticBalanceAfter);
-            expect(setBalanceAfter.sub(setBalanceBefore)).to.eq(subjectSetAmount);
-          });
+        it("fli token should return correct components", async () => {
+          const components = await eth2xFli.getComponents();
+          expect(components[0]).to.equal(wethAmAddress);
+          expect(components[1]).to.equal(usdcAddress);
         });
 
-        context("#redeemExactSetForETH", () => {
-          let subjectMinAmountOutput: BigNumber;
+        context("When exchange issuance is deployed", () => {
+          let exchangeIssuance: ExchangeIssuanceLeveraged;
           before(async () => {
-            // Check to avoid running test when issuance failed and there are no tokens to redeem
-            expect(pricePaid.gt(0)).to.be.true;
-            subjectMinAmountOutput = pricePaid.div(10);
-            eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
-          });
-          async function subject() {
-            return await exchangeIssuance.redeemExactSetForETH(
-              subjectSetToken,
-              subjectSetAmount,
-              subjectMinAmountOutput,
-              subjectExchange,
+            exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveraged(
+              wmaticAddress,
+              wethAddress,
+              quickswapRouterAddress,
+              sushiswapRouterAddress,
+              uniV3RouterAddress,
+              controllerAddress,
+              debtIssuanceModuleAddress,
+              addressProviderAddress,
             );
-          }
-          it("should update balance correctly", async () => {
-            const maticBalanceBefore = await owner.wallet.getBalance();
-            const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
-            expect(setBalanceBefore.gte(subjectSetAmount)).to.be.true;
-            await subject();
-            const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
-            const maticBalanceAfter = await owner.wallet.getBalance();
-            expect(setBalanceBefore.sub(setBalanceAfter)).to.eq(subjectSetAmount);
-            expect(maticBalanceAfter.sub(maticBalanceBefore).gte(subjectMinAmountOutput)).to.be
-              .true;
+            await exchangeIssuance.approveSetToken(eth2xFliPAddress);
           });
-        });
-      });
-      context("Payment Token: LongToken", () => {
-        let pricePaid: BigNumber;
-        context("#issueExactSetFromERC20", () => {
-          let subjectMaxAmountInput: BigNumber;
-          let subjectInputToken: Address;
-          before(async () => {
-            const ownerBalance = await owner.wallet.getBalance();
-            await sushiRouter.swapExactETHForTokens(
-              ZERO,
-              [wmaticAddress, wethAddress],
-              owner.address,
-              MAX_UINT_256,
-              { value: ownerBalance.div(2) },
-            );
-            subjectMaxAmountInput = await weth.balanceOf(owner.address);
-            subjectInputToken = weth.address;
-            await weth.approve(exchangeIssuance.address, subjectMaxAmountInput);
-          });
-          async function subject() {
-            return await exchangeIssuance.issueExactSetFromERC20(
-              subjectSetToken,
-              subjectSetAmount,
-              subjectInputToken,
-              subjectMaxAmountInput,
-              subjectExchange,
-            );
-          }
-          it("should update balance correctly", async () => {
-            const wethBalanceBefore = await weth.balanceOf(owner.address);
-            const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
-            await subject();
-            const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
-            const wethBalanceAfter = await weth.balanceOf(owner.address);
-            pricePaid = wethBalanceBefore.sub(wethBalanceAfter);
-            expect(setBalanceAfter.sub(setBalanceBefore)).to.eq(subjectSetAmount);
-          });
-        });
+          it("verify state set properly via constructor", async () => {
+            const expectedWethAddress = await exchangeIssuance.WETH();
+            expect(expectedWethAddress).to.eq(utils.getAddress(wmaticAddress));
 
-        context("#redeemExactSetForERC20", () => {
-          let subjectMinAmountOutput: BigNumber;
-          let subjectOutputToken: Address;
-          before(async () => {
-            // Check to avoid running test when issuance failed and there are no tokens to redeem
-            expect(pricePaid.gt(0)).to.be.true;
-            subjectMinAmountOutput = pricePaid.div(2);
-            subjectOutputToken = weth.address;
-            eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
-          });
-          async function subject() {
-            return await exchangeIssuance.redeemExactSetForERC20(
-              subjectSetToken,
-              subjectSetAmount,
-              subjectOutputToken,
-              subjectMinAmountOutput,
-              subjectExchange,
+            const expectedIntermediateAddress = await exchangeIssuance.INTERMEDIATE_TOKEN();
+            expect(expectedIntermediateAddress).to.eq(utils.getAddress(wethAddress));
+
+            const expectedSushiRouterAddress = await exchangeIssuance.sushiRouter();
+            expect(expectedSushiRouterAddress).to.eq(utils.getAddress(sushiswapRouterAddress));
+
+            const expectedControllerAddress = await exchangeIssuance.setController();
+            expect(expectedControllerAddress).to.eq(utils.getAddress(controllerAddress));
+
+            const expectedDebtIssuanceModuleAddress = await exchangeIssuance.debtIssuanceModule();
+            expect(expectedDebtIssuanceModuleAddress).to.eq(
+              utils.getAddress(debtIssuanceModuleAddress),
             );
-          }
-          it("should update balance correctly", async () => {
-            const wethBalanceBefore = await weth.balanceOf(owner.address);
-            const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
-            expect(setBalanceBefore.gte(subjectSetAmount)).to.be.true;
-            await subject();
-            const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
-            const wethBalanceAfter = await weth.balanceOf(owner.address);
-            expect(setBalanceBefore.sub(setBalanceAfter)).to.eq(subjectSetAmount);
-            expect(wethBalanceAfter.sub(wethBalanceBefore).gte(subjectMinAmountOutput)).to.be.true;
+          });
+          context("Payment Token: ERC20", () => {
+            let pricePaid: BigNumber;
+            let inputToken: StandardTokenMock;
+            let subjectInputToken: Address;
+            context("#issueExactSetFromERC20", () => {
+              let subjectMaxAmountInput: BigNumber;
+              before(async () => {
+                const ownerBalance = await owner.wallet.getBalance();
+                const ethToSpend = ownerBalance.div(2);
+                inputToken = dai;
+                subjectInputToken = inputToken.address;
+                await sushiRouter.swapExactETHForTokens(
+                  ZERO,
+                  [wmaticAddress, subjectInputToken],
+                  owner.address,
+                  MAX_UINT_256,
+                  { value: ethToSpend },
+                );
+                subjectMaxAmountInput = await inputToken.balanceOf(owner.address);
+                await inputToken.approve(exchangeIssuance.address, subjectMaxAmountInput);
+              });
+              async function subject() {
+                return await exchangeIssuance.issueExactSetFromERC20(
+                  subjectSetToken,
+                  subjectSetAmount,
+                  subjectInputToken,
+                  subjectMaxAmountInput,
+                  subjectExchange,
+                );
+              }
+              it("should update balance correctly", async () => {
+                const inputBalanceBefore = await inputToken.balanceOf(owner.address);
+                const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
+                await subject();
+                const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
+                const inputBalanceAfter = await inputToken.balanceOf(owner.address);
+                pricePaid = inputBalanceBefore.sub(inputBalanceAfter);
+                expect(setBalanceAfter.sub(setBalanceBefore)).to.eq(subjectSetAmount);
+              });
+            });
+
+            context("#redeemExactSetForERC20", () => {
+              let subjectMinAmountOutput: BigNumber;
+              let outputToken: StandardTokenMock;
+              let subjectOutputToken: Address;
+              before(async () => {
+                // Check to avoid running test when issuance failed and there are no tokens to redeem
+                expect(pricePaid.gt(0)).to.be.true;
+                subjectMinAmountOutput = pricePaid.div(10);
+                eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
+                outputToken = dai;
+                subjectOutputToken = outputToken.address;
+              });
+              async function subject() {
+                return await exchangeIssuance.redeemExactSetForERC20(
+                  subjectSetToken,
+                  subjectSetAmount,
+                  subjectOutputToken,
+                  subjectMinAmountOutput,
+                  subjectExchange,
+                );
+              }
+              it("should update balance correctly", async () => {
+                const outputBalanceBefore = await outputToken.balanceOf(owner.address);
+                const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
+                expect(setBalanceBefore.gte(subjectSetAmount)).to.be.true;
+                await subject();
+                const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
+                const outputBalanceAfter = await outputToken.balanceOf(owner.address);
+                expect(setBalanceBefore.sub(setBalanceAfter)).to.eq(subjectSetAmount);
+                expect(outputBalanceAfter.sub(outputBalanceBefore).gte(subjectMinAmountOutput)).to
+                  .be.true;
+              });
+            });
+          });
+          context("Payment Token: ETH", () => {
+            let pricePaid: BigNumber;
+            context("#issueExactSetFromETH", () => {
+              let subjectMaxAmountInput: BigNumber;
+              before(async () => {
+                const ownerBalance = await owner.wallet.getBalance();
+                subjectMaxAmountInput = ownerBalance.div(2);
+              });
+              async function subject() {
+                return await exchangeIssuance.issueExactSetFromETH(
+                  subjectSetToken,
+                  subjectSetAmount,
+                  subjectExchange,
+                  { value: subjectMaxAmountInput },
+                );
+              }
+              it("should update balance correctly", async () => {
+                const maticBalanceBefore = await owner.wallet.getBalance();
+                const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
+                await subject();
+                const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
+                const maticBalanceAfter = await owner.wallet.getBalance();
+                pricePaid = maticBalanceBefore.sub(maticBalanceAfter);
+                expect(setBalanceAfter.sub(setBalanceBefore)).to.eq(subjectSetAmount);
+              });
+            });
+
+            context("#redeemExactSetForETH", () => {
+              let subjectMinAmountOutput: BigNumber;
+              before(async () => {
+                // Check to avoid running test when issuance failed and there are no tokens to redeem
+                expect(pricePaid.gt(0)).to.be.true;
+                subjectMinAmountOutput = pricePaid.div(10);
+                eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
+              });
+              async function subject() {
+                return await exchangeIssuance.redeemExactSetForETH(
+                  subjectSetToken,
+                  subjectSetAmount,
+                  subjectMinAmountOutput,
+                  subjectExchange,
+                );
+              }
+              it("should update balance correctly", async () => {
+                const maticBalanceBefore = await owner.wallet.getBalance();
+                const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
+                expect(setBalanceBefore.gte(subjectSetAmount)).to.be.true;
+                await subject();
+                const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
+                const maticBalanceAfter = await owner.wallet.getBalance();
+                expect(setBalanceBefore.sub(setBalanceAfter)).to.eq(subjectSetAmount);
+                expect(maticBalanceAfter.sub(maticBalanceBefore).gte(subjectMinAmountOutput)).to.be
+                  .true;
+              });
+            });
+          });
+          context("Payment Token: LongToken", () => {
+            let pricePaid: BigNumber;
+            context("#issueExactSetFromERC20", () => {
+              let subjectMaxAmountInput: BigNumber;
+              let subjectInputToken: Address;
+              before(async () => {
+                const ownerBalance = await owner.wallet.getBalance();
+                await sushiRouter.swapExactETHForTokens(
+                  ZERO,
+                  [wmaticAddress, wethAddress],
+                  owner.address,
+                  MAX_UINT_256,
+                  { value: ownerBalance.div(2) },
+                );
+                subjectMaxAmountInput = await weth.balanceOf(owner.address);
+                subjectInputToken = weth.address;
+                await weth.approve(exchangeIssuance.address, subjectMaxAmountInput);
+              });
+              async function subject() {
+                return await exchangeIssuance.issueExactSetFromERC20(
+                  subjectSetToken,
+                  subjectSetAmount,
+                  subjectInputToken,
+                  subjectMaxAmountInput,
+                  subjectExchange,
+                );
+              }
+              it("should update balance correctly", async () => {
+                const wethBalanceBefore = await weth.balanceOf(owner.address);
+                const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
+                await subject();
+                const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
+                const wethBalanceAfter = await weth.balanceOf(owner.address);
+                pricePaid = wethBalanceBefore.sub(wethBalanceAfter);
+                expect(setBalanceAfter.sub(setBalanceBefore)).to.eq(subjectSetAmount);
+              });
+            });
+
+            context("#redeemExactSetForERC20", () => {
+              let subjectMinAmountOutput: BigNumber;
+              let subjectOutputToken: Address;
+              before(async () => {
+                // Check to avoid running test when issuance failed and there are no tokens to redeem
+                expect(pricePaid.gt(0)).to.be.true;
+                subjectMinAmountOutput = pricePaid.div(2);
+                subjectOutputToken = weth.address;
+                eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
+              });
+              async function subject() {
+                return await exchangeIssuance.redeemExactSetForERC20(
+                  subjectSetToken,
+                  subjectSetAmount,
+                  subjectOutputToken,
+                  subjectMinAmountOutput,
+                  subjectExchange,
+                );
+              }
+              it("should update balance correctly", async () => {
+                const wethBalanceBefore = await weth.balanceOf(owner.address);
+                const setBalanceBefore = await eth2xFli.balanceOf(owner.address);
+                expect(setBalanceBefore.gte(subjectSetAmount)).to.be.true;
+                await subject();
+                const setBalanceAfter = await eth2xFli.balanceOf(owner.address);
+                const wethBalanceAfter = await weth.balanceOf(owner.address);
+                expect(setBalanceBefore.sub(setBalanceAfter)).to.eq(subjectSetAmount);
+                expect(wethBalanceAfter.sub(wethBalanceBefore).gte(subjectMinAmountOutput)).to.be
+                  .true;
+              });
+            });
           });
         });
       });
