@@ -90,45 +90,16 @@ abstract contract DEXAdapter {
         uint256 _amountIn
     )
     internal
-    returns (uint256 amountOut)
+    returns (uint256)
     {
         if (_tokenIn == _tokenOut) {
             return _amountIn;
         }
 
         if(_exchange == Exchange.UniV3){
-            _safeApprove(IERC20(_tokenIn), address(uniV3Router), _amountIn);
-            if(_tokenIn == INTERMEDIATE_TOKEN || _tokenOut == INTERMEDIATE_TOKEN){
-                ISwapRouter.ExactInputSingleParams memory params =
-                    ISwapRouter.ExactInputSingleParams({
-                        tokenIn: _tokenIn,
-                        tokenOut: _tokenOut,
-                        fee: POOL_FEE,
-                        recipient: address(this),
-                        deadline: block.timestamp,
-                        amountIn: _amountIn,
-                        amountOutMinimum: 0,
-                        sqrtPriceLimitX96: 0
-                    });
-                // The call to `exactInputSingle` executes the swap.
-                amountOut = uniV3Router.exactInputSingle(params);
-            } else {
-                bytes memory pathV3 = _generatePathV3(_tokenIn, _tokenOut);
-                ISwapRouter.ExactInputParams memory params =
-                    ISwapRouter.ExactInputParams({
-                        path: pathV3,
-                        recipient: address(this),
-                        deadline: block.timestamp,
-                        amountIn: _amountIn,
-                        amountOutMinimum: 0
-                    });
-            }
+            return _swapExactTokensForTokensUniV3(_tokenIn, _tokenOut, _amountIn);
         } else {
-            address[] memory path = _generatePath(_tokenIn, _tokenOut);
-            IUniswapV2Router02 router = _getRouter(_exchange);
-            _safeApprove(IERC20(_tokenIn), address(router), _amountIn);
-            //TODO: Review if we have to set a non-zero minAmountOut
-            amountOut = router.swapExactTokensForTokens(_amountIn, 0, path, address(this), block.timestamp)[1];
+            return _swapExactTokensForTokensUniV2(_tokenIn, _tokenOut, _amountIn, _exchange);
         }
     }
 
@@ -157,45 +128,112 @@ abstract contract DEXAdapter {
             return _amountOut;
         }
         if(_exchange == Exchange.UniV3){
-            _safeApprove(IERC20(_tokenIn), address(uniV3Router), _maxAmountIn);
-            if(_tokenIn == INTERMEDIATE_TOKEN || _tokenOut == INTERMEDIATE_TOKEN){
-                ISwapRouter.ExactOutputSingleParams memory params =
-                    ISwapRouter.ExactOutputSingleParams({
-                        tokenIn: _tokenIn,
-                        tokenOut: _tokenOut,
-                        fee: POOL_FEE,
-                        recipient: address(this),
-                        deadline: block.timestamp,
-                        amountOut: _amountOut,
-                        amountInMaximum: _maxAmountIn,
-                        sqrtPriceLimitX96: 0
-                    });
-
-                // Executes the swap returning the amountIn needed to spend to receive the desired amountOut.
-                amountIn = uniV3Router.exactOutputSingle(params);
-            } else {
-                bytes memory pathV3 = _generatePathV3(_tokenIn, _tokenOut);
-                uint inputBalanceBefore = IERC20(_tokenIn).balanceOf(address(this));
-                uint outputBalanceBefore = IERC20(_tokenOut).balanceOf(address(this));
-                ISwapRouter.ExactOutputParams memory params =
-                    ISwapRouter.ExactOutputParams({
-                        path: pathV3,
-                        recipient: address(this),
-                        deadline: block.timestamp,
-                        amountOut: _amountOut,
-                        amountInMaximum: _maxAmountIn
-                    });
-                amountIn = uniV3Router.exactOutput(params);
-                uint outputBalanceAfter = IERC20(_tokenOut).balanceOf(address(this));
-                uint inputBalanceAfter = IERC20(_tokenIn).balanceOf(address(this));
-            }
+            return _swapTokensForExactTokensUniV3(_tokenIn, _tokenOut, _amountOut, _maxAmountIn);
         } else {
-            IUniswapV2Router02 router = _getRouter(_exchange);
-            _safeApprove(IERC20(_tokenIn), address(router), _maxAmountIn);
-            address[] memory path = _generatePath(_tokenIn, _tokenOut);
-            amountIn = router.swapTokensForExactTokens(_amountOut, _maxAmountIn, path, address(this), block.timestamp)[0];
+            return _swapTokensForExactTokensUniV2(_tokenIn, _tokenOut, _amountOut, _maxAmountIn, _exchange);
         }
     }
+
+    function _swapTokensForExactTokensUniV2(
+        address _tokenIn,
+        address _tokenOut,
+        uint256 _amountOut,
+        uint256 _maxAmountIn,
+        Exchange _exchange
+    )
+    internal
+    returns(uint256)
+    {
+        IUniswapV2Router02 router = _getRouter(_exchange);
+        _safeApprove(IERC20(_tokenIn), address(router), _maxAmountIn);
+        address[] memory path = _generatePath(_tokenIn, _tokenOut);
+        return router.swapTokensForExactTokens(_amountOut, _maxAmountIn, path, address(this), block.timestamp)[0];
+    }
+
+    function _swapTokensForExactTokensUniV3(
+        address _tokenIn,
+        address _tokenOut,
+        uint256 _amountOut,
+        uint256 _maxAmountIn
+    )
+    internal
+    returns(uint256)
+    {
+        _safeApprove(IERC20(_tokenIn), address(uniV3Router), _maxAmountIn);
+        if(_tokenIn == INTERMEDIATE_TOKEN || _tokenOut == INTERMEDIATE_TOKEN){
+            ISwapRouter.ExactOutputSingleParams memory params =
+                ISwapRouter.ExactOutputSingleParams({
+                    tokenIn: _tokenIn,
+                    tokenOut: _tokenOut,
+                    fee: POOL_FEE,
+                    recipient: address(this),
+                    deadline: block.timestamp,
+                    amountOut: _amountOut,
+                    amountInMaximum: _maxAmountIn,
+                    sqrtPriceLimitX96: 0
+                });
+
+            // Executes the swap returning the amountIn needed to spend to receive the desired amountOut.
+            return uniV3Router.exactOutputSingle(params);
+        } else {
+            bytes memory pathV3 = _generatePathV3(_tokenIn, _tokenOut);
+            ISwapRouter.ExactOutputParams memory params =
+                ISwapRouter.ExactOutputParams({
+                    path: pathV3,
+                    recipient: address(this),
+                    deadline: block.timestamp,
+                    amountOut: _amountOut,
+                    amountInMaximum: _maxAmountIn
+                });
+            return uniV3Router.exactOutput(params);
+        }
+    }
+
+    function _swapExactTokensForTokensUniV3(address _tokenIn, address _tokenOut, uint256 _amountIn) internal returns(uint256) {
+        _safeApprove(IERC20(_tokenIn), address(uniV3Router), _amountIn);
+        if(_tokenIn == INTERMEDIATE_TOKEN || _tokenOut == INTERMEDIATE_TOKEN){
+            ISwapRouter.ExactInputSingleParams memory params =
+                ISwapRouter.ExactInputSingleParams({
+                    tokenIn: _tokenIn,
+                    tokenOut: _tokenOut,
+                    fee: POOL_FEE,
+                    recipient: address(this),
+                    deadline: block.timestamp,
+                    amountIn: _amountIn,
+                    amountOutMinimum: 0,
+                    sqrtPriceLimitX96: 0
+                });
+            return uniV3Router.exactInputSingle(params);
+        } else {
+            bytes memory pathV3 = _generatePathV3(_tokenIn, _tokenOut);
+            ISwapRouter.ExactInputParams memory params =
+                ISwapRouter.ExactInputParams({
+                    path: pathV3,
+                    recipient: address(this),
+                    deadline: block.timestamp,
+                    amountIn: _amountIn,
+                    amountOutMinimum: 0
+                });
+            return uniV3Router.exactInput(params);
+        }
+    }
+
+    function _swapExactTokensForTokensUniV2(
+        address _tokenIn,
+        address _tokenOut,
+        uint256 _amountIn,
+        Exchange _exchange
+    )
+    internal
+    returns(uint256)
+    {
+        address[] memory path = _generatePath(_tokenIn, _tokenOut);
+        IUniswapV2Router02 router = _getRouter(_exchange);
+        _safeApprove(IERC20(_tokenIn), address(router), _amountIn);
+        //TODO: Review if we have to set a non-zero minAmountOut
+        return router.swapExactTokensForTokens(_amountIn, 0, path, address(this), block.timestamp)[1];
+    }
+
 
     function _generatePath(address _tokenIn, address _tokenOut) internal view returns (address[] memory) {
         address[] memory path;
