@@ -176,7 +176,14 @@ abstract contract DEXAdapter {
             // Executes the swap returning the amountIn needed to spend to receive the desired amountOut.
             return uniV3Router.exactOutputSingle(params);
         } else {
-            bytes memory pathV3 = _generatePathV3(_tokenIn, _tokenOut);
+
+            address[] memory path = new address[](2);
+            path[0] = _tokenIn;
+            path[1] = _tokenOut;
+            uint24[] memory fees = new uint24[](1);
+            fees[0] = POOL_FEE;
+
+            bytes memory pathV3 = _encodePathV3(path, fees);
             ISwapRouter.ExactOutputParams memory params =
                 ISwapRouter.ExactOutputParams({
                     path: pathV3,
@@ -205,7 +212,13 @@ abstract contract DEXAdapter {
                 });
             return uniV3Router.exactInputSingle(params);
         } else {
-            bytes memory pathV3 = _generatePathV3(_tokenIn, _tokenOut);
+            address[] memory path = new address[](2);
+            path[0] = _tokenIn;
+            path[1] = _tokenOut;
+            uint24[] memory fees = new uint24[](1);
+            fees[0] = POOL_FEE;
+
+            bytes memory pathV3 = _encodePathV3(path, fees);
             ISwapRouter.ExactInputParams memory params =
                 ISwapRouter.ExactInputParams({
                     path: pathV3,
@@ -250,8 +263,11 @@ abstract contract DEXAdapter {
         return path;
     }
 
-    function _generatePathV3(address _tokenIn, address _tokenOut) internal view returns (bytes memory path) {
-        path =  abi.encodePacked(_tokenIn, POOL_FEE, INTERMEDIATE_TOKEN, POOL_FEE, _tokenOut);
+    function _encodePathV3(address[] memory _path, uint24[] memory _fees) internal view returns (bytes memory path) {
+        path = abi.encodePacked(_path[0]);
+        for(uint i = 1; i < _fees.length; i++){
+            path = abi.encodePacked(path, _fees[i], _path[i+1]);
+        }
     }
 
     /**
