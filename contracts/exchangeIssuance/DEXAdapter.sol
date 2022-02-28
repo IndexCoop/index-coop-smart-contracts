@@ -88,7 +88,9 @@ abstract contract DEXAdapter {
         Exchange _exchange,
         address _tokenIn,
         address _tokenOut,
-        uint256 _amountIn
+        uint256 _amountIn,
+        address[] memory _path,
+        uint24[] memory _fees
     )
     internal
     returns (uint256)
@@ -121,7 +123,10 @@ abstract contract DEXAdapter {
         address _tokenIn,
         address _tokenOut,
         uint256 _amountOut,
-        uint256 _maxAmountIn
+        uint256 _maxAmountIn,
+        address[] memory _path,
+        uint24[] memory _fees
+
     )
     internal
     returns (uint256 amountIn)

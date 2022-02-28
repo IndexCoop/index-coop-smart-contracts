@@ -47,6 +47,11 @@ enum Exchange {
   Sushiswap,
 }
 
+type SwapData = {
+  path: Address[];
+  fees: number[];
+};
+
 const expect = getWaffleExpect();
 
 describe("ExchangeIssuanceLeveraged", async () => {
@@ -505,6 +510,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
         let subjectSetAmount: BigNumber;
         let subjectMinAmountOutput: BigNumber;
         let subjectExchange: Exchange;
+        let subjectCollateralForDebtSwapData: SwapData;
+        let subjectOutputTokenSwapData: SwapData;
         let amountReturned: BigNumber;
         let collateralAmount: BigNumber;
         let subjectOutputToken: Address;
@@ -518,6 +525,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
               collateralToken.address,
               subjectMinAmountOutput,
               subjectExchange,
+              subjectCollateralForDebtSwapData,
+              subjectOutputTokenSwapData,
             );
           } else if (tokenName === "ERC20") {
             return await exchangeIssuance.redeemExactSetForERC20(
@@ -526,6 +535,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
               subjectOutputToken,
               subjectMinAmountOutput,
               subjectExchange,
+              subjectCollateralForDebtSwapData,
+              subjectOutputTokenSwapData,
             );
           } else {
             return await exchangeIssuance.redeemExactSetForETH(
@@ -533,6 +544,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
               subjectSetAmount,
               subjectMinAmountOutput,
               subjectExchange,
+              subjectCollateralForDebtSwapData,
+              subjectOutputTokenSwapData,
             );
           }
         }
@@ -554,6 +567,26 @@ describe("ExchangeIssuanceLeveraged", async () => {
           outputToken = outputTokenMapping[tokenName];
           subjectOutputToken = tokenName == "ETH" ? ethAddress : outputToken.address;
 
+          subjectCollateralForDebtSwapData = {
+            path: [collateralToken.address, setV2Setup.usdc.address],
+            fees: [3000],
+          };
+          subjectOutputTokenSwapData = {
+            path: [collateralToken.address, outputToken.address],
+            fees: [3000],
+          };
+
+          const debtForCollateralSwapData = {
+            path: [setV2Setup.usdc.address, collateralToken.address],
+            fees: [3000],
+          };
+
+          // Can be empty since we are paying with collateral token and don't need to do this swap
+          const inputTokenSwapData = {
+            path: [],
+            fees: [],
+          };
+
           await collateralToken.approve(exchangeIssuance.address, collateralAmount);
           await exchangeIssuance.approveSetToken(setToken.address);
           await exchangeIssuance.issueExactSetFromERC20(
@@ -562,6 +595,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
             collateralToken.address,
             collateralAmount,
             subjectExchange,
+            debtForCollateralSwapData,
+            inputTokenSwapData,
           );
           await setToken.approve(exchangeIssuance.address, subjectSetAmount);
         });
@@ -619,6 +654,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
         let subjectMaxAmountInput: BigNumber;
         let subjectExchange: Exchange;
         let subjectInputToken: Address;
+        let subjectDebtForCollateralSwapData: SwapData;
+        let subjectInputTokenSwapData: SwapData;
         let inputToken: StandardTokenMock | WETH9;
         let collateralAmount: BigNumber;
         let inputAmountSpent: BigNumber;
@@ -630,6 +667,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
               collateralToken.address,
               subjectMaxAmountInput,
               subjectExchange,
+              subjectDebtForCollateralSwapData,
+              subjectInputTokenSwapData,
             );
           } else if (tokenName === "ERC20") {
             return await exchangeIssuance.issueExactSetFromERC20(
@@ -638,12 +677,16 @@ describe("ExchangeIssuanceLeveraged", async () => {
               subjectInputToken,
               subjectMaxAmountInput,
               subjectExchange,
+              subjectDebtForCollateralSwapData,
+              subjectInputTokenSwapData,
             );
           } else {
             return await exchangeIssuance.issueExactSetFromETH(
               subjectSetToken,
               subjectSetAmount,
               subjectExchange,
+              subjectDebtForCollateralSwapData,
+              subjectInputTokenSwapData,
               { value: subjectMaxAmountInput },
             );
           }
@@ -665,6 +708,16 @@ describe("ExchangeIssuanceLeveraged", async () => {
           };
           inputToken = inputTokenMapping[tokenName];
           subjectInputToken = tokenName == "ETH" ? ethAddress : inputToken.address;
+
+          subjectDebtForCollateralSwapData = {
+            path: [setV2Setup.usdc.address, collateralToken.address],
+            fees: [3000],
+          };
+
+          subjectInputTokenSwapData = {
+            path: [inputToken.address, collateralToken.address],
+            fees: [3000],
+          };
 
           await inputToken.approve(exchangeIssuance.address, subjectMaxAmountInput);
           await exchangeIssuance.approveSetToken(setToken.address);
