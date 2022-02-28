@@ -166,8 +166,8 @@ abstract contract DEXAdapter {
         if(_path.length == 2){
             ISwapRouter.ExactOutputSingleParams memory params =
                 ISwapRouter.ExactOutputSingleParams({
-                    tokenIn: _path[1],
-                    tokenOut: _path[2],
+                    tokenIn: _path[0],
+                    tokenOut: _path[1],
                     fee: _fees[0],
                     recipient: address(this),
                     deadline: block.timestamp,
@@ -265,7 +265,7 @@ abstract contract DEXAdapter {
     function _encodePathV3(address[] memory _path, uint24[] memory _fees) internal view returns (bytes memory path) {
         path = abi.encodePacked(_path[0]);
         bytes memory newPath;
-        for(uint i = 1; i < _fees.length; i++){
+        for(uint i = 0; i < _fees.length; i++){
             newPath = abi.encodePacked(_fees[i], _path[i+1]);
             path = abi.encodePacked(path, newPath);
         }
