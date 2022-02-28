@@ -14,6 +14,7 @@
     SPDX-License-Identifier: Apache License, Version 2.0
 */
 pragma solidity 0.6.10;
+pragma experimental ABIEncoderV2;
 import { IUniswapV2Router02 } from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
@@ -96,10 +97,11 @@ abstract contract DEXAdapter {
             return _amountIn;
         }
 
+        (address[] memory path, uint24[] memory fees) = _generatePath(_tokenIn, _tokenOut);
         if(_exchange == Exchange.UniV3){
-            return _swapExactTokensForTokensUniV3(_tokenIn, _tokenOut, _amountIn);
+            return _swapExactTokensForTokensUniV3(path, fees, _amountIn);
         } else {
-            return _swapExactTokensForTokensUniV2(_tokenIn, _tokenOut, _amountIn, _exchange);
+            return _swapExactTokensForTokensUniV2(path, _amountIn, _exchange);
         }
     }
 
@@ -127,16 +129,16 @@ abstract contract DEXAdapter {
         if (_tokenIn == _tokenOut) {
             return _amountOut;
         }
+        (address[] memory path, uint24[] memory fees) = _generatePath(_tokenIn, _tokenOut);
         if(_exchange == Exchange.UniV3){
-            return _swapTokensForExactTokensUniV3(_tokenIn, _tokenOut, _amountOut, _maxAmountIn);
+            return _swapTokensForExactTokensUniV3(path, fees, _amountOut, _maxAmountIn);
         } else {
-            return _swapTokensForExactTokensUniV2(_tokenIn, _tokenOut, _amountOut, _maxAmountIn, _exchange);
+            return _swapTokensForExactTokensUniV2(path, _amountOut, _maxAmountIn, _exchange);
         }
     }
 
     function _swapTokensForExactTokensUniV2(
-        address _tokenIn,
-        address _tokenOut,
+        address[] memory _path,
         uint256 _amountOut,
         uint256 _maxAmountIn,
         Exchange _exchange
@@ -145,27 +147,28 @@ abstract contract DEXAdapter {
     returns(uint256)
     {
         IUniswapV2Router02 router = _getRouter(_exchange);
-        _safeApprove(IERC20(_tokenIn), address(router), _maxAmountIn);
-        address[] memory path = _generatePath(_tokenIn, _tokenOut);
-        return router.swapTokensForExactTokens(_amountOut, _maxAmountIn, path, address(this), block.timestamp)[0];
+        _safeApprove(IERC20(_path[0]), address(router), _maxAmountIn);
+        return router.swapTokensForExactTokens(_amountOut, _maxAmountIn, _path, address(this), block.timestamp)[0];
     }
 
     function _swapTokensForExactTokensUniV3(
-        address _tokenIn,
-        address _tokenOut,
+        address[] memory _path,
+        uint24[] memory _fees,
         uint256 _amountOut,
         uint256 _maxAmountIn
     )
     internal
     returns(uint256)
     {
-        _safeApprove(IERC20(_tokenIn), address(uniV3Router), _maxAmountIn);
-        if(_tokenIn == INTERMEDIATE_TOKEN || _tokenOut == INTERMEDIATE_TOKEN){
+
+        require(_path.length == _fees.length + 1, "ExchangeIssuance: PATHS_FEES_MISMATCH");
+        _safeApprove(IERC20(_path[0]), address(uniV3Router), _maxAmountIn);
+        if(_path.length == 2){
             ISwapRouter.ExactOutputSingleParams memory params =
                 ISwapRouter.ExactOutputSingleParams({
-                    tokenIn: _tokenIn,
-                    tokenOut: _tokenOut,
-                    fee: POOL_FEE,
+                    tokenIn: _path[1],
+                    tokenOut: _path[2],
+                    fee: _fees[0],
                     recipient: address(this),
                     deadline: block.timestamp,
                     amountOut: _amountOut,
@@ -176,14 +179,7 @@ abstract contract DEXAdapter {
             // Executes the swap returning the amountIn needed to spend to receive the desired amountOut.
             return uniV3Router.exactOutputSingle(params);
         } else {
-
-            address[] memory path = new address[](2);
-            path[0] = _tokenIn;
-            path[1] = _tokenOut;
-            uint24[] memory fees = new uint24[](1);
-            fees[0] = POOL_FEE;
-
-            bytes memory pathV3 = _encodePathV3(path, fees);
+            bytes memory pathV3 = _encodePathV3(_path, _fees);
             ISwapRouter.ExactOutputParams memory params =
                 ISwapRouter.ExactOutputParams({
                     path: pathV3,
@@ -196,14 +192,22 @@ abstract contract DEXAdapter {
         }
     }
 
-    function _swapExactTokensForTokensUniV3(address _tokenIn, address _tokenOut, uint256 _amountIn) internal returns(uint256) {
-        _safeApprove(IERC20(_tokenIn), address(uniV3Router), _amountIn);
-        if(_tokenIn == INTERMEDIATE_TOKEN || _tokenOut == INTERMEDIATE_TOKEN){
+    function _swapExactTokensForTokensUniV3(
+        address[] memory _path,
+        uint24[] memory _fees,
+        uint256 _amountIn
+    )
+    internal
+    returns(uint256)
+    {
+        require(_path.length == _fees.length + 1, "ExchangeIssuance: PATHS_FEES_MISMATCH");
+        _safeApprove(IERC20(_path[0]), address(uniV3Router), _amountIn);
+        if(_fees.length == 2){
             ISwapRouter.ExactInputSingleParams memory params =
                 ISwapRouter.ExactInputSingleParams({
-                    tokenIn: _tokenIn,
-                    tokenOut: _tokenOut,
-                    fee: POOL_FEE,
+                    tokenIn: _path[0],
+                    tokenOut: _path[1],
+                    fee: _fees[0],
                     recipient: address(this),
                     deadline: block.timestamp,
                     amountIn: _amountIn,
@@ -212,13 +216,7 @@ abstract contract DEXAdapter {
                 });
             return uniV3Router.exactInputSingle(params);
         } else {
-            address[] memory path = new address[](2);
-            path[0] = _tokenIn;
-            path[1] = _tokenOut;
-            uint24[] memory fees = new uint24[](1);
-            fees[0] = POOL_FEE;
-
-            bytes memory pathV3 = _encodePathV3(path, fees);
+            bytes memory pathV3 = _encodePathV3(_path, _fees);
             ISwapRouter.ExactInputParams memory params =
                 ISwapRouter.ExactInputParams({
                     path: pathV3,
@@ -232,41 +230,44 @@ abstract contract DEXAdapter {
     }
 
     function _swapExactTokensForTokensUniV2(
-        address _tokenIn,
-        address _tokenOut,
+        address[] memory _path,
         uint256 _amountIn,
         Exchange _exchange
     )
     internal
     returns(uint256)
     {
-        address[] memory path = _generatePath(_tokenIn, _tokenOut);
         IUniswapV2Router02 router = _getRouter(_exchange);
-        _safeApprove(IERC20(_tokenIn), address(router), _amountIn);
+        _safeApprove(IERC20(_path[0]), address(router), _amountIn);
         //TODO: Review if we have to set a non-zero minAmountOut
-        return router.swapExactTokensForTokens(_amountIn, 0, path, address(this), block.timestamp)[1];
+        return router.swapExactTokensForTokens(_amountIn, 0, _path, address(this), block.timestamp)[1];
     }
 
 
-    function _generatePath(address _tokenIn, address _tokenOut) internal view returns (address[] memory) {
-        address[] memory path;
+    function _generatePath(address _tokenIn, address _tokenOut) internal view returns (address[] memory path, uint24[] memory fees) {
         if(_tokenIn == INTERMEDIATE_TOKEN || _tokenOut == INTERMEDIATE_TOKEN){
             path = new address[](2);
+            fees = new uint24[](1);
+            fees[0] = POOL_FEE;
             path[0] = _tokenIn;
             path[1] = _tokenOut;
         } else {
             path = new address[](3);
+            fees = new uint24[](2);
+            fees[0] = POOL_FEE;
+            fees[1] = POOL_FEE;
             path[0] = _tokenIn;
             path[1] = INTERMEDIATE_TOKEN;
             path[2] = _tokenOut;
         }
-        return path;
     }
 
     function _encodePathV3(address[] memory _path, uint24[] memory _fees) internal view returns (bytes memory path) {
         path = abi.encodePacked(_path[0]);
+        bytes memory newPath;
         for(uint i = 1; i < _fees.length; i++){
-            path = abi.encodePacked(path, _fees[i], _path[i+1]);
+            newPath = abi.encodePacked(_fees[i], _path[i+1]);
+            path = abi.encodePacked(path, newPath);
         }
     }
 
