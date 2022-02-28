@@ -99,11 +99,10 @@ abstract contract DEXAdapter {
             return _amountIn;
         }
 
-        (address[] memory path, uint24[] memory fees) = _generatePath(_tokenIn, _tokenOut);
         if(_exchange == Exchange.UniV3){
-            return _swapExactTokensForTokensUniV3(path, fees, _amountIn);
+            return _swapExactTokensForTokensUniV3(_path, _fees, _amountIn);
         } else {
-            return _swapExactTokensForTokensUniV2(path, _amountIn, _exchange);
+            return _swapExactTokensForTokensUniV2(_path, _amountIn, _exchange);
         }
     }
 
@@ -134,11 +133,10 @@ abstract contract DEXAdapter {
         if (_tokenIn == _tokenOut) {
             return _amountOut;
         }
-        (address[] memory path, uint24[] memory fees) = _generatePath(_tokenIn, _tokenOut);
         if(_exchange == Exchange.UniV3){
-            return _swapTokensForExactTokensUniV3(path, fees, _amountOut, _maxAmountIn);
+            return _swapTokensForExactTokensUniV3(_path, _fees, _amountOut, _maxAmountIn);
         } else {
-            return _swapTokensForExactTokensUniV2(path, _amountOut, _maxAmountIn, _exchange);
+            return _swapTokensForExactTokensUniV2(_path, _amountOut, _maxAmountIn, _exchange);
         }
     }
 
@@ -248,24 +246,6 @@ abstract contract DEXAdapter {
         return router.swapExactTokensForTokens(_amountIn, 0, _path, address(this), block.timestamp)[1];
     }
 
-
-    function _generatePath(address _tokenIn, address _tokenOut) internal view returns (address[] memory path, uint24[] memory fees) {
-        if(_tokenIn == INTERMEDIATE_TOKEN || _tokenOut == INTERMEDIATE_TOKEN){
-            path = new address[](2);
-            fees = new uint24[](1);
-            fees[0] = POOL_FEE;
-            path[0] = _tokenIn;
-            path[1] = _tokenOut;
-        } else {
-            path = new address[](3);
-            fees = new uint24[](2);
-            fees[0] = POOL_FEE;
-            fees[1] = POOL_FEE;
-            path[0] = _tokenIn;
-            path[1] = INTERMEDIATE_TOKEN;
-            path[2] = _tokenOut;
-        }
-    }
 
     function _encodePathV3(address[] memory _path, uint24[] memory _fees) internal view returns (bytes memory path) {
         path = abi.encodePacked(_path[0]);
