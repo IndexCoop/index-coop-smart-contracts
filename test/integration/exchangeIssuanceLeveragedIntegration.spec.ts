@@ -18,6 +18,11 @@ enum Exchange {
   UniV3,
 }
 
+type SwapData = {
+  path: Address[];
+  fees: number[];
+};
+
 if (process.env.INTEGRATIONTEST) {
   describe("ExchangeIssuanceLeveraged - Integration Test", async () => {
     // Polygon mainnet addresses
@@ -119,6 +124,8 @@ if (process.env.INTEGRATIONTEST) {
             let pricePaid: BigNumber;
             let inputToken: StandardTokenMock;
             let subjectInputToken: Address;
+            let subjectDebtForCollateralSwapData: SwapData;
+            let subjectInputTokenSwapData: SwapData;
             context("#issueExactSetFromERC20", () => {
               let subjectMaxAmountInput: BigNumber;
               before(async () => {
@@ -135,6 +142,16 @@ if (process.env.INTEGRATIONTEST) {
                 );
                 subjectMaxAmountInput = await inputToken.balanceOf(owner.address);
                 await inputToken.approve(exchangeIssuance.address, subjectMaxAmountInput);
+
+                subjectDebtForCollateralSwapData = {
+                  path: [usdcAddress, wethAddress],
+                  fees: [3000],
+                };
+
+                subjectInputTokenSwapData = {
+                  path: [inputToken.address, wethAddress],
+                  fees: [3000],
+                };
               });
               async function subject() {
                 return await exchangeIssuance.issueExactSetFromERC20(
@@ -143,6 +160,8 @@ if (process.env.INTEGRATIONTEST) {
                   subjectInputToken,
                   subjectMaxAmountInput,
                   subjectExchange,
+                  subjectDebtForCollateralSwapData,
+                  subjectInputTokenSwapData,
                 );
               }
               it("should update balance correctly", async () => {
@@ -160,6 +179,8 @@ if (process.env.INTEGRATIONTEST) {
               let subjectMinAmountOutput: BigNumber;
               let outputToken: StandardTokenMock;
               let subjectOutputToken: Address;
+              let subjectCollateralForDebtSwapData: SwapData;
+              let subjectOutputTokenSwapData: SwapData;
               before(async () => {
                 // Check to avoid running test when issuance failed and there are no tokens to redeem
                 expect(pricePaid.gt(0)).to.be.true;
@@ -167,7 +188,18 @@ if (process.env.INTEGRATIONTEST) {
                 eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
                 outputToken = dai;
                 subjectOutputToken = outputToken.address;
+
+                subjectCollateralForDebtSwapData = {
+                  path: [wethAddress, usdcAddress],
+                  fees: [3000],
+                };
+
+                subjectOutputTokenSwapData = {
+                  path: [wethAddress, subjectOutputToken],
+                  fees: [3000],
+                };
               });
+
               async function subject() {
                 return await exchangeIssuance.redeemExactSetForERC20(
                   subjectSetToken,
@@ -175,6 +207,8 @@ if (process.env.INTEGRATIONTEST) {
                   subjectOutputToken,
                   subjectMinAmountOutput,
                   subjectExchange,
+                  subjectCollateralForDebtSwapData,
+                  subjectOutputTokenSwapData,
                 );
               }
               it("should update balance correctly", async () => {
@@ -192,17 +226,31 @@ if (process.env.INTEGRATIONTEST) {
           });
           context("Payment Token: ETH", () => {
             let pricePaid: BigNumber;
+            let subjectDebtForCollateralSwapData: SwapData;
+            let subjectInputTokenSwapData: SwapData;
             context("#issueExactSetFromETH", () => {
               let subjectMaxAmountInput: BigNumber;
               before(async () => {
                 const ownerBalance = await owner.wallet.getBalance();
                 subjectMaxAmountInput = ownerBalance.div(2);
+
+                subjectDebtForCollateralSwapData = {
+                  path: [usdcAddress, wethAddress],
+                  fees: [3000],
+                };
+
+                subjectInputTokenSwapData = {
+                  path: [wmaticAddress, wethAddress],
+                  fees: [3000],
+                };
               });
               async function subject() {
                 return await exchangeIssuance.issueExactSetFromETH(
                   subjectSetToken,
                   subjectSetAmount,
                   subjectExchange,
+                  subjectDebtForCollateralSwapData,
+                  subjectInputTokenSwapData,
                   { value: subjectMaxAmountInput },
                 );
               }
@@ -219,11 +267,24 @@ if (process.env.INTEGRATIONTEST) {
 
             context("#redeemExactSetForETH", () => {
               let subjectMinAmountOutput: BigNumber;
+              let subjectCollateralForDebtSwapData: SwapData;
+              let subjectOutputTokenSwapData: SwapData;
+
               before(async () => {
                 // Check to avoid running test when issuance failed and there are no tokens to redeem
                 expect(pricePaid.gt(0)).to.be.true;
                 subjectMinAmountOutput = pricePaid.div(10);
                 eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
+
+                subjectCollateralForDebtSwapData = {
+                  path: [wethAddress, usdcAddress],
+                  fees: [3000],
+                };
+
+                subjectOutputTokenSwapData = {
+                  path: [wethAddress, wmaticAddress],
+                  fees: [3000],
+                };
               });
               async function subject() {
                 return await exchangeIssuance.redeemExactSetForETH(
@@ -231,6 +292,8 @@ if (process.env.INTEGRATIONTEST) {
                   subjectSetAmount,
                   subjectMinAmountOutput,
                   subjectExchange,
+                  subjectCollateralForDebtSwapData,
+                  subjectOutputTokenSwapData,
                 );
               }
               it("should update balance correctly", async () => {
@@ -251,6 +314,8 @@ if (process.env.INTEGRATIONTEST) {
             context("#issueExactSetFromERC20", () => {
               let subjectMaxAmountInput: BigNumber;
               let subjectInputToken: Address;
+              let subjectDebtForCollateralSwapData: SwapData;
+              let subjectInputTokenSwapData: SwapData;
               before(async () => {
                 const ownerBalance = await owner.wallet.getBalance();
                 await sushiRouter.swapExactETHForTokens(
@@ -262,6 +327,17 @@ if (process.env.INTEGRATIONTEST) {
                 );
                 subjectMaxAmountInput = await weth.balanceOf(owner.address);
                 subjectInputToken = weth.address;
+
+                subjectDebtForCollateralSwapData = {
+                  path: [usdcAddress, wethAddress],
+                  fees: [3000],
+                };
+
+                subjectInputTokenSwapData = {
+                  path: [subjectInputToken, wethAddress],
+                  fees: [3000],
+                };
+
                 await weth.approve(exchangeIssuance.address, subjectMaxAmountInput);
               });
               async function subject() {
@@ -271,6 +347,8 @@ if (process.env.INTEGRATIONTEST) {
                   subjectInputToken,
                   subjectMaxAmountInput,
                   subjectExchange,
+                  subjectDebtForCollateralSwapData,
+                  subjectInputTokenSwapData,
                 );
               }
               it("should update balance correctly", async () => {
@@ -287,12 +365,24 @@ if (process.env.INTEGRATIONTEST) {
             context("#redeemExactSetForERC20", () => {
               let subjectMinAmountOutput: BigNumber;
               let subjectOutputToken: Address;
+              let subjectCollateralForDebtSwapData: SwapData;
+              let subjectOutputTokenSwapData: SwapData;
               before(async () => {
                 // Check to avoid running test when issuance failed and there are no tokens to redeem
                 expect(pricePaid.gt(0)).to.be.true;
                 subjectMinAmountOutput = pricePaid.div(2);
                 subjectOutputToken = weth.address;
                 eth2xFli.approve(exchangeIssuance.address, subjectSetAmount);
+
+                subjectCollateralForDebtSwapData = {
+                  path: [wethAddress, usdcAddress],
+                  fees: [3000],
+                };
+
+                subjectOutputTokenSwapData = {
+                  path: [wethAddress, subjectOutputToken],
+                  fees: [3000],
+                };
               });
               async function subject() {
                 return await exchangeIssuance.redeemExactSetForERC20(
@@ -301,6 +391,8 @@ if (process.env.INTEGRATIONTEST) {
                   subjectOutputToken,
                   subjectMinAmountOutput,
                   subjectExchange,
+                  subjectCollateralForDebtSwapData,
+                  subjectOutputTokenSwapData,
                 );
               }
               it("should update balance correctly", async () => {

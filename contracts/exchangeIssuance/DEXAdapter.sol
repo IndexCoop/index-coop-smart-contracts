@@ -78,16 +78,12 @@ abstract contract DEXAdapter {
      * Swap exact tokens for another token on a given DEX.
      *
      * @param _exchange     The exchange on which to peform the swap
-     * @param _tokenIn      The address of the input token
-     * @param _tokenOut     The address of the output token
      * @param _amountIn     The amount of input token to be spent
      *
      * @return amountOut    The amount of output tokens
      */
     function _swapExactTokensForTokens(
         Exchange _exchange,
-        address _tokenIn,
-        address _tokenOut,
         uint256 _amountIn,
         address[] memory _path,
         uint24[] memory _fees
@@ -95,7 +91,7 @@ abstract contract DEXAdapter {
     internal
     returns (uint256)
     {
-        if (_tokenIn == _tokenOut) {
+        if (_path[0] == _path[_path.length -1]) {
             return _amountIn;
         }
 
@@ -110,8 +106,6 @@ abstract contract DEXAdapter {
      * Swap tokens for exact amount of output tokens on a given DEX.
      *
      * @param _exchange     The exchange on which to peform the swap
-     * @param _tokenIn      The address of the input token
-     * @param _tokenOut     The address of the output token
      * @param _amountOut    The amount of output token required
      * @param _maxAmountIn  Maximum amount of input token to be spent
      *
@@ -119,8 +113,6 @@ abstract contract DEXAdapter {
      */
     function _swapTokensForExactTokens(
         Exchange _exchange,
-        address _tokenIn,
-        address _tokenOut,
         uint256 _amountOut,
         uint256 _maxAmountIn,
         address[] memory _path,
@@ -130,7 +122,7 @@ abstract contract DEXAdapter {
     internal
     returns (uint256 amountIn)
     {
-        if (_tokenIn == _tokenOut) {
+        if (_path[0] == _path[_path.length -1]) {
             return _amountOut;
         }
         if(_exchange == Exchange.UniV3){

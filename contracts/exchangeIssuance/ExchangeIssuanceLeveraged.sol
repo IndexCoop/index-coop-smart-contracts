@@ -36,6 +36,7 @@ import { FlashLoanReceiverBaseV2 } from "../../external/contracts/aaveV2/FlashLo
 import { DEXAdapter } from "./DEXAdapter.sol";
 
 
+
 /**
  * @title ExchangeIssuance
  * @author Index Coop
@@ -765,6 +766,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     internal
     returns(uint256)
     {
+            require(_swapData.path[_swapData.path.length-1] == WETH, "ExchangeIssuance:OUTPUTTOKEN_PATH_MISMATCH_WETH");
             uint256 ethAmount = _swapCollateralForOutputToken(_collateralToken, _amountToReturn, WETH, _exchange, _swapData);
             if (ethAmount > 0) {
                 IWETH(WETH).withdraw(ethAmount);
@@ -975,10 +977,10 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     internal
     returns (uint256)
     {
+        require(_swapData.path[0] == _debtToken);
+        require(_swapData.path[_swapData.path.length-1] == _collateralToken);
         return _swapExactTokensForTokens(
             _exchange,
-            _debtToken,
-            _collateralToken,
             _debtAmount,
             _swapData.path,
             _swapData.fees
@@ -1005,10 +1007,10 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     internal
     returns (uint256 collateralAmountSpent)
     {
+        require(_swapData.path[0] == _collateralToken);
+        require(_swapData.path[_swapData.path.length-1] == _debtToken);
         collateralAmountSpent = _swapTokensForExactTokens(
             _exchange,
-            _collateralToken,
-            _debtToken,
             _debtAmount,
             _collateralAmount,
             _swapData.path,
@@ -1027,11 +1029,11 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     internal
     returns (uint256 inputAmountSpent)
     {
+        require(_swapData.path[0] == _inputToken, "ExchangeIssuance:INPUTTOKEN_PATH_MISMATCH");
+        require(_swapData.path[_swapData.path.length-1] == _collateralToken, "ExchangeIssuance:COLLATERALTOKEN_PATH_MISMATCH");
         if(_collateralToken == _inputToken) return _amountRequired;
         inputAmountSpent = _swapTokensForExactTokens(
             _exchange,
-            _inputToken,
-            _collateralToken,
             _amountRequired,
             _maxAmountInputToken,
             _swapData.path,
@@ -1059,10 +1061,10 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     returns (uint256)
     {
         if(_collateralToken == _outputToken) return _collateralTokenAmount;
+        require(_swapData.path[0] == _collateralToken, "ExchangeIssuance:COLLATERLTOKEN_PATH_MISMATCH");
+        require(_swapData.path[_swapData.path.length-1] == _outputToken,  "ExchangeIssuance:OUTPUTTOKEN_PATH_MISMATCH");
         return _swapExactTokensForTokens(
             _exchange,
-            _collateralToken,
-            _outputToken,
             _collateralTokenAmount,
             _swapData.path,
             _swapData.fees
