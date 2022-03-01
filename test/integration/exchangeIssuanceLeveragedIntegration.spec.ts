@@ -145,7 +145,7 @@ if (process.env.INTEGRATIONTEST) {
                 };
                 subjectInputTokenSwapData = {
                   path: [inputToken.address, wmaticAddress, wethAddress],
-                  fees: [3000, 3000],
+                  fees: [3000, 500],
                 };
               });
               async function subject() {
