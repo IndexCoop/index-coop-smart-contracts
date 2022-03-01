@@ -24,6 +24,7 @@ import { ISwapRouter} from "../interfaces/external/ISwapRouter.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 
+
 /**
  * @title DEXAdapter
  * @author Index Coop
@@ -85,6 +86,7 @@ abstract contract DEXAdapter {
      *
      * @param _exchange     The exchange on which to peform the swap
      * @param _amountIn     The amount of input token to be spent
+     * @param _swapData     Swap data containing the path and fee levels (latter only used for uniV3)
      *
      * @return amountOut    The amount of output tokens
      */
@@ -113,6 +115,7 @@ abstract contract DEXAdapter {
      * @param _exchange     The exchange on which to peform the swap
      * @param _amountOut    The amount of output token required
      * @param _maxAmountIn  Maximum amount of input token to be spent
+     * @param _swapData     Swap data containing the path and fee levels (latter only used for uniV3)
      *
      * @return amountIn    The amount of input tokens spent
      */
@@ -135,6 +138,16 @@ abstract contract DEXAdapter {
         }
     }
 
+    /**
+     *  Execute exact output swap via a UniV2 based DEX. (such as sushiswap);
+     *
+     * @param _path         List of token address to swap via. 
+     * @param _amountOut    The amount of output token required
+     * @param _maxAmountIn  Maximum amount of input token to be spent
+     * @param _exchange     The exchange on which to peform the swap
+     *
+     * @return amountIn    The amount of input tokens spent
+     */
     function _swapTokensForExactTokensUniV2(
         address[] memory _path,
         uint256 _amountOut,
@@ -149,6 +162,16 @@ abstract contract DEXAdapter {
         return router.swapTokensForExactTokens(_amountOut, _maxAmountIn, _path, address(this), block.timestamp)[0];
     }
 
+    /**
+     *  Execute exact output swap via UniswapV3
+     *
+     * @param _path         List of token address to swap via. (In the order as expected by uniV2, the first element being the input toen)
+     * @param _fees         List of fee levels identifying the pools to swap via. (_fees[0] refers to pool between _path[0] and _path[1])
+     * @param _amountOut    The amount of output token required
+     * @param _maxAmountIn  Maximum amount of input token to be spent
+     *
+     * @return amountIn    The amount of input tokens spent
+     */
     function _swapTokensForExactTokensUniV3(
         address[] memory _path,
         uint24[] memory _fees,
@@ -194,6 +217,15 @@ abstract contract DEXAdapter {
         }
     }
 
+    /**
+     *  Execute exact input swap via UniswapV3
+     *
+     * @param _path         List of token address to swap via. 
+     * @param _fees         List of fee levels identifying the pools to swap via. (_fees[0] refers to pool between _path[0] and _path[1])
+     * @param _amountIn    The amount of input token to be spent
+     *
+     * @return amountOut    The amount of output token obtained
+     */
     function _swapExactTokensForTokensUniV3(
         address[] memory _path,
         uint24[] memory _fees,
@@ -232,6 +264,15 @@ abstract contract DEXAdapter {
         }
     }
 
+    /**
+     *  Execute exact input swap via UniswapV2
+     *
+     * @param _path         List of token address to swap via. 
+     * @param _amountIn     The amount of input token to be spent
+     * @param _exchange     The exchange to swap on (must be uniV2 based / compatible)
+     *
+     * @return amountOut    The amount of output token obtained
+     */
     function _swapExactTokensForTokensUniV2(
         address[] memory _path,
         uint256 _amountIn,
@@ -247,6 +288,15 @@ abstract contract DEXAdapter {
     }
 
 
+    /**
+     * Encode path / fees to bytes in the format expected by UniV3 router
+     *
+     * @param _path          List of token address to swap via (starting with input token)
+     * @param _fees          List of fee levels identifying the pools to swap via. (_fees[0] refers to pool between _path[0] and _path[1])
+     * @param _reverseOrder  Wether or not order of path needs to reversed to start with output token. (which is teh case for exact output swap)
+     *
+     * @return path          Encoded path to be forwared to uniV3 router
+     */
     function _encodePathV3(address[] memory _path, uint24[] memory _fees, bool _reverseOrder) internal view returns (bytes memory path) {
         if(_reverseOrder){
             path = abi.encodePacked(_path[_path.length-1]);
