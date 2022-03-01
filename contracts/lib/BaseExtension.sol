@@ -34,6 +34,7 @@ abstract contract BaseExtension {
 
     event CallerStatusUpdated(address indexed _caller, bool _status);
     event AnyoneCallableUpdated(bool indexed _status);
+    event BypassOnlyEOAUpdated(bool indexed _status);
 
     /* ============ Modifiers ============ */
 
@@ -57,7 +58,7 @@ abstract contract BaseExtension {
      * Throws if caller is a contract, can be used to stop flash loan and sandwich attacks
      */
     modifier onlyEOA() {
-        require(msg.sender == tx.origin, "Caller must be EOA Address");
+        require(bypassOnlyEOA || msg.sender == tx.origin, "Caller must be EOA Address");
         _;
     }
 
@@ -74,6 +75,9 @@ abstract contract BaseExtension {
     // Instance of manager contract
     IBaseManager public manager;
 
+    // Boolean indicating whether to bypass the onlyEOA modifier
+    bool public bypassOnlyEOA;
+
     // Boolean indicating if anyone can call function
     bool public anyoneCallable;
 
@@ -85,6 +89,16 @@ abstract contract BaseExtension {
     constructor(IBaseManager _manager) public { manager = _manager; }
 
     /* ============ External Functions ============ */
+
+    /**
+     * OPERATOR ONLY: Toggle whether to bypass the EOA check.
+     *
+     * @param _status           Boolean indicating whether to skip EOA check
+     */
+    function updateBypassOnlyEOA(bool _status) external onlyOperator {
+        bypassOnlyEOA = _status;
+        emit BypassOnlyEOAUpdated(_status);
+    }
 
     /**
      * OPERATOR ONLY: Toggle ability for passed addresses to call only allowed caller functions

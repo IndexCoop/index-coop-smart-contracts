@@ -175,6 +175,16 @@ describe("BaseExtension", () => {
       it("the trade reverts", async () => {
         await expect(subjectContractCaller()).to.be.revertedWith("Caller must be EOA Address");
       });
+
+      describe("when bypassOnlyEOA is flipped to true", async () => {
+        beforeEach(async () => {
+          await baseExtensionMock.updateBypassOnlyEOA(true);
+        });
+
+        it("the trade should not revert", async () => {
+          await subjectContractCaller();
+        });
+      });
     });
   });
 
@@ -271,6 +281,42 @@ describe("BaseExtension", () => {
 
       expect(preManagerAmount.sub(postManagerAmount)).to.eq(subjectAmount);
       expect(postDestinationAmount.sub(preDestinationAmount)).to.eq(subjectAmount);
+    });
+  });
+
+  describe("#updateBypassOnlyEOA", async () => {
+    let subjectStatus: boolean;
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      subjectStatus = true;
+      subjectCaller = owner;
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return baseExtensionMock.connect(subjectCaller.wallet).updateBypassOnlyEOA(subjectStatus);
+    }
+
+    it("should update the bypassOnlyEOA boolean", async () => {
+      await subject();
+      const callerStatus = await baseExtensionMock.bypassOnlyEOA();
+      expect(callerStatus).to.be.true;
+    });
+
+    it("should emit BypassOnlyEOAUpdated event", async () => {
+      await expect(subject()).to.emit(baseExtensionMock, "BypassOnlyEOAUpdated").withArgs(
+        subjectStatus
+      );
+    });
+
+    describe("when the sender is not operator", async () => {
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be operator");
+      });
     });
   });
 
