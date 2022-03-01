@@ -43,6 +43,12 @@ abstract contract DEXAdapter {
     /* ============ Enums ============ */
     enum Exchange { None, Quickswap, Sushiswap, UniV3}
 
+    /* ============ Structs ============ */
+    struct SwapData {
+        address[] path;
+        uint24[] fees;
+    }
+
     // Token to trade via 
     address immutable public INTERMEDIATE_TOKEN;
     IUniswapV2Router02 immutable public quickRouter;
@@ -85,20 +91,19 @@ abstract contract DEXAdapter {
     function _swapExactTokensForTokens(
         Exchange _exchange,
         uint256 _amountIn,
-        address[] memory _path,
-        uint24[] memory _fees
+        SwapData memory _swapData
     )
     internal
     returns (uint256)
     {
-        if (_path[0] == _path[_path.length -1]) {
+        if (_swapData.path[0] == _swapData.path[_swapData.path.length -1]) {
             return _amountIn;
         }
 
         if(_exchange == Exchange.UniV3){
-            return _swapExactTokensForTokensUniV3(_path, _fees, _amountIn);
+            return _swapExactTokensForTokensUniV3(_swapData.path, _swapData.fees, _amountIn);
         } else {
-            return _swapExactTokensForTokensUniV2(_path, _amountIn, _exchange);
+            return _swapExactTokensForTokensUniV2(_swapData.path, _amountIn, _exchange);
         }
     }
 
@@ -115,20 +120,18 @@ abstract contract DEXAdapter {
         Exchange _exchange,
         uint256 _amountOut,
         uint256 _maxAmountIn,
-        address[] memory _path,
-        uint24[] memory _fees
-
+        SwapData memory _swapData
     )
     internal
     returns (uint256 amountIn)
     {
-        if (_path[0] == _path[_path.length -1]) {
+        if (_swapData.path[0] == _swapData.path[_swapData.path.length -1]) {
             return _amountOut;
         }
         if(_exchange == Exchange.UniV3){
-            return _swapTokensForExactTokensUniV3(_path, _fees, _amountOut, _maxAmountIn);
+            return _swapTokensForExactTokensUniV3(_swapData.path, _swapData.fees, _amountOut, _maxAmountIn);
         } else {
-            return _swapTokensForExactTokensUniV2(_path, _amountOut, _maxAmountIn, _exchange);
+            return _swapTokensForExactTokensUniV2(_swapData.path, _amountOut, _maxAmountIn, _exchange);
         }
     }
 
@@ -174,7 +177,8 @@ abstract contract DEXAdapter {
             // Executes the swap returning the amountIn needed to spend to receive the desired amountOut.
             return uniV3Router.exactOutputSingle(params);
         } else {
-            bytes memory pathV3 = _encodePathV3(_path, _fees);
+            bytes memory pathV3 = _encodePathV3(_path, _fees, true);
+            uint outputBalanceBefore = IERC20(_path[_path.length - 1]).balanceOf(address(this));
             ISwapRouter.ExactOutputParams memory params =
                 ISwapRouter.ExactOutputParams({
                     path: pathV3,
@@ -183,7 +187,10 @@ abstract contract DEXAdapter {
                     amountOut: _amountOut,
                     amountInMaximum: _maxAmountIn
                 });
-            return uniV3Router.exactOutput(params);
+            uint amountIn = uniV3Router.exactOutput(params);
+            uint outputBalanceAfter = IERC20(_path[_path.length - 1]).balanceOf(address(this));
+            uint actualAmountOut = outputBalanceAfter.sub(outputBalanceBefore);
+            return amountIn;
         }
     }
 
@@ -197,7 +204,7 @@ abstract contract DEXAdapter {
     {
         require(_path.length == _fees.length + 1, "ExchangeIssuance: PATHS_FEES_MISMATCH");
         _safeApprove(IERC20(_path[0]), address(uniV3Router), _amountIn);
-        if(_fees.length == 2){
+        if(_path.length == 2){
             ISwapRouter.ExactInputSingleParams memory params =
                 ISwapRouter.ExactInputSingleParams({
                     tokenIn: _path[0],
@@ -211,7 +218,7 @@ abstract contract DEXAdapter {
                 });
             return uniV3Router.exactInputSingle(params);
         } else {
-            bytes memory pathV3 = _encodePathV3(_path, _fees);
+            bytes memory pathV3 = _encodePathV3(_path, _fees, false);
             ISwapRouter.ExactInputParams memory params =
                 ISwapRouter.ExactInputParams({
                     path: pathV3,
@@ -220,7 +227,8 @@ abstract contract DEXAdapter {
                     amountIn: _amountIn,
                     amountOutMinimum: 0
                 });
-            return uniV3Router.exactInput(params);
+            uint amountOut = uniV3Router.exactInput(params);
+            return amountOut;
         }
     }
 
@@ -239,10 +247,19 @@ abstract contract DEXAdapter {
     }
 
 
-    function _encodePathV3(address[] memory _path, uint24[] memory _fees) internal view returns (bytes memory path) {
-        path = abi.encodePacked(_path[0]);
-        for(uint i = 0; i < _fees.length; i++){
-            path = abi.encodePacked(path, _fees[i], _path[i+1]);
+    function _encodePathV3(address[] memory _path, uint24[] memory _fees, bool _reverseOrder) internal view returns (bytes memory path) {
+        if(_reverseOrder){
+            path = abi.encodePacked(_path[_path.length-1]);
+            for(uint i = 0; i < _fees.length; i++){
+                uint index = _fees.length - i - 1;
+                path = abi.encodePacked(path, _fees[index], _path[index]);
+            }
+        }
+        else {
+            path = abi.encodePacked(_path[0]);
+            for(uint i = 0; i < _fees.length; i++){
+                path = abi.encodePacked(path, _fees[i], _path[i+1]);
+            }
         }
     }
 

@@ -37,6 +37,8 @@ import { DEXAdapter } from "./DEXAdapter.sol";
 
 
 
+
+
 /**
  * @title ExchangeIssuance
  * @author Index Coop
@@ -65,10 +67,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         uint256 debtAmount;
     }
 
-    struct SwapData {
-        address[] path;
-        uint24[] fees;
-    }
 
     struct DecodedParams {
         ISetToken setToken;
@@ -645,6 +643,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
      * @param _exchange                Exchange to use for swap
      * @param _outputToken             Address of token to return to the user
      * @param _minAmountOutputToken    Minimum amount of output token to return to the user
+     * @param _swapData                Struct containing path and fee data for swap
      *
      * @return Amount of output token returned to the user
      */
@@ -982,8 +981,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         return _swapExactTokensForTokens(
             _exchange,
             _debtAmount,
-            _swapData.path,
-            _swapData.fees
+            _swapData
         );
     }
 
@@ -1013,8 +1011,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
             _exchange,
             _debtAmount,
             _collateralAmount,
-            _swapData.path,
-            _swapData.fees
+            _swapData
         );
     }
 
@@ -1036,8 +1033,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
             _exchange,
             _amountRequired,
             _maxAmountInputToken,
-            _swapData.path,
-            _swapData.fees
+            _swapData
         );
     }
 
@@ -1066,8 +1062,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         return _swapExactTokensForTokens(
             _exchange,
             _collateralTokenAmount,
-            _swapData.path,
-            _swapData.fees
+            _swapData
         );
     }
 

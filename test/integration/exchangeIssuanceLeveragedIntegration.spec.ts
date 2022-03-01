@@ -147,10 +147,9 @@ if (process.env.INTEGRATIONTEST) {
                   path: [usdcAddress, wethAddress],
                   fees: [3000],
                 };
-
                 subjectInputTokenSwapData = {
-                  path: [inputToken.address, wethAddress],
-                  fees: [3000],
+                  path: [inputToken.address, wmaticAddress, wethAddress],
+                  fees: [3000, 3000],
                 };
               });
               async function subject() {
@@ -309,7 +308,7 @@ if (process.env.INTEGRATIONTEST) {
               });
             });
           });
-          context("Payment Token: LongToken", () => {
+          context("Payment Token: CollateralToken", () => {
             let pricePaid: BigNumber;
             context("#issueExactSetFromERC20", () => {
               let subjectMaxAmountInput: BigNumber;
@@ -329,8 +328,8 @@ if (process.env.INTEGRATIONTEST) {
                 subjectInputToken = weth.address;
 
                 subjectDebtForCollateralSwapData = {
-                  path: [usdcAddress, wethAddress],
-                  fees: [3000],
+                  path: [usdcAddress, wmaticAddress, wethAddress],
+                  fees: [3000, 3000],
                 };
 
                 subjectInputTokenSwapData = {
