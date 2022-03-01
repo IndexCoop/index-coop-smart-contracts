@@ -92,7 +92,6 @@ if (process.env.INTEGRATIONTEST) {
           before(async () => {
             exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveraged(
               wmaticAddress,
-              wethAddress,
               quickswapRouterAddress,
               sushiswapRouterAddress,
               uniV3RouterAddress,
@@ -105,9 +104,6 @@ if (process.env.INTEGRATIONTEST) {
           it("verify state set properly via constructor", async () => {
             const expectedWethAddress = await exchangeIssuance.WETH();
             expect(expectedWethAddress).to.eq(utils.getAddress(wmaticAddress));
-
-            const expectedIntermediateAddress = await exchangeIssuance.INTERMEDIATE_TOKEN();
-            expect(expectedIntermediateAddress).to.eq(utils.getAddress(wethAddress));
 
             const expectedSushiRouterAddress = await exchangeIssuance.sushiRouter();
             expect(expectedSushiRouterAddress).to.eq(utils.getAddress(sushiswapRouterAddress));

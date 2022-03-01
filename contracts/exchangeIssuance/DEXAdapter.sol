@@ -51,14 +51,19 @@ abstract contract DEXAdapter {
     }
 
     // Token to trade via 
-    address immutable public INTERMEDIATE_TOKEN;
     IUniswapV2Router02 immutable public quickRouter;
     IUniswapV2Router02 immutable public sushiRouter;
     ISwapRouter immutable public uniV3Router;
 
+    /**
+    * Sets various contract addresses and approves wrapped native token to the routers
+    * 
+    * @param _weth                  Address of wrapped native token
+    * @param _quickRouter           Address of quickswap router
+    * @param _sushiRouter           Address of sushiswap router
+    */
     constructor(
         address _weth,
-        address _intermediateToken,
         IUniswapV2Router02 _quickRouter,
         IUniswapV2Router02 _sushiRouter,
         ISwapRouter _uniV3Router
@@ -72,13 +77,6 @@ abstract contract DEXAdapter {
         IERC20(_weth).safeApprove(address(_quickRouter), PreciseUnitMath.maxUint256());
         IERC20(_weth).safeApprove(address(_sushiRouter), PreciseUnitMath.maxUint256());
         IERC20(_weth).safeApprove(address(_uniV3Router), PreciseUnitMath.maxUint256());
-
-        INTERMEDIATE_TOKEN = _intermediateToken;
-        if(_intermediateToken != _weth) {
-            IERC20(_intermediateToken).safeApprove(address(_quickRouter), PreciseUnitMath.maxUint256());
-            IERC20(_intermediateToken).safeApprove(address(_sushiRouter), PreciseUnitMath.maxUint256());
-            IERC20(_intermediateToken).safeApprove(address(_uniV3Router), PreciseUnitMath.maxUint256());
-        }
     }
 
     /**

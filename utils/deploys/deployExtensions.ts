@@ -155,7 +155,6 @@ export default class DeployExtensions {
 
   public async deployExchangeIssuanceLeveraged(
     wethAddress: Address,
-    intermediateAddress: Address,
     quickRouterAddress: Address,
     sushiRouterAddress: Address,
     uniV3RouterAddress: Address,
@@ -165,7 +164,6 @@ export default class DeployExtensions {
   ): Promise<ExchangeIssuanceLeveraged> {
     return await new ExchangeIssuanceLeveraged__factory(this._deployerSigner).deploy(
       wethAddress,
-      intermediateAddress,
       quickRouterAddress,
       sushiRouterAddress,
       uniV3RouterAddress,

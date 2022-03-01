@@ -130,7 +130,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     * Sets various contract addresses and approves intermediate token to the routers
     * 
     * @param _weth                  Address of wrapped native token
-    * @param _intermediateToken     Address of high liquidity token to trade via
     * @param _quickRouter           Address of quickswap router
     * @param _sushiRouter           Address of sushiswap router
     * @param _setController         SetToken controller used to verify a given token is a set
@@ -139,7 +138,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     */
     constructor(
         address _weth,
-        address _intermediateToken,
         IUniswapV2Router02 _quickRouter,
         IUniswapV2Router02 _sushiRouter,
         ISwapRouter _uniV3Router,
@@ -149,7 +147,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     )
         public
         FlashLoanReceiverBaseV2(_addressProvider)
-        DEXAdapter(_weth, _intermediateToken, _quickRouter, _sushiRouter, _uniV3Router)
+        DEXAdapter(_weth, _quickRouter, _sushiRouter, _uniV3Router)
     {
         setController = _setController;
         debtIssuanceModule = _debtIssuanceModule;
