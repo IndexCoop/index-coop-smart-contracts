@@ -13,19 +13,21 @@ import {
   AirdropExtension,
   ExchangeIssuance,
   ExchangeIssuanceV2,
+  ExchangeIssuanceLeveraged,
   ExchangeIssuanceZeroEx,
   FlexibleLeverageStrategyExtension,
   FeeSplitExtension,
   GIMExtension,
   GovernanceExtension,
   StreamingFeeSplitExtension,
-  WrapExtension
+  WrapExtension,
 } from "../contracts/index";
 
 import { AaveLeverageStrategyExtension__factory } from "../../typechain/factories/AaveLeverageStrategyExtension__factory";
 import { AirdropExtension__factory } from "../../typechain/factories/AirdropExtension__factory";
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
+import { ExchangeIssuanceLeveraged__factory } from "../../typechain/factories/ExchangeIssuanceLeveraged__factory";
 import { ExchangeIssuanceZeroEx__factory } from "../../typechain/factories/ExchangeIssuanceZeroEx__factory";
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
 import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtension__factory";
@@ -133,8 +135,8 @@ export default class DeployExtensions {
 
   public async deployExchangeIssuanceV2(
     wethAddress: Address,
-    uniFactoryAddress: Address,
-    uniRouterAddress: Address,
+    quickSwapFactoryAddress: Address,
+    quickSwapRouterAddress: Address,
     sushiFactoryAddress: Address,
     sushiRouterAddress: Address,
     setControllerAddress: Address,
@@ -142,12 +144,32 @@ export default class DeployExtensions {
   ): Promise<ExchangeIssuanceV2> {
     return await new ExchangeIssuanceV2__factory(this._deployerSigner).deploy(
       wethAddress,
-      uniFactoryAddress,
-      uniRouterAddress,
+      quickSwapFactoryAddress,
+      quickSwapRouterAddress,
       sushiFactoryAddress,
       sushiRouterAddress,
       setControllerAddress,
       basicIssuanceModuleAddress,
+    );
+  }
+
+  public async deployExchangeIssuanceLeveraged(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+    addressProvider: Address,
+  ): Promise<ExchangeIssuanceLeveraged> {
+    return await new ExchangeIssuanceLeveraged__factory(this._deployerSigner).deploy(
+      wethAddress,
+      quickRouterAddress,
+      sushiRouterAddress,
+      uniV3RouterAddress,
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      addressProvider,
     );
   }
 

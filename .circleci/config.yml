@@ -80,6 +80,29 @@ jobs:
           name: Hardhat Test
           command: yarn test:fork
 
+  test_integration_polygon:
+    docker:
+      - image: cimg/node:lts
+    working_directory: ~/index-coop-smart-contracts
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: false
+      - run:
+          name: Fetch solc version
+          command: docker pull ethereum/solc:0.6.10
+      - restore_cache:
+          key: compiled-env-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Set Up Environment Variables
+          command: cp .env.default .env
+      - run:
+          name: Test RPC
+          command: yarn chain:fork:polygon
+          background: true
+      - run:
+          name: Hardhat Test
+          command: yarn test:integration:polygon
+
   coverage:
     docker:
       - image: cimg/node:lts
@@ -177,6 +200,9 @@ workflows:
           requires:
             - checkout_and_compile
       - test_forked_network:
+          requires:
+            - checkout_and_compile
+      - test_integration_polygon:
           requires:
             - checkout_and_compile
       - coverage:
