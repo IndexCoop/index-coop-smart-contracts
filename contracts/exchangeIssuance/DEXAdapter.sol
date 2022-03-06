@@ -15,6 +15,7 @@
 */
 pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
+
 import { IUniswapV2Router02 } from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
@@ -93,8 +94,8 @@ abstract contract DEXAdapter {
         uint256 _amountIn,
         SwapData memory _swapData
     )
-    internal
-    returns (uint256)
+        internal
+        returns (uint256)
     {
         if (_swapData.path[0] == _swapData.path[_swapData.path.length -1]) {
             return _amountIn;
@@ -123,8 +124,8 @@ abstract contract DEXAdapter {
         uint256 _maxAmountIn,
         SwapData memory _swapData
     )
-    internal
-    returns (uint256 amountIn)
+        internal
+        returns (uint256 amountIn)
     {
         if (_swapData.path[0] == _swapData.path[_swapData.path.length -1]) {
             return _amountOut;
@@ -152,8 +153,8 @@ abstract contract DEXAdapter {
         uint256 _maxAmountIn,
         Exchange _exchange
     )
-    internal
-    returns(uint256)
+        internal
+        returns(uint256)
     {
         IUniswapV2Router02 router = _getRouter(_exchange);
         _safeApprove(IERC20(_path[0]), address(router), _maxAmountIn);
@@ -176,8 +177,8 @@ abstract contract DEXAdapter {
         uint256 _amountOut,
         uint256 _maxAmountIn
     )
-    internal
-    returns(uint256)
+        internal
+        returns(uint256)
     {
 
         require(_path.length == _fees.length + 1, "ExchangeIssuance: PATHS_FEES_MISMATCH");
@@ -229,8 +230,8 @@ abstract contract DEXAdapter {
         uint24[] memory _fees,
         uint256 _amountIn
     )
-    internal
-    returns(uint256)
+        internal
+        returns(uint256)
     {
         require(_path.length == _fees.length + 1, "ExchangeIssuance: PATHS_FEES_MISMATCH");
         _safeApprove(IERC20(_path[0]), address(uniV3Router), _amountIn);
@@ -276,8 +277,8 @@ abstract contract DEXAdapter {
         uint256 _amountIn,
         Exchange _exchange
     )
-    internal
-    returns(uint256)
+        internal
+        returns(uint256)
     {
         IUniswapV2Router02 router = _getRouter(_exchange);
         _safeApprove(IERC20(_path[0]), address(router), _amountIn);
@@ -295,15 +296,22 @@ abstract contract DEXAdapter {
      *
      * @return path          Encoded path to be forwared to uniV3 router
      */
-    function _encodePathV3(address[] memory _path, uint24[] memory _fees, bool _reverseOrder) internal view returns (bytes memory path) {
+    function _encodePathV3(
+        address[] memory _path,
+        uint24[] memory _fees,
+        bool _reverseOrder
+    )
+        internal
+        view
+        returns(bytes memory path)
+    {
         if(_reverseOrder){
             path = abi.encodePacked(_path[_path.length-1]);
             for(uint i = 0; i < _fees.length; i++){
                 uint index = _fees.length - i - 1;
                 path = abi.encodePacked(path, _fees[index], _path[index]);
             }
-        }
-        else {
+        } else {
             path = abi.encodePacked(_path[0]);
             for(uint i = 0; i < _fees.length; i++){
                 path = abi.encodePacked(path, _fees[i], _path[i+1]);
