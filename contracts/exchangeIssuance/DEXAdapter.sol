@@ -80,6 +80,7 @@ abstract contract DEXAdapter {
         IERC20(_weth).safeApprove(address(_uniV3Router), PreciseUnitMath.maxUint256());
     }
 
+    /* ============ Internal Methods ============ */
     /**
      * Swap exact tokens for another token on a given DEX.
      *
@@ -140,6 +141,34 @@ abstract contract DEXAdapter {
     }
 
     /**
+     * Returns the router address of a given exchange.
+     *
+     * @param _exchange     The Exchange whose router address is needed
+     *
+     * @return              IUniswapV2Router02 router of the given exchange
+     */
+     function _getRouter(Exchange _exchange) internal view returns(IUniswapV2Router02) {
+         return (_exchange == Exchange.Quickswap) ? quickRouter : sushiRouter;
+     }
+
+    /**
+     * Sets a max approval limit for an ERC20 token, provided the current allowance
+     * is less than the required allownce.
+     *
+     * @param _token              Token to approve
+     * @param _spender            Spender address to approve
+     * @param _requiredAllowance  Target allowance to set
+     */
+    function _safeApprove(IERC20 _token, address _spender, uint256 _requiredAllowance) internal {
+        uint256 allowance = _token.allowance(address(this), _spender);
+        if (allowance < _requiredAllowance) {
+            _token.safeIncreaseAllowance(_spender, MAX_UINT256 - allowance);
+        }
+    }
+
+    /* ============ Private Methods ============ */
+
+    /**
      *  Execute exact output swap via a UniV2 based DEX. (such as sushiswap);
      *
      * @param _path         List of token address to swap via. 
@@ -155,7 +184,7 @@ abstract contract DEXAdapter {
         uint256 _maxAmountIn,
         Exchange _exchange
     )
-        internal
+        private
         returns(uint256)
     {
         IUniswapV2Router02 router = _getRouter(_exchange);
@@ -179,7 +208,7 @@ abstract contract DEXAdapter {
         uint256 _amountOut,
         uint256 _maxAmountIn
     )
-        internal
+        private
         returns(uint256)
     {
 
@@ -234,7 +263,7 @@ abstract contract DEXAdapter {
         uint256 _amountIn,
         uint256 _minAmountOut
     )
-        internal
+        private
         returns(uint256)
     {
         require(_path.length == _fees.length + 1, "ExchangeIssuance: PATHS_FEES_MISMATCH");
@@ -283,7 +312,7 @@ abstract contract DEXAdapter {
         uint256 _minAmountOut,
         Exchange _exchange
     )
-        internal
+        private
         returns(uint256)
     {
         IUniswapV2Router02 router = _getRouter(_exchange);
@@ -306,7 +335,7 @@ abstract contract DEXAdapter {
         uint24[] memory _fees,
         bool _reverseOrder
     )
-        internal
+        private
         view
         returns(bytes memory path)
     {
@@ -321,32 +350,6 @@ abstract contract DEXAdapter {
             for(uint i = 0; i < _fees.length; i++){
                 path = abi.encodePacked(path, _fees[i], _path[i+1]);
             }
-        }
-    }
-
-    /**
-     * Returns the router address of a given exchange.
-     *
-     * @param _exchange     The Exchange whose router address is needed
-     *
-     * @return              IUniswapV2Router02 router of the given exchange
-     */
-     function _getRouter(Exchange _exchange) internal view returns(IUniswapV2Router02) {
-         return (_exchange == Exchange.Quickswap) ? quickRouter : sushiRouter;
-     }
-
-    /**
-     * Sets a max approval limit for an ERC20 token, provided the current allowance
-     * is less than the required allownce.
-     *
-     * @param _token              Token to approve
-     * @param _spender            Spender address to approve
-     * @param _requiredAllowance  Target allowance to set
-     */
-    function _safeApprove(IERC20 _token, address _spender, uint256 _requiredAllowance) internal {
-        uint256 allowance = _token.allowance(address(this), _spender);
-        if (allowance < _requiredAllowance) {
-            _token.safeIncreaseAllowance(_spender, MAX_UINT256 - allowance);
         }
     }
 
