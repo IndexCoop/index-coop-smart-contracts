@@ -127,11 +127,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     /* ============ Constructor ============ */
 
     /**
-    * Sets various contract addresses and approves intermediate token to the routers
+    * Sets various contract addresses 
     * 
     * @param _weth                  Address of wrapped native token
     * @param _quickRouter           Address of quickswap router
     * @param _sushiRouter           Address of sushiswap router
+    * @param _uniV3Router           Address of uniswap v3 router
     * @param _setController         SetToken controller used to verify a given token is a set
     * @param _debtIssuanceModule    DebtIssuanceModule used to issue and redeem tokens
     * @param _addressProvider       Address of DebtIssuanceModule used to issue and redeem tokens
@@ -298,9 +299,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     /**
      * Trigger issuance of set token paying with Eth
      *
-     * @param _setToken            Set token to issue
-     * @param _setAmount           Amount to issue
-     * @param _exchange            Exchange to use in swap from debt to collateral token
+     * @param _setToken                     Set token to issue
+     * @param _setAmount                    Amount to issue
+     * @param _exchange                     Exchange to use in swap from debt to collateral token
      * @param _swapDataDebtForCollateral    Data (token addresses and fee levels) to describe the swap path from Debt to collateral token
      * @param _swapDataInputToken           Data (token addresses and fee levels) to describe the swap path from eth to collateral token
      */
@@ -338,6 +339,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
      * @param premiums   Interest to be paid on top of borrowed amount
      * @param initiator  Address that initiated the flashloan
      * @param params     Encoded bytestring of other parameters from the original contract call to be used downstream
+     * 
+     * @return Boolean indicating success of the operation (fixed to true otherwise the whole transaction would be reverted by lending pool)
      */
     function executeOperation(
         address[] memory assets,
@@ -474,7 +477,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
             _decodedParams.leveragedTokenData.collateralToken,
             _decodedParams.leveragedTokenData.collateralAmount,
             _decodedParams.paymentTokenSwapData
-
         );
         require(amountOutputToken >= _decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
     }
@@ -551,6 +553,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
      *
      * @param _setToken                     Address of the SetToken being initialized
      * @param _setAmount                    Amount of the SetToken being initialized
+     * @param _exchange                     Exchange to execute the swap on
      * @param _inputToken                   Address of the input token to pay with
      * @param _maxAmountInputToken          Maximum amount of input token to pay
      * @param _swapDataDebtForCollateral    Data (token addresses and fee levels) to describe the swap path from Debt to collateral token
@@ -567,7 +570,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     )
         isSetToken(_setToken)
         internal
-        returns (uint256)
     {
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, true);
 
@@ -600,6 +602,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
      *
      * @param _setToken                   Address of the SetToken to redeem
      * @param _setAmount                  Amount of the SetToken to redeem
+     * @param _exchange                   Exchange to execute the swap on
      * @param _outputToken                Address of token to return to the user
      * @param _minAmountOutputToken       Minimum amount of output token to receive
      * @param _swapDataCollateralForDebt  Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
@@ -616,7 +619,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     )
         isSetToken(_setToken)
         internal
-        returns (uint256)
     {
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, false);
 
@@ -654,6 +656,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
      * @param _originalSender          Address of the user who initiated the redemption
      * @param _exchange                Exchange to use for swap
      * @param _outputToken             Address of token to return to the user
+     * @param _collateralToken         Address of the collateral token to sell
+     * @param _collateralAmount        Amount of collateral token to sell
      * @param _minAmountOutputToken    Minimum amount of output token to return to the user
      * @param _swapData                Struct containing path and fee data for swap
      *
@@ -672,7 +676,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         SwapData memory _swapData
     )
         internal
-        returns(uint256)
+        returns (uint256)
     {
         require(_collateralAmount >= _collateralTokenSpent, "ExchangeIssuance: OVERSPENT COLLATERAL TOKEN");
         uint256 amountToReturn = _collateralAmount.sub(_collateralTokenSpent);
@@ -705,34 +709,37 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
      * Returns the collateralToken directly to the user
      *
      * @param _collateralToken       Address of the the collateral token
-     * @param _amountToReturn        Amount of the underlying collateral token to return
+     * @param _collateralRemaining   Amount of the collateral token remaining after buying required debt tokens
      * @param _originalSender        Address of the original sender to return the tokens to
      * @param _minAmountOutputToken  Minimum amount of output token to return to the user
      */
     function _returnCollateralTokensToSender(
         address _collateralToken,
-        uint256 _amountToReturn,
+        uint256 _collateralRemaining,
         address _originalSender,
         uint256 _minAmountOutputToken
     )
         internal
     {
-        IERC20(_collateralToken).transfer(_originalSender, _amountToReturn);
+        IERC20(_collateralToken).transfer(_originalSender, _collateralRemaining);
     }
 
     /**
      * Sells the collateral tokens for the selected output ERC20 and returns that to the user
      *
      * @param _collateralToken       Address of the collateral token
-     * @param _amountToReturn        Amount of the underlying collateral token to return
+     * @param _collateralRemaining   Amount of the collateral token remaining after buying required debt tokens
      * @param _exchange              Enum indicating which exchange to use
      * @param _originalSender        Address of the original sender to return the tokens to
      * @param _outputToken           Address of token to return to the user
      * @param _minAmountOutputToken  Minimum amount of output token to return to the user
+     * @param _swapData              Data (token path and fee levels) describing the swap path from Collateral Token to Output token
+     *
+     * @return Amount of output token returned to the user
      */
     function _liquidateCollateralTokensForERC20(
         address _collateralToken,
-        uint256 _amountToReturn,
+        uint256 _collateralRemaining,
         Exchange _exchange,
         address _originalSender,
         IERC20 _outputToken,
@@ -740,15 +747,15 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         SwapData memory _swapData
     )
         internal
-        returns(uint256)
+        returns (uint256)
     {
         if(address(_outputToken) == _collateralToken){
-            _returnCollateralTokensToSender(_collateralToken, _amountToReturn, _originalSender, _minAmountOutputToken);
-            return _amountToReturn;
+            _returnCollateralTokensToSender(_collateralToken, _collateralRemaining, _originalSender, _minAmountOutputToken);
+            return _collateralRemaining;
         }
         uint256 outputTokenAmount = _swapCollateralForOutputToken(
             _collateralToken,
-            _amountToReturn,
+            _collateralRemaining,
             address(_outputToken),
             _minAmountOutputToken,
             _exchange,
@@ -759,17 +766,20 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     }
 
     /**
-     * Sells the collateral tokens for weth, withdraws that and returns native eth to the user
+     * Sells the remaining collateral tokens for weth, withdraws that and returns native eth to the user
      *
-     * @param _collateralToken       Address of the collateral token
-     * @param _amountToReturn        Amount of the underlying collateral token to return
-     * @param _exchange              Enum indicating which exchange to use
-     * @param _originalSender        Address of the original sender to return the eth to
-     * @param _minAmountOutputToken  Minimum amount of output token to return to user
+     * @param _collateralToken            Address of the collateral token
+     * @param _collateralRemaining        Amount of the collateral token remaining after buying required debt tokens
+     * @param _exchange                   Enum indicating which exchange to use
+     * @param _originalSender             Address of the original sender to return the eth to
+     * @param _minAmountOutputToken       Minimum amount of output token to return to user
+     * @param _swapData                   Data (token path and fee levels) describing the swap path from Collateral Token to eth
+     *
+     * @return Amount of eth returned to the user
      */
     function _liquidateCollateralTokensForETH(
         address _collateralToken,
-        uint256 _amountToReturn,
+        uint256 _collateralRemaining,
         Exchange _exchange,
         address _originalSender,
         uint256 _minAmountOutputToken,
@@ -781,7 +791,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         require(_swapData.path[_swapData.path.length-1] == WETH, "ExchangeIssuance:OUTPUTTOKEN_PATH_MISMATCH_WETH");
         uint256 ethAmount = _swapCollateralForOutputToken(
             _collateralToken,
-            _amountToReturn,
+            _collateralRemaining,
             WETH,
             _minAmountOutputToken,
             _exchange,
@@ -810,7 +820,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         DecodedParams memory _decodedParams
     )
         internal
-        returns(uint256)
+        returns (uint256)
     {
         uint collateralTokenObtained =  _swapDebtForCollateralToken(
             _collateralToken,
@@ -906,6 +916,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
      * @param _originalSender              Address of the original sender to return the tokens to
      * @param _inputToken                  Input token to pay with
      * @param _maxAmountInputToken         Maximum amount of input token to spend
+     *
+     * @return Amount of input token spent
      */
     function _makeUpShortfallWithERC20(
         address _collateralToken,
@@ -917,7 +929,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         SwapData memory _swapData
     )
         internal
-        returns(uint256)
+        returns (uint256)
     {
         if(address(_inputToken) == _collateralToken){
             _transferShortfallFromSender(_collateralToken, _collateralTokenShortfall, _originalSender, _maxAmountInputToken);
@@ -947,6 +959,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
      * @param _exchange                    Enum indicating which exchange to use
      * @param _originalSender              Address of the original sender to return the tokens to
      * @param _maxAmountEth                Maximum amount of eth to pay
+     *
+     * @return Amount of eth spent
      */
     function _makeUpShortfallWithETH(
         address _collateralToken,
@@ -987,6 +1001,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
      * @param _debtAmount                 Amount of debt token to sell
      * @param _exchange                   Enum indicating exchange to use
      * @param _swapData                   Struct containing path and fee data for swap
+     *
+     * @return Amount of collateral token obtained
      */
     function _swapDebtForCollateralToken(
         address _collateralToken,
@@ -1019,6 +1035,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
      * @param _collateralToken        Address of collateral token
      * @param _exchange               Exchange to use
      * @param _swapData               Struct containing path and fee data for swap
+     *
+     * @return Amount of collateral token spent
      */
     function _swapCollateralForDebtToken(
         uint256 _debtAmount,
@@ -1029,11 +1047,11 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         SwapData memory _swapData
     )
         internal
-        returns (uint256 collateralAmountSpent)
+        returns (uint256)
     {
         require(_swapData.path[0] == _collateralToken);
         require(_swapData.path[_swapData.path.length-1] == _debtToken);
-        collateralAmountSpent = _swapTokensForExactTokens(
+        return _swapTokensForExactTokens(
             _exchange,
             _debtAmount,
             _collateralAmount,
@@ -1041,6 +1059,19 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         );
     }
 
+    /**
+     * Acquires the required amount of collateral tokens by swapping the input tokens
+     * Does nothing if collateral and input token are indentical
+     *
+     * @param _collateralToken       Address of collateral token
+     * @param _amountRequired        Remaining amount of collateral token required to repay flashloan, after having swapped debt tokens for collateral
+     * @param _inputToken            Address of input token to swap
+     * @param _maxAmountInputToken   Maximum amount of input token to spend
+     * @param _exchange              Exchange to use
+     * @param _swapData              Data (token addresses and fee levels) describing the swap path
+     *
+     * @return Amount of input token spent
+     */
     function _swapInputForCollateralToken(
         address _collateralToken,
         uint256 _amountRequired,
@@ -1050,12 +1081,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         SwapData memory _swapData
     )
         internal
-        returns (uint256 inputAmountSpent)
+        returns (uint256)
     {
         require(_swapData.path[0] == _inputToken, "ExchangeIssuance:INPUTTOKEN_PATH_MISMATCH");
         require(_swapData.path[_swapData.path.length-1] == _collateralToken, "ExchangeIssuance:COLLATERALTOKEN_PATH_MISMATCH");
         if(_collateralToken == _inputToken) return _amountRequired;
-        inputAmountSpent = _swapTokensForExactTokens(
+        return _swapTokensForExactTokens(
             _exchange,
             _amountRequired,
             _maxAmountInputToken,
@@ -1072,6 +1103,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
      * @param _outputToken            Address of the ERC20 token to swap into
      * @param _minAmountOutputToken   Minimum amount of output token to return to the user
      * @param _exchange               Exchange to use
+     * @param _swapData               Data (token addresses and fee levels) describing the swap path
+     *
+     * @return Amount of output token obtained
      */
     function _swapCollateralForOutputToken(
         address _collateralToken,

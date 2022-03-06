@@ -39,19 +39,23 @@ abstract contract DEXAdapter {
     using SafeMath for uint256;
 
     /* ============ Constants ============= */
+
     uint256 constant private MAX_UINT256 = type(uint256).max;
     uint24 public constant POOL_FEE = 3000;
 
     /* ============ Enums ============ */
+
     enum Exchange { None, Quickswap, Sushiswap, UniV3}
 
     /* ============ Structs ============ */
+
     struct SwapData {
         address[] path;
         uint24[] fees;
     }
 
-    // Token to trade via 
+    /* ============ State Variables ============ */
+
     IUniswapV2Router02 immutable public quickRouter;
     IUniswapV2Router02 immutable public sushiRouter;
     ISwapRouter immutable public uniV3Router;
@@ -62,6 +66,7 @@ abstract contract DEXAdapter {
     * @param _weth                  Address of wrapped native token
     * @param _quickRouter           Address of quickswap router
     * @param _sushiRouter           Address of sushiswap router
+    * @param _uniV3Router           Address of uniswap v3 router
     */
     constructor(
         address _weth,
@@ -119,7 +124,7 @@ abstract contract DEXAdapter {
      * @param _maxAmountIn  Maximum amount of input token to be spent
      * @param _swapData     Swap data containing the path and fee levels (latter only used for uniV3)
      *
-     * @return amountIn    The amount of input tokens spent
+     * @return amountIn     The amount of input tokens spent
      */
     function _swapTokensForExactTokens(
         Exchange _exchange,
@@ -147,7 +152,13 @@ abstract contract DEXAdapter {
      *
      * @return              IUniswapV2Router02 router of the given exchange
      */
-     function _getRouter(Exchange _exchange) internal view returns(IUniswapV2Router02) {
+     function _getRouter(
+         Exchange _exchange
+     )
+        internal
+        view
+        returns (IUniswapV2Router02)
+     {
          return (_exchange == Exchange.Quickswap) ? quickRouter : sushiRouter;
      }
 
@@ -159,7 +170,13 @@ abstract contract DEXAdapter {
      * @param _spender            Spender address to approve
      * @param _requiredAllowance  Target allowance to set
      */
-    function _safeApprove(IERC20 _token, address _spender, uint256 _requiredAllowance) internal {
+    function _safeApprove(
+        IERC20 _token,
+        address _spender,
+        uint256 _requiredAllowance
+    )
+        internal
+    {
         uint256 allowance = _token.allowance(address(this), _spender);
         if (allowance < _requiredAllowance) {
             _token.safeIncreaseAllowance(_spender, MAX_UINT256 - allowance);
@@ -185,7 +202,7 @@ abstract contract DEXAdapter {
         Exchange _exchange
     )
         private
-        returns(uint256)
+        returns (uint256)
     {
         IUniswapV2Router02 router = _getRouter(_exchange);
         _safeApprove(IERC20(_path[0]), address(router), _maxAmountIn);
@@ -264,7 +281,7 @@ abstract contract DEXAdapter {
         uint256 _minAmountOut
     )
         private
-        returns(uint256)
+        returns (uint256)
     {
         require(_path.length == _fees.length + 1, "ExchangeIssuance: PATHS_FEES_MISMATCH");
         _safeApprove(IERC20(_path[0]), address(uniV3Router), _amountIn);
@@ -313,7 +330,7 @@ abstract contract DEXAdapter {
         Exchange _exchange
     )
         private
-        returns(uint256)
+        returns (uint256)
     {
         IUniswapV2Router02 router = _getRouter(_exchange);
         _safeApprove(IERC20(_path[0]), address(router), _amountIn);
@@ -326,9 +343,9 @@ abstract contract DEXAdapter {
      *
      * @param _path          List of token address to swap via (starting with input token)
      * @param _fees          List of fee levels identifying the pools to swap via. (_fees[0] refers to pool between _path[0] and _path[1])
-     * @param _reverseOrder  Wether or not order of path needs to reversed to start with output token. (which is teh case for exact output swap)
+     * @param _reverseOrder  Boolean indicating if path needs to be reversed to start with output token. (which is the case for exact output swap)
      *
-     * @return path          Encoded path to be forwared to uniV3 router
+     * @return encodedPath   Encoded path to be forwared to uniV3 router
      */
     function _encodePathV3(
         address[] memory _path,
@@ -337,18 +354,18 @@ abstract contract DEXAdapter {
     )
         private
         view
-        returns(bytes memory path)
+        returns(bytes memory encodedPath)
     {
         if(_reverseOrder){
-            path = abi.encodePacked(_path[_path.length-1]);
+            encodedPath = abi.encodePacked(_path[_path.length-1]);
             for(uint i = 0; i < _fees.length; i++){
                 uint index = _fees.length - i - 1;
-                path = abi.encodePacked(path, _fees[index], _path[index]);
+                encodedPath = abi.encodePacked(encodedPath, _fees[index], _path[index]);
             }
         } else {
-            path = abi.encodePacked(_path[0]);
+            encodedPath = abi.encodePacked(_path[0]);
             for(uint i = 0; i < _fees.length; i++){
-                path = abi.encodePacked(path, _fees[i], _path[i+1]);
+                encodedPath = abi.encodePacked(encodedPath, _fees[i], _path[i+1]);
             }
         }
     }
