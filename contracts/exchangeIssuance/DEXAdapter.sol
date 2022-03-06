@@ -85,6 +85,7 @@ abstract contract DEXAdapter {
      *
      * @param _exchange     The exchange on which to peform the swap
      * @param _amountIn     The amount of input token to be spent
+     * @param _minAmountOut Minimum amount of output token to receive
      * @param _swapData     Swap data containing the path and fee levels (latter only used for uniV3)
      *
      * @return amountOut    The amount of output tokens
@@ -92,6 +93,7 @@ abstract contract DEXAdapter {
     function _swapExactTokensForTokens(
         Exchange _exchange,
         uint256 _amountIn,
+        uint256 _minAmountOut,
         SwapData memory _swapData
     )
         internal
@@ -102,9 +104,9 @@ abstract contract DEXAdapter {
         }
 
         if(_exchange == Exchange.UniV3){
-            return _swapExactTokensForTokensUniV3(_swapData.path, _swapData.fees, _amountIn);
+            return _swapExactTokensForTokensUniV3(_swapData.path, _swapData.fees, _amountIn, _minAmountOut);
         } else {
-            return _swapExactTokensForTokensUniV2(_swapData.path, _amountIn, _exchange);
+            return _swapExactTokensForTokensUniV2(_swapData.path, _amountIn, _minAmountOut, _exchange);
         }
     }
 
@@ -221,14 +223,16 @@ abstract contract DEXAdapter {
      *
      * @param _path         List of token address to swap via. 
      * @param _fees         List of fee levels identifying the pools to swap via. (_fees[0] refers to pool between _path[0] and _path[1])
-     * @param _amountIn    The amount of input token to be spent
+     * @param _amountIn     The amount of input token to be spent
+     * @param _minAmountOut Minimum amount of output token to receive
      *
      * @return amountOut    The amount of output token obtained
      */
     function _swapExactTokensForTokensUniV3(
         address[] memory _path,
         uint24[] memory _fees,
-        uint256 _amountIn
+        uint256 _amountIn,
+        uint256 _minAmountOut
     )
         internal
         returns(uint256)
@@ -244,7 +248,7 @@ abstract contract DEXAdapter {
                     recipient: address(this),
                     deadline: block.timestamp,
                     amountIn: _amountIn,
-                    amountOutMinimum: 0,
+                    amountOutMinimum: _minAmountOut,
                     sqrtPriceLimitX96: 0
                 });
             return uniV3Router.exactInputSingle(params);
@@ -256,7 +260,7 @@ abstract contract DEXAdapter {
                     recipient: address(this),
                     deadline: block.timestamp,
                     amountIn: _amountIn,
-                    amountOutMinimum: 0
+                    amountOutMinimum: _minAmountOut
                 });
             uint amountOut = uniV3Router.exactInput(params);
             return amountOut;
@@ -268,6 +272,7 @@ abstract contract DEXAdapter {
      *
      * @param _path         List of token address to swap via. 
      * @param _amountIn     The amount of input token to be spent
+     * @param _minAmountOut Minimum amount of output token to receive
      * @param _exchange     The exchange to swap on (must be uniV2 based / compatible)
      *
      * @return amountOut    The amount of output token obtained
@@ -275,6 +280,7 @@ abstract contract DEXAdapter {
     function _swapExactTokensForTokensUniV2(
         address[] memory _path,
         uint256 _amountIn,
+        uint256 _minAmountOut,
         Exchange _exchange
     )
         internal
@@ -282,7 +288,6 @@ abstract contract DEXAdapter {
     {
         IUniswapV2Router02 router = _getRouter(_exchange);
         _safeApprove(IERC20(_path[0]), address(router), _amountIn);
-        //TODO: Review if we have to set a non-zero minAmountOut
         return router.swapExactTokensForTokens(_amountIn, 0, _path, address(this), block.timestamp)[1];
     }
 

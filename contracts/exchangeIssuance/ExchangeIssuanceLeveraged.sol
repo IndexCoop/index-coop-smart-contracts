@@ -736,6 +736,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
                 _collateralToken,
                 _amountToReturn,
                 address(_outputToken),
+                _minAmountOutputToken,
                 _exchange,
                 _swapData
             );
@@ -764,7 +765,14 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     returns(uint256)
     {
             require(_swapData.path[_swapData.path.length-1] == WETH, "ExchangeIssuance:OUTPUTTOKEN_PATH_MISMATCH_WETH");
-            uint256 ethAmount = _swapCollateralForOutputToken(_collateralToken, _amountToReturn, WETH, _exchange, _swapData);
+            uint256 ethAmount = _swapCollateralForOutputToken(
+                _collateralToken,
+                _amountToReturn,
+                WETH,
+                _minAmountOutputToken,
+                _exchange,
+                _swapData
+            );
             if (ethAmount > 0) {
                 IWETH(WETH).withdraw(ethAmount);
                 (payable(_originalSender)).sendValue(ethAmount);
@@ -979,6 +987,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         return _swapExactTokensForTokens(
             _exchange,
             _debtAmount,
+            0,
             _swapData
         );
     }
@@ -1042,12 +1051,14 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
      * @param _collateralToken        Address of collateral token
      * @param _collateralTokenAmount  Amount of colalteral token to swap
      * @param _outputToken            Address of the ERC20 token to swap into
+     * @param _minAmountOutputToken   Minimum amount of output token to return to the user
      * @param _exchange               Exchange to use
      */
     function _swapCollateralForOutputToken(
         address _collateralToken,
         uint256 _collateralTokenAmount,
         address _outputToken,
+        uint256 _minAmountOutputToken,
         Exchange _exchange,
         SwapData memory _swapData
     )
@@ -1060,6 +1071,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         return _swapExactTokensForTokens(
             _exchange,
             _collateralTokenAmount,
+            0,
             _swapData
         );
     }
