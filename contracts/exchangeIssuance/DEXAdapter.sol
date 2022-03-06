@@ -243,12 +243,9 @@ abstract contract DEXAdapter {
                     amountInMaximum: _maxAmountIn,
                     sqrtPriceLimitX96: 0
                 });
-
-            // Executes the swap returning the amountIn needed to spend to receive the desired amountOut.
             return uniV3Router.exactOutputSingle(params);
         } else {
             bytes memory pathV3 = _encodePathV3(_path, _fees, true);
-            uint outputBalanceBefore = IERC20(_path[_path.length - 1]).balanceOf(address(this));
             ISwapRouter.ExactOutputParams memory params =
                 ISwapRouter.ExactOutputParams({
                     path: pathV3,
@@ -257,10 +254,7 @@ abstract contract DEXAdapter {
                     amountOut: _amountOut,
                     amountInMaximum: _maxAmountIn
                 });
-            uint amountIn = uniV3Router.exactOutput(params);
-            uint outputBalanceAfter = IERC20(_path[_path.length - 1]).balanceOf(address(this));
-            uint actualAmountOut = outputBalanceAfter.sub(outputBalanceBefore);
-            return amountIn;
+            return uniV3Router.exactOutput(params);
         }
     }
 
@@ -334,7 +328,7 @@ abstract contract DEXAdapter {
     {
         IUniswapV2Router02 router = _getRouter(_exchange);
         _safeApprove(IERC20(_path[0]), address(router), _amountIn);
-        return router.swapExactTokensForTokens(_amountIn, 0, _path, address(this), block.timestamp)[1];
+        return router.swapExactTokensForTokens(_amountIn, _minAmountOut, _path, address(this), block.timestamp)[1];
     }
 
 
@@ -353,7 +347,7 @@ abstract contract DEXAdapter {
         bool _reverseOrder
     )
         private
-        view
+        pure
         returns(bytes memory encodedPath)
     {
         if(_reverseOrder){

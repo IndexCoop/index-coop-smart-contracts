@@ -635,9 +635,11 @@ describe("ExchangeIssuanceLeveraged", async () => {
             subjectMinAmountOutput = collateralAmount;
           });
           it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith(
-              "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT",
-            );
+            const revertReason =
+              tokenName == "ERC20"
+                ? "UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT"
+                : "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT";
+            await expect(subject()).to.be.revertedWith(revertReason);
           });
         });
       });

@@ -212,7 +212,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         SwapData memory _swapDataOutputToken
     )
         isSetToken(_setToken)
-        public
+        external
         nonReentrant
     {
         _initiateRedemption(
@@ -247,7 +247,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         SwapData memory _swapDataOutputToken
     )
         isSetToken(_setToken)
-        public
+        external
         nonReentrant
     {
         _initiateRedemption(
@@ -282,7 +282,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         SwapData memory _swapDataInputToken
     )
         isSetToken(_setToken)
-        public
+        external
         nonReentrant
     {
         _initiateIssuance(
@@ -313,7 +313,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         SwapData memory _swapDataInputToken
     )
         isSetToken(_setToken)
-        public
+        external
         payable
         nonReentrant
     {
@@ -711,13 +711,11 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
      * @param _collateralToken       Address of the the collateral token
      * @param _collateralRemaining   Amount of the collateral token remaining after buying required debt tokens
      * @param _originalSender        Address of the original sender to return the tokens to
-     * @param _minAmountOutputToken  Minimum amount of output token to return to the user
      */
     function _returnCollateralTokensToSender(
         address _collateralToken,
         uint256 _collateralRemaining,
-        address _originalSender,
-        uint256 _minAmountOutputToken
+        address _originalSender
     )
         internal
     {
@@ -750,7 +748,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         returns (uint256)
     {
         if(address(_outputToken) == _collateralToken){
-            _returnCollateralTokensToSender(_collateralToken, _collateralRemaining, _originalSender, _minAmountOutputToken);
+            _returnCollateralTokensToSender(_collateralToken, _collateralRemaining, _originalSender);
             return _collateralRemaining;
         }
         uint256 outputTokenAmount = _swapCollateralForOutputToken(
@@ -897,8 +895,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     function _transferShortfallFromSender(
         address _token,
         uint256 _shortfall,
-        address _originalSender,
-        uint256 _maxAmountInputToken
+        address _originalSender
     )
         internal
     {
@@ -932,7 +929,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         returns (uint256)
     {
         if(address(_inputToken) == _collateralToken){
-            _transferShortfallFromSender(_collateralToken, _collateralTokenShortfall, _originalSender, _maxAmountInputToken);
+            _transferShortfallFromSender(_collateralToken, _collateralTokenShortfall, _originalSender);
             return _collateralTokenShortfall;
         } else {
             _inputToken.transferFrom(_originalSender, address(this), _maxAmountInputToken);
@@ -1124,7 +1121,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         return _swapExactTokensForTokens(
             _exchange,
             _collateralTokenAmount,
-            0,
+            _minAmountOutputToken,
             _swapData
         );
     }
