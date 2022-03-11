@@ -219,7 +219,7 @@ if (process.env.INTEGRATIONTEST) {
                   before(async () => {
                     // Check to avoid running test when issuance failed and there are no tokens to redeem
                     expect(pricePaid.gt(0)).to.be.true;
-                    subjectMinAmountOutput = pricePaid.div(10);
+                    subjectMinAmountOutput = pricePaid.div(100);
                     setToken.approve(exchangeIssuance.address, subjectSetAmount);
                     outputToken = dai;
                     subjectOutputToken = outputToken.address;
