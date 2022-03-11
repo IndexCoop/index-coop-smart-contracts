@@ -77,6 +77,8 @@ if (process.env.INTEGRATIONTEST) {
     let subjectSetAmount: BigNumber;
     let subjectExchange: Exchange;
 
+    let ethToSpend: BigNumber;
+
     context("When exchange issuance is deployed", () => {
       let exchangeIssuance: ExchangeIssuanceLeveraged;
       before(async () => {
@@ -100,6 +102,9 @@ if (process.env.INTEGRATIONTEST) {
           "IUniswapV2Router",
           sushiswapRouterAddress,
         )) as IUniswapV2Router;
+
+        const ownerBalance = await owner.wallet.getBalance();
+        ethToSpend = ownerBalance.div(20);
       });
 
       it("verify state set properly via constructor", async () => {
@@ -136,7 +141,7 @@ if (process.env.INTEGRATIONTEST) {
               collateralTokenAddress,
             )) as StandardTokenMock;
 
-            subjectSetAmount = utils.parseEther("10");
+            subjectSetAmount = utils.parseEther("1.2345");
 
             await exchangeIssuance.approveSetToken(subjectSetToken);
           });
@@ -162,8 +167,6 @@ if (process.env.INTEGRATIONTEST) {
                 context("#issueExactSetFromERC20", () => {
                   let subjectMaxAmountInput: BigNumber;
                   before(async () => {
-                    const ownerBalance = await owner.wallet.getBalance();
-                    const ethToSpend = ownerBalance.div(2);
                     inputToken = dai;
                     subjectInputToken = inputToken.address;
                     await sushiRouter.swapExactETHForTokens(
