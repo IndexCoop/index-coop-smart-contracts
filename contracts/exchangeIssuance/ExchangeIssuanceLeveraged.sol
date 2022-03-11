@@ -26,6 +26,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 
 import { ISwapRouter} from "../interfaces/external/ISwapRouter.sol";
 import { IAToken } from "../interfaces/IAToken.sol";
+import { IAaveLeverageModule } from "../interfaces/IAaveLeverageModule.sol";
 import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { IController } from "../interfaces/IController.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
@@ -93,6 +94,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     address immutable public WETH;
     IController public immutable setController;
     IDebtIssuanceModule public immutable debtIssuanceModule;
+    IAaveLeverageModule public immutable aaveLeverageModule;
 
     /* ============ Events ============ */
 
@@ -135,6 +137,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     * @param _uniV3Router           Address of uniswap v3 router
     * @param _setController         SetToken controller used to verify a given token is a set
     * @param _debtIssuanceModule    DebtIssuanceModule used to issue and redeem tokens
+    * @param _aaveLeverageModule    AaveLeverageModule to sync before every issuance / redemption
     * @param _addressProvider       Address of DebtIssuanceModule used to issue and redeem tokens
     */
     constructor(
@@ -144,6 +147,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         ISwapRouter _uniV3Router,
         IController _setController,
         IDebtIssuanceModule _debtIssuanceModule,
+        IAaveLeverageModule _aaveLeverageModule,
         address _addressProvider
     )
         public
@@ -152,6 +156,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     {
         setController = _setController;
         debtIssuanceModule = _debtIssuanceModule;
+        aaveLeverageModule = _aaveLeverageModule;
 
         WETH = _weth;
     }
@@ -571,6 +576,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         isSetToken(_setToken)
         internal
     {
+        aaveLeverageModule.sync(_setToken);
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, true);
 
         address[] memory assets = new address[](1);
@@ -620,6 +626,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         isSetToken(_setToken)
         internal
     {
+        aaveLeverageModule.sync(_setToken);
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, false);
 
         address[] memory assets = new address[](1);

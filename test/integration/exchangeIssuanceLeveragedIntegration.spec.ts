@@ -6,7 +6,7 @@ import { SetToken } from "@utils/contracts/setV2";
 import { ethers } from "hardhat";
 import { utils, BigNumber } from "ethers";
 import { ExchangeIssuanceLeveraged, StandardTokenMock } from "@utils/contracts/index";
-import { ILeverageModule, IUniswapV2Router } from "../../typechain";
+import { IUniswapV2Router } from "../../typechain";
 import { MAX_UINT_256, ZERO } from "@utils/constants";
 
 const expect = getWaffleExpect();
@@ -46,7 +46,6 @@ if (process.env.INTEGRATIONTEST) {
     let dai: StandardTokenMock;
     let deployer: DeployHelper;
     let sushiRouter: IUniswapV2Router;
-    let aaveLeverageModule: ILeverageModule;
 
     let subjectSetToken: Address;
     let subjectSetAmount: BigNumber;
@@ -59,10 +58,6 @@ if (process.env.INTEGRATIONTEST) {
       eth2xFli = (await ethers.getContractAt("ISetToken", eth2xFliPAddress)) as SetToken;
       weth = (await ethers.getContractAt("StandardTokenMock", wethAddress)) as StandardTokenMock;
       dai = (await ethers.getContractAt("StandardTokenMock", daiAddress)) as StandardTokenMock;
-      aaveLeverageModule = (await ethers.getContractAt(
-        "ILeverageModule",
-        aaveLeverageModuleAddress,
-      )) as ILeverageModule;
 
       sushiRouter = (await ethers.getContractAt(
         "IUniswapV2Router",
@@ -77,8 +72,6 @@ if (process.env.INTEGRATIONTEST) {
       describe(`when the exchange is ${Exchange[exchange]}`, () => {
         beforeEach(async () => {
           subjectExchange = Exchange.UniV3;
-          // TODO: Check if we should include this call in the Exchange Issuance contract
-          await aaveLeverageModule.sync(eth2xFliPAddress);
         });
 
         it("fli token should return correct components", async () => {
@@ -97,6 +90,7 @@ if (process.env.INTEGRATIONTEST) {
               uniV3RouterAddress,
               controllerAddress,
               debtIssuanceModuleAddress,
+              aaveLeverageModuleAddress,
               addressProviderAddress,
             );
             await exchangeIssuance.approveSetToken(eth2xFliPAddress);
