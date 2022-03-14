@@ -160,6 +160,7 @@ export default class DeployExtensions {
     uniV3RouterAddress: Address,
     setControllerAddress: Address,
     basicIssuanceModuleAddress: Address,
+    aaveLeveragedModuleAddress: Address,
     addressProvider: Address,
   ): Promise<ExchangeIssuanceLeveraged> {
     return await new ExchangeIssuanceLeveraged__factory(this._deployerSigner).deploy(
@@ -169,6 +170,7 @@ export default class DeployExtensions {
       uniV3RouterAddress,
       setControllerAddress,
       basicIssuanceModuleAddress,
+      aaveLeveragedModuleAddress,
       addressProvider,
     );
   }

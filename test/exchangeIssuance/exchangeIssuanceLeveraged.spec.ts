@@ -381,6 +381,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         uniswapV3RouterAddress,
         controllerAddress,
         debtIssuanceModuleAddress,
+        aaveLeverageModule.address,
         addressProviderAddress,
       );
       return result;
@@ -433,6 +434,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         uniswapV3RouterAddress,
         controllerAddress,
         debtIssuanceModuleAddress,
+        aaveLeverageModule.address,
         addressProviderAddress,
       );
       ethAddress = await exchangeIssuance.ETH_ADDRESS();
