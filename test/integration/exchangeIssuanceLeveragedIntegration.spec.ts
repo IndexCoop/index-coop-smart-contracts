@@ -69,6 +69,11 @@ if (process.env.INTEGRATIONTEST) {
     };
     let debtTokenAddress: Address;
 
+    const setTokenExchangeMapping: Record<string, Exchange[]> = {
+      eth2xFli: [Exchange.UniV3, Exchange.Sushiswap],
+      iEthFli: [Exchange.Sushiswap],
+    };
+
     let owner: Account;
     let setToken: SetToken;
     let collateralToken: StandardTokenMock;
@@ -157,7 +162,8 @@ if (process.env.INTEGRATIONTEST) {
             expect(components[1]).to.equal(debtTokenAddress);
           });
 
-          [Exchange.UniV3, Exchange.Sushiswap].forEach(exchange => {
+
+          setTokenExchangeMapping[setTokenName].forEach(exchange => {
             describe(`when the exchange is ${Exchange[exchange]}`, () => {
               beforeEach(async () => {
                 subjectExchange = Exchange.UniV3;
