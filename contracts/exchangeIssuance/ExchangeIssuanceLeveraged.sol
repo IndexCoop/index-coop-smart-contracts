@@ -24,6 +24,8 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+import { ICurveCalculator } from "../interfaces/external/ICurveCalculator.sol";
+import { ICurveAddressProvider } from "../interfaces/external/ICurveAddressProvider.sol";
 import { ISwapRouter} from "../interfaces/external/ISwapRouter.sol";
 import { IAToken } from "../interfaces/IAToken.sol";
 import { IAaveLeverageModule } from "../interfaces/IAaveLeverageModule.sol";
@@ -138,7 +140,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     * @param _setController         SetToken controller used to verify a given token is a set
     * @param _debtIssuanceModule    DebtIssuanceModule used to issue and redeem tokens
     * @param _aaveLeverageModule    AaveLeverageModule to sync before every issuance / redemption
-    * @param _addressProvider       Address of DebtIssuanceModule used to issue and redeem tokens
+    * @param _aaveAddressProvider   Address of address provider for aaves addresses
+    * @param _curveAddressProvider  Contract to get current implementation address of curve registry
+    * @param _curveCalculator       Contract to calculate required input to receive given output in curve (for exact output swaps)
     */
     constructor(
         address _weth,
@@ -148,11 +152,13 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         IController _setController,
         IDebtIssuanceModule _debtIssuanceModule,
         IAaveLeverageModule _aaveLeverageModule,
-        address _addressProvider
+        address _aaveAddressProvider,
+        ICurveAddressProvider _curveAddressProvider,
+        ICurveCalculator _curveCalculator
     )
         public
-        FlashLoanReceiverBaseV2(_addressProvider)
-        DEXAdapter(_weth, _quickRouter, _sushiRouter, _uniV3Router)
+        FlashLoanReceiverBaseV2(_aaveAddressProvider)
+        DEXAdapter(_weth, _quickRouter, _sushiRouter, _uniV3Router, _curveAddressProvider, _curveCalculator)
     {
         setController = _setController;
         debtIssuanceModule = _debtIssuanceModule;

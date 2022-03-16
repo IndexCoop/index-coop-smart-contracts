@@ -7,7 +7,7 @@ import { ethers } from "hardhat";
 import { utils, BigNumber } from "ethers";
 import { ExchangeIssuanceLeveraged, StandardTokenMock } from "@utils/contracts/index";
 import { IUniswapV2Router } from "../../typechain";
-import { MAX_UINT_256, ZERO } from "@utils/constants";
+import { ADDRESS_ZERO, MAX_UINT_256, ZERO } from "@utils/constants";
 
 const expect = getWaffleExpect();
 
@@ -21,6 +21,7 @@ enum Exchange {
 type SwapData = {
   path: Address[];
   fees: number[];
+  pool: Address;
 };
 
 if (process.env.INTEGRATIONTEST) {
@@ -41,8 +42,10 @@ if (process.env.INTEGRATIONTEST) {
     const wmaticAddress: Address = "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270";
     const controllerAddress: Address = "0x75FBBDEAfE23a48c0736B2731b956b7a03aDcfB2";
     const debtIssuanceModuleAddress: Address = "0xf2dC2f456b98Af9A6bEEa072AF152a7b0EaA40C9";
-    const addressProviderAddress: Address = "0xd05e3E715d945B59290df0ae8eF85c1BdB684744";
+    const aaveeAddressProviderAddress: Address = "0xd05e3E715d945B59290df0ae8eF85c1BdB684744";
     const aaveLeverageModuleAddress: Address = "0xB7F72e15239197021480EB720E1495861A1ABdce";
+    const curveCalculatorAddress: Address = "0xc1DB00a8E5Ef7bfa476395cdbcc98235477cDE4E";
+    const curveAddressProviderAddress: Address = "0x0000000022D53366457F9d5E68Ec105046FC4383";
 
     const setTokenAddresses: Record<string, Address> = {
       eth2xFli: eth2xFliAddress,
@@ -93,7 +96,9 @@ if (process.env.INTEGRATIONTEST) {
           controllerAddress,
           debtIssuanceModuleAddress,
           aaveLeverageModuleAddress,
-          addressProviderAddress,
+          aaveeAddressProviderAddress,
+          curveCalculatorAddress,
+          curveAddressProviderAddress,
         );
 
         dai = (await ethers.getContractAt("StandardTokenMock", daiAddress)) as StandardTokenMock;
@@ -182,10 +187,12 @@ if (process.env.INTEGRATIONTEST) {
                     subjectDebtForCollateralSwapData = {
                       path: [debtTokenAddress, collateralTokenAddress],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
                     };
                     subjectInputTokenSwapData = {
                       path: [inputToken.address, wmaticAddress, collateralTokenAddress],
                       fees: [3000, 500],
+                      pool: ADDRESS_ZERO,
                     };
                   });
                   async function subject() {
@@ -227,11 +234,13 @@ if (process.env.INTEGRATIONTEST) {
                     subjectCollateralForDebtSwapData = {
                       path: [collateralTokenAddress, debtTokenAddress],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
                     };
 
                     subjectOutputTokenSwapData = {
                       path: [collateralTokenAddress, subjectOutputToken],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
                     };
                   });
 
@@ -272,11 +281,13 @@ if (process.env.INTEGRATIONTEST) {
                     subjectDebtForCollateralSwapData = {
                       path: [debtTokenAddress, collateralTokenAddress],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
                     };
 
                     subjectInputTokenSwapData = {
                       path: [wmaticAddress, collateralTokenAddress],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
                     };
                   });
                   async function subject() {
@@ -314,11 +325,13 @@ if (process.env.INTEGRATIONTEST) {
                     subjectCollateralForDebtSwapData = {
                       path: [collateralTokenAddress, debtTokenAddress],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
                     };
 
                     subjectOutputTokenSwapData = {
                       path: [collateralTokenAddress, wmaticAddress],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
                     };
                   });
                   async function subject() {
@@ -367,11 +380,13 @@ if (process.env.INTEGRATIONTEST) {
                     subjectDebtForCollateralSwapData = {
                       path: [debtTokenAddress, wmaticAddress, collateralTokenAddress],
                       fees: [3000, 3000],
+                      pool: ADDRESS_ZERO,
                     };
 
                     subjectInputTokenSwapData = {
                       path: [subjectInputToken, collateralTokenAddress],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
                     };
 
                     await collateralToken.approve(exchangeIssuance.address, subjectMaxAmountInput);
@@ -417,11 +432,13 @@ if (process.env.INTEGRATIONTEST) {
                     subjectCollateralForDebtSwapData = {
                       path: [collateralTokenAddress, debtTokenAddress],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
                     };
 
                     subjectOutputTokenSwapData = {
                       path: [collateralTokenAddress, subjectOutputToken],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
                     };
                   });
                   async function subject() {

@@ -50,6 +50,7 @@ enum Exchange {
 type SwapData = {
   path: Address[];
   fees: number[];
+  pool: Address;
 };
 
 const expect = getWaffleExpect();
@@ -94,7 +95,9 @@ describe("ExchangeIssuanceLeveraged", async () => {
   let sushiswapRouter: UniswapV2Router02;
   let controllerAddress: Address;
   let debtIssuanceModuleAddress: Address;
-  let addressProviderAddress: Address;
+  let aaveAddressProviderAddress: Address;
+  let curveCalculatorAddress: Address;
+  let curveAddressProviderAddress: Address;
 
   let quickswapSetup: UniswapFixture;
   let sushiswapSetup: UniswapFixture;
@@ -213,7 +216,9 @@ describe("ExchangeIssuanceLeveraged", async () => {
     sushiswapRouter = sushiswapSetup.router;
     controllerAddress = setV2Setup.controller.address;
     debtIssuanceModuleAddress = debtIssuanceModule.address;
-    addressProviderAddress = aaveSetup.lendingPoolAddressesProvider.address;
+    aaveAddressProviderAddress = aaveSetup.lendingPoolAddressesProvider.address;
+    curveCalculatorAddress = ADDRESS_ZERO;
+    curveAddressProviderAddress = ADDRESS_ZERO;
 
     // ETH-USDC pools
     await setV2Setup.usdc.connect(owner.wallet).approve(quickswapRouter.address, MAX_INT_256);
@@ -382,7 +387,9 @@ describe("ExchangeIssuanceLeveraged", async () => {
         controllerAddress,
         debtIssuanceModuleAddress,
         aaveLeverageModule.address,
-        addressProviderAddress,
+        aaveAddressProviderAddress,
+        curveCalculatorAddress,
+        curveAddressProviderAddress,
       );
       return result;
     }
@@ -435,7 +442,9 @@ describe("ExchangeIssuanceLeveraged", async () => {
         controllerAddress,
         debtIssuanceModuleAddress,
         aaveLeverageModule.address,
-        addressProviderAddress,
+        aaveAddressProviderAddress,
+        curveCalculatorAddress,
+        curveAddressProviderAddress,
       );
       ethAddress = await exchangeIssuance.ETH_ADDRESS();
     });
@@ -567,21 +576,25 @@ describe("ExchangeIssuanceLeveraged", async () => {
           subjectCollateralForDebtSwapData = {
             path: [collateralToken.address, setV2Setup.usdc.address],
             fees: [3000],
+            pool: ADDRESS_ZERO,
           };
           subjectOutputTokenSwapData = {
             path: [collateralToken.address, outputToken.address],
             fees: [3000],
+            pool: ADDRESS_ZERO,
           };
 
           const debtForCollateralSwapData = {
             path: [setV2Setup.usdc.address, collateralToken.address],
             fees: [3000],
+            pool: ADDRESS_ZERO,
           };
 
           // Can be empty since we are paying with collateral token and don't need to do this swap
           const inputTokenSwapData = {
             path: [],
             fees: [],
+            pool: ADDRESS_ZERO,
           };
 
           await collateralToken.approve(exchangeIssuance.address, collateralAmount);
@@ -711,11 +724,13 @@ describe("ExchangeIssuanceLeveraged", async () => {
           subjectDebtForCollateralSwapData = {
             path: [setV2Setup.usdc.address, collateralToken.address],
             fees: [3000],
+            pool: ADDRESS_ZERO,
           };
 
           subjectInputTokenSwapData = {
             path: [inputToken.address, collateralToken.address],
             fees: [3000],
+            pool: ADDRESS_ZERO,
           };
 
           await inputToken.approve(exchangeIssuance.address, subjectMaxAmountInput);

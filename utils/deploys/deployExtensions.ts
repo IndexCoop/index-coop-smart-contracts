@@ -161,7 +161,9 @@ export default class DeployExtensions {
     setControllerAddress: Address,
     basicIssuanceModuleAddress: Address,
     aaveLeveragedModuleAddress: Address,
-    addressProvider: Address,
+    aaveAddressProviderAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
   ): Promise<ExchangeIssuanceLeveraged> {
     return await new ExchangeIssuanceLeveraged__factory(this._deployerSigner).deploy(
       wethAddress,
@@ -171,7 +173,9 @@ export default class DeployExtensions {
       setControllerAddress,
       basicIssuanceModuleAddress,
       aaveLeveragedModuleAddress,
-      addressProvider,
+      aaveAddressProviderAddress,
+      curveCalculatorAddress,
+      curveAddressProviderAddress,
     );
   }
 

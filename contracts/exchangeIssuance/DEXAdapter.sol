@@ -21,6 +21,10 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
+import { ICurveCalculator } from "../interfaces/external/ICurveCalculator.sol";
+import { ICurveAddressProvider } from "../interfaces/external/ICurveAddressProvider.sol";
+import { ICurvePoolRegistry } from "../interfaces/external/ICurvePoolRegistry.sol";
+import { ICurveRegistryExchange } from "../interfaces/external/ICurveRegistryExchange.sol";
 import { ISwapRouter} from "../interfaces/external/ISwapRouter.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
@@ -42,16 +46,18 @@ abstract contract DEXAdapter {
 
     uint256 constant private MAX_UINT256 = type(uint256).max;
     uint24 public constant POOL_FEE = 3000;
+    uint256 public constant CURVE_REGISTRY_EXCHANGE_ID = 2;
 
     /* ============ Enums ============ */
 
-    enum Exchange { None, Quickswap, Sushiswap, UniV3}
+    enum Exchange { None, Quickswap, Sushiswap, UniV3, Curve }
 
     /* ============ Structs ============ */
 
     struct SwapData {
         address[] path;
         uint24[] fees;
+        address pool;
     }
 
     /* ============ State Variables ============ */
@@ -59,6 +65,8 @@ abstract contract DEXAdapter {
     IUniswapV2Router02 immutable public quickRouter;
     IUniswapV2Router02 immutable public sushiRouter;
     ISwapRouter immutable public uniV3Router;
+    ICurveAddressProvider immutable public curveAddressProvider;
+    ICurveCalculator immutable public curveCalculator;
 
     /**
     * Sets various contract addresses and approves wrapped native token to the routers
@@ -67,18 +75,24 @@ abstract contract DEXAdapter {
     * @param _quickRouter           Address of quickswap router
     * @param _sushiRouter           Address of sushiswap router
     * @param _uniV3Router           Address of uniswap v3 router
+    * @param _curveAddressProvider  Contract to get current implementation address of curve registry
+    * @param _curveCalculator       Contract to calculate required input to receive given output in curve (for exact output swaps)
     */
     constructor(
         address _weth,
         IUniswapV2Router02 _quickRouter,
         IUniswapV2Router02 _sushiRouter,
-        ISwapRouter _uniV3Router
+        ISwapRouter _uniV3Router,
+        ICurveAddressProvider _curveAddressProvider,
+        ICurveCalculator _curveCalculator
     )
         public
     {
         quickRouter = _quickRouter;
         sushiRouter = _sushiRouter;
         uniV3Router = _uniV3Router;
+        curveAddressProvider = _curveAddressProvider;
+        curveCalculator = _curveCalculator;
 
         IERC20(_weth).safeApprove(address(_quickRouter), PreciseUnitMath.maxUint256());
         IERC20(_weth).safeApprove(address(_sushiRouter), PreciseUnitMath.maxUint256());
@@ -109,6 +123,9 @@ abstract contract DEXAdapter {
             return _amountIn;
         }
 
+        if(_exchange == Exchange.Curve){
+            return _swapExactTokensForTokensCurve(_swapData.path, _swapData.pool, _amountIn, _minAmountOut);
+        }
         if(_exchange == Exchange.UniV3){
             return _swapExactTokensForTokensUniV3(_swapData.path, _swapData.fees, _amountIn, _minAmountOut);
         } else {
@@ -137,6 +154,9 @@ abstract contract DEXAdapter {
     {
         if (_swapData.path[0] == _swapData.path[_swapData.path.length -1]) {
             return _amountOut;
+        }
+        if(_exchange == Exchange.Curve){
+            return _swapTokensForExactTokensCurve(_swapData.path, _swapData.pool, _amountOut, _maxAmountIn);
         }
         if(_exchange == Exchange.UniV3){
             return _swapTokensForExactTokensUniV3(_swapData.path, _swapData.fees, _amountOut, _maxAmountIn);
@@ -256,6 +276,54 @@ abstract contract DEXAdapter {
                 });
             return uniV3Router.exactOutput(params);
         }
+    }
+
+    /**
+     *  Execute exact input swap via Curve
+     *
+     * @param _path         Path (has to be of length 2)
+     * @param _pool         Address of curve pool to use
+     * @param _amountIn     The amount of input token to be spent
+     * @param _minAmountOut Minimum amount of output token to receive
+     *
+     * @return amountOut    The amount of output token obtained
+     */
+    function _swapExactTokensForTokensCurve(
+        address[] memory _path,
+        address _pool,
+        uint256 _amountIn,
+        uint256 _minAmountOut
+    )
+        private
+        returns (uint256)
+    {
+        ICurvePoolRegistry registry = ICurvePoolRegistry(curveAddressProvider.get_registry());
+        ICurveRegistryExchange registryExchange = ICurveRegistryExchange(curveAddressProvider.get_address(CURVE_REGISTRY_EXCHANGE_ID));
+        return 0;
+    }
+
+    /**
+     *  Execute exact output swap via Curve
+     *
+     * @param _path         Path (has to be of length 2)
+     * @param _pool         Address of curve pool to use
+     * @param _amountOut    The amount of output token required
+     * @param _maxAmountIn  Maximum amount of input token to be spent
+     *
+     * @return amountOut    The amount of output token obtained
+     */
+    function _swapTokensForExactTokensCurve(
+        address[] memory _path,
+        address _pool,
+        uint256 _amountOut,
+        uint256 _maxAmountIn
+    )
+        private
+        returns (uint256)
+    {
+        ICurvePoolRegistry registry = ICurvePoolRegistry(curveAddressProvider.get_registry());
+        ICurveRegistryExchange registryExchange = ICurveRegistryExchange(curveAddressProvider.get_address(CURVE_REGISTRY_EXCHANGE_ID));
+        return 0;
     }
 
     /**
