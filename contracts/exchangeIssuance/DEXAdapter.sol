@@ -297,9 +297,20 @@ abstract contract DEXAdapter {
         private
         returns (uint256)
     {
-        ICurvePoolRegistry registry = ICurvePoolRegistry(curveAddressProvider.get_registry());
+        require(_path.length == 2, "ExchangeIssuance: CURVE_WRONG_PATH_LENGTH");
+        address from = _path[0];
+        address to = _path[1];
         ICurveRegistryExchange registryExchange = ICurveRegistryExchange(curveAddressProvider.get_address(CURVE_REGISTRY_EXCHANGE_ID));
-        return 0;
+
+        IERC20(from).approve(address(registryExchange), _amountIn);
+
+        return registryExchange.exchange(
+            _pool,
+            from,
+            to,
+            _amountIn,
+            _minAmountOut
+        );
     }
 
     /**
