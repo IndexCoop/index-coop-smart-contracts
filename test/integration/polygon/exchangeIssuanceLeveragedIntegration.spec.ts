@@ -1,13 +1,14 @@
 import "module-alias/register";
 import { Address, Account } from "@utils/types";
 import DeployHelper from "@utils/deploys";
-import { getAccounts, getWaffleExpect } from "@utils/index";
+import { getAccounts, getSetFixture, getWaffleExpect } from "@utils/index";
 import { SetToken } from "@utils/contracts/setV2";
 import { ethers } from "hardhat";
 import { utils, BigNumber } from "ethers";
 import { ExchangeIssuanceLeveraged, StandardTokenMock } from "@utils/contracts/index";
-import { IUniswapV2Router } from "../../typechain";
+import { IUniswapV2Router } from "../../../typechain";
 import { ADDRESS_ZERO, MAX_UINT_256, ZERO } from "@utils/constants";
+import { SetFixture } from "@utils/fixtures";
 
 const expect = getWaffleExpect();
 
@@ -79,6 +80,7 @@ if (process.env.INTEGRATIONTEST) {
     let collateralToken: StandardTokenMock;
     let dai: StandardTokenMock;
     let deployer: DeployHelper;
+    let setV2Setup: SetFixture;
     let sushiRouter: IUniswapV2Router;
 
     let subjectSetToken: Address;
@@ -87,12 +89,17 @@ if (process.env.INTEGRATIONTEST) {
 
     let ethToSpend: BigNumber;
 
+    before(async () => {
+      [owner] = await getAccounts();
+      deployer = new DeployHelper(owner.wallet);
+      setV2Setup = getSetFixture(owner.address);
+      await setV2Setup.initialize();
+    });
+
+
     context("When exchange issuance is deployed", () => {
       let exchangeIssuance: ExchangeIssuanceLeveraged;
       before(async () => {
-        [owner] = await getAccounts();
-        deployer = new DeployHelper(owner.wallet);
-
         exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveraged(
           wmaticAddress,
           quickswapRouterAddress,
@@ -161,7 +168,6 @@ if (process.env.INTEGRATIONTEST) {
             expect(components[0]).to.equal(collateralATokenAddress);
             expect(components[1]).to.equal(debtTokenAddress);
           });
-
 
           setTokenExchangeMapping[setTokenName].forEach(exchange => {
             describe(`when the exchange is ${Exchange[exchange]}`, () => {
