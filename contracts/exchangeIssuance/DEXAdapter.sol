@@ -60,6 +60,16 @@ abstract contract DEXAdapter {
         address pool;
     }
 
+
+    struct CurvePoolData {
+        int128 nCoins;
+        uint256[8] balances;
+        uint256 A;
+        uint256 fee;
+        uint256[8] rates;
+        uint256[8] decimals;
+    }
+
     /* ============ State Variables ============ */
 
     IUniswapV2Router02 immutable public quickRouter;
@@ -332,10 +342,85 @@ abstract contract DEXAdapter {
         private
         returns (uint256)
     {
-        ICurvePoolRegistry registry = ICurvePoolRegistry(curveAddressProvider.get_registry());
+        require(_path.length == 2, "ExchangeIssuance: CURVE_WRONG_PATH_LENGTH");
+        address from = _path[0];
+        address to = _path[1];
+
         ICurveRegistryExchange registryExchange = ICurveRegistryExchange(curveAddressProvider.get_address(CURVE_REGISTRY_EXCHANGE_ID));
-        return 0;
+        uint256 amountIn = _getAmountInCurve(_pool, from, to, _amountOut);
+        require(amountIn <= _maxAmountIn, "ExchangeIssuance: CURVE_OVERSPENT");
+
+        IERC20(from).approve(address(registryExchange), amountIn);
+
+        registryExchange.exchange(
+            _pool,
+            from,
+            to,
+            amountIn,
+            _amountOut
+        );
+        return amountIn;
     }
+
+    function _getAmountInCurve(
+        address _pool,
+        address _from,
+        address _to,
+        uint256 _amountOut
+    )
+        private
+        returns (uint256)
+    {
+        (int128 i, int128 j) =_getCoinIndices(_pool, _from, _to);
+        CurvePoolData memory poolData = _getCurvePoolData(_pool, i, j);
+
+        return curveCalculator.get_dx(
+            poolData.nCoins,
+            poolData.balances,
+            poolData.A,
+            poolData.fee,
+            poolData.rates,
+            poolData.decimals,
+            false,
+            i,
+            j,
+            _amountOut
+        );
+    }
+
+    function _getCurvePoolData(
+        address _pool,
+        int128 _i,
+        int128 _j
+    ) private view returns(CurvePoolData memory)
+    {
+        ICurvePoolRegistry registry = ICurvePoolRegistry(curveAddressProvider.get_registry());
+
+        return CurvePoolData(
+            int128(registry.get_n_coins(_pool)[0]),
+            registry.get_balances(_pool),
+            registry.get_A(_pool),
+            registry.get_fees(_pool)[0],
+            registry.get_rates(_pool),
+            registry.get_decimals(_pool)
+        );
+    }
+    
+    function _getCoinIndices(
+        address _pool,
+        address _from,
+        address _to
+    )
+    private view returns (int128, int128)
+    {
+        ICurvePoolRegistry registry = ICurvePoolRegistry(curveAddressProvider.get_registry());
+
+        (int128 i, int128 j, bool success) = registry.get_coin_indices(_pool, _from, _to);
+        require(success, "ExchangeIssuance: CURVE_COIN_INDICES_NOT_FOUND");
+        return (i, j);
+    }
+
+
 
     /**
      *  Execute exact input swap via UniswapV3
