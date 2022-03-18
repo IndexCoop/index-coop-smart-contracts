@@ -62,6 +62,7 @@ abstract contract DEXAdapter {
         address[] path;
         uint24[] fees;
         address pool;
+        Exchange exchange;
     }
 
 
@@ -117,7 +118,6 @@ abstract contract DEXAdapter {
     /**
      * Swap exact tokens for another token on a given DEX.
      *
-     * @param _exchange     The exchange on which to peform the swap
      * @param _amountIn     The amount of input token to be spent
      * @param _minAmountOut Minimum amount of output token to receive
      * @param _swapData     Swap data containing the path and fee levels (latter only used for uniV3)
@@ -125,7 +125,6 @@ abstract contract DEXAdapter {
      * @return amountOut    The amount of output tokens
      */
     function _swapExactTokensForTokens(
-        Exchange _exchange,
         uint256 _amountIn,
         uint256 _minAmountOut,
         SwapData memory _swapData
@@ -137,20 +136,19 @@ abstract contract DEXAdapter {
             return _amountIn;
         }
 
-        if(_exchange == Exchange.Curve){
+        if(_swapData.exchange == Exchange.Curve){
             return _swapExactTokensForTokensCurve(_swapData.path, _swapData.pool, _amountIn, _minAmountOut);
         }
-        if(_exchange == Exchange.UniV3){
+        if(_swapData.exchange== Exchange.UniV3){
             return _swapExactTokensForTokensUniV3(_swapData.path, _swapData.fees, _amountIn, _minAmountOut);
         } else {
-            return _swapExactTokensForTokensUniV2(_swapData.path, _amountIn, _minAmountOut, _exchange);
+            return _swapExactTokensForTokensUniV2(_swapData.path, _amountIn, _minAmountOut, _swapData.exchange);
         }
     }
 
     /**
      * Swap tokens for exact amount of output tokens on a given DEX.
      *
-     * @param _exchange     The exchange on which to peform the swap
      * @param _amountOut    The amount of output token required
      * @param _maxAmountIn  Maximum amount of input token to be spent
      * @param _swapData     Swap data containing the path and fee levels (latter only used for uniV3)
@@ -158,7 +156,6 @@ abstract contract DEXAdapter {
      * @return amountIn     The amount of input tokens spent
      */
     function _swapTokensForExactTokens(
-        Exchange _exchange,
         uint256 _amountOut,
         uint256 _maxAmountIn,
         SwapData memory _swapData
@@ -169,13 +166,13 @@ abstract contract DEXAdapter {
         if (_swapData.path[0] == _swapData.path[_swapData.path.length -1]) {
             return _amountOut;
         }
-        if(_exchange == Exchange.Curve){
+        if(_swapData.exchange == Exchange.Curve){
             return _swapTokensForExactTokensCurve(_swapData.path, _swapData.pool, _amountOut, _maxAmountIn);
         }
-        if(_exchange == Exchange.UniV3){
+        if(_swapData.exchange == Exchange.UniV3){
             return _swapTokensForExactTokensUniV3(_swapData.path, _swapData.fees, _amountOut, _maxAmountIn);
         } else {
-            return _swapTokensForExactTokensUniV2(_swapData.path, _amountOut, _maxAmountIn, _exchange);
+            return _swapTokensForExactTokensUniV2(_swapData.path, _amountOut, _maxAmountIn, _swapData.exchange);
         }
     }
 

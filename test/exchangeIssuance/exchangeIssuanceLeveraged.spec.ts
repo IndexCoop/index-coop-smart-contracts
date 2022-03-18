@@ -51,6 +51,7 @@ type SwapData = {
   path: Address[];
   fees: number[];
   pool: Address;
+  exchange: Exchange;
 };
 
 const expect = getWaffleExpect();
@@ -515,7 +516,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         let subjectSetToken: Address;
         let subjectSetAmount: BigNumber;
         let subjectMinAmountOutput: BigNumber;
-        let subjectExchange: Exchange;
+        let exchange: Exchange;
         let subjectCollateralForDebtSwapData: SwapData;
         let subjectOutputTokenSwapData: SwapData;
         let amountReturned: BigNumber;
@@ -529,8 +530,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
               subjectSetToken,
               subjectSetAmount,
               collateralToken.address,
-              subjectMinAmountOutput,
-              subjectExchange,
               subjectCollateralForDebtSwapData,
               subjectOutputTokenSwapData,
             );
@@ -540,7 +539,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
               subjectSetAmount,
               subjectOutputToken,
               subjectMinAmountOutput,
-              subjectExchange,
               subjectCollateralForDebtSwapData,
               subjectOutputTokenSwapData,
             );
@@ -549,7 +547,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
               subjectSetToken,
               subjectSetAmount,
               subjectMinAmountOutput,
-              subjectExchange,
               subjectCollateralForDebtSwapData,
               subjectOutputTokenSwapData,
             );
@@ -558,7 +555,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         beforeEach(async () => {
           subjectSetToken = setToken.address;
           subjectSetAmount = ether(1);
-          subjectExchange = Exchange.Quickswap;
+          exchange = Exchange.Quickswap;
           ({ collateralAmount } = await exchangeIssuance.getLeveragedTokenData(
             subjectSetToken,
             subjectSetAmount,
@@ -577,17 +574,20 @@ describe("ExchangeIssuanceLeveraged", async () => {
             path: [collateralToken.address, setV2Setup.usdc.address],
             fees: [3000],
             pool: ADDRESS_ZERO,
+            exchange,
           };
           subjectOutputTokenSwapData = {
             path: [collateralToken.address, outputToken.address],
             fees: [3000],
             pool: ADDRESS_ZERO,
+            exchange,
           };
 
           const debtForCollateralSwapData = {
             path: [setV2Setup.usdc.address, collateralToken.address],
             fees: [3000],
             pool: ADDRESS_ZERO,
+            exchange,
           };
 
           // Can be empty since we are paying with collateral token and don't need to do this swap
@@ -595,6 +595,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
             path: [],
             fees: [],
             pool: ADDRESS_ZERO,
+            exchange,
           };
 
           await collateralToken.approve(exchangeIssuance.address, collateralAmount);
@@ -604,7 +605,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
             subjectSetAmount,
             collateralToken.address,
             collateralAmount,
-            subjectExchange,
             debtForCollateralSwapData,
             inputTokenSwapData,
           );
@@ -664,7 +664,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         let subjectSetToken: Address;
         let subjectSetAmount: BigNumber;
         let subjectMaxAmountInput: BigNumber;
-        let subjectExchange: Exchange;
+        let exchange: Exchange;
         let subjectInputToken: Address;
         let subjectDebtForCollateralSwapData: SwapData;
         let subjectInputTokenSwapData: SwapData;
@@ -678,7 +678,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
               subjectSetAmount,
               collateralToken.address,
               subjectMaxAmountInput,
-              subjectExchange,
               subjectDebtForCollateralSwapData,
               subjectInputTokenSwapData,
             );
@@ -688,7 +687,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
               subjectSetAmount,
               subjectInputToken,
               subjectMaxAmountInput,
-              subjectExchange,
               subjectDebtForCollateralSwapData,
               subjectInputTokenSwapData,
             );
@@ -696,7 +694,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
             return await exchangeIssuance.issueExactSetFromETH(
               subjectSetToken,
               subjectSetAmount,
-              subjectExchange,
               subjectDebtForCollateralSwapData,
               subjectInputTokenSwapData,
               { value: subjectMaxAmountInput },
@@ -706,7 +703,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         beforeEach(async () => {
           subjectSetToken = setToken.address;
           subjectSetAmount = ether(1);
-          subjectExchange = Exchange.Quickswap;
+          exchange = Exchange.Quickswap;
           ({ collateralAmount } = await exchangeIssuance.getLeveragedTokenData(
             subjectSetToken,
             subjectSetAmount,
@@ -725,12 +722,14 @@ describe("ExchangeIssuanceLeveraged", async () => {
             path: [setV2Setup.usdc.address, collateralToken.address],
             fees: [3000],
             pool: ADDRESS_ZERO,
+            exchange,
           };
 
           subjectInputTokenSwapData = {
             path: [inputToken.address, collateralToken.address],
             fees: [3000],
             pool: ADDRESS_ZERO,
+            exchange,
           };
 
           await inputToken.approve(exchangeIssuance.address, subjectMaxAmountInput);
@@ -786,7 +785,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         });
         context("when exchange without any liquidity is specified", async () => {
           beforeEach(async () => {
-            subjectExchange = Exchange.Sushiswap;
+            exchange = Exchange.Sushiswap;
           });
           it("should revert", async () => {
             // TODO: Check why this is failing without any reason. Would have expected something more descriptive coming from the router
@@ -811,7 +810,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
                 { value: ether(0.001), gasLimit: 9000000 },
               );
 
-            subjectExchange = Exchange.Sushiswap;
+            exchange = Exchange.Sushiswap;
           });
           it("should revert", async () => {
             const revertReasonMapping: Record<string, string> = {
