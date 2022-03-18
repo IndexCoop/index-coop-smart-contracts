@@ -30,6 +30,7 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 
 
+
 /**
  * @title DEXAdapter
  * @author Index Coop
@@ -47,6 +48,7 @@ abstract contract DEXAdapter {
     uint256 constant private MAX_UINT256 = type(uint256).max;
     uint24 public constant POOL_FEE = 3000;
     uint256 public constant CURVE_REGISTRY_EXCHANGE_ID = 2;
+    address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /* ============ Enums ============ */
 
@@ -304,23 +306,13 @@ abstract contract DEXAdapter {
         uint256 _amountIn,
         uint256 _minAmountOut
     )
-        private
+        public
         returns (uint256)
     {
         require(_path.length == 2, "ExchangeIssuance: CURVE_WRONG_PATH_LENGTH");
         address from = _path[0];
         address to = _path[1];
-        ICurveRegistryExchange registryExchange = ICurveRegistryExchange(curveAddressProvider.get_address(CURVE_REGISTRY_EXCHANGE_ID));
-
-        IERC20(from).approve(address(registryExchange), _amountIn);
-
-        return registryExchange.exchange(
-            _pool,
-            from,
-            to,
-            _amountIn,
-            _minAmountOut
-        );
+        return _exchangeCurve(from, to, _pool, _amountIn, _minAmountOut);
     }
 
     /**
@@ -339,27 +331,65 @@ abstract contract DEXAdapter {
         uint256 _amountOut,
         uint256 _maxAmountIn
     )
-        private
+        public
         returns (uint256)
     {
         require(_path.length == 2, "ExchangeIssuance: CURVE_WRONG_PATH_LENGTH");
         address from = _path[0];
         address to = _path[1];
 
-        ICurveRegistryExchange registryExchange = ICurveRegistryExchange(curveAddressProvider.get_address(CURVE_REGISTRY_EXCHANGE_ID));
         uint256 amountIn = _getAmountInCurve(_pool, from, to, _amountOut);
         require(amountIn <= _maxAmountIn, "ExchangeIssuance: CURVE_OVERSPENT");
 
-        IERC20(from).approve(address(registryExchange), amountIn);
+        uint256 returnedAmountOut = _exchangeCurve(from, to, _pool, amountIn, _amountOut);
+        require(_amountOut <= returnedAmountOut, "ExchangeIssuance: CURVE_UNDERBOUGHT");
 
-        registryExchange.exchange(
-            _pool,
-            from,
-            to,
-            amountIn,
-            _amountOut
-        );
         return amountIn;
+    }
+    
+    function _exchangeCurve(
+        address _from,
+        address _to,
+        address _pool,
+        uint256 _amountIn,
+        uint256 _minAmountOut
+    )
+        private
+        returns (uint256 amountOut)
+    {
+        ICurveRegistryExchange registryExchange = ICurveRegistryExchange(curveAddressProvider.get_address(CURVE_REGISTRY_EXCHANGE_ID));
+        if(_from == ETH_ADDRESS){
+            amountOut = registryExchange.exchange{value: _amountIn}(
+                _pool,
+                _from,
+                _to,
+                _amountIn,
+                _minAmountOut
+            );
+        }
+        else {
+            IERC20(_from).approve(address(registryExchange), _amountIn);
+            amountOut = registryExchange.exchange(
+                _pool,
+                _from,
+                _to,
+                _amountIn,
+                _minAmountOut
+            );
+        }
+    }
+
+    function getAmountInCurve(
+        address _pool,
+        address _from,
+        address _to,
+        uint256 _amountOut
+    )
+        external
+        view
+        returns (uint256)
+    {
+        return _getAmountInCurve(_pool, _from, _to, _amountOut);
     }
 
     function _getAmountInCurve(
@@ -369,6 +399,7 @@ abstract contract DEXAdapter {
         uint256 _amountOut
     )
         private
+        view
         returns (uint256)
     {
         (int128 i, int128 j) =_getCoinIndices(_pool, _from, _to);
@@ -381,7 +412,7 @@ abstract contract DEXAdapter {
             poolData.fee,
             poolData.rates,
             poolData.decimals,
-            false,
+            true,
             i,
             j,
             _amountOut
@@ -411,12 +442,31 @@ abstract contract DEXAdapter {
         address _from,
         address _to
     )
-    private view returns (int128, int128)
+    public view returns (int128 i, int128 j)
     {
         ICurvePoolRegistry registry = ICurvePoolRegistry(curveAddressProvider.get_registry());
 
-        (int128 i, int128 j, bool success) = registry.get_coin_indices(_pool, _from, _to);
-        require(success, "ExchangeIssuance: CURVE_COIN_INDICES_NOT_FOUND");
+        // Set to out of range index to signal the coin is not found yet
+        i = 9;
+        j = 9;
+        address[8] memory poolCoins = registry.get_coins(_pool);
+
+        for(uint256 k = 0; k < 8; k++){
+            if(poolCoins[k] == _from){
+                i = int128(k);
+            }
+            else if(poolCoins[k] == _to){
+                j = int128(k);
+            }
+            // ZeroAddress signals end of list
+            if(poolCoins[k] == address(0) || (i != 9 && j != 9)){
+                break;
+            }
+        }
+
+        require(i != 9, "ExchangeIssuance: CURVE_FROM_NOT_FOUND");
+        require(j != 9, "ExchangeIssuance: CURVE_TO_NOT_FOUND");
+
         return (i, j);
     }
 

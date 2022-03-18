@@ -25,5 +25,5 @@ interface ICurveRegistryExchange {
         address _to,
         uint256 _amount,
         uint256 _expected
-    ) external returns(uint256);
+    ) external payable returns(uint256);
 }

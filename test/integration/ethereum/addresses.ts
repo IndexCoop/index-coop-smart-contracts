@@ -1,7 +1,7 @@
 export default {
   tokens: {
     stEthAm: "0x28424507fefb6f7f8E9D3860F56504E4e5f5f390",
-    stEth: "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619",
+    stEth: "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
     dai: "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063",
     weth: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
   },
@@ -9,6 +9,12 @@ export default {
     curve: {
       calculator: "0xc1DB00a8E5Ef7bfa476395cdbcc98235477cDE4E",
       addressProvider: "0x0000000022D53366457F9d5E68Ec105046FC4383",
+      registry: "0x90E00ACe148ca3b23Ac1bC8C240C2a7Dd9c2d7f5",
+      ethAddress: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+
+      pools: {
+        stEthEth: "0xDC24316b9AE028F1497c275EB9192a3Ea0f67022",
+      },
     },
     sushiswap: {
       router: "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F",
@@ -29,6 +35,7 @@ export default {
   lending: {
     aave: {
       addressProvider: "0xB53C1a33016B2DC2fF3653530bfF1848a515c8c5",
+      lendingPool: "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
     },
   },
 };

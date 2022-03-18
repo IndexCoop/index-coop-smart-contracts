@@ -21,6 +21,7 @@ interface ICurvePoolRegistry {
     // amplification factor
     function get_A(address _pool) external view returns(uint256);
     function get_balances(address _pool) external view returns(uint256[8] memory);
+    function get_coins(address _pool) external view returns(address[8] memory);
     function get_coin_indices(address _pool, address _from, address _to) external view returns(int128, int128, bool);
     function get_decimals(address _pool) external view returns(uint256[8] memory);
     function get_n_coins(address _pool) external view returns(uint256[2] memory);
