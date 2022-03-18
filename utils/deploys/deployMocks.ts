@@ -10,10 +10,7 @@ import {
   StringArrayUtilsMock,
   TradeAdapterMock,
   WrapAdapterMock,
-<<<<<<< HEAD
   ZeroExExchangeProxyMock
-=======
->>>>>>> 51a51bb (formatting)
 } from "../contracts/index";
 
 import { BaseExtensionMock__factory } from "../../typechain/factories/BaseExtensionMock__factory";
