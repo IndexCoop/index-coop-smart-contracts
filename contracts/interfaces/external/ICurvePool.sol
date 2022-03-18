@@ -1,3 +1,4 @@
+
 /*
     Copyright 2022 Index Cooperative
 
@@ -16,18 +17,12 @@
 pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
-// Implementation: https://etherscan.io/address/0xc1DB00a8E5Ef7bfa476395cdbcc98235477cDE4E#readContract
-interface ICurveCalculator {
-    function get_dx(
-        int128 n_coins,
-        uint256[8] memory balances,
-        uint256 amp,
-        uint256 fee,
-        uint256[8] memory rates,
-        uint256[8] memory precisions,
-        bool underlying,
+// Implementation: https://etherscan.io/address/0x8e764bE4288B842791989DB5b8ec067279829809#writeContract
+interface ICurvePool {
+    function exchange(
         int128 i,
         int128 j,
-        uint256 dy
-    ) external view returns(uint256);
+        uint256 dx,
+        uint256 min_dy
+    ) external payable returns(uint256);
 }

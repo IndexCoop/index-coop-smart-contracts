@@ -24,9 +24,11 @@ import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { ICurveCalculator } from "../interfaces/external/ICurveCalculator.sol";
 import { ICurveAddressProvider } from "../interfaces/external/ICurveAddressProvider.sol";
 import { ICurvePoolRegistry } from "../interfaces/external/ICurvePoolRegistry.sol";
-import { ICurveRegistryExchange } from "../interfaces/external/ICurveRegistryExchange.sol";
+import { ICurvePool } from "../interfaces/external/ICurvePool.sol";
 import { ISwapRouter} from "../interfaces/external/ISwapRouter.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
+
+import "hardhat/console.sol";
 
 
 
@@ -310,9 +312,8 @@ abstract contract DEXAdapter {
         returns (uint256)
     {
         require(_path.length == 2, "ExchangeIssuance: CURVE_WRONG_PATH_LENGTH");
-        address from = _path[0];
-        address to = _path[1];
-        return _exchangeCurve(from, to, _pool, _amountIn, _minAmountOut);
+        (int128 i, int128 j) = _getCoinIndices(_pool, _path[0], _path[1]);
+        return _exchangeCurve(i, j, _pool, _amountIn, _minAmountOut, _path[0]);
     }
 
     /**
@@ -335,63 +336,67 @@ abstract contract DEXAdapter {
         returns (uint256)
     {
         require(_path.length == 2, "ExchangeIssuance: CURVE_WRONG_PATH_LENGTH");
-        address from = _path[0];
-        address to = _path[1];
+        (int128 i, int128 j) = _getCoinIndices(_pool, _path[0], _path[1]);
 
-        uint256 amountIn = _getAmountInCurve(_pool, from, to, _amountOut);
+        uint256 amountIn = _getAmountInCurve(_pool, i, j, _amountOut);
         require(amountIn <= _maxAmountIn, "ExchangeIssuance: CURVE_OVERSPENT");
 
-        uint256 returnedAmountOut = _exchangeCurve(from, to, _pool, amountIn, _amountOut);
+        uint256 returnedAmountOut = _exchangeCurve(i, j, _pool, amountIn, _amountOut, _path[0]);
         require(_amountOut <= returnedAmountOut, "ExchangeIssuance: CURVE_UNDERBOUGHT");
 
         return amountIn;
     }
     
     function _exchangeCurve(
-        address _from,
-        address _to,
+        int128 _i,
+        int128 _j,
         address _pool,
         uint256 _amountIn,
-        uint256 _minAmountOut
+        uint256 _minAmountOut,
+        address _from
     )
         private
         returns (uint256 amountOut)
     {
-        ICurveRegistryExchange registryExchange = ICurveRegistryExchange(curveAddressProvider.get_address(CURVE_REGISTRY_EXCHANGE_ID));
+        console.log("Exchange curve entered");
+        ICurvePool pool = ICurvePool(_pool);
         if(_from == ETH_ADDRESS){
-            amountOut = registryExchange.exchange{value: _amountIn}(
-                _pool,
-                _from,
-                _to,
+            console.log("Input token is ETH");
+            amountOut = pool.exchange{value: _amountIn}(
+                _i,
+                _j,
                 _amountIn,
                 _minAmountOut
             );
         }
         else {
-            IERC20(_from).approve(address(registryExchange), _amountIn);
-            amountOut = registryExchange.exchange(
-                _pool,
-                _from,
-                _to,
+            console.log("Input token is ERC20");
+            console.log("Approving input token");
+            console.logAddress(_from);
+            IERC20(_from).approve(_pool, _amountIn);
+            console.log("Swapping");
+            amountOut = pool.exchange(
+                _i,
+                _j,
                 _amountIn,
                 _minAmountOut
             );
+            console.log("Swapped");
         }
     }
 
 
     function _getAmountInCurve(
         address _pool,
-        address _from,
-        address _to,
+        int128 _i,
+        int128 _j,
         uint256 _amountOut
     )
         public
         view
         returns (uint256)
     {
-        (int128 i, int128 j) =_getCoinIndices(_pool, _from, _to);
-        CurvePoolData memory poolData = _getCurvePoolData(_pool, i, j);
+        CurvePoolData memory poolData = _getCurvePoolData(_pool, _i, _j);
 
         return curveCalculator.get_dx(
             poolData.nCoins,
@@ -400,9 +405,10 @@ abstract contract DEXAdapter {
             poolData.fee,
             poolData.rates,
             poolData.decimals,
-            true,
-            i,
-            j,
+            // TODO: Review correct value for "underlying" parameter
+            false,
+            _i,
+            _j,
             _amountOut
         );
     }
