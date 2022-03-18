@@ -8,7 +8,6 @@ import { ExchangeIssuanceLeveraged } from "@utils/contracts/index";
 import { SetFixture } from "@utils/fixtures";
 import {
   ICurveAddressProvider,
-  ICurveCalculator,
   ICurvePoolRegistry,
   ICurveRegistryExchange,
   StandardTokenMock,
@@ -147,7 +146,7 @@ if (process.env.INTEGRATIONTEST) {
 
       it("getAmountInCurve works", async () => {
         const amountOut = ethers.utils.parseEther("1");
-        const amountIn = await exchangeIssuance.getAmountInCurve(
+        const amountIn = await exchangeIssuance._getAmountInCurve(
           addresses.dexes.curve.pools.stEthEth,
           collateralTokenAddress,
           addresses.dexes.curve.ethAddress,
@@ -170,47 +169,120 @@ if (process.env.INTEGRATIONTEST) {
         expect(amountIn).to.not.equal(amountOut);
       });
 
-      it("_swapExactTokensForTokensCurve works when swapping eth for stEth", async () => {
-        const amountIn = ethers.utils.parseEther("1");
-        const minAmountOut = amountIn.mul(90).div(100);
+      context("When swapping eth for stEth", () => {
+        it("_swapExactTokensForTokensCurve works when", async () => {
+          const amountIn = ethers.utils.parseEther("1");
+          const minAmountOut = amountIn.mul(90).div(100);
 
-        // Send required amount of eth to the contract to swap
-        await owner.wallet.sendTransaction({ to: exchangeIssuance.address, value: amountIn });
+          // Send required amount of eth to the contract to swap
+          await owner.wallet.sendTransaction({ to: exchangeIssuance.address, value: amountIn });
 
-        const stEthBalanceBefore = await stEth.balanceOf(exchangeIssuance.address);
-        await exchangeIssuance._swapExactTokensForTokensCurve(
-          [await exchangeIssuance.ETH_ADDRESS(), collateralTokenAddress],
-          addresses.dexes.curve.pools.stEthEth,
-          amountIn,
-          minAmountOut,
-        );
-        const stEthBalanceAfter = await stEth.balanceOf(exchangeIssuance.address);
+          const stEthBalanceBefore = await stEth.balanceOf(exchangeIssuance.address);
+          await exchangeIssuance._swapExactTokensForTokensCurve(
+            [await exchangeIssuance.ETH_ADDRESS(), collateralTokenAddress],
+            addresses.dexes.curve.pools.stEthEth,
+            amountIn,
+            minAmountOut,
+          );
+          const stEthBalanceAfter = await stEth.balanceOf(exchangeIssuance.address);
 
-        expect(stEthBalanceAfter.sub(stEthBalanceBefore).gt(minAmountOut)).to.be.true;
+          expect(stEthBalanceAfter.sub(stEthBalanceBefore).gt(minAmountOut)).to.be.true;
+        });
+
+        it("_swapTokensForExactTokensCurve works", async () => {
+          const amountOut = ethers.utils.parseEther("1");
+          const maxAmountIn = amountOut.mul(110).div(100);
+
+          // Send required amount of eth to the contract to swap
+          await owner.wallet.sendTransaction({ to: exchangeIssuance.address, value: maxAmountIn });
+
+          const stEthBalanceBefore = await stEth.balanceOf(exchangeIssuance.address);
+          await exchangeIssuance._swapTokensForExactTokensCurve(
+            [await exchangeIssuance.ETH_ADDRESS(), collateralTokenAddress],
+            addresses.dexes.curve.pools.stEthEth,
+            amountOut,
+            maxAmountIn,
+          );
+          const stEthBalanceAfter = await stEth.balanceOf(exchangeIssuance.address);
+          const stEthObtained = stEthBalanceAfter.sub(stEthBalanceBefore);
+
+          console.log("stEthObtained:", stEthObtained.toString());
+
+          // TODO: Apparently sometimes the amount is off by one. Investigate why.
+          expect(stEthObtained.sub(1).lte(amountOut)).to.be.true;
+          expect(stEthObtained.add(1).gte(amountOut)).to.be.true;
+        });
       });
 
-      it("_swapTokensForExactTokensCurve works when swapping eth for stEth", async () => {
-        const amountOut = ethers.utils.parseEther("1");
-        const maxAmountIn = amountOut.mul(110).div(100);
+      context("When swapping stEth for eth", () => {
+        let path: string[];
 
-        // Send required amount of eth to the contract to swap
-        await owner.wallet.sendTransaction({ to: exchangeIssuance.address, value: maxAmountIn });
+        before(async () => {
+          const addressProvider = (await ethers.getContractAt(
+            "ICurveAddressProvider",
+            addresses.dexes.curve.addressProvider,
+          )) as ICurveAddressProvider;
+          const curveRegistryExchange = (await ethers.getContractAt(
+            "ICurveRegistryExchange",
+            await addressProvider.get_address(2),
+          )) as ICurveRegistryExchange;
 
-        const stEthBalanceBefore = await stEth.balanceOf(exchangeIssuance.address);
-        await exchangeIssuance._swapTokensForExactTokensCurve(
-          [await exchangeIssuance.ETH_ADDRESS(), collateralTokenAddress],
-          addresses.dexes.curve.pools.stEthEth,
-          amountOut,
-          maxAmountIn,
-        );
-        const stEthBalanceAfter = await stEth.balanceOf(exchangeIssuance.address);
-        const stEthObtained = stEthBalanceAfter.sub(stEthBalanceBefore)
+          const amountIn = ethers.utils.parseEther("5");
+          const minAmountOut = amountIn.mul(90).div(100);
+          await curveRegistryExchange.exchange(
+            addresses.dexes.curve.pools.stEthEth,
+            addresses.dexes.curve.ethAddress,
+            addresses.tokens.stEth,
+            amountIn,
+            minAmountOut,
+            { value: amountIn },
+          );
 
-        console.log("stEthObtained:", stEthObtained.toString())
+          path = [collateralTokenAddress, await exchangeIssuance.ETH_ADDRESS()];
 
-        // TODO: Apparently sometimes the amount is off by one. Investigate why.
-        expect(stEthObtained.sub(1).lte(amountOut)).to.be.true;
-        expect(stEthObtained.add(1).gte(amountOut)).to.be.true;
+          const stEthBalance = await stEth.balanceOf(owner.address);
+          console.log("stEthBalance:", stEthBalance.toString());
+          await stEth.connect(owner.wallet).transfer(exchangeIssuance.address, stEthBalance);
+        });
+
+        it("_swapExactTokensForTokensCurve works", async () => {
+          const amountIn = ethers.utils.parseEther("1");
+          const minAmountOut = amountIn.mul(90).div(100);
+
+          const ethBalanceBefore = await ethers.provider.getBalance(exchangeIssuance.address);
+          await exchangeIssuance._swapExactTokensForTokensCurve(
+            path,
+            addresses.dexes.curve.pools.stEthEth,
+            amountIn,
+            minAmountOut,
+          );
+          const ethBalanceAfter = await ethers.provider.getBalance(exchangeIssuance.address);
+          const ethObtained = ethBalanceAfter.sub(ethBalanceBefore);
+          console.log("ethObtained:", ethObtained.toString());
+
+          expect(ethObtained.gt(minAmountOut)).to.be.true;
+        });
+
+        it("_swapTokensForExactTokensCurve works", async () => {
+          const amountOut = ethers.utils.parseEther("1");
+          const maxAmountIn = amountOut.mul(110).div(100);
+
+          const ethBalanceBefore = await ethers.provider.getBalance(exchangeIssuance.address);
+          await exchangeIssuance._swapTokensForExactTokensCurve(
+            path,
+            addresses.dexes.curve.pools.stEthEth,
+            amountOut,
+            maxAmountIn,
+          );
+          const ethBalanceAfter = await ethers.provider.getBalance(exchangeIssuance.address);
+          const ethObtained = ethBalanceAfter.sub(ethBalanceBefore);
+
+          console.log("ethObtained:", ethObtained.toString());
+
+          // TODO: Apparently sometimes the amount is off by one. Investigate why.
+          expect(ethObtained.sub(1).lte(amountOut)).to.be.true;
+          expect(ethObtained.add(1).gte(amountOut)).to.be.true;
+        });
       });
     });
   });

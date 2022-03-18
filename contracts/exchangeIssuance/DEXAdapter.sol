@@ -379,18 +379,6 @@ abstract contract DEXAdapter {
         }
     }
 
-    function getAmountInCurve(
-        address _pool,
-        address _from,
-        address _to,
-        uint256 _amountOut
-    )
-        external
-        view
-        returns (uint256)
-    {
-        return _getAmountInCurve(_pool, _from, _to, _amountOut);
-    }
 
     function _getAmountInCurve(
         address _pool,
@@ -398,7 +386,7 @@ abstract contract DEXAdapter {
         address _to,
         uint256 _amountOut
     )
-        private
+        public
         view
         returns (uint256)
     {

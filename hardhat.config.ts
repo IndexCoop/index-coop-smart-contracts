@@ -48,6 +48,8 @@ const config: HardhatUserConfig = {
       accounts: getHardhatPrivateKeys(),
       gas: isPolygon ? undefined : 12000000,
       blockGasLimit: isPolygon ? 20000000 : 12000000,
+      // TODO: Added this during development, probably should be removed
+      allowUnlimitedContractSize: true,
       // @ts-ignore
       timeout: INTEGRATIONTEST_TIMEOUT,
       initialBaseFeePerGas: 0,
