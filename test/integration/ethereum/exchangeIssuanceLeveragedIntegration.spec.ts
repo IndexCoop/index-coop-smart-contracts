@@ -2,7 +2,7 @@ import "module-alias/register";
 import { Account } from "@utils/types";
 import DeployHelper from "@utils/deploys";
 import { getAccounts, getSetFixture, getWaffleExpect } from "@utils/index";
-import { ethers } from "hardhat";
+import { ethers, network } from "hardhat";
 import { utils } from "ethers";
 import { ExchangeIssuanceLeveraged } from "@utils/contracts/index";
 import { SetFixture } from "@utils/fixtures";
@@ -146,8 +146,20 @@ if (process.env.INTEGRATIONTEST) {
 
       context("When swapping stEth for eth", () => {
         let path: string[];
+        let snapshotId: number;
 
+        after(async () => {
+          // Currently we have to reset to this snapshot to avoid the second exact output swap from failing with "not enough tokens bought"
+          // TODO: Investigate
+          await ethers.provider.send("evm_revert", [snapshotId]);
+        });
         before(async () => {
+          snapshotId = (await network.provider.request({
+            method: "evm_snapshot",
+            params: [],
+          })) as number;
+
+
           const addressProvider = (await ethers.getContractAt(
             "ICurveAddressProvider",
             addresses.dexes.curve.addressProvider,
@@ -171,7 +183,6 @@ if (process.env.INTEGRATIONTEST) {
           path = [collateralTokenAddress, await exchangeIssuance.ETH_ADDRESS()];
 
           const stEthBalance = await stEth.balanceOf(owner.address);
-          console.log("stEthBalance:", stEthBalance.toString());
           await stEth.connect(owner.wallet).transfer(exchangeIssuance.address, stEthBalance);
         });
 
