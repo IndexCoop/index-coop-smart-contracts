@@ -78,7 +78,7 @@ const config: HardhatUserConfig = {
 };
 
 function getHardhatPrivateKeys() {
-  return privateKeys.map((key) => {
+  return privateKeys.map(key => {
     const TEN_MILLION_ETH = "10000000000000000000000000";
     return {
       privateKey: key,
