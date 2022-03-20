@@ -225,6 +225,9 @@ workflows:
       - test_forked_network:
           requires:
             - checkout_and_compile
+      - test_integration_ethereum:
+          requires:
+            - checkout_and_compile
       - test_integration_polygon:
           requires:
             - checkout_and_compile
