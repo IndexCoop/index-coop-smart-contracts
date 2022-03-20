@@ -530,6 +530,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
               subjectSetToken,
               subjectSetAmount,
               collateralToken.address,
+              subjectMinAmountOutput,
               subjectCollateralForDebtSwapData,
               subjectOutputTokenSwapData,
             );
@@ -709,7 +710,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
             subjectSetAmount,
             true,
           ));
-          subjectMaxAmountInput = tokenName == "ERC20" ? UnitsUtils.usdc(20000) : collateralAmount;
+          subjectMaxAmountInput = tokenName == "ERC20" ? UnitsUtils.usdc(12000) : collateralAmount;
           const inputTokenMapping: { [key: string]: StandardTokenMock | WETH9 } = {
             CollateralToken: collateralToken,
             ETH: setV2Setup.weth,
@@ -785,7 +786,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         });
         context("when exchange without any liquidity is specified", async () => {
           beforeEach(async () => {
-            exchange = Exchange.Sushiswap;
+            subjectDebtForCollateralSwapData.exchange = Exchange.Sushiswap;
           });
           it("should revert", async () => {
             // TODO: Check why this is failing without any reason. Would have expected something more descriptive coming from the router
@@ -810,11 +811,11 @@ describe("ExchangeIssuanceLeveraged", async () => {
                 { value: ether(0.001), gasLimit: 9000000 },
               );
 
-            exchange = Exchange.Sushiswap;
+            subjectDebtForCollateralSwapData.exchange = Exchange.Sushiswap;
           });
           it("should revert", async () => {
             const revertReasonMapping: Record<string, string> = {
-              ERC20: "ds-math-sub-underflow",
+              ERC20: "UniswapV2Router: EXCESSIVE_INPUT_AMOUNT",
               ETH: "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT",
               CollateralToken: "SafeERC20: low-level call failed",
             };
