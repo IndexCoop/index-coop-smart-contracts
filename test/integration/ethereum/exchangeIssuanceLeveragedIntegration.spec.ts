@@ -12,12 +12,13 @@ import {
   ICurveRegistryExchange,
   StandardTokenMock,
 } from "../../../typechain";
-import addresses from "./addresses";
+import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "./addresses";
 
 const expect = getWaffleExpect();
 
 if (process.env.INTEGRATIONTEST) {
   describe("ExchangeIssuanceLeveraged - Integration Test", async () => {
+    const addresses = process.env.USE_STAGING_ADDRESSES ? STAGING_ADDRESSES : PRODUCTION_ADDRESSES;
     let owner: Account;
     let deployer: DeployHelper;
     let setV2Setup: SetFixture;
@@ -156,7 +157,6 @@ if (process.env.INTEGRATIONTEST) {
             method: "evm_snapshot",
             params: [],
           })) as number;
-
 
           const addressProvider = (await ethers.getContractAt(
             "ICurveAddressProvider",

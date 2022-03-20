@@ -95,6 +95,8 @@
     "@ethersproject/abstract-signer": "5.0.9",
     "@ethersproject/bignumber": "5.0.12",
     "@ethersproject/providers": "5.0.17",
+    "@types/ungap__structured-clone": "^0.3.0",
+    "@ungap/structured-clone": "^0.3.4",
     "@uniswap/v2-core": "^1.0.1",
     "@uniswap/v2-periphery": "^1.1.0-beta.0",
     "ethereumjs-util": "^7.0.5",

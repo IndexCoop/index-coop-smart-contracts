@@ -1,4 +1,6 @@
-export default {
+import structuredClone from "@ungap/structured-clone";
+
+export const PRODUCTION_ADDRESSES = {
   tokens: {
     stEthAm: "0x28424507fefb6f7f8E9D3860F56504E4e5f5f390",
     stEth: "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
@@ -39,3 +41,14 @@ export default {
     },
   },
 };
+
+export const STAGING_ADDRESSES = structuredClone(PRODUCTION_ADDRESSES);
+
+STAGING_ADDRESSES.set = {
+  controller: "0xF1B12A7b1f0AF744ED21eEC7d3E891C48Fd3c329",
+  debtIssuanceModule: "0x39F024d621367C044BacE2bf0Fb15Fb3612eCB92",
+  debtIssuanceModuleV2: "0x3C0CC7624B1c408cF2cF11b3961301949f2F7820",
+  aaveLeverageModule: "0x5d2B710787078B45CD7582C0423AC2fC180262e8",
+};
+
+export default PRODUCTION_ADDRESSES;
