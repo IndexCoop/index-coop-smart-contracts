@@ -1,20 +1,37 @@
 import "module-alias/register";
-import { Account } from "@utils/types";
+import { Account, Address } from "@utils/types";
 import DeployHelper from "@utils/deploys";
 import { getAccounts, getSetFixture, getWaffleExpect } from "@utils/index";
 import { ethers } from "hardhat";
-import { utils } from "ethers";
+import { BigNumber, utils } from "ethers";
 import { ExchangeIssuanceLeveraged } from "@utils/contracts/index";
 import { SetFixture } from "@utils/fixtures";
 import {
+  ICurveAddressProvider,
+  ICurveRegistryExchange,
   StandardTokenMock,
 } from "../../../typechain";
 import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "./addresses";
-import { MAX_UINT_256 } from "@utils/constants";
+import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { ether } from "@utils/index";
 import util from "util";
 
 const expect = getWaffleExpect();
+
+enum Exchange {
+  None,
+  Sushiswap,
+  Quickswap,
+  UniV3,
+  Curve,
+}
+
+type SwapData = {
+  path: Address[];
+  fees: number[];
+  pool: Address;
+  exchange: Exchange;
+};
 
 if (process.env.INTEGRATIONTEST) {
   describe("ExchangeIssuanceLeveraged - Integration Test", async () => {
@@ -27,7 +44,7 @@ if (process.env.INTEGRATIONTEST) {
     let deployer: DeployHelper;
     let setV2Setup: SetFixture;
 
-    // let stEth: StandardTokenMock;
+    let stEth: StandardTokenMock;
     let setToken: StandardTokenMock;
 
     // const collateralTokenAddress = addresses.tokens.stEth;
@@ -38,10 +55,10 @@ if (process.env.INTEGRATIONTEST) {
       setV2Setup = getSetFixture(owner.address);
       await setV2Setup.initialize();
 
-      // stEth = (await ethers.getContractAt(
-      //   "StandardTokenMock",
-      //   addresses.tokens.stEth,
-      // )) as StandardTokenMock;
+      stEth = (await ethers.getContractAt(
+        "StandardTokenMock",
+        addresses.tokens.stEth,
+      )) as StandardTokenMock;
 
       setToken = (await ethers.getContractAt(
         "StandardTokenMock",
@@ -113,13 +130,18 @@ if (process.env.INTEGRATIONTEST) {
       describe("When setToken is approved", () => {
         let collateralAToken: StandardTokenMock;
         let debtToken: StandardTokenMock;
+        let collateralATokenAddress: Address;
+        let collateralTokenAddress: Address;
+        let debtTokenAddress: Address;
         before(async () => {
           await exchangeIssuance.approveSetToken(setToken.address);
 
-          const {
+          ({
+            collateralToken: collateralTokenAddress,
             collateralAToken: collateralATokenAddress,
             debtToken: debtTokenAddress,
-          } = await exchangeIssuance.getLeveragedTokenData(setToken.address, ether(1), true);
+          } = await exchangeIssuance.getLeveragedTokenData(setToken.address, ether(1), true));
+
           collateralAToken = (await ethers.getContractAt(
             "StandardTokenMock",
             collateralATokenAddress,
@@ -142,6 +164,81 @@ if (process.env.INTEGRATIONTEST) {
           expect(
             await debtToken.allowance(exchangeIssuance.address, addresses.set.debtIssuanceModuleV2),
           ).to.equal(MAX_UINT_256);
+        });
+
+        describe("When using collateralToken to pay", () => {
+          let swapDataDebtToCollateral: SwapData;
+          let swapDataInputToken: SwapData;
+          let amountIn: BigNumber;
+
+          let subjectSetToken: Address;
+          let subjectSetAmount: BigNumber;
+          let subjectMaxAmountIn: BigNumber;
+          let subjectInputToken: Address;
+
+          before(async () => {
+            swapDataDebtToCollateral = {
+              path: [debtTokenAddress, collateralTokenAddress],
+              fees: [],
+              pool: addresses.dexes.curve.pools.stEthEth,
+              exchange: Exchange.Curve,
+            };
+
+            swapDataInputToken = {
+              path: [],
+              fees: [],
+              pool: ADDRESS_ZERO,
+              exchange: Exchange.None,
+            };
+
+            const addressProvider = (await ethers.getContractAt(
+              "ICurveAddressProvider",
+              addresses.dexes.curve.addressProvider,
+            )) as ICurveAddressProvider;
+            const curveRegistryExchange = (await ethers.getContractAt(
+              "ICurveRegistryExchange",
+              await addressProvider.get_address(2),
+            )) as ICurveRegistryExchange;
+
+            amountIn = (await owner.wallet.getBalance()).div(10);
+            const minAmountOut = amountIn.mul(90).div(100);
+
+            await curveRegistryExchange.exchange(
+              addresses.dexes.curve.pools.stEthEth,
+              addresses.dexes.curve.ethAddress,
+              addresses.tokens.stEth,
+              amountIn,
+              minAmountOut,
+              { value: amountIn },
+            );
+
+            const stEthBalance = await stEth.balanceOf(owner.address);
+            console.log("stEthBalance", stEthBalance);
+
+            subjectMaxAmountIn = stEthBalance;
+            subjectInputToken = stEth.address;
+            subjectSetAmount = subjectMaxAmountIn.div(2);
+            subjectSetToken = setToken.address;
+
+            await stEth.approve(exchangeIssuance.address, subjectMaxAmountIn);
+          });
+
+          async function subject() {
+            return exchangeIssuance.issueExactSetFromERC20(
+              subjectSetToken,
+              subjectSetAmount,
+              subjectInputToken,
+              subjectMaxAmountIn,
+              swapDataDebtToCollateral,
+              swapDataInputToken,
+            );
+          }
+
+          it("should issue the correct amount of tokens", async () => {
+            await subject();
+            const setBalance = await setToken.balanceOf(owner.address);
+            expect(setBalance).to.eq(subjectSetAmount);
+          });
         });
       });
 
