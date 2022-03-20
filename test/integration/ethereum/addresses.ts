@@ -6,6 +6,8 @@ export const PRODUCTION_ADDRESSES = {
     stEth: "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
     dai: "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063",
     weth: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+    // TODO: Replace with real address once deployed
+    icEth: "0x0000000000000000000000000000000000000000",
   },
   dexes: {
     curve: {
@@ -50,5 +52,7 @@ STAGING_ADDRESSES.set = {
   debtIssuanceModuleV2: "0x3C0CC7624B1c408cF2cF11b3961301949f2F7820",
   aaveLeverageModule: "0x5d2B710787078B45CD7582C0423AC2fC180262e8",
 };
+
+STAGING_ADDRESSES.tokens.icEth = "0x219C0C5B42A2DF32782d8F6Bf10eddCD7414CbBf";
 
 export default PRODUCTION_ADDRESSES;
