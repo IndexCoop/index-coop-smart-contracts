@@ -1,11 +1,10 @@
 import "module-alias/register";
 import { Account, Address } from "@utils/types";
 import DeployHelper from "@utils/deploys";
-import { getAccounts, getSetFixture, getWaffleExpect } from "@utils/index";
+import { getAccounts, getWaffleExpect } from "@utils/index";
 import { ethers } from "hardhat";
 import { BigNumber, utils } from "ethers";
 import { ExchangeIssuanceLeveraged } from "@utils/contracts/index";
-import { SetFixture } from "@utils/fixtures";
 import {
   ICurveAddressProvider,
   ICurveRegistryExchange,
@@ -42,7 +41,6 @@ if (process.env.INTEGRATIONTEST) {
     );
     let owner: Account;
     let deployer: DeployHelper;
-    let setV2Setup: SetFixture;
 
     let stEth: StandardTokenMock;
     let setToken: StandardTokenMock;
@@ -52,8 +50,6 @@ if (process.env.INTEGRATIONTEST) {
     before(async () => {
       [owner] = await getAccounts();
       deployer = new DeployHelper(owner.wallet);
-      setV2Setup = getSetFixture(owner.address);
-      await setV2Setup.initialize();
 
       stEth = (await ethers.getContractAt(
         "StandardTokenMock",
@@ -136,11 +132,15 @@ if (process.env.INTEGRATIONTEST) {
         before(async () => {
           await exchangeIssuance.approveSetToken(setToken.address);
 
-          ({
-            collateralToken: collateralTokenAddress,
-            collateralAToken: collateralATokenAddress,
-            debtToken: debtTokenAddress,
-          } = await exchangeIssuance.getLeveragedTokenData(setToken.address, ether(1), true));
+          const leveragedTokenData = await exchangeIssuance.getLeveragedTokenData(
+            setToken.address,
+            ether(1),
+            true,
+          );
+          console.log("leveragedTokenData", leveragedTokenData);
+          collateralATokenAddress = leveragedTokenData.collateralAToken;
+          collateralTokenAddress = leveragedTokenData.collateralToken;
+          debtTokenAddress = leveragedTokenData.debtToken;
 
           collateralAToken = (await ethers.getContractAt(
             "StandardTokenMock",
@@ -178,7 +178,7 @@ if (process.env.INTEGRATIONTEST) {
 
           before(async () => {
             swapDataDebtToCollateral = {
-              path: [debtTokenAddress, collateralTokenAddress],
+              path: [addresses.dexes.curve.ethAddress, collateralTokenAddress],
               fees: [],
               pool: addresses.dexes.curve.pools.stEthEth,
               exchange: Exchange.Curve,
@@ -200,8 +200,8 @@ if (process.env.INTEGRATIONTEST) {
               await addressProvider.get_address(2),
             )) as ICurveRegistryExchange;
 
-            amountIn = (await owner.wallet.getBalance()).div(10);
-            const minAmountOut = amountIn.mul(90).div(100);
+            amountIn = ether(2);
+            const minAmountOut = amountIn.div(2);
 
             await curveRegistryExchange.exchange(
               addresses.dexes.curve.pools.stEthEth,
@@ -213,17 +213,25 @@ if (process.env.INTEGRATIONTEST) {
             );
 
             const stEthBalance = await stEth.balanceOf(owner.address);
-            console.log("stEthBalance", stEthBalance);
+            console.log("stEthBalance", ethers.utils.formatEther(stEthBalance));
 
             subjectMaxAmountIn = stEthBalance;
             subjectInputToken = stEth.address;
-            subjectSetAmount = subjectMaxAmountIn.div(2);
+            subjectSetAmount = ether(1);
             subjectSetToken = setToken.address;
 
             await stEth.approve(exchangeIssuance.address, subjectMaxAmountIn);
           });
 
           async function subject() {
+            console.log("issueExactSetFromERC20", {
+              subjectSetToken,
+              subjectSetAmount: ethers.utils.formatEther(subjectSetAmount),
+              subjectInputToken,
+              subjectMaxAmountIn: ethers.utils.formatEther(subjectMaxAmountIn),
+              swapDataDebtToCollateral,
+              swapDataInputToken,
+            });
             return exchangeIssuance.issueExactSetFromERC20(
               subjectSetToken,
               subjectSetAmount,
@@ -235,6 +243,12 @@ if (process.env.INTEGRATIONTEST) {
           }
 
           it("should issue the correct amount of tokens", async () => {
+            await subject();
+            const setBalance = await setToken.balanceOf(owner.address);
+            expect(setBalance).to.eq(subjectSetAmount);
+          });
+
+          it("should issue the correct amount of tokens 2", async () => {
             await subject();
             const setBalance = await setToken.balanceOf(owner.address);
             expect(setBalance).to.eq(subjectSetAmount);

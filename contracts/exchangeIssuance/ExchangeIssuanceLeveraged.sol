@@ -39,6 +39,9 @@ import { FlashLoanReceiverBaseV2 } from "../../external/contracts/aaveV2/FlashLo
 import { DEXAdapter } from "./DEXAdapter.sol";
 
 
+import "hardhat/console.sol";
+
+
 
 
 
@@ -414,7 +417,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     internal 
     {
         // Deposit collateral token obtained from flashloan to get the respective aToken position required for issuance
+        console.log("Collateral token received in flashloan");
+        console.logUint(IERC20(_collateralToken).balanceOf(address(this)));
         _depositCollateralToken(_collateralToken, _collateralTokenAmountNet);
+        console.log("CollateralAToken balance after deposit");
+        console.logUint(IERC20(_decodedParams.leveragedTokenData.collateralAToken).balanceOf(address(this)));
+
         // Issue set using the aToken returned by deposit step
         _issueSet(_decodedParams.setToken, _decodedParams.setAmount, _decodedParams.originalSender);
         // Obtain necessary collateral tokens to repay flashloan 
@@ -586,6 +594,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
            )
         );
 
+        console.log("Amount of collateral token to borrow: ");
+        console.logUint(amounts[0]);
         _flashloan(assets, amounts, params);
 
     }
