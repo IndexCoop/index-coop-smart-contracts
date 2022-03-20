@@ -981,8 +981,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         internal
         returns (uint256)
     {
-        require(_swapData.path[0] == _debtToken);
-        require(_swapData.path[_swapData.path.length-1] == _collateralToken);
+        require(_swapData.path[0] == _debtToken, "ExchangeIssuance: DEBT_TOKEN_NOT_IN_PATH");
+        require(_swapData.path[_swapData.path.length-1] == _collateralToken, "ExchangeIssuance: COLLATERAL_TOKEN_NOT_IN_PATH");
         return _swapExactTokensForTokens(
             _debtAmount,
             // minAmountOut is 0 here since we are going to make up the shortfall with the input token.

@@ -436,7 +436,7 @@ if (process.env.INTEGRATIONTEST) {
                     const path =
                       exchange == Exchange.UniV3
                         ? [debtTokenAddress, wmaticAddress, collateralTokenAddress]
-                        : [collateralTokenAddress, debtTokenAddress];
+                        : [debtTokenAddress, collateralTokenAddress];
                     const fees = exchange == Exchange.UniV3 ? [3000, 3000] : [];
                     subjectDebtForCollateralSwapData = {
                       path,
