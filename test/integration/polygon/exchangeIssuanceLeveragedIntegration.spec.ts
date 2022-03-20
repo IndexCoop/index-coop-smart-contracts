@@ -3,7 +3,7 @@ import { Address, Account } from "@utils/types";
 import DeployHelper from "@utils/deploys";
 import { getAccounts, getSetFixture, getWaffleExpect } from "@utils/index";
 import { SetToken } from "@utils/contracts/setV2";
-import { ethers, network } from "hardhat";
+import { ethers } from "hardhat";
 import { utils, BigNumber } from "ethers";
 import { ExchangeIssuanceLeveraged, StandardTokenMock } from "@utils/contracts/index";
 import { IUniswapV2Router } from "../../../typechain";
@@ -177,20 +177,6 @@ if (process.env.INTEGRATIONTEST) {
                 let subjectDebtForCollateralSwapData: SwapData;
                 let subjectInputTokenSwapData: SwapData;
 
-                let snapshotId: number;
-                after(async () => {
-                  // Currently we have to reset to this snapshot to avoid the second exact output swap from failing with "not enough tokens bought"
-                  // TODO: Investigate
-                  await ethers.provider.send("evm_revert", [snapshotId]);
-                  console.log("revert to snapshot", snapshotId);
-                });
-                before(async () => {
-                  snapshotId = (await network.provider.request({
-                    method: "evm_snapshot",
-                    params: [],
-                  })) as number;
-                  console.log("take snapshot", snapshotId);
-                });
 
                 context("#issueExactSetFromERC20", () => {
                   let subjectMaxAmountInput: BigNumber;
@@ -297,20 +283,7 @@ if (process.env.INTEGRATIONTEST) {
                 let pricePaid: BigNumber;
                 let subjectDebtForCollateralSwapData: SwapData;
                 let subjectInputTokenSwapData: SwapData;
-                let snapshotId: number;
-                after(async () => {
-                  // Currently we have to reset to this snapshot to avoid the second exact output swap from failing with "not enough tokens bought"
-                  // TODO: Investigate
-                  await ethers.provider.send("evm_revert", [snapshotId]);
-                  console.log("revert to snapshot", snapshotId);
-                });
-                before(async () => {
-                  snapshotId = (await network.provider.request({
-                    method: "evm_snapshot",
-                    params: [],
-                  })) as number;
-                  console.log("take snapshot", snapshotId);
-                });
+
                 context("#issueExactSetFromETH", () => {
                   let subjectMaxAmountInput: BigNumber;
                   before(async () => {
@@ -399,21 +372,6 @@ if (process.env.INTEGRATIONTEST) {
               });
               context("Payment Token: CollateralToken", () => {
                 let pricePaid: BigNumber;
-
-                let snapshotId: number;
-                after(async () => {
-                  // Currently we have to reset to this snapshot to avoid the second exact output swap from failing with "not enough tokens bought"
-                  // TODO: Investigate
-                  await ethers.provider.send("evm_revert", [snapshotId]);
-                  console.log("revert to snapshot", snapshotId);
-                });
-                before(async () => {
-                  snapshotId = (await network.provider.request({
-                    method: "evm_snapshot",
-                    params: [],
-                  })) as number;
-                  console.log("take snapshot", snapshotId);
-                });
 
                 context("#issueExactSetFromERC20", () => {
                   let subjectMaxAmountInput: BigNumber;
