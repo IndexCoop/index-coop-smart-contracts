@@ -25,8 +25,6 @@ if (process.env.INTEGRATIONTEST) {
     let stEth: StandardTokenMock;
 
     const collateralTokenAddress = addresses.tokens.stEth;
-    const collateralATokenAddress = addresses.tokens.stEthAm;
-    const debtTokenAddress = addresses.tokens.weth;
 
     before(async () => {
       [owner] = await getAccounts();
@@ -41,11 +39,11 @@ if (process.env.INTEGRATIONTEST) {
     });
 
     it("can get lending pool from address provider", async () => {
-      let addressProvider = await ethers.getContractAt(
+      const addressProvider = await ethers.getContractAt(
         "ILendingPoolAddressesProviderV2",
         addresses.lending.aave.addressProvider,
       );
-      let lendingPool = await addressProvider.getLendingPool();
+      const lendingPool = await addressProvider.getLendingPool();
       expect(lendingPool).to.eq(addresses.lending.aave.lendingPool);
     });
 
