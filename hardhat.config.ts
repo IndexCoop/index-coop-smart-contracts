@@ -18,7 +18,7 @@ const polygonForkingConfig = {
 
 const mainnetForkingConfig = {
   url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
-  blockNumber: process.env.LATESTBLOCK ? undefined : 14422000,
+  blockNumber: process.env.LATESTBLOCK ? undefined : 14433300,
 };
 
 const forkingConfig =
@@ -80,7 +80,7 @@ const config: HardhatUserConfig = {
 };
 
 function getHardhatPrivateKeys() {
-  return privateKeys.map(key => {
+  return privateKeys.map((key) => {
     const TEN_MILLION_ETH = "10000000000000000000000000";
     return {
       privateKey: key,

@@ -75,7 +75,7 @@
     "dotenv": "^8.2.0",
     "ethereum-waffle": "^3.2.1",
     "globby": "^11.0.2",
-    "hardhat": "^2.0.6",
+    "hardhat": "2.9.1",
     "hardhat-deploy": "^0.7.0-beta.39",
     "hardhat-typechain": "^0.3.4",
     "husky": "^4.2.5",

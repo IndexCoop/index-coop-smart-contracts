@@ -90,11 +90,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     /* ============ Constants ============= */
 
     uint256 constant private MAX_UINT256 = type(uint256).max;
+    // This is the margin in wei we add on top of the collateral amoutn to avoid issues from rounding errors in aave interaction
+    // TODO: Review to find better solution
+    uint256 constant public ROUNDING_ERROR_MARGIN = 2;
 
     /* ============ State Variables ============ */
 
-    // Wrapped native token (WMATIC on polygon)
-    address immutable public WETH;
     IController public immutable setController;
     IDebtIssuanceModule public immutable debtIssuanceModule;
     IAaveLeverageModule public immutable aaveLeverageModule;
@@ -164,8 +165,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         setController = _setController;
         debtIssuanceModule = _debtIssuanceModule;
         aaveLeverageModule = _aaveLeverageModule;
-
-        WETH = _weth;
     }
 
     /* ============ External Functions ============ */
@@ -367,6 +366,10 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
             _performRedemption(assets[0], amounts[0], premiums[0], decodedParams);
         }
 
+        console.log("Return control to Lending Pool");
+        console.log("Balance of token to return");
+        console.logUint(IERC20(assets[0]).balanceOf(address(this)));
+        console.logUint(amounts[0] + premiums[0]);
         return true;
     }
 
@@ -522,7 +525,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
             return LeveragedTokenData(
                 components[0],
                 IAToken(components[0]).UNDERLYING_ASSET_ADDRESS(),
-                equityPositions[0],
+                equityPositions[0] + ROUNDING_ERROR_MARGIN,
                 components[1],
                 debtPositions[1]
             );
@@ -530,7 +533,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
             return LeveragedTokenData(
                 components[1],
                 IAToken(components[1]).UNDERLYING_ASSET_ADDRESS(),
-                equityPositions[1],
+                equityPositions[1] + ROUNDING_ERROR_MARGIN,
                 components[0],
                 debtPositions[0]
             );
@@ -817,8 +820,12 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
             _decodedParams.leveragedTokenData.debtAmount,
             _decodedParams.collateralAndDebtSwapData
         );
-        uint collateralTokenShortfall = _amountRequired.sub(collateralTokenObtained);
+
+        // I had to add the ROUNDING_ERROR_MARGIN here again in the stEth case.
+        // TODO: Review
+        uint collateralTokenShortfall = _amountRequired.sub(collateralTokenObtained) + ROUNDING_ERROR_MARGIN;
         uint amountInputToken;
+
         if(_decodedParams.paymentToken == ETH_ADDRESS){
             amountInputToken = _makeUpShortfallWithETH(
                 _collateralToken,
@@ -991,8 +998,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         internal
         returns (uint256)
     {
-        require(_swapData.path[0] == _debtToken, "ExchangeIssuance: DEBT_TOKEN_NOT_IN_PATH");
-        require(_swapData.path[_swapData.path.length-1] == _collateralToken, "ExchangeIssuance: COLLATERAL_TOKEN_NOT_IN_PATH");
+        require(_swapData.path[0] == _debtToken || (_debtToken == WETH && _swapData.path[0] == ETH_ADDRESS), "ExchangeIssuance: DEBT_TOKEN_NOT_IN_PATH");
+        require(_swapData.path[_swapData.path.length-1] == _collateralToken || (_collateralToken == WETH && _swapData.path[_swapData.path.length-1] == ETH_ADDRESS), "ExchangeIssuance: COLLATERAL_TOKEN_NOT_IN_PATH");
         return _swapExactTokensForTokens(
             _debtAmount,
             // minAmountOut is 0 here since we are going to make up the shortfall with the input token.

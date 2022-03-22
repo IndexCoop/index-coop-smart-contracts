@@ -13,7 +13,6 @@ import {
 import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "./addresses";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { ether } from "@utils/index";
-import util from "util";
 
 const expect = getWaffleExpect();
 
@@ -35,10 +34,6 @@ type SwapData = {
 if (process.env.INTEGRATIONTEST) {
   describe("ExchangeIssuanceLeveraged - Integration Test", async () => {
     const addresses = process.env.USE_STAGING_ADDRESSES ? STAGING_ADDRESSES : PRODUCTION_ADDRESSES;
-    console.log(
-      "addresses",
-      util.inspect(addresses, { showHidden: false, depth: undefined, colors: true }),
-    );
     let owner: Account;
     let deployer: DeployHelper;
 
@@ -137,7 +132,7 @@ if (process.env.INTEGRATIONTEST) {
             ether(1),
             true,
           );
-          console.log("leveragedTokenData", leveragedTokenData);
+
           collateralATokenAddress = leveragedTokenData.collateralAToken;
           collateralTokenAddress = leveragedTokenData.collateralToken;
           debtTokenAddress = leveragedTokenData.debtToken;
@@ -171,12 +166,14 @@ if (process.env.INTEGRATIONTEST) {
           let swapDataInputToken: SwapData;
           let amountIn: BigNumber;
 
+          let inputToken: StandardTokenMock;
+
           let subjectSetToken: Address;
           let subjectSetAmount: BigNumber;
           let subjectMaxAmountIn: BigNumber;
           let subjectInputToken: Address;
 
-          before(async () => {
+          beforeEach(async () => {
             swapDataDebtToCollateral = {
               path: [addresses.dexes.curve.ethAddress, collateralTokenAddress],
               fees: [],
@@ -200,7 +197,7 @@ if (process.env.INTEGRATIONTEST) {
               await addressProvider.get_address(2),
             )) as ICurveRegistryExchange;
 
-            amountIn = ether(2);
+            amountIn = ether(20);
             const minAmountOut = amountIn.div(2);
 
             await curveRegistryExchange.exchange(
@@ -213,25 +210,17 @@ if (process.env.INTEGRATIONTEST) {
             );
 
             const stEthBalance = await stEth.balanceOf(owner.address);
-            console.log("stEthBalance", ethers.utils.formatEther(stEthBalance));
 
+            inputToken = stEth;
             subjectMaxAmountIn = stEthBalance;
-            subjectInputToken = stEth.address;
-            subjectSetAmount = ether(1);
+            subjectInputToken = inputToken.address;
+            subjectSetAmount = ether(12.34567891011121314);
             subjectSetToken = setToken.address;
 
-            await stEth.approve(exchangeIssuance.address, subjectMaxAmountIn);
+            await inputToken.approve(exchangeIssuance.address, subjectMaxAmountIn);
           });
 
           async function subject() {
-            console.log("issueExactSetFromERC20", {
-              subjectSetToken,
-              subjectSetAmount: ethers.utils.formatEther(subjectSetAmount),
-              subjectInputToken,
-              subjectMaxAmountIn: ethers.utils.formatEther(subjectMaxAmountIn),
-              swapDataDebtToCollateral,
-              swapDataInputToken,
-            });
             return exchangeIssuance.issueExactSetFromERC20(
               subjectSetToken,
               subjectSetAmount,
@@ -243,15 +232,20 @@ if (process.env.INTEGRATIONTEST) {
           }
 
           it("should issue the correct amount of tokens", async () => {
+            const setBalancebefore = await setToken.balanceOf(owner.address);
             await subject();
-            const setBalance = await setToken.balanceOf(owner.address);
-            expect(setBalance).to.eq(subjectSetAmount);
+            const setBalanceAfter = await setToken.balanceOf(owner.address);
+            const setObtained = setBalanceAfter.sub(setBalancebefore);
+            expect(setObtained).to.eq(subjectSetAmount);
           });
 
-          it("should issue the correct amount of tokens 2", async () => {
+          it("should spend less than specified max amount", async () => {
+            const inputBalanceBefore = await inputToken.balanceOf(owner.address);
             await subject();
-            const setBalance = await setToken.balanceOf(owner.address);
-            expect(setBalance).to.eq(subjectSetAmount);
+            const inputBalanceAfter = await inputToken.balanceOf(owner.address);
+            const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
+            expect(inputSpent.gt(0)).to.be.true;
+            expect(inputSpent.lte(subjectMaxAmountIn)).to.be.true;
           });
         });
       });

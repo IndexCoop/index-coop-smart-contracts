@@ -6,8 +6,7 @@ export const PRODUCTION_ADDRESSES = {
     stEth: "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
     dai: "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063",
     weth: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
-    // TODO: Replace with real address once deployed
-    icEth: "0x0000000000000000000000000000000000000000",
+    icEth: "0x7C07F7aBe10CE8e33DC6C5aD68FE033085256A84",
   },
   dexes: {
     curve: {
@@ -15,7 +14,6 @@ export const PRODUCTION_ADDRESSES = {
       addressProvider: "0x0000000022D53366457F9d5E68Ec105046FC4383",
       registry: "0x90E00ACe148ca3b23Ac1bC8C240C2a7Dd9c2d7f5",
       ethAddress: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-
       pools: {
         stEthEth: "0xDC24316b9AE028F1497c275EB9192a3Ea0f67022",
       },

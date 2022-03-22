@@ -26,6 +26,7 @@ import { ICurveAddressProvider } from "../interfaces/external/ICurveAddressProvi
 import { ICurvePoolRegistry } from "../interfaces/external/ICurvePoolRegistry.sol";
 import { ICurvePool } from "../interfaces/external/ICurvePool.sol";
 import { ISwapRouter} from "../interfaces/external/ISwapRouter.sol";
+import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 import "hardhat/console.sol";
@@ -82,6 +83,8 @@ abstract contract DEXAdapter {
     ISwapRouter immutable public uniV3Router;
     ICurveAddressProvider immutable public curveAddressProvider;
     ICurveCalculator immutable public curveCalculator;
+    // Wrapped native token (WMATIC on polygon)
+    address immutable public WETH;
 
     /**
     * Sets various contract addresses and approves wrapped native token to the routers
@@ -108,7 +111,9 @@ abstract contract DEXAdapter {
         uniV3Router = _uniV3Router;
         curveAddressProvider = _curveAddressProvider;
         curveCalculator = _curveCalculator;
+        WETH = _weth;
 
+        // TODO: Check if still needed
         IERC20(_weth).safeApprove(address(_quickRouter), PreciseUnitMath.maxUint256());
         IERC20(_weth).safeApprove(address(_sushiRouter), PreciseUnitMath.maxUint256());
         IERC20(_weth).safeApprove(address(_uniV3Router), PreciseUnitMath.maxUint256());
@@ -306,11 +311,23 @@ abstract contract DEXAdapter {
         uint256 _minAmountOut
     )
         public
-        returns (uint256)
+        returns (uint256 amountOut)
     {
         require(_path.length == 2, "ExchangeIssuance: CURVE_WRONG_PATH_LENGTH");
         (int128 i, int128 j) = _getCoinIndices(_pool, _path[0], _path[1]);
-        return _exchangeCurve(i, j, _pool, _amountIn, _minAmountOut, _path[0]);
+
+        if(_path[0] == ETH_ADDRESS){
+            console.log("Input token is ETH - withdrawing form WETH");
+            IWETH(WETH).withdraw(_amountIn);
+        }
+
+        amountOut = _exchangeCurve(i, j, _pool, _amountIn, _minAmountOut, _path[0]);
+
+        if(_path[_path.length-1] == ETH_ADDRESS){
+            console.log("Output token is ETH - depositing into WETH");
+            IWETH(WETH).deposit{value: amountOut}();
+        }
+
     }
 
     /**
@@ -338,8 +355,17 @@ abstract contract DEXAdapter {
         uint256 amountIn = _getAmountInCurve(_pool, i, j, _amountOut);
         require(amountIn <= _maxAmountIn, "ExchangeIssuance: CURVE_OVERSPENT");
 
+        if(_path[0] == ETH_ADDRESS){
+            IWETH(WETH).withdraw(amountIn);
+        }
+
         uint256 returnedAmountOut = _exchangeCurve(i, j, _pool, amountIn, _amountOut, _path[0]);
         require(_amountOut <= returnedAmountOut, "ExchangeIssuance: CURVE_UNDERBOUGHT");
+
+        if(_path[_path.length-1] == ETH_ADDRESS){
+            IWETH(WETH).deposit{ value: returnedAmountOut }();
+        }
+
 
         return amountIn;
     }
@@ -358,13 +384,14 @@ abstract contract DEXAdapter {
         console.log("Exchange curve entered");
         ICurvePool pool = ICurvePool(_pool);
         if(_from == ETH_ADDRESS){
-            console.log("Input token is ETH");
+            console.log("Swapping ETH");
             amountOut = pool.exchange{value: _amountIn}(
                 _i,
                 _j,
                 _amountIn,
                 _minAmountOut
             );
+            console.log("Swapped");
         }
         else {
             console.log("Input token is ERC20");
