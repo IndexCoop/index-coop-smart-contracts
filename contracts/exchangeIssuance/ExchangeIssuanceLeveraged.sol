@@ -488,7 +488,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
             _decodedParams.paymentToken,
             _decodedParams.limitAmount,
             _decodedParams.leveragedTokenData.collateralToken,
-            _decodedParams.leveragedTokenData.collateralAmount  - ROUNDING_ERROR_MARGIN,
+            _decodedParams.leveragedTokenData.collateralAmount  - 2*ROUNDING_ERROR_MARGIN,
             _decodedParams.paymentTokenSwapData
         );
         require(amountOutputToken >= _decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
