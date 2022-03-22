@@ -29,8 +29,6 @@ import { ISwapRouter} from "../interfaces/external/ISwapRouter.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
-import "hardhat/console.sol";
-
 
 
 
@@ -321,14 +319,12 @@ abstract contract DEXAdapter {
         (int128 i, int128 j) = _getCoinIndices(_pool, _path[0], _path[1]);
 
         if(_path[0] == ETH_ADDRESS){
-            console.log("Input token is ETH - withdrawing form WETH");
             IWETH(WETH).withdraw(_amountIn);
         }
 
         amountOut = _exchangeCurve(i, j, _pool, _amountIn, _minAmountOut, _path[0]);
 
         if(_path[_path.length-1] == ETH_ADDRESS){
-            console.log("Output token is ETH - depositing into WETH");
             IWETH(WETH).deposit{value: amountOut}();
         }
 
@@ -385,31 +381,23 @@ abstract contract DEXAdapter {
         private
         returns (uint256 amountOut)
     {
-        console.log("Exchange curve entered");
         ICurvePool pool = ICurvePool(_pool);
         if(_from == ETH_ADDRESS){
-            console.log("Swapping ETH");
             amountOut = pool.exchange{value: _amountIn}(
                 _i,
                 _j,
                 _amountIn,
                 _minAmountOut
             );
-            console.log("Swapped");
         }
         else {
-            console.log("Input token is ERC20");
-            console.log("Approving input token");
-            console.logAddress(_from);
             IERC20(_from).approve(_pool, _amountIn);
-            console.log("Swapping");
             amountOut = pool.exchange(
                 _i,
                 _j,
                 _amountIn,
                 _minAmountOut
             );
-            console.log("Swapped");
         }
     }
 
