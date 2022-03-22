@@ -165,51 +165,41 @@ if (process.env.INTEGRATIONTEST) {
           ).to.equal(MAX_UINT_256);
         });
 
-        describe("#issueExactSetFromERC20", () => {
-          let swapDataDebtToCollateral: SwapData;
-          let swapDataInputToken: SwapData;
-          let amountIn: BigNumber;
+        ["collateralToken", "WETH"].forEach(inputTokenName => {
+          describe(`When input/output token is ${inputTokenName}`, () => {
+            let subjectSetAmount: BigNumber;
+            let amountIn: BigNumber;
+            beforeEach(async () => {
+              amountIn = ether(2);
+              subjectSetAmount = ether(1.234567891011121314);
+            });
+            describe("#issueExactSetFromERC20", () => {
+              let swapDataDebtToCollateral: SwapData;
+              let swapDataInputToken: SwapData;
 
-          let inputToken: StandardTokenMock | IWETH;
+              let inputToken: StandardTokenMock | IWETH;
 
-          let subjectSetToken: Address;
-          let subjectSetAmount: BigNumber;
-          let subjectMaxAmountIn: BigNumber;
-          let subjectInputToken: Address;
+              let subjectSetToken: Address;
+              let subjectMaxAmountIn: BigNumber;
+              let subjectInputToken: Address;
 
-          let curveRegistryExchange: ICurveRegistryExchange;
-          beforeEach(async () => {
-            const addressProvider = (await ethers.getContractAt(
-              "ICurveAddressProvider",
-              addresses.dexes.curve.addressProvider,
-            )) as ICurveAddressProvider;
-            curveRegistryExchange = (await ethers.getContractAt(
-              "ICurveRegistryExchange",
-              await addressProvider.get_address(2),
-            )) as ICurveRegistryExchange;
-
-            swapDataDebtToCollateral = {
-              path: [addresses.dexes.curve.ethAddress, collateralTokenAddress],
-              fees: [],
-              pool: addresses.dexes.curve.pools.stEthEth,
-              exchange: Exchange.Curve,
-            };
-          });
-
-          async function subject() {
-            return exchangeIssuance.issueExactSetFromERC20(
-              subjectSetToken,
-              subjectSetAmount,
-              subjectInputToken,
-              subjectMaxAmountIn,
-              swapDataDebtToCollateral,
-              swapDataInputToken,
-            );
-          }
-          ["collateralToken", "WETH"].forEach(inputTokenName => {
-            describe(`When input token is ${inputTokenName}`, () => {
+              let curveRegistryExchange: ICurveRegistryExchange;
               beforeEach(async () => {
-                amountIn = ether(2);
+                const addressProvider = (await ethers.getContractAt(
+                  "ICurveAddressProvider",
+                  addresses.dexes.curve.addressProvider,
+                )) as ICurveAddressProvider;
+                curveRegistryExchange = (await ethers.getContractAt(
+                  "ICurveRegistryExchange",
+                  await addressProvider.get_address(2),
+                )) as ICurveRegistryExchange;
+
+                swapDataDebtToCollateral = {
+                  path: [addresses.dexes.curve.ethAddress, collateralTokenAddress],
+                  fees: [],
+                  pool: addresses.dexes.curve.pools.stEthEth,
+                  exchange: Exchange.Curve,
+                };
 
                 if (inputTokenName == "collateralToken") {
                   inputToken = stEth;
@@ -245,11 +235,21 @@ if (process.env.INTEGRATIONTEST) {
                 const inputTokenBalance = await inputToken.balanceOf(owner.address);
                 subjectMaxAmountIn = inputTokenBalance;
                 subjectInputToken = inputToken.address;
-                subjectSetAmount = ether(1.234567891011121314);
                 subjectSetToken = setToken.address;
 
                 await inputToken.approve(exchangeIssuance.address, subjectMaxAmountIn);
               });
+
+              async function subject() {
+                return exchangeIssuance.issueExactSetFromERC20(
+                  subjectSetToken,
+                  subjectSetAmount,
+                  subjectInputToken,
+                  subjectMaxAmountIn,
+                  swapDataDebtToCollateral,
+                  swapDataInputToken,
+                );
+              }
 
               it("should issue the correct amount of tokens", async () => {
                 const setBalancebefore = await setToken.balanceOf(owner.address);
@@ -268,159 +268,81 @@ if (process.env.INTEGRATIONTEST) {
                 expect(inputSpent.lte(subjectMaxAmountIn)).to.be.true;
               });
             });
+
+            describe("#redeemExactSetForERC20", () => {
+              let swapDataCollateralToDebt: SwapData;
+              let swapDataOutputToken: SwapData;
+
+              let outputToken: StandardTokenMock | IWETH;
+
+              let subjectSetToken: Address;
+              let subjectMinAmountOut: BigNumber;
+              let subjectOutputToken: Address;
+
+              async function subject() {
+                return exchangeIssuance.redeemExactSetForERC20(
+                  subjectSetToken,
+                  subjectSetAmount,
+                  subjectOutputToken,
+                  subjectMinAmountOut,
+                  swapDataCollateralToDebt,
+                  swapDataOutputToken,
+                );
+              }
+
+              beforeEach(async () => {
+                swapDataCollateralToDebt = {
+                  path: [collateralTokenAddress, addresses.dexes.curve.ethAddress],
+                  fees: [],
+                  pool: addresses.dexes.curve.pools.stEthEth,
+                  exchange: Exchange.Curve,
+                };
+
+                if (inputTokenName == "collateralToken") {
+                  outputToken = stEth;
+                  swapDataOutputToken = {
+                    path: [],
+                    fees: [],
+                    pool: ADDRESS_ZERO,
+                    exchange: Exchange.None,
+                  };
+                } else {
+                  outputToken = weth;
+                  swapDataOutputToken = {
+                    path: [addresses.tokens.stEth, addresses.dexes.curve.ethAddress],
+                    fees: [],
+                    pool: addresses.dexes.curve.pools.stEthEth,
+                    exchange: Exchange.Curve,
+                  };
+
+                  await weth.deposit({ value: amountIn });
+                }
+
+                subjectMinAmountOut = subjectSetAmount.div(2);
+                subjectOutputToken = outputToken.address;
+                subjectSetToken = setToken.address;
+
+                await setToken.approve(exchangeIssuance.address, subjectSetAmount);
+              });
+
+              it("should redeem the correct amount of tokens", async () => {
+                const setBalanceBefore = await setToken.balanceOf(owner.address);
+                await subject();
+                const setBalanceAfter = await setToken.balanceOf(owner.address);
+                const setRedeemed = setBalanceBefore.sub(setBalanceAfter);
+                expect(setRedeemed).to.eq(subjectSetAmount);
+              });
+
+              it("should return at least the specified minimum of output tokens", async () => {
+                const outputBalanceBefore = await outputToken.balanceOf(owner.address);
+                await subject();
+                const outputBalanceAfter = await outputToken.balanceOf(owner.address);
+                const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
+                expect(outputObtained.gte(subjectMinAmountOut)).to.be.true;
+              });
+            });
           });
         });
-      });
-
-      describe("Testing curve contracts", () => {
-        // let addressProvider: ICurveAddressProvider;
-        // before(async () => {
-        //   addressProvider = (await ethers.getContractAt(
-        //     "ICurveAddressProvider",
-        //     addresses.dexes.curve.addressProvider,
-        //   )) as ICurveAddressProvider;
-        // });
-        // it("curve address provider can provide address of registry", async () => {
-        //   const registryAddress = await addressProvider.get_registry();
-        //   expect(registryAddress).to.eq(utils.getAddress(addresses.dexes.curve.registry));
-        // });
-        // describe("testing registry", () => {
-        //   let registry: ICurvePoolRegistry;
-        //   before(async () => {
-        //     registry = (await ethers.getContractAt(
-        //       "ICurvePoolRegistry",
-        //       await addressProvider.get_registry(),
-        //     )) as ICurvePoolRegistry;
-        //   });
-        //   it("should return correct coins", async () => {
-        //     const coins = await registry.get_coins(addresses.dexes.curve.pools.stEthEth);
-        //     expect(coins[0]).to.eq(addresses.dexes.curve.ethAddress);
-        //     expect(coins[1]).to.eq(addresses.tokens.stEth);
-        //   });
-        //   it("should return correct number of coins", async () => {
-        //     const nCoins = await registry.get_n_coins(addresses.dexes.curve.pools.stEthEth);
-        //     expect(nCoins[0]).to.eq(2);
-        //   });
-        // });
-      });
-
-      describe("Testing curve integration", () => {
-        // it("getCoinIndices works", async () => {
-        //   const [i, j] = await exchangeIssuance._getCoinIndices(
-        //     addresses.dexes.curve.pools.stEthEth,
-        //     collateralTokenAddress,
-        //     addresses.dexes.curve.ethAddress,
-        //   );
-        //   expect(i).to.eq(1);
-        //   expect(j).to.eq(0);
-        // });
-        // context("When swapping stEth for eth", () => {
-        //   let path: string[];
-        //   let snapshotId: number;
-        //   after(async () => {
-        //     // Currently we have to reset to this snapshot to avoid the second exact output swap from failing with "not enough tokens bought"
-        //     // TODO: Investigate
-        //     await ethers.provider.send("evm_revert", [snapshotId]);
-        //   });
-        //   before(async () => {
-        //     snapshotId = (await network.provider.request({
-        //       method: "evm_snapshot",
-        //       params: [],
-        //     })) as number;
-        //     const addressProvider = (await ethers.getContractAt(
-        //       "ICurveAddressProvider",
-        //       addresses.dexes.curve.addressProvider,
-        //     )) as ICurveAddressProvider;
-        //     const curveRegistryExchange = (await ethers.getContractAt(
-        //       "ICurveRegistryExchange",
-        //       await addressProvider.get_address(2),
-        //     )) as ICurveRegistryExchange;
-        //     const amountIn = ethers.utils.parseEther("5");
-        //     const minAmountOut = amountIn.mul(90).div(100);
-        //     await curveRegistryExchange.exchange(
-        //       addresses.dexes.curve.pools.stEthEth,
-        //       addresses.dexes.curve.ethAddress,
-        //       addresses.tokens.stEth,
-        //       amountIn,
-        //       minAmountOut,
-        //       { value: amountIn },
-        //     );
-        //     path = [collateralTokenAddress, await exchangeIssuance.ETH_ADDRESS()];
-        //     const stEthBalance = await stEth.balanceOf(owner.address);
-        //     await stEth.connect(owner.wallet).transfer(exchangeIssuance.address, stEthBalance);
-        //   });
-        //   it("_swapExactTokensForTokensCurve works", async () => {
-        //     const amountIn = ethers.utils.parseEther("1");
-        //     const minAmountOut = amountIn.mul(90).div(100);
-        //     const ethBalanceBefore = await ethers.provider.getBalance(exchangeIssuance.address);
-        //     await exchangeIssuance._swapExactTokensForTokensCurve(
-        //       path,
-        //       addresses.dexes.curve.pools.stEthEth,
-        //       amountIn,
-        //       minAmountOut,
-        //     );
-        //     const ethBalanceAfter = await ethers.provider.getBalance(exchangeIssuance.address);
-        //     const ethObtained = ethBalanceAfter.sub(ethBalanceBefore);
-        //     console.log("ethObtained:", ethObtained.toString());
-        //     expect(ethObtained.gt(minAmountOut)).to.be.true;
-        //   });
-        //   it("_swapTokensForExactTokensCurve works", async () => {
-        //     const amountOut = ethers.utils.parseEther("1");
-        //     const maxAmountIn = amountOut.mul(110).div(100);
-        //     const ethBalanceBefore = await ethers.provider.getBalance(exchangeIssuance.address);
-        //     await exchangeIssuance._swapTokensForExactTokensCurve(
-        //       path,
-        //       addresses.dexes.curve.pools.stEthEth,
-        //       amountOut,
-        //       maxAmountIn,
-        //     );
-        //     const ethBalanceAfter = await ethers.provider.getBalance(exchangeIssuance.address);
-        //     const ethObtained = ethBalanceAfter.sub(ethBalanceBefore);
-        //     console.log("ethObtained:", ethObtained.toString());
-        //     // TODO: Apparently sometimes the amount is off by one. Investigate why.
-        //     expect(ethObtained.sub(1).lte(amountOut)).to.be.true;
-        //     expect(ethObtained.add(1).gte(amountOut)).to.be.true;
-        //   });
-        // });
-        // context("When swapping eth for stEth", () => {
-        //   it("_swapExactTokensForTokensCurve works when", async () => {
-        //     const amountIn = ethers.utils.parseEther("1");
-        //     const minAmountOut = amountIn.mul(90).div(100);
-        //     // Send required amount of eth to the contract to swap
-        //     await owner.wallet.sendTransaction({ to: exchangeIssuance.address, value: amountIn });
-        //     const stEthBalanceBefore = await stEth.balanceOf(exchangeIssuance.address);
-        //     await exchangeIssuance._swapExactTokensForTokensCurve(
-        //       [await exchangeIssuance.ETH_ADDRESS(), collateralTokenAddress],
-        //       addresses.dexes.curve.pools.stEthEth,
-        //       amountIn,
-        //       minAmountOut,
-        //     );
-        //     const stEthBalanceAfter = await stEth.balanceOf(exchangeIssuance.address);
-        //     expect(stEthBalanceAfter.sub(stEthBalanceBefore).gt(minAmountOut)).to.be.true;
-        //   });
-        //   it("_swapTokensForExactTokensCurve works", async () => {
-        //     const amountOut = ethers.utils.parseEther("1");
-        //     const maxAmountIn = amountOut.mul(110).div(100);
-        //     // Send required amount of eth to the contract to swap
-        //     await owner.wallet.sendTransaction({
-        //       to: exchangeIssuance.address,
-        //       value: maxAmountIn,
-        //     });
-        //     const stEthBalanceBefore = await stEth.balanceOf(exchangeIssuance.address);
-        //     await exchangeIssuance._swapTokensForExactTokensCurve(
-        //       [await exchangeIssuance.ETH_ADDRESS(), collateralTokenAddress],
-        //       addresses.dexes.curve.pools.stEthEth,
-        //       amountOut,
-        //       maxAmountIn,
-        //     );
-        //     const stEthBalanceAfter = await stEth.balanceOf(exchangeIssuance.address);
-        //     const stEthObtained = stEthBalanceAfter.sub(stEthBalanceBefore);
-        //     console.log("stEthObtained:", stEthObtained.toString());
-        //     // TODO: Apparently sometimes the amount is off by one. Investigate why.
-        //     expect(stEthObtained.sub(1).lte(amountOut)).to.be.true;
-        //     expect(stEthObtained.add(1).gte(amountOut)).to.be.true;
-        //   });
-        // });
       });
     });
   });

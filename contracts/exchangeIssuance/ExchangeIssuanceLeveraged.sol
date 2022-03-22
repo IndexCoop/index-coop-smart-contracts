@@ -469,7 +469,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         // Withdraw underlying collateral token from the aToken position returned by redeem step
         _withdrawCollateralToken(
             _decodedParams.leveragedTokenData.collateralToken,
-            _decodedParams.leveragedTokenData.collateralAmount
+            _decodedParams.leveragedTokenData.collateralAmount - ROUNDING_ERROR_MARGIN
         );
         // Obtain debt tokens required to repay flashloan by swapping the underlying collateral tokens obtained in withdraw step
         uint256 collateralTokenSpent = _swapCollateralForDebtToken(
@@ -488,7 +488,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
             _decodedParams.paymentToken,
             _decodedParams.limitAmount,
             _decodedParams.leveragedTokenData.collateralToken,
-            _decodedParams.leveragedTokenData.collateralAmount,
+            _decodedParams.leveragedTokenData.collateralAmount  - ROUNDING_ERROR_MARGIN,
             _decodedParams.paymentTokenSwapData
         );
         require(amountOutputToken >= _decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
