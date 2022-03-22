@@ -8,6 +8,7 @@ import { ExchangeIssuanceLeveraged } from "@utils/contracts/index";
 import {
   ICurveAddressProvider,
   ICurveRegistryExchange,
+  IWETH,
   StandardTokenMock,
 } from "../../../typechain";
 import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "./addresses";
@@ -39,6 +40,7 @@ if (process.env.INTEGRATIONTEST) {
 
     let stEth: StandardTokenMock;
     let setToken: StandardTokenMock;
+    let weth: IWETH;
 
     // const collateralTokenAddress = addresses.tokens.stEth;
 
@@ -55,6 +57,8 @@ if (process.env.INTEGRATIONTEST) {
         "StandardTokenMock",
         addresses.tokens.icEth,
       )) as StandardTokenMock;
+
+      weth = (await ethers.getContractAt("IWETH", addresses.tokens.weth)) as IWETH;
     });
 
     it("can get lending pool from address provider", async () => {
@@ -161,63 +165,35 @@ if (process.env.INTEGRATIONTEST) {
           ).to.equal(MAX_UINT_256);
         });
 
-        describe("When using collateralToken to pay", () => {
+        describe("#issueExactSetFromERC20", () => {
           let swapDataDebtToCollateral: SwapData;
           let swapDataInputToken: SwapData;
           let amountIn: BigNumber;
 
-          let inputToken: StandardTokenMock;
+          let inputToken: StandardTokenMock | IWETH;
 
           let subjectSetToken: Address;
           let subjectSetAmount: BigNumber;
           let subjectMaxAmountIn: BigNumber;
           let subjectInputToken: Address;
 
+          let curveRegistryExchange: ICurveRegistryExchange;
           beforeEach(async () => {
+            const addressProvider = (await ethers.getContractAt(
+              "ICurveAddressProvider",
+              addresses.dexes.curve.addressProvider,
+            )) as ICurveAddressProvider;
+            curveRegistryExchange = (await ethers.getContractAt(
+              "ICurveRegistryExchange",
+              await addressProvider.get_address(2),
+            )) as ICurveRegistryExchange;
+
             swapDataDebtToCollateral = {
               path: [addresses.dexes.curve.ethAddress, collateralTokenAddress],
               fees: [],
               pool: addresses.dexes.curve.pools.stEthEth,
               exchange: Exchange.Curve,
             };
-
-            swapDataInputToken = {
-              path: [],
-              fees: [],
-              pool: ADDRESS_ZERO,
-              exchange: Exchange.None,
-            };
-
-            const addressProvider = (await ethers.getContractAt(
-              "ICurveAddressProvider",
-              addresses.dexes.curve.addressProvider,
-            )) as ICurveAddressProvider;
-            const curveRegistryExchange = (await ethers.getContractAt(
-              "ICurveRegistryExchange",
-              await addressProvider.get_address(2),
-            )) as ICurveRegistryExchange;
-
-            amountIn = ether(20);
-            const minAmountOut = amountIn.div(2);
-
-            await curveRegistryExchange.exchange(
-              addresses.dexes.curve.pools.stEthEth,
-              addresses.dexes.curve.ethAddress,
-              addresses.tokens.stEth,
-              amountIn,
-              minAmountOut,
-              { value: amountIn },
-            );
-
-            const stEthBalance = await stEth.balanceOf(owner.address);
-
-            inputToken = stEth;
-            subjectMaxAmountIn = stEthBalance;
-            subjectInputToken = inputToken.address;
-            subjectSetAmount = ether(12.34567891011121314);
-            subjectSetToken = setToken.address;
-
-            await inputToken.approve(exchangeIssuance.address, subjectMaxAmountIn);
           });
 
           async function subject() {
@@ -230,22 +206,68 @@ if (process.env.INTEGRATIONTEST) {
               swapDataInputToken,
             );
           }
+          ["collateralToken", "WETH"].forEach(inputTokenName => {
+            describe(`When input token is ${inputTokenName}`, () => {
+              beforeEach(async () => {
+                amountIn = ether(2);
 
-          it("should issue the correct amount of tokens", async () => {
-            const setBalancebefore = await setToken.balanceOf(owner.address);
-            await subject();
-            const setBalanceAfter = await setToken.balanceOf(owner.address);
-            const setObtained = setBalanceAfter.sub(setBalancebefore);
-            expect(setObtained).to.eq(subjectSetAmount);
-          });
+                if (inputTokenName == "collateralToken") {
+                  inputToken = stEth;
+                  swapDataInputToken = {
+                    path: [],
+                    fees: [],
+                    pool: ADDRESS_ZERO,
+                    exchange: Exchange.None,
+                  };
 
-          it("should spend less than specified max amount", async () => {
-            const inputBalanceBefore = await inputToken.balanceOf(owner.address);
-            await subject();
-            const inputBalanceAfter = await inputToken.balanceOf(owner.address);
-            const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
-            expect(inputSpent.gt(0)).to.be.true;
-            expect(inputSpent.lte(subjectMaxAmountIn)).to.be.true;
+                  const minAmountOut = amountIn.div(2);
+
+                  await curveRegistryExchange.exchange(
+                    addresses.dexes.curve.pools.stEthEth,
+                    addresses.dexes.curve.ethAddress,
+                    addresses.tokens.stEth,
+                    amountIn,
+                    minAmountOut,
+                    { value: amountIn },
+                  );
+                } else {
+                  inputToken = weth;
+                  swapDataInputToken = {
+                    path: [addresses.dexes.curve.ethAddress, addresses.tokens.stEth],
+                    fees: [],
+                    pool: addresses.dexes.curve.pools.stEthEth,
+                    exchange: Exchange.Curve,
+                  };
+
+                  await weth.deposit({ value: amountIn });
+                }
+
+                const inputTokenBalance = await inputToken.balanceOf(owner.address);
+                subjectMaxAmountIn = inputTokenBalance;
+                subjectInputToken = inputToken.address;
+                subjectSetAmount = ether(1.234567891011121314);
+                subjectSetToken = setToken.address;
+
+                await inputToken.approve(exchangeIssuance.address, subjectMaxAmountIn);
+              });
+
+              it("should issue the correct amount of tokens", async () => {
+                const setBalancebefore = await setToken.balanceOf(owner.address);
+                await subject();
+                const setBalanceAfter = await setToken.balanceOf(owner.address);
+                const setObtained = setBalanceAfter.sub(setBalancebefore);
+                expect(setObtained).to.eq(subjectSetAmount);
+              });
+
+              it("should spend less than specified max amount", async () => {
+                const inputBalanceBefore = await inputToken.balanceOf(owner.address);
+                await subject();
+                const inputBalanceAfter = await inputToken.balanceOf(owner.address);
+                const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
+                expect(inputSpent.gt(0)).to.be.true;
+                expect(inputSpent.lte(subjectMaxAmountIn)).to.be.true;
+              });
+            });
           });
         });
       });

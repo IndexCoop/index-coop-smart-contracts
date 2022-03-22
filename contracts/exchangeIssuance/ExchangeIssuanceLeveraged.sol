@@ -1059,16 +1059,25 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         SwapData memory _swapData
     )
         internal
+        isValidPath(
+            _swapData.path,
+            _inputToken,
+            _collateralToken
+        )
         returns (uint256)
     {
-        require(_swapData.path[0] == _inputToken, "ExchangeIssuance:INPUTTOKEN_PATH_MISMATCH");
-        require(_swapData.path[_swapData.path.length-1] == _collateralToken, "ExchangeIssuance:COLLATERALTOKEN_PATH_MISMATCH");
         if(_collateralToken == _inputToken) return _amountRequired;
         return _swapTokensForExactTokens(
             _amountRequired,
             _maxAmountInputToken,
             _swapData
         );
+    }
+
+    modifier isValidPath(address[] memory _path, address _inputToken, address _outputToken){
+        require(_path[0] == _inputToken || (_inputToken == WETH && _path[0] == ETH_ADDRESS), "ExchangeIssuance: INPUT_TOKEN_NOT_IN_PATH");
+        require(_path[_path.length-1] == _outputToken || (_outputToken == WETH && _path[_path.length-1] == ETH_ADDRESS), "ExchangeIssuance: OUTPUT_TOKEN_NOT_IN_PATH");
+        _;
     }
 
     /**
