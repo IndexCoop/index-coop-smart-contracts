@@ -165,7 +165,7 @@ if (process.env.INTEGRATIONTEST) {
           ).to.equal(MAX_UINT_256);
         });
 
-        ["collateralToken", "WETH"].forEach(inputTokenName => {
+        ["collateralToken", "WETH", "ETH"].forEach(inputTokenName => {
           describe(`When input/output token is ${inputTokenName}`, () => {
             let subjectSetAmount: BigNumber;
             let amountIn: BigNumber;
@@ -173,36 +173,28 @@ if (process.env.INTEGRATIONTEST) {
               amountIn = ether(2);
               subjectSetAmount = ether(1.234567891011121314);
             });
-            describe("#issueExactSetFromERC20", () => {
-              let swapDataDebtToCollateral: SwapData;
-              let swapDataInputToken: SwapData;
 
-              let inputToken: StandardTokenMock | IWETH;
+            describe(
+              inputTokenName == "ETH" ? "issueExactSetFromETH" : "#issueExactSetFromERC20",
+              () => {
+                let swapDataDebtToCollateral: SwapData;
+                let swapDataInputToken: SwapData;
 
-              let subjectSetToken: Address;
-              let subjectMaxAmountIn: BigNumber;
-              let subjectInputToken: Address;
+                let inputToken: StandardTokenMock | IWETH;
 
-              let curveRegistryExchange: ICurveRegistryExchange;
-              beforeEach(async () => {
-                const addressProvider = (await ethers.getContractAt(
-                  "ICurveAddressProvider",
-                  addresses.dexes.curve.addressProvider,
-                )) as ICurveAddressProvider;
-                curveRegistryExchange = (await ethers.getContractAt(
-                  "ICurveRegistryExchange",
-                  await addressProvider.get_address(2),
-                )) as ICurveRegistryExchange;
+                let subjectSetToken: Address;
+                let subjectMaxAmountIn: BigNumber;
+                let subjectInputToken: Address;
 
-                swapDataDebtToCollateral = {
-                  path: [addresses.dexes.curve.ethAddress, collateralTokenAddress],
-                  fees: [],
-                  pool: addresses.dexes.curve.pools.stEthEth,
-                  exchange: Exchange.Curve,
-                };
+                let curveRegistryExchange: ICurveRegistryExchange;
+                beforeEach(async () => {
+                  swapDataDebtToCollateral = {
+                    path: [addresses.dexes.curve.ethAddress, collateralTokenAddress],
+                    fees: [],
+                    pool: addresses.dexes.curve.pools.stEthEth,
+                    exchange: Exchange.Curve,
+                  };
 
-                if (inputTokenName == "collateralToken") {
-                  inputToken = stEth;
                   swapDataInputToken = {
                     path: [],
                     fees: [],
@@ -210,137 +202,183 @@ if (process.env.INTEGRATIONTEST) {
                     exchange: Exchange.None,
                   };
 
-                  const minAmountOut = amountIn.div(2);
+                  if (inputTokenName == "collateralToken") {
+                    inputToken = stEth;
 
-                  await curveRegistryExchange.exchange(
-                    addresses.dexes.curve.pools.stEthEth,
-                    addresses.dexes.curve.ethAddress,
-                    addresses.tokens.stEth,
-                    amountIn,
-                    minAmountOut,
-                    { value: amountIn },
+                    const minAmountOut = amountIn.div(2);
+
+                    const addressProvider = (await ethers.getContractAt(
+                      "ICurveAddressProvider",
+                      addresses.dexes.curve.addressProvider,
+                    )) as ICurveAddressProvider;
+                    curveRegistryExchange = (await ethers.getContractAt(
+                      "ICurveRegistryExchange",
+                      await addressProvider.get_address(2),
+                    )) as ICurveRegistryExchange;
+
+                    await curveRegistryExchange.exchange(
+                      addresses.dexes.curve.pools.stEthEth,
+                      addresses.dexes.curve.ethAddress,
+                      addresses.tokens.stEth,
+                      amountIn,
+                      minAmountOut,
+                      { value: amountIn },
+                    );
+                  } else {
+                    swapDataInputToken = swapDataDebtToCollateral;
+
+                    if (inputTokenName == "WETH") {
+                      inputToken = weth;
+                      await weth.deposit({ value: amountIn });
+                    }
+                  }
+
+                  let inputTokenBalance: BigNumber;
+                  if (inputTokenName == "ETH") {
+                    subjectMaxAmountIn = amountIn;
+                  } else {
+                    inputTokenBalance = await inputToken.balanceOf(owner.address);
+                    subjectMaxAmountIn = inputTokenBalance;
+                    await inputToken.approve(exchangeIssuance.address, subjectMaxAmountIn);
+                    subjectInputToken = inputToken.address;
+                  }
+                  subjectSetToken = setToken.address;
+                });
+
+                async function subject() {
+                  if (inputTokenName == "ETH") {
+                    return exchangeIssuance.issueExactSetFromETH(
+                      subjectSetToken,
+                      subjectSetAmount,
+                      swapDataDebtToCollateral,
+                      swapDataInputToken,
+                      { value: subjectMaxAmountIn },
+                    );
+                  }
+                  return exchangeIssuance.issueExactSetFromERC20(
+                    subjectSetToken,
+                    subjectSetAmount,
+                    subjectInputToken,
+                    subjectMaxAmountIn,
+                    swapDataDebtToCollateral,
+                    swapDataInputToken,
                   );
-                } else {
-                  inputToken = weth;
-                  swapDataInputToken = {
-                    path: [addresses.dexes.curve.ethAddress, addresses.tokens.stEth],
+                }
+
+                it("should issue the correct amount of tokens", async () => {
+                  const setBalancebefore = await setToken.balanceOf(owner.address);
+                  await subject();
+                  const setBalanceAfter = await setToken.balanceOf(owner.address);
+                  const setObtained = setBalanceAfter.sub(setBalancebefore);
+                  expect(setObtained).to.eq(subjectSetAmount);
+                });
+
+                it("should spend less than specified max amount", async () => {
+                  const inputBalanceBefore =
+                    inputTokenName == "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await inputToken.balanceOf(owner.address);
+                  await subject();
+                  const inputBalanceAfter =
+                    inputTokenName == "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await inputToken.balanceOf(owner.address);
+                  const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
+                  expect(inputSpent.gt(0)).to.be.true;
+                  expect(inputSpent.lte(subjectMaxAmountIn)).to.be.true;
+                });
+              },
+            );
+
+            describe(
+              inputTokenName == "ETH" ? "redeemExactSetForETH" : "#redeemExactSetForERC20",
+              () => {
+                let swapDataCollateralToDebt: SwapData;
+                let swapDataOutputToken: SwapData;
+
+                let outputToken: StandardTokenMock | IWETH;
+
+                let subjectSetToken: Address;
+                let subjectMinAmountOut: BigNumber;
+                let subjectOutputToken: Address;
+
+                async function subject() {
+                  if (inputTokenName == "ETH") {
+                    return exchangeIssuance.redeemExactSetForETH(
+                      subjectSetToken,
+                      subjectSetAmount,
+                      subjectMinAmountOut,
+                      swapDataCollateralToDebt,
+                      swapDataOutputToken,
+                    );
+                  }
+                  return exchangeIssuance.redeemExactSetForERC20(
+                    subjectSetToken,
+                    subjectSetAmount,
+                    subjectOutputToken,
+                    subjectMinAmountOut,
+                    swapDataCollateralToDebt,
+                    swapDataOutputToken,
+                  );
+                }
+
+                beforeEach(async () => {
+                  swapDataCollateralToDebt = {
+                    path: [collateralTokenAddress, addresses.dexes.curve.ethAddress],
                     fees: [],
                     pool: addresses.dexes.curve.pools.stEthEth,
                     exchange: Exchange.Curve,
                   };
 
-                  await weth.deposit({ value: amountIn });
-                }
+                  if (inputTokenName == "collateralToken") {
+                    outputToken = stEth;
+                    swapDataOutputToken = {
+                      path: [],
+                      fees: [],
+                      pool: ADDRESS_ZERO,
+                      exchange: Exchange.None,
+                    };
+                  } else {
+                    swapDataOutputToken = swapDataCollateralToDebt;
 
-                const inputTokenBalance = await inputToken.balanceOf(owner.address);
-                subjectMaxAmountIn = inputTokenBalance;
-                subjectInputToken = inputToken.address;
-                subjectSetToken = setToken.address;
+                    if (inputTokenName == "WETH") {
+                      outputToken = weth;
+                      await weth.deposit({ value: amountIn });
+                    }
+                  }
 
-                await inputToken.approve(exchangeIssuance.address, subjectMaxAmountIn);
-              });
+                  subjectMinAmountOut = subjectSetAmount.div(2);
+                  subjectSetToken = setToken.address;
+                  await setToken.approve(exchangeIssuance.address, subjectSetAmount);
 
-              async function subject() {
-                return exchangeIssuance.issueExactSetFromERC20(
-                  subjectSetToken,
-                  subjectSetAmount,
-                  subjectInputToken,
-                  subjectMaxAmountIn,
-                  swapDataDebtToCollateral,
-                  swapDataInputToken,
-                );
-              }
+                  if (inputTokenName != "ETH") {
+                    subjectOutputToken = outputToken.address;
+                  }
+                });
 
-              it("should issue the correct amount of tokens", async () => {
-                const setBalancebefore = await setToken.balanceOf(owner.address);
-                await subject();
-                const setBalanceAfter = await setToken.balanceOf(owner.address);
-                const setObtained = setBalanceAfter.sub(setBalancebefore);
-                expect(setObtained).to.eq(subjectSetAmount);
-              });
+                it("should redeem the correct amount of tokens", async () => {
+                  const setBalanceBefore = await setToken.balanceOf(owner.address);
+                  await subject();
+                  const setBalanceAfter = await setToken.balanceOf(owner.address);
+                  const setRedeemed = setBalanceBefore.sub(setBalanceAfter);
+                  expect(setRedeemed).to.eq(subjectSetAmount);
+                });
 
-              it("should spend less than specified max amount", async () => {
-                const inputBalanceBefore = await inputToken.balanceOf(owner.address);
-                await subject();
-                const inputBalanceAfter = await inputToken.balanceOf(owner.address);
-                const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
-                expect(inputSpent.gt(0)).to.be.true;
-                expect(inputSpent.lte(subjectMaxAmountIn)).to.be.true;
-              });
-            });
-
-            describe("#redeemExactSetForERC20", () => {
-              let swapDataCollateralToDebt: SwapData;
-              let swapDataOutputToken: SwapData;
-
-              let outputToken: StandardTokenMock | IWETH;
-
-              let subjectSetToken: Address;
-              let subjectMinAmountOut: BigNumber;
-              let subjectOutputToken: Address;
-
-              async function subject() {
-                return exchangeIssuance.redeemExactSetForERC20(
-                  subjectSetToken,
-                  subjectSetAmount,
-                  subjectOutputToken,
-                  subjectMinAmountOut,
-                  swapDataCollateralToDebt,
-                  swapDataOutputToken,
-                );
-              }
-
-              beforeEach(async () => {
-                swapDataCollateralToDebt = {
-                  path: [collateralTokenAddress, addresses.dexes.curve.ethAddress],
-                  fees: [],
-                  pool: addresses.dexes.curve.pools.stEthEth,
-                  exchange: Exchange.Curve,
-                };
-
-                if (inputTokenName == "collateralToken") {
-                  outputToken = stEth;
-                  swapDataOutputToken = {
-                    path: [],
-                    fees: [],
-                    pool: ADDRESS_ZERO,
-                    exchange: Exchange.None,
-                  };
-                } else {
-                  outputToken = weth;
-                  swapDataOutputToken = {
-                    path: [addresses.tokens.stEth, addresses.dexes.curve.ethAddress],
-                    fees: [],
-                    pool: addresses.dexes.curve.pools.stEthEth,
-                    exchange: Exchange.Curve,
-                  };
-
-                  await weth.deposit({ value: amountIn });
-                }
-
-                subjectMinAmountOut = subjectSetAmount.div(2);
-                subjectOutputToken = outputToken.address;
-                subjectSetToken = setToken.address;
-
-                await setToken.approve(exchangeIssuance.address, subjectSetAmount);
-              });
-
-              it("should redeem the correct amount of tokens", async () => {
-                const setBalanceBefore = await setToken.balanceOf(owner.address);
-                await subject();
-                const setBalanceAfter = await setToken.balanceOf(owner.address);
-                const setRedeemed = setBalanceBefore.sub(setBalanceAfter);
-                expect(setRedeemed).to.eq(subjectSetAmount);
-              });
-
-              it("should return at least the specified minimum of output tokens", async () => {
-                const outputBalanceBefore = await outputToken.balanceOf(owner.address);
-                await subject();
-                const outputBalanceAfter = await outputToken.balanceOf(owner.address);
-                const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
-                expect(outputObtained.gte(subjectMinAmountOut)).to.be.true;
-              });
-            });
+                it("should return at least the specified minimum of output tokens", async () => {
+                  const outputBalanceBefore =
+                    inputTokenName == "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await outputToken.balanceOf(owner.address);
+                  await subject();
+                  const outputBalanceAfter =
+                    inputTokenName == "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await outputToken.balanceOf(owner.address);
+                  const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
+                  expect(outputObtained.gte(subjectMinAmountOut)).to.be.true;
+                });
+              },
+            );
           });
         });
       });
