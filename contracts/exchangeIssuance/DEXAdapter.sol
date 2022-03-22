@@ -52,6 +52,10 @@ abstract contract DEXAdapter {
     uint24 public constant POOL_FEE = 3000;
     uint256 public constant CURVE_REGISTRY_EXCHANGE_ID = 2;
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    // This is the margin in wei we add on top of stEth amounts to avoid errors. 
+    // This is needed both in aave as well as curve integration 
+    // TODO: Review to find better solution
+    uint256 public constant ROUNDING_ERROR_MARGIN = 2;
 
     /* ============ Enums ============ */
 
@@ -434,7 +438,7 @@ abstract contract DEXAdapter {
             _i,
             _j,
             _amountOut
-        );
+        ) + ROUNDING_ERROR_MARGIN;
     }
 
     function _getCurvePoolData(

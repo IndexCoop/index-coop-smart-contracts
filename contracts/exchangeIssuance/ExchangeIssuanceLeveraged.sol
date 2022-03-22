@@ -90,9 +90,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     /* ============ Constants ============= */
 
     uint256 constant private MAX_UINT256 = type(uint256).max;
-    // This is the margin in wei we add on top of the collateral amoutn to avoid issues from rounding errors in aave interaction
-    // TODO: Review to find better solution
-    uint256 constant public ROUNDING_ERROR_MARGIN = 2;
 
     /* ============ State Variables ============ */
 
@@ -129,6 +126,26 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
          require(msg.sender == address(LENDING_POOL), "ExchangeIssuance: LENDING POOL ONLY");
          _;
     }
+
+    modifier isValidPath(
+        address[] memory _path,
+        address _inputToken,
+        address _outputToken
+    )
+    {
+        if(_inputToken != _outputToken){
+            require(
+                _path[0] == _inputToken || (_inputToken == WETH && _path[0] == ETH_ADDRESS),
+                "ExchangeIssuance: INPUT_TOKEN_NOT_IN_PATH"
+            );
+            require(
+                _path[_path.length-1] == _outputToken || (_outputToken == WETH && _path[_path.length-1] == ETH_ADDRESS),
+                "ExchangeIssuance: OUTPUT_TOKEN_NOT_IN_PATH"
+            );
+        }
+        _;
+    }
+
 
     /* ============ Constructor ============ */
 
@@ -779,9 +796,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         SwapData memory _swapData
     )
         internal
+        isValidPath(_swapData.path, _collateralToken, WETH)
         returns(uint256)
     {
-        require(_swapData.path[_swapData.path.length-1] == WETH, "ExchangeIssuance:OUTPUTTOKEN_PATH_MISMATCH_WETH");
         uint256 ethAmount = _swapCollateralForOutputToken(
             _collateralToken,
             _collateralRemaining,
@@ -996,10 +1013,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         SwapData memory _swapData
     )
         internal
+        isValidPath(_swapData.path, _debtToken, _collateralToken)
         returns (uint256)
     {
-        require(_swapData.path[0] == _debtToken || (_debtToken == WETH && _swapData.path[0] == ETH_ADDRESS), "ExchangeIssuance: DEBT_TOKEN_NOT_IN_PATH");
-        require(_swapData.path[_swapData.path.length-1] == _collateralToken || (_collateralToken == WETH && _swapData.path[_swapData.path.length-1] == ETH_ADDRESS), "ExchangeIssuance: COLLATERAL_TOKEN_NOT_IN_PATH");
         return _swapExactTokensForTokens(
             _debtAmount,
             // minAmountOut is 0 here since we are going to make up the shortfall with the input token.
@@ -1028,10 +1044,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         SwapData memory _swapData
     )
         internal
+        isValidPath(_swapData.path, _collateralToken, _debtToken)
         returns (uint256)
     {
-        require(_swapData.path[0] == _collateralToken);
-        require(_swapData.path[_swapData.path.length-1] == _debtToken);
         return _swapTokensForExactTokens(
             _debtAmount,
             _collateralAmount,
@@ -1074,11 +1089,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         );
     }
 
-    modifier isValidPath(address[] memory _path, address _inputToken, address _outputToken){
-        require(_path[0] == _inputToken || (_inputToken == WETH && _path[0] == ETH_ADDRESS), "ExchangeIssuance: INPUT_TOKEN_NOT_IN_PATH");
-        require(_path[_path.length-1] == _outputToken || (_outputToken == WETH && _path[_path.length-1] == ETH_ADDRESS), "ExchangeIssuance: OUTPUT_TOKEN_NOT_IN_PATH");
-        _;
-    }
 
     /**
      * Swaps the collateral tokens obtained from redemption for the selected output token
@@ -1100,11 +1110,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         SwapData memory _swapData
     )
         internal
+        isValidPath(_swapData.path, _collateralToken, _outputToken)
         returns (uint256)
     {
-        if(_collateralToken == _outputToken) return _collateralTokenAmount;
-        require(_swapData.path[0] == _collateralToken, "ExchangeIssuance:COLLATERLTOKEN_PATH_MISMATCH");
-        require(_swapData.path[_swapData.path.length-1] == _outputToken,  "ExchangeIssuance:OUTPUTTOKEN_PATH_MISMATCH");
         return _swapExactTokensForTokens(
             _collateralTokenAmount,
             _minAmountOutputToken,
