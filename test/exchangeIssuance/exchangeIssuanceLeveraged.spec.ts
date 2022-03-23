@@ -851,27 +851,49 @@ describe("ExchangeIssuanceLeveraged", async () => {
             expect(amountIn).to.gt(ZERO);
           });
         });
+      });
 
-        beforeEach(() => {
-          subjectSetToken = setToken;
-          subjectAmount = ether(1);
-          subjectInputToken = setV2Setup.usdc.address;
-          subjectExchange = Exchange.Quickswap;
+      describe("#getRedeemExactSet", async () => {
+        let subjectSetToken: SetToken;
+        let subjectAmount: BigNumber;
+        let subjectOutputToken: Address;
+        let subjectExchange: Exchange;
+        let subjectCollateralForDebtSwapData: SwapData;
+        let subjectOutputTokenSwapData: SwapData;
 
-          subjectDebtForCollateralSwapData = {
-            path: [setV2Setup.usdc.address, wethAddress],
-            fees: [],
-          };
+        async function subject(): Promise<BigNumber> {
+          return await exchangeIssuance.getRedeemExactSet(
+            subjectSetToken.address,
+            subjectAmount,
+            subjectOutputToken,
+            subjectExchange,
+            subjectCollateralForDebtSwapData,
+            subjectOutputTokenSwapData
+          );
+        }
 
-          subjectInputTokenSwapData = {
-            path: [subjectInputToken, wethAddress],
-            fees: [],
-          };
-        });
+        context(`when input token is ${tokenName === "CollateralToken" ? "the collateral" : "an ERC20"}`, async () => {
+          beforeEach(() => {
+            subjectSetToken = setToken;
+            subjectAmount = ether(1);
+            subjectOutputToken = tokenName === "CollateralToken" ? wethAddress : setV2Setup.usdc.address;
+            subjectExchange = Exchange.Quickswap;
 
-        it("should return correct issuance cost", async () => {
-          const amountIn = await subject();
-          expect(amountIn).to.gt(ZERO);
+            subjectCollateralForDebtSwapData = {
+              path: [wethAddress, setV2Setup.usdc.address],
+              fees: [],
+            };
+
+            subjectOutputTokenSwapData = {
+              path: [wethAddress, subjectOutputToken],
+              fees: [],
+            };
+          });
+
+          it("should return correct redemption proceeds", async () => {
+            const amountOut = await subject();
+            expect(amountOut).to.gt(ZERO);
+          });
         });
       });
 
