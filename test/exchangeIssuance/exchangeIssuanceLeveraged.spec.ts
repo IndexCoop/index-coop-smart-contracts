@@ -193,7 +193,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
     quickswapSetup = getUniswapFixture(owner.address);
     await quickswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
 
-    // Set integrations for CompoundLeverageModule
+    // Set integrations for AaveLeverageModule
     await setV2Setup.integrationRegistry.addIntegration(
       aaveLeverageModule.address,
       "UniswapTradeAdapter",
@@ -806,6 +806,72 @@ describe("ExchangeIssuanceLeveraged", async () => {
             };
             await expect(subject()).to.be.revertedWith(revertReasonMapping[tokenName]);
           });
+        });
+      });
+
+      describe("#getIssueExactSet", async () => {
+        let subjectSetToken: SetToken;
+        let subjectAmount: BigNumber;
+        let subjectInputToken: Address;
+        let subjectExchange: Exchange;
+        let subjectDebtForCollateralSwapData: SwapData;
+        let subjectInputTokenSwapData: SwapData;
+
+        async function subject(): Promise<BigNumber> {
+          return await exchangeIssuance.getIssueExactSet(
+            subjectSetToken.address,
+            subjectAmount,
+            subjectInputToken,
+            subjectExchange,
+            subjectDebtForCollateralSwapData,
+            subjectInputTokenSwapData
+          );
+        }
+
+        context(`when input token is ${tokenName === "CollateralToken" ? "the collateral" : "an ERC20"}`, async () => {
+          beforeEach(() => {
+            subjectSetToken = setToken;
+            subjectAmount = ether(1);
+            subjectInputToken = tokenName === "CollateralToken" ? wethAddress : setV2Setup.usdc.address;
+            subjectExchange = Exchange.Quickswap;
+
+            subjectDebtForCollateralSwapData = {
+              path: [setV2Setup.usdc.address, wethAddress],
+              fees: [],
+            };
+
+            subjectInputTokenSwapData = {
+              path: [subjectInputToken, wethAddress],
+              fees: [],
+            };
+          });
+
+          it("should return correct issuance cost", async () => {
+            const amountIn = await subject();
+            expect(amountIn).to.gt(ZERO);
+          });
+        });
+
+        beforeEach(() => {
+          subjectSetToken = setToken;
+          subjectAmount = ether(1);
+          subjectInputToken = setV2Setup.usdc.address;
+          subjectExchange = Exchange.Quickswap;
+
+          subjectDebtForCollateralSwapData = {
+            path: [setV2Setup.usdc.address, wethAddress],
+            fees: [],
+          };
+
+          subjectInputTokenSwapData = {
+            path: [subjectInputToken, wethAddress],
+            fees: [],
+          };
+        });
+
+        it("should return correct issuance cost", async () => {
+          const amountIn = await subject();
+          expect(amountIn).to.gt(ZERO);
         });
       });
 

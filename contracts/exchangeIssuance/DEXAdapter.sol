@@ -24,6 +24,7 @@ import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { ISwapRouter} from "../interfaces/external/ISwapRouter.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
+import { console } from "hardhat/console.sol";
 
 
 /**
@@ -86,6 +87,7 @@ abstract contract DEXAdapter {
     }
 
     /* ============ Internal Methods ============ */
+
     /**
      * Swap exact tokens for another token on a given DEX.
      *
@@ -138,10 +140,50 @@ abstract contract DEXAdapter {
         if (_swapData.path[0] == _swapData.path[_swapData.path.length -1]) {
             return _amountOut;
         }
-        if(_exchange == Exchange.UniV3){
+        if (_exchange == Exchange.UniV3){
             return _swapTokensForExactTokensUniV3(_swapData.path, _swapData.fees, _amountOut, _maxAmountIn);
         } else {
             return _swapTokensForExactTokensUniV2(_swapData.path, _amountOut, _maxAmountIn, _exchange);
+        }
+    }
+
+    function _getAmountOut(
+        SwapData memory _swapData,
+        Exchange _exchange,
+        uint256 _amountIn
+    )
+        internal
+        view
+        returns (uint256)
+    {
+        if (_swapData.path[0] == _swapData.path[_swapData.path.length-1]) {
+            return _amountIn;
+        }
+
+        if (_exchange == Exchange.UniV3) {
+            // return _getAmountOutUniV3(_swapData, _amountIn);
+        } else {
+            return _getAmountOutUniV2(_swapData, _exchange, _amountIn);
+        }
+    }
+
+    function _getAmountIn(
+        SwapData memory _swapData,
+        Exchange _exchange,
+        uint256 _amountOut
+    )
+        internal
+        view
+        returns (uint256)
+    {
+        if (_swapData.path[0] == _swapData.path[_swapData.path.length-1]) {
+            return _amountOut;
+        }
+
+        if (_exchange == Exchange.UniV3) {
+            // return _getAmountInUniV3(_swapData, _amountOut);
+        } else {
+            return _getAmountInUniV2(_swapData, _exchange, _amountOut);
         }
     }
 
@@ -331,6 +373,31 @@ abstract contract DEXAdapter {
         return router.swapExactTokensForTokens(_amountIn, _minAmountOut, _path, address(this), block.timestamp)[1];
     }
 
+    function _getAmountOutUniV2(
+        SwapData memory _swapData,
+        Exchange _exchange,
+        uint256 _amountIn
+    )
+        private
+        view
+        returns (uint256)
+    {
+        IUniswapV2Router02 router = _getRouter(_exchange);
+        return router.getAmountsOut(_amountIn, _swapData.path)[_swapData.path.length-1];
+    }
+
+    function _getAmountInUniV2(
+        SwapData memory _swapData,
+        Exchange _exchange,
+        uint256 _amountOut
+    )
+        private
+        view
+        returns (uint256)
+    {
+        IUniswapV2Router02 router = _getRouter(_exchange);
+        return router.getAmountsIn(_amountOut, _swapData.path)[0];
+    }
 
     /**
      * Encode path / fees to bytes in the format expected by UniV3 router

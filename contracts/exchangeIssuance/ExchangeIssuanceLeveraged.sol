@@ -197,6 +197,28 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         _approveToken(_token);
     }
 
+    /**
+     * 
+     */
+    function getIssueExactSet(
+        ISetToken _setToken,
+        uint256 _setAmount,
+        address _inputToken,
+        Exchange _exchange,
+        SwapData memory _swapDataDebtForCollateral,
+        SwapData memory _swapDataInputToken
+    )
+        external
+        view
+        returns (uint256)
+    {
+        LeveragedTokenData memory issueInfo = _getLeveragedTokenData(_setToken, _setAmount, true);        
+        uint256 collateralOwed = issueInfo.collateralAmount.preciseMul(1.009 ether);
+        uint256 borrowSaleProceeds = _getAmountOut(_swapDataDebtForCollateral, _exchange, issueInfo.debtAmount);
+        collateralOwed = collateralOwed.sub(borrowSaleProceeds);
+        return _getAmountIn(_swapDataInputToken, _exchange, collateralOwed);
+    }
+
 
     /**
      * Trigger redemption of set token to pay the user with Eth
