@@ -461,7 +461,6 @@ abstract contract DEXAdapter {
      * Gets the input amount of a fixed output swap on Uniswap V3.
      *
      * @param _swapData     the swap parameters
-     * @param _exchange     the exchange to use
      * @param _amountOut    the output amount of the swap
      *
      * @return              the input amount of the swap

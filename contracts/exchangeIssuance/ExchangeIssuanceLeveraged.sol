@@ -240,7 +240,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
      * @param _outputToken                  output token of redemption proceeds
      * @param _exchange                     exchange to use for swapping
      * @param _swapDataCollateralForDebt    swap data for the collateral to debt swap
-     * @param _swapDataOutputToker          swap data for the collateral token to the output token
+     * @param _swapDataOutputToken          swap data for the collateral token to the output token
      *
      * @return                              amount of _outputToken that would be obtained from the redemption
      */
