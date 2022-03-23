@@ -35,9 +35,10 @@ import {
   getUniswapFixture,
   getWaffleExpect,
   usdc,
+  getUniswapV3Fixture,
 } from "@utils/index";
 import { UnitsUtils } from "@utils/common/unitsUtils";
-import { AaveV2Fixture, SetFixture, UniswapFixture } from "@utils/fixtures";
+import { AaveV2Fixture, SetFixture, UniswapFixture, UniswapV3Fixture } from "@utils/fixtures";
 import { BigNumber, utils } from "ethers";
 import { getTxFee } from "@utils/test";
 
@@ -45,6 +46,7 @@ enum Exchange {
   None,
   Quickswap,
   Sushiswap,
+  UniV3,
 }
 
 type SwapData = {
@@ -92,15 +94,15 @@ describe("ExchangeIssuanceLeveraged", async () => {
   let daiAddress: Address;
   let quickswapRouter: UniswapV2Router02;
   let sushiswapRouter: UniswapV2Router02;
+  let uniswapV3RouterAddress: Address;
   let controllerAddress: Address;
   let debtIssuanceModuleAddress: Address;
   let addressProviderAddress: Address;
 
   let quickswapSetup: UniswapFixture;
   let sushiswapSetup: UniswapFixture;
+  let uniswapV3Setup: UniswapV3Fixture;
   let setTokenInitialBalance: BigNumber;
-
-  const uniswapV3RouterAddress = ADDRESS_ZERO;
 
   cacheBeforeEach(async () => {
     [owner, methodologist] = await getAccounts();
@@ -201,6 +203,21 @@ describe("ExchangeIssuanceLeveraged", async () => {
     );
     sushiswapSetup = getUniswapFixture(owner.address);
     await sushiswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
+
+    uniswapV3Setup = getUniswapV3Fixture(owner.address);
+    await uniswapV3Setup.initialize(owner, setV2Setup.weth, 3000, setV2Setup.wbtc, 40000, setV2Setup.dai);
+    uniswapV3RouterAddress = uniswapV3Setup.swapRouter.address;
+    await uniswapV3Setup.createNewPair(setV2Setup.weth, setV2Setup.usdc, 3000, 3000);
+    await setV2Setup.weth.approve(uniswapV3Setup.nftPositionManager.address, MAX_UINT_256);
+    await setV2Setup.usdc.approve(uniswapV3Setup.nftPositionManager.address, MAX_UINT_256);
+    await uniswapV3Setup.addLiquidityWide(
+      setV2Setup.weth,
+      setV2Setup.usdc,
+      3000,
+      ether(100),
+      usdc(300_000),
+      owner.address
+    );
 
     setTokenInitialBalance = ether(1);
     await collateralAToken.approve(debtIssuanceModule.address, MAX_UINT_256);
@@ -379,6 +396,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         quickswapRouter.address,
         sushiswapRouter.address,
         uniswapV3RouterAddress,
+        uniswapV3Setup.quoter.address,
         controllerAddress,
         debtIssuanceModuleAddress,
         aaveLeverageModule.address,
@@ -432,6 +450,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         quickswapRouter.address,
         sushiswapRouter.address,
         uniswapV3RouterAddress,
+        uniswapV3Setup.quoter.address,
         controllerAddress,
         debtIssuanceModuleAddress,
         aaveLeverageModule.address,
@@ -818,7 +837,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         let subjectInputTokenSwapData: SwapData;
 
         async function subject(): Promise<BigNumber> {
-          return await exchangeIssuance.getIssueExactSet(
+          return await exchangeIssuance.callStatic.getIssueExactSet(
             subjectSetToken.address,
             subjectAmount,
             subjectInputToken,
@@ -850,6 +869,27 @@ describe("ExchangeIssuanceLeveraged", async () => {
             const amountIn = await subject();
             expect(amountIn).to.gt(ZERO);
           });
+
+          context("when using Uniswap V3 is the exchange", async () => {
+            beforeEach(() => {
+              subjectExchange = Exchange.UniV3;
+
+              subjectDebtForCollateralSwapData = {
+                path: [setV2Setup.usdc.address, wethAddress],
+                fees: [3000],
+              };
+
+              subjectInputTokenSwapData = {
+                path: [subjectInputToken, wethAddress],
+                fees: [3000],
+              };
+            });
+
+            it("should return the correct issuance cost", async () => {
+              const amountIn = await subject();
+              expect(amountIn).to.gt(ZERO);
+            });
+          });
         });
       });
 
@@ -862,7 +902,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         let subjectOutputTokenSwapData: SwapData;
 
         async function subject(): Promise<BigNumber> {
-          return await exchangeIssuance.getRedeemExactSet(
+          return await exchangeIssuance.callStatic.getRedeemExactSet(
             subjectSetToken.address,
             subjectAmount,
             subjectOutputToken,
@@ -894,6 +934,28 @@ describe("ExchangeIssuanceLeveraged", async () => {
             const amountOut = await subject();
             expect(amountOut).to.gt(ZERO);
           });
+
+          context("when using Uniswap V3 is the exchange", async () => {
+            beforeEach(() => {
+              subjectExchange = Exchange.UniV3;
+
+              subjectCollateralForDebtSwapData = {
+                path: [wethAddress, setV2Setup.usdc.address],
+                fees: [3000],
+              };
+
+              subjectOutputTokenSwapData = {
+                path: [wethAddress, subjectOutputToken],
+                fees: [3000],
+              };
+            });
+
+            it("should return the correct issuance cost", async () => {
+              const amountIn = await subject();
+              expect(amountIn).to.gt(ZERO);
+            });
+          });
+
         });
       });
 

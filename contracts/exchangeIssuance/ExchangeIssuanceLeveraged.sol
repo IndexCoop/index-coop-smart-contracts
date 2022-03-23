@@ -30,14 +30,12 @@ import { IAaveLeverageModule } from "../interfaces/IAaveLeverageModule.sol";
 import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { IController } from "../interfaces/IController.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
+import { IQuoter } from "../interfaces/IQuoter.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { UniSushiV2Library } from "../../external/contracts/UniSushiV2Library.sol";
 import { FlashLoanReceiverBaseV2 } from "../../external/contracts/aaveV2/FlashLoanReceiverBaseV2.sol";
 import { DEXAdapter } from "./DEXAdapter.sol";
-
-
-
 
 
 /**
@@ -145,6 +143,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         IUniswapV2Router02 _quickRouter,
         IUniswapV2Router02 _sushiRouter,
         ISwapRouter _uniV3Router,
+        IQuoter _quoter,
         IController _setController,
         IDebtIssuanceModule _debtIssuanceModule,
         IAaveLeverageModule _aaveLeverageModule,
@@ -152,7 +151,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     )
         public
         FlashLoanReceiverBaseV2(_addressProvider)
-        DEXAdapter(_weth, _quickRouter, _sushiRouter, _uniV3Router)
+        DEXAdapter(_weth, _quickRouter, _sushiRouter, _uniV3Router, _quoter)
     {
         setController = _setController;
         debtIssuanceModule = _debtIssuanceModule;
@@ -209,7 +208,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         SwapData memory _swapDataInputToken
     )
         external
-        view
         returns (uint256)
     {
         LeveragedTokenData memory issueInfo = _getLeveragedTokenData(_setToken, _setAmount, true);        
@@ -228,7 +226,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         SwapData memory _swapDataOutputToken
     )
         external
-        view
         returns (uint256)
     {
         LeveragedTokenData memory redeemInfo = _getLeveragedTokenData(_setToken, _setAmount, false);

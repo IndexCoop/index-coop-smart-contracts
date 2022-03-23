@@ -21,7 +21,8 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
-import { ISwapRouter} from "../interfaces/external/ISwapRouter.sol";
+import { ISwapRouter } from "../interfaces/external/ISwapRouter.sol";
+import { IQuoter } from "../interfaces/IQuoter.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 import { console } from "hardhat/console.sol";
@@ -60,6 +61,7 @@ abstract contract DEXAdapter {
     IUniswapV2Router02 immutable public quickRouter;
     IUniswapV2Router02 immutable public sushiRouter;
     ISwapRouter immutable public uniV3Router;
+    IQuoter immutable public quoter;
 
     /**
     * Sets various contract addresses and approves wrapped native token to the routers
@@ -73,13 +75,15 @@ abstract contract DEXAdapter {
         address _weth,
         IUniswapV2Router02 _quickRouter,
         IUniswapV2Router02 _sushiRouter,
-        ISwapRouter _uniV3Router
+        ISwapRouter _uniV3Router,
+        IQuoter _quoter
     )
         public
     {
         quickRouter = _quickRouter;
         sushiRouter = _sushiRouter;
         uniV3Router = _uniV3Router;
+        quoter = _quoter;
 
         IERC20(_weth).safeApprove(address(_quickRouter), PreciseUnitMath.maxUint256());
         IERC20(_weth).safeApprove(address(_sushiRouter), PreciseUnitMath.maxUint256());
@@ -153,7 +157,6 @@ abstract contract DEXAdapter {
         uint256 _amountIn
     )
         internal
-        view
         returns (uint256)
     {
         if (_swapData.path[0] == _swapData.path[_swapData.path.length-1]) {
@@ -161,7 +164,7 @@ abstract contract DEXAdapter {
         }
 
         if (_exchange == Exchange.UniV3) {
-            // return _getAmountOutUniV3(_swapData, _amountIn);
+            return _getAmountOutUniV3(_swapData, _amountIn);
         } else {
             return _getAmountOutUniV2(_swapData, _exchange, _amountIn);
         }
@@ -173,7 +176,6 @@ abstract contract DEXAdapter {
         uint256 _amountOut
     )
         internal
-        view
         returns (uint256)
     {
         if (_swapData.path[0] == _swapData.path[_swapData.path.length-1]) {
@@ -181,7 +183,7 @@ abstract contract DEXAdapter {
         }
 
         if (_exchange == Exchange.UniV3) {
-            // return _getAmountInUniV3(_swapData, _amountOut);
+            return _getAmountInUniV3(_swapData, _amountOut);
         } else {
             return _getAmountInUniV2(_swapData, _exchange, _amountOut);
         }
@@ -397,6 +399,28 @@ abstract contract DEXAdapter {
     {
         IUniswapV2Router02 router = _getRouter(_exchange);
         return router.getAmountsIn(_amountOut, _swapData.path)[0];
+    }
+
+    function _getAmountOutUniV3(
+        SwapData memory _swapData,
+        uint256 _amountIn
+    )
+        private
+        returns (uint256)
+    {
+        bytes memory path = _encodePathV3(_swapData.path, _swapData.fees, false);
+        return quoter.quoteExactInput(path, _amountIn);
+    }
+
+    function _getAmountInUniV3(
+        SwapData memory _swapData,
+        uint256 _amountOut
+    )
+        private
+        returns (uint256)
+    {
+        bytes memory path = _encodePathV3(_swapData.path, _swapData.fees, true);
+        return quoter.quoteExactOutput(path, _amountOut);
     }
 
     /**
