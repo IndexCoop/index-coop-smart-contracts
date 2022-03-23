@@ -88,24 +88,27 @@ if (process.env.INTEGRATIONTEST) {
       });
 
       it("weth address is set correctly", async () => {
-        expect(await exchangeIssuance.WETH()).to.eq(utils.getAddress(addresses.tokens.weth));
+        const returnedAddresses = await exchangeIssuance.addresses();
+        expect(returnedAddresses.weth).to.eq(utils.getAddress(addresses.tokens.weth));
       });
 
       it("sushi router address is set correctly", async () => {
-        expect(await exchangeIssuance.sushiRouter()).to.eq(
+        const returnedAddresses = await exchangeIssuance.addresses();
+        expect(returnedAddresses.sushiRouter).to.eq(
           utils.getAddress(addresses.dexes.sushiswap.router),
         );
       });
 
       it("uniV2 router address is set correctly", async () => {
-        // TODO: Review / Fix misleading name quick vs. uniV2
-        expect(await exchangeIssuance.quickRouter()).to.eq(
+        const returnedAddresses = await exchangeIssuance.addresses();
+        expect(returnedAddresses.quickRouter).to.eq(
           utils.getAddress(addresses.dexes.uniV2.router),
         );
       });
 
       it("uniV3 router address is set correctly", async () => {
-        expect(await exchangeIssuance.uniV3Router()).to.eq(
+        const returnedAddresses = await exchangeIssuance.addresses();
+        expect(returnedAddresses.uniV3Router).to.eq(
           utils.getAddress(addresses.dexes.uniV3.router),
         );
       });

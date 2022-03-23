@@ -7,6 +7,7 @@ import "@nomiclabs/hardhat-waffle";
 import "hardhat-typechain";
 import "solidity-coverage";
 import "hardhat-deploy";
+import "hardhat-contract-sizer";
 import "./tasks";
 
 const INTEGRATIONTEST_TIMEOUT = 600000;

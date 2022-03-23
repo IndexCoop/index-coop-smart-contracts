@@ -124,11 +124,10 @@ if (process.env.INTEGRATIONTEST) {
       });
 
       it("verify state set properly via constructor", async () => {
-        const expectedWethAddress = await exchangeIssuance.WETH();
-        expect(expectedWethAddress).to.eq(utils.getAddress(wmaticAddress));
+        const addresses = await exchangeIssuance.addresses();
+        expect(addresses.weth).to.eq(utils.getAddress(wmaticAddress));
 
-        const expectedSushiRouterAddress = await exchangeIssuance.sushiRouter();
-        expect(expectedSushiRouterAddress).to.eq(utils.getAddress(sushiswapRouterAddress));
+        expect(addresses.sushiRouter).to.eq(utils.getAddress(sushiswapRouterAddress));
 
         const expectedControllerAddress = await exchangeIssuance.setController();
         expect(expectedControllerAddress).to.eq(utils.getAddress(controllerAddress));
@@ -176,7 +175,6 @@ if (process.env.INTEGRATIONTEST) {
                 let subjectInputToken: Address;
                 let subjectDebtForCollateralSwapData: SwapData;
                 let subjectInputTokenSwapData: SwapData;
-
 
                 context("#issueExactSetFromERC20", () => {
                   let subjectMaxAmountInput: BigNumber;
