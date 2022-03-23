@@ -220,8 +220,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         external
         returns (uint256)
     {
+        aaveLeverageModule.sync(_setToken);
         LeveragedTokenData memory issueInfo = _getLeveragedTokenData(_setToken, _setAmount, true);        
-        uint256 collateralOwed = issueInfo.collateralAmount.preciseMul(1.009 ether);
+        uint256 collateralOwed = issueInfo.collateralAmount.preciseMul(1.0009 ether);
         uint256 borrowSaleProceeds = _getAmountOut(_swapDataDebtForCollateral, _exchange, issueInfo.debtAmount);
         collateralOwed = collateralOwed.sub(borrowSaleProceeds);
         return _getAmountIn(_swapDataInputToken, _exchange, collateralOwed);
@@ -251,8 +252,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         external
         returns (uint256)
     {
+        aaveLeverageModule.sync(_setToken);
         LeveragedTokenData memory redeemInfo = _getLeveragedTokenData(_setToken, _setAmount, false);
-        uint256 debtOwed = redeemInfo.debtAmount.preciseMul(1.009 ether);
+        uint256 debtOwed = redeemInfo.debtAmount.preciseMul(1.0009 ether);
         uint256 debtPurchaseCost = _getAmountIn(_swapDataCollateralForDebt, _exchange, debtOwed);
         uint256 extraCollateral = redeemInfo.collateralAmount.sub(debtPurchaseCost);
         return _getAmountOut(_swapDataOutputToken, _exchange, extraCollateral);
