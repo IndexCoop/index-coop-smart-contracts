@@ -197,7 +197,19 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     }
 
     /**
-     * 
+     * Gets the input cost of issuing a given amount of a set token. This
+     * function is not marked view, but should be static called from frontends.
+     * This constraint is due to the need to interact with the Uniswap V3 quoter
+     * contract.
+     *
+     * @param _setToken                     the set token to issue
+     * @param _setAmount                    amount of set tokens
+     * @param _inputToken                   input token used to issue
+     * @param _exchange                     exchange to use for swapping
+     * @param _swapDataDebtForCollateral    swap data for the debt to collateral swap
+     * @param _swapDataInputToken           swap data for the input token to collateral swap
+     *
+     * @return                              the amount of input tokens required to perfrom the issuance
      */
     function getIssueExactSet(
         ISetToken _setToken,
@@ -217,6 +229,21 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
         return _getAmountIn(_swapDataInputToken, _exchange, collateralOwed);
     }
 
+    /**
+     * Gets the proceeds of a redemption of a given amount of a set token. This
+     * function is not marked view, but should be static called from frontends.
+     * This constraint is due to the need to interact with the Uniswap V3 quoter
+     * contract.
+     *
+     * @param _setToken                     the set token to issue
+     * @param _setAmount                    amount of set tokens
+     * @param _outputToken                  output token of redemption proceeds
+     * @param _exchange                     exchange to use for swapping
+     * @param _swapDataCollateralForDebt    swap data for the collateral to debt swap
+     * @param _swapDataOutputToker          swap data for the collateral token to the output token
+     *
+     * @return                              amount of _outputToken that would be obtained from the redemption
+     */
     function getRedeemExactSet(
         ISetToken _setToken,
         uint256 _setAmount,

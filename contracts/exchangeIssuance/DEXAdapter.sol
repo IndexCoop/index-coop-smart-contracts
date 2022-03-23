@@ -151,6 +151,15 @@ abstract contract DEXAdapter {
         }
     }
 
+    /**
+     * Gets the output amount of a token swap.
+     *
+     * @param _swapData     the swap parameters
+     * @param _exchange     the exchange to use
+     * @param _amountIn     the input amount of the trade
+     *
+     * @return              the output amount of the swap
+     */
     function _getAmountOut(
         SwapData memory _swapData,
         Exchange _exchange,
@@ -169,7 +178,16 @@ abstract contract DEXAdapter {
             return _getAmountOutUniV2(_swapData, _exchange, _amountIn);
         }
     }
-
+    
+    /**
+     * Gets the input amount of a fixed output swap.
+     *
+     * @param _swapData     the swap parameters
+     * @param _exchange     the exchange to use
+     * @param _amountOut    the output amount of the swap
+     *
+     * @return              the input amount of the swap
+     */
     function _getAmountIn(
         SwapData memory _swapData,
         Exchange _exchange,
@@ -375,6 +393,15 @@ abstract contract DEXAdapter {
         return router.swapExactTokensForTokens(_amountIn, _minAmountOut, _path, address(this), block.timestamp)[1];
     }
 
+    /**
+     * Gets the output amount of a token swap on Uniswap V2
+     *
+     * @param _swapData     the swap parameters
+     * @param _exchange     the exchange to use
+     * @param _amountIn     the input amount of the trade
+     *
+     * @return              the output amount of the swap
+     */
     function _getAmountOutUniV2(
         SwapData memory _swapData,
         Exchange _exchange,
@@ -388,6 +415,15 @@ abstract contract DEXAdapter {
         return router.getAmountsOut(_amountIn, _swapData.path)[_swapData.path.length-1];
     }
 
+    /**
+     * Gets the input amount of a fixed output swap on Uniswap V2.
+     *
+     * @param _swapData     the swap parameters
+     * @param _exchange     the exchange to use
+     * @param _amountOut    the output amount of the swap
+     *
+     * @return              the input amount of the swap
+     */
     function _getAmountInUniV2(
         SwapData memory _swapData,
         Exchange _exchange,
@@ -401,6 +437,15 @@ abstract contract DEXAdapter {
         return router.getAmountsIn(_amountOut, _swapData.path)[0];
     }
 
+    /**
+     * Gets the output amount of a token swap on Uniswap V3.
+     *
+     * @param _swapData     the swap parameters
+     * @param _amountIn     the input amount of the trade
+     *
+     * @return              the output amount of the swap
+     */
+
     function _getAmountOutUniV3(
         SwapData memory _swapData,
         uint256 _amountIn
@@ -412,6 +457,15 @@ abstract contract DEXAdapter {
         return quoter.quoteExactInput(path, _amountIn);
     }
 
+    /**
+     * Gets the input amount of a fixed output swap on Uniswap V3.
+     *
+     * @param _swapData     the swap parameters
+     * @param _exchange     the exchange to use
+     * @param _amountOut    the output amount of the swap
+     *
+     * @return              the input amount of the swap
+     */
     function _getAmountInUniV3(
         SwapData memory _swapData,
         uint256 _amountOut
