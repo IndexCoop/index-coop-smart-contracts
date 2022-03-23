@@ -840,7 +840,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
           return await exchangeIssuance.callStatic.getIssueExactSet(
             subjectSetToken.address,
             subjectAmount,
-            subjectInputToken,
             subjectExchange,
             subjectDebtForCollateralSwapData,
             subjectInputTokenSwapData
@@ -905,7 +904,6 @@ describe("ExchangeIssuanceLeveraged", async () => {
           return await exchangeIssuance.callStatic.getRedeemExactSet(
             subjectSetToken.address,
             subjectAmount,
-            subjectOutputToken,
             subjectExchange,
             subjectCollateralForDebtSwapData,
             subjectOutputTokenSwapData
