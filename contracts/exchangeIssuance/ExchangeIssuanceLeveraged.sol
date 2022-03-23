@@ -204,7 +204,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
      *
      * @param _setToken                     the set token to issue
      * @param _setAmount                    amount of set tokens
-     * @param _inputToken                   input token used to issue
      * @param _exchange                     exchange to use for swapping
      * @param _swapDataDebtForCollateral    swap data for the debt to collateral swap
      * @param _swapDataInputToken           swap data for the input token to collateral swap
@@ -214,7 +213,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     function getIssueExactSet(
         ISetToken _setToken,
         uint256 _setAmount,
-        address _inputToken,
         Exchange _exchange,
         SwapData memory _swapDataDebtForCollateral,
         SwapData memory _swapDataInputToken
@@ -237,7 +235,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
      *
      * @param _setToken                     the set token to issue
      * @param _setAmount                    amount of set tokens
-     * @param _outputToken                  output token of redemption proceeds
      * @param _exchange                     exchange to use for swapping
      * @param _swapDataCollateralForDebt    swap data for the collateral to debt swap
      * @param _swapDataOutputToken          swap data for the collateral token to the output token
@@ -247,7 +244,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2, 
     function getRedeemExactSet(
         ISetToken _setToken,
         uint256 _setAmount,
-        address _outputToken,
         Exchange _exchange,
         SwapData memory _swapDataCollateralForDebt,
         SwapData memory _swapDataOutputToken
