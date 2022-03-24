@@ -47,8 +47,6 @@ library DEXAdapter {
     /* ============ Constants ============= */
 
     uint256 constant private MAX_UINT256 = type(uint256).max;
-    uint24 public constant POOL_FEE = 3000;
-    uint256 public constant CURVE_REGISTRY_EXCHANGE_ID = 2;
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     // This is the margin in wei we add on top of stEth amounts to avoid errors. 
     // This is needed both in aave as well as curve integration 
@@ -96,6 +94,7 @@ library DEXAdapter {
     /**
      * Swap exact tokens for another token on a given DEX.
      *
+     * @param _addresses    Struct containing relevant smart contract addresses.
      * @param _amountIn     The amount of input token to be spent
      * @param _minAmountOut Minimum amount of output token to receive
      * @param _swapData     Swap data containing the path and fee levels (latter only used for uniV3)
@@ -146,6 +145,7 @@ library DEXAdapter {
     /**
      * Swap tokens for exact amount of output tokens on a given DEX.
      *
+     * @param _addresses    Struct containing relevant smart contract addresses.
      * @param _amountOut    The amount of output token required
      * @param _maxAmountIn  Maximum amount of input token to be spent
      * @param _swapData     Swap data containing the path and fee levels (latter only used for uniV3)
@@ -186,7 +186,6 @@ library DEXAdapter {
                 _swapData.path,
                 _amountOut,
                 _maxAmountIn,
-                _swapData.exchange,
                 IUniswapV2Router02((_swapData.exchange == Exchange.Quickswap) ? _addresses.quickRouter : _addresses.sushiRouter)
             );
         }
@@ -221,7 +220,7 @@ library DEXAdapter {
      * @param _path         List of token address to swap via. 
      * @param _amountOut    The amount of output token required
      * @param _maxAmountIn  Maximum amount of input token to be spent
-     * @param _exchange     The exchange on which to peform the swap
+     * @param _router       Address of the uniV2 router to use
      *
      * @return amountIn    The amount of input tokens spent
      */
@@ -229,7 +228,6 @@ library DEXAdapter {
         address[] memory _path,
         uint256 _amountOut,
         uint256 _maxAmountIn,
-        Exchange _exchange,
         IUniswapV2Router02 _router
     )
         private
@@ -246,6 +244,7 @@ library DEXAdapter {
      * @param _fees         List of fee levels identifying the pools to swap via. (_fees[0] refers to pool between _path[0] and _path[1])
      * @param _amountOut    The amount of output token required
      * @param _maxAmountIn  Maximum amount of input token to be spent
+     * @param _uniV3Router  Address of the uniswapV3 router
      *
      * @return amountIn    The amount of input tokens spent
      */
@@ -296,6 +295,7 @@ library DEXAdapter {
      * @param _pool         Address of curve pool to use
      * @param _amountIn     The amount of input token to be spent
      * @param _minAmountOut Minimum amount of output token to receive
+     * @param _addresses    Struct containing relevant smart contract addresses.
      *
      * @return amountOut    The amount of output token obtained
      */
@@ -403,6 +403,18 @@ library DEXAdapter {
     }
 
 
+
+    /**
+     *  Calculate required input amount to get a given output amount via Curve swap
+     *
+     * @param _i            Index of input token as per the ordering of the pools tokens
+     * @param _j            Index of output token as per the ordering of the pools tokens
+     * @param _pool         Address of curve pool to use
+     * @param _amountOut    The amount of output token to be received
+     * @param _addresses    Struct containing relevant smart contract addresses.
+     *
+     * @return amountOut    The amount of output token obtained
+     */
     function _getAmountInCurve(
         address _pool,
         int128 _i,
@@ -414,7 +426,7 @@ library DEXAdapter {
         view
         returns (uint256)
     {
-        CurvePoolData memory poolData = _getCurvePoolData(_pool, _i, _j, ICurveAddressProvider(_addresses.curveAddressProvider));
+        CurvePoolData memory poolData = _getCurvePoolData(_pool, ICurveAddressProvider(_addresses.curveAddressProvider));
 
         return ICurveCalculator(_addresses.curveCalculator).get_dx(
             poolData.nCoins,
@@ -431,10 +443,16 @@ library DEXAdapter {
         ) + ROUNDING_ERROR_MARGIN;
     }
 
+    /**
+     *  Get metadata on curve pool required to calculate input amount from output amount
+     *
+     * @param _pool                    Address of curve pool to use
+     * @param _curveAddressProvider    Address of curve address provider
+     *
+     * @return Struct containing all required data to perform getAmountInCurve calculation
+     */
     function _getCurvePoolData(
         address _pool,
-        int128 _i,
-        int128 _j,
         ICurveAddressProvider _curveAddressProvider
     ) private view returns(CurvePoolData memory)
     {
@@ -450,6 +468,18 @@ library DEXAdapter {
         );
     }
     
+    /**
+     *  Get token indices for given pool
+     *  NOTE: This was necessary sine the get_coin_indices function of the CurvePoolRegistry did not work for StEth/ETH pool
+     *
+     * @param _pool                    Address of curve pool to use
+     * @param _from                    Address of input token
+     * @param _to                      Address of output token
+     * @param _curveAddressProvider    Address of curve address provider
+     *
+     * @return i Index of input token
+     * @return j Index of output token
+     */
     function _getCoinIndices(
         address _pool,
         address _from,
@@ -493,6 +523,7 @@ library DEXAdapter {
      * @param _fees         List of fee levels identifying the pools to swap via. (_fees[0] refers to pool between _path[0] and _path[1])
      * @param _amountIn     The amount of input token to be spent
      * @param _minAmountOut Minimum amount of output token to receive
+     * @param _uniV3Router  Address of the uniswapV3 router
      *
      * @return amountOut    The amount of output token obtained
      */
@@ -542,6 +573,7 @@ library DEXAdapter {
      * @param _path         List of token address to swap via. 
      * @param _amountIn     The amount of input token to be spent
      * @param _minAmountOut Minimum amount of output token to receive
+     * @param _router       Address of uniV2 router to use
      *
      * @return amountOut    The amount of output token obtained
      */
