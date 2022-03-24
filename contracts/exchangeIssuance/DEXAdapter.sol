@@ -30,8 +30,6 @@ import { IQuoter } from "../interfaces/IQuoter.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
-import { console } from "hardhat/console.sol";
-
 
 /**
  * @title DEXAdapter
