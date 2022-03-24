@@ -817,8 +817,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
             _decodedParams.collateralAndDebtSwapData
         );
 
-        // I had to add the ROUNDING_ERROR_MARGIN here again in the stEth case.
-        // TODO: Review
         uint collateralTokenShortfall = _amountRequired.sub(collateralTokenObtained) + ROUNDING_ERROR_MARGIN;
         uint amountInputToken;
 

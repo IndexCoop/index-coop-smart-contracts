@@ -48,9 +48,6 @@ library DEXAdapter {
 
     uint256 constant private MAX_UINT256 = type(uint256).max;
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-    // This is the margin in wei we add on top of stEth amounts to avoid errors. 
-    // This is needed both in aave as well as curve integration 
-    // TODO: Review to find better solution
     uint256 public constant ROUNDING_ERROR_MARGIN = 2;
 
     /* ============ Enums ============ */
@@ -435,7 +432,6 @@ library DEXAdapter {
             poolData.fee,
             poolData.rates,
             poolData.decimals,
-            // TODO: Review correct value for "underlying" parameter
             false,
             _i,
             _j,
