@@ -36,6 +36,7 @@ import {
   getWaffleExpect,
   usdc,
   getUniswapV3Fixture,
+  preciseMul,
 } from "@utils/index";
 import { UnitsUtils } from "@utils/common/unitsUtils";
 import { AaveV2Fixture, SetFixture, UniswapFixture, UniswapV3Fixture } from "@utils/fixtures";
@@ -889,7 +890,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
             const expectedAmountIn = initAmount.sub(finalAmount);
 
-            expect(amountIn).to.eq(expectedAmountIn);
+            expect(amountIn).to.gt(preciseMul(expectedAmountIn, ether(0.99)));
+            expect(amountIn).to.lt(preciseMul(expectedAmountIn, ether(1.01)));
           });
 
           context("when using Uniswap V3 is the exchange", async () => {
@@ -916,7 +918,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
               const expectedAmountIn = initAmount.sub(finalAmount);
 
-              expect(amountIn).to.eq(expectedAmountIn);
+              expect(amountIn).to.gt(preciseMul(expectedAmountIn, ether(0.99)));
+              expect(amountIn).to.lt(preciseMul(expectedAmountIn, ether(1.01)));
             });
           });
         });
@@ -982,7 +985,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
             const expectedAmountOut = finalAmount.sub(initAmount);
 
-            expect(amountOut).to.eq(expectedAmountOut);
+            expect(amountOut).to.gt(preciseMul(expectedAmountOut, ether(0.99)));
+            expect(amountOut).to.lt(preciseMul(expectedAmountOut, ether(1.01)));
           });
 
           context("when using Uniswap V3 is the exchange", async () => {
@@ -1009,10 +1013,10 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
               const expectedAmountOut = finalAmount.sub(initAmount);
 
-              expect(amountOut).to.eq(expectedAmountOut);
+              expect(amountOut).to.gt(preciseMul(expectedAmountOut, ether(0.99)));
+              expect(amountOut).to.lt(preciseMul(expectedAmountOut, ether(1.01)));
             });
           });
-
         });
       });
 
