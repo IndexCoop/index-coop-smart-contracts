@@ -21,8 +21,13 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
-import { ISwapRouter } from "../interfaces/external/ISwapRouter.sol";
+import { ICurveCalculator } from "../interfaces/external/ICurveCalculator.sol";
+import { ICurveAddressProvider } from "../interfaces/external/ICurveAddressProvider.sol";
+import { ICurvePoolRegistry } from "../interfaces/external/ICurvePoolRegistry.sol";
+import { ICurvePool } from "../interfaces/external/ICurvePool.sol";
+import { ISwapRouter} from "../interfaces/external/ISwapRouter.sol";
 import { IQuoter } from "../interfaces/IQuoter.sol";
+import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 import { console } from "hardhat/console.sol";
@@ -33,9 +38,8 @@ import { console } from "hardhat/console.sol";
  * @author Index Coop
  *
  * Adapter to execute swaps on different DEXes
- *
  */
-abstract contract DEXAdapter {
+library DEXAdapter {
     using SafeERC20 for IERC20;
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
@@ -43,111 +47,140 @@ abstract contract DEXAdapter {
     /* ============ Constants ============= */
 
     uint256 constant private MAX_UINT256 = type(uint256).max;
-    uint24 public constant POOL_FEE = 3000;
+    address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    uint256 public constant ROUNDING_ERROR_MARGIN = 2;
 
     /* ============ Enums ============ */
 
-    enum Exchange { None, Quickswap, Sushiswap, UniV3}
+    enum Exchange { None, Quickswap, Sushiswap, UniV3, Curve }
 
     /* ============ Structs ============ */
+
+    struct Addresses {
+        address quickRouter;
+        address sushiRouter;
+        address uniV3Router;
+        address uniV3Quoter;
+        address curveAddressProvider;
+        address curveCalculator;
+        // Wrapped native token (WMATIC on polygon)
+        address weth;
+    }
 
     struct SwapData {
         address[] path;
         uint24[] fees;
+        address pool;
+        Exchange exchange;
     }
 
-    /* ============ State Variables ============ */
-
-    IUniswapV2Router02 immutable public quickRouter;
-    IUniswapV2Router02 immutable public sushiRouter;
-    ISwapRouter immutable public uniV3Router;
-    IQuoter immutable public quoter;
-
-    /**
-    * Sets various contract addresses and approves wrapped native token to the routers
-    * 
-    * @param _weth                  Address of wrapped native token
-    * @param _quickRouter           Address of quickswap router
-    * @param _sushiRouter           Address of sushiswap router
-    * @param _uniV3Router           Address of uniswap v3 router
-    */
-    constructor(
-        address _weth,
-        IUniswapV2Router02 _quickRouter,
-        IUniswapV2Router02 _sushiRouter,
-        ISwapRouter _uniV3Router,
-        IQuoter _quoter
-    )
-        public
-    {
-        quickRouter = _quickRouter;
-        sushiRouter = _sushiRouter;
-        uniV3Router = _uniV3Router;
-        quoter = _quoter;
-
-        IERC20(_weth).safeApprove(address(_quickRouter), PreciseUnitMath.maxUint256());
-        IERC20(_weth).safeApprove(address(_sushiRouter), PreciseUnitMath.maxUint256());
-        IERC20(_weth).safeApprove(address(_uniV3Router), PreciseUnitMath.maxUint256());
+    struct CurvePoolData {
+        int128 nCoins;
+        uint256[8] balances;
+        uint256 A;
+        uint256 fee;
+        uint256[8] rates;
+        uint256[8] decimals;
     }
-
-    /* ============ Internal Methods ============ */
 
     /**
      * Swap exact tokens for another token on a given DEX.
      *
-     * @param _exchange     The exchange on which to peform the swap
+     * @param _addresses    Struct containing relevant smart contract addresses.
      * @param _amountIn     The amount of input token to be spent
      * @param _minAmountOut Minimum amount of output token to receive
      * @param _swapData     Swap data containing the path and fee levels (latter only used for uniV3)
      *
      * @return amountOut    The amount of output tokens
      */
-    function _swapExactTokensForTokens(
-        Exchange _exchange,
+    function swapExactTokensForTokens(
+        Addresses memory _addresses,
         uint256 _amountIn,
         uint256 _minAmountOut,
         SwapData memory _swapData
     )
-        internal
+        external
         returns (uint256)
     {
         if (_swapData.path[0] == _swapData.path[_swapData.path.length -1]) {
             return _amountIn;
         }
 
-        if(_exchange == Exchange.UniV3){
-            return _swapExactTokensForTokensUniV3(_swapData.path, _swapData.fees, _amountIn, _minAmountOut);
+        if(_swapData.exchange == Exchange.Curve){
+            return _swapExactTokensForTokensCurve(
+                _swapData.path,
+                _swapData.pool,
+                _amountIn,
+                _minAmountOut,
+                _addresses
+            );
+        }
+        if(_swapData.exchange== Exchange.UniV3){
+            return _swapExactTokensForTokensUniV3(
+                _swapData.path,
+                _swapData.fees,
+                _amountIn,
+                _minAmountOut,
+                ISwapRouter(_addresses.uniV3Router)
+            );
         } else {
-            return _swapExactTokensForTokensUniV2(_swapData.path, _amountIn, _minAmountOut, _exchange);
+            return _swapExactTokensForTokensUniV2(
+                _swapData.path,
+                _amountIn,
+                _minAmountOut,
+                IUniswapV2Router02((_swapData.exchange == Exchange.Quickswap) ? _addresses.quickRouter : _addresses.sushiRouter)
+            );
         }
     }
+
 
     /**
      * Swap tokens for exact amount of output tokens on a given DEX.
      *
-     * @param _exchange     The exchange on which to peform the swap
+     * @param _addresses    Struct containing relevant smart contract addresses.
      * @param _amountOut    The amount of output token required
      * @param _maxAmountIn  Maximum amount of input token to be spent
      * @param _swapData     Swap data containing the path and fee levels (latter only used for uniV3)
      *
      * @return amountIn     The amount of input tokens spent
      */
-    function _swapTokensForExactTokens(
-        Exchange _exchange,
+    function swapTokensForExactTokens(
+        Addresses memory _addresses,
         uint256 _amountOut,
         uint256 _maxAmountIn,
         SwapData memory _swapData
     )
-        internal
+        external
         returns (uint256 amountIn)
     {
         if (_swapData.path[0] == _swapData.path[_swapData.path.length -1]) {
             return _amountOut;
         }
-        if (_exchange == Exchange.UniV3){
-            return _swapTokensForExactTokensUniV3(_swapData.path, _swapData.fees, _amountOut, _maxAmountIn);
+
+        if(_swapData.exchange == Exchange.Curve){
+            return _swapTokensForExactTokensCurve(
+                _swapData.path,
+                _swapData.pool,
+                _amountOut,
+                _maxAmountIn,
+                _addresses
+            );
+        }
+        if(_swapData.exchange == Exchange.UniV3){
+            return _swapTokensForExactTokensUniV3(
+                _swapData.path,
+                _swapData.fees,
+                _amountOut,
+                _maxAmountIn,
+                ISwapRouter(_addresses.uniV3Router)
+            );
         } else {
-            return _swapTokensForExactTokensUniV2(_swapData.path, _amountOut, _maxAmountIn, _exchange);
+            return _swapTokensForExactTokensUniV2(
+                _swapData.path,
+                _amountOut,
+                _maxAmountIn,
+                IUniswapV2Router02((_swapData.exchange == Exchange.Quickswap) ? _addresses.quickRouter : _addresses.sushiRouter)
+            );
         }
     }
 
@@ -155,27 +188,33 @@ abstract contract DEXAdapter {
      * Gets the output amount of a token swap.
      *
      * @param _swapData     the swap parameters
-     * @param _exchange     the exchange to use
+     * @param _addresses    Struct containing relevant smart contract addresses.
      * @param _amountIn     the input amount of the trade
      *
      * @return              the output amount of the swap
      */
-    function _getAmountOut(
+    function getAmountOut(
+        Addresses memory _addresses,
         SwapData memory _swapData,
-        Exchange _exchange,
         uint256 _amountIn
     )
-        internal
+        external
         returns (uint256)
     {
         if (_swapData.path[0] == _swapData.path[_swapData.path.length-1]) {
             return _amountIn;
         }
 
-        if (_exchange == Exchange.UniV3) {
-            return _getAmountOutUniV3(_swapData, _amountIn);
+        if (_swapData.exchange == Exchange.UniV3) {
+            return _getAmountOutUniV3(_swapData, _addresses.uniV3Quoter, _amountIn);
         } else {
-            return _getAmountOutUniV2(_swapData, _exchange, _amountIn);
+            return _getAmountOutUniV2(
+                _swapData,
+                IUniswapV2Router02(
+                    (_swapData.exchange == Exchange.Quickswap) ? _addresses.quickRouter : _addresses.sushiRouter
+                ),
+                _amountIn
+            );
         }
     }
     
@@ -183,46 +222,35 @@ abstract contract DEXAdapter {
      * Gets the input amount of a fixed output swap.
      *
      * @param _swapData     the swap parameters
-     * @param _exchange     the exchange to use
+     * @param _addresses    Struct containing relevant smart contract addresses.
      * @param _amountOut    the output amount of the swap
      *
      * @return              the input amount of the swap
      */
-    function _getAmountIn(
+    function getAmountIn(
+        Addresses memory _addresses,
         SwapData memory _swapData,
-        Exchange _exchange,
         uint256 _amountOut
     )
-        internal
+        external
         returns (uint256)
     {
         if (_swapData.path[0] == _swapData.path[_swapData.path.length-1]) {
             return _amountOut;
         }
 
-        if (_exchange == Exchange.UniV3) {
-            return _getAmountInUniV3(_swapData, _amountOut);
+        if (_swapData.exchange == Exchange.UniV3) {
+            return _getAmountInUniV3(_swapData, _addresses.uniV3Quoter, _amountOut);
         } else {
-            return _getAmountInUniV2(_swapData, _exchange, _amountOut);
+            return _getAmountInUniV2(
+                _swapData,
+                IUniswapV2Router02(
+                    (_swapData.exchange == Exchange.Quickswap) ? _addresses.quickRouter : _addresses.sushiRouter
+                ),
+                _amountOut
+            );
         }
     }
-
-    /**
-     * Returns the router address of a given exchange.
-     *
-     * @param _exchange     The Exchange whose router address is needed
-     *
-     * @return              IUniswapV2Router02 router of the given exchange
-     */
-     function _getRouter(
-         Exchange _exchange
-     )
-        internal
-        view
-        returns (IUniswapV2Router02)
-     {
-         return (_exchange == Exchange.Quickswap) ? quickRouter : sushiRouter;
-     }
 
     /**
      * Sets a max approval limit for an ERC20 token, provided the current allowance
@@ -253,7 +281,7 @@ abstract contract DEXAdapter {
      * @param _path         List of token address to swap via. 
      * @param _amountOut    The amount of output token required
      * @param _maxAmountIn  Maximum amount of input token to be spent
-     * @param _exchange     The exchange on which to peform the swap
+     * @param _router       Address of the uniV2 router to use
      *
      * @return amountIn    The amount of input tokens spent
      */
@@ -261,23 +289,25 @@ abstract contract DEXAdapter {
         address[] memory _path,
         uint256 _amountOut,
         uint256 _maxAmountIn,
-        Exchange _exchange
+        IUniswapV2Router02 _router
     )
         private
         returns (uint256)
     {
-        IUniswapV2Router02 router = _getRouter(_exchange);
-        _safeApprove(IERC20(_path[0]), address(router), _maxAmountIn);
-        return router.swapTokensForExactTokens(_amountOut, _maxAmountIn, _path, address(this), block.timestamp)[0];
+        _safeApprove(IERC20(_path[0]), address(_router), _maxAmountIn);
+        return _router.swapTokensForExactTokens(_amountOut, _maxAmountIn, _path, address(this), block.timestamp)[0];
     }
 
     /**
      *  Execute exact output swap via UniswapV3
      *
-     * @param _path         List of token address to swap via. (In the order as expected by uniV2, the first element being the input toen)
-     * @param _fees         List of fee levels identifying the pools to swap via. (_fees[0] refers to pool between _path[0] and _path[1])
+     * @param _path         List of token address to swap via. (In the order as
+     *                      expected by uniV2, the first element being the input toen)
+     * @param _fees         List of fee levels identifying the pools to swap via.
+     *                      (_fees[0] refers to pool between _path[0] and _path[1])
      * @param _amountOut    The amount of output token required
      * @param _maxAmountIn  Maximum amount of input token to be spent
+     * @param _uniV3Router  Address of the uniswapV3 router
      *
      * @return amountIn    The amount of input tokens spent
      */
@@ -285,14 +315,15 @@ abstract contract DEXAdapter {
         address[] memory _path,
         uint24[] memory _fees,
         uint256 _amountOut,
-        uint256 _maxAmountIn
+        uint256 _maxAmountIn,
+        ISwapRouter _uniV3Router
     )
         private
         returns(uint256)
     {
 
         require(_path.length == _fees.length + 1, "ExchangeIssuance: PATHS_FEES_MISMATCH");
-        _safeApprove(IERC20(_path[0]), address(uniV3Router), _maxAmountIn);
+        _safeApprove(IERC20(_path[0]), address(_uniV3Router), _maxAmountIn);
         if(_path.length == 2){
             ISwapRouter.ExactOutputSingleParams memory params =
                 ISwapRouter.ExactOutputSingleParams({
@@ -305,7 +336,7 @@ abstract contract DEXAdapter {
                     amountInMaximum: _maxAmountIn,
                     sqrtPriceLimitX96: 0
                 });
-            return uniV3Router.exactOutputSingle(params);
+            return _uniV3Router.exactOutputSingle(params);
         } else {
             bytes memory pathV3 = _encodePathV3(_path, _fees, true);
             ISwapRouter.ExactOutputParams memory params =
@@ -316,17 +347,244 @@ abstract contract DEXAdapter {
                     amountOut: _amountOut,
                     amountInMaximum: _maxAmountIn
                 });
-            return uniV3Router.exactOutput(params);
+            return _uniV3Router.exactOutput(params);
         }
+    }
+
+    /**
+     *  Execute exact input swap via Curve
+     *
+     * @param _path         Path (has to be of length 2)
+     * @param _pool         Address of curve pool to use
+     * @param _amountIn     The amount of input token to be spent
+     * @param _minAmountOut Minimum amount of output token to receive
+     * @param _addresses    Struct containing relevant smart contract addresses.
+     *
+     * @return amountOut    The amount of output token obtained
+     */
+    function _swapExactTokensForTokensCurve(
+        address[] memory _path,
+        address _pool,
+        uint256 _amountIn,
+        uint256 _minAmountOut,
+        Addresses memory _addresses
+    )
+        private
+        returns (uint256 amountOut)
+    {
+        require(_path.length == 2, "ExchangeIssuance: CURVE_WRONG_PATH_LENGTH");
+        (int128 i, int128 j) = _getCoinIndices(_pool, _path[0], _path[1], ICurveAddressProvider(_addresses.curveAddressProvider));
+
+        if(_path[0] == ETH_ADDRESS){
+            IWETH(_addresses.weth).withdraw(_amountIn);
+        }
+
+        amountOut = _exchangeCurve(i, j, _pool, _amountIn, _minAmountOut, _path[0]);
+
+        if(_path[_path.length-1] == ETH_ADDRESS){
+            IWETH(_addresses.weth).deposit{value: amountOut}();
+        }
+
+    }
+
+    /**
+     *  Execute exact output swap via Curve
+     *
+     * @param _path         Path (has to be of length 2)
+     * @param _pool         Address of curve pool to use
+     * @param _amountOut    The amount of output token required
+     * @param _maxAmountIn  Maximum amount of input token to be spent
+     *
+     * @return amountOut    The amount of output token obtained
+     */
+    function _swapTokensForExactTokensCurve(
+        address[] memory _path,
+        address _pool,
+        uint256 _amountOut,
+        uint256 _maxAmountIn,
+        Addresses memory _addresses
+    )
+        public
+        returns (uint256)
+    {
+        require(_path.length == 2, "ExchangeIssuance: CURVE_WRONG_PATH_LENGTH");
+        (int128 i, int128 j) = _getCoinIndices(_pool, _path[0], _path[1], ICurveAddressProvider(_addresses.curveAddressProvider));
+
+        uint256 amountIn = _getAmountInCurve(
+            _pool,
+            i,
+            j,
+            _amountOut,
+            _addresses
+        );
+        require(amountIn <= _maxAmountIn, "ExchangeIssuance: CURVE_OVERSPENT");
+
+        if(_path[0] == ETH_ADDRESS){
+            IWETH(_addresses.weth).withdraw(amountIn);
+        }
+
+        uint256 returnedAmountOut = _exchangeCurve(i, j, _pool, amountIn, _amountOut, _path[0]);
+        require(_amountOut <= returnedAmountOut, "ExchangeIssuance: CURVE_UNDERBOUGHT");
+
+        if(_path[_path.length-1] == ETH_ADDRESS){
+            IWETH(_addresses.weth).deposit{ value: returnedAmountOut }();
+        }
+
+
+        return amountIn;
+    }
+    
+    function _exchangeCurve(
+        int128 _i,
+        int128 _j,
+        address _pool,
+        uint256 _amountIn,
+        uint256 _minAmountOut,
+        address _from
+    )
+        private
+        returns (uint256 amountOut)
+    {
+        ICurvePool pool = ICurvePool(_pool);
+        if(_from == ETH_ADDRESS){
+            amountOut = pool.exchange{value: _amountIn}(
+                _i,
+                _j,
+                _amountIn,
+                _minAmountOut
+            );
+        }
+        else {
+            IERC20(_from).approve(_pool, _amountIn);
+            amountOut = pool.exchange(
+                _i,
+                _j,
+                _amountIn,
+                _minAmountOut
+            );
+        }
+    }
+
+    /**
+     *  Calculate required input amount to get a given output amount via Curve swap
+     *
+     * @param _i            Index of input token as per the ordering of the pools tokens
+     * @param _j            Index of output token as per the ordering of the pools tokens
+     * @param _pool         Address of curve pool to use
+     * @param _amountOut    The amount of output token to be received
+     * @param _addresses    Struct containing relevant smart contract addresses.
+     *
+     * @return amountOut    The amount of output token obtained
+     */
+    function _getAmountInCurve(
+        address _pool,
+        int128 _i,
+        int128 _j,
+        uint256 _amountOut,
+        Addresses memory _addresses
+    )
+        public
+        view
+        returns (uint256)
+    {
+        CurvePoolData memory poolData = _getCurvePoolData(_pool, ICurveAddressProvider(_addresses.curveAddressProvider));
+
+        return ICurveCalculator(_addresses.curveCalculator).get_dx(
+            poolData.nCoins,
+            poolData.balances,
+            poolData.A,
+            poolData.fee,
+            poolData.rates,
+            poolData.decimals,
+            false,
+            _i,
+            _j,
+            _amountOut
+        ) + ROUNDING_ERROR_MARGIN;
+    }
+
+    /**
+     *  Get metadata on curve pool required to calculate input amount from output amount
+     *
+     * @param _pool                    Address of curve pool to use
+     * @param _curveAddressProvider    Address of curve address provider
+     *
+     * @return Struct containing all required data to perform getAmountInCurve calculation
+     */
+    function _getCurvePoolData(
+        address _pool,
+        ICurveAddressProvider _curveAddressProvider
+    ) private view returns(CurvePoolData memory)
+    {
+        ICurvePoolRegistry registry = ICurvePoolRegistry(_curveAddressProvider.get_registry());
+
+        return CurvePoolData(
+            int128(registry.get_n_coins(_pool)[0]),
+            registry.get_balances(_pool),
+            registry.get_A(_pool),
+            registry.get_fees(_pool)[0],
+            registry.get_rates(_pool),
+            registry.get_decimals(_pool)
+        );
+    }
+    
+    /**
+     *  Get token indices for given pool
+     *  NOTE: This was necessary sine the get_coin_indices function of the CurvePoolRegistry did not work for StEth/ETH pool
+     *
+     * @param _pool                    Address of curve pool to use
+     * @param _from                    Address of input token
+     * @param _to                      Address of output token
+     * @param _curveAddressProvider    Address of curve address provider
+     *
+     * @return i Index of input token
+     * @return j Index of output token
+     */
+    function _getCoinIndices(
+        address _pool,
+        address _from,
+        address _to,
+        ICurveAddressProvider _curveAddressProvider
+    )
+        public
+        view
+        returns (int128 i, int128 j)
+    {
+        ICurvePoolRegistry registry = ICurvePoolRegistry(_curveAddressProvider.get_registry());
+
+        // Set to out of range index to signal the coin is not found yet
+        i = 9;
+        j = 9;
+        address[8] memory poolCoins = registry.get_coins(_pool);
+
+        for(uint256 k = 0; k < 8; k++){
+            if(poolCoins[k] == _from){
+                i = int128(k);
+            }
+            else if(poolCoins[k] == _to){
+                j = int128(k);
+            }
+            // ZeroAddress signals end of list
+            if(poolCoins[k] == address(0) || (i != 9 && j != 9)){
+                break;
+            }
+        }
+
+        require(i != 9, "ExchangeIssuance: CURVE_FROM_NOT_FOUND");
+        require(j != 9, "ExchangeIssuance: CURVE_TO_NOT_FOUND");
+
+        return (i, j);
     }
 
     /**
      *  Execute exact input swap via UniswapV3
      *
      * @param _path         List of token address to swap via. 
-     * @param _fees         List of fee levels identifying the pools to swap via. (_fees[0] refers to pool between _path[0] and _path[1])
+     * @param _fees         List of fee levels identifying the pools to swap via.
+     *                      (_fees[0] refers to pool between _path[0] and _path[1])
      * @param _amountIn     The amount of input token to be spent
      * @param _minAmountOut Minimum amount of output token to receive
+     * @param _uniV3Router  Address of the uniswapV3 router
      *
      * @return amountOut    The amount of output token obtained
      */
@@ -334,13 +592,14 @@ abstract contract DEXAdapter {
         address[] memory _path,
         uint24[] memory _fees,
         uint256 _amountIn,
-        uint256 _minAmountOut
+        uint256 _minAmountOut,
+        ISwapRouter _uniV3Router
     )
         private
         returns (uint256)
     {
         require(_path.length == _fees.length + 1, "ExchangeIssuance: PATHS_FEES_MISMATCH");
-        _safeApprove(IERC20(_path[0]), address(uniV3Router), _amountIn);
+        _safeApprove(IERC20(_path[0]), address(_uniV3Router), _amountIn);
         if(_path.length == 2){
             ISwapRouter.ExactInputSingleParams memory params =
                 ISwapRouter.ExactInputSingleParams({
@@ -353,7 +612,7 @@ abstract contract DEXAdapter {
                     amountOutMinimum: _minAmountOut,
                     sqrtPriceLimitX96: 0
                 });
-            return uniV3Router.exactInputSingle(params);
+            return _uniV3Router.exactInputSingle(params);
         } else {
             bytes memory pathV3 = _encodePathV3(_path, _fees, false);
             ISwapRouter.ExactInputParams memory params =
@@ -364,7 +623,7 @@ abstract contract DEXAdapter {
                     amountIn: _amountIn,
                     amountOutMinimum: _minAmountOut
                 });
-            uint amountOut = uniV3Router.exactInput(params);
+            uint amountOut = _uniV3Router.exactInput(params);
             return amountOut;
         }
     }
@@ -375,7 +634,7 @@ abstract contract DEXAdapter {
      * @param _path         List of token address to swap via. 
      * @param _amountIn     The amount of input token to be spent
      * @param _minAmountOut Minimum amount of output token to receive
-     * @param _exchange     The exchange to swap on (must be uniV2 based / compatible)
+     * @param _router       Address of uniV2 router to use
      *
      * @return amountOut    The amount of output token obtained
      */
@@ -383,64 +642,62 @@ abstract contract DEXAdapter {
         address[] memory _path,
         uint256 _amountIn,
         uint256 _minAmountOut,
-        Exchange _exchange
+        IUniswapV2Router02 _router
     )
         private
         returns (uint256)
     {
-        IUniswapV2Router02 router = _getRouter(_exchange);
-        _safeApprove(IERC20(_path[0]), address(router), _amountIn);
-        return router.swapExactTokensForTokens(_amountIn, _minAmountOut, _path, address(this), block.timestamp)[1];
+        _safeApprove(IERC20(_path[0]), address(_router), _amountIn);
+        return _router.swapExactTokensForTokens(_amountIn, _minAmountOut, _path, address(this), block.timestamp)[1];
     }
 
     /**
      * Gets the output amount of a token swap on Uniswap V2
      *
      * @param _swapData     the swap parameters
-     * @param _exchange     the exchange to use
+     * @param _router       the uniswap v2 router address
      * @param _amountIn     the input amount of the trade
      *
      * @return              the output amount of the swap
      */
     function _getAmountOutUniV2(
         SwapData memory _swapData,
-        Exchange _exchange,
+        IUniswapV2Router02 _router,
         uint256 _amountIn
     )
         private
         view
         returns (uint256)
     {
-        IUniswapV2Router02 router = _getRouter(_exchange);
-        return router.getAmountsOut(_amountIn, _swapData.path)[_swapData.path.length-1];
+        return _router.getAmountsOut(_amountIn, _swapData.path)[_swapData.path.length-1];
     }
 
     /**
      * Gets the input amount of a fixed output swap on Uniswap V2.
      *
      * @param _swapData     the swap parameters
-     * @param _exchange     the exchange to use
+     * @param _router       the uniswap v2 router address
      * @param _amountOut    the output amount of the swap
      *
      * @return              the input amount of the swap
      */
     function _getAmountInUniV2(
         SwapData memory _swapData,
-        Exchange _exchange,
+        IUniswapV2Router02 _router,
         uint256 _amountOut
     )
         private
         view
         returns (uint256)
     {
-        IUniswapV2Router02 router = _getRouter(_exchange);
-        return router.getAmountsIn(_amountOut, _swapData.path)[0];
+        return _router.getAmountsIn(_amountOut, _swapData.path)[0];
     }
 
     /**
      * Gets the output amount of a token swap on Uniswap V3.
      *
      * @param _swapData     the swap parameters
+     * @param _quoter       the uniswap v3 quoter
      * @param _amountIn     the input amount of the trade
      *
      * @return              the output amount of the swap
@@ -448,40 +705,45 @@ abstract contract DEXAdapter {
 
     function _getAmountOutUniV3(
         SwapData memory _swapData,
+        address _quoter,
         uint256 _amountIn
     )
         private
         returns (uint256)
     {
         bytes memory path = _encodePathV3(_swapData.path, _swapData.fees, false);
-        return quoter.quoteExactInput(path, _amountIn);
+        return IQuoter(_quoter).quoteExactInput(path, _amountIn);
     }
 
     /**
      * Gets the input amount of a fixed output swap on Uniswap V3.
      *
      * @param _swapData     the swap parameters
+     * @param _quoter       uniswap v3 quoter
      * @param _amountOut    the output amount of the swap
      *
      * @return              the input amount of the swap
      */
     function _getAmountInUniV3(
         SwapData memory _swapData,
+        address _quoter,
         uint256 _amountOut
     )
         private
         returns (uint256)
     {
         bytes memory path = _encodePathV3(_swapData.path, _swapData.fees, true);
-        return quoter.quoteExactOutput(path, _amountOut);
+        return IQuoter(_quoter).quoteExactOutput(path, _amountOut);
     }
 
     /**
      * Encode path / fees to bytes in the format expected by UniV3 router
      *
      * @param _path          List of token address to swap via (starting with input token)
-     * @param _fees          List of fee levels identifying the pools to swap via. (_fees[0] refers to pool between _path[0] and _path[1])
-     * @param _reverseOrder  Boolean indicating if path needs to be reversed to start with output token. (which is the case for exact output swap)
+     * @param _fees          List of fee levels identifying the pools to swap via.
+     *                       (_fees[0] refers to pool between _path[0] and _path[1])
+     * @param _reverseOrder  Boolean indicating if path needs to be reversed to start with output token.
+     *                       (which is the case for exact output swap)
      *
      * @return encodedPath   Encoded path to be forwared to uniV3 router
      */
@@ -507,5 +769,4 @@ abstract contract DEXAdapter {
             }
         }
     }
-
 }

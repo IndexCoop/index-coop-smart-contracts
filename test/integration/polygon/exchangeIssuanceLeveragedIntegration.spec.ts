@@ -1,13 +1,14 @@
 import "module-alias/register";
 import { Address, Account } from "@utils/types";
 import DeployHelper from "@utils/deploys";
-import { getAccounts, getWaffleExpect } from "@utils/index";
+import { getAccounts, getSetFixture, getWaffleExpect } from "@utils/index";
 import { SetToken } from "@utils/contracts/setV2";
 import { ethers } from "hardhat";
 import { utils, BigNumber } from "ethers";
 import { ExchangeIssuanceLeveraged, StandardTokenMock } from "@utils/contracts/index";
-import { IUniswapV2Router } from "../../typechain";
-import { MAX_UINT_256, ZERO } from "@utils/constants";
+import { IUniswapV2Router } from "../../../typechain";
+import { ADDRESS_ZERO, MAX_UINT_256, ZERO } from "@utils/constants";
+import { SetFixture } from "@utils/fixtures";
 
 const expect = getWaffleExpect();
 
@@ -21,6 +22,8 @@ enum Exchange {
 type SwapData = {
   path: Address[];
   fees: number[];
+  pool: Address;
+  exchange: Exchange;
 };
 
 if (process.env.INTEGRATIONTEST) {
@@ -42,8 +45,10 @@ if (process.env.INTEGRATIONTEST) {
     const wmaticAddress: Address = "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270";
     const controllerAddress: Address = "0x75FBBDEAfE23a48c0736B2731b956b7a03aDcfB2";
     const debtIssuanceModuleAddress: Address = "0xf2dC2f456b98Af9A6bEEa072AF152a7b0EaA40C9";
-    const addressProviderAddress: Address = "0xd05e3E715d945B59290df0ae8eF85c1BdB684744";
+    const aaveeAddressProviderAddress: Address = "0xd05e3E715d945B59290df0ae8eF85c1BdB684744";
     const aaveLeverageModuleAddress: Address = "0xB7F72e15239197021480EB720E1495861A1ABdce";
+    const curveCalculatorAddress: Address = "0xc1DB00a8E5Ef7bfa476395cdbcc98235477cDE4E";
+    const curveAddressProviderAddress: Address = "0x0000000022D53366457F9d5E68Ec105046FC4383";
 
     const setTokenAddresses: Record<string, Address> = {
       eth2xFli: eth2xFliAddress,
@@ -67,25 +72,34 @@ if (process.env.INTEGRATIONTEST) {
     };
     let debtTokenAddress: Address;
 
+    const setTokenExchangeMapping: Record<string, Exchange[]> = {
+      eth2xFli: [Exchange.UniV3],
+      iEthFli: [Exchange.Sushiswap],
+    };
+
     let owner: Account;
     let setToken: SetToken;
     let collateralToken: StandardTokenMock;
     let dai: StandardTokenMock;
     let deployer: DeployHelper;
+    let setV2Setup: SetFixture;
     let sushiRouter: IUniswapV2Router;
 
     let subjectSetToken: Address;
     let subjectSetAmount: BigNumber;
-    let subjectExchange: Exchange;
 
     let ethToSpend: BigNumber;
+
+    before(async () => {
+      [owner] = await getAccounts();
+      deployer = new DeployHelper(owner.wallet);
+      setV2Setup = getSetFixture(owner.address);
+      await setV2Setup.initialize();
+    });
 
     context("When exchange issuance is deployed", () => {
       let exchangeIssuance: ExchangeIssuanceLeveraged;
       before(async () => {
-        [owner] = await getAccounts();
-        deployer = new DeployHelper(owner.wallet);
-
         exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveraged(
           wmaticAddress,
           quickswapRouterAddress,
@@ -95,7 +109,9 @@ if (process.env.INTEGRATIONTEST) {
           controllerAddress,
           debtIssuanceModuleAddress,
           aaveLeverageModuleAddress,
-          addressProviderAddress,
+          aaveeAddressProviderAddress,
+          curveCalculatorAddress,
+          curveAddressProviderAddress,
         );
 
         dai = (await ethers.getContractAt("StandardTokenMock", daiAddress)) as StandardTokenMock;
@@ -110,11 +126,10 @@ if (process.env.INTEGRATIONTEST) {
       });
 
       it("verify state set properly via constructor", async () => {
-        const expectedWethAddress = await exchangeIssuance.WETH();
-        expect(expectedWethAddress).to.eq(utils.getAddress(wmaticAddress));
+        const addresses = await exchangeIssuance.addresses();
+        expect(addresses.weth).to.eq(utils.getAddress(wmaticAddress));
 
-        const expectedSushiRouterAddress = await exchangeIssuance.sushiRouter();
-        expect(expectedSushiRouterAddress).to.eq(utils.getAddress(sushiswapRouterAddress));
+        expect(addresses.sushiRouter).to.eq(utils.getAddress(sushiswapRouterAddress));
 
         const expectedControllerAddress = await exchangeIssuance.setController();
         expect(expectedControllerAddress).to.eq(utils.getAddress(controllerAddress));
@@ -154,18 +169,15 @@ if (process.env.INTEGRATIONTEST) {
             expect(components[1]).to.equal(debtTokenAddress);
           });
 
-          [Exchange.UniV3, Exchange.Sushiswap].forEach(exchange => {
+          setTokenExchangeMapping[setTokenName].forEach(exchange => {
             describe(`when the exchange is ${Exchange[exchange]}`, () => {
-              beforeEach(async () => {
-                subjectExchange = Exchange.UniV3;
-              });
-
               context("Payment Token: ERC20", () => {
                 let pricePaid: BigNumber;
                 let inputToken: StandardTokenMock;
                 let subjectInputToken: Address;
                 let subjectDebtForCollateralSwapData: SwapData;
                 let subjectInputTokenSwapData: SwapData;
+
                 context("#issueExactSetFromERC20", () => {
                   let subjectMaxAmountInput: BigNumber;
                   before(async () => {
@@ -184,10 +196,14 @@ if (process.env.INTEGRATIONTEST) {
                     subjectDebtForCollateralSwapData = {
                       path: [debtTokenAddress, collateralTokenAddress],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
+                      exchange,
                     };
                     subjectInputTokenSwapData = {
                       path: [inputToken.address, wmaticAddress, collateralTokenAddress],
                       fees: [3000, 500],
+                      pool: ADDRESS_ZERO,
+                      exchange,
                     };
                   });
                   async function subject() {
@@ -196,7 +212,6 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSetAmount,
                       subjectInputToken,
                       subjectMaxAmountInput,
-                      subjectExchange,
                       subjectDebtForCollateralSwapData,
                       subjectInputTokenSwapData,
                     );
@@ -229,11 +244,15 @@ if (process.env.INTEGRATIONTEST) {
                     subjectCollateralForDebtSwapData = {
                       path: [collateralTokenAddress, debtTokenAddress],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
+                      exchange,
                     };
 
                     subjectOutputTokenSwapData = {
                       path: [collateralTokenAddress, subjectOutputToken],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
+                      exchange,
                     };
                   });
 
@@ -243,7 +262,6 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSetAmount,
                       subjectOutputToken,
                       subjectMinAmountOutput,
-                      subjectExchange,
                       subjectCollateralForDebtSwapData,
                       subjectOutputTokenSwapData,
                     );
@@ -265,27 +283,30 @@ if (process.env.INTEGRATIONTEST) {
                 let pricePaid: BigNumber;
                 let subjectDebtForCollateralSwapData: SwapData;
                 let subjectInputTokenSwapData: SwapData;
+
                 context("#issueExactSetFromETH", () => {
                   let subjectMaxAmountInput: BigNumber;
                   before(async () => {
-                    const ownerBalance = await owner.wallet.getBalance();
-                    subjectMaxAmountInput = ownerBalance.div(2);
+                    subjectMaxAmountInput = ethToSpend;
 
                     subjectDebtForCollateralSwapData = {
                       path: [debtTokenAddress, collateralTokenAddress],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
+                      exchange,
                     };
 
                     subjectInputTokenSwapData = {
                       path: [wmaticAddress, collateralTokenAddress],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
+                      exchange,
                     };
                   });
                   async function subject() {
                     return await exchangeIssuance.issueExactSetFromETH(
                       subjectSetToken,
                       subjectSetAmount,
-                      subjectExchange,
                       subjectDebtForCollateralSwapData,
                       subjectInputTokenSwapData,
                       { value: subjectMaxAmountInput },
@@ -316,11 +337,15 @@ if (process.env.INTEGRATIONTEST) {
                     subjectCollateralForDebtSwapData = {
                       path: [collateralTokenAddress, debtTokenAddress],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
+                      exchange,
                     };
 
                     subjectOutputTokenSwapData = {
                       path: [collateralTokenAddress, wmaticAddress],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
+                      exchange,
                     };
                   });
                   async function subject() {
@@ -328,7 +353,6 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSetToken,
                       subjectSetAmount,
                       subjectMinAmountOutput,
-                      subjectExchange,
                       subjectCollateralForDebtSwapData,
                       subjectOutputTokenSwapData,
                     );
@@ -348,32 +372,42 @@ if (process.env.INTEGRATIONTEST) {
               });
               context("Payment Token: CollateralToken", () => {
                 let pricePaid: BigNumber;
+
                 context("#issueExactSetFromERC20", () => {
                   let subjectMaxAmountInput: BigNumber;
                   let subjectInputToken: Address;
                   let subjectDebtForCollateralSwapData: SwapData;
                   let subjectInputTokenSwapData: SwapData;
+
                   before(async () => {
-                    const ownerBalance = await owner.wallet.getBalance();
                     const collateralToken = dai.attach(collateralTokenAddress);
                     await sushiRouter.swapExactETHForTokens(
                       ZERO,
                       [wmaticAddress, collateralTokenAddress],
                       owner.address,
                       MAX_UINT_256,
-                      { value: ownerBalance.div(2) },
+                      { value: ethToSpend },
                     );
                     subjectMaxAmountInput = await collateralToken.balanceOf(owner.address);
                     subjectInputToken = collateralTokenAddress;
 
+                    const path =
+                      exchange == Exchange.UniV3
+                        ? [debtTokenAddress, wmaticAddress, collateralTokenAddress]
+                        : [debtTokenAddress, collateralTokenAddress];
+                    const fees = exchange == Exchange.UniV3 ? [3000, 3000] : [];
                     subjectDebtForCollateralSwapData = {
-                      path: [debtTokenAddress, wmaticAddress, collateralTokenAddress],
-                      fees: [3000, 3000],
+                      path,
+                      fees,
+                      pool: ADDRESS_ZERO,
+                      exchange,
                     };
 
                     subjectInputTokenSwapData = {
-                      path: [subjectInputToken, collateralTokenAddress],
-                      fees: [3000],
+                      path: [],
+                      fees: [],
+                      pool: ADDRESS_ZERO,
+                      exchange,
                     };
 
                     await collateralToken.approve(exchangeIssuance.address, subjectMaxAmountInput);
@@ -384,7 +418,6 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSetAmount,
                       subjectInputToken,
                       subjectMaxAmountInput,
-                      subjectExchange,
                       subjectDebtForCollateralSwapData,
                       subjectInputTokenSwapData,
                     );
@@ -419,11 +452,15 @@ if (process.env.INTEGRATIONTEST) {
                     subjectCollateralForDebtSwapData = {
                       path: [collateralTokenAddress, debtTokenAddress],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
+                      exchange,
                     };
 
                     subjectOutputTokenSwapData = {
                       path: [collateralTokenAddress, subjectOutputToken],
                       fees: [3000],
+                      pool: ADDRESS_ZERO,
+                      exchange,
                     };
                   });
                   async function subject() {
@@ -432,7 +469,6 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSetAmount,
                       subjectOutputToken,
                       subjectMinAmountOutput,
-                      subjectExchange,
                       subjectCollateralForDebtSwapData,
                       subjectOutputTokenSwapData,
                     );

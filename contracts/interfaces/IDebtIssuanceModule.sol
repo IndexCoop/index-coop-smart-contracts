@@ -14,6 +14,7 @@
 pragma solidity >=0.6.10;
 
 import { ISetToken } from "./ISetToken.sol";
+import { IManagerIssuanceHook } from "./IManagerIssuanceHook.sol";
 
 interface IDebtIssuanceModule {
     function getRequiredComponentIssuanceUnits(
@@ -26,4 +27,12 @@ interface IDebtIssuanceModule {
     ) external view returns (address[] memory, uint256[] memory, uint256[] memory);
     function issue(ISetToken _setToken, uint256 _quantity, address _to) external;
     function redeem(ISetToken _token, uint256 _quantity, address _to) external;
+    function initialize(
+        ISetToken _setToken,
+        uint256 _maxManagerFee,
+        uint256 _managerIssueFee,
+        uint256 _managerRedeemFee,
+        address _feeRecipient,
+        IManagerIssuanceHook _managerIssuanceHook
+    ) external;
 }
