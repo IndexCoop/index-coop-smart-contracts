@@ -78,6 +78,7 @@ if (process.env.INTEGRATIONTEST) {
           addresses.dexes.uniV2.router,
           addresses.dexes.sushiswap.router,
           addresses.dexes.uniV3.router,
+          addresses.dexes.uniV3.quoter,
           addresses.set.controller,
           addresses.set.debtIssuanceModuleV2,
           addresses.set.aaveLeverageModule,
