@@ -114,6 +114,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
 
     /* ============ Modifiers ============ */
 
+    // TODO: Review if we really need this check.
+    // In the 0x case we see a lot of people using approveTokens to use the contract with non-index-coop sets
+    // Maybe we should make their life easier and just remove this check? Are there any security implications?
     modifier isSetToken(ISetToken _setToken) {
          require(setController.isSet(address(_setToken)), "ExchangeIssuance: INVALID SET");
          _;
