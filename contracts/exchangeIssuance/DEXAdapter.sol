@@ -418,7 +418,7 @@ library DEXAdapter {
         uint256 _maxAmountIn,
         Addresses memory _addresses
     )
-        public
+        private
         returns (uint256)
     {
         require(_path.length == 2, "ExchangeIssuance: CURVE_WRONG_PATH_LENGTH");
@@ -597,7 +597,7 @@ library DEXAdapter {
         address _to,
         ICurveAddressProvider _curveAddressProvider
     )
-        public
+        private
         view
         returns (int128 i, int128 j)
     {
