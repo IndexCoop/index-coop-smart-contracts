@@ -207,6 +207,14 @@ library DEXAdapter {
 
         if (_swapData.exchange == Exchange.UniV3) {
             return _getAmountOutUniV3(_swapData, _addresses.uniV3Quoter, _amountIn);
+        } else if (_swapData.exchange == Exchange.Curve) {
+            (int128 i, int128 j) = _getCoinIndices(
+                _swapData.pool,
+                _swapData.path[0],
+                _swapData.path[1],
+                ICurveAddressProvider(_addresses.curveAddressProvider)
+            );
+            return _getAmountOutCurve(_swapData.pool, i, j, _amountIn, _addresses);
         } else {
             return _getAmountOutUniV2(
                 _swapData,
@@ -241,6 +249,14 @@ library DEXAdapter {
 
         if (_swapData.exchange == Exchange.UniV3) {
             return _getAmountInUniV3(_swapData, _addresses.uniV3Quoter, _amountOut);
+        } else if (_swapData.exchange == Exchange.Curve) {
+            (int128 i, int128 j) = _getCoinIndices(
+                _swapData.pool,
+                _swapData.path[0],
+                _swapData.path[1],
+                ICurveAddressProvider(_addresses.curveAddressProvider)
+            );
+            return _getAmountInCurve(_swapData.pool, i, j, _amountOut, _addresses);
         } else {
             return _getAmountInUniV2(
                 _swapData,
@@ -430,7 +446,6 @@ library DEXAdapter {
             IWETH(_addresses.weth).deposit{ value: returnedAmountOut }();
         }
 
-
         return amountIn;
     }
     
@@ -483,7 +498,7 @@ library DEXAdapter {
         uint256 _amountOut,
         Addresses memory _addresses
     )
-        public
+        private
         view
         returns (uint256)
     {
@@ -500,6 +515,44 @@ library DEXAdapter {
             _i,
             _j,
             _amountOut
+        ) + ROUNDING_ERROR_MARGIN;
+    }
+
+    /**
+     *  Calculate output amount of a Curve swap
+     *
+     * @param _i            Index of input token as per the ordering of the pools tokens
+     * @param _j            Index of output token as per the ordering of the pools tokens
+     * @param _pool         Address of curve pool to use
+     * @param _amountIn     The amount of output token to be received
+     * @param _addresses    Struct containing relevant smart contract addresses.
+     *
+     * @return amountOut    The amount of output token obtained
+     */
+    function _getAmountOutCurve(
+        address _pool,
+        int128 _i,
+        int128 _j,
+        uint256 _amountIn,
+        Addresses memory _addresses
+    )
+        private
+        view
+        returns (uint256)
+    {
+        CurvePoolData memory poolData = _getCurvePoolData(_pool, ICurveAddressProvider(_addresses.curveAddressProvider));
+
+        return ICurveCalculator(_addresses.curveCalculator).get_dy(
+            poolData.nCoins,
+            poolData.balances,
+            poolData.A,
+            poolData.fee,
+            poolData.rates,
+            poolData.decimals,
+            false,
+            _i,
+            _j,
+            _amountIn
         ) + ROUNDING_ERROR_MARGIN;
     }
 
