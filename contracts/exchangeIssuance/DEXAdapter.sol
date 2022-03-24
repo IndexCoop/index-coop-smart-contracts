@@ -199,7 +199,7 @@ library DEXAdapter {
         external
         returns (uint256)
     {
-        if (_swapData.path[0] == _swapData.path[_swapData.path.length-1]) {
+        if (_swapData.path.length == 0 || _swapData.path[0] == _swapData.path[_swapData.path.length-1]) {
             return _amountIn;
         }
 
@@ -239,7 +239,7 @@ library DEXAdapter {
         external
         returns (uint256)
     {
-        if (_swapData.path[0] == _swapData.path[_swapData.path.length-1]) {
+        if (_swapData.path.length == 0 || _swapData.path[0] == _swapData.path[_swapData.path.length-1]) {
             return _amountOut;
         }
 
@@ -534,20 +534,7 @@ library DEXAdapter {
         view
         returns (uint256)
     {
-        CurvePoolData memory poolData = _getCurvePoolData(_pool, ICurveAddressProvider(_addresses.curveAddressProvider));
-
-        return ICurveCalculator(_addresses.curveCalculator).get_dy(
-            poolData.nCoins,
-            poolData.balances,
-            poolData.A,
-            poolData.fee,
-            poolData.rates,
-            poolData.decimals,
-            false,
-            _i,
-            _j,
-            _amountIn
-        ) + ROUNDING_ERROR_MARGIN;
+        return ICurvePool(_pool).get_dy(_i, _j, _amountIn);
     }
 
     /**
