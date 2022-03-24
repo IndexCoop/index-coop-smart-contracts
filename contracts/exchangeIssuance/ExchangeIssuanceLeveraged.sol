@@ -114,14 +114,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
 
     /* ============ Modifiers ============ */
 
-    // TODO: Review if we really need this check.
-    // In the 0x case we see a lot of people using approveTokens to use the contract with non-index-coop sets
-    // Maybe we should make their life easier and just remove this check? Are there any security implications?
-    modifier isSetToken(ISetToken _setToken) {
-         require(setController.isSet(address(_setToken)), "ExchangeIssuance: INVALID SET");
-         _;
-    }
-
     modifier onlyLendingPool() {
          require(msg.sender == address(LENDING_POOL), "ExchangeIssuance: LENDING POOL ONLY");
          _;
@@ -207,7 +199,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         uint256 _setAmount,
         bool _isIssuance
     )
-        isSetToken(_setToken)
         external 
         view
         returns (LeveragedTokenData memory)
@@ -243,7 +234,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         DEXAdapter.SwapData memory _swapDataCollateralForDebt,
         DEXAdapter.SwapData memory _swapDataOutputToken
     )
-        isSetToken(_setToken)
         external
         nonReentrant
     {
@@ -275,7 +265,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         DEXAdapter.SwapData memory _swapDataCollateralForDebt,
         DEXAdapter.SwapData memory _swapDataOutputToken
     )
-        isSetToken(_setToken)
         external
         nonReentrant
     {
@@ -307,7 +296,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         DEXAdapter.SwapData memory _swapDataDebtForCollateral,
         DEXAdapter.SwapData memory _swapDataInputToken
     )
-        isSetToken(_setToken)
         external
         nonReentrant
     {
@@ -335,7 +323,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         DEXAdapter.SwapData memory _swapDataDebtForCollateral,
         DEXAdapter.SwapData memory _swapDataInputToken
     )
-        isSetToken(_setToken)
         external
         payable
         nonReentrant
@@ -410,7 +397,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
      *
      * @param _setToken    Address of the SetToken being initialized
      */
-    function approveSetToken(ISetToken _setToken) isSetToken(_setToken) external {
+    function approveSetToken(ISetToken _setToken) external {
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, 1 ether, true);
 
         _approveToken(IERC20(leveragedTokenData.collateralAToken));
@@ -585,7 +572,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         DEXAdapter.SwapData memory _swapDataDebtForCollateral,
         DEXAdapter.SwapData memory _swapDataInputToken
     )
-        isSetToken(_setToken)
         internal
     {
         aaveLeverageModule.sync(_setToken);
@@ -632,7 +618,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         DEXAdapter.SwapData memory _swapDataCollateralForDebt,
         DEXAdapter.SwapData memory _swapDataOutputToken
     )
-        isSetToken(_setToken)
         internal
     {
         aaveLeverageModule.sync(_setToken);
