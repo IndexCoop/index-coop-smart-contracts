@@ -126,7 +126,7 @@ library DEXAdapter {
                 _swapData.path,
                 _amountIn,
                 _minAmountOut,
-                IUniswapV2Router02((_swapData.exchange == Exchange.Quickswap) ? _addresses.quickRouter : _addresses.sushiRouter)
+                _getRouter(_swapData.exchange, _addresses)
             );
         }
     }
@@ -177,7 +177,7 @@ library DEXAdapter {
                 _swapData.path,
                 _amountOut,
                 _maxAmountIn,
-                IUniswapV2Router02((_swapData.exchange == Exchange.Quickswap) ? _addresses.quickRouter : _addresses.sushiRouter)
+                _getRouter(_swapData.exchange, _addresses)
             );
         }
     }
@@ -216,9 +216,7 @@ library DEXAdapter {
         } else {
             return _getAmountOutUniV2(
                 _swapData,
-                IUniswapV2Router02(
-                    (_swapData.exchange == Exchange.Quickswap) ? _addresses.quickRouter : _addresses.sushiRouter
-                ),
+                _getRouter(_swapData.exchange, _addresses),
                 _amountIn
             );
         }
@@ -258,9 +256,7 @@ library DEXAdapter {
         } else {
             return _getAmountInUniV2(
                 _swapData,
-                IUniswapV2Router02(
-                    (_swapData.exchange == Exchange.Quickswap) ? _addresses.quickRouter : _addresses.sushiRouter
-                ),
+                _getRouter(_swapData.exchange, _addresses),
                 _amountOut
             );
         }
@@ -819,5 +815,18 @@ library DEXAdapter {
                 encodedPath = abi.encodePacked(encodedPath, _fees[i], _path[i+1]);
             }
         }
+    }
+
+    function _getRouter(
+        Exchange _exchange,
+        Addresses memory _addresses
+    )
+        private
+        pure
+        returns (IUniswapV2Router02)
+    {
+        return IUniswapV2Router02(
+            (_exchange == Exchange.Quickswap) ? _addresses.quickRouter : _addresses.sushiRouter
+        );
     }
 }

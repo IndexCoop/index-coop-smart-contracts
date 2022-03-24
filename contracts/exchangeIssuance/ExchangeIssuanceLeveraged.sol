@@ -28,7 +28,6 @@ import { IAaveLeverageModule } from "../interfaces/IAaveLeverageModule.sol";
 import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { IController } from "../interfaces/IController.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
-import { IQuoter } from "../interfaces/IQuoter.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { UniSushiV2Library } from "../../external/contracts/UniSushiV2Library.sol";
@@ -218,7 +217,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
      * Gets the input cost of issuing a given amount of a set token. This
      * function is not marked view, but should be static called from frontends.
      * This constraint is due to the need to interact with the Uniswap V3 quoter
-     * contract.
+     * contract and call sync on AaveLeverageModule. Note: If the two SwapData
+     * paths contain the same tokens, there will be a slight error introduced
+     * in the result.
      *
      * @param _setToken                     the set token to issue
      * @param _setAmount                    amount of set tokens
@@ -248,7 +249,9 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
      * Gets the proceeds of a redemption of a given amount of a set token. This
      * function is not marked view, but should be static called from frontends.
      * This constraint is due to the need to interact with the Uniswap V3 quoter
-     * contract.
+     * contract and call sync on AaveLeverageModule. Note: If the two SwapData
+     * paths contain the same tokens, there will be a slight error introduced
+     * in the result.
      *
      * @param _setToken                     the set token to issue
      * @param _setAmount                    amount of set tokens

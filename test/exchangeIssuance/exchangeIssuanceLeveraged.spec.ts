@@ -890,7 +890,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
             expect(amountIn).to.lt(preciseMul(expectedAmountIn, ether(1.01)));
           });
 
-          context("when using Uniswap V3 is the exchange", async () => {
+          context("when using Uniswap V3 as the exchange", async () => {
             beforeEach(() => {
               subjectDebtForCollateralSwapData = {
                 exchange: Exchange.UniV3,
@@ -987,7 +987,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
             expect(amountOut).to.lt(preciseMul(expectedAmountOut, ether(1.01)));
           });
 
-          context("when using Uniswap V3 is the exchange", async () => {
+          context("when using Uniswap V3 as the exchange", async () => {
             beforeEach(() => {
               subjectCollateralForDebtSwapData = {
                 exchange: Exchange.UniV3,
