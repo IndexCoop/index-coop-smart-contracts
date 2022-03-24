@@ -7,6 +7,7 @@ import "@nomiclabs/hardhat-waffle";
 import "hardhat-typechain";
 import "solidity-coverage";
 import "hardhat-deploy";
+import "hardhat-contract-sizer";
 import "./tasks";
 
 const INTEGRATIONTEST_TIMEOUT = 600000;
@@ -18,7 +19,7 @@ const polygonForkingConfig = {
 
 const mainnetForkingConfig = {
   url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
-  blockNumber: process.env.LATESTBLOCK ? undefined : 11649166,
+  blockNumber: process.env.LATESTBLOCK ? undefined : 14433300,
 };
 
 const forkingConfig =

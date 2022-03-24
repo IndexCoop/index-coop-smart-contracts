@@ -11,6 +11,7 @@ import {
 import {
   AaveLeverageStrategyExtension,
   AirdropExtension,
+  DEXAdapter,
   ExchangeIssuance,
   ExchangeIssuanceV2,
   ExchangeIssuanceLeveraged,
@@ -22,9 +23,11 @@ import {
   StreamingFeeSplitExtension,
   WrapExtension,
 } from "../contracts/index";
+import { convertLibraryNameToLinkId } from "../common";
 
 import { AaveLeverageStrategyExtension__factory } from "../../typechain/factories/AaveLeverageStrategyExtension__factory";
 import { AirdropExtension__factory } from "../../typechain/factories/AirdropExtension__factory";
+import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__factory";
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { ExchangeIssuanceLeveraged__factory } from "../../typechain/factories/ExchangeIssuanceLeveraged__factory";
@@ -153,6 +156,10 @@ export default class DeployExtensions {
     );
   }
 
+  public async deployDEXAdapter(): Promise<DEXAdapter> {
+    return await new DEXAdapter__factory(this._deployerSigner).deploy();
+  }
+
   public async deployExchangeIssuanceLeveraged(
     wethAddress: Address,
     quickRouterAddress: Address,
@@ -161,9 +168,24 @@ export default class DeployExtensions {
     setControllerAddress: Address,
     basicIssuanceModuleAddress: Address,
     aaveLeveragedModuleAddress: Address,
-    addressProvider: Address,
+    aaveAddressProviderAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
   ): Promise<ExchangeIssuanceLeveraged> {
-    return await new ExchangeIssuanceLeveraged__factory(this._deployerSigner).deploy(
+    const dexAdapter = await this.deployDEXAdapter();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
+    );
+
+    return await new ExchangeIssuanceLeveraged__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
       wethAddress,
       quickRouterAddress,
       sushiRouterAddress,
@@ -171,7 +193,9 @@ export default class DeployExtensions {
       setControllerAddress,
       basicIssuanceModuleAddress,
       aaveLeveragedModuleAddress,
-      addressProvider,
+      aaveAddressProviderAddress,
+      curveCalculatorAddress,
+      curveAddressProviderAddress,
     );
   }
 
