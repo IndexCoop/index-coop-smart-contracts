@@ -398,37 +398,18 @@ describe("ExchangeIssuanceLeveraged", async () => {
     it("verify state set properly via constructor", async () => {
       const exchangeIssuanceContract: ExchangeIssuanceLeveraged = await subject();
 
-      const expectedWethAddress = await exchangeIssuanceContract.WETH();
-      expect(expectedWethAddress).to.eq(wethAddress);
+      const addresses = await exchangeIssuanceContract.addresses();
+      expect(addresses.weth).to.eq(wethAddress);
 
-      const expectedUniRouterAddress = await exchangeIssuanceContract.quickRouter();
-      expect(expectedUniRouterAddress).to.eq(quickswapRouter.address);
+      expect(addresses.quickRouter).to.eq(quickswapRouter.address);
 
-      const expectedSushiRouterAddress = await exchangeIssuanceContract.sushiRouter();
-      expect(expectedSushiRouterAddress).to.eq(sushiswapRouter.address);
+      expect(addresses.sushiRouter).to.eq(sushiswapRouter.address);
 
       const expectedControllerAddress = await exchangeIssuanceContract.setController();
       expect(expectedControllerAddress).to.eq(controllerAddress);
 
       const expectedDebtIssuanceModuleAddress = await exchangeIssuanceContract.debtIssuanceModule();
       expect(expectedDebtIssuanceModuleAddress).to.eq(debtIssuanceModuleAddress);
-    });
-
-    it("approves WETH to the quickswap and sushiswap router", async () => {
-      const exchangeIssuance: ExchangeIssuanceLeveraged = await subject();
-
-      // validate the allowance of WETH between quickswap, sushiswap, and the deployed exchange issuance contract
-      const quickswapWethAllowance = await collateralToken.allowance(
-        exchangeIssuance.address,
-        quickswapRouter.address,
-      );
-      expect(quickswapWethAllowance).to.eq(MAX_UINT_256);
-
-      const sushiswapWethAllownace = await collateralToken.allowance(
-        exchangeIssuance.address,
-        sushiswapRouter.address,
-      );
-      expect(sushiswapWethAllownace).to.eq(MAX_UINT_256);
     });
   });
 
@@ -447,7 +428,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         curveCalculatorAddress,
         curveAddressProviderAddress,
       );
-      ethAddress = await exchangeIssuance.ETH_ADDRESS();
+      ethAddress = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
     });
     describe("#approveSetToken", async () => {
       let subjectSetToken: Address;
