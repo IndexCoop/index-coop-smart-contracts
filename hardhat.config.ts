@@ -14,7 +14,7 @@ const INTEGRATIONTEST_TIMEOUT = 600000;
 
 const polygonForkingConfig = {
   url: process.env.POLYGON_RPC_URL ?? "",
-  blockNumber: 25004100,
+  blockNumber: 25004110,
 };
 
 const mainnetForkingConfig = {

@@ -35,10 +35,6 @@ import { FlashLoanReceiverBaseV2 } from "../../external/contracts/aaveV2/FlashLo
 import { DEXAdapter } from "./DEXAdapter.sol";
 
 
-
-
-
-
 /**
  * @title ExchangeIssuance
  * @author Index Coop
@@ -47,7 +43,6 @@ import { DEXAdapter } from "./DEXAdapter.sol";
  * Supports all tokens with one collateral Position in the form of an AToken and one debt position
  * Both the collateral as well as the debt token have to be available for flashloand and be 
  * tradeable against each other on Sushi / Quickswap
- *
  */
 contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
 
@@ -58,8 +53,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
     using SafeERC20 for IERC20;
     using SafeERC20 for ISetToken;
 
-
     /* ============ Structs ============ */
+
     struct LeveragedTokenData {
         address collateralAToken;
         address collateralToken;
@@ -67,7 +62,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         address debtToken;
         uint256 debtAmount;
     }
-
 
     struct DecodedParams {
         ISetToken setToken;
@@ -80,7 +74,6 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         DEXAdapter.SwapData collateralAndDebtSwapData;
         DEXAdapter.SwapData paymentTokenSwapData;
     }
-
 
     /* ============ Constants ============= */
 
@@ -99,7 +92,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
     event ExchangeIssue(
         address indexed _recipient,     // The recipient address of the issued SetTokens
         ISetToken indexed _setToken,    // The issued SetToken
-        address indexed _inputToken,     // The address of the input asset(ERC20/ETH) used to issue the SetTokens
+        address indexed _inputToken,    // The address of the input asset(ERC20/ETH) used to issue the SetTokens
         uint256 _amountInputToken,      // The amount of input tokens used for issuance
         uint256 _amountSetIssued        // The amount of SetTokens received by the recipient
     );
@@ -107,7 +100,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
     event ExchangeRedeem(
         address indexed _recipient,     // The recipient address which redeemed the SetTokens
         ISetToken indexed _setToken,    // The redeemed SetToken
-        address indexed _outputToken,    // The address of output asset(ERC20/ETH) received by the recipient
+        address indexed _outputToken,   // The address of output asset(ERC20/ETH) received by the recipient
         uint256 _amountSetRedeemed,     // The amount of SetTokens redeemed for output tokens
         uint256 _amountOutputToken      // The amount of output tokens received by the recipient
     );
@@ -131,7 +124,8 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
                 "ExchangeIssuance: INPUT_TOKEN_NOT_IN_PATH"
             );
             require(
-                _path[_path.length-1] == _outputToken || (_outputToken == addresses.weth && _path[_path.length-1] == DEXAdapter.ETH_ADDRESS),
+                _path[_path.length-1] == _outputToken ||
+                (_outputToken == addresses.weth && _path[_path.length-1] == DEXAdapter.ETH_ADDRESS),
                 "ExchangeIssuance: OUTPUT_TOKEN_NOT_IN_PATH"
             );
         }
@@ -148,6 +142,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
     * @param _quickRouter           Address of quickswap router
     * @param _sushiRouter           Address of sushiswap router
     * @param _uniV3Router           Address of uniswap v3 router
+    * @param _uniV3Quoter           Address of uniswap v3 quoter
     * @param _setController         SetToken controller used to verify a given token is a set
     * @param _debtIssuanceModule    DebtIssuanceModule used to issue and redeem tokens
     * @param _aaveLeverageModule    AaveLeverageModule to sync before every issuance / redemption
@@ -160,6 +155,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         address _quickRouter,
         address _sushiRouter,
         address _uniV3Router,
+        address _uniV3Quoter,
         IController _setController,
         IDebtIssuanceModule _debtIssuanceModule,
         IAaveLeverageModule _aaveLeverageModule,
@@ -178,22 +174,22 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         addresses.quickRouter = _quickRouter;
         addresses.sushiRouter = _sushiRouter;
         addresses.uniV3Router = _uniV3Router;
+        addresses.uniV3Quoter = _uniV3Quoter;
         addresses.curveAddressProvider = _curveAddressProvider;
         addresses.curveCalculator = _curveCalculator;
     }
 
     /* ============ External Functions ============ */
 
-
     /**
-    * Returns the collateral / debt token addresses and amounts for a leveraged index 
-    *
-    * @param _setToken              Address of the SetToken to be issued / redeemed
-    * @param _setAmount             Amount of SetTokens to issue / redeem
-    * @param _isIssuance            Boolean indicating if the SetToken is to be issued or redeemed
-    *
-    * @return Struct containing the collateral / debt token addresses and amounts
-    */
+     * Returns the collateral / debt token addresses and amounts for a leveraged index 
+     *
+     * @param _setToken              Address of the SetToken to be issued / redeemed
+     * @param _setAmount             Amount of SetTokens to issue / redeem
+     * @param _isIssuance            Boolean indicating if the SetToken is to be issued or redeemed
+     *
+     * @return Struct containing the collateral / debt token addresses and amounts
+     */
     function getLeveragedTokenData(
         ISetToken _setToken,
         uint256 _setAmount,
@@ -217,6 +213,69 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         _approveToken(_token);
     }
 
+    /**
+     * Gets the input cost of issuing a given amount of a set token. This
+     * function is not marked view, but should be static called from frontends.
+     * This constraint is due to the need to interact with the Uniswap V3 quoter
+     * contract and call sync on AaveLeverageModule. Note: If the two SwapData
+     * paths contain the same tokens, there will be a slight error introduced
+     * in the result.
+     *
+     * @param _setToken                     the set token to issue
+     * @param _setAmount                    amount of set tokens
+     * @param _swapDataDebtForCollateral    swap data for the debt to collateral swap
+     * @param _swapDataInputToken           swap data for the input token to collateral swap
+     *
+     * @return                              the amount of input tokens required to perfrom the issuance
+     */
+    function getIssueExactSet(
+        ISetToken _setToken,
+        uint256 _setAmount,
+        DEXAdapter.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapter.SwapData memory _swapDataInputToken
+    )
+        external
+        returns (uint256)
+    {
+        aaveLeverageModule.sync(_setToken);
+        LeveragedTokenData memory issueInfo = _getLeveragedTokenData(_setToken, _setAmount, true);        
+        uint256 collateralOwed = issueInfo.collateralAmount.preciseMul(1.0009 ether);
+        uint256 borrowSaleProceeds = DEXAdapter.getAmountOut(addresses, _swapDataDebtForCollateral, issueInfo.debtAmount);
+        collateralOwed = collateralOwed.sub(borrowSaleProceeds);
+        return DEXAdapter.getAmountIn(addresses, _swapDataInputToken, collateralOwed);
+    }
+
+    /**
+     * Gets the proceeds of a redemption of a given amount of a set token. This
+     * function is not marked view, but should be static called from frontends.
+     * This constraint is due to the need to interact with the Uniswap V3 quoter
+     * contract and call sync on AaveLeverageModule. Note: If the two SwapData
+     * paths contain the same tokens, there will be a slight error introduced
+     * in the result.
+     *
+     * @param _setToken                     the set token to issue
+     * @param _setAmount                    amount of set tokens
+     * @param _swapDataCollateralForDebt    swap data for the collateral to debt swap
+     * @param _swapDataOutputToken          swap data for the collateral token to the output token
+     *
+     * @return                              amount of _outputToken that would be obtained from the redemption
+     */
+    function getRedeemExactSet(
+        ISetToken _setToken,
+        uint256 _setAmount,
+        DEXAdapter.SwapData memory _swapDataCollateralForDebt,
+        DEXAdapter.SwapData memory _swapDataOutputToken
+    )
+        external
+        returns (uint256)
+    {
+        aaveLeverageModule.sync(_setToken);
+        LeveragedTokenData memory redeemInfo = _getLeveragedTokenData(_setToken, _setAmount, false);
+        uint256 debtOwed = redeemInfo.debtAmount.preciseMul(1.0009 ether);
+        uint256 debtPurchaseCost = DEXAdapter.getAmountIn(addresses, _swapDataCollateralForDebt, debtOwed);
+        uint256 extraCollateral = redeemInfo.collateralAmount.sub(debtPurchaseCost);
+        return DEXAdapter.getAmountOut(addresses, _swapDataOutputToken, extraCollateral);
+    }
 
     /**
      * Trigger redemption of set token to pay the user with Eth

@@ -35,16 +35,19 @@ import {
   getUniswapFixture,
   getWaffleExpect,
   usdc,
+  getUniswapV3Fixture,
+  preciseMul,
 } from "@utils/index";
 import { UnitsUtils } from "@utils/common/unitsUtils";
-import { AaveV2Fixture, SetFixture, UniswapFixture } from "@utils/fixtures";
-import { BigNumber, utils } from "ethers";
+import { AaveV2Fixture, SetFixture, UniswapFixture, UniswapV3Fixture } from "@utils/fixtures";
+import { BigNumber, utils, ContractTransaction } from "ethers";
 import { getTxFee } from "@utils/test";
 
 enum Exchange {
   None,
   Quickswap,
   Sushiswap,
+  UniV3,
 }
 
 type SwapData = {
@@ -94,6 +97,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
   let daiAddress: Address;
   let quickswapRouter: UniswapV2Router02;
   let sushiswapRouter: UniswapV2Router02;
+  let uniswapV3RouterAddress: Address;
   let controllerAddress: Address;
   let debtIssuanceModuleAddress: Address;
   let aaveAddressProviderAddress: Address;
@@ -102,9 +106,8 @@ describe("ExchangeIssuanceLeveraged", async () => {
 
   let quickswapSetup: UniswapFixture;
   let sushiswapSetup: UniswapFixture;
+  let uniswapV3Setup: UniswapV3Fixture;
   let setTokenInitialBalance: BigNumber;
-
-  const uniswapV3RouterAddress = ADDRESS_ZERO;
 
   cacheBeforeEach(async () => {
     [owner, methodologist] = await getAccounts();
@@ -197,7 +200,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
     quickswapSetup = getUniswapFixture(owner.address);
     await quickswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
 
-    // Set integrations for CompoundLeverageModule
+    // Set integrations for AaveLeverageModule
     await setV2Setup.integrationRegistry.addIntegration(
       aaveLeverageModule.address,
       "UniswapTradeAdapter",
@@ -205,6 +208,21 @@ describe("ExchangeIssuanceLeveraged", async () => {
     );
     sushiswapSetup = getUniswapFixture(owner.address);
     await sushiswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
+
+    uniswapV3Setup = getUniswapV3Fixture(owner.address);
+    await uniswapV3Setup.initialize(owner, setV2Setup.weth, 3000, setV2Setup.wbtc, 40000, setV2Setup.dai);
+    uniswapV3RouterAddress = uniswapV3Setup.swapRouter.address;
+    await uniswapV3Setup.createNewPair(setV2Setup.weth, setV2Setup.usdc, 3000, 3000);
+    await setV2Setup.weth.approve(uniswapV3Setup.nftPositionManager.address, MAX_UINT_256);
+    await setV2Setup.usdc.approve(uniswapV3Setup.nftPositionManager.address, MAX_UINT_256);
+    await uniswapV3Setup.addLiquidityWide(
+      setV2Setup.weth,
+      setV2Setup.usdc,
+      3000,
+      ether(100),
+      usdc(300_000),
+      owner.address
+    );
 
     setTokenInitialBalance = ether(1);
     await collateralAToken.approve(debtIssuanceModule.address, MAX_UINT_256);
@@ -385,6 +403,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         quickswapRouter.address,
         sushiswapRouter.address,
         uniswapV3RouterAddress,
+        uniswapV3Setup.quoter.address,
         controllerAddress,
         debtIssuanceModuleAddress,
         aaveLeverageModule.address,
@@ -421,6 +440,7 @@ describe("ExchangeIssuanceLeveraged", async () => {
         quickswapRouter.address,
         sushiswapRouter.address,
         uniswapV3RouterAddress,
+        uniswapV3Setup.quoter.address,
         controllerAddress,
         debtIssuanceModuleAddress,
         aaveLeverageModule.address,
@@ -801,6 +821,201 @@ describe("ExchangeIssuanceLeveraged", async () => {
               CollateralToken: "SafeERC20: low-level call failed",
             };
             await expect(subject()).to.be.revertedWith(revertReasonMapping[tokenName]);
+          });
+        });
+      });
+
+      describe("#getIssueExactSet", async () => {
+        let subjectSetToken: SetToken;
+        let subjectAmount: BigNumber;
+        let subjectInputToken: StandardTokenMock | WETH9;
+        let subjectDebtForCollateralSwapData: SwapData;
+        let subjectInputTokenSwapData: SwapData;
+
+        async function subject(): Promise<BigNumber> {
+          return await exchangeIssuance.callStatic.getIssueExactSet(
+            subjectSetToken.address,
+            subjectAmount,
+            subjectDebtForCollateralSwapData,
+            subjectInputTokenSwapData
+          );
+        }
+
+        async function performIssuance(): Promise<ContractTransaction> {
+          return await exchangeIssuance.issueExactSetFromERC20(
+            subjectSetToken.address,
+            subjectAmount,
+            subjectInputToken.address,
+            await subjectInputToken.balanceOf(owner.address),
+            subjectDebtForCollateralSwapData,
+            subjectInputTokenSwapData
+          );
+        }
+
+        context(`when input token is ${tokenName === "CollateralToken" ? "the collateral" : "an ERC20"}`, async () => {
+          beforeEach(async () => {
+            subjectSetToken = setToken;
+            subjectAmount = ether(0.1);
+            subjectInputToken = tokenName === "CollateralToken" ? setV2Setup.weth : setV2Setup.usdc;
+
+            subjectDebtForCollateralSwapData = {
+              exchange: Exchange.Quickswap,
+              pool: ADDRESS_ZERO,
+              path: [setV2Setup.usdc.address, wethAddress],
+              fees: [],
+            };
+
+            subjectInputTokenSwapData = {
+              exchange: Exchange.Quickswap,
+              pool: ADDRESS_ZERO,
+              path: [subjectInputToken.address, wethAddress],
+              fees: [],
+            };
+
+            await setV2Setup.usdc.approve(exchangeIssuance.address, MAX_UINT_256);
+            await setV2Setup.weth.approve(exchangeIssuance.address, MAX_UINT_256);
+            await exchangeIssuance.approveSetToken(subjectSetToken.address);
+          });
+
+          it("should return correct issuance cost", async () => {
+            const amountIn = await subject();
+
+            const initAmount = await subjectInputToken.balanceOf(owner.address);
+            await performIssuance();
+            const finalAmount = await subjectInputToken.balanceOf(owner.address);
+
+            const expectedAmountIn = initAmount.sub(finalAmount);
+
+            expect(amountIn).to.gt(preciseMul(expectedAmountIn, ether(0.99)));
+            expect(amountIn).to.lt(preciseMul(expectedAmountIn, ether(1.01)));
+          });
+
+          context("when using Uniswap V3 as the exchange", async () => {
+            beforeEach(() => {
+              subjectDebtForCollateralSwapData = {
+                exchange: Exchange.UniV3,
+                pool: ADDRESS_ZERO,
+                path: [setV2Setup.usdc.address, wethAddress],
+                fees: [3000],
+              };
+
+              subjectInputTokenSwapData = {
+                exchange: Exchange.UniV3,
+                pool: ADDRESS_ZERO,
+                path: [subjectInputToken.address, wethAddress],
+                fees: [3000],
+              };
+            });
+
+            it("should return the correct issuance cost", async () => {
+              const amountIn = await subject();
+
+              const initAmount = await subjectInputToken.balanceOf(owner.address);
+              await performIssuance();
+              const finalAmount = await subjectInputToken.balanceOf(owner.address);
+
+              const expectedAmountIn = initAmount.sub(finalAmount);
+
+              expect(amountIn).to.gt(preciseMul(expectedAmountIn, ether(0.99)));
+              expect(amountIn).to.lt(preciseMul(expectedAmountIn, ether(1.01)));
+            });
+          });
+        });
+      });
+
+      describe("#getRedeemExactSet", async () => {
+        let subjectSetToken: SetToken;
+        let subjectAmount: BigNumber;
+        let subjectOutputToken: StandardTokenMock | WETH9;
+        let subjectCollateralForDebtSwapData: SwapData;
+        let subjectOutputTokenSwapData: SwapData;
+
+        async function subject(): Promise<BigNumber> {
+          return await exchangeIssuance.callStatic.getRedeemExactSet(
+            subjectSetToken.address,
+            subjectAmount,
+            subjectCollateralForDebtSwapData,
+            subjectOutputTokenSwapData
+          );
+        }
+
+        async function performRedemption(): Promise<ContractTransaction> {
+          return await exchangeIssuance.redeemExactSetForERC20(
+            subjectSetToken.address,
+            subjectAmount,
+            subjectOutputToken.address,
+            ZERO,
+            subjectCollateralForDebtSwapData,
+            subjectOutputTokenSwapData
+          );
+        }
+
+        context(`when output token is ${tokenName === "CollateralToken" ? "the collateral" : "an ERC20"}`, async () => {
+          beforeEach(async () => {
+            subjectSetToken = setToken;
+            subjectAmount = ether(0.1);
+            subjectOutputToken = tokenName === "CollateralToken" ? setV2Setup.weth : setV2Setup.usdc;
+
+            subjectCollateralForDebtSwapData = {
+              exchange: Exchange.Quickswap,
+              pool: ADDRESS_ZERO,
+              path: [wethAddress, setV2Setup.usdc.address],
+              fees: [],
+            };
+
+            subjectOutputTokenSwapData = {
+              exchange: Exchange.Quickswap,
+              pool: ADDRESS_ZERO,
+              path: [wethAddress, subjectOutputToken.address],
+              fees: [],
+            };
+
+            await subjectSetToken.approve(exchangeIssuance.address, MAX_UINT_256);
+            await exchangeIssuance.approveSetToken(subjectSetToken.address);
+          });
+
+          it("should return correct redemption proceeds", async () => {
+            const amountOut = await subject();
+
+            const initAmount = await subjectOutputToken.balanceOf(owner.address);
+            await performRedemption();
+            const finalAmount = await subjectOutputToken.balanceOf(owner.address);
+
+            const expectedAmountOut = finalAmount.sub(initAmount);
+
+            expect(amountOut).to.gt(preciseMul(expectedAmountOut, ether(0.99)));
+            expect(amountOut).to.lt(preciseMul(expectedAmountOut, ether(1.01)));
+          });
+
+          context("when using Uniswap V3 as the exchange", async () => {
+            beforeEach(() => {
+              subjectCollateralForDebtSwapData = {
+                exchange: Exchange.UniV3,
+                pool: ADDRESS_ZERO,
+                path: [wethAddress, setV2Setup.usdc.address],
+                fees: [3000],
+              };
+
+              subjectOutputTokenSwapData = {
+                exchange: Exchange.UniV3,
+                pool: ADDRESS_ZERO,
+                path: [wethAddress, subjectOutputToken.address],
+                fees: [3000],
+              };
+            });
+
+            it("should return the correct issuance cost", async () => {
+              const amountOut = await subject();
+
+              const initAmount = await subjectOutputToken.balanceOf(owner.address);
+              await performRedemption();
+              const finalAmount = await subjectOutputToken.balanceOf(owner.address);
+
+              const expectedAmountOut = finalAmount.sub(initAmount);
+
+              expect(amountOut).to.gt(preciseMul(expectedAmountOut, ether(0.99)));
+              expect(amountOut).to.lt(preciseMul(expectedAmountOut, ether(1.01)));
+            });
           });
         });
       });

@@ -1,7 +1,7 @@
 import "module-alias/register";
 import { Account, Address } from "@utils/types";
 import DeployHelper from "@utils/deploys";
-import { getAccounts, getWaffleExpect } from "@utils/index";
+import { getAccounts, getWaffleExpect, preciseMul } from "@utils/index";
 import { ethers } from "hardhat";
 import { BigNumber, utils } from "ethers";
 import { ExchangeIssuanceLeveraged } from "@utils/contracts/index";
@@ -78,6 +78,7 @@ if (process.env.INTEGRATIONTEST) {
           addresses.dexes.uniV2.router,
           addresses.dexes.sushiswap.router,
           addresses.dexes.uniV3.router,
+          addresses.dexes.uniV3.quoter,
           addresses.set.controller,
           addresses.set.debtIssuanceModuleV2,
           addresses.set.aaveLeverageModule,
@@ -174,7 +175,7 @@ if (process.env.INTEGRATIONTEST) {
             let amountIn: BigNumber;
             beforeEach(async () => {
               amountIn = ether(2);
-              subjectSetAmount = ether(1.234567891011121314);
+              subjectSetAmount = ether(0.5123455677890);
             });
 
             describe(
@@ -268,6 +269,15 @@ if (process.env.INTEGRATIONTEST) {
                   );
                 }
 
+                async function subjectQuote() {
+                  return exchangeIssuance.callStatic.getIssueExactSet(
+                    subjectSetToken,
+                    subjectSetAmount,
+                    swapDataDebtToCollateral,
+                    swapDataInputToken
+                  );
+                }
+
                 it("should issue the correct amount of tokens", async () => {
                   const setBalancebefore = await setToken.balanceOf(owner.address);
                   await subject();
@@ -289,6 +299,24 @@ if (process.env.INTEGRATIONTEST) {
                   const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
                   expect(inputSpent.gt(0)).to.be.true;
                   expect(inputSpent.lte(subjectMaxAmountIn)).to.be.true;
+                });
+
+                it("should quote the correct input amount", async () => {
+                  const inputBalanceBefore =
+                    inputTokenName == "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await inputToken.balanceOf(owner.address);
+                  await subject();
+                  const inputBalanceAfter =
+                    inputTokenName == "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await inputToken.balanceOf(owner.address);
+                  const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
+
+                  const quotedInputAmount = await subjectQuote();
+
+                  expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.99)));
+                  expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.01)));
                 });
               },
             );
@@ -322,6 +350,15 @@ if (process.env.INTEGRATIONTEST) {
                     subjectMinAmountOut,
                     swapDataCollateralToDebt,
                     swapDataOutputToken,
+                  );
+                }
+
+                async function subjectQuote(): Promise<BigNumber> {
+                  return exchangeIssuance.callStatic.getRedeemExactSet(
+                    subjectSetToken,
+                    subjectSetAmount,
+                    swapDataCollateralToDebt,
+                    swapDataOutputToken
                   );
                 }
 
@@ -379,6 +416,24 @@ if (process.env.INTEGRATIONTEST) {
                       : await outputToken.balanceOf(owner.address);
                   const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
                   expect(outputObtained.gte(subjectMinAmountOut)).to.be.true;
+                });
+
+                it("should quote the correct output amount", async () => {
+                  const outputBalanceBefore =
+                    inputTokenName == "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await outputToken.balanceOf(owner.address);
+                  await subject();
+                  const outputBalanceAfter =
+                    inputTokenName == "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await outputToken.balanceOf(owner.address);
+                  const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
+
+                  const outputAmountQuote = await subjectQuote();
+
+                  expect(outputAmountQuote).to.gt(preciseMul(outputObtained, ether(0.99)));
+                  expect(outputAmountQuote).to.lt(preciseMul(outputObtained, ether(1.01)));
                 });
               },
             );

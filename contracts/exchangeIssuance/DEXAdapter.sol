@@ -26,10 +26,9 @@ import { ICurveAddressProvider } from "../interfaces/external/ICurveAddressProvi
 import { ICurvePoolRegistry } from "../interfaces/external/ICurvePoolRegistry.sol";
 import { ICurvePool } from "../interfaces/external/ICurvePool.sol";
 import { ISwapRouter} from "../interfaces/external/ISwapRouter.sol";
+import { IQuoter } from "../interfaces/IQuoter.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
-
-
 
 
 /**
@@ -37,7 +36,6 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  * @author Index Coop
  *
  * Adapter to execute swaps on different DEXes
- *
  */
 library DEXAdapter {
     using SafeERC20 for IERC20;
@@ -60,6 +58,7 @@ library DEXAdapter {
         address quickRouter;
         address sushiRouter;
         address uniV3Router;
+        address uniV3Quoter;
         address curveAddressProvider;
         address curveCalculator;
         // Wrapped native token (WMATIC on polygon)
@@ -73,7 +72,6 @@ library DEXAdapter {
         Exchange exchange;
     }
 
-
     struct CurvePoolData {
         int128 nCoins;
         uint256[8] balances;
@@ -83,11 +81,6 @@ library DEXAdapter {
         uint256[8] decimals;
     }
 
-    /* ============ State Variables ============ */
-
-
-
-    /* ============ Internal Methods ============ */
     /**
      * Swap exact tokens for another token on a given DEX.
      *
@@ -133,7 +126,7 @@ library DEXAdapter {
                 _swapData.path,
                 _amountIn,
                 _minAmountOut,
-                IUniswapV2Router02((_swapData.exchange == Exchange.Quickswap) ? _addresses.quickRouter : _addresses.sushiRouter)
+                _getRouter(_swapData.exchange, _addresses)
             );
         }
     }
@@ -161,6 +154,7 @@ library DEXAdapter {
         if (_swapData.path[0] == _swapData.path[_swapData.path.length -1]) {
             return _amountOut;
         }
+
         if(_swapData.exchange == Exchange.Curve){
             return _swapTokensForExactTokensCurve(
                 _swapData.path,
@@ -183,7 +177,87 @@ library DEXAdapter {
                 _swapData.path,
                 _amountOut,
                 _maxAmountIn,
-                IUniswapV2Router02((_swapData.exchange == Exchange.Quickswap) ? _addresses.quickRouter : _addresses.sushiRouter)
+                _getRouter(_swapData.exchange, _addresses)
+            );
+        }
+    }
+
+    /**
+     * Gets the output amount of a token swap.
+     *
+     * @param _swapData     the swap parameters
+     * @param _addresses    Struct containing relevant smart contract addresses.
+     * @param _amountIn     the input amount of the trade
+     *
+     * @return              the output amount of the swap
+     */
+    function getAmountOut(
+        Addresses memory _addresses,
+        SwapData memory _swapData,
+        uint256 _amountIn
+    )
+        external
+        returns (uint256)
+    {
+        if (_swapData.path.length == 0 || _swapData.path[0] == _swapData.path[_swapData.path.length-1]) {
+            return _amountIn;
+        }
+
+        if (_swapData.exchange == Exchange.UniV3) {
+            return _getAmountOutUniV3(_swapData, _addresses.uniV3Quoter, _amountIn);
+        } else if (_swapData.exchange == Exchange.Curve) {
+            (int128 i, int128 j) = _getCoinIndices(
+                _swapData.pool,
+                _swapData.path[0],
+                _swapData.path[1],
+                ICurveAddressProvider(_addresses.curveAddressProvider)
+            );
+            return _getAmountOutCurve(_swapData.pool, i, j, _amountIn, _addresses);
+        } else {
+            return _getAmountOutUniV2(
+                _swapData,
+                _getRouter(_swapData.exchange, _addresses),
+                _amountIn
+            );
+        }
+    }
+    
+    /**
+     * Gets the input amount of a fixed output swap.
+     *
+     * @param _swapData     the swap parameters
+     * @param _addresses    Struct containing relevant smart contract addresses.
+     * @param _amountOut    the output amount of the swap
+     *
+     * @return              the input amount of the swap
+     */
+    function getAmountIn(
+        Addresses memory _addresses,
+        SwapData memory _swapData,
+        uint256 _amountOut
+    )
+        external
+        returns (uint256)
+    {
+        if (_swapData.path.length == 0 || _swapData.path[0] == _swapData.path[_swapData.path.length-1]) {
+            return _amountOut;
+        }
+
+        if (_swapData.exchange == Exchange.UniV3) {
+            return _getAmountInUniV3(_swapData, _addresses.uniV3Quoter, _amountOut);
+        } else if (_swapData.exchange == Exchange.Curve) {
+            (int128 i, int128 j) = _getCoinIndices(
+                _swapData.pool,
+                _swapData.path[0],
+                _swapData.path[1],
+                ICurveAddressProvider(_addresses.curveAddressProvider)
+            );
+            return _getAmountInCurve(_swapData.pool, i, j, _amountOut, _addresses);
+        } else {
+            return _getAmountInUniV2(
+                _swapData,
+                _getRouter(_swapData.exchange, _addresses),
+                _amountOut
             );
         }
     }
@@ -237,8 +311,10 @@ library DEXAdapter {
     /**
      *  Execute exact output swap via UniswapV3
      *
-     * @param _path         List of token address to swap via. (In the order as expected by uniV2, the first element being the input toen)
-     * @param _fees         List of fee levels identifying the pools to swap via. (_fees[0] refers to pool between _path[0] and _path[1])
+     * @param _path         List of token address to swap via. (In the order as
+     *                      expected by uniV2, the first element being the input toen)
+     * @param _fees         List of fee levels identifying the pools to swap via.
+     *                      (_fees[0] refers to pool between _path[0] and _path[1])
      * @param _amountOut    The amount of output token required
      * @param _maxAmountIn  Maximum amount of input token to be spent
      * @param _uniV3Router  Address of the uniswapV3 router
@@ -338,7 +414,7 @@ library DEXAdapter {
         uint256 _maxAmountIn,
         Addresses memory _addresses
     )
-        public
+        private
         returns (uint256)
     {
         require(_path.length == 2, "ExchangeIssuance: CURVE_WRONG_PATH_LENGTH");
@@ -363,7 +439,6 @@ library DEXAdapter {
         if(_path[_path.length-1] == ETH_ADDRESS){
             IWETH(_addresses.weth).deposit{ value: returnedAmountOut }();
         }
-
 
         return amountIn;
     }
@@ -399,8 +474,6 @@ library DEXAdapter {
         }
     }
 
-
-
     /**
      *  Calculate required input amount to get a given output amount via Curve swap
      *
@@ -419,7 +492,7 @@ library DEXAdapter {
         uint256 _amountOut,
         Addresses memory _addresses
     )
-        public
+        private
         view
         returns (uint256)
     {
@@ -437,6 +510,31 @@ library DEXAdapter {
             _j,
             _amountOut
         ) + ROUNDING_ERROR_MARGIN;
+    }
+
+    /**
+     *  Calculate output amount of a Curve swap
+     *
+     * @param _i            Index of input token as per the ordering of the pools tokens
+     * @param _j            Index of output token as per the ordering of the pools tokens
+     * @param _pool         Address of curve pool to use
+     * @param _amountIn     The amount of output token to be received
+     * @param _addresses    Struct containing relevant smart contract addresses.
+     *
+     * @return amountOut    The amount of output token obtained
+     */
+    function _getAmountOutCurve(
+        address _pool,
+        int128 _i,
+        int128 _j,
+        uint256 _amountIn,
+        Addresses memory _addresses
+    )
+        private
+        view
+        returns (uint256)
+    {
+        return ICurvePool(_pool).get_dy(_i, _j, _amountIn);
     }
 
     /**
@@ -482,7 +580,9 @@ library DEXAdapter {
         address _to,
         ICurveAddressProvider _curveAddressProvider
     )
-    public view returns (int128 i, int128 j)
+        private
+        view
+        returns (int128 i, int128 j)
     {
         ICurvePoolRegistry registry = ICurvePoolRegistry(_curveAddressProvider.get_registry());
 
@@ -510,13 +610,12 @@ library DEXAdapter {
         return (i, j);
     }
 
-
-
     /**
      *  Execute exact input swap via UniswapV3
      *
      * @param _path         List of token address to swap via. 
-     * @param _fees         List of fee levels identifying the pools to swap via. (_fees[0] refers to pool between _path[0] and _path[1])
+     * @param _fees         List of fee levels identifying the pools to swap via.
+     *                      (_fees[0] refers to pool between _path[0] and _path[1])
      * @param _amountIn     The amount of input token to be spent
      * @param _minAmountOut Minimum amount of output token to receive
      * @param _uniV3Router  Address of the uniswapV3 router
@@ -586,13 +685,99 @@ library DEXAdapter {
         return _router.swapExactTokensForTokens(_amountIn, _minAmountOut, _path, address(this), block.timestamp)[1];
     }
 
+    /**
+     * Gets the output amount of a token swap on Uniswap V2
+     *
+     * @param _swapData     the swap parameters
+     * @param _router       the uniswap v2 router address
+     * @param _amountIn     the input amount of the trade
+     *
+     * @return              the output amount of the swap
+     */
+    function _getAmountOutUniV2(
+        SwapData memory _swapData,
+        IUniswapV2Router02 _router,
+        uint256 _amountIn
+    )
+        private
+        view
+        returns (uint256)
+    {
+        return _router.getAmountsOut(_amountIn, _swapData.path)[_swapData.path.length-1];
+    }
+
+    /**
+     * Gets the input amount of a fixed output swap on Uniswap V2.
+     *
+     * @param _swapData     the swap parameters
+     * @param _router       the uniswap v2 router address
+     * @param _amountOut    the output amount of the swap
+     *
+     * @return              the input amount of the swap
+     */
+    function _getAmountInUniV2(
+        SwapData memory _swapData,
+        IUniswapV2Router02 _router,
+        uint256 _amountOut
+    )
+        private
+        view
+        returns (uint256)
+    {
+        return _router.getAmountsIn(_amountOut, _swapData.path)[0];
+    }
+
+    /**
+     * Gets the output amount of a token swap on Uniswap V3.
+     *
+     * @param _swapData     the swap parameters
+     * @param _quoter       the uniswap v3 quoter
+     * @param _amountIn     the input amount of the trade
+     *
+     * @return              the output amount of the swap
+     */
+
+    function _getAmountOutUniV3(
+        SwapData memory _swapData,
+        address _quoter,
+        uint256 _amountIn
+    )
+        private
+        returns (uint256)
+    {
+        bytes memory path = _encodePathV3(_swapData.path, _swapData.fees, false);
+        return IQuoter(_quoter).quoteExactInput(path, _amountIn);
+    }
+
+    /**
+     * Gets the input amount of a fixed output swap on Uniswap V3.
+     *
+     * @param _swapData     the swap parameters
+     * @param _quoter       uniswap v3 quoter
+     * @param _amountOut    the output amount of the swap
+     *
+     * @return              the input amount of the swap
+     */
+    function _getAmountInUniV3(
+        SwapData memory _swapData,
+        address _quoter,
+        uint256 _amountOut
+    )
+        private
+        returns (uint256)
+    {
+        bytes memory path = _encodePathV3(_swapData.path, _swapData.fees, true);
+        return IQuoter(_quoter).quoteExactOutput(path, _amountOut);
+    }
 
     /**
      * Encode path / fees to bytes in the format expected by UniV3 router
      *
      * @param _path          List of token address to swap via (starting with input token)
-     * @param _fees          List of fee levels identifying the pools to swap via. (_fees[0] refers to pool between _path[0] and _path[1])
-     * @param _reverseOrder  Boolean indicating if path needs to be reversed to start with output token. (which is the case for exact output swap)
+     * @param _fees          List of fee levels identifying the pools to swap via.
+     *                       (_fees[0] refers to pool between _path[0] and _path[1])
+     * @param _reverseOrder  Boolean indicating if path needs to be reversed to start with output token.
+     *                       (which is the case for exact output swap)
      *
      * @return encodedPath   Encoded path to be forwared to uniV3 router
      */
@@ -619,4 +804,16 @@ library DEXAdapter {
         }
     }
 
+    function _getRouter(
+        Exchange _exchange,
+        Addresses memory _addresses
+    )
+        private
+        pure
+        returns (IUniswapV2Router02)
+    {
+        return IUniswapV2Router02(
+            (_exchange == Exchange.Quickswap) ? _addresses.quickRouter : _addresses.sushiRouter
+        );
+    }
 }
