@@ -175,7 +175,7 @@ if (process.env.INTEGRATIONTEST) {
             let amountIn: BigNumber;
             beforeEach(async () => {
               amountIn = ether(2);
-              subjectSetAmount = ether(1.234567891011121314);
+              subjectSetAmount = ether(0.5123455677890);
             });
 
             describe(
