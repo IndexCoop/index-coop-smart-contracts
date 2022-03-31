@@ -146,7 +146,11 @@ if (process.env.INTEGRATIONTEST) {
         let collateralTokenAddress: Address;
         let debtTokenAddress: Address;
         before(async () => {
-          await exchangeIssuance.approveSetToken(setToken.address);
+          if (process.env.USE_PRODUCTION_DEPLOYMENT) {
+            console.log("Skipping the set token approval on production deployment");
+          } else {
+            await exchangeIssuance.approveSetToken(setToken.address);
+          }
 
           const leveragedTokenData = await exchangeIssuance.getLeveragedTokenData(
             setToken.address,
