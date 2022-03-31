@@ -73,19 +73,26 @@ if (process.env.INTEGRATIONTEST) {
     context("When exchange issuance is deployed", () => {
       let exchangeIssuance: ExchangeIssuanceLeveraged;
       before(async () => {
-        exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveraged(
-          addresses.tokens.weth,
-          addresses.dexes.uniV2.router,
-          addresses.dexes.sushiswap.router,
-          addresses.dexes.uniV3.router,
-          addresses.dexes.uniV3.quoter,
-          addresses.set.controller,
-          addresses.set.debtIssuanceModuleV2,
-          addresses.set.aaveLeverageModule,
-          addresses.lending.aave.addressProvider,
-          addresses.dexes.curve.addressProvider,
-          addresses.dexes.curve.calculator,
-        );
+        if (process.env.USE_PRODUCTION_DEPLOYMENT) {
+          exchangeIssuance = await ethers.getContractAt(
+            "ExchangeIssuanceLeveraged",
+            addresses.set.exchangeIssuanceLeveraged,
+          ) as ExchangeIssuanceLeveraged;
+        } else {
+          exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveraged(
+            addresses.tokens.weth,
+            addresses.dexes.uniV2.router,
+            addresses.dexes.sushiswap.router,
+            addresses.dexes.uniV3.router,
+            addresses.dexes.uniV3.quoter,
+            addresses.set.controller,
+            addresses.set.debtIssuanceModuleV2,
+            addresses.set.aaveLeverageModule,
+            addresses.lending.aave.addressProvider,
+            addresses.dexes.curve.addressProvider,
+            addresses.dexes.curve.calculator,
+          );
+        }
       });
 
       it("weth address is set correctly", async () => {
@@ -102,16 +109,22 @@ if (process.env.INTEGRATIONTEST) {
 
       it("uniV2 router address is set correctly", async () => {
         const returnedAddresses = await exchangeIssuance.addresses();
-        expect(returnedAddresses.quickRouter).to.eq(
-          utils.getAddress(addresses.dexes.uniV2.router),
-        );
+        expect(returnedAddresses.quickRouter).to.eq(utils.getAddress(addresses.dexes.uniV2.router));
       });
 
       it("uniV3 router address is set correctly", async () => {
         const returnedAddresses = await exchangeIssuance.addresses();
-        expect(returnedAddresses.uniV3Router).to.eq(
-          utils.getAddress(addresses.dexes.uniV3.router),
-        );
+        expect(returnedAddresses.uniV3Router).to.eq(utils.getAddress(addresses.dexes.uniV3.router));
+      });
+
+      it("curve calculator address is set correctly", async () => {
+        const returnedAddresses = await exchangeIssuance.addresses();
+        expect(returnedAddresses.curveCalculator).to.eq(utils.getAddress(addresses.dexes.curve.calculator));
+      });
+
+      it("curve addressProvider address is set correctly", async () => {
+        const returnedAddresses = await exchangeIssuance.addresses();
+        expect(returnedAddresses.curveAddressProvider).to.eq(utils.getAddress(addresses.dexes.curve.addressProvider));
       });
 
       it("controller address is set correctly", async () => {
@@ -175,7 +188,7 @@ if (process.env.INTEGRATIONTEST) {
             let amountIn: BigNumber;
             beforeEach(async () => {
               amountIn = ether(2);
-              subjectSetAmount = ether(0.5123455677890);
+              subjectSetAmount = ether(0.512345567789);
             });
 
             describe(
@@ -274,7 +287,7 @@ if (process.env.INTEGRATIONTEST) {
                     subjectSetToken,
                     subjectSetAmount,
                     swapDataDebtToCollateral,
-                    swapDataInputToken
+                    swapDataInputToken,
                   );
                 }
 
@@ -358,7 +371,7 @@ if (process.env.INTEGRATIONTEST) {
                     subjectSetToken,
                     subjectSetAmount,
                     swapDataCollateralToDebt,
-                    swapDataOutputToken
+                    swapDataOutputToken,
                   );
                 }
 
