@@ -10,6 +10,8 @@ import {
   StringArrayUtilsMock,
   TradeAdapterMock,
   WrapAdapterMock,
+  WrappedfCashMock,
+  WrappedfCashFactoryMock,
   ZeroExExchangeProxyMock
 } from "../contracts/index";
 
@@ -24,6 +26,8 @@ import { TradeAdapterMock__factory } from "../../typechain/factories/TradeAdapte
 import { StandardTokenMock__factory } from "../../typechain/factories/StandardTokenMock__factory";
 import { StringArrayUtilsMock__factory } from "../../typechain/factories/StringArrayUtilsMock__factory";
 import { WrapAdapterMock__factory } from "../../typechain/factories/WrapAdapterMock__factory";
+import { WrappedfCashMock__factory } from "../../typechain/factories/WrappedfCashMock__factory";
+import { WrappedfCashFactoryMock__factory } from "../../typechain/factories/WrappedfCashFactoryMock__factory";
 import { ZeroExExchangeProxyMock__factory  } from "../../typechain/factories/ZeroExExchangeProxyMock__factory";
 
 export default class DeployMocks {
@@ -104,5 +108,13 @@ export default class DeployMocks {
 
   public async deployZeroExExchangeProxyMock(): Promise<ZeroExExchangeProxyMock> {
     return await new ZeroExExchangeProxyMock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployWrappedfCashMock(assetToken: Address, underlyingToken: Address, weth: Address): Promise<WrappedfCashMock> {
+    return await new WrappedfCashMock__factory(this._deployerSigner).deploy(assetToken, underlyingToken, weth);
+  }
+
+  public async deployWrappedfCashFactoryMock(): Promise<WrappedfCashFactoryMock> {
+    return await new WrappedfCashFactoryMock__factory(this._deployerSigner).deploy();
   }
 }

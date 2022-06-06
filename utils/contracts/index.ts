@@ -37,4 +37,6 @@ export { Vesting } from "../../typechain/Vesting";
 export { WETH9 } from "../../typechain/WETH9";
 export { WrapAdapterMock } from "../../typechain/WrapAdapterMock";
 export { WrapExtension } from "../../typechain/WrapExtension";
+export { WrappedfCashMock } from "../../typechain/WrappedfCashMock";
+export { WrappedfCashFactoryMock } from "../../typechain/WrappedfCashFactoryMock";
 export { ZeroExExchangeProxyMock } from "../../typechain/ZeroExExchangeProxyMock";
