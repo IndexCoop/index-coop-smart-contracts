@@ -229,6 +229,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
 
             if(_isWrappedFCash(component)) {
                 bool useUnderlying = _isUnderlying(IWrappedfCash(component), _inputToken);
+                _inputToken.approve(component, _maxAmountInputToken);
                 if(useUnderlying) {
                     IWrappedfCash(component).mintViaUnderlying(_maxAmountInputToken, uint88(units), address(this), 0);
                 } else {

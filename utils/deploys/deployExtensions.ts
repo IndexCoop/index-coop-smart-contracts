@@ -15,6 +15,7 @@ import {
   ExchangeIssuance,
   ExchangeIssuanceV2,
   ExchangeIssuanceLeveraged,
+    ExchangeIssuanceNotional,
   ExchangeIssuanceZeroEx,
   FlexibleLeverageStrategyExtension,
   FeeSplitExtension,
@@ -31,6 +32,7 @@ import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__facto
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { ExchangeIssuanceLeveraged__factory } from "../../typechain/factories/ExchangeIssuanceLeveraged__factory";
+import { ExchangeIssuanceNotional__factory } from "../../typechain/factories/ExchangeIssuanceNotional__factory";
 import { ExchangeIssuanceZeroEx__factory } from "../../typechain/factories/ExchangeIssuanceZeroEx__factory";
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
 import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtension__factory";
@@ -210,6 +212,20 @@ export default class DeployExtensions {
       wethAddress,
       setControllerAddress,
       swapTarget,
+    );
+  }
+
+  public async deployExchangeIssuanceNotional(
+    wethAddress: Address,
+    setControllerAddress: Address,
+    wrappedfCashFactory: Address,
+    notionalTradeModule: Address,
+  ): Promise<ExchangeIssuanceNotional> {
+    return await new ExchangeIssuanceNotional__factory(this._deployerSigner).deploy(
+      wethAddress,
+      setControllerAddress,
+      wrappedfCashFactory,
+      notionalTradeModule,
     );
   }
 

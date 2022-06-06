@@ -4,6 +4,8 @@ import { ethers, network } from "hardhat";
 import { Account } from "@utils/types";
 import {
   DebtIssuanceModule,
+  ExchangeIssuanceNotional,
+  NotionalTradeModuleMock,
   StandardTokenMock,
   WrappedfCashMock,
   WrappedfCashFactoryMock,
@@ -29,7 +31,6 @@ describe("NotionalTradeModule", () => {
   let compoundSetup: CompoundFixture;
   let cTokenInitialMantissa: BigNumber;
 
-  let usdc: StandardTokenMock;
 
   before(async () => {
     [owner, manager] = await getAccounts();
@@ -44,7 +45,6 @@ describe("NotionalTradeModule", () => {
     compoundSetup = getCompoundFixture(owner.address);
     await compoundSetup.initialize();
     cTokenInitialMantissa = ether(200000000);
-    usdc = setup.usdc;
   });
 
   describe("when factory mock is deployed", async () => {
@@ -123,15 +123,15 @@ describe("NotionalTradeModule", () => {
             );
           });
           describe("When setToken is deployed", () => {
-            let usdcPosition: BigNumber;
+            let fCashPosition: BigNumber;
             let initialSetBalance: BigNumber;
             let setToken: SetToken;
             beforeEach(async () => {
-              usdcPosition = ethers.utils.parseUnits("2", await usdc.decimals());
+              fCashPosition = ethers.utils.parseUnits("2", 9);
 
               setToken = await setup.createSetToken(
-                [usdc.address],
-                [usdcPosition],
+                [wrappedfCashMock.address],
+                [fCashPosition],
                 [debtIssuanceModule.address],
                 manager.address,
               );
@@ -149,12 +149,39 @@ describe("NotionalTradeModule", () => {
               );
 
               initialSetBalance = underlyingTokenBalance.div(10);
-              await usdc.approve(debtIssuanceModule.address, underlyingTokenBalance);
+
+              await wrappedfCashMock.mintViaUnderlying(0, underlyingTokenBalance, owner.address, 0);
+              await wrappedfCashMock.approve(debtIssuanceModule.address, underlyingTokenBalance);
               await debtIssuanceModule.issue(setToken.address, initialSetBalance, owner.address);
             });
 
-            it("should work", async () => {
-              console.log(setToken.address);
+            describe("When exchangeIssuance is deployed", () => {
+              let exchangeIssuance: ExchangeIssuanceNotional;
+              let notionalTradeModule: NotionalTradeModuleMock;
+              beforeEach(async () => {
+                notionalTradeModule = await deployer.mocks.deployNotionalTradeModuleMock();
+                exchangeIssuance = await deployer.extensions.deployExchangeIssuanceNotional(
+                  setup.weth.address,
+                  setup.controller.address,
+                  wrappedfCashFactoryMock.address,
+                  notionalTradeModule.address,
+                );
+              });
+
+              it("should work", async () => {
+                const maxAmountInputToken = ethers.utils.parseEther("0");
+                await assetToken.approve(exchangeIssuance.address, ethers.constants.MaxUint256);
+                await exchangeIssuance.approveSetToken(setToken.address, debtIssuanceModule.address);
+                console.log("Issuing");
+                await exchangeIssuance.issueExactSetFromToken(
+                  setToken.address,
+                  assetToken.address,
+                  ethers.utils.parseEther("1"),
+                  maxAmountInputToken,
+                  debtIssuanceModule.address,
+                  true,
+                );
+              });
             });
           });
         });

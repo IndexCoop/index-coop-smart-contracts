@@ -6,6 +6,7 @@ import {
   FlexibleLeverageStrategyExtensionMock,
   GovernanceAdapterMock,
   MutualUpgradeMock,
+  NotionalTradeModuleMock,
   StandardTokenMock,
   StringArrayUtilsMock,
   TradeAdapterMock,
@@ -22,6 +23,7 @@ import { FlexibleLeverageStrategyExtensionMock__factory } from "../../typechain/
 import { GovernanceAdapterMock__factory } from "../../typechain/factories/GovernanceAdapterMock__factory";
 import { MasterChefMock__factory } from "../../typechain/factories/MasterChefMock__factory";
 import { MutualUpgradeMock__factory } from "../../typechain/factories/MutualUpgradeMock__factory";
+import { NotionalTradeModuleMock__factory } from "../../typechain/factories/NotionalTradeModuleMock__factory";
 import { TradeAdapterMock__factory } from "../../typechain/factories/TradeAdapterMock__factory";
 import { StandardTokenMock__factory } from "../../typechain/factories/StandardTokenMock__factory";
 import { StringArrayUtilsMock__factory } from "../../typechain/factories/StringArrayUtilsMock__factory";
@@ -116,5 +118,9 @@ export default class DeployMocks {
 
   public async deployWrappedfCashFactoryMock(): Promise<WrappedfCashFactoryMock> {
     return await new WrappedfCashFactoryMock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployNotionalTradeModuleMock(): Promise<NotionalTradeModuleMock> {
+    return await new NotionalTradeModuleMock__factory(this._deployerSigner).deploy();
   }
 }
