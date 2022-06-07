@@ -1,7 +1,7 @@
 import "module-alias/register";
 import { BigNumber } from "ethers";
 import { ethers, network } from "hardhat";
-import { Account } from "@utils/types";
+import { Account, Address } from "@utils/types";
 import {
   DebtIssuanceModule,
   ExchangeIssuanceNotional,
@@ -20,7 +20,9 @@ import { CERc20 } from "@utils/contracts/compound";
 
 const expect = getWaffleExpect();
 
-describe("NotionalTradeModule", () => {
+const ETH_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+
+describe("ExchangeIssuanceNotional", () => {
   let owner: Account;
   let deployer: DeployHelper;
   let manager: Account;
@@ -30,7 +32,6 @@ describe("NotionalTradeModule", () => {
 
   let compoundSetup: CompoundFixture;
   let cTokenInitialMantissa: BigNumber;
-
 
   before(async () => {
     [owner, manager] = await getAccounts();
@@ -92,14 +93,14 @@ describe("NotionalTradeModule", () => {
           let maturity: number;
           beforeEach(async () => {
             const underlyingAddress =
-              underlyingToken.address == setup.weth.address
-                ? ADDRESS_ZERO
-                : underlyingToken.address;
+              underlyingToken.address == setup.weth.address ? ETH_ADDRESS : underlyingToken.address;
+
             wrappedfCashMock = await deployer.mocks.deployWrappedfCashMock(
               assetToken.address,
               underlyingAddress,
               setup.weth.address,
             );
+
             currencyId = 1;
             maturity = (await ethers.provider.getBlock("latest")).timestamp + 30 * 24 * 3600;
 
@@ -167,20 +168,79 @@ describe("NotionalTradeModule", () => {
                   notionalTradeModule.address,
                 );
               });
+              describe("#issueExactSetFromToken", () => {
+                let subjectSetToken: Address;
+                let subjectInputToken: Address;
+                let subjectSetAmount: BigNumber;
+                let subjectMaxAmountInputToken: BigNumber;
+                let subjectIssuanceModule: Address;
+                let subjectIsDebtIssuance: boolean;
+                let caller: Account;
 
-              it("should work", async () => {
-                const maxAmountInputToken = ethers.utils.parseEther("0");
-                await assetToken.approve(exchangeIssuance.address, ethers.constants.MaxUint256);
-                await exchangeIssuance.approveSetToken(setToken.address, debtIssuanceModule.address);
-                console.log("Issuing");
-                await exchangeIssuance.issueExactSetFromToken(
-                  setToken.address,
-                  assetToken.address,
-                  ethers.utils.parseEther("1"),
-                  maxAmountInputToken,
-                  debtIssuanceModule.address,
-                  true,
-                );
+                beforeEach(async () => {
+                  subjectSetToken = setToken.address;
+                  subjectSetAmount = ethers.utils.parseEther("1");
+                  subjectIssuanceModule = debtIssuanceModule.address;
+                  subjectIsDebtIssuance = true;
+                  caller = owner;
+                });
+
+                function subject() {
+                  return exchangeIssuance
+                    .connect(caller.wallet)
+                    .issueExactSetFromToken(
+                      subjectSetToken,
+                      subjectInputToken,
+                      subjectSetAmount,
+                      subjectMaxAmountInputToken,
+                      subjectIssuanceModule,
+                      subjectIsDebtIssuance,
+                    );
+                }
+
+                describe("When set token is approved", () => {
+                  beforeEach(async () => {
+                    await exchangeIssuance.approveSetToken(
+                      setToken.address,
+                      debtIssuanceModule.address,
+                    );
+                  });
+                  ["assetToken", "underlyingToken"].forEach(tokenType => {
+                    describe(`When issuing from ${tokenType}`, () => {
+                      let inputToken: CERc20 | StandardTokenMock;
+                      beforeEach(async () => {
+                        inputToken = tokenType == "assetToken" ? assetToken : underlyingToken;
+                        await inputToken.approve(
+                          exchangeIssuance.address,
+                          ethers.constants.MaxUint256,
+                        );
+                        subjectInputToken = inputToken.address;
+                        subjectMaxAmountInputToken = (
+                          await inputToken.balanceOf(caller.address)
+                        ).div(10);
+                        expect(subjectMaxAmountInputToken).to.be.gt(0);
+                      });
+
+                      it("should issue correct amount of set token", async () => {
+                        const balanceBefore = await setToken.balanceOf(caller.address);
+                        await subject();
+                        const issuedAmount = (await setToken.balanceOf(caller.address)).sub(
+                          balanceBefore,
+                        );
+                        expect(issuedAmount).to.eq(subjectSetAmount);
+                      });
+
+                      it("should spend correct amount of input token", async () => {
+                        const balanceBefore = await inputToken.balanceOf(caller.address);
+                        await subject();
+                        const spentAmount = balanceBefore.sub(
+                          await inputToken.balanceOf(caller.address),
+                        );
+                        expect(spentAmount).to.eq(subjectMaxAmountInputToken);
+                      });
+                    });
+                  });
+                });
               });
             });
           });

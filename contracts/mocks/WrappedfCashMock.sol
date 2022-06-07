@@ -23,6 +23,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { TokenType, IWrappedfCash } from "../interfaces/IWrappedfCash.sol";
 
+
 // mock class using BasicToken
 contract WrappedfCashMock is ERC20, IWrappedfCash {
 
@@ -44,7 +45,7 @@ contract WrappedfCashMock is ERC20, IWrappedfCash {
     uint256 public redeemTokenReturned;
     uint256 public mintTokenSpent;
 
-    address internal constant ETH_ADDRESS = address(0);
+    address internal constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     constructor (IERC20 _assetToken, IERC20 _underlyingToken, IERC20 _weth) public ERC20("FCashMock", "FCM") {
         assetToken = _assetToken;
