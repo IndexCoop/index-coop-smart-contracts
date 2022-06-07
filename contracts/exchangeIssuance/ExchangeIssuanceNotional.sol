@@ -194,6 +194,34 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         return totalInputTokenSpent;
     }
 
+    function redeemExactSetForToken(
+        ISetToken _setToken,
+        IERC20 _outputToken,
+        uint256 _amountSetToken,
+        uint256 _minOutputReceive,
+        address _issuanceModule,
+        bool _isDebtIssuance
+    )
+        isValidModule(_issuanceModule)
+        external
+        nonReentrant
+        returns (uint256)
+    {
+
+        uint256 outputAmount;
+        _redeemExactSet(_setToken, _amountSetToken, _issuanceModule);
+
+        outputAmount = _redeemWrappedFCashPositions(_setToken, _amountSetToken, _outputToken, _issuanceModule, _isDebtIssuance);
+        require(outputAmount >= _minOutputReceive, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+
+        // Transfer sender output token
+        _outputToken.safeTransfer(msg.sender, outputAmount);
+        // Emit event
+        emit ExchangeRedeem(msg.sender, _setToken, _outputToken, _amountSetToken, outputAmount);
+        // Return output amount
+        return outputAmount;
+    }
+
 
 
     /**
@@ -208,6 +236,36 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         if (allowance < _requiredAllowance) {
             _token.safeIncreaseAllowance(_spender, type(uint256).max - allowance);
         }
+    }
+
+    function _redeemWrappedFCashPositions(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        IERC20 _outputToken,
+        address _issuanceModule,
+        bool _isDebtIssuance
+    ) 
+    internal
+    returns (uint256 totalInputTokenObtained)
+    {
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(_issuanceModule, _isDebtIssuance, _setToken, _amountSetToken);
+
+        uint256 outputTokenBalanceBefore = _outputToken.balanceOf(address(this));
+        for (uint256 i = 0; i < components.length; i++) {
+            address component = components[i];
+            uint256 units = componentUnits[i];
+
+            if(_isWrappedFCash(component)) {
+                bool useUnderlying = _isUnderlying(IWrappedfCash(component), _outputToken);
+                if(useUnderlying) {
+                    IWrappedfCash(component).redeemToUnderlying(units, address(this), 0);
+                } else {
+                    IWrappedfCash(component).redeemToAsset(units, address(this), 0);
+                }
+            }
+        }
+        uint256 outputTokenBalanceAfter = _outputToken.balanceOf(address(this));
+        totalInputTokenObtained = totalInputTokenObtained.add(outputTokenBalanceAfter.sub(outputTokenBalanceBefore));
     }
 
     function _mintWrappedFCashPositions(
