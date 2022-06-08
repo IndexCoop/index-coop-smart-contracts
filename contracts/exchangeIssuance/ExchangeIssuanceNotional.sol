@@ -198,10 +198,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
 
             if(_isWrappedFCash(component)) {
                 units = _getUnderlyingTokensForMint(IWrappedfCash(component), componentUnits[i]);
-                (IERC20 underlyingToken,) = IWrappedfCash(component).getUnderlyingToken();
-                if(address(underlyingToken) == ETH_ADDRESS) {
-                    underlyingToken = IERC20(WETH);
-                }
+                IERC20 underlyingToken = _getUnderlyingToken(IWrappedfCash(component));
                 component = address(underlyingToken);
             }
             else {
@@ -344,15 +341,26 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
             address component = components[i];
             uint256 units = componentUnits[i];
             if(_isWrappedFCash(component)) {
-                (IERC20 underlyingToken,) = IWrappedfCash(component).getUnderlyingToken();
-                if(address(underlyingToken) == ETH_ADDRESS) {
-                    underlyingToken = IERC20(WETH);
-                }
+                IERC20 underlyingToken = _getUnderlyingToken(IWrappedfCash(component));
                 underlyingToken.approve(component, _maxAmountInputToken);
                 IWrappedfCash(component).mintViaUnderlying(_maxAmountInputToken, uint88(units), address(this), 0);
             }
         }
     }
+
+    function _getUnderlyingToken(
+        IWrappedfCash _wrappedfCash
+    ) 
+    internal
+    view 
+    returns(IERC20 underlyingToken)
+    {
+        (underlyingToken,) = _wrappedfCash.getUnderlyingToken();
+        if(address(underlyingToken) == ETH_ADDRESS) {
+            underlyingToken = IERC20(WETH);
+        }
+    }
+
 
 
     /**

@@ -74,10 +74,6 @@ describe("ExchangeIssuanceNotional", () => {
       minBuyAmount: BigNumber,
     ): string => {
       const isSushi = false;
-      console.log("sellToUniswap", {
-        sellAmount: sellAmount.toString(),
-        minBuyAmount: minBuyAmount.toString(),
-      });
       return zeroExMock.interface.encodeFunctionData("sellToUniswap", [
         [sellToken, buyToken],
         sellAmount,
@@ -318,10 +314,6 @@ describe("ExchangeIssuanceNotional", () => {
                         expect(subjectMaxAmountInputToken).to.be.gt(0);
 
                         if (tokenType != "underlyingToken") {
-                          console.log({
-                            subjectSetToken,
-                            subjectSetAmount: subjectSetAmount.toString(),
-                          });
                           const [
                             filteredComponents,
                             filteredUnits,
@@ -331,10 +323,6 @@ describe("ExchangeIssuanceNotional", () => {
                             subjectIssuanceModule,
                             subjectIsDebtIssuance,
                           );
-                          console.log({
-                            filteredComponents,
-                            filteredUnits: filteredUnits.map(unit => unit.toString()),
-                          });
                           subjectComponentQuotes = [
                             getUniswapV2Quote(
                               inputToken.address,
