@@ -99,7 +99,6 @@ describe("ExchangeIssuanceNotional", () => {
             wrappedfCashMocks = [];
 
             for (const maturityDays of maturities) {
-              console.log("Adding maturity", maturityDays);
               const wrappedfCashMock = await deployer.mocks.deployWrappedfCashMock(
                 assetToken.address,
                 underlyingAddress,
@@ -128,7 +127,6 @@ describe("ExchangeIssuanceNotional", () => {
                 0,
               );
               wrappedfCashMocks.push(wrappedfCashMock);
-              console.log("Added maturity");
             }
           });
           describe("When setToken is deployed", () => {
@@ -171,9 +169,7 @@ describe("ExchangeIssuanceNotional", () => {
                   ethers.constants.MaxUint256,
                 );
               }
-              console.log("Issuing some set");
               await debtIssuanceModule.issue(setToken.address, initialSetBalance, owner.address);
-              console.log("Issued some set");
             });
 
             describe("When exchangeIssuance is deployed", () => {
@@ -320,13 +316,13 @@ describe("ExchangeIssuanceNotional", () => {
                           subjectOutputToken = outputToken.address;
                           redeemAmountReturned = BigNumber.from(1000);
                           subjectMinAmountOutputToken = redeemAmountReturned;
-                          wrappedfCashMocks.forEach(async wrappedfCashMock => {
+                          for (const wrappedfCashMock of wrappedfCashMocks) {
                             await wrappedfCashMock.setRedeemTokenReturned(redeemAmountReturned);
                             await outputToken.transfer(
                               wrappedfCashMock.address,
                               redeemAmountReturned,
                             );
-                          });
+                          }
                         });
                         it("should redeem correct amount of set token", async () => {
                           const balanceBefore = await setToken.balanceOf(caller.address);
@@ -341,7 +337,9 @@ describe("ExchangeIssuanceNotional", () => {
                           await subject();
                           const balanceAfter = await outputToken.balanceOf(caller.address);
                           const returnedAmount = balanceAfter.sub(balanceBefore);
-                          expect(returnedAmount).to.eq(redeemAmountReturned);
+                          expect(returnedAmount).to.eq(
+                            redeemAmountReturned.mul(wrappedfCashMocks.length),
+                          );
                         });
                       });
                     });
