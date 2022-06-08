@@ -32,6 +32,9 @@ import { IWrappedfCashFactory } from "../interfaces/IWrappedfCashFactory.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
+import "hardhat/console.sol";
+
+
 
 
 contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
@@ -232,6 +235,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     {
 
         _inputToken.safeTransferFrom(msg.sender, address(this), _maxAmountInputToken);
+        _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
         uint256 inputTokenBalanceBefore = _inputToken.balanceOf(address(this));
         notionalTradeModule.redeemMaturedPositions(_setToken);
 
@@ -333,30 +337,21 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         bool _isDebtIssuance
     ) 
     internal
-    returns (uint256 totalInputTokenSpent)
     {
         (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(_issuanceModule, _isDebtIssuance, _setToken, _amountSetToken);
 
-        uint256 inputTokenBalanceBefore = _inputToken.balanceOf(address(this));
         for (uint256 i = 0; i < components.length; i++) {
             address component = components[i];
             uint256 units = componentUnits[i];
-
-            if(address(_inputToken) == component) {
-                totalInputTokenSpent = totalInputTokenSpent.add(units);
-            }
-            else if(_isWrappedFCash(component)) {
-                bool useUnderlying = _isUnderlying(IWrappedfCash(component), _inputToken);
-                _inputToken.approve(component, _maxAmountInputToken);
-                if(useUnderlying) {
-                    IWrappedfCash(component).mintViaUnderlying(_maxAmountInputToken, uint88(units), address(this), 0);
-                } else {
-                    IWrappedfCash(component).mintViaAsset(_maxAmountInputToken, uint88(units), address(this), 0);
+            if(_isWrappedFCash(component)) {
+                (IERC20 underlyingToken,) = IWrappedfCash(component).getUnderlyingToken();
+                if(address(underlyingToken) == ETH_ADDRESS) {
+                    underlyingToken = IERC20(WETH);
                 }
+                underlyingToken.approve(component, _maxAmountInputToken);
+                IWrappedfCash(component).mintViaUnderlying(_maxAmountInputToken, uint88(units), address(this), 0);
             }
         }
-        uint256 inputTokenBalanceAfter = _inputToken.balanceOf(address(this));
-        totalInputTokenSpent = totalInputTokenSpent.add(inputTokenBalanceBefore.sub(inputTokenBalanceAfter));
     }
 
 
@@ -515,12 +510,19 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     {
         uint256 componentAmountBought;
 
+        console.log("Arguments:");
+        console.logAddress(address(_setToken));
+        console.logUint(_amountSetToken);
         (address[] memory components, uint256[] memory componentUnits) = getFilteredComponents(
             _setToken,
             _amountSetToken,
             _issuanceModule,
             _isDebtIssuance
         );
+
+        console.log("Filtered components");
+        console.logAddress(components[0]);
+        console.logUint(componentUnits[0]);
 
         for (uint256 i = 0; i < components.length; i++) {
             address component = components[i];
@@ -539,6 +541,10 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
                 _fillQuote(_quotes[i]);
                 uint256 componentBalanceAfter = IERC20(component).balanceOf(address(this));
                 componentAmountBought = componentBalanceAfter.sub(componentBalanceBefore);
+                console.log("Component bought");
+                console.logAddress(component);
+                console.logUint(componentAmountBought);
+                console.logUint(units);
                 require(componentAmountBought >= units, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
             }
         }

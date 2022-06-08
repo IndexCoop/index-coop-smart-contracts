@@ -9,6 +9,7 @@ import {
   StandardTokenMock,
   WrappedfCashMock,
   WrappedfCashFactoryMock,
+  ZeroExExchangeProxyMock,
 } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
@@ -48,11 +49,13 @@ describe("ExchangeIssuanceNotional", () => {
     cTokenInitialMantissa = ether(200000000);
   });
 
-  describe("when factory mock is deployed", async () => {
+  describe("when general mocks are deployed", async () => {
     let wrappedfCashFactoryMock: WrappedfCashFactoryMock;
+    let zeroExMock: ZeroExExchangeProxyMock;
     let snapshotId: number;
     before(async () => {
       wrappedfCashFactoryMock = await deployer.mocks.deployWrappedfCashFactoryMock();
+      zeroExMock = await deployer.mocks.deployZeroExExchangeProxyMock();
     });
 
     beforeEach(async () => {
@@ -62,6 +65,26 @@ describe("ExchangeIssuanceNotional", () => {
     afterEach(async () => {
       await network.provider.send("evm_revert", [snapshotId]);
     });
+
+    // Helper function to generate 0xAPI quote for UniswapV2
+    const getUniswapV2Quote = (
+      sellToken: Address,
+      sellAmount: BigNumber,
+      buyToken: Address,
+      minBuyAmount: BigNumber,
+    ): string => {
+      const isSushi = false;
+      console.log("sellToUniswap", {
+        sellAmount: sellAmount.toString(),
+        minBuyAmount: minBuyAmount.toString(),
+      });
+      return zeroExMock.interface.encodeFunctionData("sellToUniswap", [
+        [sellToken, buyToken],
+        sellAmount,
+        minBuyAmount,
+        isSushi,
+      ]);
+    };
 
     ["dai", "weth"].forEach(underlyingTokenName => {
       describe(`When underlying token is ${underlyingTokenName}`, () => {
@@ -191,7 +214,7 @@ describe("ExchangeIssuanceNotional", () => {
                   setup.controller.address,
                   wrappedfCashFactoryMock.address,
                   notionalTradeModule.address,
-                  ADDRESS_ZERO,
+                  zeroExMock.address,
                 );
               });
               describe("#getFilteredComponents", () => {
@@ -271,19 +294,15 @@ describe("ExchangeIssuanceNotional", () => {
                       );
                   }
 
-                  [
-                    // "assetToken",
-                    "underlyingToken",
-                  ].forEach(tokenType => {
+                  ["underlyingToken", "usdc"].forEach((tokenType: string) => {
                     describe(`When issuing from ${tokenType}`, () => {
                       let inputToken: CERc20 | StandardTokenMock;
                       beforeEach(async () => {
-                        inputToken = tokenType == "assetToken" ? assetToken : underlyingToken;
-                        await underlyingToken.approve(
-                          exchangeIssuance.address,
-                          ethers.constants.MaxUint256,
-                        );
-                        await assetToken.approve(
+                        inputToken =
+                          // @ts-ignore
+                          tokenType == "underlyingToken" ? underlyingToken : setup[tokenType];
+
+                        await inputToken.approve(
                           exchangeIssuance.address,
                           ethers.constants.MaxUint256,
                         );
@@ -297,6 +316,38 @@ describe("ExchangeIssuanceNotional", () => {
                           );
                         }
                         expect(subjectMaxAmountInputToken).to.be.gt(0);
+
+                        if (tokenType != "underlyingToken") {
+                          console.log({
+                            subjectSetToken,
+                            subjectSetAmount: subjectSetAmount.toString(),
+                          });
+                          const [
+                            filteredComponents,
+                            filteredUnits,
+                          ] = await exchangeIssuance.getFilteredComponents(
+                            subjectSetToken,
+                            subjectSetAmount,
+                            subjectIssuanceModule,
+                            subjectIsDebtIssuance,
+                          );
+                          console.log({
+                            filteredComponents,
+                            filteredUnits: filteredUnits.map(unit => unit.toString()),
+                          });
+                          subjectComponentQuotes = [
+                            getUniswapV2Quote(
+                              inputToken.address,
+                              subjectMaxAmountInputToken.div(10),
+                              filteredComponents[0],
+                              filteredUnits[0],
+                            ),
+                          ];
+                          await underlyingToken.transfer(
+                            zeroExMock.address,
+                            filteredUnits[0],
+                          );
+                        }
                       });
 
                       it("should issue correct amount of set token", async () => {
