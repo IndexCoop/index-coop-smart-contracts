@@ -23,6 +23,8 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { TokenType, IWrappedfCash } from "../interfaces/IWrappedfCash.sol";
 
+import "hardhat/console.sol";
+
 
 // mock class using BasicToken
 contract WrappedfCashMock is ERC20, IWrappedfCash {
@@ -65,9 +67,23 @@ contract WrappedfCashMock is ERC20, IWrappedfCash {
         address receiver,
         uint32 /* minImpliedRate */
     ) external override{
+        console.log("mintViaAsset");
         uint256 assetTokenAmount = mintTokenSpent == 0 ? depositAmountExternal : mintTokenSpent;
+        console.logUint(assetTokenAmount);
+        console.logUint(assetToken.balanceOf(msg.sender));
+        console.logUint(assetToken.allowance(msg.sender, address(this)));
         require(assetToken.transferFrom(msg.sender, address(this), assetTokenAmount), "WrappedfCashMock: Transfer failed");
         _mint(receiver, fCashAmount);
+    }
+
+    function previewMint(
+        uint256 fCashAmount
+    )
+    external 
+    view
+    override
+    returns(uint256) {
+        return mintTokenSpent == 0 ? fCashAmount : mintTokenSpent;
     }
 
     function mintViaUnderlying(
@@ -76,7 +92,7 @@ contract WrappedfCashMock is ERC20, IWrappedfCash {
         address receiver,
         uint32 /* minImpliedRate */
     ) external override{
-        uint256 underlyingTokenAmount = mintTokenSpent == 0 ? depositAmountExternal : mintTokenSpent;
+        uint256 underlyingTokenAmount = mintTokenSpent == 0 ? fCashAmount : mintTokenSpent;
         bool transferSuccess;
         if(address(underlyingToken) == ETH_ADDRESS) {
             transferSuccess = weth.transferFrom(msg.sender, address(this), underlyingTokenAmount);

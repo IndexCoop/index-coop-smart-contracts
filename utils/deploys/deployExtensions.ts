@@ -15,7 +15,7 @@ import {
   ExchangeIssuance,
   ExchangeIssuanceV2,
   ExchangeIssuanceLeveraged,
-    ExchangeIssuanceNotional,
+  ExchangeIssuanceNotional,
   ExchangeIssuanceZeroEx,
   FlexibleLeverageStrategyExtension,
   FeeSplitExtension,
@@ -220,12 +220,14 @@ export default class DeployExtensions {
     setControllerAddress: Address,
     wrappedfCashFactory: Address,
     notionalTradeModule: Address,
+    swapTarget: Address,
   ): Promise<ExchangeIssuanceNotional> {
     return await new ExchangeIssuanceNotional__factory(this._deployerSigner).deploy(
       wethAddress,
       setControllerAddress,
       wrappedfCashFactory,
       notionalTradeModule,
+      swapTarget,
     );
   }
 

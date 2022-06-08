@@ -59,6 +59,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     IController public immutable setController;
     IWrappedfCashFactory public immutable wrappedfCashFactory;
     INotionalTradeModule public immutable notionalTradeModule;
+    address public immutable swapTarget;
 
     /* ============ Events ============ */
 
@@ -89,7 +90,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         address _weth,
         IController _setController,
         IWrappedfCashFactory _wrappedfCashFactory,
-        INotionalTradeModule _notionalTradeModule
+        INotionalTradeModule _notionalTradeModule,
+        address _swapTarget
     )
         public
     {
@@ -98,6 +100,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         WETH = _weth;
         wrappedfCashFactory = _wrappedfCashFactory;
         notionalTradeModule = _notionalTradeModule;
+        swapTarget = _swapTarget;
     }
 
     /* ============ External Functions ============ */
@@ -166,11 +169,59 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         }
     }
 
+    /**
+     * Returns components and units but replaces wrappefCash positions with the corresponding amount of underlying token needed to mint 
+     *
+     */
+    function getFilteredComponents(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        address _issuanceModule,
+        bool _isDebtIssuance
+    )
+        public
+        view
+        returns (address[] memory filteredComponents, uint[] memory filteredUnits)
+    {
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(_issuanceModule, _isDebtIssuance, _setToken, _amountSetToken);
+
+        filteredComponents = new address[](components.length);
+        filteredUnits = new uint256[](components.length);
+        uint j = 0;
+
+        for (uint256 i = 0; i < components.length; i++) {
+            address component = components[i];
+            uint256 units;
+
+            if(_isWrappedFCash(component)) {
+                units = _getUnderlyingTokensForMint(IWrappedfCash(component), componentUnits[i]);
+                (IERC20 underlyingToken,) = IWrappedfCash(component).getUnderlyingToken();
+                if(address(underlyingToken) == ETH_ADDRESS) {
+                    underlyingToken = IERC20(WETH);
+                }
+                component = address(underlyingToken);
+            }
+            else {
+                units = componentUnits[i];
+            }
+
+            uint256 componentIndex = _findComponent(filteredComponents, component);
+            if(componentIndex > 0){
+                filteredUnits[componentIndex - 1] = filteredUnits[componentIndex - 1].add(units);
+            } else {
+                filteredComponents[j] = component;
+                filteredUnits[j] = units;
+                j++;
+            }
+        }
+    }
+
     function issueExactSetFromToken(
         ISetToken _setToken,
         IERC20 _inputToken,
         uint256 _amountSetToken,
         uint256 _maxAmountInputToken,
+        bytes[] memory _componentQuotes,
         address _issuanceModule,
         bool _isDebtIssuance
     )
@@ -181,12 +232,17 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     {
 
         _inputToken.safeTransferFrom(msg.sender, address(this), _maxAmountInputToken);
+        uint256 inputTokenBalanceBefore = _inputToken.balanceOf(address(this));
         notionalTradeModule.redeemMaturedPositions(_setToken);
 
-        uint256 totalInputTokenSpent = _mintWrappedFCashPositions(_setToken, _amountSetToken, _inputToken, _maxAmountInputToken, _issuanceModule, _isDebtIssuance);
-        require(totalInputTokenSpent <= _maxAmountInputToken, "ExchangeIssuance: OVERSPENT TOKEN");
+        _buyComponentsForInputToken(_setToken, _amountSetToken,  _componentQuotes, _inputToken, _issuanceModule, _isDebtIssuance);
+        _mintWrappedFCashPositions(_setToken, _amountSetToken, _inputToken, _maxAmountInputToken, _issuanceModule, _isDebtIssuance);
 
         IBasicIssuanceModule(_issuanceModule).issue(_setToken, _amountSetToken, msg.sender);
+        uint256 inputTokenBalanceAfter = _inputToken.balanceOf(address(this));
+        uint256 totalInputTokenSpent = inputTokenBalanceBefore.sub(inputTokenBalanceAfter);
+
+        require(totalInputTokenSpent <= _maxAmountInputToken, "ExchangeIssuance: OVERSPENT");
 
         _returnExcessInputToken(_inputToken, _maxAmountInputToken, totalInputTokenSpent);
 
@@ -286,7 +342,10 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
             address component = components[i];
             uint256 units = componentUnits[i];
 
-            if(_isWrappedFCash(component)) {
+            if(address(_inputToken) == component) {
+                totalInputTokenSpent = totalInputTokenSpent.add(units);
+            }
+            else if(_isWrappedFCash(component)) {
                 bool useUnderlying = _isUnderlying(IWrappedfCash(component), _inputToken);
                 _inputToken.approve(component, _maxAmountInputToken);
                 if(useUnderlying) {
@@ -375,7 +434,9 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
             return false;
         }
 
-        try IWrappedfCash(_fCashPosition).getDecodedID() returns(uint16 _currencyId, uint40 _maturity){
+        //Had to add this gas limit since this call wasted all the gas when directed to WETH in unittests
+        //TODO: Review
+        try IWrappedfCash(_fCashPosition).getDecodedID{gas: 10000}() returns(uint16 _currencyId, uint40 _maturity){
             try wrappedfCashFactory.computeAddress(_currencyId, _maturity) returns(address _computedAddress){
                 return _fCashPosition == _computedAddress;
             } catch {
@@ -419,5 +480,93 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
             underlyingToken = IERC20(WETH);
         }
         (assetToken,,) = _fCashPosition.getAssetToken();
+    }
+
+    function _getUnderlyingTokensForMint(IWrappedfCash _fCashPosition, uint256 _fCashAmount)
+    internal
+    view
+    returns(uint256)
+    {
+        return _fCashPosition.previewMint(_fCashAmount);
+    }
+
+    function _findComponent(address[] memory _components, address _toFind)
+    internal
+    view
+    returns(uint256)
+    {
+        for(uint256 i = 0; i < _components.length; i++) {
+            if(_components[i] == _toFind){
+                return i + 1;
+            }
+        }
+        return 0;
+    }
+
+    function _buyComponentsForInputToken(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        bytes[] memory _quotes,
+        IERC20 _inputToken,
+        address _issuanceModule,
+        bool _isDebtIssuance
+    ) 
+    internal
+    {
+        uint256 componentAmountBought;
+
+        (address[] memory components, uint256[] memory componentUnits) = getFilteredComponents(
+            _setToken,
+            _amountSetToken,
+            _issuanceModule,
+            _isDebtIssuance
+        );
+
+        for (uint256 i = 0; i < components.length; i++) {
+            address component = components[i];
+            uint256 units = componentUnits[i];
+
+            if(component == address(0)){
+                break;
+            }
+
+            // If the component is equal to the input token we don't have to trade
+            if(component == address(_inputToken)) {
+                componentAmountBought = units;
+            }
+            else {
+                uint256 componentBalanceBefore = IERC20(component).balanceOf(address(this));
+                _fillQuote(_quotes[i]);
+                uint256 componentBalanceAfter = IERC20(component).balanceOf(address(this));
+                componentAmountBought = componentBalanceAfter.sub(componentBalanceBefore);
+                require(componentAmountBought >= units, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
+            }
+        }
+    }
+
+    /**
+     * Execute a 0x Swap quote
+     *
+     * @param _quote          Swap quote as returned by 0x API
+     *
+     */
+    function _fillQuote(
+        bytes memory _quote
+    )
+        internal
+        
+    {
+
+        (bool success, bytes memory returndata) = swapTarget.call(_quote);
+
+        // Forwarding errors including new custom errors
+        // Taken from: https://ethereum.stackexchange.com/a/111187/73805
+        if (!success) {
+            if (returndata.length == 0) revert();
+            assembly {
+                revert(add(32, returndata), mload(returndata))
+            }
+        }
+
     }
 }
