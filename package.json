@@ -34,6 +34,7 @@
     "lint-sol": "solhint 'contracts/**/*.sol'",
     "lint-ts": "tslint -c tslint.json -p tsconfig.json --fix",
     "patch-hardhat-typechain": "node scripts/patch-hardhat-typechain.js",
+    "postinstall": "patch-package",
     "precommit": "lint-staged",
     "prepare": "yarn build",
     "prepublishOnly": "yarn clean && yarn build:npm",
@@ -93,6 +94,10 @@
     "typescript": "^3.9.3"
   },
   "dependencies": {
+    "notional-solidity-sdk": "https://github.com/ckoopmann/notional-solidity-sdk.git#77aa2f8fd8a72b8f5865e561f2d39d4606c3740c",
+    "wrapped-fcash": "https://github.com/ckoopmann/wrapped-fcash.git#6b7d870c9b750aa343f0405f3543c9bbb0e3cdfc",
+    "openzeppelin-contracts-V4": "npm:@openzeppelin/contracts@4.5",
+    "@openzeppelin-upgradeable/contracts": "npm:@openzeppelin/contracts-upgradeable@4.5.2",
     "@chainlink/contracts": "^0.3.1",
     "@ethersproject/abstract-signer": "5.0.9",
     "@ethersproject/bignumber": "5.0.12",
