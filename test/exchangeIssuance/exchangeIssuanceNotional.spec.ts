@@ -213,7 +213,47 @@ describe("ExchangeIssuanceNotional", () => {
                   zeroExMock.address,
                 );
               });
-              describe("#getFilteredComponents", () => {
+
+              describe("#getFilteredComponentsRedemption", () => {
+                let subjectSetToken: Address;
+                let subjectSetAmount: BigNumber;
+                let subjectIssuanceModule: Address;
+                let subjectIsDebtIssuance: boolean;
+                let redeemAmount: BigNumber;
+                beforeEach(async () => {
+                  subjectSetToken = setToken.address;
+                  subjectSetAmount = ethers.utils.parseEther("1");
+                  subjectIssuanceModule = debtIssuanceModule.address;
+                  subjectIsDebtIssuance = true;
+                  redeemAmount = ethers.utils.parseEther("1.5");
+                  for (const wrappedfCashMock of wrappedfCashMocks) {
+                    await wrappedfCashMock.setRedeemTokenReturned(redeemAmount);
+                  }
+                });
+                function subject() {
+                  return exchangeIssuance.getFilteredComponentsRedemption(
+                    subjectSetToken,
+                    subjectSetAmount,
+                    subjectIssuanceModule,
+                    subjectIsDebtIssuance,
+                  );
+                }
+                it("should return correct components", async () => {
+                  const [filteredComponents] = await subject();
+                  expect(filteredComponents[0]).to.eq(underlyingToken.address);
+                  expect(filteredComponents[1]).to.eq(ADDRESS_ZERO);
+                });
+                it("should return correct units", async () => {
+                  const [, filteredUnits] = await subject();
+                  const expectedAmount = redeemAmount
+                    .mul(wrappedfCashMocks.length)
+                    .add(underlyingPosition);
+                  expect(filteredUnits[0]).to.eq(expectedAmount);
+                });
+              });
+
+
+              describe("#getFilteredComponentsIssuance", () => {
                 let subjectSetToken: Address;
                 let subjectSetAmount: BigNumber;
                 let subjectIssuanceModule: Address;
@@ -230,7 +270,7 @@ describe("ExchangeIssuanceNotional", () => {
                   }
                 });
                 function subject() {
-                  return exchangeIssuance.getFilteredComponents(
+                  return exchangeIssuance.getFilteredComponentsIssuance(
                     subjectSetToken,
                     subjectSetAmount,
                     subjectIssuanceModule,
@@ -250,6 +290,7 @@ describe("ExchangeIssuanceNotional", () => {
                   expect(filteredUnits[0]).to.eq(expectedAmount);
                 });
               });
+
               describe("When set token is approved", () => {
                 beforeEach(async () => {
                   await exchangeIssuance.approveSetToken(
@@ -317,7 +358,7 @@ describe("ExchangeIssuanceNotional", () => {
                           const [
                             filteredComponents,
                             filteredUnits,
-                          ] = await exchangeIssuance.getFilteredComponents(
+                          ] = await exchangeIssuance.getFilteredComponentsIssuance(
                             subjectSetToken,
                             subjectSetAmount,
                             subjectIssuanceModule,

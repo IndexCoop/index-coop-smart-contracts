@@ -64,6 +64,8 @@ interface IWrappedfCash {
     function getToken(bool useUnderlying) external view returns (IERC20 token, bool isETH);
 
     function previewMint(uint256 shares) external view returns (uint256);
+
+    function previewRedeem(uint256 shares) external view returns (uint256);
 }
 
 

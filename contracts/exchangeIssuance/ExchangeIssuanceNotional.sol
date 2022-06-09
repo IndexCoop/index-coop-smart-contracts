@@ -176,7 +176,50 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
      * Returns components and units but replaces wrappefCash positions with the corresponding amount of underlying token needed to mint 
      *
      */
-    function getFilteredComponents(
+    function getFilteredComponentsRedemption(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        address _issuanceModule,
+        bool _isDebtIssuance
+    )
+        public
+        view
+        returns (address[] memory filteredComponents, uint[] memory filteredUnits)
+    {
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(_issuanceModule, _isDebtIssuance, _setToken, _amountSetToken);
+
+        filteredComponents = new address[](components.length);
+        filteredUnits = new uint256[](components.length);
+        uint j = 0;
+
+        for (uint256 i = 0; i < components.length; i++) {
+            address component = components[i];
+            uint256 units;
+
+            if(_isWrappedFCash(component)) {
+                units = _getUnderlyingTokensForRedeem(IWrappedfCash(component), componentUnits[i]);
+                IERC20 underlyingToken = _getUnderlyingToken(IWrappedfCash(component));
+                component = address(underlyingToken);
+            }
+            else {
+                units = componentUnits[i];
+            }
+
+            uint256 componentIndex = _findComponent(filteredComponents, component);
+            if(componentIndex > 0){
+                filteredUnits[componentIndex - 1] = filteredUnits[componentIndex - 1].add(units);
+            } else {
+                filteredComponents[j] = component;
+                filteredUnits[j] = units;
+                j++;
+            }
+        }
+    }
+    /**
+     * Returns components and units but replaces wrappefCash positions with the corresponding amount of underlying token needed to mint 
+     *
+     */
+    function getFilteredComponentsIssuance(
         ISetToken _setToken,
         uint256 _amountSetToken,
         address _issuanceModule,
@@ -256,6 +299,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         IERC20 _outputToken,
         uint256 _amountSetToken,
         uint256 _minOutputReceive,
+        bytes[] memory _componentQuotes,
         address _issuanceModule,
         bool _isDebtIssuance
     )
@@ -265,12 +309,15 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         returns (uint256)
     {
 
-        uint256 outputAmount;
+        uint256 outputTokenBalanceBefore = _outputToken.balanceOf(address(this));
         _redeemExactSet(_setToken, _amountSetToken, _issuanceModule);
 
-        outputAmount = _redeemWrappedFCashPositions(_setToken, _amountSetToken, _outputToken, _issuanceModule, _isDebtIssuance);
-        require(outputAmount >= _minOutputReceive, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+        _redeemWrappedFCashPositions(_setToken, _amountSetToken, _outputToken, _issuanceModule, _isDebtIssuance);
+        _sellComponentsForOutputToken(_setToken, _amountSetToken, _componentQuotes, _outputToken, _issuanceModule, _isDebtIssuance);
 
+        uint256 outputAmount = _outputToken.balanceOf(address(this)).sub(outputTokenBalanceBefore);
+
+        require(outputAmount >= _minOutputReceive, "ExchangeIssuance: UNDERBOUGHT");
         // Transfer sender output token
         _outputToken.safeTransfer(msg.sender, outputAmount);
         // Emit event
@@ -280,6 +327,29 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     }
 
 
+    function _sellComponentsForOutputToken(ISetToken _setToken, uint256 _amountSetToken, bytes[] memory _swaps, IERC20 _outputToken, address _issuanceModule, bool _isDebtIssuance)
+        internal
+    {
+        (address[] memory components, uint256[] memory componentUnits) = getFilteredComponentsRedemption(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance);
+        for (uint256 i = 0; i < _swaps.length; i++) {
+            uint256 maxAmountSell = componentUnits[i];
+            address component = components[i];
+            if(component == address(0)){
+                break;
+            }
+
+            // If the component is equal to the output token we don't have to trade
+            if(component != address(_outputToken)) {
+                _safeApprove(IERC20(component), address(swapTarget), maxAmountSell);
+                uint256 componentBalanceBefore = IERC20(component).balanceOf(address(this));
+                _fillQuote(_swaps[i]);
+                uint256 componentBalanceAfter = IERC20(component).balanceOf(address(this));
+                uint256 componentAmountSold = componentBalanceBefore.sub(componentBalanceAfter);
+                require(maxAmountSell >= componentAmountSold, "ExchangeIssuance: OVERSOLD COMPONENT");
+            }
+
+        }
+    }
 
     /**
      * Sets a max approval limit for an ERC20 token, provided the current allowance
@@ -303,26 +373,17 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         bool _isDebtIssuance
     ) 
     internal
-    returns (uint256 totalInputTokenObtained)
     {
         (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(_issuanceModule, _isDebtIssuance, _setToken, _amountSetToken);
 
-        uint256 outputTokenBalanceBefore = _outputToken.balanceOf(address(this));
         for (uint256 i = 0; i < components.length; i++) {
             address component = components[i];
             uint256 units = componentUnits[i];
 
             if(_isWrappedFCash(component)) {
-                bool useUnderlying = _isUnderlying(IWrappedfCash(component), _outputToken);
-                if(useUnderlying) {
-                    IWrappedfCash(component).redeemToUnderlying(units, address(this), 0);
-                } else {
-                    IWrappedfCash(component).redeemToAsset(units, address(this), 0);
-                }
+                IWrappedfCash(component).redeemToUnderlying(units, address(this), 0);
             }
         }
-        uint256 outputTokenBalanceAfter = _outputToken.balanceOf(address(this));
-        totalInputTokenObtained = totalInputTokenObtained.add(outputTokenBalanceAfter.sub(outputTokenBalanceBefore));
     }
 
     function _mintWrappedFCashPositions(
@@ -493,6 +554,14 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         return _fCashPosition.previewMint(_fCashAmount);
     }
 
+    function _getUnderlyingTokensForRedeem(IWrappedfCash _fCashPosition, uint256 _fCashAmount)
+    internal
+    view
+    returns(uint256)
+    {
+        return _fCashPosition.previewRedeem(_fCashAmount);
+    }
+
     function _findComponent(address[] memory _components, address _toFind)
     internal
     view
@@ -516,43 +585,27 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     ) 
     internal
     {
-        uint256 componentAmountBought;
-
-        console.log("Arguments:");
-        console.logAddress(address(_setToken));
-        console.logUint(_amountSetToken);
-        (address[] memory components, uint256[] memory componentUnits) = getFilteredComponents(
+        (address[] memory components, uint256[] memory componentUnits) = getFilteredComponentsIssuance(
             _setToken,
             _amountSetToken,
             _issuanceModule,
             _isDebtIssuance
         );
 
-        console.log("Filtered components");
-        console.logAddress(components[0]);
-        console.logUint(componentUnits[0]);
-
         for (uint256 i = 0; i < components.length; i++) {
             address component = components[i];
-            uint256 units = componentUnits[i];
-
             if(component == address(0)){
                 break;
             }
 
+            uint256 units = componentUnits[i];
+
             // If the component is equal to the input token we don't have to trade
-            if(component == address(_inputToken)) {
-                componentAmountBought = units;
-            }
-            else {
+            if(component != address(_inputToken)) {
                 uint256 componentBalanceBefore = IERC20(component).balanceOf(address(this));
                 _fillQuote(_quotes[i]);
                 uint256 componentBalanceAfter = IERC20(component).balanceOf(address(this));
-                componentAmountBought = componentBalanceAfter.sub(componentBalanceBefore);
-                console.log("Component bought");
-                console.logAddress(component);
-                console.logUint(componentAmountBought);
-                console.logUint(units);
+                uint256 componentAmountBought = componentBalanceAfter.sub(componentBalanceBefore);
                 require(componentAmountBought >= units, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
             }
         }

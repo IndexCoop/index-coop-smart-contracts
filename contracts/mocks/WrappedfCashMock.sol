@@ -67,11 +67,7 @@ contract WrappedfCashMock is ERC20, IWrappedfCash {
         address receiver,
         uint32 /* minImpliedRate */
     ) external override{
-        console.log("mintViaAsset");
         uint256 assetTokenAmount = mintTokenSpent == 0 ? depositAmountExternal : mintTokenSpent;
-        console.logUint(assetTokenAmount);
-        console.logUint(assetToken.balanceOf(msg.sender));
-        console.logUint(assetToken.allowance(msg.sender, address(this)));
         require(assetToken.transferFrom(msg.sender, address(this), assetTokenAmount), "WrappedfCashMock: Transfer failed");
         _mint(receiver, fCashAmount);
     }
@@ -84,6 +80,16 @@ contract WrappedfCashMock is ERC20, IWrappedfCash {
     override
     returns(uint256) {
         return mintTokenSpent == 0 ? fCashAmount : mintTokenSpent;
+    }
+
+    function previewRedeem(
+        uint256 fCashAmount
+    )
+    external 
+    view
+    override
+    returns(uint256) {
+        return redeemTokenReturned == 0 ? fCashAmount : redeemTokenReturned;
     }
 
     function mintViaUnderlying(
