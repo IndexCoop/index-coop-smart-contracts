@@ -20,6 +20,7 @@ import { BaseExtensionMock__factory } from "../../typechain/factories/BaseExtens
 import { ChainlinkAggregatorV3Mock__factory } from "../../typechain/factories/ChainlinkAggregatorV3Mock__factory";
 import { FLIStrategyExtensionMock__factory } from "../../typechain/factories/FLIStrategyExtensionMock__factory";
 import { FlexibleLeverageStrategyExtensionMock__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtensionMock__factory";
+import { ForceFunderMock__factory } from "../../typechain/factories/ForceFunderMock__factory";
 import { GovernanceAdapterMock__factory } from "../../typechain/factories/GovernanceAdapterMock__factory";
 import { MasterChefMock__factory } from "../../typechain/factories/MasterChefMock__factory";
 import { MutualUpgradeMock__factory } from "../../typechain/factories/MutualUpgradeMock__factory";
@@ -122,5 +123,9 @@ export default class DeployMocks {
 
   public async deployNotionalTradeModuleMock(): Promise<NotionalTradeModuleMock> {
     return await new NotionalTradeModuleMock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployForceFunderMock() {
+    return await new ForceFunderMock__factory(this._deployerSigner).deploy();
   }
 }

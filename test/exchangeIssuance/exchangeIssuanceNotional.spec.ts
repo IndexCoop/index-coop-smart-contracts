@@ -240,7 +240,9 @@ describe("ExchangeIssuanceNotional", () => {
                 }
                 it("should return correct components", async () => {
                   const [filteredComponents] = await subject();
-                  expect(filteredComponents[0]).to.eq(underlyingToken.address);
+                  expect(ethers.utils.getAddress(filteredComponents[0])).to.eq(
+                    ethers.utils.getAddress(underlyingToken.address),
+                  );
                   expect(filteredComponents[1]).to.eq(ADDRESS_ZERO);
                 });
                 it("should return correct units", async () => {
@@ -278,7 +280,9 @@ describe("ExchangeIssuanceNotional", () => {
                 }
                 it("should return correct components", async () => {
                   const [filteredComponents] = await subject();
-                  expect(filteredComponents[0]).to.eq(underlyingToken.address);
+                  expect(ethers.utils.getAddress(filteredComponents[0])).to.eq(
+                    ethers.utils.getAddress(underlyingToken.address),
+                  );
                   expect(filteredComponents[1]).to.eq(ADDRESS_ZERO);
                 });
                 it("should return correct units", async () => {
@@ -363,15 +367,16 @@ describe("ExchangeIssuanceNotional", () => {
                             subjectIssuanceModule,
                             subjectIsDebtIssuance,
                           );
+                          const amountToReturn = filteredUnits[0].mul(101).div(100);
                           subjectComponentQuotes = [
                             getUniswapV2Quote(
                               inputToken.address,
                               subjectMaxAmountInputToken.div(10),
                               filteredComponents[0],
-                              filteredUnits[0],
+                              amountToReturn,
                             ),
                           ];
-                          await underlyingToken.transfer(zeroExMock.address, filteredUnits[0]);
+                          await underlyingToken.transfer(zeroExMock.address, amountToReturn);
                         }
                       });
 

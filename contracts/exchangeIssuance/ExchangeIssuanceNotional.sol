@@ -32,8 +32,6 @@ import { IWrappedfCashFactory } from "../interfaces/IWrappedfCashFactory.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
-import "hardhat/console.sol";
-
 
 
 
@@ -279,12 +277,11 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         uint256 inputTokenBalanceBefore = _inputToken.balanceOf(address(this));
         notionalTradeModule.redeemMaturedPositions(_setToken);
 
-        _buyComponentsForInputToken(_setToken, _amountSetToken,  _componentQuotes, _inputToken, _issuanceModule, _isDebtIssuance);
-        _mintWrappedFCashPositions(_setToken, _amountSetToken, _inputToken, _maxAmountInputToken, _issuanceModule, _isDebtIssuance);
+        (address[] memory componentsBought, uint256[] memory amountsBought) =  _buyComponentsForInputToken(_setToken, _amountSetToken,  _componentQuotes, _inputToken, _issuanceModule, _isDebtIssuance);
+        _mintWrappedFCashPositions(_setToken, _amountSetToken, _inputToken, componentsBought, amountsBought, _issuanceModule, _isDebtIssuance);
 
         IBasicIssuanceModule(_issuanceModule).issue(_setToken, _amountSetToken, msg.sender);
-        uint256 inputTokenBalanceAfter = _inputToken.balanceOf(address(this));
-        uint256 totalInputTokenSpent = inputTokenBalanceBefore.sub(inputTokenBalanceAfter);
+        uint256 totalInputTokenSpent = inputTokenBalanceBefore.sub(_inputToken.balanceOf(address(this)));
 
         require(totalInputTokenSpent <= _maxAmountInputToken, "ExchangeIssuance: OVERSPENT");
 
@@ -390,7 +387,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         ISetToken _setToken,
         uint256 _amountSetToken,
         IERC20 _inputToken,
-        uint256 _maxAmountInputToken,
+        address[] memory componentsBought,
+        uint256[] memory amountsAvailable,
         address _issuanceModule,
         bool _isDebtIssuance
     ) 
@@ -403,8 +401,15 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
             uint256 units = componentUnits[i];
             if(_isWrappedFCash(component)) {
                 IERC20 underlyingToken = _getUnderlyingToken(IWrappedfCash(component));
-                underlyingToken.approve(component, _maxAmountInputToken);
-                IWrappedfCash(component).mintViaUnderlying(_maxAmountInputToken, uint88(units), address(this), 0);
+                uint256 componentIndex = _findComponent(componentsBought, address(underlyingToken));
+                uint256 amountAvailable = amountsAvailable[componentIndex-1];
+                underlyingToken.approve(component, amountAvailable);
+                uint256 underlyingBalanceBefore = underlyingToken.balanceOf(address(this));
+
+                IWrappedfCash(component).mintViaUnderlying(amountAvailable, uint88(units), address(this), 0);
+
+                uint256 amountSpent = underlyingBalanceBefore.sub(underlyingToken.balanceOf(address(this)));
+                amountsAvailable[componentIndex-1] = amountsAvailable[componentIndex-1].sub(amountSpent);
             }
         }
     }
@@ -500,7 +505,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
 
         //Had to add this gas limit since this call wasted all the gas when directed to WETH in unittests
         //TODO: Review
-        try IWrappedfCash(_fCashPosition).getDecodedID{gas: 10000}() returns(uint16 _currencyId, uint40 _maturity){
+        try IWrappedfCash(_fCashPosition).getDecodedID{gas: 100000}() returns(uint16 _currencyId, uint40 _maturity){
             try wrappedfCashFactory.computeAddress(_currencyId, _maturity) returns(address _computedAddress){
                 return _fCashPosition == _computedAddress;
             } catch {
@@ -584,6 +589,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         bool _isDebtIssuance
     ) 
     internal
+    returns(address[] memory, uint256[] memory)
     {
         (address[] memory components, uint256[] memory componentUnits) = getFilteredComponentsIssuance(
             _setToken,
@@ -591,6 +597,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
             _issuanceModule,
             _isDebtIssuance
         );
+
+        uint256[] memory boughtAmounts = new uint256[](components.length);
 
         for (uint256 i = 0; i < components.length; i++) {
             address component = components[i];
@@ -607,8 +615,13 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
                 uint256 componentBalanceAfter = IERC20(component).balanceOf(address(this));
                 uint256 componentAmountBought = componentBalanceAfter.sub(componentBalanceBefore);
                 require(componentAmountBought >= units, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
+                boughtAmounts[i] = componentAmountBought;
+            } else {
+                boughtAmounts[i] = units;
             }
         }
+
+        return(components, boughtAmounts);
     }
 
     /**

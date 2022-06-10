@@ -19,7 +19,7 @@ const polygonForkingConfig = {
 
 const mainnetForkingConfig = {
   url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
-  blockNumber: process.env.LATESTBLOCK ? undefined : 14433300,
+  blockNumber: process.env.LATESTBLOCK ? undefined : 14936000,
 };
 
 const forkingConfig =
