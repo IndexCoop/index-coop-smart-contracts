@@ -35,6 +35,7 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 
 
+
 contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
 
     using Address for address payable;
@@ -422,7 +423,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     returns(IERC20 underlyingToken)
     {
         (underlyingToken,) = _wrappedfCash.getUnderlyingToken();
-        if(address(underlyingToken) == ETH_ADDRESS) {
+        if(address(underlyingToken) == address(0)) {
             underlyingToken = IERC20(WETH);
         }
     }
@@ -545,7 +546,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     returns(IERC20 underlyingToken, IERC20 assetToken)
     {
         (underlyingToken,) = _fCashPosition.getUnderlyingToken();
-        if(address(underlyingToken) == ETH_ADDRESS) {
+        if(address(underlyingToken) == address(0)) {
             underlyingToken = IERC20(WETH);
         }
         (assetToken,,) = _fCashPosition.getAssetToken();

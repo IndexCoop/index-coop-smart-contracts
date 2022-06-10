@@ -47,7 +47,7 @@ contract WrappedfCashMock is ERC20, IWrappedfCash {
     uint256 public redeemTokenReturned;
     uint256 public mintTokenSpent;
 
-    address internal constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address internal constant ETH_ADDRESS = address(0);
 
     constructor (IERC20 _assetToken, IERC20 _underlyingToken, IERC20 _weth) public ERC20("FCashMock", "FCM") {
         assetToken = _assetToken;

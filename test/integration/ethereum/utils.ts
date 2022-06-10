@@ -33,9 +33,7 @@ export async function upgradeNotionalProxy(signer: Signer) {
   const fundingValue = ethers.utils.parseEther("1");
   await signer.sendTransaction({ to: await notionalOwner.getAddress(), value: fundingValue });
 
-  console.log("Upgrading notional proxy");
   await notional.connect(notionalOwner).upgradeTo(NEW_ROUTER_ADDRESS);
-  console.log("updateAssetRate");
   await notional
     .connect(notionalOwner)
     .updateAssetRate(1, "0x8E3D447eBE244db6D28E2303bCa86Ef3033CFAd6");

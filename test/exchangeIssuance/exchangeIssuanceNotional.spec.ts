@@ -21,8 +21,6 @@ import { CERc20 } from "@utils/contracts/compound";
 
 const expect = getWaffleExpect();
 
-const ETH_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
-
 describe("ExchangeIssuanceNotional", () => {
   let owner: Account;
   let deployer: DeployHelper;
@@ -112,7 +110,7 @@ describe("ExchangeIssuanceNotional", () => {
           let maturities: Array<number>;
           beforeEach(async () => {
             const underlyingAddress =
-              underlyingToken.address == setup.weth.address ? ETH_ADDRESS : underlyingToken.address;
+              underlyingToken.address == setup.weth.address ? ADDRESS_ZERO : underlyingToken.address;
             currencyId = 1;
             maturities = [30, 90];
             wrappedfCashMocks = [];

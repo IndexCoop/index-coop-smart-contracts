@@ -33,15 +33,15 @@ import {
 const expect = getWaffleExpect();
 
 const tokenAddresses: Record<string, string> = {
-  cDai: "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
+  // cDai: "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
   // cUsdc: "0x39AA39c021dfbaE8faC545936693aC917d5E7563",
-  // cEth: "0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5",
+  cEth: "0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5",
 };
 
 const underlyingTokens: Record<string, string> = {
   cDai: "dai",
-  // cUsdc: "usdc",
-  // cEth: "weth",
+  cUsdc: "usdc",
+  cEth: "weth",
 };
 
 if (process.env.INTEGRATIONTEST) {
@@ -127,7 +127,7 @@ if (process.env.INTEGRATIONTEST) {
                 wrappedfCashFactory = await deployWrappedfCashFactory(
                   deployer,
                   owner.wallet,
-                  setup.weth.address,
+                  tokens.weth.address,
                 );
                 ({ currencyId, maturity } = await getCurrencyIdAndMaturity(assetTokenAddress, 0));
                 wrappedfCashInstance = await deployWrappedfCashInstance(
@@ -180,6 +180,14 @@ if (process.env.INTEGRATIONTEST) {
                     wrappedfCashInstance.address,
                     ethers.constants.MaxUint256,
                   );
+
+                  // const [underlyingTokenReturned] = await wrappedfCashInstance.getUnderlyingToken();
+                  // console.log("mintViaUnderlying", {
+                  //   underlyingTokenReturned,
+                  //   underlyingToken: underlyingToken.address,
+                  //   underlyingTokenBalance: ethers.utils.formatEther(underlyingTokenBalance),
+                  //   wrappedfCashPosition: ethers.utils.formatUnits(wrappedfCashPosition, 8),
+                  // });
                   await wrappedfCashInstance.mintViaUnderlying(
                     underlyingTokenBalance,
                     wrappedfCashPosition,
@@ -208,7 +216,7 @@ if (process.env.INTEGRATIONTEST) {
                   beforeEach(async () => {
                     notionalTradeModule = await deployer.mocks.deployNotionalTradeModuleMock();
                     exchangeIssuance = await deployer.extensions.deployExchangeIssuanceNotional(
-                      setup.weth.address,
+                      tokens.weth.address,
                       setup.controller.address,
                       wrappedfCashFactory.address,
                       notionalTradeModule.address,
@@ -507,7 +515,7 @@ if (process.env.INTEGRATIONTEST) {
                                 subjectComponentQuotes = [
                                   getUniswapV2Quote(
                                     filteredComponents[0],
-                                    filteredUnits[0],
+                                    filteredUnits[0].mul(99).div(100),
                                     outputToken.address,
                                     subjectMinAmountOutputToken,
                                   ),
