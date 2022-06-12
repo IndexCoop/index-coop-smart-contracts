@@ -1,7 +1,7 @@
 import "module-alias/register";
 
 import { Address, Account, AirdropSettings } from "@utils/types";
-import { ADDRESS_ZERO, MAX_UINT_256, ONE, ZERO } from "@utils/constants";
+import { ADDRESS_ZERO, MAX_UINT_256, ONE } from "@utils/constants";
 import { AirdropExtension, BaseManagerV2 } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
@@ -129,13 +129,15 @@ describe("AirdropExtension", () => {
     describe("#initialize", async () => {
       let subjectCaller: Account;
       let subjectAirdropSettings: AirdropSettings;
+      const addr = await getRandomAddress();
+      const fee = BigNumber.from(12345);
 
       beforeEach(async () => {
         subjectCaller = operator;
         subjectAirdropSettings = {
           airdrops: [setV2Setup.dai.address],
-          feeRecipient: baseManagerV2.address,
-          airdropFee: BigNumber.from(0),
+          feeRecipient: addr,
+          airdropFee: fee,
           anyoneAbsorb: false,
         };
       });
@@ -170,34 +172,6 @@ describe("AirdropExtension", () => {
 
         expect(airdrops.length).to.eq(ONE);
         expect(airdrops[0]).to.eq(setV2Setup.dai.address);
-      });
-
-      context("when the fee recipient is not the manager", async () => {
-        beforeEach(async () => {
-          subjectAirdropSettings.feeRecipient = await getRandomAddress();
-        });
-
-        it("should override the fee recipient address to be the manager", async () => {
-          await subject();
-
-          const settings = await setV2Setup.airdropModule.airdropSettings(setToken.address);
-
-          expect(settings.feeRecipient).to.eq(baseManagerV2.address);
-        });
-      });
-
-      context("when the airdrop fee is nonzero", async () => {
-        beforeEach(async () => {
-          subjectAirdropSettings.airdropFee = BigNumber.from(12345);
-        });
-
-        it("should override the airdrop fee to be zero", async () => {
-          await subject();
-
-          const settings = await setV2Setup.airdropModule.airdropSettings(setToken.address);
-
-          expect(settings.airdropFee).to.eq(ZERO);
-        });
       });
 
       context("when the operator is not the caller", async () => {
