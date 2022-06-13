@@ -37,7 +37,7 @@ const expect = getWaffleExpect();
 const tokenAddresses: Record<string, string> = {
   cDai: "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
   // cUsdc: "0x39AA39c021dfbaE8faC545936693aC917d5E7563",
-  cEth: "0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5",
+  // cEth: "0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5",
 };
 
 const underlyingTokens: Record<string, string> = {
@@ -357,6 +357,94 @@ if (process.env.INTEGRATIONTEST) {
                         debtIssuanceModule.address,
                       );
                     });
+                    describe("#issueExactSetFromETH", () => {
+                      let subjectSetToken: Address;
+                      let subjectSetAmount: BigNumber;
+                      let subjectMaxAmountInputToken: BigNumber;
+                      let subjectComponentQuotes: string[];
+                      let subjectIssuanceModule: Address;
+                      let subjectIsDebtIssuance: boolean;
+                      let caller: Account;
+
+                      beforeEach(async () => {
+                        subjectSetToken = setToken.address;
+                        subjectSetAmount = ethers.utils.parseEther("1");
+                        subjectIssuanceModule = debtIssuanceModule.address;
+                        subjectIsDebtIssuance = true;
+                        subjectComponentQuotes = [];
+                        caller = owner;
+                      });
+
+                      function subject() {
+                        return exchangeIssuance
+                          .connect(caller.wallet)
+                          .issueExactSetFromETH(
+                            subjectSetToken,
+                            subjectSetAmount,
+                            subjectComponentQuotes,
+                            subjectIssuanceModule,
+                            subjectIsDebtIssuance,
+                            { gasLimit: 750000000, value: subjectMaxAmountInputToken },
+                          );
+                      }
+                      [false, true].forEach(hasMatured => {
+                        describe(`when component has ${!hasMatured ? "not " : ""}matured`, () => {
+                          let snapshotId: number;
+                          beforeEach(async () => {
+                            if (hasMatured) {
+                              snapshotId = await network.provider.send("evm_snapshot", []);
+                              await network.provider.send("evm_setNextBlockTimestamp", [
+                                maturity.toNumber() + 1,
+                              ]);
+                              await network.provider.send("evm_mine", []);
+                              // TODO: Remove this statement and fix related issues
+                              await notionalTradeModule.redeemMaturedPositions(setToken.address);
+                            }
+                            const [
+                              filteredComponents,
+                              filteredUnits,
+                            ] = await exchangeIssuance.getFilteredComponentsIssuance(
+                              subjectSetToken,
+                              subjectSetAmount,
+                              subjectIssuanceModule,
+                              subjectIsDebtIssuance,
+                            );
+                            console.log({
+                              filteredComponents,
+                              filteredUnits: filteredUnits.map(u => u.toString()),
+                            });
+                            subjectMaxAmountInputToken = (await owner.wallet.getBalance()).div(100);
+                            const fCashAmountToReturn = filteredUnits[0].mul(101).div(100);
+                            subjectComponentQuotes = [
+                              getUniswapV2Quote(
+                                tokens.weth.address,
+                                subjectMaxAmountInputToken,
+                                filteredComponents[0],
+                                fCashAmountToReturn,
+                              ),
+                            ];
+                            console.log("transfer", zeroExMock.address, fCashAmountToReturn);
+                            await underlyingToken.transfer(zeroExMock.address, fCashAmountToReturn);
+                          });
+
+                          afterEach(async () => {
+                            if (hasMatured) {
+                              await network.provider.send("evm_revert", [snapshotId]);
+                            }
+                          });
+
+                          it("should issue correct amount of set token", async () => {
+                            const balanceBefore = await setToken.balanceOf(caller.address);
+                            await subject();
+                            const issuedAmount = (await setToken.balanceOf(caller.address)).sub(
+                              balanceBefore,
+                            );
+                            expect(issuedAmount).to.eq(subjectSetAmount);
+                          });
+                        });
+                      });
+                    });
+
                     describe("#issueExactSetFromToken", () => {
                       let subjectSetToken: Address;
                       let subjectInputToken: Address;
@@ -400,6 +488,7 @@ if (process.env.INTEGRATIONTEST) {
                                 maturity.toNumber() + 1,
                               ]);
                               await network.provider.send("evm_mine", []);
+                              // TODO: Remove this statement and fix related issues
                               await notionalTradeModule.redeemMaturedPositions(setToken.address);
                             }
                           });
@@ -410,7 +499,9 @@ if (process.env.INTEGRATIONTEST) {
                             }
                           });
 
-                          ["underlyingToken", "usdc"].forEach((tokenType: string) => {
+                          [
+                            // "underlyingToken", "usdc"
+                          ].forEach((tokenType: string) => {
                             describe(`When issuing from ${tokenType}`, () => {
                               let inputToken: IERC20;
                               beforeEach(async () => {
@@ -562,7 +653,9 @@ if (process.env.INTEGRATIONTEST) {
                                 await network.provider.send("evm_revert", [snapshotId]);
                               }
                             });
-                            ["underlyingToken", "usdc"].forEach(tokenType => {
+                            [
+                              // "underlyingToken", "usdc"
+                            ].forEach(tokenType => {
                               describe(`When redeeming to ${tokenType}`, () => {
                                 let redeemAmountReturned: BigNumber;
                                 let outputToken: IERC20;

@@ -258,6 +258,29 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         }
     }
 
+    function issueExactSetFromETH(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        bytes[] memory _componentQuotes,
+        address _issuanceModule,
+        bool _isDebtIssuance
+    )
+        isValidModule(_issuanceModule)
+        external
+        payable
+        nonReentrant
+        returns (uint256)
+    {
+
+        IWETH(WETH).deposit{value: msg.value}();
+        uint256 totalInputTokenSpent = _issueExactSetFromToken(_setToken, IERC20(WETH), _amountSetToken, msg.value, _componentQuotes, _issuanceModule, _isDebtIssuance);
+        uint256 amountTokenReturn = msg.value.sub(totalInputTokenSpent);
+        if (amountTokenReturn > 0) {
+            payable(msg.sender).transfer(amountTokenReturn);
+        }
+        return totalInputTokenSpent;
+    }
+
     function issueExactSetFromToken(
         ISetToken _setToken,
         IERC20 _inputToken,
@@ -274,6 +297,24 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     {
 
         _inputToken.safeTransferFrom(msg.sender, address(this), _maxAmountInputToken);
+        uint256 totalInputTokenSpent = _issueExactSetFromToken(_setToken, _inputToken, _amountSetToken, _maxAmountInputToken, _componentQuotes, _issuanceModule, _isDebtIssuance);
+        _returnExcessInputToken(_inputToken, _maxAmountInputToken, totalInputTokenSpent);
+        return totalInputTokenSpent;
+    }
+
+    function _issueExactSetFromToken(
+        ISetToken _setToken,
+        IERC20 _inputToken,
+        uint256 _amountSetToken,
+        uint256 _maxAmountInputToken,
+        bytes[] memory _componentQuotes,
+        address _issuanceModule,
+        bool _isDebtIssuance
+    )
+        internal
+        returns (uint256)
+    {
+
         _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
         uint256 inputTokenBalanceBefore = _inputToken.balanceOf(address(this));
         notionalTradeModule.redeemMaturedPositions(_setToken);
@@ -285,8 +326,6 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         uint256 totalInputTokenSpent = inputTokenBalanceBefore.sub(_inputToken.balanceOf(address(this)));
 
         require(totalInputTokenSpent <= _maxAmountInputToken, "ExchangeIssuance: OVERSPENT");
-
-        _returnExcessInputToken(_inputToken, _maxAmountInputToken, totalInputTokenSpent);
 
         emit ExchangeIssue(msg.sender, _setToken, _inputToken, _maxAmountInputToken, _amountSetToken);
         return totalInputTokenSpent;
