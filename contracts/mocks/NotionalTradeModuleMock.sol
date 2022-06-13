@@ -26,4 +26,13 @@ contract NotionalTradeModuleMock is INotionalTradeModule{
     function redeemMaturedPositions(ISetToken) external override {
     }
 
+    function initialize(ISetToken) external override {
+    }
+
+    function updateAllowedSetToken(ISetToken, bool) external override {
+    }
+    
+    function owner() external view override returns(address owner) {
+    }
+
 }

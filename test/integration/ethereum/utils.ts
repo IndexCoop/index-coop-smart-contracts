@@ -12,7 +12,7 @@ const NOTIONAL_PROXY_ADDRESS = "0x1344A36A1B56144C3Bc62E7757377D288fDE0369";
 
 const cEthAddress = "0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5";
 
-async function impersonateAccount(address: string) {
+export async function impersonateAccount(address: string) {
   await network.provider.request({
     method: "hardhat_impersonateAccount",
     params: [address],
@@ -26,7 +26,6 @@ export async function upgradeNotionalProxy(signer: Signer) {
     "INotionalProxy",
     NOTIONAL_PROXY_ADDRESS,
   )) as INotionalProxy;
-
 
   const notionalOwner = await impersonateAccount(await notional.owner());
 

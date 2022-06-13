@@ -5,25 +5,30 @@ import { Account, Address, ForkedTokens } from "@utils/types";
 import {
   DebtIssuanceModule,
   ExchangeIssuanceNotional,
-  NotionalTradeModuleMock,
   ZeroExExchangeProxyMock,
 } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import { ether } from "@utils/index";
+import { ProtocolUtils } from "@utils/common";
+
 import {
   getAccounts,
-  getSetFixture,
   getForkedTokens,
   getWaffleExpect,
   initializeForkedTokens,
 } from "@utils/index";
-import { IWrappedfCashFactory, IWrappedfCashComplete } from "../../../typechain";
-import { SetFixture } from "@utils/fixtures";
+import {
+  IController,
+  INotionalTradeModule,
+  IWrappedfCashFactory,
+  IWrappedfCashComplete,
+  SetTokenCreator,
+} from "../../../typechain";
 import { ADDRESS_ZERO } from "@utils/constants";
 import { IERC20 } from "@typechain/IERC20";
-import { PRODUCTION_ADDRESSES } from "./addresses";
-import { upgradeNotionalProxy, getCurrencyIdAndMaturity } from "./utils";
+import { STAGING_ADDRESSES } from "./addresses";
+import { impersonateAccount, upgradeNotionalProxy, getCurrencyIdAndMaturity } from "./utils";
 
 const expect = getWaffleExpect();
 
@@ -44,7 +49,6 @@ if (process.env.INTEGRATIONTEST) {
     let owner: Account;
     let deployer: DeployHelper;
     let manager: Account;
-    let setup: SetFixture;
     let tokens: ForkedTokens;
 
     let debtIssuanceModule: DebtIssuanceModule;
@@ -54,10 +58,10 @@ if (process.env.INTEGRATIONTEST) {
 
       deployer = new DeployHelper(owner.wallet);
 
-      setup = getSetFixture(owner.address);
-      await setup.initialize();
-
-      debtIssuanceModule = setup.debtIssuanceModule;
+      debtIssuanceModule = (await ethers.getContractAt(
+        "IDebtIssuanceModule",
+        STAGING_ADDRESSES.set.debtIssuanceModuleV2,
+      )) as DebtIssuanceModule;
 
       await initializeForkedTokens(deployer);
       tokens = getForkedTokens();
@@ -120,7 +124,7 @@ if (process.env.INTEGRATIONTEST) {
               before(async () => {
                 wrappedfCashFactory = (await ethers.getContractAt(
                   "IWrappedfCashFactory",
-                  PRODUCTION_ADDRESSES.lending.notional.wrappedfCashFactory,
+                  STAGING_ADDRESSES.lending.notional.wrappedfCashFactory,
                 )) as IWrappedfCashFactory;
                 ({ currencyId, maturity } = await getCurrencyIdAndMaturity(assetTokenAddress, 0));
                 const wrappedfCashAddress = await wrappedfCashFactory.callStatic.deployWrapper(
@@ -140,16 +144,47 @@ if (process.env.INTEGRATIONTEST) {
                 let underlyingPosition: BigNumber;
                 let initialSetBalance: BigNumber;
                 let setToken: SetToken;
+                let setTokenCreator: SetTokenCreator;
+                let notionalTradeModule: INotionalTradeModule;
+                let controller: IController;
+                const setTokenName = "TestSet";
+                const setTokenSymbol = "TEST";
                 beforeEach(async () => {
                   wrappedfCashPosition = ethers.utils.parseUnits("2", 8);
                   underlyingPosition = ethers.utils.parseEther("1");
 
-                  setToken = await setup.createSetToken(
+                  notionalTradeModule = (await ethers.getContractAt(
+                    "INotionalTradeModule",
+                    STAGING_ADDRESSES.set.notionalTradeModule,
+                  )) as INotionalTradeModule;
+
+                  controller = (await ethers.getContractAt(
+                    "IController",
+                    STAGING_ADDRESSES.set.controller,
+                  )) as IController;
+
+                  setTokenCreator = await deployer.setV2.deploySetTokenCreator(controller.address);
+
+                  const controllerOwner = await impersonateAccount(await controller.owner());
+                  await controller.connect(controllerOwner).addFactory(setTokenCreator.address);
+
+                  const txHash = await setTokenCreator.create(
                     [wrappedfCashInstance.address, underlyingToken.address],
                     [wrappedfCashPosition, underlyingPosition],
-                    [debtIssuanceModule.address],
+                    [debtIssuanceModule.address, notionalTradeModule.address],
                     manager.address,
+                    setTokenName,
+                    setTokenSymbol,
                   );
+
+                  const retrievedSetAddress = await new ProtocolUtils(
+                    ethers.provider,
+                  ).getCreatedSetTokenAddress(txHash.hash);
+
+                  setToken = (await ethers.getContractAt(
+                    "ISetToken",
+                    retrievedSetAddress,
+                  )) as SetToken;
 
                   expect(await setToken.isPendingModule(debtIssuanceModule.address)).to.be.true;
 
@@ -162,6 +197,10 @@ if (process.env.INTEGRATIONTEST) {
                     owner.address,
                     ADDRESS_ZERO,
                   );
+
+                  const notionalTradeModuleOwner = await impersonateAccount(await notionalTradeModule.owner());
+                  await notionalTradeModule.connect(notionalTradeModuleOwner).updateAllowedSetToken(setToken.address, true);
+                  await notionalTradeModule.connect(manager.wallet).initialize(setToken.address);
 
                   const underlyingTokenBalance = await underlyingToken.balanceOf(owner.address);
                   initialSetBalance = ethers.utils.parseEther("1");
@@ -195,12 +234,11 @@ if (process.env.INTEGRATIONTEST) {
 
                 describe("When exchangeIssuance is deployed", () => {
                   let exchangeIssuance: ExchangeIssuanceNotional;
-                  let notionalTradeModule: NotionalTradeModuleMock;
                   beforeEach(async () => {
                     notionalTradeModule = await deployer.mocks.deployNotionalTradeModuleMock();
                     exchangeIssuance = await deployer.extensions.deployExchangeIssuanceNotional(
                       tokens.weth.address,
-                      setup.controller.address,
+                      STAGING_ADDRESSES.set.controller,
                       wrappedfCashFactory.address,
                       notionalTradeModule.address,
                       zeroExMock.address,

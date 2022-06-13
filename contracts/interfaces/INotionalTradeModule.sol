@@ -4,5 +4,8 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 
 interface INotionalTradeModule {
     function redeemMaturedPositions(ISetToken) external;
+    function initialize(ISetToken) external;
+    function updateAllowedSetToken(ISetToken, bool) external;
+    function owner() external view returns(address);
 }
 
