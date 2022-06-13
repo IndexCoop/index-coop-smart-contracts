@@ -31,8 +31,14 @@ contract NotionalTradeModuleMock is INotionalTradeModule{
 
     function updateAllowedSetToken(ISetToken, bool) external override {
     }
+
+    function setRedeemToUnderlying(ISetToken, bool) external override {
+    }
     
     function owner() external view override returns(address owner) {
+    }
+
+    function settleAccount(address) external override {
     }
 
 }

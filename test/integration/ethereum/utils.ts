@@ -29,7 +29,7 @@ export async function upgradeNotionalProxy(signer: Signer) {
 
   const notionalOwner = await impersonateAccount(await notional.owner());
 
-  const fundingValue = ethers.utils.parseEther("1");
+  const fundingValue = ethers.utils.parseEther("10");
   await signer.sendTransaction({ to: await notionalOwner.getAddress(), value: fundingValue });
 
   await notional.connect(notionalOwner).upgradeTo(NEW_ROUTER_ADDRESS);

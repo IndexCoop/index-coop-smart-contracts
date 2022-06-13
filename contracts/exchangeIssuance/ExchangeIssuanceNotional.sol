@@ -308,6 +308,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     {
 
         uint256 outputTokenBalanceBefore = _outputToken.balanceOf(address(this));
+        notionalTradeModule.redeemMaturedPositions(_setToken);
         _redeemExactSet(_setToken, _amountSetToken, _issuanceModule);
 
         _redeemWrappedFCashPositions(_setToken, _amountSetToken, _outputToken, _issuanceModule, _isDebtIssuance);

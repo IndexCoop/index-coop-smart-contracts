@@ -7,5 +7,8 @@ interface INotionalTradeModule {
     function initialize(ISetToken) external;
     function updateAllowedSetToken(ISetToken, bool) external;
     function owner() external view returns(address);
+    function settleAccount(address) external;
+    function setRedeemToUnderlying(ISetToken, bool) external;
+
 }
 

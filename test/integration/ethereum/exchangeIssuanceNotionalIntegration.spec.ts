@@ -21,6 +21,7 @@ import {
 } from "@utils/index";
 import {
   IController,
+  INotionalProxy,
   INotionalTradeModule,
   IWrappedfCashFactory,
   IWrappedfCashComplete,
@@ -221,6 +222,9 @@ if (process.env.INTEGRATIONTEST) {
                     .connect(notionalTradeModuleOwner)
                     .updateAllowedSetToken(setToken.address, true);
                   await notionalTradeModule.connect(manager.wallet).initialize(setToken.address);
+                  await notionalTradeModule
+                    .connect(manager.wallet)
+                    .setRedeemToUnderlying(setToken.address, true);
 
                   const underlyingTokenBalance = await underlyingToken.balanceOf(owner.address);
                   initialSetBalance = ethers.utils.parseEther("1");
@@ -255,7 +259,6 @@ if (process.env.INTEGRATIONTEST) {
                 describe("When exchangeIssuance is deployed", () => {
                   let exchangeIssuance: ExchangeIssuanceNotional;
                   beforeEach(async () => {
-                    notionalTradeModule = await deployer.mocks.deployNotionalTradeModuleMock();
                     exchangeIssuance = await deployer.extensions.deployExchangeIssuanceNotional(
                       tokens.weth.address,
                       STAGING_ADDRESSES.set.controller,
@@ -384,78 +387,102 @@ if (process.env.INTEGRATIONTEST) {
                             subjectComponentQuotes,
                             subjectIssuanceModule,
                             subjectIsDebtIssuance,
+                            { gasLimit: 750000000 },
                           );
                       }
-
-                      ["underlyingToken", "usdc"].forEach((tokenType: string) => {
-                        describe(`When issuing from ${tokenType}`, () => {
-                          let inputToken: IERC20;
+                      [true, false].forEach(hasMatured => {
+                        describe(`when component has ${!hasMatured ? "not " : ""}matured`, () => {
+                          let snapshotId: number;
                           beforeEach(async () => {
-                            if (tokenType == "underlyingToken") {
-                              inputToken = underlyingToken;
-                            } else {
-                              inputToken = tokens[tokenType];
-                              await inputToken.transfer(
-                                owner.address,
-                                (
-                                  await inputToken.balanceOf(await inputToken.signer.getAddress())
-                                ).div(10),
-                              );
-                              inputToken = inputToken.connect(owner.wallet);
-                            }
-
-                            await inputToken.approve(
-                              exchangeIssuance.address,
-                              ethers.constants.MaxUint256,
-                            );
-                            subjectInputToken = inputToken.address;
-                            subjectMaxAmountInputToken = (
-                              await inputToken.balanceOf(caller.address)
-                            ).div(10);
-                            expect(subjectMaxAmountInputToken).to.be.gt(0);
-
-                            if (tokenType != "underlyingToken") {
-                              const [
-                                filteredComponents,
-                                filteredUnits,
-                              ] = await exchangeIssuance.getFilteredComponentsIssuance(
-                                subjectSetToken,
-                                subjectSetAmount,
-                                subjectIssuanceModule,
-                                subjectIsDebtIssuance,
-                              );
-                              const fCashAmountToReturn = filteredUnits[0].mul(101).div(100);
-                              subjectComponentQuotes = [
-                                getUniswapV2Quote(
-                                  inputToken.address,
-                                  subjectMaxAmountInputToken.div(10),
-                                  filteredComponents[0],
-                                  fCashAmountToReturn,
-                                ),
-                              ];
-                              await underlyingToken.transfer(
-                                zeroExMock.address,
-                                fCashAmountToReturn,
-                              );
+                            if (hasMatured) {
+                              snapshotId = await network.provider.send("evm_snapshot", []);
+                              await network.provider.send("evm_setNextBlockTimestamp", [
+                                maturity.toNumber() + 1,
+                              ]);
+                              await network.provider.send("evm_mine", []);
+                              await notionalTradeModule.redeemMaturedPositions(setToken.address);
                             }
                           });
 
-                          it("should issue correct amount of set token", async () => {
-                            const balanceBefore = await setToken.balanceOf(caller.address);
-                            await subject();
-                            const issuedAmount = (await setToken.balanceOf(caller.address)).sub(
-                              balanceBefore,
-                            );
-                            expect(issuedAmount).to.eq(subjectSetAmount);
+                          afterEach(async () => {
+                            if (hasMatured) {
+                              await network.provider.send("evm_revert", [snapshotId]);
+                            }
                           });
 
-                          it("should spend correct amount of input token", async () => {
-                            const balanceBefore = await inputToken.balanceOf(caller.address);
-                            await subject();
-                            const spentAmount = balanceBefore.sub(
-                              await inputToken.balanceOf(caller.address),
-                            );
-                            expect(spentAmount).to.be.lte(subjectMaxAmountInputToken);
+                          ["underlyingToken", "usdc"].forEach((tokenType: string) => {
+                            describe(`When issuing from ${tokenType}`, () => {
+                              let inputToken: IERC20;
+                              beforeEach(async () => {
+                                if (tokenType == "underlyingToken") {
+                                  inputToken = underlyingToken;
+                                } else {
+                                  inputToken = tokens[tokenType];
+                                  await inputToken.transfer(
+                                    owner.address,
+                                    (
+                                      await inputToken.balanceOf(
+                                        await inputToken.signer.getAddress(),
+                                      )
+                                    ).div(10),
+                                  );
+                                  inputToken = inputToken.connect(owner.wallet);
+                                }
+
+                                await inputToken.approve(
+                                  exchangeIssuance.address,
+                                  ethers.constants.MaxUint256,
+                                );
+                                subjectInputToken = inputToken.address;
+                                subjectMaxAmountInputToken = (
+                                  await inputToken.balanceOf(caller.address)
+                                ).div(10);
+                                expect(subjectMaxAmountInputToken).to.be.gt(0);
+
+                                if (tokenType != "underlyingToken") {
+                                  const [
+                                    filteredComponents,
+                                    filteredUnits,
+                                  ] = await exchangeIssuance.getFilteredComponentsIssuance(
+                                    subjectSetToken,
+                                    subjectSetAmount,
+                                    subjectIssuanceModule,
+                                    subjectIsDebtIssuance,
+                                  );
+                                  const fCashAmountToReturn = filteredUnits[0].mul(101).div(100);
+                                  subjectComponentQuotes = [
+                                    getUniswapV2Quote(
+                                      inputToken.address,
+                                      subjectMaxAmountInputToken.div(10),
+                                      filteredComponents[0],
+                                      fCashAmountToReturn,
+                                    ),
+                                  ];
+                                  await underlyingToken.transfer(
+                                    zeroExMock.address,
+                                    fCashAmountToReturn,
+                                  );
+                                }
+                              });
+
+                              it("should issue correct amount of set token", async () => {
+                                const balanceBefore = await setToken.balanceOf(caller.address);
+                                await subject();
+                                const issuedAmount = (await setToken.balanceOf(caller.address)).sub(
+                                  balanceBefore,
+                                );
+                                expect(issuedAmount).to.eq(subjectSetAmount);
+                              });
+
+                              it("should spend correct amount of input token", async () => {
+                                const balanceBefore = await inputToken.balanceOf(caller.address);
+                                await subject();
+                                const spentAmount = balanceBefore.sub(
+                                  await inputToken.balanceOf(caller.address),
+                                );
+                                expect(spentAmount).to.be.lte(subjectMaxAmountInputToken);
+                              });
+                            });
                           });
                         });
                       });
@@ -491,7 +518,7 @@ if (process.env.INTEGRATIONTEST) {
                             subjectComponentQuotes,
                             subjectIssuanceModule,
                             subjectIsDebtIssuance,
-                            { gasLimit: 30000000 },
+                            { gasLimit: 750000000 },
                           );
                       }
                       describe("When caller has enough set token to redeem", () => {
@@ -510,79 +537,108 @@ if (process.env.INTEGRATIONTEST) {
                               [] as string[],
                               debtIssuanceModule.address,
                               true,
+                              { gasLimit: 750000000 },
                             );
                           await setToken.approve(
                             exchangeIssuance.address,
                             ethers.constants.MaxUint256,
                           );
                         });
-                        ["underlyingToken", "usdc"].forEach(tokenType => {
-                          describe(`When redeeming to ${tokenType}`, () => {
-                            let redeemAmountReturned: BigNumber;
-                            let outputToken: IERC20;
+                        [true, false].forEach(hasMatured => {
+                          describe(`when component has ${!hasMatured ? "not " : ""}matured`, () => {
+                            let snapshotId: number;
                             beforeEach(async () => {
-                              if (tokenType == "underlyingToken") {
-                                outputToken = underlyingToken;
-                              } else {
-                                outputToken = tokens[tokenType];
-                                await outputToken.transfer(
-                                  owner.address,
-                                  (
-                                    await outputToken.balanceOf(
-                                      await outputToken.signer.getAddress(),
-                                    )
-                                  ).div(10),
-                                );
-                                outputToken = outputToken.connect(owner.wallet);
-                              }
-                              subjectOutputToken = outputToken.address;
-
-                              redeemAmountReturned = await wrappedfCashInstance.previewRedeem(
-                                wrappedfCashPosition.mul(setAmountEth),
-                              );
-                              subjectMinAmountOutputToken =
-                                tokenType == "underlyingToken"
-                                  ? redeemAmountReturned
-                                  : (await outputToken.balanceOf(owner.address)).div(100);
-
-                              if (tokenType != "underlyingToken") {
-                                const [
-                                  filteredComponents,
-                                  filteredUnits,
-                                ] = await exchangeIssuance.getFilteredComponentsRedemption(
-                                  subjectSetToken,
-                                  subjectSetAmount,
-                                  subjectIssuanceModule,
-                                  subjectIsDebtIssuance,
-                                );
-                                subjectComponentQuotes = [
-                                  getUniswapV2Quote(
-                                    filteredComponents[0],
-                                    filteredUnits[0].mul(99).div(100),
-                                    outputToken.address,
-                                    subjectMinAmountOutputToken,
-                                  ),
-                                ];
-                                await outputToken.transfer(
-                                  zeroExMock.address,
-                                  subjectMinAmountOutputToken,
-                                );
+                              if (hasMatured) {
+                                snapshotId = await network.provider.send("evm_snapshot", []);
+                                await network.provider.send("evm_setNextBlockTimestamp", [
+                                  maturity.toNumber() + 1,
+                                ]);
+                                await network.provider.send("evm_mine", []);
                               }
                             });
-                            it("should redeem correct amount of set token", async () => {
-                              const balanceBefore = await setToken.balanceOf(caller.address);
-                              await subject();
-                              const redeemedAmount = balanceBefore.sub(
-                                await setToken.balanceOf(caller.address),
-                              );
-                              expect(redeemedAmount).to.eq(subjectSetAmount);
+
+                            afterEach(async () => {
+                              if (hasMatured) {
+                                await network.provider.send("evm_revert", [snapshotId]);
+                              }
                             });
-                            it("should return correct amount of output token", async () => {
-                              const balanceBefore = await outputToken.balanceOf(caller.address);
-                              await subject();
-                              const balanceAfter = await outputToken.balanceOf(caller.address);
-                              const returnedAmount = balanceAfter.sub(balanceBefore);
-                              expect(returnedAmount).to.gte(subjectMinAmountOutputToken);
+                            ["underlyingToken", "usdc"].forEach(tokenType => {
+                              describe(`When redeeming to ${tokenType}`, () => {
+                                let redeemAmountReturned: BigNumber;
+                                let outputToken: IERC20;
+                                beforeEach(async () => {
+                                  if (tokenType == "underlyingToken") {
+                                    outputToken = underlyingToken;
+                                  } else {
+                                    outputToken = tokens[tokenType];
+                                    await outputToken.transfer(
+                                      owner.address,
+                                      (
+                                        await outputToken.balanceOf(
+                                          await outputToken.signer.getAddress(),
+                                        )
+                                      ).div(10),
+                                    );
+                                    outputToken = outputToken.connect(owner.wallet);
+                                  }
+                                  subjectOutputToken = outputToken.address;
+
+                                  const notionalProxy = (await ethers.getContractAt(
+                                    "INotionalProxy",
+                                    STAGING_ADDRESSES.lending.notional.notionalV2,
+                                  )) as INotionalProxy;
+                                  await notionalProxy.settleAccount(wrappedfCashInstance.address);
+                                  redeemAmountReturned = await wrappedfCashInstance.previewRedeem(
+                                    wrappedfCashPosition.mul(setAmountEth),
+                                  );
+                                  await notionalTradeModule.redeemMaturedPositions(
+                                    setToken.address,
+                                  );
+                                  const [
+                                    filteredComponents,
+                                    filteredUnits,
+                                  ] = await exchangeIssuance.getFilteredComponentsRedemption(
+                                    subjectSetToken,
+                                    subjectSetAmount,
+                                    subjectIssuanceModule,
+                                    subjectIsDebtIssuance,
+                                  );
+                                  subjectMinAmountOutputToken =
+                                    tokenType == "underlyingToken"
+                                      ? redeemAmountReturned
+                                      : (await outputToken.balanceOf(owner.address)).div(100);
+
+                                  if (tokenType != "underlyingToken") {
+                                    subjectComponentQuotes = [
+                                      getUniswapV2Quote(
+                                        filteredComponents[0],
+                                        filteredUnits[0].mul(99).div(100),
+                                        outputToken.address,
+                                        subjectMinAmountOutputToken,
+                                      ),
+                                    ];
+                                    await outputToken.transfer(
+                                      zeroExMock.address,
+                                      subjectMinAmountOutputToken,
+                                    );
+                                  }
+                                });
+                                it("should redeem correct amount of set token", async () => {
+                                  const balanceBefore = await setToken.balanceOf(caller.address);
+                                  await subject();
+                                  const redeemedAmount = balanceBefore.sub(
+                                    await setToken.balanceOf(caller.address),
+                                  );
+                                  expect(redeemedAmount).to.eq(subjectSetAmount);
+                                });
+                                it("should return correct amount of output token", async () => {
+                                  const balanceBefore = await outputToken.balanceOf(caller.address);
+                                  await subject();
+                                  const balanceAfter = await outputToken.balanceOf(caller.address);
+                                  const returnedAmount = balanceAfter.sub(balanceBefore);
+                                  expect(returnedAmount).to.gte(subjectMinAmountOutputToken);
+                                });
+                              });
                             });
                           });
                         });
