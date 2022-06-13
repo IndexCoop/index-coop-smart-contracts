@@ -58,16 +58,16 @@ const config: HardhatUserConfig = {
     hardhat: {
       forking: process.env.FORK ? forkingConfig : undefined,
       accounts: getHardhatPrivateKeys(),
-      gas: isPolygon ? undefined : 12000000,
-      blockGasLimit: isPolygon ? 20000000 : 12000000,
+      gas: isPolygon ? undefined : 30000000,
+      blockGasLimit: isPolygon ? 20000000 : 30000000,
       // @ts-ignore
       timeout: INTEGRATIONTEST_TIMEOUT,
       initialBaseFeePerGas: 0,
     },
     localhost: {
       url: "http://127.0.0.1:8545",
-      gas: isPolygon ? undefined : 12000000,
-      blockGasLimit: isPolygon ? 20000000 : 12000000,
+      gas: isPolygon ? undefined : 30000000,
+      blockGasLimit: isPolygon ? 20000000 : 30000000,
       // @ts-ignore
       timeout: INTEGRATIONTEST_TIMEOUT,
     },

@@ -23,4 +23,5 @@ interface IController {
     function resourceId(uint256 _id) external view returns(address);
     function owner() external view returns(address);
     function addFactory(address _factory) external;
+    function addModule(address _module) external;
 }

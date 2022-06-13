@@ -43,6 +43,8 @@ export const PRODUCTION_ADDRESSES = {
     },
     notional: {
       wrappedfCashFactory: "0x3Ccd485B75423F7Bb074eC42D0d01dbB553F7529",
+      notionalV2: "0x1344a36a1b56144c3bc62e7757377d288fde0369",
+      nUpgreadableBeacon: "0xFAaF0C5B81E802C231A5249221cfe0B6ae639118",
     },
   },
 };

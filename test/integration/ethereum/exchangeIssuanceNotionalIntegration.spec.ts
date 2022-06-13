@@ -6,6 +6,7 @@ import {
   DebtIssuanceModule,
   ExchangeIssuanceNotional,
   ZeroExExchangeProxyMock,
+  WrappedfCash,
 } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
@@ -116,12 +117,27 @@ if (process.env.INTEGRATIONTEST) {
             });
 
             describe("When WrappedfCash is deployed", () => {
+              let wrappedfCashImplementation: WrappedfCash;
               let wrappedfCashInstance: IWrappedfCashComplete;
               let currencyId: number;
               let maturity: BigNumber;
               let wrappedfCashFactory: IWrappedfCashFactory;
 
               before(async () => {
+                wrappedfCashImplementation = await deployer.external.deployWrappedfCash(
+                  STAGING_ADDRESSES.lending.notional.notionalV2,
+                  tokens.weth.address,
+                );
+
+                const nUpgreadeableBeacon = await ethers.getContractAt(
+                  "nUpgradeableBeacon",
+                  STAGING_ADDRESSES.lending.notional.nUpgreadableBeacon,
+                );
+                const beaconOwner = await impersonateAccount(await nUpgreadeableBeacon.owner());
+                await nUpgreadeableBeacon
+                  .connect(beaconOwner)
+                  .upgradeTo(wrappedfCashImplementation.address);
+
                 wrappedfCashFactory = (await ethers.getContractAt(
                   "IWrappedfCashFactory",
                   STAGING_ADDRESSES.lending.notional.wrappedfCashFactory,
@@ -198,8 +214,12 @@ if (process.env.INTEGRATIONTEST) {
                     ADDRESS_ZERO,
                   );
 
-                  const notionalTradeModuleOwner = await impersonateAccount(await notionalTradeModule.owner());
-                  await notionalTradeModule.connect(notionalTradeModuleOwner).updateAllowedSetToken(setToken.address, true);
+                  const notionalTradeModuleOwner = await impersonateAccount(
+                    await notionalTradeModule.owner(),
+                  );
+                  await notionalTradeModule
+                    .connect(notionalTradeModuleOwner)
+                    .updateAllowedSetToken(setToken.address, true);
                   await notionalTradeModule.connect(manager.wallet).initialize(setToken.address);
 
                   const underlyingTokenBalance = await underlyingToken.balanceOf(owner.address);
@@ -471,6 +491,7 @@ if (process.env.INTEGRATIONTEST) {
                             subjectComponentQuotes,
                             subjectIssuanceModule,
                             subjectIsDebtIssuance,
+                            { gasLimit: 30000000 },
                           );
                       }
                       describe("When caller has enough set token to redeem", () => {
@@ -515,6 +536,7 @@ if (process.env.INTEGRATIONTEST) {
                                 outputToken = outputToken.connect(owner.wallet);
                               }
                               subjectOutputToken = outputToken.address;
+
                               redeemAmountReturned = await wrappedfCashInstance.previewRedeem(
                                 wrappedfCashPosition.mul(setAmountEth),
                               );
