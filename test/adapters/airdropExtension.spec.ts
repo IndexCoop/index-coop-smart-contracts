@@ -129,15 +129,13 @@ describe("AirdropExtension", () => {
     describe("#initialize", async () => {
       let subjectCaller: Account;
       let subjectAirdropSettings: AirdropSettings;
-      const addr = await getRandomAddress();
-      const fee = BigNumber.from(12345);
 
       beforeEach(async () => {
         subjectCaller = operator;
         subjectAirdropSettings = {
           airdrops: [setV2Setup.dai.address],
-          feeRecipient: addr,
-          airdropFee: fee,
+          feeRecipient: await getRandomAddress(),
+          airdropFee: BigNumber.from(12345),
           anyoneAbsorb: false,
         };
       });
