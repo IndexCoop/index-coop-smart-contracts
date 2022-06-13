@@ -40,6 +40,9 @@ export const PRODUCTION_ADDRESSES = {
       addressProvider: "0xB53C1a33016B2DC2fF3653530bfF1848a515c8c5",
       lendingPool: "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
     },
+    notional: {
+      wrappedfCashFactory: "0x3Ccd485B75423F7Bb074eC42D0d01dbB553F7529",
+    },
   },
 };
 

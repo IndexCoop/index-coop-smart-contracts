@@ -6,8 +6,6 @@ import {
   DebtIssuanceModule,
   ExchangeIssuanceNotional,
   NotionalTradeModuleMock,
-  WrappedfCash,
-  WrappedfCashFactory,
   ZeroExExchangeProxyMock,
 } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
@@ -20,20 +18,17 @@ import {
   getWaffleExpect,
   initializeForkedTokens,
 } from "@utils/index";
+import { IWrappedfCashFactory, IWrappedfCashComplete } from "../../../typechain";
 import { SetFixture } from "@utils/fixtures";
 import { ADDRESS_ZERO } from "@utils/constants";
 import { IERC20 } from "@typechain/IERC20";
-import {
-  upgradeNotionalProxy,
-  deployWrappedfCashInstance,
-  deployWrappedfCashFactory,
-  getCurrencyIdAndMaturity,
-} from "./utils";
+import { PRODUCTION_ADDRESSES } from "./addresses";
+import { upgradeNotionalProxy, getCurrencyIdAndMaturity } from "./utils";
 
 const expect = getWaffleExpect();
 
 const tokenAddresses: Record<string, string> = {
-  // cDai: "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
+  cDai: "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
   // cUsdc: "0x39AA39c021dfbaE8faC545936693aC917d5E7563",
   cEth: "0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5",
 };
@@ -117,34 +112,29 @@ if (process.env.INTEGRATIONTEST) {
             });
 
             describe("When WrappedfCash is deployed", () => {
-              let wrappedfCashInstance: WrappedfCash;
+              let wrappedfCashInstance: IWrappedfCashComplete;
               let currencyId: number;
               let maturity: BigNumber;
-              let snapshotId: string;
-              let wrappedfCashFactory: WrappedfCashFactory;
+              let wrappedfCashFactory: IWrappedfCashFactory;
 
               before(async () => {
-                wrappedfCashFactory = await deployWrappedfCashFactory(
-                  deployer,
-                  owner.wallet,
-                  tokens.weth.address,
-                );
+                wrappedfCashFactory = (await ethers.getContractAt(
+                  "IWrappedfCashFactory",
+                  PRODUCTION_ADDRESSES.lending.notional.wrappedfCashFactory,
+                )) as IWrappedfCashFactory;
                 ({ currencyId, maturity } = await getCurrencyIdAndMaturity(assetTokenAddress, 0));
-                wrappedfCashInstance = await deployWrappedfCashInstance(
-                  wrappedfCashFactory,
+                const wrappedfCashAddress = await wrappedfCashFactory.callStatic.deployWrapper(
                   currencyId,
                   maturity,
                 );
-                wrappedfCashInstance = wrappedfCashInstance.connect(owner.wallet);
+                await wrappedfCashFactory.deployWrapper(currencyId, maturity);
+                wrappedfCashInstance = (await ethers.getContractAt(
+                  "contracts/interfaces/IWrappedfCash.sol:IWrappedfCashComplete",
+                  wrappedfCashAddress,
+                  owner.wallet,
+                )) as IWrappedfCashComplete;
               });
 
-              beforeEach(async () => {
-                snapshotId = await network.provider.send("evm_snapshot", []);
-              });
-
-              afterEach(async () => {
-                await network.provider.send("evm_revert", [snapshotId]);
-              });
               describe("When setToken is deployed", () => {
                 let wrappedfCashPosition: BigNumber;
                 let underlyingPosition: BigNumber;
@@ -181,13 +171,6 @@ if (process.env.INTEGRATIONTEST) {
                     ethers.constants.MaxUint256,
                   );
 
-                  // const [underlyingTokenReturned] = await wrappedfCashInstance.getUnderlyingToken();
-                  // console.log("mintViaUnderlying", {
-                  //   underlyingTokenReturned,
-                  //   underlyingToken: underlyingToken.address,
-                  //   underlyingTokenBalance: ethers.utils.formatEther(underlyingTokenBalance),
-                  //   wrappedfCashPosition: ethers.utils.formatUnits(wrappedfCashPosition, 8),
-                  // });
                   await wrappedfCashInstance.mintViaUnderlying(
                     underlyingTokenBalance,
                     wrappedfCashPosition,
