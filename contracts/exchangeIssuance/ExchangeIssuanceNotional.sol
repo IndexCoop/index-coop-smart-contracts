@@ -36,6 +36,7 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 
 
+
 contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
 
     using Address for address payable;
@@ -276,6 +277,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         uint256 totalInputTokenSpent = _issueExactSetFromToken(_setToken, IERC20(WETH), _amountSetToken, msg.value, _componentQuotes, _issuanceModule, _isDebtIssuance);
         uint256 amountTokenReturn = msg.value.sub(totalInputTokenSpent);
         if (amountTokenReturn > 0) {
+            IWETH(WETH).withdraw(amountTokenReturn);
             payable(msg.sender).transfer(amountTokenReturn);
         }
         return totalInputTokenSpent;
@@ -346,6 +348,50 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         returns (uint256)
     {
 
+        uint256 outputAmount = _redeemExactSetForToken(_setToken, _outputToken, _amountSetToken, _minOutputReceive, _componentQuotes, _issuanceModule, _isDebtIssuance);
+        // Transfer sender output token
+        _outputToken.safeTransfer(msg.sender, outputAmount);
+        // Return output amount
+        return outputAmount;
+    }
+
+    function redeemExactSetForETH(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        uint256 _minOutputReceive,
+        bytes[] memory _componentQuotes,
+        address _issuanceModule,
+        bool _isDebtIssuance
+    )
+        isValidModule(_issuanceModule)
+        external
+        nonReentrant
+        returns (uint256)
+    {
+
+        
+        uint256 outputAmount = _redeemExactSetForToken(_setToken, IERC20(WETH), _amountSetToken, _minOutputReceive, _componentQuotes, _issuanceModule, _isDebtIssuance);
+        // Transfer sender output token
+        IWETH(WETH).withdraw(outputAmount);
+        payable(msg.sender).transfer(outputAmount);
+        // Return output amount
+        return outputAmount;
+    }
+
+
+    function _redeemExactSetForToken(
+        ISetToken _setToken,
+        IERC20 _outputToken,
+        uint256 _amountSetToken,
+        uint256 _minOutputReceive,
+        bytes[] memory _componentQuotes,
+        address _issuanceModule,
+        bool _isDebtIssuance
+    )
+        internal
+        returns (uint256)
+    {
+
         uint256 outputTokenBalanceBefore = _outputToken.balanceOf(address(this));
         notionalTradeModule.redeemMaturedPositions(_setToken);
         _redeemExactSet(_setToken, _amountSetToken, _issuanceModule);
@@ -356,8 +402,6 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         uint256 outputAmount = _outputToken.balanceOf(address(this)).sub(outputTokenBalanceBefore);
 
         require(outputAmount >= _minOutputReceive, "ExchangeIssuance: UNDERBOUGHT");
-        // Transfer sender output token
-        _outputToken.safeTransfer(msg.sender, outputAmount);
         // Emit event
         emit ExchangeRedeem(msg.sender, _setToken, _outputToken, _amountSetToken, outputAmount);
         // Return output amount

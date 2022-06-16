@@ -2,6 +2,7 @@ import "module-alias/register";
 import { BigNumber } from "ethers";
 import { ethers, network } from "hardhat";
 import { Account, Address, ForkedTokens } from "@utils/types";
+import { getTxFee } from "@utils/test";
 import {
   DebtIssuanceModule,
   ExchangeIssuanceNotional,
@@ -37,7 +38,7 @@ const expect = getWaffleExpect();
 const tokenAddresses: Record<string, string> = {
   cDai: "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
   // cUsdc: "0x39AA39c021dfbaE8faC545936693aC917d5E7563",
-  // cEth: "0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5",
+  cEth: "0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5",
 };
 
 const underlyingTokens: Record<string, string> = {
@@ -409,22 +410,29 @@ if (process.env.INTEGRATIONTEST) {
                               subjectIssuanceModule,
                               subjectIsDebtIssuance,
                             );
-                            console.log({
-                              filteredComponents,
-                              filteredUnits: filteredUnits.map(u => u.toString()),
-                            });
-                            subjectMaxAmountInputToken = (await owner.wallet.getBalance()).div(100);
-                            const fCashAmountToReturn = filteredUnits[0].mul(101).div(100);
-                            subjectComponentQuotes = [
-                              getUniswapV2Quote(
-                                tokens.weth.address,
-                                subjectMaxAmountInputToken,
-                                filteredComponents[0],
+                            if (
+                              ethers.utils.getAddress(filteredComponents[0]) !=
+                              ethers.utils.getAddress(tokens.weth.address)
+                            ) {
+                              subjectMaxAmountInputToken = (await caller.wallet.getBalance()).div(
+                                100,
+                              );
+                              const fCashAmountToReturn = filteredUnits[0].mul(101).div(100);
+                              subjectComponentQuotes = [
+                                getUniswapV2Quote(
+                                  tokens.weth.address,
+                                  subjectMaxAmountInputToken,
+                                  filteredComponents[0],
+                                  fCashAmountToReturn,
+                                ),
+                              ];
+                              await underlyingToken.transfer(
+                                zeroExMock.address,
                                 fCashAmountToReturn,
-                              ),
-                            ];
-                            console.log("transfer", zeroExMock.address, fCashAmountToReturn);
-                            await underlyingToken.transfer(zeroExMock.address, fCashAmountToReturn);
+                              );
+                            } else {
+                              subjectMaxAmountInputToken = filteredUnits[0].mul(2);
+                            }
                           });
 
                           afterEach(async () => {
@@ -440,6 +448,15 @@ if (process.env.INTEGRATIONTEST) {
                               balanceBefore,
                             );
                             expect(issuedAmount).to.eq(subjectSetAmount);
+                          });
+
+                          it("should spend correct amount of input token", async () => {
+                            const balanceBefore = await caller.wallet.getBalance();
+                            const txFee = await getTxFee(await subject());
+                            const spentAmount = balanceBefore
+                              .sub(await caller.wallet.getBalance())
+                              .sub(txFee);
+                            expect(spentAmount).to.be.lte(subjectMaxAmountInputToken);
                           });
                         });
                       });
@@ -499,9 +516,7 @@ if (process.env.INTEGRATIONTEST) {
                             }
                           });
 
-                          [
-                            // "underlyingToken", "usdc"
-                          ].forEach((tokenType: string) => {
+                          ["underlyingToken", "usdc"].forEach((tokenType: string) => {
                             describe(`When issuing from ${tokenType}`, () => {
                               let inputToken: IERC20;
                               beforeEach(async () => {
@@ -573,6 +588,132 @@ if (process.env.INTEGRATIONTEST) {
                                 );
                                 expect(spentAmount).to.be.lte(subjectMaxAmountInputToken);
                               });
+                            });
+                          });
+                        });
+                      });
+                    });
+                    describe("#redeemExactSetForETH", () => {
+                      let subjectSetToken: Address;
+                      let subjectSetAmount: BigNumber;
+                      let subjectMinAmountETH: BigNumber;
+                      let subjectComponentQuotes: string[];
+                      let subjectIssuanceModule: Address;
+                      let subjectIsDebtIssuance: boolean;
+                      let setAmountEth: number;
+                      let caller: Account;
+
+                      beforeEach(async () => {
+                        subjectSetToken = setToken.address;
+                        setAmountEth = 1;
+                        subjectSetAmount = ethers.utils.parseEther(setAmountEth.toString());
+                        subjectIssuanceModule = debtIssuanceModule.address;
+                        subjectIsDebtIssuance = true;
+                        subjectMinAmountETH = BigNumber.from(1000);
+                        subjectComponentQuotes = [];
+                        caller = owner;
+                      });
+
+                      function subject() {
+                        return exchangeIssuance
+                          .connect(caller.wallet)
+                          .redeemExactSetForETH(
+                            subjectSetToken,
+                            subjectSetAmount,
+                            subjectMinAmountETH,
+                            subjectComponentQuotes,
+                            subjectIssuanceModule,
+                            subjectIsDebtIssuance,
+                            { gasLimit: 750000000 },
+                          );
+                      }
+                      describe("When caller has enough set token to redeem", () => {
+                        beforeEach(async () => {
+                          await underlyingToken
+                            .connect(caller.wallet)
+                            .approve(exchangeIssuance.address, ethers.constants.MaxUint256);
+
+                          await exchangeIssuance
+                            .connect(caller.wallet)
+                            .issueExactSetFromToken(
+                              setToken.address,
+                              underlyingToken.address,
+                              subjectSetAmount,
+                              await underlyingToken.balanceOf(caller.address),
+                              [] as string[],
+                              debtIssuanceModule.address,
+                              true,
+                              { gasLimit: 750000000 },
+                            );
+                          await setToken.approve(
+                            exchangeIssuance.address,
+                            ethers.constants.MaxUint256,
+                          );
+                        });
+                        [false, true].forEach(hasMatured => {
+                          describe(`when component has ${!hasMatured ? "not " : ""}matured`, () => {
+                            let snapshotId: number;
+                            beforeEach(async () => {
+                              if (hasMatured) {
+                                snapshotId = await network.provider.send("evm_snapshot", []);
+                                await network.provider.send("evm_setNextBlockTimestamp", [
+                                  maturity.toNumber() + 1,
+                                ]);
+                                await network.provider.send("evm_mine", []);
+                                // TODO: Remove this statement and fix related issues
+                                await notionalTradeModule.redeemMaturedPositions(setToken.address);
+                              }
+
+                              const [
+                                filteredComponents,
+                                filteredUnits,
+                              ] = await exchangeIssuance.getFilteredComponentsRedemption(
+                                subjectSetToken,
+                                subjectSetAmount,
+                                subjectIssuanceModule,
+                                subjectIsDebtIssuance,
+                              );
+
+                              if (
+                                ethers.utils.getAddress(filteredComponents[0]) !=
+                                ethers.utils.getAddress(tokens.weth.address)
+                              ) {
+                                subjectMinAmountETH = (await owner.wallet.getBalance()).div(100);
+                                subjectComponentQuotes = [
+                                  getUniswapV2Quote(
+                                    filteredComponents[0],
+                                    filteredUnits[0].mul(99).div(100),
+                                    tokens.weth.address,
+                                    subjectMinAmountETH,
+                                  ),
+                                ];
+                                await tokens.weth.transfer(zeroExMock.address, subjectMinAmountETH);
+                              } else {
+                                subjectMinAmountETH = filteredUnits[0].mul(99).div(100);
+                              }
+                            });
+
+                            afterEach(async () => {
+                              if (hasMatured) {
+                                await network.provider.send("evm_revert", [snapshotId]);
+                              }
+                            });
+
+                            it("should redeem correct amount of set token", async () => {
+                              const balanceBefore = await setToken.balanceOf(caller.address);
+                              await subject();
+                              const redeemedAmount = balanceBefore.sub(
+                                await setToken.balanceOf(caller.address),
+                              );
+                              expect(redeemedAmount).to.eq(subjectSetAmount);
+                            });
+
+                            it("should return correct amount of ETH", async () => {
+                              const balanceBefore = await caller.wallet.getBalance();
+                              const txFee = await getTxFee(await subject());
+                              const balanceAfter = await caller.wallet.getBalance();
+                              const returnedAmount = balanceAfter.sub(balanceBefore).add(txFee);
+                              expect(returnedAmount).to.gte(subjectMinAmountETH);
                             });
                           });
                         });
@@ -653,9 +794,7 @@ if (process.env.INTEGRATIONTEST) {
                                 await network.provider.send("evm_revert", [snapshotId]);
                               }
                             });
-                            [
-                              // "underlyingToken", "usdc"
-                            ].forEach(tokenType => {
+                            ["underlyingToken", "usdc"].forEach(tokenType => {
                               describe(`When redeeming to ${tokenType}`, () => {
                                 let redeemAmountReturned: BigNumber;
                                 let outputToken: IERC20;
