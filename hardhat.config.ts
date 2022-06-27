@@ -8,6 +8,7 @@ import "hardhat-typechain";
 import "solidity-coverage";
 import "hardhat-deploy";
 import "hardhat-contract-sizer";
+import "hardhat-abi-exporter";
 import "./tasks";
 
 const INTEGRATIONTEST_TIMEOUT = 600000;
@@ -75,6 +76,13 @@ const config: HardhatUserConfig = {
   typechain: {
     outDir: "typechain",
     target: "ethers-v5",
+  },
+  abiExporter: {
+    path: "./abi",
+    runOnCompile: true,
+    clear: true,
+    flat: true,
+    spacing: 2,
   },
 };
 
