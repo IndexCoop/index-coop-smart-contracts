@@ -1,0 +1,268 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract IBaseManager",
+        "name": "_manager",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_currentLeverageRatio",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "_exchangeName",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bool",
+        "name": "_status",
+        "type": "bool"
+      }
+    ],
+    "name": "AnyoneCallableUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "_caller",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "_status",
+        "type": "bool"
+      }
+    ],
+    "name": "CallerStatusUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "enum FlexibleLeverageStrategyExtensionMock.ShouldRebalance",
+        "name": "_rebalance",
+        "type": "uint8"
+      }
+    ],
+    "name": "RebalanceEvent",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "anyoneCallable",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "callAllowList",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [],
+    "name": "currentLeverageRatio",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [],
+    "name": "exchangeName",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_exchangeName",
+        "type": "string"
+      }
+    ],
+    "name": "iterateRebalance",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [],
+    "name": "manager",
+    "outputs": [
+      {
+        "internalType": "contract IBaseManager",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_exchangeName",
+        "type": "string"
+      }
+    ],
+    "name": "rebalance",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_exchangeName",
+        "type": "string"
+      }
+    ],
+    "name": "ripcord",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [],
+    "name": "shouldRebalance",
+    "outputs": [
+      {
+        "internalType": "string[]",
+        "name": "",
+        "type": "string[]"
+      },
+      {
+        "internalType": "enum FlexibleLeverageStrategyExtensionMock.ShouldRebalance[]",
+        "name": "",
+        "type": "uint8[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_customMinLeverageRatio",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_customMaxLeverageRatio",
+        "type": "uint256"
+      }
+    ],
+    "name": "shouldRebalanceWithBounds",
+    "outputs": [
+      {
+        "internalType": "string[]",
+        "name": "",
+        "type": "string[]"
+      },
+      {
+        "internalType": "enum FlexibleLeverageStrategyExtensionMock.ShouldRebalance[]",
+        "name": "",
+        "type": "uint8[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "_status",
+        "type": "bool"
+      }
+    ],
+    "name": "updateAnyoneCallable",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_callers",
+        "type": "address[]"
+      },
+      {
+        "internalType": "bool[]",
+        "name": "_statuses",
+        "type": "bool[]"
+      }
+    ],
+    "name": "updateCallerStatus",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  }
+]

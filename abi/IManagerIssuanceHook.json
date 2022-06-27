@@ -1,0 +1,60 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_issueQuantity",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_sender",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_to",
+        "type": "address"
+      }
+    ],
+    "name": "invokePreIssueHook",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_redeemQuantity",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_sender",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_to",
+        "type": "address"
+      }
+    ],
+    "name": "invokePreRedeemHook",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  }
+]

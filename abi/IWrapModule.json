@@ -1,0 +1,142 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_underlyingToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_wrappedToken",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_wrappedUnits",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "_integrationName",
+        "type": "string"
+      }
+    ],
+    "name": "unwrap",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_wrappedToken",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_wrappedUnits",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "_integrationName",
+        "type": "string"
+      }
+    ],
+    "name": "unwrapWithEther",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_underlyingToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_wrappedToken",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_underlyingUnits",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "_integrationName",
+        "type": "string"
+      }
+    ],
+    "name": "wrap",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_wrappedToken",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_underlyingUnits",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "_integrationName",
+        "type": "string"
+      }
+    ],
+    "name": "wrapWithEther",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  }
+]

@@ -1,0 +1,121 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_components",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_coolOffPeriods",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "setCoolOffPeriods",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_components",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_exchanges",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "setExchanges",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_components",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_tradeMaximums",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "setTradeMaximums",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_newComponents",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_newComponentsTargetUnits",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_oldComponentsTargetUnits",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_positionMultiplier",
+        "type": "uint256"
+      }
+    ],
+    "name": "startRebalance",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "_status",
+        "type": "bool"
+      }
+    ],
+    "name": "updateAnyoneTrade",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "_traders",
+        "type": "address[]"
+      },
+      {
+        "internalType": "bool[]",
+        "name": "_statuses",
+        "type": "bool[]"
+      }
+    ],
+    "name": "updateTraderStatus",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  }
+]

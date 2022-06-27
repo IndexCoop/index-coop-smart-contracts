@@ -1,0 +1,132 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "int128",
+        "name": "n_coins",
+        "type": "int128"
+      },
+      {
+        "internalType": "uint256[8]",
+        "name": "balances",
+        "type": "uint256[8]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amp",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "fee",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256[8]",
+        "name": "rates",
+        "type": "uint256[8]"
+      },
+      {
+        "internalType": "uint256[8]",
+        "name": "precisions",
+        "type": "uint256[8]"
+      },
+      {
+        "internalType": "bool",
+        "name": "underlying",
+        "type": "bool"
+      },
+      {
+        "internalType": "int128",
+        "name": "i",
+        "type": "int128"
+      },
+      {
+        "internalType": "int128",
+        "name": "j",
+        "type": "int128"
+      },
+      {
+        "internalType": "uint256",
+        "name": "dy",
+        "type": "uint256"
+      }
+    ],
+    "name": "get_dx",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "int128",
+        "name": "n_coins",
+        "type": "int128"
+      },
+      {
+        "internalType": "uint256[8]",
+        "name": "balances",
+        "type": "uint256[8]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amp",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "fee",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256[8]",
+        "name": "rates",
+        "type": "uint256[8]"
+      },
+      {
+        "internalType": "uint256[8]",
+        "name": "precisions",
+        "type": "uint256[8]"
+      },
+      {
+        "internalType": "bool",
+        "name": "underlying",
+        "type": "bool"
+      },
+      {
+        "internalType": "int128",
+        "name": "i",
+        "type": "int128"
+      },
+      {
+        "internalType": "int128",
+        "name": "j",
+        "type": "int128"
+      },
+      {
+        "internalType": "uint256",
+        "name": "dx",
+        "type": "uint256"
+      }
+    ],
+    "name": "get_dy",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  }
+]

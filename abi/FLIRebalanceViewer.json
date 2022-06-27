@@ -1,0 +1,133 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract IFLIStrategyExtension",
+        "name": "_fliStrategyExtension",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IQuoter",
+        "name": "_uniswapV3Quoter",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IUniswapV2Router",
+        "name": "_uniswapV2Router",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "_uniswapV3ExchangeName",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "_uniswapV2ExchangeName",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "fliStrategyExtension",
+    "outputs": [
+      {
+        "internalType": "contract IFLIStrategyExtension",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_minLeverageRatio",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_maxLeverageRatio",
+        "type": "uint256"
+      }
+    ],
+    "name": "shouldRebalanceWithBounds",
+    "outputs": [
+      {
+        "internalType": "string[2]",
+        "name": "",
+        "type": "string[2]"
+      },
+      {
+        "internalType": "enum FlexibleLeverageStrategyExtension.ShouldRebalance[2]",
+        "name": "",
+        "type": "uint8[2]"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [],
+    "name": "uniswapV2ExchangeName",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [],
+    "name": "uniswapV2Router",
+    "outputs": [
+      {
+        "internalType": "contract IUniswapV2Router",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [],
+    "name": "uniswapV3ExchangeName",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [],
+    "name": "uniswapV3Quoter",
+    "outputs": [
+      {
+        "internalType": "contract IQuoter",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  }
+]

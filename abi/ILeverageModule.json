@@ -1,0 +1,138 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_collateralAsset",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_repayAsset",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_redeemQuantity",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_minRepayQuantity",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "_tradeAdapterName",
+        "type": "string"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_tradeData",
+        "type": "bytes"
+      }
+    ],
+    "name": "delever",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_collateralAsset",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_minNotionalReceiveQuantity",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "_tradeAdapterName",
+        "type": "string"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_tradeData",
+        "type": "bytes"
+      }
+    ],
+    "name": "gulp",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_borrowAsset",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_collateralAsset",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_borrowQuantity",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_minReceiveQuantity",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "_tradeAdapterName",
+        "type": "string"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_tradeData",
+        "type": "bytes"
+      }
+    ],
+    "name": "lever",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      }
+    ],
+    "name": "sync",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  }
+]

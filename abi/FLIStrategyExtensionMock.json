@@ -1,0 +1,354 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "string[]",
+        "name": "",
+        "type": "string[]"
+      }
+    ],
+    "name": "getChunkRebalanceNotional",
+    "outputs": [
+      {
+        "internalType": "uint256[]",
+        "name": "sizes",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "address",
+        "name": "sellAsset",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "buyAsset",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [],
+    "name": "getEnabledExchanges",
+    "outputs": [
+      {
+        "internalType": "string[]",
+        "name": "",
+        "type": "string[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_exchangeName",
+        "type": "string"
+      }
+    ],
+    "name": "getExchangeSettings",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "twapMaxTradeSize",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "exchangeLastTradeTimestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "incentivizedTwapMaxTradeSize",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "leverExchangeData",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "deleverExchangeData",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct FlexibleLeverageStrategyExtension.ExchangeSettings",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [],
+    "name": "getStrategy",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "contract ISetToken",
+            "name": "setToken",
+            "type": "address"
+          },
+          {
+            "internalType": "contract ILeverageModule",
+            "name": "leverageModule",
+            "type": "address"
+          },
+          {
+            "internalType": "contract IComptroller",
+            "name": "comptroller",
+            "type": "address"
+          },
+          {
+            "internalType": "contract IChainlinkAggregatorV3",
+            "name": "collateralPriceOracle",
+            "type": "address"
+          },
+          {
+            "internalType": "contract IChainlinkAggregatorV3",
+            "name": "borrowPriceOracle",
+            "type": "address"
+          },
+          {
+            "internalType": "contract ICErc20",
+            "name": "targetCollateralCToken",
+            "type": "address"
+          },
+          {
+            "internalType": "contract ICErc20",
+            "name": "targetBorrowCToken",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralAsset",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "borrowAsset",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collateralDecimalAdjustment",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "borrowDecimalAdjustment",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct FlexibleLeverageStrategyExtension.ContractSettings",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "_exchangeName",
+        "type": "string"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "twapMaxTradeSize",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "exchangeLastTradeTimestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "incentivizedTwapMaxTradeSize",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "leverExchangeData",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "deleverExchangeData",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct FlexibleLeverageStrategyExtension.ExchangeSettings",
+        "name": "_settings",
+        "type": "tuple"
+      }
+    ],
+    "name": "setExchangeSettings",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256[]",
+        "name": "_chunkRebalanceSizes",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "address",
+        "name": "_chunkRebalanceSellAsset",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_chunkRebalanceBuyAsset",
+        "type": "address"
+      }
+    ],
+    "name": "setGetChunkRebalanceWithBounds",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string[]",
+        "name": "_shouldRebalanceNames",
+        "type": "string[]"
+      },
+      {
+        "internalType": "enum FlexibleLeverageStrategyExtension.ShouldRebalance[]",
+        "name": "_shouldRebalancesEnums",
+        "type": "uint8[]"
+      }
+    ],
+    "name": "setShouldRebalanceWithBounds",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "contract ISetToken",
+            "name": "setToken",
+            "type": "address"
+          },
+          {
+            "internalType": "contract ILeverageModule",
+            "name": "leverageModule",
+            "type": "address"
+          },
+          {
+            "internalType": "contract IComptroller",
+            "name": "comptroller",
+            "type": "address"
+          },
+          {
+            "internalType": "contract IChainlinkAggregatorV3",
+            "name": "collateralPriceOracle",
+            "type": "address"
+          },
+          {
+            "internalType": "contract IChainlinkAggregatorV3",
+            "name": "borrowPriceOracle",
+            "type": "address"
+          },
+          {
+            "internalType": "contract ICErc20",
+            "name": "targetCollateralCToken",
+            "type": "address"
+          },
+          {
+            "internalType": "contract ICErc20",
+            "name": "targetBorrowCToken",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralAsset",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "borrowAsset",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collateralDecimalAdjustment",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "borrowDecimalAdjustment",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct FlexibleLeverageStrategyExtension.ContractSettings",
+        "name": "_strategy",
+        "type": "tuple"
+      }
+    ],
+    "name": "setStrategy",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "shouldRebalanceWithBounds",
+    "outputs": [
+      {
+        "internalType": "string[]",
+        "name": "",
+        "type": "string[]"
+      },
+      {
+        "internalType": "enum FlexibleLeverageStrategyExtension.ShouldRebalance[]",
+        "name": "",
+        "type": "uint8[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  }
+]

@@ -1,0 +1,270 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      }
+    ],
+    "name": "raiseAssetTargets",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "_status",
+        "type": "bool"
+      }
+    ],
+    "name": "setAnyoneTrade",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_components",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_coolOffPeriods",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "setCoolOffPeriods",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_components",
+        "type": "address[]"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "_exchangeData",
+        "type": "bytes[]"
+      }
+    ],
+    "name": "setExchangeData",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_components",
+        "type": "address[]"
+      },
+      {
+        "internalType": "string[]",
+        "name": "_exchangeNames",
+        "type": "string[]"
+      }
+    ],
+    "name": "setExchanges",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_raiseTargetPercentage",
+        "type": "uint256"
+      }
+    ],
+    "name": "setRaiseTargetPercentage",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_components",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_tradeMaximums",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "setTradeMaximums",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_traders",
+        "type": "address[]"
+      },
+      {
+        "internalType": "bool[]",
+        "name": "_statuses",
+        "type": "bool[]"
+      }
+    ],
+    "name": "setTraderStatus",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_newComponents",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_newComponentsTargetUnits",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "_oldComponentsTargetUnits",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_positionMultiplier",
+        "type": "uint256"
+      }
+    ],
+    "name": "startRebalance",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IERC20",
+        "name": "_component",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_ethQuantityLimit",
+        "type": "uint256"
+      }
+    ],
+    "name": "trade",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ISetToken",
+        "name": "_setToken",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IERC20",
+        "name": "_component",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_minComponentReceived",
+        "type": "uint256"
+      }
+    ],
+    "name": "tradeRemainingWETH",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  }
+]

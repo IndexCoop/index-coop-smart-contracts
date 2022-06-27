@@ -1,0 +1,119 @@
+[
+  {
+    "inputs": [],
+    "name": "getSpender",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_sourceToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_destinationToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_destinationAddress",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_sourceQuantity",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_minDestinationQuantity",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "name": "getTradeCalldata",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_sourceToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_destinationToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_destinationAddress",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_sourceQuantity",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "trade",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_token",
+        "type": "address"
+      }
+    ],
+    "name": "withdraw",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function",
+    "gas": "0xa7d8c0"
+  }
+]
