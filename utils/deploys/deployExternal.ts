@@ -95,8 +95,6 @@ import { SwapRouter__factory } from "../../typechain/factories/SwapRouter__facto
 import { NonfungiblePositionManager__factory } from "../../typechain/factories/NonfungiblePositionManager__factory";
 import { Quoter__factory } from "../../typechain/factories/Quoter__factory";
 import { NFTDescriptor__factory } from "../../typechain/factories/NFTDescriptor__factory";
-import { WrappedfCash__factory } from "../../typechain/factories/WrappedfCash__factory";
-import { WrappedfCashFactory__factory } from "../../typechain/factories/WrappedfCashFactory__factory";
 import { ether } from "@utils/common";
 
 
@@ -383,12 +381,4 @@ export default class DeployExternalContracts {
     return await new AaveTokenV2Mintable__factory(this._deployerSigner).deploy();
   }
 
-  // Notional
-  public async deployWrappedfCash(notionalProxy: Address, weth: Address) {
-    return await new WrappedfCash__factory(this._deployerSigner).deploy(notionalProxy, weth);
-  }
-
-  public async deployWrappedfCashFactory(beacon: Address) {
-    return await new WrappedfCashFactory__factory(this._deployerSigner).deploy(beacon);
-  }
 }
