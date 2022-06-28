@@ -2,7 +2,7 @@
 pragma solidity 0.6.10;
 pragma experimental "ABIEncoderV2";
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./IERC20Metadata.sol";
 
 /// @notice Different types of internal tokens
 ///  - UnderlyingToken: underlying asset for a cToken (except for Ether)
@@ -69,5 +69,5 @@ interface IWrappedfCash {
 }
 
 
-interface IWrappedfCashComplete is IWrappedfCash, IERC20 {} 
+interface IWrappedfCashComplete is IWrappedfCash, IERC20Metadata {} 
 

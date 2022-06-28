@@ -7,7 +7,6 @@ import {
   DebtIssuanceModule,
   ExchangeIssuanceNotional,
   ZeroExExchangeProxyMock,
-  WrappedfCash,
 } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
@@ -119,27 +118,12 @@ if (process.env.INTEGRATIONTEST) {
             });
 
             describe("When WrappedfCash is deployed", () => {
-              let wrappedfCashImplementation: WrappedfCash;
               let wrappedfCashInstance: IWrappedfCashComplete;
               let currencyId: number;
               let maturity: BigNumber;
               let wrappedfCashFactory: IWrappedfCashFactory;
 
               before(async () => {
-                wrappedfCashImplementation = await deployer.external.deployWrappedfCash(
-                  STAGING_ADDRESSES.lending.notional.notionalV2,
-                  tokens.weth.address,
-                );
-
-                const nUpgreadeableBeacon = await ethers.getContractAt(
-                  "nUpgradeableBeacon",
-                  STAGING_ADDRESSES.lending.notional.nUpgreadableBeacon,
-                );
-                const beaconOwner = await impersonateAccount(await nUpgreadeableBeacon.owner());
-                await nUpgreadeableBeacon
-                  .connect(beaconOwner)
-                  .upgradeTo(wrappedfCashImplementation.address);
-
                 wrappedfCashFactory = (await ethers.getContractAt(
                   "IWrappedfCashFactory",
                   STAGING_ADDRESSES.lending.notional.wrappedfCashFactory,
@@ -150,6 +134,7 @@ if (process.env.INTEGRATIONTEST) {
                   maturity,
                 );
                 await wrappedfCashFactory.deployWrapper(currencyId, maturity);
+
                 wrappedfCashInstance = (await ethers.getContractAt(
                   "contracts/interfaces/IWrappedfCash.sol:IWrappedfCashComplete",
                   wrappedfCashAddress,

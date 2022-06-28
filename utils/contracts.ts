@@ -9,5 +9,3 @@ export { IndexPowah } from "../typechain/IndexPowah";
 export { FTCVesting } from "../typechain/FTCVesting";
 export { FLIRebalanceViewer } from "../typechain/FLIRebalanceViewer";
 export { INotionalProxy } from "../typechain/INotionalProxy";
-export { WrappedfCash } from "../typechain/WrappedfCash";
-export { WrappedfCashFactory } from "../typechain/WrappedfCashFactory";
