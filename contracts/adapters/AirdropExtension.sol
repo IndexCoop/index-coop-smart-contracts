@@ -61,9 +61,6 @@ contract AirdropExtension is BaseExtension {
      * @param _airdropSettings  Settings to initially the AirdropModule with
      */
     function initializeAirdropModule(IAirdropModule.AirdropSettings memory _airdropSettings) external onlyOperator {
-        _airdropSettings.feeRecipient = address(manager);
-        _airdropSettings.airdropFee = 0;
-
         invokeManager(
             address(airdropModule),
             abi.encodeWithSignature("initialize(address,(address[],address,uint256,bool))", setToken, _airdropSettings)
