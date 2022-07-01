@@ -67,7 +67,6 @@ describe("ExchangeIssuanceNotional", () => {
   let wethAddress: Address;
   let wbtcAddress: Address;
   let daiAddress: Address;
-  let usdcAddress: Address;
   let quickswapRouter: UniswapV2Router02;
   let sushiswapRouter: UniswapV2Router02;
   let uniswapV3RouterAddress: Address;
@@ -92,8 +91,6 @@ describe("ExchangeIssuanceNotional", () => {
     wethAddress = setV2Setup.weth.address;
     wbtcAddress = setV2Setup.wbtc.address;
     daiAddress = setV2Setup.dai.address;
-    usdcAddress = setV2Setup.usdc.address;
-    console.log({ wethAddress, wbtcAddress, daiAddress, usdcAddress });
 
     quickswapSetup = getUniswapFixture(owner.address);
     await quickswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
@@ -135,8 +132,7 @@ describe("ExchangeIssuanceNotional", () => {
       await network.provider.send("evm_revert", [snapshotId]);
     });
 
-
-    ["dai", "weth"].forEach((underlyingTokenName) => {
+    ["dai", "weth"].forEach(underlyingTokenName => {
       describe(`When underlying token is ${underlyingTokenName}`, () => {
         let assetToken: CERc20;
         let underlyingToken: StandardTokenMock;
@@ -214,7 +210,7 @@ describe("ExchangeIssuanceNotional", () => {
               underlyingPosition = ethers.utils.parseEther("1");
 
               setToken = await setV2Setup.createSetToken(
-                [...wrappedfCashMocks.map((mock) => mock.address), underlyingToken.address],
+                [...wrappedfCashMocks.map(mock => mock.address), underlyingToken.address],
                 [...wrappedfCashMocks.map(() => fCashPosition), underlyingPosition],
                 [debtIssuanceModule.address],
                 manager.address,
@@ -411,7 +407,6 @@ describe("ExchangeIssuanceNotional", () => {
 
                         const [
                           filteredComponents,
-                          filteredUnits,
                         ] = await exchangeIssuance.getFilteredComponentsIssuance(
                           subjectSetToken,
                           subjectSetAmount,
@@ -426,11 +421,9 @@ describe("ExchangeIssuanceNotional", () => {
                             exchange: Exchange.UniV3,
                           };
                         });
-                        console.log(filteredComponents, filteredUnits);
 
                         if (tokenType == "usdc") {
-                          console.log("Creating new pair");
-                            const tokenRatio = underlyingTokenName == "weth" ? 3000 : 1;
+                          const tokenRatio = underlyingTokenName == "weth" ? 3000 : 1;
                           await uniswapV3Setup.createNewPair(
                             underlyingToken,
                             setV2Setup.usdc,
@@ -445,8 +438,7 @@ describe("ExchangeIssuanceNotional", () => {
                             uniswapV3Setup.nftPositionManager.address,
                             MAX_UINT_256,
                           );
-                          console.log("Adding liquidity");
-                            const underlyingTokenAmount = underlyingTokenName == "weth" ? 100 : 10000;
+                          const underlyingTokenAmount = underlyingTokenName == "weth" ? 100 : 10000;
                           await uniswapV3Setup.addLiquidityWide(
                             underlyingToken,
                             setV2Setup.usdc,
@@ -455,18 +447,12 @@ describe("ExchangeIssuanceNotional", () => {
                             usdc(underlyingTokenAmount * tokenRatio),
                             owner.address,
                           );
-                          console.log("Done");
                         }
 
                         subjectMaxAmountInputToken = await inputToken.balanceOf(caller.address);
-                        console.log({
-                          subjectMaxAmountInputToken: subjectMaxAmountInputToken.toString(),
-                        });
 
                         for (const wrappedfCashMock of wrappedfCashMocks) {
-                          await wrappedfCashMock.setMintTokenSpent(
-                            subjectMaxAmountInputToken.div(wrappedfCashMocks.length + 1).div(100),
-                          );
+                          await wrappedfCashMock.setMintTokenSpent(10000);
                         }
 
                         expect(subjectMaxAmountInputToken).to.be.gt(0);
@@ -506,8 +492,7 @@ describe("ExchangeIssuanceNotional", () => {
                     subjectSetAmount = ethers.utils.parseEther("1");
                     subjectIssuanceModule = debtIssuanceModule.address;
                     subjectIsDebtIssuance = true;
-                    subjectMinAmountOutputToken = BigNumber.from(0);
-                    subjectComponentQuotes = [];
+                    subjectMinAmountOutputToken = BigNumber.from(1000);
                     caller = owner;
                   });
                   function subject() {
@@ -551,7 +536,7 @@ describe("ExchangeIssuanceNotional", () => {
                         );
                       await setToken.approve(exchangeIssuance.address, ethers.constants.MaxUint256);
                     });
-                    ["underlyingToken", "usdc"].forEach((tokenType) => {
+                    ["underlyingToken", "usdc"].forEach(tokenType => {
                       describe(`When redeeming to ${tokenType}`, () => {
                         let redeemAmountReturned: BigNumber;
                         let outputToken: CERc20 | StandardTokenMock;
@@ -566,7 +551,8 @@ describe("ExchangeIssuanceNotional", () => {
                           subjectMinAmountOutputToken =
                             tokenType == "underlyingToken"
                               ? redeemAmountReturned
-                              : (await outputToken.balanceOf(owner.address)).div(100);
+                              : BigNumber.from(1000);
+
                           for (const wrappedfCashMock of wrappedfCashMocks) {
                             await wrappedfCashMock.setRedeemTokenReturned(redeemAmountReturned);
                             await outputToken.transfer(
@@ -591,6 +577,34 @@ describe("ExchangeIssuanceNotional", () => {
                               exchange: Exchange.UniV3,
                             };
                           });
+
+                          if (tokenType == "usdc") {
+                            const tokenRatio = underlyingTokenName == "weth" ? 3000 : 1;
+                            await uniswapV3Setup.createNewPair(
+                              underlyingToken,
+                              setV2Setup.usdc,
+                              3000,
+                              tokenRatio,
+                            );
+                            await underlyingToken.approve(
+                              uniswapV3Setup.nftPositionManager.address,
+                              MAX_UINT_256,
+                            );
+                            await setV2Setup.usdc.approve(
+                              uniswapV3Setup.nftPositionManager.address,
+                              MAX_UINT_256,
+                            );
+                            const underlyingTokenAmount =
+                              underlyingTokenName == "weth" ? 100 : 10000;
+                            await uniswapV3Setup.addLiquidityWide(
+                              underlyingToken,
+                              setV2Setup.usdc,
+                              3000,
+                              ether(underlyingTokenAmount),
+                              usdc(underlyingTokenAmount * tokenRatio),
+                              owner.address,
+                            );
+                          }
                         });
                         it("should redeem correct amount of set token", async () => {
                           const balanceBefore = await setToken.balanceOf(caller.address);

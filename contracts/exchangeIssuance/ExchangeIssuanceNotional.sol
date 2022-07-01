@@ -449,7 +449,15 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         returns (uint256)
     {
 
-        uint256 outputAmount = _redeemExactSetForToken(_setToken, _outputToken, _amountSetToken, _minOutputReceive, _swapData, _issuanceModule, _isDebtIssuance);
+        TradeData memory tradeData = TradeData(
+            _setToken,
+            _amountSetToken,
+            _outputToken,
+            _minOutputReceive,
+            _issuanceModule,
+            _isDebtIssuance
+        );
+        uint256 outputAmount = _redeemExactSetForToken(tradeData, _swapData);
         // Transfer sender output token
         _outputToken.safeTransfer(msg.sender, outputAmount);
         // Return output amount
@@ -471,7 +479,15 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     {
 
         
-        uint256 outputAmount = _redeemExactSetForToken(_setToken, IERC20(addresses.weth), _amountSetToken, _minOutputReceive, _swapData, _issuanceModule, _isDebtIssuance);
+        TradeData memory tradeData = TradeData(
+            _setToken,
+            _amountSetToken,
+            IERC20(addresses.weth),
+            _minOutputReceive,
+            _issuanceModule,
+            _isDebtIssuance
+        );
+        uint256 outputAmount = _redeemExactSetForToken(tradeData, _swapData);
         // Transfer sender output token
         IWETH(addresses.weth).withdraw(outputAmount);
         payable(msg.sender).transfer(outputAmount);
@@ -481,46 +497,37 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
 
 
     function _redeemExactSetForToken(
-        ISetToken _setToken,
-        IERC20 _outputToken,
-        uint256 _amountSetToken,
-        uint256 _minOutputReceive,
-        DEXAdapter.SwapData[] memory _swapData,
-        address _issuanceModule,
-        bool _isDebtIssuance
+        TradeData memory _tradeData,
+        DEXAdapter.SwapData[] memory _swapData
     )
         internal
         returns (uint256)
     {
 
-        uint256 outputTokenBalanceBefore = _outputToken.balanceOf(address(this));
-        notionalTradeModule.redeemMaturedPositions(_setToken);
-        _redeemExactSet(_setToken, _amountSetToken, _issuanceModule);
+        uint256 outputTokenBalanceBefore = _tradeData.paymentToken.balanceOf(address(this));
+        notionalTradeModule.redeemMaturedPositions(_tradeData.setToken);
+        _redeemExactSet(_tradeData.setToken, _tradeData.amountSetToken, _tradeData.issuanceModule);
 
-        _redeemWrappedFCashPositions(_setToken, _amountSetToken, _outputToken, _issuanceModule, _isDebtIssuance);
-        _sellComponentsForOutputToken(_setToken, _amountSetToken, _swapData, _outputToken, _issuanceModule, _isDebtIssuance);
+        _redeemWrappedFCashPositions(_tradeData);
+        _sellComponentsForOutputToken(_tradeData, _swapData);
 
-        uint256 outputAmount = _outputToken.balanceOf(address(this)).sub(outputTokenBalanceBefore);
+        uint256 outputAmount = _tradeData.paymentToken.balanceOf(address(this)).sub(outputTokenBalanceBefore);
 
-        require(outputAmount >= _minOutputReceive, "ExchangeIssuance: UNDERBOUGHT");
+        require(outputAmount >= _tradeData.limitAmount, "ExchangeIssuance: UNDERBOUGHT");
         // Emit event
-        emit ExchangeRedeem(msg.sender, _setToken, _outputToken, _amountSetToken, outputAmount);
+        emit ExchangeRedeem(msg.sender, _tradeData.setToken, _tradeData.paymentToken, _tradeData.amountSetToken, outputAmount);
         // Return output amount
         return outputAmount;
     }
 
 
     function _sellComponentsForOutputToken(
-        ISetToken _setToken,
-        uint256 _amountSetToken,
-        DEXAdapter.SwapData[] memory _swapData,
-        IERC20 _outputToken,
-        address _issuanceModule,
-        bool _isDebtIssuance
+        TradeData memory _tradeData,
+        DEXAdapter.SwapData[] memory _swapData
     )
         internal
     {
-        (address[] memory components, uint256[] memory componentUnits) = _getFilteredComponentsRedemption(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance);
+        (address[] memory components, uint256[] memory componentUnits) = _getFilteredComponentsRedemption(_tradeData.setToken, _tradeData.amountSetToken, _tradeData.issuanceModule, _tradeData.isDebtIssuance);
         require(components.length == _swapData.length, "Components / Swapdata mismatch");
 
         for (uint256 i = 0; i < components.length; i++) {
@@ -531,11 +538,10 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
             }
 
             // If the component is equal to the output token we don't have to trade
-            if(component != address(_outputToken)) {
+            if(component != address(_tradeData.paymentToken)) {
                 uint256 componentBalanceBefore = IERC20(component).balanceOf(address(this));
 
                 addresses.swapExactTokensForTokens(maxAmountSell, 0, _swapData[i]);
-
                 uint256 componentBalanceAfter = IERC20(component).balanceOf(address(this));
                 uint256 componentAmountSold = componentBalanceBefore.sub(componentBalanceAfter);
                 require(maxAmountSell >= componentAmountSold, "ExchangeIssuance: OVERSOLD COMPONENT");
@@ -559,15 +565,16 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     }
 
     function _redeemWrappedFCashPositions(
-        ISetToken _setToken,
-        uint256 _amountSetToken,
-        IERC20 _outputToken,
-        address _issuanceModule,
-        bool _isDebtIssuance
+        TradeData memory _tradeData
     ) 
     internal
     {
-        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(_issuanceModule, _isDebtIssuance, _setToken, _amountSetToken);
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(
+            _tradeData.issuanceModule,
+            _tradeData.isDebtIssuance,
+            _tradeData.setToken,
+            _tradeData.amountSetToken
+        );
 
         for (uint256 i = 0; i < components.length; i++) {
             address component = components[i];
