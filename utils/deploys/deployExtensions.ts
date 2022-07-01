@@ -220,14 +220,36 @@ export default class DeployExtensions {
     setControllerAddress: Address,
     wrappedfCashFactory: Address,
     notionalTradeModule: Address,
-    swapTarget: Address,
+    quickRouter: Address,
+    sushiRouter: Address,
+    uniV3Router: Address,
+    uniV3Quoter: Address,
+    curveAddressProvider: Address,
+    curveCalculator: Address,
   ): Promise<ExchangeIssuanceNotional> {
-    return await new ExchangeIssuanceNotional__factory(this._deployerSigner).deploy(
+    const dexAdapter = await this.deployDEXAdapter();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
+    );
+
+    return await new ExchangeIssuanceNotional__factory( // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
       wethAddress,
       setControllerAddress,
       wrappedfCashFactory,
       notionalTradeModule,
-      swapTarget,
+      quickRouter,
+      sushiRouter,
+      uniV3Router,
+      uniV3Quoter,
+      curveAddressProvider,
+      curveCalculator,
     );
   }
 

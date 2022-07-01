@@ -9,51 +9,131 @@ import {
   StandardTokenMock,
   WrappedfCashMock,
   WrappedfCashFactoryMock,
-  ZeroExExchangeProxyMock,
 } from "@utils/contracts/index";
+import { UniswapV2Router02 } from "@utils/contracts/uniswap";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
-import { ether } from "@utils/index";
-import { getAccounts, getSetFixture, getCompoundFixture, getWaffleExpect } from "@utils/index";
-import { CompoundFixture, SetFixture } from "@utils/fixtures";
-import { ADDRESS_ZERO } from "@utils/constants";
+import { ether, usdc } from "@utils/index";
+import {
+  getAccounts,
+  getSetFixture,
+  getCompoundFixture,
+  getWaffleExpect,
+  getUniswapFixture,
+  getUniswapV3Fixture,
+} from "@utils/index";
+import { CompoundFixture, SetFixture, UniswapFixture, UniswapV3Fixture } from "@utils/fixtures";
+import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { CERc20 } from "@utils/contracts/compound";
 
 const expect = getWaffleExpect();
+
+enum Exchange {
+  None,
+  Quickswap,
+  Sushiswap,
+  UniV3,
+}
+
+type SwapData = {
+  path: Address[];
+  fees: number[];
+  pool: Address;
+  exchange: Exchange;
+};
+
+const emptySwapData: SwapData = {
+  path: [],
+  fees: [],
+  pool: ADDRESS_ZERO,
+  exchange: Exchange.None,
+};
 
 describe("ExchangeIssuanceNotional", () => {
   let owner: Account;
   let deployer: DeployHelper;
   let manager: Account;
-  let setup: SetFixture;
+  let setV2Setup: SetFixture;
+
+  let quickswapSetup: UniswapFixture;
+  let sushiswapSetup: UniswapFixture;
+  let uniswapV3Setup: UniswapV3Fixture;
 
   let debtIssuanceModule: DebtIssuanceModule;
 
   let compoundSetup: CompoundFixture;
   let cTokenInitialMantissa: BigNumber;
 
+  let wethAddress: Address;
+  let wbtcAddress: Address;
+  let daiAddress: Address;
+  let quickswapRouter: UniswapV2Router02;
+  let sushiswapRouter: UniswapV2Router02;
+  let uniswapV3RouterAddress: Address;
+  let uniswapV3QuoterAddress: Address;
+  let curveCalculatorAddress: Address;
+  let curveAddressProviderAddress: Address;
+
   before(async () => {
     [owner, manager] = await getAccounts();
 
     deployer = new DeployHelper(owner.wallet);
 
-    setup = getSetFixture(owner.address);
-    await setup.initialize();
+    setV2Setup = getSetFixture(owner.address);
+    await setV2Setup.initialize();
 
-    debtIssuanceModule = setup.debtIssuanceModule;
+    debtIssuanceModule = setV2Setup.debtIssuanceModule;
 
     compoundSetup = getCompoundFixture(owner.address);
     await compoundSetup.initialize();
     cTokenInitialMantissa = ether(200000000);
+
+    wethAddress = setV2Setup.weth.address;
+    wbtcAddress = setV2Setup.wbtc.address;
+    daiAddress = setV2Setup.dai.address;
+
+    quickswapSetup = getUniswapFixture(owner.address);
+    await quickswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
+
+    sushiswapSetup = getUniswapFixture(owner.address);
+    await sushiswapSetup.initialize(owner, wethAddress, wbtcAddress, daiAddress);
+
+    uniswapV3Setup = getUniswapV3Fixture(owner.address);
+    await uniswapV3Setup.initialize(
+      owner,
+      setV2Setup.weth,
+      3000,
+      setV2Setup.wbtc,
+      40000,
+      setV2Setup.dai,
+    );
+
+    uniswapV3RouterAddress = uniswapV3Setup.swapRouter.address;
+    await uniswapV3Setup.createNewPair(setV2Setup.weth, setV2Setup.usdc, 3000, 3000);
+
+    await setV2Setup.weth.approve(uniswapV3Setup.nftPositionManager.address, MAX_UINT_256);
+    await setV2Setup.usdc.approve(uniswapV3Setup.nftPositionManager.address, MAX_UINT_256);
+    await uniswapV3Setup.addLiquidityWide(
+      setV2Setup.weth,
+      setV2Setup.usdc,
+      3000,
+      ether(100),
+      usdc(300_000),
+      owner.address,
+    );
+
+    quickswapRouter = quickswapSetup.router;
+    sushiswapRouter = sushiswapSetup.router;
+    curveCalculatorAddress = ADDRESS_ZERO;
+    curveAddressProviderAddress = ADDRESS_ZERO;
+    uniswapV3QuoterAddress = ADDRESS_ZERO;
   });
 
   describe("when general mocks are deployed", async () => {
     let wrappedfCashFactoryMock: WrappedfCashFactoryMock;
-    let zeroExMock: ZeroExExchangeProxyMock;
     let snapshotId: number;
     before(async () => {
       wrappedfCashFactoryMock = await deployer.mocks.deployWrappedfCashFactoryMock();
-      zeroExMock = await deployer.mocks.deployZeroExExchangeProxyMock();
     });
 
     beforeEach(async () => {
@@ -64,30 +144,15 @@ describe("ExchangeIssuanceNotional", () => {
       await network.provider.send("evm_revert", [snapshotId]);
     });
 
-    // Helper function to generate 0xAPI quote for UniswapV2
-    const getUniswapV2Quote = (
-      sellToken: Address,
-      sellAmount: BigNumber,
-      buyToken: Address,
-      minBuyAmount: BigNumber,
-    ): string => {
-      const isSushi = false;
-      return zeroExMock.interface.encodeFunctionData("sellToUniswap", [
-        [sellToken, buyToken],
-        sellAmount,
-        minBuyAmount,
-        isSushi,
-      ]);
-    };
 
-    ["dai", "weth"].forEach(underlyingTokenName => {
+    ["dai", "weth"].forEach((underlyingTokenName) => {
       describe(`When underlying token is ${underlyingTokenName}`, () => {
         let assetToken: CERc20;
         let underlyingToken: StandardTokenMock;
 
         beforeEach(async () => {
           // @ts-ignore
-          underlyingToken = setup[underlyingTokenName];
+          underlyingToken = setV2Setup[underlyingTokenName];
           assetToken = await compoundSetup.createAndEnableCToken(
             underlyingToken.address,
             cTokenInitialMantissa,
@@ -110,7 +175,9 @@ describe("ExchangeIssuanceNotional", () => {
           let maturities: Array<number>;
           beforeEach(async () => {
             const underlyingAddress =
-              underlyingToken.address == setup.weth.address ? ADDRESS_ZERO : underlyingToken.address;
+              underlyingToken.address == setV2Setup.weth.address
+                ? ADDRESS_ZERO
+                : underlyingToken.address;
             currencyId = 1;
             maturities = [30, 90];
             wrappedfCashMocks = [];
@@ -119,7 +186,7 @@ describe("ExchangeIssuanceNotional", () => {
               const wrappedfCashMock = await deployer.mocks.deployWrappedfCashMock(
                 assetToken.address,
                 underlyingAddress,
-                setup.weth.address,
+                setV2Setup.weth.address,
               );
 
               const maturity =
@@ -155,8 +222,8 @@ describe("ExchangeIssuanceNotional", () => {
               fCashPosition = ethers.utils.parseUnits("2", 9);
               underlyingPosition = ethers.utils.parseEther("1");
 
-              setToken = await setup.createSetToken(
-                [...wrappedfCashMocks.map(mock => mock.address), underlyingToken.address],
+              setToken = await setV2Setup.createSetToken(
+                [...wrappedfCashMocks.map((mock) => mock.address), underlyingToken.address],
                 [...wrappedfCashMocks.map(() => fCashPosition), underlyingPosition],
                 [debtIssuanceModule.address],
                 manager.address,
@@ -204,11 +271,16 @@ describe("ExchangeIssuanceNotional", () => {
               beforeEach(async () => {
                 notionalTradeModule = await deployer.mocks.deployNotionalTradeModuleMock();
                 exchangeIssuance = await deployer.extensions.deployExchangeIssuanceNotional(
-                  setup.weth.address,
-                  setup.controller.address,
+                  setV2Setup.weth.address,
+                  setV2Setup.controller.address,
                   wrappedfCashFactoryMock.address,
                   notionalTradeModule.address,
-                  zeroExMock.address,
+                  quickswapRouter.address,
+                  sushiswapRouter.address,
+                  uniswapV3RouterAddress,
+                  uniswapV3QuoterAddress,
+                  curveAddressProviderAddress,
+                  curveCalculatorAddress,
                 );
               });
 
@@ -304,7 +376,7 @@ describe("ExchangeIssuanceNotional", () => {
                   let subjectInputToken: Address;
                   let subjectSetAmount: BigNumber;
                   let subjectMaxAmountInputToken: BigNumber;
-                  let subjectComponentQuotes: string[];
+                  let subjectComponentQuotes: SwapData[];
                   let subjectIssuanceModule: Address;
                   let subjectIsDebtIssuance: boolean;
                   let caller: Account;
@@ -338,7 +410,7 @@ describe("ExchangeIssuanceNotional", () => {
                       beforeEach(async () => {
                         inputToken =
                           // @ts-ignore
-                          tokenType == "underlyingToken" ? underlyingToken : setup[tokenType];
+                          tokenType == "underlyingToken" ? underlyingToken : setV2Setup[tokenType];
 
                         await inputToken.approve(
                           exchangeIssuance.address,
@@ -355,27 +427,22 @@ describe("ExchangeIssuanceNotional", () => {
                         }
                         expect(subjectMaxAmountInputToken).to.be.gt(0);
 
-                        if (tokenType != "underlyingToken") {
-                          const [
-                            filteredComponents,
-                            filteredUnits,
-                          ] = await exchangeIssuance.getFilteredComponentsIssuance(
-                            subjectSetToken,
-                            subjectSetAmount,
-                            subjectIssuanceModule,
-                            subjectIsDebtIssuance,
-                          );
-                          const amountToReturn = filteredUnits[0].mul(101).div(100);
-                          subjectComponentQuotes = [
-                            getUniswapV2Quote(
-                              inputToken.address,
-                              subjectMaxAmountInputToken.div(10),
-                              filteredComponents[0],
-                              amountToReturn,
-                            ),
-                          ];
-                          await underlyingToken.transfer(zeroExMock.address, amountToReturn);
-                        }
+                        const [
+                          filteredComponents,
+                        ] = await exchangeIssuance.getFilteredComponentsIssuance(
+                          subjectSetToken,
+                          subjectSetAmount,
+                          subjectIssuanceModule,
+                          subjectIsDebtIssuance,
+                        );
+                        subjectComponentQuotes = filteredComponents.map((component: Address) => {
+                          return {
+                            path: [inputToken.address, component],
+                            fees: [3000],
+                            pool: ADDRESS_ZERO,
+                            exchange: Exchange.UniV3,
+                          };
+                        });
                       });
 
                       it("should issue correct amount of set token", async () => {
@@ -403,7 +470,7 @@ describe("ExchangeIssuanceNotional", () => {
                   let subjectOutputToken: Address;
                   let subjectSetAmount: BigNumber;
                   let subjectMinAmountOutputToken: BigNumber;
-                  let subjectComponentQuotes: string[];
+                  let subjectComponentQuotes: SwapData[];
                   let subjectIssuanceModule: Address;
                   let subjectIsDebtIssuance: boolean;
                   let caller: Account;
@@ -436,6 +503,15 @@ describe("ExchangeIssuanceNotional", () => {
                         .approve(exchangeIssuance.address, ethers.constants.MaxUint256);
 
                       console.log("Issuing some set for the caller");
+                      const [
+                        filteredComponents,
+                      ] = await exchangeIssuance.getFilteredComponentsIssuance(
+                        subjectSetToken,
+                        subjectSetAmount,
+                        subjectIssuanceModule,
+                        subjectIsDebtIssuance,
+                      );
+                      const swapData = filteredComponents.map(() => emptySwapData);
                       await exchangeIssuance
                         .connect(caller.wallet)
                         .issueExactSetFromToken(
@@ -443,21 +519,22 @@ describe("ExchangeIssuanceNotional", () => {
                           underlyingToken.address,
                           subjectSetAmount,
                           await underlyingToken.balanceOf(caller.address),
-                          [] as string[],
+                          swapData,
                           debtIssuanceModule.address,
                           true,
                         );
-                      console.log("done");
                       await setToken.approve(exchangeIssuance.address, ethers.constants.MaxUint256);
                     });
-                    ["underlyingToken", "usdc"].forEach(tokenType => {
+                    ["underlyingToken", "usdc"].forEach((tokenType) => {
                       describe(`When redeeming to ${tokenType}`, () => {
                         let redeemAmountReturned: BigNumber;
                         let outputToken: CERc20 | StandardTokenMock;
                         beforeEach(async () => {
                           outputToken =
-                            // @ts-ignore
-                            tokenType == "underlyingToken" ? underlyingToken : setup[tokenType];
+                            tokenType == "underlyingToken"
+                              ? underlyingToken
+                              : // @ts-ignore
+                                setV2Setup[tokenType];
                           subjectOutputToken = outputToken.address;
                           redeemAmountReturned = BigNumber.from(1000);
                           subjectMinAmountOutputToken =
@@ -472,29 +549,22 @@ describe("ExchangeIssuanceNotional", () => {
                             );
                           }
 
-                          if (tokenType != "underlyingToken") {
-                            const [
-                              filteredComponents,
-                              filteredUnits,
-                            ] = await exchangeIssuance.getFilteredComponentsRedemption(
-                              subjectSetToken,
-                              subjectSetAmount,
-                              subjectIssuanceModule,
-                              subjectIsDebtIssuance,
-                            );
-                            subjectComponentQuotes = [
-                              getUniswapV2Quote(
-                                filteredComponents[0],
-                                filteredUnits[0],
-                                outputToken.address,
-                                subjectMinAmountOutputToken,
-                              ),
-                            ];
-                            await outputToken.transfer(
-                              zeroExMock.address,
-                              subjectMinAmountOutputToken,
-                            );
-                          }
+                          const [
+                            filteredComponents,
+                          ] = await exchangeIssuance.getFilteredComponentsIssuance(
+                            subjectSetToken,
+                            subjectSetAmount,
+                            subjectIssuanceModule,
+                            subjectIsDebtIssuance,
+                          );
+                          subjectComponentQuotes = filteredComponents.map((component: Address) => {
+                            return {
+                              path: [component, outputToken.address],
+                              fees: [3000],
+                              pool: ADDRESS_ZERO,
+                              exchange: Exchange.UniV3,
+                            };
+                          });
                         });
                         it("should redeem correct amount of set token", async () => {
                           const balanceBefore = await setToken.balanceOf(caller.address);
