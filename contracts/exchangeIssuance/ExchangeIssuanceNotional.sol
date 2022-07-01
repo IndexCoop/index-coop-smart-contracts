@@ -48,9 +48,13 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     using SafeERC20 for ISetToken;
     using DEXAdapter for DEXAdapter.Addresses;
 
-    struct IssuanceModuleData {
-        bool isAllowed;
-        bool isDebtIssuanceModule;
+    struct TradeData {
+        ISetToken setToken;
+        uint256 amountSetToken;
+        IERC20 paymentToken;
+        uint256 limitAmount;
+        address issuanceModule;
+        bool isDebtIssuance;
     }
 
     /* ============ Constants ============== */
@@ -194,7 +198,40 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         address _issuanceModule,
         bool _isDebtIssuance
     )
-        public
+        external
+        view
+        returns (address[] memory filteredComponents, uint[] memory filteredUnits)
+    {
+        return _getFilteredComponentsRedemption(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance);
+
+    }
+
+    /**
+     * Returns filtered components after redeeming matured positions
+     * THIS METHOD SHOULD ONLY BE CALLED WITH STATICCALL
+     *
+     */
+    function getFilteredComponentsRedemptionAfterMaturityRedemption(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        address _issuanceModule,
+        bool _isDebtIssuance
+    )
+        external
+        returns (address[] memory filteredComponents, uint[] memory filteredUnits)
+    {
+        notionalTradeModule.redeemMaturedPositions(_setToken);
+        return _getFilteredComponentsRedemption(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance);
+
+    }
+
+    function _getFilteredComponentsRedemption(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        address _issuanceModule,
+        bool _isDebtIssuance
+    )
+        internal
         view
         returns (address[] memory filteredComponents, uint[] memory filteredUnits)
     {
@@ -217,6 +254,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
                 units = componentUnits[i];
             }
 
+            // TODO: Gas optimization analogous to notionalTradeModule
             uint256 componentIndex = _findComponent(filteredComponents, component);
             if(componentIndex > 0){
                 filteredUnits[componentIndex - 1] = filteredUnits[componentIndex - 1].add(units);
@@ -227,6 +265,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
             }
         }
     }
+
     /**
      * Returns components and units but replaces wrappefCash positions with the corresponding amount of underlying token needed to mint 
      *
@@ -237,7 +276,40 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         address _issuanceModule,
         bool _isDebtIssuance
     )
-        public
+        external
+        view
+        returns (address[] memory filteredComponents, uint[] memory filteredUnits)
+    {
+        return _getFilteredComponentsIssuance(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance);
+
+    }
+
+    /**
+     * Returns filtered components after redeeming matured positions
+     * THIS METHOD SHOULD ONLY BE CALLED WITH STATICCALL
+     *
+     */
+    function getFilteredComponentsIssuanceAfterMaturityRedemption(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        address _issuanceModule,
+        bool _isDebtIssuance
+    )
+        external
+        returns (address[] memory filteredComponents, uint[] memory filteredUnits)
+    {
+        notionalTradeModule.redeemMaturedPositions(_setToken);
+        return _getFilteredComponentsIssuance(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance);
+
+    }
+
+    function _getFilteredComponentsIssuance(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        address _issuanceModule,
+        bool _isDebtIssuance
+    )
+        internal
         view
         returns (address[] memory filteredComponents, uint[] memory filteredUnits)
     {
@@ -286,7 +358,15 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     {
 
         IWETH(addresses.weth).deposit{value: msg.value}();
-        uint256 totalInputTokenSpent = _issueExactSetFromToken(_setToken, IERC20(addresses.weth), _amountSetToken, msg.value, _swapData, _issuanceModule, _isDebtIssuance);
+        TradeData memory tradeData = TradeData(
+            _setToken,
+            _amountSetToken,
+            IERC20(addresses.weth),
+            msg.value,
+            _issuanceModule,
+            _isDebtIssuance
+        );
+        uint256 totalInputTokenSpent = _issueExactSetFromToken(tradeData,  _swapData);
         uint256 amountTokenReturn = msg.value.sub(totalInputTokenSpent);
         if (amountTokenReturn > 0) {
             IWETH(addresses.weth).withdraw(amountTokenReturn);
@@ -311,37 +391,47 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     {
 
         _inputToken.safeTransferFrom(msg.sender, address(this), _maxAmountInputToken);
-        uint256 totalInputTokenSpent = _issueExactSetFromToken(_setToken, _inputToken, _amountSetToken, _maxAmountInputToken, _swapData, _issuanceModule, _isDebtIssuance);
+        TradeData memory tradeData = TradeData(
+            _setToken,
+            _amountSetToken,
+            _inputToken,
+            _maxAmountInputToken,
+            _issuanceModule,
+            _isDebtIssuance
+        );
+        uint256 totalInputTokenSpent = _issueExactSetFromToken(tradeData, _swapData);
         _returnExcessInputToken(_inputToken, _maxAmountInputToken, totalInputTokenSpent);
         return totalInputTokenSpent;
     }
 
     function _issueExactSetFromToken(
-        ISetToken _setToken,
-        IERC20 _inputToken,
-        uint256 _amountSetToken,
-        uint256 _maxAmountInputToken,
-        DEXAdapter.SwapData[] memory _swapData,
-        address _issuanceModule,
-        bool _isDebtIssuance
+        TradeData memory _tradeData,
+        DEXAdapter.SwapData[] memory _swapData
     )
         internal
         returns (uint256)
     {
 
-        uint256 inputTokenBalanceBefore = _inputToken.balanceOf(address(this));
-        notionalTradeModule.redeemMaturedPositions(_setToken);
+        uint256 inputTokenBalanceBefore = _tradeData.paymentToken.balanceOf(address(this));
+        notionalTradeModule.redeemMaturedPositions(_tradeData.setToken);
 
-        (address[] memory componentsBought, uint256[] memory amountsBought) =  _buyComponentsForInputToken(_setToken, _amountSetToken,  _swapData, _inputToken, _issuanceModule, _isDebtIssuance);
-        _mintWrappedFCashPositions(_setToken, _amountSetToken, _inputToken, componentsBought, amountsBought, _issuanceModule, _isDebtIssuance);
+        (address[] memory componentsBought, uint256[] memory amountsBought) =  _buyComponentsForInputToken(
+            _tradeData,
+            _swapData
+        );
 
-        IBasicIssuanceModule(_issuanceModule).issue(_setToken, _amountSetToken, msg.sender);
-        uint256 totalInputTokenSpent = inputTokenBalanceBefore.sub(_inputToken.balanceOf(address(this)));
+        _mintWrappedFCashPositions(
+            _tradeData,
+            componentsBought,
+            amountsBought
+        );
 
-        require(totalInputTokenSpent <= _maxAmountInputToken, "ExchangeIssuance: OVERSPENT");
+        IBasicIssuanceModule(_tradeData.issuanceModule).issue(_tradeData.setToken, _tradeData.amountSetToken, msg.sender);
 
-        emit ExchangeIssue(msg.sender, _setToken, _inputToken, _maxAmountInputToken, _amountSetToken);
-        return totalInputTokenSpent;
+        require(inputTokenBalanceBefore.sub(_tradeData.paymentToken.balanceOf(address(this))) <= _tradeData.limitAmount, "ExchangeIssuance: OVERSPENT");
+
+        emit ExchangeIssue(msg.sender, _tradeData.setToken, _tradeData.paymentToken, _tradeData.limitAmount, _tradeData.amountSetToken);
+        return inputTokenBalanceBefore.sub(_tradeData.paymentToken.balanceOf(address(this)));
     }
 
     function redeemExactSetForToken(
@@ -430,7 +520,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     )
         internal
     {
-        (address[] memory components, uint256[] memory componentUnits) = getFilteredComponentsRedemption(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance);
+        (address[] memory components, uint256[] memory componentUnits) = _getFilteredComponentsRedemption(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance);
         require(components.length == _swapData.length, "Components / Swapdata mismatch");
 
         for (uint256 i = 0; i < components.length; i++) {
@@ -490,17 +580,18 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     }
 
     function _mintWrappedFCashPositions(
-        ISetToken _setToken,
-        uint256 _amountSetToken,
-        IERC20 _inputToken,
+        TradeData memory _tradeData,
         address[] memory componentsBought,
-        uint256[] memory amountsAvailable,
-        address _issuanceModule,
-        bool _isDebtIssuance
+        uint256[] memory amountsAvailable
     ) 
     internal
     {
-        (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(_issuanceModule, _isDebtIssuance, _setToken, _amountSetToken);
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(
+            _tradeData.issuanceModule,
+            _tradeData.isDebtIssuance,
+            _tradeData.setToken,
+            _tradeData.amountSetToken
+        );
 
         for (uint256 i = 0; i < components.length; i++) {
             address component = components[i];
@@ -687,21 +778,17 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     }
 
     function _buyComponentsForInputToken(
-        ISetToken _setToken,
-        uint256 _amountSetToken,
-        DEXAdapter.SwapData[] memory _swapData,
-        IERC20 _inputToken,
-        address _issuanceModule,
-        bool _isDebtIssuance
+        TradeData memory _tradeData,
+        DEXAdapter.SwapData[] memory _swapData
     ) 
     internal
     returns(address[] memory, uint256[] memory)
     {
-        (address[] memory components, uint256[] memory componentUnits) = getFilteredComponentsIssuance(
-            _setToken,
-            _amountSetToken,
-            _issuanceModule,
-            _isDebtIssuance
+        (address[] memory components, uint256[] memory componentUnits) = _getFilteredComponentsIssuance(
+            _tradeData.setToken,
+            _tradeData.amountSetToken,
+            _tradeData.issuanceModule,
+            _tradeData.isDebtIssuance
         );
 
         require(components.length == _swapData.length, "Components / Swapdata mismatch");
@@ -714,10 +801,10 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
             }
 
             // If the component is equal to the input token we don't have to trade
-            if(components[i] != address(_inputToken)) {
+            if(components[i] != address(_tradeData.paymentToken)) {
                 uint256 componentBalanceBefore = IERC20(components[i]).balanceOf(address(this));
 
-                addresses.swapTokensForExactTokens(componentUnits[i], type(uint256).max, _swapData[i]);
+                addresses.swapTokensForExactTokens(componentUnits[i], _tradeData.limitAmount, _swapData[i]);
 
                 uint256 componentAmountBought = IERC20(components[i]).balanceOf(address(this)).sub(componentBalanceBefore);
                 require(componentAmountBought >= componentUnits[i], "ExchangeIssuance: UNDERBOUGHT COMPONENT");
