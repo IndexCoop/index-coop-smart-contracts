@@ -37,7 +37,6 @@ import { DEXAdapter } from "./DEXAdapter.sol";
 
 
 
-
 contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
 
     using Address for address payable;
@@ -55,6 +54,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         uint256 limitAmount;
         address issuanceModule;
         bool isDebtIssuance;
+        uint256 slippage;
     }
 
     /* ============ Constants ============== */
@@ -124,6 +124,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
 
     /* ============ External Functions ============ */
 
+    // TODO: add function to drain dust
     /**
      * Withdraw slippage to selected address
      *
@@ -196,13 +197,15 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         ISetToken _setToken,
         uint256 _amountSetToken,
         address _issuanceModule,
-        bool _isDebtIssuance
+        bool _isDebtIssuance,
+        uint256 _slippage
+
     )
         external
         view
         returns (address[] memory filteredComponents, uint[] memory filteredUnits)
     {
-        return _getFilteredComponentsRedemption(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance);
+        return _getFilteredComponentsRedemption(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance, _slippage);
 
     }
 
@@ -215,13 +218,14 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         ISetToken _setToken,
         uint256 _amountSetToken,
         address _issuanceModule,
-        bool _isDebtIssuance
+        bool _isDebtIssuance,
+        uint256 _slippage
     )
         external
         returns (address[] memory filteredComponents, uint[] memory filteredUnits)
     {
         notionalTradeModule.redeemMaturedPositions(_setToken);
-        return _getFilteredComponentsRedemption(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance);
+        return _getFilteredComponentsRedemption(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance, _slippage);
 
     }
 
@@ -229,7 +233,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         ISetToken _setToken,
         uint256 _amountSetToken,
         address _issuanceModule,
-        bool _isDebtIssuance
+        bool _isDebtIssuance,
+        uint256 _slippage
     )
         internal
         view
@@ -246,7 +251,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
             uint256 units;
 
             if(_isWrappedFCash(component)) {
-                units = _getUnderlyingTokensForRedeem(IWrappedfCash(component), componentUnits[i]);
+                units = _getUnderlyingTokensForRedeem(IWrappedfCash(component), componentUnits[i], _slippage);
                 IERC20 underlyingToken = _getUnderlyingToken(IWrappedfCash(component));
                 component = address(underlyingToken);
             }
@@ -274,14 +279,14 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         ISetToken _setToken,
         uint256 _amountSetToken,
         address _issuanceModule,
-        bool _isDebtIssuance
+        bool _isDebtIssuance,
+        uint256 _slippage
     )
         external
         view
         returns (address[] memory filteredComponents, uint[] memory filteredUnits)
     {
-        return _getFilteredComponentsIssuance(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance);
-
+        return _getFilteredComponentsIssuance(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance, _slippage);
     }
 
     /**
@@ -293,13 +298,15 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         ISetToken _setToken,
         uint256 _amountSetToken,
         address _issuanceModule,
-        bool _isDebtIssuance
+        bool _isDebtIssuance,
+        uint256 _slippage
+
     )
         external
         returns (address[] memory filteredComponents, uint[] memory filteredUnits)
     {
         notionalTradeModule.redeemMaturedPositions(_setToken);
-        return _getFilteredComponentsIssuance(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance);
+        return _getFilteredComponentsIssuance(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance, _slippage);
 
     }
 
@@ -307,7 +314,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         ISetToken _setToken,
         uint256 _amountSetToken,
         address _issuanceModule,
-        bool _isDebtIssuance
+        bool _isDebtIssuance,
+        uint256 _slippage
     )
         internal
         view
@@ -324,7 +332,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
             uint256 units;
 
             if(_isWrappedFCash(component)) {
-                units = _getUnderlyingTokensForMint(IWrappedfCash(component), componentUnits[i]);
+                units = _getUnderlyingTokensForMint(IWrappedfCash(component), componentUnits[i], _slippage);
                 IERC20 underlyingToken = _getUnderlyingToken(IWrappedfCash(component));
                 component = address(underlyingToken);
             }
@@ -348,7 +356,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         uint256 _amountSetToken,
         DEXAdapter.SwapData[] memory _swapData,
         address _issuanceModule,
-        bool _isDebtIssuance
+        bool _isDebtIssuance,
+        uint256 _slippage
     )
         isValidModule(_issuanceModule)
         external
@@ -364,7 +373,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
             IERC20(addresses.weth),
             msg.value,
             _issuanceModule,
-            _isDebtIssuance
+            _isDebtIssuance,
+            _slippage
         );
         uint256 totalInputTokenSpent = _issueExactSetFromToken(tradeData,  _swapData);
         uint256 amountTokenReturn = msg.value.sub(totalInputTokenSpent);
@@ -382,7 +392,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         uint256 _maxAmountInputToken,
         DEXAdapter.SwapData[] memory _swapData,
         address _issuanceModule,
-        bool _isDebtIssuance
+        bool _isDebtIssuance,
+        uint256 _slippage
     )
         isValidModule(_issuanceModule)
         external
@@ -397,7 +408,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
             _inputToken,
             _maxAmountInputToken,
             _issuanceModule,
-            _isDebtIssuance
+            _isDebtIssuance,
+            _slippage
         );
         uint256 totalInputTokenSpent = _issueExactSetFromToken(tradeData, _swapData);
         _returnExcessInputToken(_inputToken, _maxAmountInputToken, totalInputTokenSpent);
@@ -441,7 +453,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         uint256 _minOutputReceive,
         DEXAdapter.SwapData[] memory _swapData,
         address _issuanceModule,
-        bool _isDebtIssuance
+        bool _isDebtIssuance,
+        uint256 _slippage
     )
         isValidModule(_issuanceModule)
         external
@@ -455,7 +468,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
             _outputToken,
             _minOutputReceive,
             _issuanceModule,
-            _isDebtIssuance
+            _isDebtIssuance,
+            _slippage
         );
         uint256 outputAmount = _redeemExactSetForToken(tradeData, _swapData);
         // Transfer sender output token
@@ -470,7 +484,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         uint256 _minOutputReceive,
         DEXAdapter.SwapData[] memory _swapData,
         address _issuanceModule,
-        bool _isDebtIssuance
+        bool _isDebtIssuance,
+        uint256 _slippage
     )
         isValidModule(_issuanceModule)
         external
@@ -485,7 +500,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
             IERC20(addresses.weth),
             _minOutputReceive,
             _issuanceModule,
-            _isDebtIssuance
+            _isDebtIssuance,
+            _slippage
         );
         uint256 outputAmount = _redeemExactSetForToken(tradeData, _swapData);
         // Transfer sender output token
@@ -527,7 +543,14 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     )
         internal
     {
-        (address[] memory components, uint256[] memory componentUnits) = _getFilteredComponentsRedemption(_tradeData.setToken, _tradeData.amountSetToken, _tradeData.issuanceModule, _tradeData.isDebtIssuance);
+        (address[] memory components, uint256[] memory componentUnits) = _getFilteredComponentsRedemption(
+            _tradeData.setToken,
+            _tradeData.amountSetToken,
+            _tradeData.issuanceModule,
+            _tradeData.isDebtIssuance,
+            _tradeData.slippage
+        );
+
         require(components.length == _swapData.length, "Components / Swapdata mismatch");
 
         for (uint256 i = 0; i < components.length; i++) {
@@ -615,6 +638,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
                 uint256 amountSpent = underlyingBalanceBefore.sub(underlyingToken.balanceOf(address(this)));
                 amountsAvailable[componentIndex-1] = amountsAvailable[componentIndex-1].sub(amountSpent);
             }
+            IERC20(component).approve(_tradeData.issuanceModule, units);
+            require(IERC20(component).balanceOf(address(this)) >= units, "ExchangeIssuance: INSUFFICIENT COMPONENT");
         }
     }
 
@@ -755,20 +780,20 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         (assetToken,,) = _fCashPosition.getAssetToken();
     }
 
-    function _getUnderlyingTokensForMint(IWrappedfCash _fCashPosition, uint256 _fCashAmount)
+    function _getUnderlyingTokensForMint(IWrappedfCash _fCashPosition, uint256 _fCashAmount, uint256 _slippage)
     internal
     view
     returns(uint256)
     {
-        return _fCashPosition.previewMint(_fCashAmount);
+        return _fCashPosition.previewMint(_fCashAmount).mul(1 ether + _slippage).div(1 ether);
     }
 
-    function _getUnderlyingTokensForRedeem(IWrappedfCash _fCashPosition, uint256 _fCashAmount)
+    function _getUnderlyingTokensForRedeem(IWrappedfCash _fCashPosition, uint256 _fCashAmount, uint256 _slippage)
     internal
     view
     returns(uint256)
     {
-        return _fCashPosition.previewRedeem(_fCashAmount);
+        return _fCashPosition.previewRedeem(_fCashAmount).mul(1 ether - _slippage).div(1 ether);
     }
 
     function _findComponent(address[] memory _components, address _toFind)
@@ -795,7 +820,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
             _tradeData.setToken,
             _tradeData.amountSetToken,
             _tradeData.issuanceModule,
-            _tradeData.isDebtIssuance
+            _tradeData.isDebtIssuance,
+            _tradeData.slippage
         );
 
         require(components.length == _swapData.length, "Components / Swapdata mismatch");
