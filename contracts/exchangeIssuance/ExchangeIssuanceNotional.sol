@@ -124,7 +124,6 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
 
     /* ============ External Functions ============ */
 
-    // TODO: add function to drain dust
     /**
      * Withdraw slippage to selected address
      *
@@ -648,12 +647,13 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     ) 
     internal
     view 
-    returns(IERC20 underlyingToken)
+    returns(IERC20)
     {
-        (underlyingToken,) = _wrappedfCash.getUnderlyingToken();
-        if(address(underlyingToken) == address(0)) {
+        (IERC20 underlyingToken, bool isEth) = _wrappedfCash.getToken(true);
+        if(isEth) {
             underlyingToken = IERC20(addresses.weth);
         }
+        return underlyingToken;
     }
 
 
