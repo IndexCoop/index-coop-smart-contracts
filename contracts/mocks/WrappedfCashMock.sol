@@ -23,8 +23,6 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { TokenType, IWrappedfCash } from "../interfaces/IWrappedfCash.sol";
 
-import "hardhat/console.sol";
-
 
 // mock class using BasicToken
 contract WrappedfCashMock is ERC20, IWrappedfCash {
@@ -191,7 +189,7 @@ contract WrappedfCashMock is ERC20, IWrappedfCash {
         } else {
             (token, /* */, /* */) = getAssetToken();
         }
-        isETH = address(token) == address(weth);
+        isETH = address(token) == ETH_ADDRESS;
     }
 
 
