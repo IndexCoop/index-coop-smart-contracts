@@ -276,12 +276,14 @@ describe("ExchangeIssuanceNotional", () => {
                 let subjectSetAmount: BigNumber;
                 let subjectIssuanceModule: Address;
                 let subjectIsDebtIssuance: boolean;
+                let subjectSlippage: BigNumber;
                 let redeemAmount: BigNumber;
                 beforeEach(async () => {
                   subjectSetToken = setToken.address;
                   subjectSetAmount = ethers.utils.parseEther("1");
                   subjectIssuanceModule = debtIssuanceModule.address;
                   subjectIsDebtIssuance = true;
+                  subjectSlippage = ether(0.00001);
                   redeemAmount = ethers.utils.parseEther("1.5");
                   for (const wrappedfCashMock of wrappedfCashMocks) {
                     await wrappedfCashMock.setRedeemTokenReturned(redeemAmount);
@@ -293,6 +295,7 @@ describe("ExchangeIssuanceNotional", () => {
                     subjectSetAmount,
                     subjectIssuanceModule,
                     subjectIsDebtIssuance,
+                    subjectSlippage,
                   );
                 }
                 it("should return correct components", async () => {
@@ -305,6 +308,8 @@ describe("ExchangeIssuanceNotional", () => {
                 it("should return correct units", async () => {
                   const [, filteredUnits] = await subject();
                   const expectedAmount = redeemAmount
+                    .mul(ether(1).sub(subjectSlippage))
+                    .div(ether(1))
                     .mul(wrappedfCashMocks.length)
                     .add(underlyingPosition);
                   expect(filteredUnits[0]).to.eq(expectedAmount);
@@ -316,12 +321,14 @@ describe("ExchangeIssuanceNotional", () => {
                 let subjectSetAmount: BigNumber;
                 let subjectIssuanceModule: Address;
                 let subjectIsDebtIssuance: boolean;
+                let subjectSlippage: BigNumber;
                 let mintAmount: BigNumber;
                 beforeEach(async () => {
                   subjectSetToken = setToken.address;
                   subjectSetAmount = ethers.utils.parseEther("1");
                   subjectIssuanceModule = debtIssuanceModule.address;
                   subjectIsDebtIssuance = true;
+                  subjectSlippage = ether(0.00001);
                   mintAmount = ethers.utils.parseEther("1");
                   for (const wrappedfCashMock of wrappedfCashMocks) {
                     await wrappedfCashMock.setMintTokenSpent(mintAmount);
@@ -333,6 +340,7 @@ describe("ExchangeIssuanceNotional", () => {
                     subjectSetAmount,
                     subjectIssuanceModule,
                     subjectIsDebtIssuance,
+                    subjectSlippage,
                   );
                 }
                 it("should return correct components", async () => {
@@ -345,6 +353,8 @@ describe("ExchangeIssuanceNotional", () => {
                 it("should return correct units", async () => {
                   const [, filteredUnits] = await subject();
                   const expectedAmount = mintAmount
+                    .mul(ether(1).add(subjectSlippage))
+                    .div(ether(1))
                     .mul(wrappedfCashMocks.length)
                     .add(underlyingPosition);
                   expect(filteredUnits[0]).to.eq(expectedAmount);
@@ -366,6 +376,7 @@ describe("ExchangeIssuanceNotional", () => {
                   let subjectComponentQuotes: SwapData[];
                   let subjectIssuanceModule: Address;
                   let subjectIsDebtIssuance: boolean;
+                  let subjectSlippage: BigNumber;
                   let caller: Account;
 
                   beforeEach(async () => {
@@ -374,6 +385,7 @@ describe("ExchangeIssuanceNotional", () => {
                     subjectIssuanceModule = debtIssuanceModule.address;
                     subjectIsDebtIssuance = true;
                     subjectComponentQuotes = [];
+                    subjectSlippage = ethers.utils.parseEther("0.00001");
                     caller = owner;
                   });
 
@@ -388,6 +400,7 @@ describe("ExchangeIssuanceNotional", () => {
                         subjectComponentQuotes,
                         subjectIssuanceModule,
                         subjectIsDebtIssuance,
+                        subjectSlippage,
                       );
                   }
 
@@ -412,6 +425,7 @@ describe("ExchangeIssuanceNotional", () => {
                           subjectSetAmount,
                           subjectIssuanceModule,
                           subjectIsDebtIssuance,
+                          subjectSlippage,
                         );
                         subjectComponentQuotes = filteredComponents.map((component: Address) => {
                           return {
@@ -486,6 +500,7 @@ describe("ExchangeIssuanceNotional", () => {
                   let subjectComponentQuotes: SwapData[];
                   let subjectIssuanceModule: Address;
                   let subjectIsDebtIssuance: boolean;
+                  let subjectSlippage: BigNumber;
                   let caller: Account;
                   beforeEach(async () => {
                     subjectSetToken = setToken.address;
@@ -494,6 +509,7 @@ describe("ExchangeIssuanceNotional", () => {
                     subjectIsDebtIssuance = true;
                     subjectMinAmountOutputToken = BigNumber.from(1000);
                     caller = owner;
+                    subjectSlippage = ethers.utils.parseEther("0.00001");
                   });
                   function subject() {
                     return exchangeIssuance
@@ -506,6 +522,7 @@ describe("ExchangeIssuanceNotional", () => {
                         subjectComponentQuotes,
                         subjectIssuanceModule,
                         subjectIsDebtIssuance,
+                        subjectSlippage,
                       );
                   }
                   describe("When caller has enough set token to redeem", () => {
@@ -521,6 +538,7 @@ describe("ExchangeIssuanceNotional", () => {
                         subjectSetAmount,
                         subjectIssuanceModule,
                         subjectIsDebtIssuance,
+                        subjectSlippage,
                       );
                       const swapData = filteredComponents.map(() => emptySwapData);
                       await exchangeIssuance
@@ -533,6 +551,7 @@ describe("ExchangeIssuanceNotional", () => {
                           swapData,
                           debtIssuanceModule.address,
                           true,
+                          subjectSlippage,
                         );
                       await setToken.approve(exchangeIssuance.address, ethers.constants.MaxUint256);
                     });
@@ -568,6 +587,7 @@ describe("ExchangeIssuanceNotional", () => {
                             subjectSetAmount,
                             subjectIssuanceModule,
                             subjectIsDebtIssuance,
+                            subjectSlippage,
                           );
                           subjectComponentQuotes = filteredComponents.map((component: Address) => {
                             return {
