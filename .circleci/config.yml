@@ -161,6 +161,8 @@ jobs:
           paths:
             - cov_0.json
             - cov_1.json
+      - store_artifacts:
+          path: /tmp/coverage
 
   coverage_forked_network:
     docker:
