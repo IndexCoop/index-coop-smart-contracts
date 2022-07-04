@@ -344,6 +344,17 @@ describe("ExchangeIssuanceNotional", () => {
                     .add(underlyingPosition);
                   expect(filteredUnits[0]).to.eq(expectedAmount);
                 });
+                describe("when compute address fails on wrappefCashFactory", () => {
+                  beforeEach(async () => {
+                    await wrappedfCashFactoryMock.setRevertComputeAddress(true);
+                  });
+                  it("should return fcash positions as component", async () => {
+                    const [filteredComponents] = await subject();
+                    expect(filteredComponents).to.deep.equal(
+                      [...wrappedfCashMocks.map(mock => mock.address), underlyingToken.address]
+                    );
+                  });
+                });
               });
 
               describe("#getFilteredComponentsIssuance", () => {
