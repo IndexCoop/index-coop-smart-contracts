@@ -788,13 +788,14 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     function _getUnderlyingAndAssetTokens(IWrappedfCash _fCashPosition)
     internal
     view
-    returns(IERC20 underlyingToken, IERC20 assetToken)
+    returns(IERC20 , IERC20)
     {
-        (underlyingToken,) = _fCashPosition.getUnderlyingToken();
-        if(address(underlyingToken) == address(0)) {
+        (IERC20 underlyingToken, bool isEth) = _fCashPosition.getToken(true);
+        if(isEth) {
             underlyingToken = IERC20(addresses.weth);
         }
-        (assetToken,,) = _fCashPosition.getAssetToken();
+        (IERC20 assetToken,) = _fCashPosition.getToken(false);
+        return (underlyingToken, assetToken);
     }
 
     /**
