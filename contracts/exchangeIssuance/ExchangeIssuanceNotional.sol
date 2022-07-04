@@ -157,18 +157,6 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     }
 
     /**
-     * Runs all the necessary approval functions required for a list of ERC20 tokens.
-     *
-     * @param _tokens    Addresses of the tokens which need approval
-     * @param _spender   Address of the spender which will be approved to spend token. (Must be a whitlisted issuance module)
-     */
-    function approveTokens(IERC20[] calldata _tokens, address _spender) external {
-        for (uint256 i = 0; i < _tokens.length; i++) {
-            approveToken(_tokens[i], _spender);
-        }
-    }
-
-    /**
      * Returns component positions required for issuance 
      *
      * @param _issuanceModule    Address of issuance Module to use 

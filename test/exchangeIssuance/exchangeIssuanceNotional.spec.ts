@@ -157,6 +157,58 @@ describe("ExchangeIssuanceNotional", () => {
         );
       });
 
+      describe("#withdrawTokens", () => {
+        let subjectTokens: Address[];
+        let subjectTo: Address;
+        let receiver: Account;
+        let ethAmount: BigNumber;
+        let erc20Amount: BigNumber;
+        let erc20Token: StandardTokenMock;
+        let caller: Account;
+        beforeEach(async () => {
+          erc20Token = setV2Setup.dai;
+          erc20Amount = ether(2);
+          ethAmount = ether(1);
+          subjectTokens = [erc20Token.address, await exchangeIssuance.ETH_ADDRESS()];
+          receiver = manager;
+          subjectTo = receiver.address;
+          caller = owner;
+        });
+        function subject() {
+          return exchangeIssuance.connect(caller.wallet).withdrawTokens(subjectTokens, subjectTo);
+        }
+        describe("when ExchangeIssuanceNotional holds funds", () => {
+          beforeEach(async () => {
+            await erc20Token.transfer(exchangeIssuance.address, erc20Amount);
+            const funder = await deployer.mocks.deployForceFunderMock();
+            await funder.fund(exchangeIssuance.address, { value: ethAmount });
+          });
+
+          it("should transfer eth", async () => {
+            const receiverBalanceBefore = await receiver.wallet.getBalance();
+            await subject();
+            const receiverBalanceAfter = await receiver.wallet.getBalance();
+            expect(receiverBalanceAfter).to.equal(receiverBalanceBefore.add(ethAmount));
+          });
+
+          it("should transfer erc20Token", async () => {
+            const receiverBalanceBefore = await erc20Token.balanceOf(subjectTo);
+            await subject();
+            const receiverBalanceAfter = await erc20Token.balanceOf(subjectTo);
+            expect(receiverBalanceAfter).to.equal(receiverBalanceBefore.add(erc20Amount));
+          });
+
+          describe("when caller is not the owner", () => {
+            beforeEach(async () => {
+              caller = manager;
+            });
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith("Ownable: caller is not the owner");
+            });
+          });
+        });
+      });
+
       describe("#updateDecodedIdGasLimit", () => {
         let subjectDecodedIdGasLimit: BigNumber;
         let caller: Account;
@@ -324,6 +376,50 @@ describe("ExchangeIssuanceNotional", () => {
                     await issuanceModule.issue(setToken.address, initialSetBalance, owner.address);
                   });
 
+                  describe("#getFilteredComponentsRedemptionAfterMaturityRedemption", () => {
+                    let subjectSetToken: Address;
+                    let subjectSetAmount: BigNumber;
+                    let subjectIssuanceModule: Address;
+                    let subjectIsDebtIssuance: boolean;
+                    let subjectSlippage: BigNumber;
+                    let redeemAmount: BigNumber;
+                    beforeEach(async () => {
+                      subjectSetToken = setToken.address;
+                      subjectSetAmount = ethers.utils.parseEther("1");
+                      subjectIssuanceModule = issuanceModule.address;
+                      subjectIsDebtIssuance = useDebtIssuance;
+                      subjectSlippage = ether(0.00001);
+                      redeemAmount = ethers.utils.parseEther("1.5");
+                      for (const wrappedfCashMock of wrappedfCashMocks) {
+                        await wrappedfCashMock.setRedeemTokenReturned(redeemAmount);
+                      }
+                    });
+                    function subject() {
+                      return exchangeIssuance.callStatic.getFilteredComponentsRedemptionAfterMaturityRedemption(
+                        subjectSetToken,
+                        subjectSetAmount,
+                        subjectIssuanceModule,
+                        subjectIsDebtIssuance,
+                        subjectSlippage,
+                      );
+                    }
+                    it("should return correct components", async () => {
+                      const [filteredComponents] = await subject();
+                      expect(ethers.utils.getAddress(filteredComponents[0])).to.eq(
+                        ethers.utils.getAddress(underlyingToken.address),
+                      );
+                      expect(filteredComponents[1]).to.eq(ADDRESS_ZERO);
+                    });
+                    it("should return correct units", async () => {
+                      const [, filteredUnits] = await subject();
+                      const expectedAmount = redeemAmount
+                        .mul(ether(1).sub(subjectSlippage))
+                        .div(ether(1))
+                        .mul(wrappedfCashMocks.length)
+                        .add(underlyingPosition);
+                      expect(filteredUnits[0]).to.eq(expectedAmount);
+                    });
+                  });
                   describe("#getFilteredComponentsRedemption", () => {
                     let subjectSetToken: Address;
                     let subjectSetAmount: BigNumber;
@@ -401,6 +497,51 @@ describe("ExchangeIssuanceNotional", () => {
                     });
                     function subject() {
                       return exchangeIssuance.getFilteredComponentsIssuance(
+                        subjectSetToken,
+                        subjectSetAmount,
+                        subjectIssuanceModule,
+                        subjectIsDebtIssuance,
+                        subjectSlippage,
+                      );
+                    }
+                    it("should return correct components", async () => {
+                      const [filteredComponents] = await subject();
+                      expect(ethers.utils.getAddress(filteredComponents[0])).to.eq(
+                        ethers.utils.getAddress(underlyingToken.address),
+                      );
+                      expect(filteredComponents[1]).to.eq(ADDRESS_ZERO);
+                    });
+                    it("should return correct units", async () => {
+                      const [, filteredUnits] = await subject();
+                      const expectedAmount = mintAmount
+                        .mul(ether(1).add(subjectSlippage))
+                        .div(ether(1))
+                        .mul(wrappedfCashMocks.length)
+                        .add(underlyingPosition);
+                      expect(filteredUnits[0]).to.eq(expectedAmount);
+                    });
+                  });
+
+                  describe("#getFilteredComponentsIssuanceAfterMaturityRedemption", () => {
+                    let subjectSetToken: Address;
+                    let subjectSetAmount: BigNumber;
+                    let subjectIssuanceModule: Address;
+                    let subjectIsDebtIssuance: boolean;
+                    let subjectSlippage: BigNumber;
+                    let mintAmount: BigNumber;
+                    beforeEach(async () => {
+                      subjectSetToken = setToken.address;
+                      subjectSetAmount = ethers.utils.parseEther("1");
+                      subjectIssuanceModule = issuanceModule.address;
+                      subjectIsDebtIssuance = useDebtIssuance;
+                      subjectSlippage = ether(0.00001);
+                      mintAmount = ethers.utils.parseEther("1");
+                      for (const wrappedfCashMock of wrappedfCashMocks) {
+                        await wrappedfCashMock.setMintTokenSpent(mintAmount);
+                      }
+                    });
+                    function subject() {
+                      return exchangeIssuance.callStatic.getFilteredComponentsIssuanceAfterMaturityRedemption(
                         subjectSetToken,
                         subjectSetAmount,
                         subjectIssuanceModule,
