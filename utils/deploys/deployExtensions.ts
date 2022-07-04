@@ -226,6 +226,7 @@ export default class DeployExtensions {
     uniV3Quoter: Address,
     curveAddressProvider: Address,
     curveCalculator: Address,
+    decodedIdGasLimit: BigNumber,
   ): Promise<ExchangeIssuanceNotional> {
     const dexAdapter = await this.deployDEXAdapter();
 
@@ -250,6 +251,7 @@ export default class DeployExtensions {
       uniV3Quoter,
       curveAddressProvider,
       curveCalculator,
+      decodedIdGasLimit,
     );
   }
 

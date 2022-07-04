@@ -256,7 +256,9 @@ describe("ExchangeIssuanceNotional", () => {
             describe("When exchangeIssuance is deployed", () => {
               let exchangeIssuance: ExchangeIssuanceNotional;
               let notionalTradeModule: NotionalTradeModuleMock;
+              let decodedIdGasLimit: BigNumber;
               beforeEach(async () => {
+                decodedIdGasLimit = BigNumber.from(10 ** 5);
                 notionalTradeModule = await deployer.mocks.deployNotionalTradeModuleMock();
                 exchangeIssuance = await deployer.extensions.deployExchangeIssuanceNotional(
                   setV2Setup.weth.address,
@@ -269,7 +271,37 @@ describe("ExchangeIssuanceNotional", () => {
                   uniswapV3QuoterAddress,
                   curveAddressProviderAddress,
                   curveCalculatorAddress,
+                  decodedIdGasLimit,
                 );
+              });
+
+              describe("#updateDecodedIdGasLimit", () => {
+                let subjectDecodedIdGasLimit: BigNumber;
+                let caller: Account;
+                beforeEach(async () => {
+                  subjectDecodedIdGasLimit = (await exchangeIssuance.decodedIdGasLimit()).mul(2);
+                  caller = owner;
+                });
+                function subject() {
+                  return exchangeIssuance
+                    .connect(caller.wallet)
+                    .updateDecodedIdGasLimit(subjectDecodedIdGasLimit);
+                }
+                it("should update state correctly", async () => {
+                  await subject();
+                  expect(await exchangeIssuance.decodedIdGasLimit()).to.eq(
+                    subjectDecodedIdGasLimit,
+                  );
+                });
+
+                describe("when caller is not the owner", () => {
+                  beforeEach(async () => {
+                    caller = manager;
+                  });
+                  it("should revert", async () => {
+                    await expect(subject()).to.be.revertedWith("Ownable: caller is not the owner");
+                  });
+                });
               });
 
               describe("#getFilteredComponentsRedemption", () => {

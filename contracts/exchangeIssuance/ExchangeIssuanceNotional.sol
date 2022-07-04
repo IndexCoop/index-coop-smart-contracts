@@ -68,6 +68,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     IWrappedfCashFactory public immutable wrappedfCashFactory;
     INotionalTradeModule public immutable notionalTradeModule;
     DEXAdapter.Addresses public addresses;
+    uint256 public decodedIdGasLimit;
 
     /* ============ Events ============ */
 
@@ -94,6 +95,21 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
          _;
     }
 
+    /**
+    * Sets various contract addresses and gas limit for getDecodedId call
+    * 
+    * @param _weth                  Address of wrapped native token
+    * @param _setController         SetToken controller used to verify a given token is a set
+    * @param _wrappedfCashFactory   Factory contract creating new fCash wrappers
+    * @param _notionalTradeModule   Module used to make sure matured positions are redeemed
+    * @param _quickRouter           Address of quickswap router
+    * @param _sushiRouter           Address of sushiswap router
+    * @param _uniV3Router           Address of uniswap v3 router
+    * @param _uniV3Quoter           Address of uniswap v3 quoter
+    * @param _curveAddressProvider  Contract to get current implementation address of curve registry
+    * @param _curveCalculator       Contract to calculate required input to receive given output in curve (for exact output swaps)
+    * @param _decodedIdGasLimit     Gas limit for call to getDecodedID
+    */
     constructor(
         address _weth,
         IController _setController,
@@ -104,7 +120,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         address _uniV3Router,
         address _uniV3Quoter,
         address _curveAddressProvider,
-        address _curveCalculator
+        address _curveCalculator,
+        uint256 _decodedIdGasLimit
     )
         public
     {
@@ -120,6 +137,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         addresses.uniV3Quoter = _uniV3Quoter;
         addresses.curveAddressProvider = _curveAddressProvider;
         addresses.curveCalculator = _curveCalculator;
+
+        decodedIdGasLimit = _decodedIdGasLimit;
     }
 
     /* ============ Public Functions ============ */
@@ -191,6 +210,15 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     /* ============ External Functions ============ */
 
     /**
+     * @dev Update gas limit of call to getDecodedID in _isWrappedFCash
+     * @param _decodedIdGasLimit   New gas limit for call to getDecodedID
+     */
+    function updateDecodedIdGasLimit(uint256 _decodedIdGasLimit) external onlyOwner {
+        require(_decodedIdGasLimit != 0, "DecodedIdGasLimit cannot be zero");
+        decodedIdGasLimit = _decodedIdGasLimit;
+    }
+
+    /**
      * Withdraw slippage to selected address
      *
      * @param _tokens    Addresses of tokens to withdraw, specifiy ETH_ADDRESS to withdraw ETH
@@ -205,11 +233,6 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
                 _tokens[i].safeTransfer(_to, _tokens[i].balanceOf(address(this)));
             }
         }
-    }
-
-    receive() external payable {
-        // required for weth.withdraw() to work properly
-        require(msg.sender == addresses.weth, "ExchangeIssuance: Direct deposits not allowed");
     }
 
 
@@ -728,8 +751,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         }
 
         //Had to add this gas limit since this call wasted all the gas when directed to WETH in unittests
-        //TODO: Review
-        try IWrappedfCash(_fCashPosition).getDecodedID{gas: 100000}() returns(uint16 _currencyId, uint40 _maturity){
+        try IWrappedfCash(_fCashPosition).getDecodedID{gas: decodedIdGasLimit}() returns(uint16 _currencyId, uint40 _maturity){
             try wrappedfCashFactory.computeAddress(_currencyId, _maturity) returns(address _computedAddress){
                 return _fCashPosition == _computedAddress;
             } catch {
@@ -943,6 +965,14 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
                 j++;
             }
         }
+    }
+
+    /**
+     * @dev Fallback method to enable receiving eth when withrdawing from weth contract
+     */
+    receive() external payable {
+        // required for weth.withdraw() to work properly
+        require(msg.sender == addresses.weth, "ExchangeIssuance: Direct deposits not allowed");
     }
 
 }

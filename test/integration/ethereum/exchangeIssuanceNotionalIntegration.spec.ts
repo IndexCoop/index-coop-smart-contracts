@@ -236,7 +236,9 @@ if (process.env.INTEGRATIONTEST) {
 
               describe("When exchangeIssuance is deployed", () => {
                 let exchangeIssuance: ExchangeIssuanceNotional;
+                let decodedIdGasLimit: BigNumber;
                 beforeEach(async () => {
+                  decodedIdGasLimit = BigNumber.from(10 ** 5);
                   exchangeIssuance = await deployer.extensions.deployExchangeIssuanceNotional(
                     tokens.weth.address,
                     STAGING_ADDRESSES.set.controller,
@@ -248,6 +250,7 @@ if (process.env.INTEGRATIONTEST) {
                     addresses.dexes.uniV3.quoter,
                     addresses.dexes.curve.addressProvider,
                     addresses.dexes.curve.calculator,
+                    decodedIdGasLimit,
                   );
                 });
 
