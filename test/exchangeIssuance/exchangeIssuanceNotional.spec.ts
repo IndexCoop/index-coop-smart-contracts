@@ -132,176 +132,173 @@ describe("ExchangeIssuanceNotional", () => {
     afterEach(async () => {
       await network.provider.send("evm_revert", [snapshotId]);
     });
+    describe("When exchangeIssuance is deployed", () => {
+      let exchangeIssuance: ExchangeIssuanceNotional;
+      let notionalTradeModule: NotionalTradeModuleMock;
+      let decodedIdGasLimit: BigNumber;
+      beforeEach(async () => {
+        decodedIdGasLimit = BigNumber.from(10 ** 5);
+        notionalTradeModule = await deployer.mocks.deployNotionalTradeModuleMock();
+        exchangeIssuance = await deployer.extensions.deployExchangeIssuanceNotional(
+          setV2Setup.weth.address,
+          setV2Setup.controller.address,
+          wrappedfCashFactoryMock.address,
+          notionalTradeModule.address,
+          quickswapRouter.address,
+          sushiswapRouter.address,
+          uniswapV3RouterAddress,
+          uniswapV3QuoterAddress,
+          curveAddressProviderAddress,
+          curveCalculatorAddress,
+          decodedIdGasLimit,
+        );
+      });
 
-    ["dai", "weth"].forEach(underlyingTokenName => {
-      describe(`When underlying token is ${underlyingTokenName}`, () => {
-        let assetToken: CERc20;
-        let underlyingToken: StandardTokenMock;
-
+      describe("#updateDecodedIdGasLimit", () => {
+        let subjectDecodedIdGasLimit: BigNumber;
+        let caller: Account;
         beforeEach(async () => {
-          // @ts-ignore
-          underlyingToken = setV2Setup[underlyingTokenName];
-          assetToken = await compoundSetup.createAndEnableCToken(
-            underlyingToken.address,
-            cTokenInitialMantissa,
-            compoundSetup.comptroller.address,
-            compoundSetup.interestRateModel.address,
-            "Compound UnderlyingToken",
-            "cUNDERLYINGTOKEN",
-            8,
-            ether(0.75), // 75% collateral factor
-            ether(1),
-          );
-          await underlyingToken.approve(assetToken.address, ethers.constants.MaxUint256);
-          await assetToken.mint(ether(100));
+          subjectDecodedIdGasLimit = (await exchangeIssuance.decodedIdGasLimit()).mul(2);
+          caller = owner;
+        });
+        function subject() {
+          return exchangeIssuance
+            .connect(caller.wallet)
+            .updateDecodedIdGasLimit(subjectDecodedIdGasLimit);
+        }
+        it("should update state correctly", async () => {
+          await subject();
+          expect(await exchangeIssuance.decodedIdGasLimit()).to.eq(subjectDecodedIdGasLimit);
         });
 
-        describe("When wrappedFCashMocks are deployed", () => {
-          let wrappedfCashMocks: Array<WrappedfCashMock>;
-          let underlyingTokenBalance: BigNumber;
-          let currencyId: number;
-          let maturities: Array<number>;
+        describe("when caller is not the owner", () => {
           beforeEach(async () => {
-            const underlyingAddress =
-              underlyingToken.address == setV2Setup.weth.address
-                ? ADDRESS_ZERO
-                : underlyingToken.address;
-            currencyId = 1;
-            maturities = [30, 90];
-            wrappedfCashMocks = [];
-
-            for (const maturityDays of maturities) {
-              const wrappedfCashMock = await deployer.mocks.deployWrappedfCashMock(
-                assetToken.address,
-                underlyingAddress,
-                setV2Setup.weth.address,
-              );
-
-              const maturity =
-                (await ethers.provider.getBlock("latest")).timestamp + maturityDays * 24 * 3600;
-
-              await wrappedfCashMock.initialize(currencyId, maturity);
-
-              await wrappedfCashFactoryMock.registerWrapper(
-                currencyId,
-                maturity,
-                wrappedfCashMock.address,
-              );
-
-              underlyingTokenBalance = ether(100);
-              await underlyingToken.transfer(owner.address, underlyingTokenBalance);
-              await underlyingToken.approve(wrappedfCashMock.address, underlyingTokenBalance);
-
-              await wrappedfCashMock.mintViaUnderlying(
-                underlyingTokenBalance,
-                underlyingTokenBalance,
-                owner.address,
-                0,
-              );
-              wrappedfCashMocks.push(wrappedfCashMock);
-            }
+            caller = manager;
           });
-          describe("When setToken is deployed", () => {
-            let fCashPosition: BigNumber;
-            let underlyingPosition: BigNumber;
-            let initialSetBalance: BigNumber;
-            let setToken: SetToken;
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("Ownable: caller is not the owner");
+          });
+        });
+      });
+
+      ["dai", "weth"].forEach(underlyingTokenName => {
+        describe(`When underlying token is ${underlyingTokenName}`, () => {
+          let assetToken: CERc20;
+          let underlyingToken: StandardTokenMock;
+
+          beforeEach(async () => {
+            // @ts-ignore
+            underlyingToken = setV2Setup[underlyingTokenName];
+            assetToken = await compoundSetup.createAndEnableCToken(
+              underlyingToken.address,
+              cTokenInitialMantissa,
+              compoundSetup.comptroller.address,
+              compoundSetup.interestRateModel.address,
+              "Compound UnderlyingToken",
+              "cUNDERLYINGTOKEN",
+              8,
+              ether(0.75), // 75% collateral factor
+              ether(1),
+            );
+            await underlyingToken.approve(assetToken.address, ethers.constants.MaxUint256);
+            await assetToken.mint(ether(100));
+          });
+
+          describe("When wrappedFCashMocks are deployed", () => {
+            let wrappedfCashMocks: Array<WrappedfCashMock>;
+            let underlyingTokenBalance: BigNumber;
+            let currencyId: number;
+            let maturities: Array<number>;
             beforeEach(async () => {
-              fCashPosition = ethers.utils.parseUnits("2", 9);
-              underlyingPosition = ethers.utils.parseEther("1");
+              const underlyingAddress =
+                underlyingToken.address == setV2Setup.weth.address
+                  ? ADDRESS_ZERO
+                  : underlyingToken.address;
+              currencyId = 1;
+              maturities = [30, 90];
+              wrappedfCashMocks = [];
 
-              setToken = await setV2Setup.createSetToken(
-                [...wrappedfCashMocks.map(mock => mock.address), underlyingToken.address],
-                [...wrappedfCashMocks.map(() => fCashPosition), underlyingPosition],
-                [debtIssuanceModule.address],
-                manager.address,
-              );
-
-              expect(await setToken.isPendingModule(debtIssuanceModule.address)).to.be.true;
-
-              // Initialize debIssuance module
-              await debtIssuanceModule.connect(manager.wallet).initialize(
-                setToken.address,
-                ether(0.1),
-                ether(0), // No issue fee
-                ether(0), // No redeem fee
-                owner.address,
-                ADDRESS_ZERO,
-              );
-
-              initialSetBalance = underlyingTokenBalance.div(10);
-
-              for (const wrappedfCashMock of wrappedfCashMocks) {
-                await underlyingToken.approve(
-                  wrappedfCashMock.address,
-                  ethers.constants.MaxUint256,
+              for (const maturityDays of maturities) {
+                const wrappedfCashMock = await deployer.mocks.deployWrappedfCashMock(
+                  assetToken.address,
+                  underlyingAddress,
+                  setV2Setup.weth.address,
                 );
-                await wrappedfCashMock.setMintTokenSpent(1);
+
+                const maturity =
+                  (await ethers.provider.getBlock("latest")).timestamp + maturityDays * 24 * 3600;
+
+                await wrappedfCashMock.initialize(currencyId, maturity);
+
+                await wrappedfCashFactoryMock.registerWrapper(
+                  currencyId,
+                  maturity,
+                  wrappedfCashMock.address,
+                );
+
+                underlyingTokenBalance = ether(100);
+                await underlyingToken.transfer(owner.address, underlyingTokenBalance);
+                await underlyingToken.approve(wrappedfCashMock.address, underlyingTokenBalance);
+
                 await wrappedfCashMock.mintViaUnderlying(
-                  0,
+                  underlyingTokenBalance,
                   underlyingTokenBalance,
                   owner.address,
                   0,
                 );
-                await wrappedfCashMock.setMintTokenSpent(0);
-                await wrappedfCashMock.approve(
-                  debtIssuanceModule.address,
-                  ethers.constants.MaxUint256,
-                );
+                wrappedfCashMocks.push(wrappedfCashMock);
               }
-              await assetToken.approve(debtIssuanceModule.address, ethers.constants.MaxUint256);
-              await debtIssuanceModule.issue(setToken.address, initialSetBalance, owner.address);
             });
-
-            describe("When exchangeIssuance is deployed", () => {
-              let exchangeIssuance: ExchangeIssuanceNotional;
-              let notionalTradeModule: NotionalTradeModuleMock;
-              let decodedIdGasLimit: BigNumber;
+            describe("When setToken is deployed", () => {
+              let fCashPosition: BigNumber;
+              let underlyingPosition: BigNumber;
+              let initialSetBalance: BigNumber;
+              let setToken: SetToken;
               beforeEach(async () => {
-                decodedIdGasLimit = BigNumber.from(10 ** 5);
-                notionalTradeModule = await deployer.mocks.deployNotionalTradeModuleMock();
-                exchangeIssuance = await deployer.extensions.deployExchangeIssuanceNotional(
-                  setV2Setup.weth.address,
-                  setV2Setup.controller.address,
-                  wrappedfCashFactoryMock.address,
-                  notionalTradeModule.address,
-                  quickswapRouter.address,
-                  sushiswapRouter.address,
-                  uniswapV3RouterAddress,
-                  uniswapV3QuoterAddress,
-                  curveAddressProviderAddress,
-                  curveCalculatorAddress,
-                  decodedIdGasLimit,
+                fCashPosition = ethers.utils.parseUnits("2", 9);
+                underlyingPosition = ethers.utils.parseEther("1");
+
+                setToken = await setV2Setup.createSetToken(
+                  [...wrappedfCashMocks.map(mock => mock.address), underlyingToken.address],
+                  [...wrappedfCashMocks.map(() => fCashPosition), underlyingPosition],
+                  [debtIssuanceModule.address],
+                  manager.address,
                 );
-              });
 
-              describe("#updateDecodedIdGasLimit", () => {
-                let subjectDecodedIdGasLimit: BigNumber;
-                let caller: Account;
-                beforeEach(async () => {
-                  subjectDecodedIdGasLimit = (await exchangeIssuance.decodedIdGasLimit()).mul(2);
-                  caller = owner;
-                });
-                function subject() {
-                  return exchangeIssuance
-                    .connect(caller.wallet)
-                    .updateDecodedIdGasLimit(subjectDecodedIdGasLimit);
-                }
-                it("should update state correctly", async () => {
-                  await subject();
-                  expect(await exchangeIssuance.decodedIdGasLimit()).to.eq(
-                    subjectDecodedIdGasLimit,
+                expect(await setToken.isPendingModule(debtIssuanceModule.address)).to.be.true;
+
+                // Initialize debIssuance module
+                await debtIssuanceModule.connect(manager.wallet).initialize(
+                  setToken.address,
+                  ether(0.1),
+                  ether(0), // No issue fee
+                  ether(0), // No redeem fee
+                  owner.address,
+                  ADDRESS_ZERO,
+                );
+
+                initialSetBalance = underlyingTokenBalance.div(10);
+
+                for (const wrappedfCashMock of wrappedfCashMocks) {
+                  await underlyingToken.approve(
+                    wrappedfCashMock.address,
+                    ethers.constants.MaxUint256,
                   );
-                });
-
-                describe("when caller is not the owner", () => {
-                  beforeEach(async () => {
-                    caller = manager;
-                  });
-                  it("should revert", async () => {
-                    await expect(subject()).to.be.revertedWith("Ownable: caller is not the owner");
-                  });
-                });
+                  await wrappedfCashMock.setMintTokenSpent(1);
+                  await wrappedfCashMock.mintViaUnderlying(
+                    0,
+                    underlyingTokenBalance,
+                    owner.address,
+                    0,
+                  );
+                  await wrappedfCashMock.setMintTokenSpent(0);
+                  await wrappedfCashMock.approve(
+                    debtIssuanceModule.address,
+                    ethers.constants.MaxUint256,
+                  );
+                }
+                await assetToken.approve(debtIssuanceModule.address, ethers.constants.MaxUint256);
+                await debtIssuanceModule.issue(setToken.address, initialSetBalance, owner.address);
               });
 
               describe("#getFilteredComponentsRedemption", () => {
