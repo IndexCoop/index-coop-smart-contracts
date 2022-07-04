@@ -122,30 +122,6 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         addresses.curveCalculator = _curveCalculator;
     }
 
-    /* ============ External Functions ============ */
-
-    /**
-     * Withdraw slippage to selected address
-     *
-     * @param _tokens    Addresses of tokens to withdraw, specifiy ETH_ADDRESS to withdraw ETH
-     * @param _to        Address to send the tokens to
-     */
-    function withdrawTokens(IERC20[] calldata _tokens, address payable _to) external onlyOwner payable {
-        for(uint256 i = 0; i < _tokens.length; i++) {
-            if(address(_tokens[i]) == ETH_ADDRESS){
-                _to.sendValue(address(this).balance);
-            }
-            else{
-                _tokens[i].safeTransfer(_to, _tokens[i].balanceOf(address(this)));
-            }
-        }
-    }
-
-    receive() external payable {
-        // required for weth.withdraw() to work properly
-        require(msg.sender == addresses.weth, "ExchangeIssuance: Direct deposits not allowed");
-    }
-
     /* ============ Public Functions ============ */
 
 
@@ -174,6 +150,70 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     }
 
     /**
+     * Returns component positions required for issuance 
+     *
+     * @param _issuanceModule    Address of issuance Module to use 
+     * @param _isDebtIssuance    Flag indicating wether given issuance module is a debt issuance module
+     * @param _setToken          Set token to issue
+     * @param _amountSetToken    Amount of set token to issue
+     */
+    function getRequiredIssuanceComponents(address _issuanceModule, bool _isDebtIssuance, ISetToken _setToken, uint256 _amountSetToken) public view returns(address[] memory components, uint256[] memory positions) {
+        if(_isDebtIssuance) { 
+            (components, positions, ) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
+        }
+        else {
+            (components, positions) = IBasicIssuanceModule(_issuanceModule).getRequiredComponentUnitsForIssue(_setToken, _amountSetToken);
+        }
+    }
+
+    /**
+     * Returns component positions required for Redemption 
+     *
+     * @param _issuanceModule    Address of issuance Module to use 
+     * @param _isDebtIssuance    Flag indicating wether given issuance module is a debt issuance module
+     * @param _setToken          Set token to issue
+     * @param _amountSetToken    Amount of set token to issue
+     */
+    function getRequiredRedemptionComponents(address _issuanceModule, bool _isDebtIssuance, ISetToken _setToken, uint256 _amountSetToken) public view returns(address[] memory components, uint256[] memory positions) {
+        if(_isDebtIssuance) { 
+            (components, positions, ) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
+        }
+        else {
+            components = _setToken.getComponents();
+            positions = new uint256[](components.length);
+            for(uint256 i = 0; i < components.length; i++) {
+                uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
+                positions[i] = unit.preciseMul(_amountSetToken);
+            }
+        }
+    }
+
+    /* ============ External Functions ============ */
+
+    /**
+     * Withdraw slippage to selected address
+     *
+     * @param _tokens    Addresses of tokens to withdraw, specifiy ETH_ADDRESS to withdraw ETH
+     * @param _to        Address to send the tokens to
+     */
+    function withdrawTokens(IERC20[] calldata _tokens, address payable _to) external onlyOwner payable {
+        for(uint256 i = 0; i < _tokens.length; i++) {
+            if(address(_tokens[i]) == ETH_ADDRESS){
+                _to.sendValue(address(this).balance);
+            }
+            else{
+                _tokens[i].safeTransfer(_to, _tokens[i].balanceOf(address(this)));
+            }
+        }
+    }
+
+    receive() external payable {
+        // required for weth.withdraw() to work properly
+        require(msg.sender == addresses.weth, "ExchangeIssuance: Direct deposits not allowed");
+    }
+
+
+    /**
      * Runs all the necessary approval functions required before issuing
      * or redeeming a SetToken. This function need to be called only once before the first time
      * this smart contract is used on any particular SetToken.
@@ -191,6 +231,11 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     /**
      * Returns components and units but replaces wrappefCash positions with the corresponding amount of underlying token needed to mint 
      *
+     * @param _setToken          Address of the set token to redeem
+     * @param _amountSetToken    Amount of set token to redeem
+     * @param _issuanceModule    Address of the issuance module to use for getting raw list of components and units
+     * @param _isDebtIssuance    Boolean indicating wether given issuance module is an instance of Debt- or BasicIssuanceModule
+     * @param _slippage          Relative slippage (with 18 decimals) to subtract from wrappedfCash's estimated redemption amount to allow for approximation error
      */
     function getFilteredComponentsRedemption(
         ISetToken _setToken,
@@ -212,6 +257,11 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
      * Returns filtered components after redeeming matured positions
      * THIS METHOD SHOULD ONLY BE CALLED WITH STATICCALL
      *
+     * @param _setToken          Address of the set token to redeem
+     * @param _amountSetToken    Amount of set token to redeem
+     * @param _issuanceModule    Address of the issuance module to use for getting raw list of components and units
+     * @param _isDebtIssuance    Boolean indicating wether given issuance module is an instance of Debt- or BasicIssuanceModule
+     * @param _slippage          Relative slippage (with 18 decimals) to subtract from wrappedfCash's estimated redemption amount to allow for approximation error
      */
     function getFilteredComponentsRedemptionAfterMaturityRedemption(
         ISetToken _setToken,
@@ -225,54 +275,17 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     {
         notionalTradeModule.redeemMaturedPositions(_setToken);
         return _getFilteredComponentsRedemption(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance, _slippage);
-
     }
 
-    function _getFilteredComponentsRedemption(
-        ISetToken _setToken,
-        uint256 _amountSetToken,
-        address _issuanceModule,
-        bool _isDebtIssuance,
-        uint256 _slippage
-    )
-        internal
-        view
-        returns (address[] memory filteredComponents, uint[] memory filteredUnits)
-    {
-        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(_issuanceModule, _isDebtIssuance, _setToken, _amountSetToken);
-
-        filteredComponents = new address[](components.length);
-        filteredUnits = new uint256[](components.length);
-        uint j = 0;
-
-        for (uint256 i = 0; i < components.length; i++) {
-            address component = components[i];
-            uint256 units;
-
-            if(_isWrappedFCash(component)) {
-                units = _getUnderlyingTokensForRedeem(IWrappedfCash(component), componentUnits[i], _slippage);
-                IERC20 underlyingToken = _getUnderlyingToken(IWrappedfCash(component));
-                component = address(underlyingToken);
-            }
-            else {
-                units = componentUnits[i];
-            }
-
-            // TODO: Gas optimization analogous to notionalTradeModule
-            uint256 componentIndex = _findComponent(filteredComponents, component);
-            if(componentIndex > 0){
-                filteredUnits[componentIndex - 1] = filteredUnits[componentIndex - 1].add(units);
-            } else {
-                filteredComponents[j] = component;
-                filteredUnits[j] = units;
-                j++;
-            }
-        }
-    }
 
     /**
      * Returns components and units but replaces wrappefCash positions with the corresponding amount of underlying token needed to mint 
      *
+     * @param _setToken          Address of the set token to issue
+     * @param _amountSetToken    Amount of set token to issue
+     * @param _issuanceModule    Address of the issuance module to use for getting raw list of components and units
+     * @param _isDebtIssuance    Boolean indicating wether given issuance module is an instance of Debt- or BasicIssuanceModule
+     * @param _slippage          Relative slippage (with 18 decimals) to add to wrappedfCash's estimated issuance cost to allow for approximation error
      */
     function getFilteredComponentsIssuance(
         ISetToken _setToken,
@@ -292,6 +305,11 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
      * Returns filtered components after redeeming matured positions
      * THIS METHOD SHOULD ONLY BE CALLED WITH STATICCALL
      *
+     * @param _setToken          Address of the set token to issue
+     * @param _amountSetToken    Amount of set token to issue
+     * @param _issuanceModule    Address of the issuance module to use for getting raw list of components and units
+     * @param _isDebtIssuance    Boolean indicating wether given issuance module is an instance of Debt- or BasicIssuanceModule
+     * @param _slippage          Relative slippage (with 18 decimals) to add to wrappedfCash's estimated issuance cost to allow for approximation error
      */
     function getFilteredComponentsIssuanceAfterMaturityRedemption(
         ISetToken _setToken,
@@ -309,47 +327,16 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
 
     }
 
-    function _getFilteredComponentsIssuance(
-        ISetToken _setToken,
-        uint256 _amountSetToken,
-        address _issuanceModule,
-        bool _isDebtIssuance,
-        uint256 _slippage
-    )
-        internal
-        view
-        returns (address[] memory filteredComponents, uint[] memory filteredUnits)
-    {
-        (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(_issuanceModule, _isDebtIssuance, _setToken, _amountSetToken);
-
-        filteredComponents = new address[](components.length);
-        filteredUnits = new uint256[](components.length);
-        uint j = 0;
-
-        for (uint256 i = 0; i < components.length; i++) {
-            address component = components[i];
-            uint256 units;
-
-            if(_isWrappedFCash(component)) {
-                units = _getUnderlyingTokensForMint(IWrappedfCash(component), componentUnits[i], _slippage);
-                IERC20 underlyingToken = _getUnderlyingToken(IWrappedfCash(component));
-                component = address(underlyingToken);
-            }
-            else {
-                units = componentUnits[i];
-            }
-
-            uint256 componentIndex = _findComponent(filteredComponents, component);
-            if(componentIndex > 0){
-                filteredUnits[componentIndex - 1] = filteredUnits[componentIndex - 1].add(units);
-            } else {
-                filteredComponents[j] = component;
-                filteredUnits[j] = units;
-                j++;
-            }
-        }
-    }
-
+    /**
+     * Issue set token for ETH
+     *
+     * @param _setToken          Address of the set token to issue
+     * @param _amountSetToken    Amount of set token to issue
+     * @param _swapData          Swap data for each element of the filtered components in the same order as returned by getFilteredComponentsIssuance
+     * @param _issuanceModule    Address of the issuance module to use for getting raw list of components and units
+     * @param _isDebtIssuance    Boolean indicating wether given issuance module is an instance of Debt- or BasicIssuanceModule
+     * @param _slippage          Relative slippage (with 18 decimals) to add to wrappedfCash's estimated issuance cost to allow for approximation error
+     */
     function issueExactSetFromETH(
         ISetToken _setToken,
         uint256 _amountSetToken,
@@ -384,6 +371,18 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         return totalInputTokenSpent;
     }
 
+    /**
+     * Issue set token for ERC20 Token
+     *
+     * @param _setToken               Address of the set token to issue
+     * @param _amountSetToken         Amount of set token to issue
+     * @param _inputToken             Address of the input token to spent
+     * @param _maxAmountInputToken    Maximum amount of input token to spent
+     * @param _swapData               Configuration of swaps from input token to each element of the filtered components in the same order as returned by getFilteredComponentsIssuance
+     * @param _issuanceModule         Address of the issuance module to use for getting raw list of components and units
+     * @param _isDebtIssuance         Boolean indicating wether given issuance module is an instance of Debt- or BasicIssuanceModule
+     * @param _slippage               Relative slippage (with 18 decimals) to add to wrappedfCash's estimated issuance cost to allow for approximation error
+     */
     function issueExactSetFromToken(
         ISetToken _setToken,
         IERC20 _inputToken,
@@ -415,6 +414,96 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         return totalInputTokenSpent;
     }
 
+    /**
+     * Redeem set token for selected output token
+     *
+     * @param _setToken               Address of the set token to redeem
+     * @param _amountSetToken         Amount of set token to redeem
+     * @param _outputToken            Address of the output token to spent
+     * @param _minOutputReceive       Minimum amount of output token to receive
+     * @param _swapData               Configuration of swaps from each element of the filtered components to the output token in the same order as returned by getFilteredComponentsIssuance
+     * @param _issuanceModule         Address of the issuance module to use for getting raw list of components and units
+     * @param _isDebtIssuance         Boolean indicating wether given issuance module is an instance of Debt- or BasicIssuanceModule
+     * @param _slippage               Relative slippage (with 18 decimals) to subtract from wrappedfCash's estimated redemption amount to allow for approximation error
+     */
+    function redeemExactSetForToken(
+        ISetToken _setToken,
+        IERC20 _outputToken,
+        uint256 _amountSetToken,
+        uint256 _minOutputReceive,
+        DEXAdapter.SwapData[] memory _swapData,
+        address _issuanceModule,
+        bool _isDebtIssuance,
+        uint256 _slippage
+    )
+        isValidModule(_issuanceModule)
+        external
+        nonReentrant
+        returns (uint256)
+    {
+
+        TradeData memory tradeData = TradeData(
+            _setToken,
+            _amountSetToken,
+            _outputToken,
+            _minOutputReceive,
+            _issuanceModule,
+            _isDebtIssuance,
+            _slippage
+        );
+        uint256 outputAmount = _redeemExactSetForToken(tradeData, _swapData);
+        _outputToken.safeTransfer(msg.sender, outputAmount);
+        return outputAmount;
+    }
+
+    /**
+     * Redeem set token for eth
+     *
+     * @param _setToken               Address of the set token to redeem
+     * @param _amountSetToken         Amount of set token to redeem
+     * @param _minOutputReceive       Minimum amount of output token to receive
+     * @param _swapData               Configuration of swaps from each element of the filtered components to the output token in the same order as returned by getFilteredComponentsIssuance
+     * @param _issuanceModule         Address of the issuance module to use for getting raw list of components and units
+     * @param _isDebtIssuance         Boolean indicating wether given issuance module is an instance of Debt- or BasicIssuanceModule
+     * @param _slippage               Relative slippage (with 18 decimals) to subtract from wrappedfCash's estimated redemption amount to allow for approximation error
+     */
+    function redeemExactSetForETH(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        uint256 _minOutputReceive,
+        DEXAdapter.SwapData[] memory _swapData,
+        address _issuanceModule,
+        bool _isDebtIssuance,
+        uint256 _slippage
+    )
+        isValidModule(_issuanceModule)
+        external
+        nonReentrant
+        returns (uint256)
+    {
+
+        
+        TradeData memory tradeData = TradeData(
+            _setToken,
+            _amountSetToken,
+            IERC20(addresses.weth),
+            _minOutputReceive,
+            _issuanceModule,
+            _isDebtIssuance,
+            _slippage
+        );
+        uint256 outputAmount = _redeemExactSetForToken(tradeData, _swapData);
+        IWETH(addresses.weth).withdraw(outputAmount);
+        payable(msg.sender).transfer(outputAmount);
+        return outputAmount;
+    }
+
+    /* ============ Internal Functions ============ */
+
+
+    /**
+     * Transfer in input token, swap for components, mint fCash positions and issue set
+     */
     function _issueExactSetFromToken(
         TradeData memory _tradeData,
         DEXAdapter.SwapData[] memory _swapData
@@ -445,72 +534,9 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         return inputTokenBalanceBefore.sub(_tradeData.paymentToken.balanceOf(address(this)));
     }
 
-    function redeemExactSetForToken(
-        ISetToken _setToken,
-        IERC20 _outputToken,
-        uint256 _amountSetToken,
-        uint256 _minOutputReceive,
-        DEXAdapter.SwapData[] memory _swapData,
-        address _issuanceModule,
-        bool _isDebtIssuance,
-        uint256 _slippage
-    )
-        isValidModule(_issuanceModule)
-        external
-        nonReentrant
-        returns (uint256)
-    {
-
-        TradeData memory tradeData = TradeData(
-            _setToken,
-            _amountSetToken,
-            _outputToken,
-            _minOutputReceive,
-            _issuanceModule,
-            _isDebtIssuance,
-            _slippage
-        );
-        uint256 outputAmount = _redeemExactSetForToken(tradeData, _swapData);
-        // Transfer sender output token
-        _outputToken.safeTransfer(msg.sender, outputAmount);
-        // Return output amount
-        return outputAmount;
-    }
-
-    function redeemExactSetForETH(
-        ISetToken _setToken,
-        uint256 _amountSetToken,
-        uint256 _minOutputReceive,
-        DEXAdapter.SwapData[] memory _swapData,
-        address _issuanceModule,
-        bool _isDebtIssuance,
-        uint256 _slippage
-    )
-        isValidModule(_issuanceModule)
-        external
-        nonReentrant
-        returns (uint256)
-    {
-
-        
-        TradeData memory tradeData = TradeData(
-            _setToken,
-            _amountSetToken,
-            IERC20(addresses.weth),
-            _minOutputReceive,
-            _issuanceModule,
-            _isDebtIssuance,
-            _slippage
-        );
-        uint256 outputAmount = _redeemExactSetForToken(tradeData, _swapData);
-        // Transfer sender output token
-        IWETH(addresses.weth).withdraw(outputAmount);
-        payable(msg.sender).transfer(outputAmount);
-        // Return output amount
-        return outputAmount;
-    }
-
-
+    /**
+     * Redeem set, redeem fCash components, sell received tokens for output token and transfer proceds to the caller
+     */
     function _redeemExactSetForToken(
         TradeData memory _tradeData,
         DEXAdapter.SwapData[] memory _swapData
@@ -536,6 +562,9 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     }
 
 
+    /**
+     * Sells all components (after redemption of fCash positions) for the output token
+     */
     function _sellComponentsForOutputToken(
         TradeData memory _tradeData,
         DEXAdapter.SwapData[] memory _swapData
@@ -573,19 +602,8 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     }
 
     /**
-     * Sets a max approval limit for an ERC20 token, provided the current allowance
-     * is less than the required allownce.
-     *
-     * @param _token    Token to approve
-     * @param _spender  Spender address to approve
+     * Redeem all fCash positions for the underlying token
      */
-    function _safeApprove(IERC20 _token, address _spender, uint256 _requiredAllowance) internal {
-        uint256 allowance = _token.allowance(address(this), _spender);
-        if (allowance < _requiredAllowance) {
-            _token.safeIncreaseAllowance(_spender, type(uint256).max - allowance);
-        }
-    }
-
     function _redeemWrappedFCashPositions(
         TradeData memory _tradeData
     ) 
@@ -608,6 +626,9 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         }
     }
 
+    /**
+     * Mint all fCash positions from the underlying token
+     */
     function _mintWrappedFCashPositions(
         TradeData memory _tradeData,
         address[] memory componentsBought,
@@ -642,6 +663,9 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         }
     }
 
+    /**
+     * Get underlying token of fCash positions returning weth address in case underlying is eth
+     */
     function _getUnderlyingToken(
         IWrappedfCash _wrappedfCash
     ) 
@@ -685,42 +709,13 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     }
 
     /**
-     * Returns component positions required for issuance 
-     *
-     * @param _issuanceModule    Address of issuance Module to use 
-     * @param _isDebtIssuance    Flag indicating wether given issuance module is a debt issuance module
-     * @param _setToken          Set token to issue
-     * @param _amountSetToken    Amount of set token to issue
+     * Sets a max approval limit for an ERC20 token, provided the current allowance
+     * is less than the required allowance.
      */
-    function getRequiredIssuanceComponents(address _issuanceModule, bool _isDebtIssuance, ISetToken _setToken, uint256 _amountSetToken) public view returns(address[] memory components, uint256[] memory positions) {
-        if(_isDebtIssuance) { 
-            (components, positions, ) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
-        }
-        else {
-            (components, positions) = IBasicIssuanceModule(_issuanceModule).getRequiredComponentUnitsForIssue(_setToken, _amountSetToken);
-        }
-
-    }
-
-    /**
-     * Returns component positions required for Redemption 
-     *
-     * @param _issuanceModule    Address of issuance Module to use 
-     * @param _isDebtIssuance    Flag indicating wether given issuance module is a debt issuance module
-     * @param _setToken          Set token to issue
-     * @param _amountSetToken    Amount of set token to issue
-     */
-    function getRequiredRedemptionComponents(address _issuanceModule, bool _isDebtIssuance, ISetToken _setToken, uint256 _amountSetToken) public view returns(address[] memory components, uint256[] memory positions) {
-        if(_isDebtIssuance) { 
-            (components, positions, ) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
-        }
-        else {
-            components = _setToken.getComponents();
-            positions = new uint256[](components.length);
-            for(uint256 i = 0; i < components.length; i++) {
-                uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
-                positions[i] = unit.preciseMul(_amountSetToken);
-            }
+    function _safeApprove(IERC20 _token, address _spender, uint256 _requiredAllowance) internal {
+        uint256 allowance = _token.allowance(address(this), _spender);
+        if (allowance < _requiredAllowance) {
+            _token.safeIncreaseAllowance(_spender, type(uint256).max - allowance);
         }
     }
 
@@ -780,6 +775,9 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         (assetToken,,) = _fCashPosition.getAssetToken();
     }
 
+    /**
+     * @dev Returns estimated amount of underlying tokens spent on minting given amount of fCash, adding given slippage percentage
+     */
     function _getUnderlyingTokensForMint(IWrappedfCash _fCashPosition, uint256 _fCashAmount, uint256 _slippage)
     internal
     view
@@ -788,6 +786,9 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         return _fCashPosition.previewMint(_fCashAmount).mul(1 ether + _slippage).div(1 ether);
     }
 
+    /**
+     * @dev Returns estimated amount of underlying tokens returned on redeeming given amount of fCash, subtracting given slippage percentage
+     */
     function _getUnderlyingTokensForRedeem(IWrappedfCash _fCashPosition, uint256 _fCashAmount, uint256 _slippage)
     internal
     view
@@ -796,9 +797,12 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         return _fCashPosition.previewRedeem(_fCashAmount).mul(1 ether - _slippage).div(1 ether);
     }
 
+    /**
+     * @dev Helper method to find a given address in the list. Returns index+1 if found, 0 if not found.
+     */
     function _findComponent(address[] memory _components, address _toFind)
     internal
-    view
+    pure
     returns(uint256)
     {
         for(uint256 i = 0; i < _components.length; i++) {
@@ -809,6 +813,9 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         return 0;
     }
 
+    /**
+     * @dev Swaps input token for required amounts of filtered components
+     */
     function _buyComponentsForInputToken(
         TradeData memory _tradeData,
         DEXAdapter.SwapData[] memory _swapData
@@ -848,6 +855,94 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         }
 
         return(components, boughtAmounts);
+    }
+
+    /**
+     * @dev Returns expected of components received upon set tokens redemption, replacing fCash position with equivalent amount of underlying token
+     */
+    function _getFilteredComponentsRedemption(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        address _issuanceModule,
+        bool _isDebtIssuance,
+        uint256 _slippage
+    )
+        internal
+        view
+        returns (address[] memory filteredComponents, uint[] memory filteredUnits)
+    {
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(_issuanceModule, _isDebtIssuance, _setToken, _amountSetToken);
+
+        filteredComponents = new address[](components.length);
+        filteredUnits = new uint256[](components.length);
+        uint j = 0;
+
+        for (uint256 i = 0; i < components.length; i++) {
+            address component = components[i];
+            uint256 units;
+
+            if(_isWrappedFCash(component)) {
+                units = _getUnderlyingTokensForRedeem(IWrappedfCash(component), componentUnits[i], _slippage);
+                IERC20 underlyingToken = _getUnderlyingToken(IWrappedfCash(component));
+                component = address(underlyingToken);
+            }
+            else {
+                units = componentUnits[i];
+            }
+
+            uint256 componentIndex = _findComponent(filteredComponents, component);
+            if(componentIndex > 0){
+                filteredUnits[componentIndex - 1] = filteredUnits[componentIndex - 1].add(units);
+            } else {
+                filteredComponents[j] = component;
+                filteredUnits[j] = units;
+                j++;
+            }
+        }
+    }
+
+    /**
+     * @dev Returns expected of components spent upon set tokens issuance, replacing fCash position with equivalent amount of underlying token
+     */
+    function _getFilteredComponentsIssuance(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        address _issuanceModule,
+        bool _isDebtIssuance,
+        uint256 _slippage
+    )
+        internal
+        view
+        returns (address[] memory filteredComponents, uint[] memory filteredUnits)
+    {
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(_issuanceModule, _isDebtIssuance, _setToken, _amountSetToken);
+
+        filteredComponents = new address[](components.length);
+        filteredUnits = new uint256[](components.length);
+        uint j = 0;
+
+        for (uint256 i = 0; i < components.length; i++) {
+            address component = components[i];
+            uint256 units;
+
+            if(_isWrappedFCash(component)) {
+                units = _getUnderlyingTokensForMint(IWrappedfCash(component), componentUnits[i], _slippage);
+                IERC20 underlyingToken = _getUnderlyingToken(IWrappedfCash(component));
+                component = address(underlyingToken);
+            }
+            else {
+                units = componentUnits[i];
+            }
+
+            uint256 componentIndex = _findComponent(filteredComponents, component);
+            if(componentIndex > 0){
+                filteredUnits[componentIndex - 1] = filteredUnits[componentIndex - 1].add(units);
+            } else {
+                filteredComponents[j] = component;
+                filteredUnits[j] = units;
+                j++;
+            }
+        }
     }
 
 }
