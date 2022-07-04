@@ -751,42 +751,6 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Returns boolean indicating if given paymentToken is the underlying of the given fCashPosition
-     * @dev Reverts if given token is neither underlying nor asset token of the fCashPosition
-     */
-    function _isUnderlying(
-        IWrappedfCash _fCashPosition,
-        IERC20 _paymentToken
-    )
-    internal
-    view
-    returns(bool isUnderlying)
-    {
-        (IERC20 underlyingToken, IERC20 assetToken) = _getUnderlyingAndAssetTokens(_fCashPosition);
-        isUnderlying = _paymentToken == underlyingToken;
-        if(!isUnderlying) {
-            require(_paymentToken == assetToken, "Token is neither asset nor underlying token");
-        }
-    }
-
-
-    /**
-     * @dev Returns both underlying and asset token address for given fCash position
-     */
-    function _getUnderlyingAndAssetTokens(IWrappedfCash _fCashPosition)
-    internal
-    view
-    returns(IERC20 , IERC20)
-    {
-        (IERC20 underlyingToken, bool isEth) = _fCashPosition.getToken(true);
-        if(isEth) {
-            underlyingToken = IERC20(addresses.weth);
-        }
-        (IERC20 assetToken,) = _fCashPosition.getToken(false);
-        return (underlyingToken, assetToken);
-    }
-
-    /**
      * @dev Returns estimated amount of underlying tokens spent on minting given amount of fCash, adding given slippage percentage
      */
     function _getUnderlyingTokensForMint(IWrappedfCash _fCashPosition, uint256 _fCashAmount, uint256 _slippage)

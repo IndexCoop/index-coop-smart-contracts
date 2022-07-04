@@ -192,5 +192,8 @@ contract WrappedfCashMock is ERC20, IWrappedfCash {
         isETH = address(token) == ETH_ADDRESS;
     }
 
+    function kill() external {
+        selfdestruct(msg.sender);
+    }
 
 }

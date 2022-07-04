@@ -420,6 +420,7 @@ describe("ExchangeIssuanceNotional", () => {
                       expect(filteredUnits[0]).to.eq(expectedAmount);
                     });
                   });
+
                   describe("#getFilteredComponentsRedemption", () => {
                     let subjectSetToken: Address;
                     let subjectSetAmount: BigNumber;
@@ -466,6 +467,21 @@ describe("ExchangeIssuanceNotional", () => {
                     describe("when compute address fails on wrappefCashFactory", () => {
                       beforeEach(async () => {
                         await wrappedfCashFactoryMock.setRevertComputeAddress(true);
+                      });
+                      it("should return fcash positions as component", async () => {
+                        const [filteredComponents] = await subject();
+                        expect(filteredComponents).to.deep.equal([
+                          ...wrappedfCashMocks.map(mock => mock.address),
+                          underlyingToken.address,
+                        ]);
+                      });
+                    });
+
+                    describe("when .isContract returns false fore fCash component", () => {
+                      beforeEach(async () => {
+                        for (const wrappedfCashMock of wrappedfCashMocks) {
+                          await wrappedfCashMock.kill();
+                        }
                       });
                       it("should return fcash positions as component", async () => {
                         const [filteredComponents] = await subject();
