@@ -6,6 +6,7 @@ export { BaseManager } from "../../typechain/BaseManager";
 export { BaseManagerV2 } from "../../typechain/BaseManagerV2";
 export { ChainlinkAggregatorV3Mock } from "../../typechain/ChainlinkAggregatorV3Mock";
 export { DebtIssuanceModule } from "../../typechain/DebtIssuanceModule";
+export { BasicIssuanceModule } from "../../typechain/BasicIssuanceModule";
 export { DEXAdapter } from "../../typechain/DEXAdapter";
 export { ExchangeIssuance } from "../../typechain/ExchangeIssuance";
 export { ExchangeIssuanceV2 } from "../../typechain/ExchangeIssuanceV2";
