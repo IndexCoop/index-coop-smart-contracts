@@ -774,8 +774,9 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
 
             // If the component is equal to the input token we don't have to trade
             if(components[i] != address(_tradeData.paymentToken)) {
+                uint256 componentBalanceBefore = IERC20(components[i]).balanceOf(address(this));
                 addresses.swapTokensForExactTokens(componentUnits[i], _tradeData.limitAmount, _swapData[i]);
-                boughtAmounts[i] = componentAmountBought;
+                boughtAmounts[i] = IERC20(components[i]).balanceOf(address(this)).sub(componentBalanceBefore);
             } else {
                 boughtAmounts[i] = componentUnits[i];
             }
