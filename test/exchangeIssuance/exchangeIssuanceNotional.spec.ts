@@ -157,6 +157,14 @@ describe("ExchangeIssuanceNotional", () => {
         );
       });
 
+      describe("When sending eth to the ei contract", () => {
+        it("should revert", async () => {
+          await expect(
+            owner.wallet.sendTransaction({ value: ether(1), to: exchangeIssuance.address }),
+          ).to.be.revertedWith("ExchangeIssuance: Direct deposits not allowed");
+        });
+      });
+
       describe("#withdrawTokens", () => {
         let subjectTokens: Address[];
         let subjectTo: Address;
@@ -1138,8 +1146,7 @@ describe("ExchangeIssuanceNotional", () => {
                     function subjectCallStatic() {
                       return exchangeIssuance
                         .connect(caller.wallet)
-                        .callStatic
-                        .redeemExactSetForToken(
+                        .callStatic.redeemExactSetForToken(
                           subjectSetToken,
                           subjectOutputToken,
                           subjectSetAmount,
