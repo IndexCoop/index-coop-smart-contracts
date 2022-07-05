@@ -774,12 +774,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
 
             // If the component is equal to the input token we don't have to trade
             if(components[i] != address(_tradeData.paymentToken)) {
-                uint256 componentBalanceBefore = IERC20(components[i]).balanceOf(address(this));
-
                 addresses.swapTokensForExactTokens(componentUnits[i], _tradeData.limitAmount, _swapData[i]);
-
-                uint256 componentAmountBought = IERC20(components[i]).balanceOf(address(this)).sub(componentBalanceBefore);
-                require(componentAmountBought >= componentUnits[i], "ExchangeIssuance: UNDERBOUGHT COMPONENT");
                 boughtAmounts[i] = componentAmountBought;
             } else {
                 boughtAmounts[i] = componentUnits[i];
