@@ -1,6 +1,5 @@
-<p align="center">
-  <a href='https://coveralls.io/github/IndexCoop/index-coop-smart-contracts'><img src='https://coveralls.io/repos/github/IndexCoop/index-coop-smart-contracts/badge.svg' alt='Coverage Status' /></a>
-</p>
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/IndexCoop/index-coop-smart-contracts/tree/master.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/IndexCoop/index-coop-smart-contracts/tree/master)
+[![Coverage Status](https://coveralls.io/repos/github/IndexCoop/index-coop-smart-contracts/badge.svg)](https://coveralls.io/github/IndexCoop/index-coop-smart-contracts)
 
 # index
 
