@@ -145,18 +145,6 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
 
 
     /**
-     * Runs all the necessary approval functions required for a given ERC20 token.
-     * This function can be called when a new token is added to a SetToken during a
-     * rebalance.
-     *
-     * @param _token    Address of the token which needs approval
-     * @param _spender  Address of the spender which will be approved to spend token. (Must be a whitlisted issuance module)
-     */
-    function approveToken(IERC20 _token, address _spender) public  isValidModule(_spender) {
-        _safeApprove(_token, _spender, type(uint256).max);
-    }
-
-    /**
      * Returns component positions required for issuance 
      *
      * @param _issuanceModule    Address of issuance Module to use 
@@ -223,21 +211,6 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         }
     }
 
-
-    /**
-     * Runs all the necessary approval functions required before issuing
-     * or redeeming a SetToken. This function need to be called only once before the first time
-     * this smart contract is used on any particular SetToken.
-     *
-     * @param _setToken          Address of the SetToken being initialized
-     * @param _issuanceModule    Address of the issuance module which will be approved to spend component tokens.
-     */
-    function approveSetToken(ISetToken _setToken, address _issuanceModule) external {
-        address[] memory components = _setToken.getComponents();
-        for (uint256 i = 0; i < components.length; i++) {
-            approveToken(IERC20(components[i]), _issuanceModule);
-        }
-    }
 
     /**
      * Returns components and units but replaces wrappefCash positions with the corresponding amount of underlying token needed to mint 
@@ -601,12 +574,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
 
             // If the component is equal to the output token we don't have to trade
             if(component != address(_tradeData.paymentToken)) {
-                uint256 componentBalanceBefore = IERC20(component).balanceOf(address(this));
-
                 addresses.swapExactTokensForTokens(maxAmountSell, 0, _swapData[i]);
-                uint256 componentBalanceAfter = IERC20(component).balanceOf(address(this));
-                uint256 componentAmountSold = componentBalanceBefore.sub(componentBalanceAfter);
-                require(maxAmountSell >= componentAmountSold, "ExchangeIssuance: OVERSOLD COMPONENT");
             }
 
         }
@@ -661,7 +629,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
                 IERC20 underlyingToken = _getUnderlyingToken(IWrappedfCash(component));
                 uint256 componentIndex = _findComponent(componentsBought, address(underlyingToken));
                 uint256 amountAvailable = amountsAvailable[componentIndex-1];
-                underlyingToken.approve(component, amountAvailable);
+                underlyingToken.safeApprove(component, amountAvailable);
                 uint256 underlyingBalanceBefore = underlyingToken.balanceOf(address(this));
 
                 IWrappedfCash(component).mintViaUnderlying(amountAvailable, uint88(units), address(this), 0);
@@ -669,8 +637,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
                 uint256 amountSpent = underlyingBalanceBefore.sub(underlyingToken.balanceOf(address(this)));
                 amountsAvailable[componentIndex-1] = amountsAvailable[componentIndex-1].sub(amountSpent);
             }
-            IERC20(component).approve(_tradeData.issuanceModule, units);
-            require(IERC20(component).balanceOf(address(this)) >= units, "ExchangeIssuance: INSUFFICIENT COMPONENT");
+            IERC20(component).safeApprove(_tradeData.issuanceModule, units);
         }
     }
 
@@ -702,6 +669,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
      */
     function _redeemExactSet(ISetToken _setToken, uint256 _amount, address _issuanceModule) internal returns (uint256) {
         _setToken.safeTransferFrom(msg.sender, address(this), _amount);
+        _setToken.safeApprove(_issuanceModule, _amount);
         IBasicIssuanceModule(_issuanceModule).redeem(_setToken, _amount, address(this));
     }
 
@@ -716,17 +684,6 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
         uint256 amountTokenReturn = _receivedAmount.sub(_spentAmount);
         if (amountTokenReturn > 0) {
             _inputToken.safeTransfer(msg.sender,  amountTokenReturn);
-        }
-    }
-
-    /**
-     * Sets a max approval limit for an ERC20 token, provided the current allowance
-     * is less than the required allowance.
-     */
-    function _safeApprove(IERC20 _token, address _spender, uint256 _requiredAllowance) internal {
-        uint256 allowance = _token.allowance(address(this), _spender);
-        if (allowance < _requiredAllowance) {
-            _token.safeIncreaseAllowance(_spender, type(uint256).max - allowance);
         }
     }
 
