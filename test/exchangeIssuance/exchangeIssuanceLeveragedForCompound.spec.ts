@@ -3,7 +3,6 @@ import "module-alias/register";
 import {
   Address,
   Account,
-  AaveContractSettings,
   ContractSettings,
   Bytes,
   MethodologySettings,
@@ -13,10 +12,8 @@ import {
 } from "@utils/types";
 import { ADDRESS_ZERO, ZERO, EMPTY_BYTES, MAX_INT_256, MAX_UINT_256 } from "@utils/constants";
 import {
-  BaseManager,
   TradeAdapterMock,
   ChainlinkAggregatorV3Mock,
-  AaveLeverageStrategyExtension,
   FlexibleLeverageStrategyExtension,
   BaseManagerV2,
   ExchangeIssuanceLeveragedForCompound,
@@ -25,13 +22,10 @@ import {
 } from "@utils/contracts/index";
 import { UniswapV2Router02 } from "@utils/contracts/uniswap";
 import { CompoundLeverageModule, DebtIssuanceModule, SetToken } from "@utils/contracts/setV2";
-import { AaveV2AToken } from "@typechain/AaveV2AToken";
-import { AaveV2VariableDebtToken } from "@typechain/AaveV2VariableDebtToken";
 import DeployHelper from "@utils/deploys";
 import {
   cacheBeforeEach,
   ether,
-  getAaveV2Fixture,
   getCompoundFixture,
   getAccounts,
   getLastBlockTimestamp,
@@ -69,7 +63,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
   let owner: Account;
   let methodologist: Account;
   let setV2Setup: SetFixture;
-  let aaveSetup: AaveV2Fixture;
+  const aaveSetup: AaveV2Fixture;
   let compoundSetup: CompoundFixture;
 
   let exchangeIssuance: ExchangeIssuanceLeveragedForCompound;
@@ -81,7 +75,6 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
   let collateralLiquidityEther: BigNumber;
   let cEther: CEther;
   let cUSDC: CERc20;
-  let usdcVariableDebtToken: AaveV2VariableDebtToken;
   let tradeAdapterMock: TradeAdapterMock;
   let tradeAdapterMock2: TradeAdapterMock;
 
@@ -91,12 +84,11 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
   let execution: ExecutionSettings;
   let incentive: IncentiveSettings;
   let exchangeName: string;
-  let exchangeName2: string;
   let exchangeSettings: ExchangeSettings;
 
-  let customTargetLeverageRatio: any;
-  let customMinLeverageRatio: any;
-  let customCTokenCollateralAddress: any;
+  const customTargetLeverageRatio: any;
+  const customMinLeverageRatio: any;
+  const customCTokenCollateralAddress: any;
 
   // let leverageStrategyExtension: AaveLeverageStrategyExtension;
   let flexibleLeverageStrategyExtension: FlexibleLeverageStrategyExtension;
@@ -140,23 +132,8 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
     collateralLiquidity = UnitsUtils.ether(1000);
     collateralLiquidityEther = UnitsUtils.ether(1000);
 
-    // aave
-    aaveSetup = getAaveV2Fixture(owner.address);
+    // a    aaveSetup = getAaveV2Fixture(owner.address);
     await aaveSetup.initialize(collateralToken.address, setV2Setup.dai.address);
-    
-    const usdcReserveTokens = await aaveSetup.createAndEnableReserve(
-      setV2Setup.usdc.address,
-      "USDC",
-      6,
-      BigNumber.from(7500), // base LTV: 75%
-      BigNumber.from(8000), // liquidation threshold: 80%
-      BigNumber.from(10500), // liquidation bonus: 105.00%
-      BigNumber.from(1000), // reserve factor: 10%
-      true, // enable borrowing on reserve
-      true, // enable stable debts
-    );
-
-    usdcVariableDebtToken = usdcReserveTokens.variableDebtToken;
 
     const oneRay = BigNumber.from(10).pow(27); // 1e27
     await aaveSetup.setMarketBorrowRate(setV2Setup.usdc.address, oneRay.mul(39).div(1000));
@@ -189,9 +166,9 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
       "cUSDC",
       8,
       ether(0.75), // 75% collateral factor
-      ether(1000000000000) // IMPORTANT: Compound oracles account for decimals scaled by 10e18. For USDC, this is $1 * 10^18 * 10^18 / 10^6 = 10^30
+      ether(100000000) // IMPORTANT: Compound oracles account for decimals scaled by 10e18. For USDC, this is $1 * 10^18 * 10^18 / 10^6 = 10^30
     );
-    
+
     await compoundSetup.comptroller._setCompRate(ether(1));
     await compoundSetup.comptroller._addCompMarkets([cEther.address, cUSDC.address]);
 
@@ -419,7 +396,6 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
       incentivizedLeverageRatio: incentivizedLeverageRatio,
     };
     exchangeName = "MockTradeAdapter";
-    exchangeName2 = "MockTradeAdapter2";
     exchangeSettings = {
       twapMaxTradeSize: twapMaxTradeSize,
       incentivizedTwapMaxTradeSize: incentivizedTwapMaxTradeSize,
@@ -463,9 +439,9 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
       return result;
     }
 
-    it("verify state set properly via constructor", async () => {
+    it("verify state set py via constructor", async () => {
       const exchangeIssuanceContract: ExchangeIssuanceLeveragedForCompound = await subject();
-      
+
       const addresses = await exchangeIssuanceContract.addresses();
       expect(addresses.weth).to.eq(wethAddress);
 
@@ -482,7 +458,6 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
   });
 
   describe("When exchangeIssuance is deployed", () => {
-    let ethAddress: Address;
     beforeEach(async () => {
       exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveragedForCompound(
         wethAddress,
@@ -500,12 +475,12 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
       );
       ethAddress = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
     });
-    describe("#approveSetToken", async () => {
+    describe("#;;approveSetToken", a); => {
       let subjectSetToken: Address;
       beforeEach(async () => {
         subjectSetToken = setToken.address;
       });
-      
+
       async function subject() {
         await exchangeIssuance.approveSetToken(subjectSetToken);
       }
@@ -1122,13 +1097,12 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
             );
           }
           it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith(
+            await expect(subject()).to.be.rertedWith(
               "ExchangeIssuance: INVALID FLASHLOAN INITIATOR",
             );
           });
         });
-      });
-    });
-  
+      );    });
+
   });
-});
+})
