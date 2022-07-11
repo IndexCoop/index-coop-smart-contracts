@@ -87,9 +87,9 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
   let exchangeName: string;
   let exchangeSettings: ExchangeSettings;
 
-  const customTargetLeverageRatio: any;
-  const customMinLeverageRatio: any;
-  const customCTokenCollateralAddress: any;
+  // let customTargetLeverageRatio: any;
+  // let customMinLeverageRatio: any;
+  // let customCTokenCollateralAddress: any;
 
   // let leverageStrategyExtension: AaveLeverageStrategyExtension;
   let flexibleLeverageStrategyExtension: FlexibleLeverageStrategyExtension;
@@ -351,8 +351,10 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
     }
 
     // Deploy extension
-    const targetLeverageRatio = customTargetLeverageRatio || ether(2);
-    const minLeverageRatio = customMinLeverageRatio || ether(1.7);
+    // const targetLeverageRatio = customTargetLeverageRatio || ether(2);
+    // const minLeverageRatio = customMinLeverageRatio || ether(1.7);
+    const targetLeverageRatio = ether(2);
+    const minLeverageRatio = ether(1.7);
     const maxLeverageRatio = ether(2.3);
     const recenteringSpeed = ether(0.05);
     const rebalanceInterval = BigNumber.from(86400);
@@ -374,7 +376,8 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
       comptroller: compoundSetup.comptroller.address,
       collateralPriceOracle: chainlinkCollateralPriceMock.address,
       borrowPriceOracle: chainlinkBorrowPriceMock.address,
-      targetCollateralCToken: customCTokenCollateralAddress || cEther.address,
+      // targetCollateralCToken: customCTokenCollateralAddress || cEther.address,
+      targetCollateralCToken: cEther.address,
       targetBorrowCToken: cUSDC.address,
       collateralAsset: setV2Setup.weth.address,
       borrowAsset: setV2Setup.usdc.address,
