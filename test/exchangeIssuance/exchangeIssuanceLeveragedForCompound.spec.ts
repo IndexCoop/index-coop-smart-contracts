@@ -22,6 +22,7 @@ import {
 } from "@utils/contracts/index";
 import { UniswapV2Router02 } from "@utils/contracts/uniswap";
 import { CompoundLeverageModule, DebtIssuanceModule, SetToken } from "@utils/contracts/setV2";
+// import { AaveV2VariableDebtToken } from "@typechain/AaveV2VariableDebtToken";
 import DeployHelper from "@utils/deploys";
 import {
   cacheBeforeEach,
@@ -76,6 +77,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
   let collateralLiquidityEther: BigNumber;
   let cEther: CEther;
   let cUSDC: CERc20;
+  // let usdcVariableDebtToken: AaveV2VariableDebtToken;
   let tradeAdapterMock: TradeAdapterMock;
   let tradeAdapterMock2: TradeAdapterMock;
 
@@ -87,11 +89,10 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
   let exchangeName: string;
   let exchangeSettings: ExchangeSettings;
 
-  // let customTargetLeverageRatio: any;
-  // let customMinLeverageRatio: any;
-  // let customCTokenCollateralAddress: any;
+  let customTargetLeverageRatio: any;
+  let customMinLeverageRatio: any;
+  let customCTokenCollateralAddress: any;
 
-  // let leverageStrategyExtension: AaveLeverageStrategyExtension;
   let flexibleLeverageStrategyExtension: FlexibleLeverageStrategyExtension;
   let compoundLeverageModule: CompoundLeverageModule;
   let debtIssuanceModule: DebtIssuanceModule;
@@ -104,6 +105,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
   let wbtcAddress: Address;
   let daiAddress: Address;
   let cetherAddress: Address;
+  let ethAddress: Address;
 
   let quickswapRouter: UniswapV2Router02;
   let sushiswapRouter: UniswapV2Router02;
@@ -118,8 +120,6 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
   let sushiswapSetup: UniswapFixture;
   let uniswapV3Setup: UniswapV3Fixture;
   let setTokenInitialBalance: BigNumber;
-
-  const ethAddress = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
   cacheBeforeEach(async () => {
     [owner, methodologist] = await getAccounts();
@@ -138,6 +138,21 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
     // aave
     aaveSetup = getAaveV2Fixture(owner.address);
     await aaveSetup.initialize(collateralToken.address, setV2Setup.dai.address);
+
+    await aaveSetup.createAndEnableReserve(
+    // const usdcReserveTokens = await aaveSetup.createAndEnableReserve(
+      setV2Setup.usdc.address,
+      "USDC",
+      6,
+      BigNumber.from(7500), // base LTV: 75%
+      BigNumber.from(8000), // liquidation threshold: 80%
+      BigNumber.from(10500), // liquidation bonus: 105.00%
+      BigNumber.from(1000), // reserve factor: 10%
+      true, // enable borrowing on reserve
+      true, // enable stable debts
+    );
+
+    // usdcVariableDebtToken = usdcReserveTokens.variableDebtToken;
 
     const oneRay = BigNumber.from(10).pow(27); // 1e27
     await aaveSetup.setMarketBorrowRate(setV2Setup.usdc.address, oneRay.mul(39).div(1000));
@@ -351,10 +366,8 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
     }
 
     // Deploy extension
-    // const targetLeverageRatio = customTargetLeverageRatio || ether(2);
-    // const minLeverageRatio = customMinLeverageRatio || ether(1.7);
-    const targetLeverageRatio = ether(2);
-    const minLeverageRatio = ether(1.7);
+    const targetLeverageRatio = customTargetLeverageRatio || ether(2);
+    const minLeverageRatio = customMinLeverageRatio || ether(1.7);
     const maxLeverageRatio = ether(2.3);
     const recenteringSpeed = ether(0.05);
     const rebalanceInterval = BigNumber.from(86400);
@@ -376,8 +389,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
       comptroller: compoundSetup.comptroller.address,
       collateralPriceOracle: chainlinkCollateralPriceMock.address,
       borrowPriceOracle: chainlinkBorrowPriceMock.address,
-      // targetCollateralCToken: customCTokenCollateralAddress || cEther.address,
-      targetCollateralCToken: cEther.address,
+      targetCollateralCToken: customCTokenCollateralAddress || cEther.address,
       targetBorrowCToken: cUSDC.address,
       collateralAsset: setV2Setup.weth.address,
       borrowAsset: setV2Setup.usdc.address,
@@ -480,7 +492,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
         curveCalculatorAddress,
         curveAddressProviderAddress,
       );
-      
+      ethAddress = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
     });
     describe("#approveSetToken", async () => {
       let subjectSetToken: Address;
