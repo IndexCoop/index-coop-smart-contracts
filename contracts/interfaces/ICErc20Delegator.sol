@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity >=0.6.0 <=0.8.10;
+pragma solidity 0.6.10;
+pragma experimental ABIEncoderV2;
 
 interface ICErc20Delegator {
     function _acceptAdmin() external returns(uint256);
