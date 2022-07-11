@@ -119,6 +119,8 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
   let uniswapV3Setup: UniswapV3Fixture;
   let setTokenInitialBalance: BigNumber;
 
+  const ethAddress = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+
   cacheBeforeEach(async () => {
     [owner, methodologist] = await getAccounts();
 
@@ -475,7 +477,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
         curveCalculatorAddress,
         curveAddressProviderAddress,
       );
-      const ethAddress = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+      
     });
     describe("#approveSetToken", async () => {
       let subjectSetToken: Address;
