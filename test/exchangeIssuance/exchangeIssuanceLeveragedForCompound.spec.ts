@@ -460,7 +460,6 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
   });
 
   describe("When exchangeIssuance is deployed", () => {
-    let ethAddress: Address;
     beforeEach(async () => {
       exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveragedForCompound(
         wethAddress,
