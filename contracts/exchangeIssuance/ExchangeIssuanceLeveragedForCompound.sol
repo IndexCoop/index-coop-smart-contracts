@@ -28,9 +28,12 @@ import { IAToken } from "../interfaces/IAToken.sol";
 import { ICErc20 } from "../interfaces/ICErc20.sol";
 import { ICompoundLeverageModule } from "../interfaces/ICompoundLeverageModule.sol";
 
-//import { ICErc20Delegator } from "../interfaces/compound/ICErc20Delegator.sol";
 import { ICErc20Delegator } from "../interfaces/ICErc20Delegator.sol";
+import { ICEther } from "../interfaces/ICEther.sol";
+import { ExponentialNoError } from "../lib/ExponentialNoError.sol";
+
 import { CErc20Storage } from "./CErc20Storage.sol";
+import { CompoundLeverageModuleStorage } from "./CompoundLeverageModuleStorage.sol";
 
 import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { IController } from "../interfaces/IController.sol";
@@ -41,9 +44,8 @@ import { UniSushiV2Library } from "../../external/contracts/UniSushiV2Library.so
 import { FlashLoanReceiverBaseV2 } from "../../external/contracts/aaveV2/FlashLoanReceiverBaseV2.sol";
 import { DEXAdapter } from "./DEXAdapter.sol";
 
-
 /**
- * @title ExchangeIssuance
+ * @title ExchangeIssuanceLeveragedForCompound
  * @author Index Coop
  *
  * Contract for issuing and redeeming a leveraged Set Token
@@ -51,7 +53,7 @@ import { DEXAdapter } from "./DEXAdapter.sol";
  * Both the collateral as well as the debt token have to be available for flashloand and be
  * tradeable against each other on Sushi / Quickswap
  */
-contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanReceiverBaseV2, Ownable {
+contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyGuard, FlashLoanReceiverBaseV2, Ownable {
 
     using DEXAdapter for DEXAdapter.Addresses;
     using Address for address payable;
@@ -63,7 +65,7 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
     /* ============ Structs ============ */
 
     struct LeveragedTokenData {
-        address collateralAToken;
+        address collateralCToken;
         address collateralToken;
         uint256 collateralAmount;
         address debtToken;
@@ -85,7 +87,6 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
     /* ============ Constants ============= */
 
     uint256 constant private MAX_UINT256 = type(uint256).max;
-    address constant private CETHER_ADDRESS = 0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5;
     uint256 public constant ROUNDING_ERROR_MARGIN = 2;
 
     /* ============ State Variables ============ */
@@ -94,6 +95,7 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
     IDebtIssuanceModule public immutable debtIssuanceModule;
     ICompoundLeverageModule public immutable compoundLeverageModule;
     DEXAdapter.Addresses public addresses;
+    address public immutable cEtherADDRESS;
 
     mapping(address => address) public cTokenPairs;
 
@@ -149,6 +151,7 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
     * Sets various contract addresses
     *
     * @param _weth                  Address of wrapped native token
+    * @param _cether                Address of cEther token
     * @param _quickRouter           Address of quickswap router
     * @param _sushiRouter           Address of sushiswap router
     * @param _uniV3Router           Address of uniswap v3 router
@@ -162,6 +165,7 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
     */
     constructor(
         address _weth,
+        address _cether,
         address _quickRouter,
         address _sushiRouter,
         address _uniV3Router,
@@ -187,6 +191,8 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
         addresses.uniV3Quoter = _uniV3Quoter;
         addresses.curveAddressProvider = _curveAddressProvider;
         addresses.curveCalculator = _curveCalculator;
+
+        cEtherADDRESS = _cether;
     }
 
     /* ============ External Functions ============ */
@@ -247,7 +253,7 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
     external
     returns (uint256)
     {
-        compoundLeverageModule.sync(_setToken);
+        compoundLeverageModule.sync(_setToken, false);
         LeveragedTokenData memory issueInfo = _getLeveragedTokenData(_setToken, _setAmount, true);
         uint256 collateralOwed = issueInfo.collateralAmount.preciseMul(1.0009 ether);
         uint256 borrowSaleProceeds = DEXAdapter.getAmountOut(addresses, _swapDataDebtForCollateral, issueInfo.debtAmount);
@@ -279,7 +285,7 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
     external
     returns (uint256)
     {
-        compoundLeverageModule.sync(_setToken);
+        compoundLeverageModule.sync(_setToken, true);
         LeveragedTokenData memory redeemInfo = _getLeveragedTokenData(_setToken, _setAmount, false);
         uint256 debtOwed = redeemInfo.debtAmount.preciseMul(1.0009 ether);
         uint256 debtPurchaseCost = DEXAdapter.getAmountIn(addresses, _swapDataCollateralForDebt, debtOwed);
@@ -469,7 +475,8 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
     function approveSetToken(ISetToken _setToken) external {
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, 1 ether, true);
 
-        _approveToken(IERC20(leveragedTokenData.collateralAToken));
+
+        _approveToken(IERC20(leveragedTokenData.collateralCToken));
         _approveTokenToLendingPool(IERC20(leveragedTokenData.collateralToken));
 
         _approveToken(IERC20(leveragedTokenData.debtToken));
@@ -496,8 +503,7 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
     {
         // Deposit collateral token obtained from flashloan to get the respective cToken position required for issuance
         _depositToCompound(_collateralToken, _collateralTokenAmountNet);
-
-        // Issue set using the aToken returned by deposit step
+        // Issue set using the cToken returned by deposit step
         _issueSet(_decodedParams.setToken, _decodedParams.setAmount, _decodedParams.originalSender);
         // Obtain necessary collateral tokens to repay flashloan
         uint amountInputTokenSpent = _obtainCollateralTokens(
@@ -530,10 +536,11 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
             _decodedParams.setAmount,
             _decodedParams.originalSender
         );
-        // Withdraw underlying collateral token from the aToken position returned by redeem step
+
+        
         _withdrawFromCompound(
             _decodedParams.leveragedTokenData.collateralToken,
-            _decodedParams.leveragedTokenData.collateralAmount - ROUNDING_ERROR_MARGIN
+            _decodedParams.leveragedTokenData.collateralAmount
         );
         // Obtain debt tokens required to repay flashloan by swapping the underlying collateral tokens obtained in withdraw step
         uint256 collateralTokenSpent = _swapCollateralForDebtToken(
@@ -581,6 +588,8 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
         uint256[] memory equityPositions;
         uint256[] memory debtPositions;
         address _collateralToken;
+        LeveragedTokenData memory _leveragedTokenData;
+        uint256 requiredCTokenAmount;
 
         if(_isIssuance){
             (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentIssuanceUnits(_setToken, _setAmount);
@@ -588,37 +597,37 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
             (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentRedemptionUnits(_setToken, _setAmount);
         }
 
-        require(components.length == 2, "ExchangeIssuance: TOO MANY COMPONENTS");
+        
         require(equityPositions[0] == 0 || equityPositions[1] == 0, "ExchangeIssuance: TOO MANY EQUITY POSITIONS");
+        
         require(debtPositions[0] == 0 || debtPositions[1] == 0, "ExchangeIssuance: TOO MANY DEBT POSITIONS");
 
         if(equityPositions[0] > 0){
-            if (components[0] == CETHER_ADDRESS) {
-                _collateralToken = DEXAdapter.ETH_ADDRESS;
+            if (components[0] == cEtherADDRESS) {
+                _collateralToken = addresses.weth;
             } else {
                 _collateralToken = CErc20Storage(components[0]).underlying();
             }
-            return LeveragedTokenData(
-                components[0],
-                _collateralToken,
-                equityPositions[0] + ROUNDING_ERROR_MARGIN,
-                components[1],
-                debtPositions[1]
-            );
+            _leveragedTokenData.collateralCToken = components[0];
+            requiredCTokenAmount = equityPositions[0];
+            _leveragedTokenData.debtToken = components[1];
+            _leveragedTokenData.debtAmount = debtPositions[1];
         } else {
-            if (components[1] == CETHER_ADDRESS) {
-                _collateralToken = DEXAdapter.ETH_ADDRESS;
+            if (components[1] == cEtherADDRESS) {
+                _collateralToken = addresses.weth;
             } else {
                 _collateralToken = CErc20Storage(components[1]).underlying();
             }
-            return LeveragedTokenData(
-                components[1],
-                _collateralToken,
-                equityPositions[1] + ROUNDING_ERROR_MARGIN,
-                components[0],
-                debtPositions[0]
-            );
+            _leveragedTokenData.collateralCToken = components[1];
+            requiredCTokenAmount = equityPositions[1];
+            _leveragedTokenData.debtToken = components[0];
+            _leveragedTokenData.debtAmount = debtPositions[0];
         }
+        Exp memory exchangeRate = Exp({mantissa: ICEther(payable(_leveragedTokenData.collateralCToken)).exchangeRateStored()});
+        uint256 collateralAmount = mul_(requiredCTokenAmount, exchangeRate);
+        _leveragedTokenData.collateralAmount = collateralAmount + ROUNDING_ERROR_MARGIN;
+        _leveragedTokenData.collateralToken = _collateralToken;
+        return _leveragedTokenData; 
     }
 
 
@@ -653,14 +662,18 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
     )
     internal
     {
-        compoundLeverageModule.sync(_setToken);
+        // need to check (true or false to issue)
+        compoundLeverageModule.sync(_setToken, true);
+
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, true);
+
+        // get cTokenAddress from underlying assets
+        address cTokenAddress = _getCTokenAddess(leveragedTokenData.collateralToken);
 
         address[] memory assets = new address[](1);
         assets[0] = leveragedTokenData.collateralToken;
         uint[] memory amounts =  new uint[](1);
         amounts[0] = leveragedTokenData.collateralAmount;
-
         bytes memory params = abi.encode(
             DecodedParams(
                 _setToken,
@@ -674,7 +687,6 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
                 _swapDataInputToken
             )
         );
-
         _flashloan(assets, amounts, params);
 
     }
@@ -698,10 +710,9 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
         DEXAdapter.SwapData memory _swapDataOutputToken
     )
     internal
-    {
-        compoundLeverageModule.sync(_setToken);
+    {   
+        compoundLeverageModule.sync(_setToken, true);
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, false);
-
         address[] memory assets = new address[](1);
         assets[0] = leveragedTokenData.debtToken;
         uint[] memory amounts =  new uint[](1);
@@ -936,6 +947,7 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
      * @param _originalSender   Adress that initiated the token issuance, which will receive the set tokens
      */
     function _issueSet(ISetToken _setToken, uint256 _setAmount, address _originalSender) internal {
+        
         debtIssuanceModule.issue(_setToken, _setAmount, _originalSender);
     }
 
@@ -1176,23 +1188,8 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
         );
     }
 
-
-
     /**
-     * Deposit collateral to aave to obtain collateralAToken for issuance
-     *
-     * @param _collateralToken              Address of collateral token
-     * @param _depositAmount                Amount to deposit
-     */
-    function _depositCollateralToken(
-        address _collateralToken,
-        uint256 _depositAmount
-    ) internal {
-        LENDING_POOL.deposit(_collateralToken, _depositAmount, address(this), 0);
-    }
-
-    /**
-     * Deposit collateral to compound to obtain collateralAToken for issuance
+     * Deposit collateral to compound to obtain collateralCToken for issuance
      *
      * @param _collateralToken              Address of collateral token
      * @param _depositAmount                Amount to deposit
@@ -1200,29 +1197,22 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
     function _depositToCompound(
         address _collateralToken,
         uint256 _depositAmount
-    ) internal returns (uint256) {
-        address cTokenAddress = cTokenPairs[_collateralToken];
-        require(cTokenAddress != address(0x0), "ExchangeIssuance: CTOKEN IS NOT EXISTING");
-        require(IERC20(_collateralToken).approve(cTokenAddress, _depositAmount));
-        uint256 result = ICErc20Delegator(cTokenAddress).mint(_depositAmount);
-        return result;
-    }
-
-    /**
-     * Convert collateralAToken from set redemption to collateralToken by withdrawing underlying from Aave
-     *
-     * @param _collateralToken       Address of the collateralToken to withdraw from Aave lending pool
-     * @param _collateralAmount      Amount of collateralToken to withdraw
-     */
-    function _withdrawCollateralToken(
-        address _collateralToken,
-        uint256 _collateralAmount
     ) internal {
-        LENDING_POOL.withdraw(_collateralToken, _collateralAmount, address(this));
+        // get cTokenAddress from underlying assets
+        address cTokenAddress = _getCTokenAddess(_collateralToken);
+
+        if (_collateralToken != addresses.weth) {
+            IERC20(_collateralToken).approve(cTokenAddress, _depositAmount);
+            // return ICErc20Delegator(cTokenAddress).mint(_depositAmount);
+        } else {
+            IWETH(addresses.weth).withdraw(_depositAmount);
+            ICEther(payable(cTokenAddress)).mint{value: _depositAmount}();
+            // return mintTokens;
+        }
     }
 
     /**
-     * Convert collateralcToken from set redemption to collateralToken by withdrawing underlying from Compound
+     * Convert collateralCToken from set redemption to collateralToken by withdrawing underlying from Compound
      *
      * @param _collateralToken       Address of the collateralToken to withdraw from Compound
      * @param _collateralAmount      Amount of collateralToken to withdraw
@@ -1231,11 +1221,44 @@ contract ExchangeIssuanceLeveragedForCompound is ReentrancyGuard, FlashLoanRecei
         address _collateralToken,
         uint256 _collateralAmount
     ) internal returns (uint256){
-        address cTokenAddress = cTokenPairs[_collateralToken];
-        require(cTokenAddress != address(0x0), "ExchangeIssuance: CTOKEN IS NOT EXISTING");
+        uint256 result;
+
+        // get cTokenAddress from underlying assets
+        address cTokenAddress = _getCTokenAddess(_collateralToken);
+        
+        Exp memory exchangeRate = Exp({mantissa: ICEther(payable(cTokenAddress)).exchangeRateStored()});
+        uint256 cTokenAmount = div_((_collateralAmount), exchangeRate);
+
         uint256 balance = ICErc20Delegator(cTokenAddress).balanceOf(address(this));
-        uint256 result = ICErc20Delegator(cTokenAddress).redeem(balance);
+        require(balance >= cTokenAmount, "ExchangeIssuance: Collateral Amount issue");
+        
+
+        if (_collateralToken != addresses.weth) {
+            result = ICErc20Delegator(cTokenAddress).redeem(cTokenAmount);
+        } else {
+            result = ICEther(payable(cTokenAddress)).redeem(cTokenAmount);
+            
+            IWETH(addresses.weth).deposit{value: (_collateralAmount - ROUNDING_ERROR_MARGIN)}();
+        }
         return result;
+    }
+
+    /**
+     * Returns the cToken Address from underlying asset Address
+     *
+     * @param _collateralToken       Address of the the collateral token
+     */
+    function _getCTokenAddess(
+        address _collateralToken
+    )
+    internal
+    view
+    returns (address)
+    {
+        // get cTokenAddress from underlying assets
+        address cTokenAddress = CompoundLeverageModuleStorage(address(compoundLeverageModule)).underlyingToCToken(_collateralToken);
+        require(cTokenAddress != address(0x0), "ExchangeIssuance: CTOKEN IS NOT EXISTING");
+        return cTokenAddress;
     }
 
     /**

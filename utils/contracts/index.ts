@@ -10,6 +10,7 @@ export { DEXAdapter } from "../../typechain/DEXAdapter";
 export { ExchangeIssuance } from "../../typechain/ExchangeIssuance";
 export { ExchangeIssuanceV2 } from "../../typechain/ExchangeIssuanceV2";
 export { ExchangeIssuanceLeveraged } from "../../typechain/ExchangeIssuanceLeveraged";
+export { ExchangeIssuanceLeveragedForCompound } from "../../typechain/ExchangeIssuanceLeveragedForCompound";
 export { ExchangeIssuanceZeroEx } from "../../typechain/ExchangeIssuanceZeroEx";
 export { FeeSplitExtension } from "../../typechain/FeeSplitExtension";
 export { FlexibleLeverageStrategyExtension } from "../../typechain/FlexibleLeverageStrategyExtension";
