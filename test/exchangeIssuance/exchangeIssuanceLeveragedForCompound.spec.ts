@@ -26,6 +26,7 @@ import DeployHelper from "@utils/deploys";
 import {
   cacheBeforeEach,
   ether,
+  getAaveV2Fixture,
   getCompoundFixture,
   getAccounts,
   getLastBlockTimestamp,
@@ -63,7 +64,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
   let owner: Account;
   let methodologist: Account;
   let setV2Setup: SetFixture;
-  const aaveSetup: AaveV2Fixture;
+  let aaveSetup: AaveV2Fixture;
   let compoundSetup: CompoundFixture;
 
   let exchangeIssuance: ExchangeIssuanceLeveragedForCompound;
@@ -132,7 +133,8 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
     collateralLiquidity = UnitsUtils.ether(1000);
     collateralLiquidityEther = UnitsUtils.ether(1000);
 
-    // a    aaveSetup = getAaveV2Fixture(owner.address);
+    // aave
+    aaveSetup = getAaveV2Fixture(owner.address);
     await aaveSetup.initialize(collateralToken.address, setV2Setup.dai.address);
 
     const oneRay = BigNumber.from(10).pow(27); // 1e27
@@ -166,7 +168,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
       "cUSDC",
       8,
       ether(0.75), // 75% collateral factor
-      ether(100000000) // IMPORTANT: Compound oracles account for decimals scaled by 10e18. For USDC, this is $1 * 10^18 * 10^18 / 10^6 = 10^30
+      ether(1000000000000) // IMPORTANT: Compound oracles account for decimals scaled by 10e18. For USDC, this is $1 * 10^18 * 10^18 / 10^6 = 10^30
     );
 
     await compoundSetup.comptroller._setCompRate(ether(1));
@@ -439,7 +441,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
       return result;
     }
 
-    it("verify state set py via constructor", async () => {
+    it("verify state set properly via constructor", async () => {
       const exchangeIssuanceContract: ExchangeIssuanceLeveragedForCompound = await subject();
 
       const addresses = await exchangeIssuanceContract.addresses();
@@ -458,6 +460,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
   });
 
   describe("When exchangeIssuance is deployed", () => {
+    let ethAddress: Address;
     beforeEach(async () => {
       exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveragedForCompound(
         wethAddress,
@@ -473,9 +476,9 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
         curveCalculatorAddress,
         curveAddressProviderAddress,
       );
-      ethAddress = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+      const ethAddress = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
     });
-    describe("#;;approveSetToken", a); => {
+    describe("#approveSetToken", async () => {
       let subjectSetToken: Address;
       beforeEach(async () => {
         subjectSetToken = setToken.address;
@@ -1097,12 +1100,13 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
             );
           }
           it("should revert", async () => {
-            await expect(subject()).to.be.rertedWith(
+            await expect(subject()).to.be.revertedWith(
               "ExchangeIssuance: INVALID FLASHLOAN INITIATOR",
             );
           });
         });
-      );    });
+      });
+    });
 
   });
-})
+});
