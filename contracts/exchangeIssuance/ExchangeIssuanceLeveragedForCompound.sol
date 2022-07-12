@@ -22,7 +22,6 @@ import { Math } from "@openzeppelin/contracts/math/Math.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 import { IAToken } from "../interfaces/IAToken.sol";
 import { ICErc20 } from "../interfaces/ICErc20.sol";
@@ -53,7 +52,7 @@ import { DEXAdapter } from "./DEXAdapter.sol";
  * Both the collateral as well as the debt token have to be available for flashloand and be
  * tradeable against each other on Sushi / Quickswap
  */
-contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyGuard, FlashLoanReceiverBaseV2, Ownable {
+contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
     using DEXAdapter for DEXAdapter.Addresses;
     using Address for address payable;
@@ -151,7 +150,6 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
     * Sets various contract addresses
     *
     * @param _weth                  Address of wrapped native token
-    * @param _cether                Address of cEther token
     * @param _quickRouter           Address of quickswap router
     * @param _sushiRouter           Address of sushiswap router
     * @param _uniV3Router           Address of uniswap v3 router
@@ -165,7 +163,6 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
     */
     constructor(
         address _weth,
-        address _cether,
         address _quickRouter,
         address _sushiRouter,
         address _uniV3Router,
@@ -192,7 +189,9 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
         addresses.curveAddressProvider = _curveAddressProvider;
         addresses.curveCalculator = _curveCalculator;
 
-        cEtherADDRESS = _cether;
+        address _cEtherADDRESS = CompoundLeverageModuleStorage(address(_compoundLeverageModule)).underlyingToCToken(_weth);
+        require(_cEtherADDRESS != address(0x0), "CEtherAddress Error");
+        cEtherADDRESS = _cEtherADDRESS;
     }
 
     /* ============ External Functions ============ */
@@ -537,7 +536,6 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
             _decodedParams.originalSender
         );
 
-        
         _withdrawFromCompound(
             _decodedParams.leveragedTokenData.collateralToken,
             _decodedParams.leveragedTokenData.collateralAmount
@@ -668,7 +666,7 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, true);
 
         // get cTokenAddress from underlying assets
-        address cTokenAddress = _getCTokenAddess(leveragedTokenData.collateralToken);
+        _getCTokenAddess(leveragedTokenData.collateralToken);
 
         address[] memory assets = new address[](1);
         assets[0] = leveragedTokenData.collateralToken;

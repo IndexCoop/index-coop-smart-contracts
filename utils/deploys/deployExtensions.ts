@@ -205,7 +205,6 @@ export default class DeployExtensions {
 
   public async deployExchangeIssuanceLeveragedForCompound(
     wethAddress: Address,
-    cetherAddress: Address,
     quickRouterAddress: Address,
     sushiRouterAddress: Address,
     uniV3RouterAddress: Address,
@@ -232,7 +231,6 @@ export default class DeployExtensions {
       this._deployerSigner,
     ).deploy(
       wethAddress,
-      cetherAddress,
       quickRouterAddress,
       sushiRouterAddress,
       uniV3RouterAddress,

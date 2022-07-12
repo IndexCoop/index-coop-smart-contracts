@@ -439,7 +439,6 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
     async function subject(): Promise<ExchangeIssuanceLeveragedForCompound> {
       const result = await deployer.extensions.deployExchangeIssuanceLeveragedForCompound(
         wethAddress,
-        cetherAddress,
         quickswapRouter.address,
         sushiswapRouter.address,
         uniswapV3RouterAddress,
@@ -476,7 +475,6 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
     beforeEach(async () => {
       exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveragedForCompound(
         wethAddress,
-        cetherAddress,
         quickswapRouter.address,
         sushiswapRouter.address,
         uniswapV3RouterAddress,
