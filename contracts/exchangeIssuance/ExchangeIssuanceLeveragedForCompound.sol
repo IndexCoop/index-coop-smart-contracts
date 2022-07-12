@@ -1201,7 +1201,7 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
 
         if (_collateralToken != addresses.weth) {
             IERC20(_collateralToken).approve(cTokenAddress, _depositAmount);
-            // return ICErc20Delegator(cTokenAddress).mint(_depositAmount);
+            ICErc20Delegator(cTokenAddress).mint(_depositAmount);
         } else {
             IWETH(addresses.weth).withdraw(_depositAmount);
             ICEther(payable(cTokenAddress)).mint{value: _depositAmount}();
