@@ -100,7 +100,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
   let wethAddress: Address;
   let wbtcAddress: Address;
   let daiAddress: Address;
-  let cetherAddress: Address;
+  // let cetherAddress: Address;
   let ethAddress: Address;
 
   let quickswapRouter: UniswapV2Router02;
@@ -237,7 +237,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
     wethAddress = setV2Setup.weth.address;
     wbtcAddress = setV2Setup.wbtc.address;
     daiAddress = setV2Setup.dai.address;
-    cetherAddress = cEther.address;
+    // cetherAddress = cEther.address;
 
 
     quickswapSetup = getUniswapFixture(owner.address);
