@@ -31,8 +31,8 @@ import { ICErc20Delegator } from "../interfaces/ICErc20Delegator.sol";
 import { ICEther } from "../interfaces/ICEther.sol";
 import { ExponentialNoError } from "../lib/ExponentialNoError.sol";
 
-import { CErc20Storage } from "./CErc20Storage.sol";
-import { CompoundLeverageModuleStorage } from "./CompoundLeverageModuleStorage.sol";
+import { CErc20Storage } from "../interfaces/CErc20Storage.sol";
+import { CompoundLeverageModuleStorage } from "../interfaces/CompoundLeverageModuleStorage.sol";
 
 import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { IController } from "../interfaces/IController.sol";
@@ -65,6 +65,7 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
 
     struct LeveragedTokenData {
         address collateralCToken;
+        uint256 cTokenAmount;
         address collateralToken;
         uint256 collateralAmount;
         address debtToken;
@@ -94,7 +95,7 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
     IDebtIssuanceModule public immutable debtIssuanceModule;
     ICompoundLeverageModule public immutable compoundLeverageModule;
     DEXAdapter.Addresses public addresses;
-    address public immutable cEtherADDRESS;
+    address public immutable cEtherAddress;
 
     mapping(address => address) public cTokenPairs;
 
@@ -149,17 +150,17 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
     /**
     * Sets various contract addresses
     *
-    * @param _weth                  Address of wrapped native token
-    * @param _quickRouter           Address of quickswap router
-    * @param _sushiRouter           Address of sushiswap router
-    * @param _uniV3Router           Address of uniswap v3 router
-    * @param _uniV3Quoter           Address of uniswap v3 quoter
-    * @param _setController         SetToken controller used to verify a given token is a set
-    * @param _debtIssuanceModule    DebtIssuanceModule used to issue and redeem tokens
+    * @param _weth                      Address of wrapped native token
+    * @param _quickRouter               Address of quickswap router
+    * @param _sushiRouter               Address of sushiswap router
+    * @param _uniV3Router               Address of uniswap v3 router
+    * @param _uniV3Quoter               Address of uniswap v3 quoter
+    * @param _setController             SetToken controller used to verify a given token is a set
+    * @param _debtIssuanceModule        DebtIssuanceModule used to issue and redeem tokens
     * @param _compoundLeverageModule    CompoundLeverageModule to sync before every issuance / redemption
-    * @param _aaveAddressProvider   Address of address provider for aaves addresses
-    * @param _curveAddressProvider  Contract to get current implementation address of curve registry
-    * @param _curveCalculator       Contract to calculate required input to receive given output in curve (for exact output swaps)
+    * @param _aaveAddressProvider       Address of address provider for aaves addresses
+    * @param _curveAddressProvider      Contract to get current implementation address of curve registry
+    * @param _curveCalculator           Contract to calculate required input to receive given output in curve (for exact output swaps)
     */
     constructor(
         address _weth,
@@ -189,9 +190,9 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
         addresses.curveAddressProvider = _curveAddressProvider;
         addresses.curveCalculator = _curveCalculator;
 
-        address _cEtherADDRESS = CompoundLeverageModuleStorage(address(_compoundLeverageModule)).underlyingToCToken(_weth);
-        require(_cEtherADDRESS != address(0x0), "CEtherAddress Error");
-        cEtherADDRESS = _cEtherADDRESS;
+        address _cEtherAddress = CompoundLeverageModuleStorage(address(_compoundLeverageModule)).underlyingToCToken(_weth);
+        require(_cEtherAddress != address(0x0), "CEtherAddress Error");
+        cEtherAddress = _cEtherAddress;
     }
 
     /* ============ External Functions ============ */
@@ -501,7 +502,7 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
     internal
     {
         // Deposit collateral token obtained from flashloan to get the respective cToken position required for issuance
-        _depositToCompound(_collateralToken, _collateralTokenAmountNet);
+        _depositToCompound(_decodedParams.leveragedTokenData.collateralCToken, _collateralToken, _collateralTokenAmountNet);
         // Issue set using the cToken returned by deposit step
         _issueSet(_decodedParams.setToken, _decodedParams.setAmount, _decodedParams.originalSender);
         // Obtain necessary collateral tokens to repay flashloan
@@ -537,6 +538,8 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
         );
 
         _withdrawFromCompound(
+            _decodedParams.leveragedTokenData.collateralCToken,
+            _decodedParams.leveragedTokenData.cTokenAmount,
             _decodedParams.leveragedTokenData.collateralToken,
             _decodedParams.leveragedTokenData.collateralAmount
         );
@@ -585,46 +588,43 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
         address[] memory components;
         uint256[] memory equityPositions;
         uint256[] memory debtPositions;
-        address _collateralToken;
         LeveragedTokenData memory _leveragedTokenData;
-        uint256 requiredCTokenAmount;
 
         if(_isIssuance){
             (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentIssuanceUnits(_setToken, _setAmount);
         } else {
             (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentRedemptionUnits(_setToken, _setAmount);
         }
-
         
         require(equityPositions[0] == 0 || equityPositions[1] == 0, "ExchangeIssuance: TOO MANY EQUITY POSITIONS");
         
         require(debtPositions[0] == 0 || debtPositions[1] == 0, "ExchangeIssuance: TOO MANY DEBT POSITIONS");
 
         if(equityPositions[0] > 0){
-            if (components[0] == cEtherADDRESS) {
-                _collateralToken = addresses.weth;
-            } else {
-                _collateralToken = CErc20Storage(components[0]).underlying();
-            }
             _leveragedTokenData.collateralCToken = components[0];
-            requiredCTokenAmount = equityPositions[0];
+            _leveragedTokenData.cTokenAmount = equityPositions[0];
             _leveragedTokenData.debtToken = components[1];
             _leveragedTokenData.debtAmount = debtPositions[1];
         } else {
-            if (components[1] == cEtherADDRESS) {
-                _collateralToken = addresses.weth;
-            } else {
-                _collateralToken = CErc20Storage(components[1]).underlying();
-            }
             _leveragedTokenData.collateralCToken = components[1];
-            requiredCTokenAmount = equityPositions[1];
+            _leveragedTokenData.cTokenAmount = equityPositions[1];
             _leveragedTokenData.debtToken = components[0];
             _leveragedTokenData.debtAmount = debtPositions[0];
         }
+
+        if (_leveragedTokenData.collateralCToken == cEtherAddress) {
+            _leveragedTokenData.collateralToken = addresses.weth;
+        } else {
+            _leveragedTokenData.collateralToken = CErc20Storage(_leveragedTokenData.collateralCToken).underlying();
+        }
+
         Exp memory exchangeRate = Exp({mantissa: ICEther(payable(_leveragedTokenData.collateralCToken)).exchangeRateStored()});
-        uint256 collateralAmount = mul_(requiredCTokenAmount, exchangeRate);
+        uint256 collateralAmount = mul_(_leveragedTokenData.cTokenAmount, exchangeRate);
+
+        address cTokenAddress = CompoundLeverageModuleStorage(address(compoundLeverageModule)).underlyingToCToken(_leveragedTokenData.collateralToken);
+        require(cTokenAddress == _leveragedTokenData.collateralCToken, "ExchangeIssuance: CTOKEN IS NOT EXISTING");
+
         _leveragedTokenData.collateralAmount = collateralAmount + ROUNDING_ERROR_MARGIN;
-        _leveragedTokenData.collateralToken = _collateralToken;
         return _leveragedTokenData; 
     }
 
@@ -664,9 +664,6 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
         compoundLeverageModule.sync(_setToken, true);
 
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, true);
-
-        // get cTokenAddress from underlying assets
-        _getCTokenAddess(leveragedTokenData.collateralToken);
 
         address[] memory assets = new address[](1);
         assets[0] = leveragedTokenData.collateralToken;
@@ -1189,74 +1186,46 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
     /**
      * Deposit collateral to compound to obtain collateralCToken for issuance
      *
+     * @param _cTokenAddress                Address of cToken
      * @param _collateralToken              Address of collateral token
      * @param _depositAmount                Amount to deposit
      */
     function _depositToCompound(
+        address _cTokenAddress,
         address _collateralToken,
         uint256 _depositAmount
     ) internal {
-        // get cTokenAddress from underlying assets
-        address cTokenAddress = _getCTokenAddess(_collateralToken);
-
         if (_collateralToken != addresses.weth) {
-            IERC20(_collateralToken).approve(cTokenAddress, _depositAmount);
-            ICErc20Delegator(cTokenAddress).mint(_depositAmount);
+            IERC20(_collateralToken).approve(_cTokenAddress, _depositAmount);
+            ICErc20Delegator(_cTokenAddress).mint(_depositAmount);
         } else {
             IWETH(addresses.weth).withdraw(_depositAmount);
-            ICEther(payable(cTokenAddress)).mint{value: _depositAmount}();
-            // return mintTokens;
+            ICEther(payable(_cTokenAddress)).mint{value: _depositAmount}();
         }
     }
 
     /**
      * Convert collateralCToken from set redemption to collateralToken by withdrawing underlying from Compound
      *
+     * @param _cTokenAddress         Address of cToken
+     * @param _cTokenAmount          amount of cToken
      * @param _collateralToken       Address of the collateralToken to withdraw from Compound
      * @param _collateralAmount      Amount of collateralToken to withdraw
      */
     function _withdrawFromCompound(
+        address _cTokenAddress,
+        uint256 _cTokenAmount,
         address _collateralToken,
         uint256 _collateralAmount
     ) internal returns (uint256){
         uint256 result;
-
-        // get cTokenAddress from underlying assets
-        address cTokenAddress = _getCTokenAddess(_collateralToken);
-        
-        Exp memory exchangeRate = Exp({mantissa: ICEther(payable(cTokenAddress)).exchangeRateStored()});
-        uint256 cTokenAmount = div_((_collateralAmount), exchangeRate);
-
-        uint256 balance = ICErc20Delegator(cTokenAddress).balanceOf(address(this));
-        require(balance >= cTokenAmount, "ExchangeIssuance: Collateral Amount issue");
-        
-
         if (_collateralToken != addresses.weth) {
-            result = ICErc20Delegator(cTokenAddress).redeem(cTokenAmount);
+            result = ICErc20Delegator(_cTokenAddress).redeem(_cTokenAmount);
         } else {
-            result = ICEther(payable(cTokenAddress)).redeem(cTokenAmount);
-            
+            result = ICEther(payable(_cTokenAddress)).redeem(_cTokenAmount);
             IWETH(addresses.weth).deposit{value: (_collateralAmount - ROUNDING_ERROR_MARGIN)}();
         }
         return result;
-    }
-
-    /**
-     * Returns the cToken Address from underlying asset Address
-     *
-     * @param _collateralToken       Address of the the collateral token
-     */
-    function _getCTokenAddess(
-        address _collateralToken
-    )
-    internal
-    view
-    returns (address)
-    {
-        // get cTokenAddress from underlying assets
-        address cTokenAddress = CompoundLeverageModuleStorage(address(compoundLeverageModule)).underlyingToCToken(_collateralToken);
-        require(cTokenAddress != address(0x0), "ExchangeIssuance: CTOKEN IS NOT EXISTING");
-        return cTokenAddress;
     }
 
     /**

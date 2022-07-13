@@ -318,6 +318,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
   });
 
   const initializeRootScopeContracts = async () => {
+    // create ETH2xFli contract
     setToken = await setV2Setup.createSetToken(
       [cEther.address],
       [BigNumber.from(5000000000)], // Equivalent to 1 ETH
