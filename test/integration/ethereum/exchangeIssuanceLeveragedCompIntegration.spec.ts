@@ -14,7 +14,6 @@ import {
 import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "./addresses";
 import { ADDRESS_ZERO, MAX_UINT_256, ZERO } from "@utils/constants";
 import { ether } from "@utils/index";
-import { CEther } from "@typechain/CEther";
 
 const expect = getWaffleExpect();
 
@@ -38,30 +37,19 @@ if (process.env.INTEGRATIONTEST) {
     const addresses = process.env.USE_STAGING_ADDRESSES ? STAGING_ADDRESSES : PRODUCTION_ADDRESSES;
     let owner: Account;
     let deployer: DeployHelper;
-
-    let stEth: StandardTokenMock;
     let setToken: StandardTokenMock;
     let uSDC: StandardTokenMock;
     let weth: IWETH;
-    let cEther: CEther;
-
-    // const collateralTokenAddress = addresses.tokens.stEth;
 
     before(async () => {
       [owner] = await getAccounts();
       deployer = new DeployHelper(owner.wallet);
-
-      stEth = (await ethers.getContractAt(
-        "StandardTokenMock",
-        addresses.tokens.stEth,
-      )) as StandardTokenMock;
       setToken = (await ethers.getContractAt(
         "StandardTokenMock",
         addresses.tokens.ETH2xFli,
       )) as StandardTokenMock;
       uSDC = (await ethers.getContractAt("StandardTokenMock", addresses.tokens.USDC)) as StandardTokenMock;
       weth = (await ethers.getContractAt("IWETH", addresses.tokens.weth)) as IWETH;
-      cEther = (await ethers.getContractAt("ICEther", addresses.tokens.cEther)) as CEther;
     });
 
     it("can get lending pool from address provider", async () => {
@@ -222,7 +210,6 @@ if (process.env.INTEGRATIONTEST) {
                       "IUniswapV2Router",
                       addresses.dexes.uniV2.router,
                     )) as IUniswapV2Router;
-                    let usdcBalance = await uSDC.balanceOf(owner.address);
                     await quickRouter.swapETHForExactTokens(
                       amountIn,
                       [weth.address, uSDC.address],
@@ -230,7 +217,6 @@ if (process.env.INTEGRATIONTEST) {
                       BigNumber.from("1688894490"),
                       {value: ether(1)}
                     );
-                    usdcBalance = await uSDC.balanceOf(owner.address);
                     await inputToken.approve(exchangeIssuance.address, MAX_UINT_256);
                   } else {
                     subjectMaxAmountIn = amountIn;
