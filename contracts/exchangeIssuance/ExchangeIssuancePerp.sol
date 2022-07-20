@@ -154,7 +154,7 @@ contract ExchangeIssuancePerp is Withdrawable {
 
                 uint256 usdcForSpot = uniV3Quoter.quoteExactOutput(
                     setPoolInfo[_setToken].spotToUsdcRoute,
-                    slippageIssuanceUnits[i]
+                    slippageIssuanceUnits[i].add(1) // Add 1 wei
                 );
                 totalUsdcAmountIn = totalUsdcAmountIn.add(usdcForSpot);
             }
@@ -190,7 +190,7 @@ contract ExchangeIssuancePerp is Withdrawable {
 
                 uint256 usdcFromSpot = uniV3Quoter.quoteExactInput(
                     setPoolInfo[_setToken].spotToUsdcRoute,
-                    slippageIssuanceUnits[i]
+                    slippageIssuanceUnits[i].sub(1) // Leave 1 wei
                 );
                 totalUsdcAmountOut = totalUsdcAmountOut.add(usdcFromSpot);
             }
@@ -219,7 +219,7 @@ contract ExchangeIssuancePerp is Withdrawable {
             setPoolInfo[_setToken].spotToUsdcRoute,
             address(this),
             block.timestamp,
-            spotAssetQuantity + 1, // Add 1 wei
+            spotAssetQuantity.add(1), // Add 1 wei
             PreciseUnitMath.maxUint256() // No need for slippage check
         );
 
@@ -267,7 +267,7 @@ contract ExchangeIssuancePerp is Withdrawable {
             setPoolInfo[_setToken].spotToUsdcRoute,
             address(this),
             block.timestamp,
-            spotAssetQuantity - 1, // Leave 1 wei
+            spotAssetQuantity.sub(1), // Leave 1 wei
             0 // No need for slippage check
         );
 
