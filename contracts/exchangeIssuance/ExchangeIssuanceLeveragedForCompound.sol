@@ -42,6 +42,7 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { UniSushiV2Library } from "../../external/contracts/UniSushiV2Library.sol";
 import { FlashLoanReceiverBaseV2 } from "../../external/contracts/aaveV2/FlashLoanReceiverBaseV2.sol";
 import { DEXAdapter } from "./DEXAdapter.sol";
+import { Exponential } from "../lib/Exponential.sol";
 
 /**
  * @title ExchangeIssuanceLeveragedForCompound
@@ -52,7 +53,7 @@ import { DEXAdapter } from "./DEXAdapter.sol";
  * Both the collateral as well as the debt token have to be available for flashloand and be
  * tradeable against each other on Sushi / Quickswap
  */
-contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyGuard, FlashLoanReceiverBaseV2 {
+contract ExchangeIssuanceLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
     using DEXAdapter for DEXAdapter.Addresses;
     using Address for address payable;
@@ -254,7 +255,7 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
     returns (uint256)
     {
         compoundLeverageModule.sync(_setToken, false);
-        LeveragedTokenData memory issueInfo = _getLeveragedTokenData(_setToken, _setAmount, true);
+        LeveragedTokenData memory issueInfo = _updateCompoundRageAndGetLeveragedTokenData(_setToken, _setAmount, true);
         uint256 collateralOwed = issueInfo.collateralAmount.preciseMul(1.0009 ether);
         uint256 borrowSaleProceeds = DEXAdapter.getAmountOut(addresses, _swapDataDebtForCollateral, issueInfo.debtAmount);
         collateralOwed = collateralOwed.sub(borrowSaleProceeds);
@@ -286,7 +287,7 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
     returns (uint256)
     {
         compoundLeverageModule.sync(_setToken, true);
-        LeveragedTokenData memory redeemInfo = _getLeveragedTokenData(_setToken, _setAmount, false);
+        LeveragedTokenData memory redeemInfo = _updateCompoundRageAndGetLeveragedTokenData(_setToken, _setAmount, false);
         uint256 debtOwed = redeemInfo.debtAmount.preciseMul(1.0009 ether);
         uint256 debtPurchaseCost = DEXAdapter.getAmountIn(addresses, _swapDataCollateralForDebt, debtOwed);
         uint256 extraCollateral = redeemInfo.collateralAmount.sub(debtPurchaseCost);
@@ -439,6 +440,7 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
     returns (bool)
     {
         require(initiator == address(this), "ExchangeIssuance: INVALID FLASHLOAN INITIATOR");
+        // assets.length must be 1.
         require(assets.length == 1, "ExchangeIssuance: TOO MANY ASSETS");
         require(amounts.length == 1, "ExchangeIssuance: TOO MANY AMOUNTS");
         require(premiums.length == 1, "ExchangeIssuance: TOO MANY PREMIUMS");
@@ -473,7 +475,7 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
      * @param _setToken    Address of the SetToken being initialized
      */
     function approveSetToken(ISetToken _setToken) external {
-        LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, 1 ether, true);
+        LeveragedTokenData memory leveragedTokenData = _updateCompoundRageAndGetLeveragedTokenData(_setToken, 1 ether, true);
 
 
         _approveToken(IERC20(leveragedTokenData.collateralCToken));
@@ -576,7 +578,7 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
     *
     * @return Struct containing the collateral / debt token addresses and amounts
     */
-    function _getLeveragedTokenData(
+    function _getBasicLeveragedTokenData(
         ISetToken _setToken,
         uint256 _setAmount,
         bool _isIssuance
@@ -611,23 +613,65 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
             _leveragedTokenData.debtToken = components[0];
             _leveragedTokenData.debtAmount = debtPositions[0];
         }
-
         if (_leveragedTokenData.collateralCToken == cEtherAddress) {
             _leveragedTokenData.collateralToken = addresses.weth;
         } else {
             _leveragedTokenData.collateralToken = CErc20Storage(_leveragedTokenData.collateralCToken).underlying();
         }
-
-        Exp memory exchangeRate = Exp({mantissa: ICEther(payable(_leveragedTokenData.collateralCToken)).exchangeRateStored()});
-        uint256 collateralAmount = mul_(_leveragedTokenData.cTokenAmount, exchangeRate);
-
         address cTokenAddress = CompoundLeverageModuleStorage(address(compoundLeverageModule)).underlyingToCToken(_leveragedTokenData.collateralToken);
         require(cTokenAddress == _leveragedTokenData.collateralCToken, "ExchangeIssuance: CTOKEN IS NOT EXISTING");
+        return _leveragedTokenData; 
+    }
 
+
+    /**
+    * Returns the collateral / debt token addresses and amounts for a leveraged index
+    *
+    * @param _setToken              Address of the SetToken to be issued / redeemed
+    * @param _setAmount             Amount of SetTokens to issue / redeem
+    * @param _isIssuance            Boolean indicating if the SetToken is to be issued or redeemed
+    *
+    * @return Struct containing the collateral / debt token addresses and amounts
+    */
+    function _getLeveragedTokenData(
+        ISetToken _setToken,
+        uint256 _setAmount,
+        bool _isIssuance
+    )
+    internal
+    view
+    returns (LeveragedTokenData memory)
+    {
+        LeveragedTokenData memory _leveragedTokenData = _getBasicLeveragedTokenData(_setToken, _setAmount, _isIssuance);
+        Exp memory exchangeRate = Exp({mantissa: ICEther(payable(_leveragedTokenData.collateralCToken)).exchangeRateStored()});
+        (, uint256 collateralAmount) = mulScalarTruncate(exchangeRate, _leveragedTokenData.cTokenAmount);
         _leveragedTokenData.collateralAmount = collateralAmount + ROUNDING_ERROR_MARGIN;
         return _leveragedTokenData; 
     }
 
+    /**
+    * Returns the collateral / debt token addresses and amounts for a leveraged index
+    *
+    * @param _setToken              Address of the SetToken to be issued / redeemed
+    * @param _setAmount             Amount of SetTokens to issue / redeem
+    * @param _isIssuance            Boolean indicating if the SetToken is to be issued or redeemed
+    *
+    * @return Struct containing the collateral / debt token addresses and amounts
+    */
+    function _updateCompoundRageAndGetLeveragedTokenData(
+        ISetToken _setToken,
+        uint256 _setAmount,
+        bool _isIssuance
+    )
+    internal
+    returns (LeveragedTokenData memory)
+    {
+        LeveragedTokenData memory _leveragedTokenData = _getBasicLeveragedTokenData(_setToken, _setAmount, _isIssuance);
+        Exp memory exchangeRate = Exp({mantissa: ICEther(payable(_leveragedTokenData.collateralCToken)).exchangeRateCurrent()});
+        (, uint256 collateralAmount) = mulScalarTruncate(exchangeRate, _leveragedTokenData.cTokenAmount);
+        _leveragedTokenData.collateralAmount = collateralAmount + ROUNDING_ERROR_MARGIN;
+        return _leveragedTokenData; 
+    }
 
 
     /**
@@ -663,7 +707,7 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
         // need to check (true or false to issue)
         compoundLeverageModule.sync(_setToken, true);
 
-        LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, true);
+        LeveragedTokenData memory leveragedTokenData = _updateCompoundRageAndGetLeveragedTokenData(_setToken, _setAmount, true);
 
         address[] memory assets = new address[](1);
         assets[0] = leveragedTokenData.collateralToken;
@@ -683,7 +727,6 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
             )
         );
         _flashloan(assets, amounts, params);
-
     }
 
     /**
@@ -707,7 +750,7 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
     internal
     {   
         compoundLeverageModule.sync(_setToken, true);
-        LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, false);
+        LeveragedTokenData memory leveragedTokenData = _updateCompoundRageAndGetLeveragedTokenData(_setToken, _setAmount, false);
         address[] memory assets = new address[](1);
         assets[0] = leveragedTokenData.debtToken;
         uint[] memory amounts =  new uint[](1);
@@ -942,7 +985,7 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
      * @param _originalSender   Adress that initiated the token issuance, which will receive the set tokens
      */
     function _issueSet(ISetToken _setToken, uint256 _setAmount, address _originalSender) internal {
-        
+       
         debtIssuanceModule.issue(_setToken, _setAmount, _originalSender);
     }
 
@@ -1200,6 +1243,8 @@ contract ExchangeIssuanceLeveragedForCompound is ExponentialNoError, ReentrancyG
             ICErc20Delegator(_cTokenAddress).mint(_depositAmount);
         } else {
             IWETH(addresses.weth).withdraw(_depositAmount);
+            Exp memory exchangeRate = Exp({mantissa: ICEther(payable(_cTokenAddress)).exchangeRateStored()});
+            (, uint256 cTokenAmount) = divScalarByExpTruncate(_depositAmount, exchangeRate);
             ICEther(payable(_cTokenAddress)).mint{value: _depositAmount}();
         }
     }
