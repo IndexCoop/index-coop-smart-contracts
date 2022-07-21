@@ -36,7 +36,12 @@ import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 
-// Flash issue basis trading products using SlippageIssuanceModule
+/**
+ * @title ExchangeIssuancePerp
+ *
+ * Flash issue basis trading products using SlippageIssuanceModule
+ *
+ */
 contract ExchangeIssuancePerp is Withdrawable {
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
@@ -90,10 +95,24 @@ contract ExchangeIssuancePerp is Withdrawable {
 
     ////////// Helper functions /////////////
 
+    /**
+     * @dev Approve specific amount of token to spender
+     *
+     * @param _token    Address of the token which needs approval
+     * @param _spender  Address of the spender which will be approved to spend token. (Must be a whitlisted issuance module)
+     * @param _amount   The amount of tokens to approve
+     */
     function approve(address _token, address _spender, uint256 _amount) external onlyOwner {
         TransferHelper.safeApprove(_token, _spender, _amount);
     }
 
+    /**
+     * @dev Enable the SetToken issuance 
+     *
+     * @param _setToken         Address of the SetToken to be issued
+     * @param _spotToUsdcRoute  Uniswap V3 Path to be used for exchange
+     * @param _spotToken        Address of the spot token
+     */
     function initializeSet(
         ISetToken _setToken,
         bytes calldata _spotToUsdcRoute,
@@ -102,8 +121,6 @@ contract ExchangeIssuancePerp is Withdrawable {
         external
         onlyOwner
     {
-        // address[] memory componentSets = _setToken.getComponents();
-
         // Approve spot token to V3 and SIM
         TransferHelper.safeApprove(_spotToken, address(uniV3Router), PreciseUnitMath.maxUint256());
         TransferHelper.safeApprove(_spotToken, address(slippageIssuanceModule), PreciseUnitMath.maxUint256());
@@ -117,6 +134,11 @@ contract ExchangeIssuancePerp is Withdrawable {
         initializedSets[_setToken] = true;
     }
 
+    /**
+     * @dev Disable the SetToken issuance 
+     *
+     * @param _setToken         Address of the SetToken to be issued
+     */
     function removeSet(ISetToken _setToken) external onlyOwner {
         delete setPoolInfo[_setToken];
         initializedSets[_setToken] = false;
@@ -124,6 +146,12 @@ contract ExchangeIssuancePerp is Withdrawable {
 
     ///////////////// Getter Functions /////////////////////
 
+    /**
+     * Returns USDC amount required for issuance
+     *
+     * @param _setToken     Address of the SetToken
+     * @param _amountOut    The issuance amount of the SetToken
+     */
     function getUsdcAmountInForFixedSetOffChain(
         ISetToken _setToken,
         uint256 _amountOut
@@ -161,6 +189,12 @@ contract ExchangeIssuancePerp is Withdrawable {
         }
     }
 
+    /**
+     * Returns USDC amount required for redemption
+     *
+     * @param _setToken     Address of the SetToken
+     * @param _amountIn     The redeem amount of the SetToken
+     */
     function getUsdcAmountOutForFixedSetOffChain(
         ISetToken _setToken,
         uint256 _amountIn
@@ -199,7 +233,13 @@ contract ExchangeIssuancePerp is Withdrawable {
 
     //////////////// External Functions ////////////////////
 
-
+    /**
+     * Issue expected amount of SetToken using USDC
+     *
+     * @param _setToken     Address of the SetToken
+     * @param _amount       The expected issuance amount of the SetToken
+     * @param _maxAmountIn  The maximum input amount of USDC
+     */
     function issueFixedSetFromUsdc(
         ISetToken _setToken,
         uint256 _amount,
@@ -240,6 +280,13 @@ contract ExchangeIssuancePerp is Withdrawable {
         TransferHelper.safeTransfer(address(usdc), msg.sender, usdcBalance);
     }
 
+    /**
+     * Redeem expected amount of SetToken using USDC
+     *
+     * @param _setToken         Address of the SetToken
+     * @param _amount           The expected redeem amount of the SetToken
+     * @param _minAmountOut     The minimum output amount of USDC
+     */
     function redeemFixedSetForUsdc(
         ISetToken _setToken,
         uint256 _amount,

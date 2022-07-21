@@ -89,8 +89,8 @@ describe("ExchangeIssuancePerp", async () => {
 
     const wethUnits = ether(0.5);
     setTokenWithWeth = await setV2Setup.createSetToken(
-      [setV2Setup.usdc.address, setV2Setup.weth.address],
-      [usdcUnits, wethUnits],
+      [setV2Setup.usdc.address, setV2Setup.wbtc.address, setV2Setup.weth.address],
+      [usdcUnits, wbtcUnits, wethUnits],
       [setV2Setup.slippageIssuanceModule.address, setV2Setup.streamingFeeModule.address],
     );
 
@@ -443,6 +443,12 @@ describe("ExchangeIssuancePerp", async () => {
           );
       }
 
+      it("should revert if set token is not initialized", async () => {
+        await exchangeIssuance.removeSet(subjectSetToken.address);
+
+        await expect(subject()).to.revertedWith("Set not initialized");
+      });
+
       it("should issue the correct amount of Set to the caller", async () => {
         const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
 
@@ -518,6 +524,18 @@ describe("ExchangeIssuancePerp", async () => {
           );
       }
 
+      it("should revert if set token is not initialized", async () => {
+        await exchangeIssuance.removeSet(subjectSetToken.address);
+
+        await expect(subject()).to.revertedWith("Set not initialized");
+      });
+
+      it("should revert if not enough usdc received after redemption", async () => {
+        subjectMinAmountInput = MAX_UINT_256;
+
+        await expect(subject()).to.revertedWith("Not enough USDC");
+      });
+
       it("should redeem the correct amount of set from the caller", async () => {
         const initialBalanceOfSet = await subjectSetToken.balanceOf(subjectCaller.address);
 
@@ -570,6 +588,17 @@ describe("ExchangeIssuancePerp", async () => {
         );
       }
 
+      it("should revert if set token components count is greater than 2", async () => {
+        subjectSetToken = setTokenWithWeth;
+        await exchangeIssuance.initializeSet(
+          subjectSetToken.address,
+          spotToUsdcRoute,
+          wbtc.address,
+        );
+
+        await expect(subject()).to.revertedWith("invalid set");
+      });
+
       it("should return correct amount of set", async () => {
         expect(await subject()).to.eq(
           await getUsdcAmountInForExactSet(
@@ -605,6 +634,17 @@ describe("ExchangeIssuancePerp", async () => {
           subjectSetTokenAmount,
         );
       }
+
+      it("should revert if set token components count is greater than 2", async () => {
+        subjectSetToken = setTokenWithWeth;
+        await exchangeIssuance.initializeSet(
+          subjectSetToken.address,
+          spotToUsdcRoute,
+          wbtc.address,
+        );
+
+        await expect(subject()).to.revertedWith("invalid set");
+      });
 
       it("should return correct amount of usdc", async () => {
         expect(await subject()).to.eq(
