@@ -75,8 +75,8 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
   let setToken: SetToken;
   let collateralToken: StandardTokenMock | WETH9;
   let debtToken: StandardTokenMock | WETH9;
-  let collateralLiquidity: BigNumber;
-  let collateralLiquidityEther: BigNumber;
+  // let collateralLiquidity: BigNumber;
+  // let collateralLiquidityEther: BigNumber;
   let cEther: CEther;
   let cUSDC: CERc20;
   // let usdcVariableDebtToken: AaveV2VariableDebtToken;
@@ -157,13 +157,13 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
   });
 
   const initializeContracts = async () => {
-    if (collateralToken.address == wethAddress) {
-      collateralLiquidity = UnitsUtils.ether(1000);
-    } else {
-      collateralLiquidity = UnitsUtils.usdc(1000);
-    }
+    // if (collateralToken.address == wethAddress) {
+    //   collateralLiquidity = UnitsUtils.ether(1000);
+    // } else {
+    //   collateralLiquidity = UnitsUtils.usdc(1000);
+    // }
     
-    collateralLiquidityEther = UnitsUtils.ether(100);
+    // collateralLiquidityEther = UnitsUtils.ether(100);
     // aave
     aaveSetup = getAaveV2Fixture(owner.address);
     await aaveSetup.initialize(collateralToken.address, setV2Setup.dai.address);
