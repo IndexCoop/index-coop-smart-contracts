@@ -618,8 +618,6 @@ contract ExchangeIssuanceLeveragedForCompound is Exponential, ReentrancyGuard, F
         } else {
             _leveragedTokenData.collateralToken = CErc20Storage(_leveragedTokenData.collateralCToken).underlying();
         }
-        address cTokenAddress = CompoundLeverageModuleStorage(address(compoundLeverageModule)).underlyingToCToken(_leveragedTokenData.collateralToken);
-        require(cTokenAddress == _leveragedTokenData.collateralCToken, "ExchangeIssuance: CTOKEN IS NOT EXISTING");
         return _leveragedTokenData; 
     }
 
@@ -1243,8 +1241,6 @@ contract ExchangeIssuanceLeveragedForCompound is Exponential, ReentrancyGuard, F
             ICErc20Delegator(_cTokenAddress).mint(_depositAmount);
         } else {
             IWETH(addresses.weth).withdraw(_depositAmount);
-            Exp memory exchangeRate = Exp({mantissa: ICEther(payable(_cTokenAddress)).exchangeRateStored()});
-            (, uint256 cTokenAmount) = divScalarByExpTruncate(_depositAmount, exchangeRate);
             ICEther(payable(_cTokenAddress)).mint{value: _depositAmount}();
         }
     }
@@ -1344,17 +1340,6 @@ contract ExchangeIssuanceLeveragedForCompound is Exponential, ReentrancyGuard, F
             params,
             referralCode
         );
-    }
-
-    /**
-     * Redeems a given amount of SetToken.
-     *
-     * @param _setToken     Address of the SetToken to be redeemed
-     * @param _amount       Amount of SetToken to be redeemed
-     */
-    function _redeemExactSet(ISetToken _setToken, uint256 _amount) internal returns (uint256) {
-        _setToken.safeTransferFrom(msg.sender, address(this), _amount);
-        debtIssuanceModule.redeem(_setToken, _amount, address(this));
     }
 
 }
