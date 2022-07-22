@@ -310,6 +310,12 @@ contract ExchangeIssuancePerp is Withdrawable {
         // calculate spot asset quantity
         uint256 spotAssetQuantity = _spotAssetQuantity(_setToken, _amount);
 
+        // check with actual spot token balance
+        uint256 spotTokenBalance = IERC20(setPoolInfo[_setToken].spotToken).balanceOf(address(this));
+        if (spotAssetQuantity > spotTokenBalance) {
+            spotAssetQuantity = spotTokenBalance;
+        }
+
         ISwapRouter.ExactInputParams memory spotTokenParams = ISwapRouter.ExactInputParams(
             setPoolInfo[_setToken].spotToUsdcRoute,
             address(this),

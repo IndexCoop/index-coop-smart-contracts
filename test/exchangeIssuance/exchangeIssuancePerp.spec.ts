@@ -21,31 +21,13 @@ import { SwapRouter } from "@typechain/SwapRouter";
 import { Quoter } from "@typechain/Quoter";
 import { SlippageIssuanceModule } from "@typechain/SlippageIssuanceModule";
 import {
+  encodePath,
+  expectCloseTo,
   getUsdcAmountInForExactSet,
   getUsdcAmountOutForExactSet,
 } from "@utils/common/exchangeIssuanceUtils";
-import { ethers } from "hardhat";
 
 const expect = getWaffleExpect();
-
-const encodePath = (path: Address[], fees: number[]) => {
-  const FEE_SIZE = 6;
-  if (path.length !== fees.length + 1) {
-    throw new Error("path/fee lengths do not match");
-  }
-
-  let encoded = "0x";
-  for (let i = 0; i < fees.length; i++) {
-    encoded += path[i].slice(2);
-    const fee = ethers.utils
-      .hexlify(fees[i])
-      .slice(2)
-      .toString();
-    encoded += fee.padStart(FEE_SIZE, "0");
-  }
-  encoded += path[path.length - 1].slice(2);
-  return encoded.toLowerCase();
-};
 
 describe("ExchangeIssuancePerp", async () => {
   const WETH_PRICE = 1500;
@@ -473,7 +455,7 @@ describe("ExchangeIssuancePerp", async () => {
 
         const finalBalanceOfInputToken = await subjectInputToken.balanceOf(subjectCaller.address);
         const expectedTokenBalance = initialBalanceOfInputToken.sub(expectedInputToken);
-        expect(finalBalanceOfInputToken).to.eq(expectedTokenBalance);
+        expectCloseTo(finalBalanceOfInputToken, expectedTokenBalance, 1); // 1 wei difference
       });
     });
 
@@ -562,7 +544,7 @@ describe("ExchangeIssuancePerp", async () => {
 
         const finalBalanceOfOutputToken = await subjectOutputToken.balanceOf(subjectCaller.address);
         const expectedTokenBalance = initialBalanceOfOutputToken.add(expectedOutputToken);
-        expect(finalBalanceOfOutputToken).to.eq(expectedTokenBalance);
+        expectCloseTo(finalBalanceOfOutputToken, expectedTokenBalance, 1); // 1 wei difference
       });
     });
 

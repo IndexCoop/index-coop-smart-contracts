@@ -1,10 +1,12 @@
-import { BigNumber } from "ethers";
+import { BigNumber, BigNumberish, ethers } from "ethers";
 import { ether } from "@utils/index";
+import { Address } from "@utils/types";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { SetToken, SlippageIssuanceModule } from "@utils/contracts/setV2";
 import { StandardTokenMock, WETH9 } from "@utils/contracts/index";
 import { UniswapV2Factory, UniswapV2Router02 } from "@utils/contracts/uniswap";
 import { IQuoter } from "@typechain/IQuoter";
+import { expect } from "chai";
 
 export const getAllowances = async (
   tokens: (StandardTokenMock | WETH9)[],
@@ -361,4 +363,28 @@ export const getUsdcAmountOutForExactSet = async (
   }
 
   return totalUsdcAmountOut;
+};
+
+export const encodePath = (path: Address[], fees: number[]) => {
+  const FEE_SIZE = 6;
+  if (path.length !== fees.length + 1) {
+    throw new Error("path/fee lengths do not match");
+  }
+
+  let encoded = "0x";
+  for (let i = 0; i < fees.length; i++) {
+    encoded += path[i].slice(2);
+    const fee = ethers.utils
+      .hexlify(fees[i])
+      .slice(2)
+      .toString();
+    encoded += fee.padStart(FEE_SIZE, "0");
+  }
+  encoded += path[path.length - 1].slice(2);
+  return encoded.toLowerCase();
+};
+
+export const expectCloseTo = (a: BigNumber, b: BigNumber, delta: BigNumberish) => {
+  expect(a).to.gte(b.sub(delta));
+  expect(a).to.lte(b.add(delta));
 };
