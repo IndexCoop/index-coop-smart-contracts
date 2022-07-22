@@ -1301,9 +1301,6 @@ contract ExchangeIssuanceLeveragedForCompound is Exponential, ReentrancyGuard, F
     internal
     {
         uint256 allowance = _token.allowance(address(this), address(LENDING_POOL));
-        if (allowance > 0) {
-            _token.approve(address(LENDING_POOL), 0);
-        }
         _token.approve(address(LENDING_POOL), MAX_UINT256);
     }
 
