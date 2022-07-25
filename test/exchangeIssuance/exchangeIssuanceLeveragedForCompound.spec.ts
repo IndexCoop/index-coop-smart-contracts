@@ -10,7 +10,7 @@ import {
   IncentiveSettings,
   ExchangeSettings,
 } from "@utils/types";
-import { ADDRESS_ZERO, ZERO, EMPTY_BYTES, MAX_INT_256, MAX_UINT_256 } from "@utils/constants";
+import { ADDRESS_ZERO, ZERO, EMPTY_BYTES, MAX_INT_256, MAX_UINT_256, ZERO_BYTES } from "@utils/constants";
 import {
   TradeAdapterMock,
   ChainlinkAggregatorV3Mock,
@@ -45,6 +45,7 @@ import { getTxFee } from "@utils/test";
 import { CEther } from "@typechain/CEther";
 import { CERc20 } from "@typechain/CERc20";
 import { Comptroller } from "@typechain/Comptroller";
+// import { Address } from "ethereumjs-util";
 
 enum Exchange {
   None,
@@ -169,9 +170,10 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
     );
   });
 
-  const initializeContracts = async () => {
+  const initializeContracts = async (marketId="Commons") => {
     aaveSetup = getAaveV2Fixture(owner.address);
-    await aaveSetup.initialize(setV2Setup.weth.address, setV2Setup.dai.address, "Commons", BigNumber.from(1));
+
+    await aaveSetup.initialize(setV2Setup.weth.address, setV2Setup.dai.address, marketId, BigNumber.from(1));
     await aaveSetup.createAndEnableReserve(
       setV2Setup.usdc.address,
       "USDC",
@@ -487,6 +489,29 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
       });
     });
   
+    describe("When wrong cEther is input", () => {
+      beforeEach(async () => {
+      });
+      async function subject() {
+        exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveragedForCompound(
+          ADDRESS_ZERO,
+          quickswapRouter.address,
+          sushiswapRouter.address,
+          uniswapV3RouterAddress,
+          uniswapV3Setup.quoter.address,
+          controllerAddress,
+          debtIssuanceModuleAddress,
+          compoundLeverageModule.address,
+          aaveAddressProviderAddress,
+          curveCalculatorAddress,
+          curveAddressProviderAddress,
+        );
+      }
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("ExchangeIssuance: CEtherAddress ZERO");
+      });
+    })
+
     describe("When exchangeIssuance is deployed", () => {
       beforeEach(async () => {
         exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveragedForCompound(
@@ -654,7 +679,6 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
       });
   
       ["CollateralToken", "ERC20", "ETH"].forEach(tokenName => {
-      // ["ERC20"].forEach(tokenName => {
         describe(`#issueExactSetFrom${tokenName == "CollateralToken" ? "ERC20" : tokenName} ${
           tokenName == "CollateralToken" ? "paying with CollateralToken" : ""
         }`, async () => {
@@ -1220,53 +1244,183 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
               );
             });
           });
-          // context("When there are too many items", () => {
-          //   let subjectAssets: Address[];
-          //   let subjectAmounts: BigNumber[];
-          //   let subjectPremiums: BigNumber[];
-          //   let subjectInitiator: Address;
-          //   let subjectParams: Bytes;
-          //   beforeEach(async () => {
-          //   });
-          //   async function subject() {
-          //     await exchangeIssuance.executeOperation(
-          //       subjectAssets,
-          //       subjectAmounts,
-          //       subjectPremiums,
-          //       subjectInitiator,
-          //       subjectParams,
-          //     );
-          //   }
-          //   it("should revert with - ExchangeIssuance: TOO MANY ASSETS", async () => {
-          //     subjectAssets = [ADDRESS_ZERO, ADDRESS_ZERO];
-          //     subjectAmounts = [ZERO];
-          //     subjectPremiums = [ZERO];
-          //     subjectInitiator = exchangeIssuance.address;
-          //     subjectParams = EMPTY_BYTES;
-          //     await expect(subject()).to.be.revertedWith("ExchangeIssuance: TOO MANY ASSETS");
-          //   });
-          //   it("should revert with - ExchangeIssuance: TOO MANY AMOUNTS", async () => {
-          //     subjectAssets = [ADDRESS_ZERO];
-          //     subjectAmounts = [ZERO, ZERO];
-          //     subjectPremiums = [ZERO];
-          //     subjectInitiator = exchangeIssuance.address;
-          //     subjectParams = EMPTY_BYTES;
-          //     await expect(subject()).to.be.revertedWith("ExchangeIssuance: TOO MANY AMOUNTS");
-          //   });
-          //   it("should revert with - ExchangeIssuance: TOO MANY PREMIUMS", async () => {
-          //     subjectAssets = [ADDRESS_ZERO];
-          //     subjectAmounts = [ZERO];
-          //     subjectPremiums = [ZERO, ];
-          //     subjectInitiator = exchangeIssuance.address;
-          //     subjectParams = EMPTY_BYTES;
-          //     await expect(subject()).to.be.revertedWith("ExchangeIssuance: TOO MANY PREMIUMS");
-          //   });
-          // });
         });
-      
+
+        describe("#getRedeemExactSet", async () => {
+          let subjectSetToken: SetToken;
+          let subjectAmount: BigNumber;
+          let subjectOutputToken: StandardTokenMock | WETH9;
+          let subjectCollateralForDebtSwapData: SwapData;
+          let subjectOutputTokenSwapData: SwapData;
+  
+          async function subject(): Promise<BigNumber> {
+            return await exchangeIssuance.callStatic.getRedeemExactSet(
+              subjectSetToken.address,
+              subjectAmount,
+              subjectCollateralForDebtSwapData,
+              subjectOutputTokenSwapData
+            );
+          }
+  
+          async function performRedemption(): Promise<ContractTransaction> {
+            return await exchangeIssuance.redeemExactSetForERC20(
+              subjectSetToken.address,
+              subjectAmount,
+              subjectOutputToken.address,
+              ZERO,
+              subjectCollateralForDebtSwapData,
+              subjectOutputTokenSwapData
+            );
+          }
+  
+          context(`when output token is ${tokenName === "CollateralToken" ? "the collateral" : "an ERC20"}`, async () => {
+            beforeEach(async () => {
+              subjectSetToken = setToken;
+              subjectAmount = ether(0.1);
+              subjectOutputToken = tokenName === "CollateralToken" ? setV2Setup.weth : setV2Setup.usdc;
+  
+              subjectCollateralForDebtSwapData = {
+                exchange: Exchange.Quickswap,
+                pool: ADDRESS_ZERO,
+                path: [wethAddress, setV2Setup.usdc.address],
+                fees: [],
+              };
+  
+              subjectOutputTokenSwapData = {
+                exchange: Exchange.Quickswap,
+                pool: ADDRESS_ZERO,
+                path: [wethAddress, subjectOutputToken.address],
+                fees: [],
+              };
+  
+              await subjectSetToken.approve(exchangeIssuance.address, MAX_UINT_256);
+              await exchangeIssuance.approveSetToken(subjectSetToken.address);
+            });
+  
+            it("should return correct redemption proceeds", async () => {
+              const amountOut = await subject();
+  
+              const initAmount = await subjectOutputToken.balanceOf(owner.address);
+              await performRedemption();
+              const finalAmount = await subjectOutputToken.balanceOf(owner.address);
+  
+              const expectedAmountOut = finalAmount.sub(initAmount);
+  
+              expect(amountOut).to.gt(preciseMul(expectedAmountOut, ether(0.99)));
+              expect(amountOut).to.lt(preciseMul(expectedAmountOut, ether(1.01)));
+            });
+  
+            context("when using Uniswap V3 as the exchange", async () => {
+              beforeEach(() => {
+                subjectCollateralForDebtSwapData = {
+                  exchange: Exchange.UniV3,
+                  pool: ADDRESS_ZERO,
+                  path: [wethAddress, setV2Setup.usdc.address],
+                  fees: [3000],
+                };
+  
+                subjectOutputTokenSwapData = {
+                  exchange: Exchange.UniV3,
+                  pool: ADDRESS_ZERO,
+                  path: [wethAddress, subjectOutputToken.address],
+                  fees: [3000],
+                };
+              });
+  
+              it("should return the correct issuance cost", async () => {
+                const amountOut = await subject();
+  
+                const initAmount = await subjectOutputToken.balanceOf(owner.address);
+                await performRedemption();
+                const finalAmount = await subjectOutputToken.balanceOf(owner.address);
+  
+                const expectedAmountOut = finalAmount.sub(initAmount);
+  
+                expect(amountOut).to.gt(preciseMul(expectedAmountOut, ether(0.99)));
+                expect(amountOut).to.lt(preciseMul(expectedAmountOut, ether(1.01)));
+              });
+            });
+          });
+        });
+
+      });
+
+      describe("#isValidPath", async () => {
+        let subjectSetToken: SetToken;
+        let subjectAmount: BigNumber;
+        let subjectInputToken: StandardTokenMock | WETH9;
+        let subjectDebtForCollateralSwapData: SwapData;
+        let subjectInputTokenSwapData: SwapData;
+        let inputAddress: Address;
+        let outputAddress: Address;
+        let maxInputAmount: BigNumber;
+        let collateralAmount: BigNumber;
+
+        async function subject() {
+          
+          subjectInputToken = setV2Setup.usdc;
+
+          subjectDebtForCollateralSwapData = {
+            exchange: Exchange.Quickswap,
+            pool: ADDRESS_ZERO,
+            path: [inputAddress, outputAddress],
+            fees: [],
+          };
+
+          subjectInputTokenSwapData = {
+            exchange: Exchange.Quickswap,
+            pool: ADDRESS_ZERO,
+            path: [subjectInputToken.address, wethAddress],
+            fees: [],
+          };
+
+          await setV2Setup.usdc.approve(exchangeIssuance.address, MAX_UINT_256);
+          await setV2Setup.weth.approve(exchangeIssuance.address, MAX_UINT_256);
+          await exchangeIssuance.approveSetToken(subjectSetToken.address);
+
+          await exchangeIssuance.issueExactSetFromERC20(
+            subjectSetToken.address,
+            subjectAmount,
+            subjectInputToken.address,
+            maxInputAmount,
+            subjectDebtForCollateralSwapData,
+            subjectInputTokenSwapData
+          );
+        }
+
+        context(`when wrong inputToken is input`, async () => {
+          it("should revert", async () => {
+            subjectSetToken = setToken;
+            subjectAmount = BigNumber.from(100000);
+            ({ collateralAmount } = await exchangeIssuance.getLeveragedTokenData(
+              subjectSetToken.address,
+              subjectAmount,
+              true,
+            ));
+            maxInputAmount = collateralAmount;
+            inputAddress = setV2Setup.dai.address;
+            outputAddress = setV2Setup.usdc.address;
+            await expect(subject()).to.be.revertedWith("ExchangeIssuance: INPUT_TOKEN_NOT_IN_PATH");
+          });
+        });
+
+        context(`when wrong outputToken is input`, async () => {
+          it("should revert", async () => {
+            subjectSetToken = setToken;
+            subjectAmount = BigNumber.from(100000);
+            ({ collateralAmount } = await exchangeIssuance.getLeveragedTokenData(
+              subjectSetToken.address,
+              subjectAmount,
+              true,
+            ));
+            maxInputAmount = collateralAmount;
+            inputAddress = setV2Setup.usdc.address;
+            outputAddress = setV2Setup.dai.address;
+            await expect(subject()).to.be.revertedWith("ExchangeIssuance: OUTPUT_TOKEN_NOT_IN_PATH");
+          });
+        });
       });
     });
-  
   })
 
   describe("CErc20",async () => {
@@ -1830,5 +1984,217 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
       });
     });
   
+  })
+
+  describe("LendingPoolMock",async () => {
+    cacheBeforeEach(async () => {
+      collateralToken = setV2Setup.dai;
+      debtToken = setV2Setup.usdc;
+      cTokenAddress = cDAI.address;
+      cTokenDebtAddress = cUSDC.address;
+      await initializeContracts("Mock");
+      await initializeRootScopeContracts();
+    });
+
+    describe("When exchangeIssuance is deployed", () => {
+      beforeEach(async () => {
+        exchangeIssuance = await deployer.mocks.deployExchangeIssuanceLeveragedCompMock(
+          wethAddress,
+          quickswapRouter.address,
+          sushiswapRouter.address,
+          uniswapV3RouterAddress,
+          uniswapV3Setup.quoter.address,
+          controllerAddress,
+          debtIssuanceModuleAddress,
+          compoundLeverageModule.address,
+          aaveAddressProviderAddress,
+          curveCalculatorAddress,
+          curveAddressProviderAddress,
+        );
+        ethAddress = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+      });
+  
+      ["ERC20"].forEach(tokenName => {
+  
+        describe("#executeOperation", async () => {
+          context("When caller is not the lending pool", () => {
+            let subjectAssets: Address[];
+            let subjectAmounts: BigNumber[];
+            let subjectPremiums: BigNumber[];
+            let subjectInitiator: Address;
+            let subjectParams: Bytes;
+            beforeEach(async () => {
+              subjectAssets = [ADDRESS_ZERO];
+              subjectAmounts = [ZERO];
+              subjectPremiums = [ZERO];
+              subjectInitiator = ADDRESS_ZERO;
+              subjectParams = EMPTY_BYTES;
+            });
+            async function subject() {
+              await exchangeIssuance.executeOperation(
+                subjectAssets,
+                subjectAmounts,
+                subjectPremiums,
+                subjectInitiator,
+                subjectParams,
+              );
+            }
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith("ExchangeIssuance: LENDING POOL ONLY");
+            });
+          });
+          context("When flashloan initiator is not the Exchange Issuance contract", () => {
+            let subjectReceiver: Address;
+            let subjectAssets: Address[];
+            let subjectAmounts: BigNumber[];
+            let subjectModes: BigNumber[];
+            let subjectOnBehalfOf: Address;
+            let subjectParams: Bytes;
+            let subjectReferalCode: BigNumber;
+            beforeEach(async () => {
+              subjectReceiver = exchangeIssuance.address;
+              subjectAssets = [wethAddress];
+              subjectAmounts = [utils.parseEther("1")];
+              subjectModes = [ZERO];
+              subjectOnBehalfOf = exchangeIssuance.address;
+              subjectParams = EMPTY_BYTES;
+              subjectReferalCode = ZERO;
+            });
+            async function subject() {
+              await aaveSetup.lendingPool.flashLoan(
+                subjectReceiver,
+                subjectAssets,
+                subjectAmounts,
+                subjectModes,
+                subjectOnBehalfOf,
+                subjectParams,
+                subjectReferalCode,
+              );
+            }
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith(
+                "ExchangeIssuance: INVALID FLASHLOAN INITIATOR",
+              );
+            });
+          });
+          context("When there are too many items", () => {
+            let subjectReceiver: Address;
+            let subjectAssets: Address[];
+            let subjectAmounts: BigNumber[];
+            let subjectPremiums: BigNumber[];
+            let subjectParams: Bytes;
+            beforeEach(async () => {
+              
+            });
+            async function subject() {
+              await aaveSetup.lendingPool.flashLoanMock(
+                subjectReceiver,
+                subjectAssets,
+                subjectAmounts,
+                subjectPremiums,
+                subjectParams
+              );
+            }
+            it("should revert with - ExchangeIssuance: TOO MANY ASSETS", async () => {
+              subjectReceiver = exchangeIssuance.address;
+              subjectAssets = [wethAddress, ADDRESS_ZERO];
+              subjectAmounts = [utils.parseEther("1")];
+              subjectPremiums = [ZERO];
+              subjectParams = ZERO_BYTES;
+              await expect(subject()).to.be.revertedWith(
+                "ExchangeIssuance: TOO MANY ASSETS",
+              );
+            });
+            it("should revert with - ExchangeIssuance: TOO MANY AMOUNTS", async () => {
+              subjectReceiver = exchangeIssuance.address;
+              subjectAssets = [wethAddress];
+              subjectAmounts = [utils.parseEther("1"), utils.parseEther("1")];
+              subjectPremiums = [ZERO];
+              subjectParams = ZERO_BYTES;
+              await expect(subject()).to.be.revertedWith(
+                "ExchangeIssuance: TOO MANY AMOUNTS",
+              );
+            });
+            it("should revert with - ExchangeIssuance: TOO MANY PREMIUMS", async () => {
+              subjectReceiver = exchangeIssuance.address;
+              subjectAssets = [wethAddress];
+              subjectAmounts = [utils.parseEther("1")];
+              subjectPremiums = [ZERO, ZERO];
+              subjectParams = ZERO_BYTES;
+              await expect(subject()).to.be.revertedWith(
+                "ExchangeIssuance: TOO MANY PREMIUMS",
+              );
+            });
+          });
+          context("When spent over collateral token", () => {
+            let _collateralTokenSpent: BigNumber;
+            let _setToken: Address;
+            let _setAmount: BigNumber;
+            let _originalSender: Address;
+            let _outputToken: Address;
+            let _minAmountOutputToken: BigNumber;
+            let _collateralToken: Address;
+            let _collateralAmount: BigNumber;
+            let _swapData: SwapData;
+            beforeEach(async () => {
+              _collateralTokenSpent = BigNumber.from(10000);
+              _setToken = setToken.address;
+              _setAmount = BigNumber.from(100);
+              _originalSender = owner.address;
+              _outputToken = setV2Setup.weth.address;
+              _minAmountOutputToken = BigNumber.from(1000);
+              _collateralToken = setV2Setup.weth.address;
+              _collateralAmount = BigNumber.from(100);
+              _swapData = {
+                path: [setV2Setup.usdc.address, collateralToken.address],
+                fees: [3000],
+                pool: ADDRESS_ZERO,
+                exchange: Exchange.None,
+              };
+            });
+            async function subject() {
+              await exchangeIssuance.liquidateCollateralTokens(
+                _collateralTokenSpent,
+                _setToken,
+                _setAmount,
+                _originalSender,
+                _outputToken,
+                _minAmountOutputToken,
+                _collateralToken,
+                _collateralAmount,
+                _swapData
+              );
+            }
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith(
+                "ExchangeIssuance: OVERSPENT COLLATERAL TOKEN",
+              );
+            });
+          });
+          context("When _shortfall > 0", () => {
+            let _token: Address;
+            let _shortfall: BigNumber;
+            let _originalSender: Address;
+            beforeEach(async () => {
+              _token = setV2Setup.weth.address;
+              _shortfall = BigNumber.from(1000);
+              _originalSender = owner.address;
+            });
+            async function subject() {
+              await setV2Setup.weth.approve(exchangeIssuance.address, MAX_INT_256);
+              await exchangeIssuance.transferShortfallFromSender(
+                _token,
+                _shortfall,
+                _originalSender
+              );
+            }
+            it("should succeed", async () => {
+              await subject();
+            });
+          });
+        });
+      
+      });
+    });
   })
 });

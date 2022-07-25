@@ -29,7 +29,6 @@ import { ICompoundLeverageModule } from "../interfaces/ICompoundLeverageModule.s
 
 import { ICErc20Delegator } from "../interfaces/ICErc20Delegator.sol";
 import { ICEther } from "../interfaces/ICEther.sol";
-import { ExponentialNoError } from "../lib/ExponentialNoError.sol";
 
 import { CErc20Storage } from "../interfaces/CErc20Storage.sol";
 import { CompoundLeverageModuleStorage } from "../interfaces/CompoundLeverageModuleStorage.sol";
@@ -192,7 +191,7 @@ contract ExchangeIssuanceLeveragedForCompound is Exponential, ReentrancyGuard, F
         addresses.curveCalculator = _curveCalculator;
 
         address _cEtherAddress = CompoundLeverageModuleStorage(address(_compoundLeverageModule)).underlyingToCToken(_weth);
-        require(_cEtherAddress != address(0x0), "CEtherAddress Error");
+        require(_cEtherAddress != address(0x0), "ExchangeIssuance: CEtherAddress ZERO");
         cEtherAddress = _cEtherAddress;
     }
 
@@ -444,7 +443,7 @@ contract ExchangeIssuanceLeveragedForCompound is Exponential, ReentrancyGuard, F
         require(assets.length == 1, "ExchangeIssuance: TOO MANY ASSETS");
         require(amounts.length == 1, "ExchangeIssuance: TOO MANY AMOUNTS");
         require(premiums.length == 1, "ExchangeIssuance: TOO MANY PREMIUMS");
-
+        
         DecodedParams memory decodedParams = abi.decode(params, (DecodedParams));
 
         if(decodedParams.isIssuance){
@@ -678,7 +677,7 @@ contract ExchangeIssuanceLeveragedForCompound is Exponential, ReentrancyGuard, F
      * @param _token  Address of the token to be approved
      */
     function _approveToken(IERC20 _token) internal {
-        _safeApprove(_token, address(debtIssuanceModule), MAX_UINT256);
+        _token.approve(address(debtIssuanceModule), MAX_UINT256);
     }
 
     /**
@@ -1269,26 +1268,6 @@ contract ExchangeIssuanceLeveragedForCompound is Exponential, ReentrancyGuard, F
         return result;
     }
 
-    /**
-     * Sets a max approval limit for an ERC20 token, provided the current allowance
-     * is less than the required allownce.
-     *
-     * @param _token              Token to approve
-     * @param _spender            Spender address to approve
-     * @param _requiredAllowance  Target allowance to set
-     */
-    function _safeApprove(
-        IERC20 _token,
-        address _spender,
-        uint256 _requiredAllowance
-    )
-    internal
-    {
-        uint256 allowance = _token.allowance(address(this), _spender);
-        if (allowance < _requiredAllowance) {
-            _token.safeIncreaseAllowance(_spender, MAX_UINT256 - allowance);
-        }
-    }
 
     /**
      * Approves max amount of token to lending pool
