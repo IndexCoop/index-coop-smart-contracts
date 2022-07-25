@@ -9,7 +9,8 @@ import {
     DEXAdapter,
     IController,
     IDebtIssuanceModule,
-    ICompoundLeverageModule
+    ICompoundLeverageModule,
+    IERC20
 } from "../exchangeIssuance/ExchangeIssuanceLeveragedForCompound.sol";
 
 
@@ -68,6 +69,25 @@ contract ExchangeIssuanceLeveragedCompMock is ExchangeIssuanceLeveragedForCompou
         );
     }
 
+    function liquidateCollateralTokensForETH(
+        address _collateralToken,
+        uint256 _collateralRemaining,
+        address _originalSender,
+        uint256 _minAmountOutputToken,
+        DEXAdapter.SwapData memory _swapData
+    )
+    external
+    returns(uint256)
+    {
+        return _liquidateCollateralTokensForETH(
+            _collateralToken,
+            _collateralRemaining,
+            _originalSender,
+            _minAmountOutputToken,
+            _swapData
+        );
+    }
+
     function transferShortfallFromSender(
         address _token,
         uint256 _shortfall,
@@ -79,6 +99,27 @@ contract ExchangeIssuanceLeveragedCompMock is ExchangeIssuanceLeveragedForCompou
             _token,
             _shortfall,
             _originalSender
+        );
+    }
+
+    function makeUpShortfallWithERC20(
+        address _collateralToken,
+        uint256 _collateralTokenShortfall,
+        address _originalSender,
+        IERC20 _inputToken,
+        uint256 _maxAmountInputToken,
+        DEXAdapter.SwapData memory _swapData
+    )
+    external
+    returns (uint256)
+    {
+        return _makeUpShortfallWithERC20(
+            _collateralToken,
+            _collateralTokenShortfall,
+            _originalSender,
+            _inputToken,
+            _maxAmountInputToken,
+            _swapData
         );
     }
 }
