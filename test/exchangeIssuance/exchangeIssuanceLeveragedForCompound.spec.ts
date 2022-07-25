@@ -2017,212 +2017,212 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
       ["ERC20"].forEach(tokenName => {
   
         describe("#executeOperation", async () => {
-          // context("When caller is not the lending pool", () => {
-          //   let subjectAssets: Address[];
-          //   let subjectAmounts: BigNumber[];
-          //   let subjectPremiums: BigNumber[];
-          //   let subjectInitiator: Address;
-          //   let subjectParams: Bytes;
-          //   beforeEach(async () => {
-          //     subjectAssets = [ADDRESS_ZERO];
-          //     subjectAmounts = [ZERO];
-          //     subjectPremiums = [ZERO];
-          //     subjectInitiator = ADDRESS_ZERO;
-          //     subjectParams = EMPTY_BYTES;
-          //   });
-          //   async function subject() {
-          //     await exchangeIssuance.executeOperation(
-          //       subjectAssets,
-          //       subjectAmounts,
-          //       subjectPremiums,
-          //       subjectInitiator,
-          //       subjectParams,
-          //     );
-          //   }
-          //   it("should revert", async () => {
-          //     await expect(subject()).to.be.revertedWith("ExchangeIssuance: LENDING POOL ONLY");
-          //   });
-          // });
-          // context("When flashloan initiator is not the Exchange Issuance contract", () => {
-          //   let subjectReceiver: Address;
-          //   let subjectAssets: Address[];
-          //   let subjectAmounts: BigNumber[];
-          //   let subjectModes: BigNumber[];
-          //   let subjectOnBehalfOf: Address;
-          //   let subjectParams: Bytes;
-          //   let subjectReferalCode: BigNumber;
-          //   beforeEach(async () => {
-          //     subjectReceiver = exchangeIssuance.address;
-          //     subjectAssets = [wethAddress];
-          //     subjectAmounts = [utils.parseEther("1")];
-          //     subjectModes = [ZERO];
-          //     subjectOnBehalfOf = exchangeIssuance.address;
-          //     subjectParams = EMPTY_BYTES;
-          //     subjectReferalCode = ZERO;
-          //   });
-          //   async function subject() {
-          //     await aaveSetup.lendingPool.flashLoan(
-          //       subjectReceiver,
-          //       subjectAssets,
-          //       subjectAmounts,
-          //       subjectModes,
-          //       subjectOnBehalfOf,
-          //       subjectParams,
-          //       subjectReferalCode,
-          //     );
-          //   }
-          //   it("should revert", async () => {
-          //     await expect(subject()).to.be.revertedWith(
-          //       "ExchangeIssuance: INVALID FLASHLOAN INITIATOR",
-          //     );
-          //   });
-          // });
-          // context("When there are too many items", () => {
-          //   let subjectReceiver: Address;
-          //   let subjectAssets: Address[];
-          //   let subjectAmounts: BigNumber[];
-          //   let subjectPremiums: BigNumber[];
-          //   let subjectParams: Bytes;
-          //   beforeEach(async () => {
+          context("When caller is not the lending pool", () => {
+            let subjectAssets: Address[];
+            let subjectAmounts: BigNumber[];
+            let subjectPremiums: BigNumber[];
+            let subjectInitiator: Address;
+            let subjectParams: Bytes;
+            beforeEach(async () => {
+              subjectAssets = [ADDRESS_ZERO];
+              subjectAmounts = [ZERO];
+              subjectPremiums = [ZERO];
+              subjectInitiator = ADDRESS_ZERO;
+              subjectParams = EMPTY_BYTES;
+            });
+            async function subject() {
+              await exchangeIssuance.executeOperation(
+                subjectAssets,
+                subjectAmounts,
+                subjectPremiums,
+                subjectInitiator,
+                subjectParams,
+              );
+            }
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith("ExchangeIssuance: LENDING POOL ONLY");
+            });
+          });
+          context("When flashloan initiator is not the Exchange Issuance contract", () => {
+            let subjectReceiver: Address;
+            let subjectAssets: Address[];
+            let subjectAmounts: BigNumber[];
+            let subjectModes: BigNumber[];
+            let subjectOnBehalfOf: Address;
+            let subjectParams: Bytes;
+            let subjectReferalCode: BigNumber;
+            beforeEach(async () => {
+              subjectReceiver = exchangeIssuance.address;
+              subjectAssets = [wethAddress];
+              subjectAmounts = [utils.parseEther("1")];
+              subjectModes = [ZERO];
+              subjectOnBehalfOf = exchangeIssuance.address;
+              subjectParams = EMPTY_BYTES;
+              subjectReferalCode = ZERO;
+            });
+            async function subject() {
+              await aaveSetup.lendingPool.flashLoan(
+                subjectReceiver,
+                subjectAssets,
+                subjectAmounts,
+                subjectModes,
+                subjectOnBehalfOf,
+                subjectParams,
+                subjectReferalCode,
+              );
+            }
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith(
+                "ExchangeIssuance: INVALID FLASHLOAN INITIATOR",
+              );
+            });
+          });
+          context("When there are too many items", () => {
+            let subjectReceiver: Address;
+            let subjectAssets: Address[];
+            let subjectAmounts: BigNumber[];
+            let subjectPremiums: BigNumber[];
+            let subjectParams: Bytes;
+            beforeEach(async () => {
               
-          //   });
-          //   async function subject() {
-          //     await aaveSetup.lendingPool.flashLoanMock(
-          //       subjectReceiver,
-          //       subjectAssets,
-          //       subjectAmounts,
-          //       subjectPremiums,
-          //       subjectParams
-          //     );
-          //   }
-          //   it("should revert with - ExchangeIssuance: TOO MANY ASSETS", async () => {
-          //     subjectReceiver = exchangeIssuance.address;
-          //     subjectAssets = [wethAddress, ADDRESS_ZERO];
-          //     subjectAmounts = [utils.parseEther("1")];
-          //     subjectPremiums = [ZERO];
-          //     subjectParams = ZERO_BYTES;
-          //     await expect(subject()).to.be.revertedWith(
-          //       "ExchangeIssuance: TOO MANY ASSETS",
-          //     );
-          //   });
-          //   it("should revert with - ExchangeIssuance: TOO MANY AMOUNTS", async () => {
-          //     subjectReceiver = exchangeIssuance.address;
-          //     subjectAssets = [wethAddress];
-          //     subjectAmounts = [utils.parseEther("1"), utils.parseEther("1")];
-          //     subjectPremiums = [ZERO];
-          //     subjectParams = ZERO_BYTES;
-          //     await expect(subject()).to.be.revertedWith(
-          //       "ExchangeIssuance: TOO MANY AMOUNTS",
-          //     );
-          //   });
-          //   it("should revert with - ExchangeIssuance: TOO MANY PREMIUMS", async () => {
-          //     subjectReceiver = exchangeIssuance.address;
-          //     subjectAssets = [wethAddress];
-          //     subjectAmounts = [utils.parseEther("1")];
-          //     subjectPremiums = [ZERO, ZERO];
-          //     subjectParams = ZERO_BYTES;
-          //     await expect(subject()).to.be.revertedWith(
-          //       "ExchangeIssuance: TOO MANY PREMIUMS",
-          //     );
-          //   });
-          // });
-          // context("When spent over collateral token", () => {
-          //   let _collateralTokenSpent: BigNumber;
-          //   let _setToken: Address;
-          //   let _setAmount: BigNumber;
-          //   let _originalSender: Address;
-          //   let _outputToken: Address;
-          //   let _minAmountOutputToken: BigNumber;
-          //   let _collateralToken: Address;
-          //   let _collateralAmount: BigNumber;
-          //   let _swapData: SwapData;
-          //   beforeEach(async () => {
-          //     _collateralTokenSpent = BigNumber.from(10000);
-          //     _setToken = setToken.address;
-          //     _setAmount = BigNumber.from(100);
-          //     _originalSender = owner.address;
-          //     _outputToken = setV2Setup.weth.address;
-          //     _minAmountOutputToken = BigNumber.from(1000);
-          //     _collateralToken = setV2Setup.weth.address;
-          //     _collateralAmount = BigNumber.from(100);
-          //     _swapData = {
-          //       path: [setV2Setup.usdc.address, collateralToken.address],
-          //       fees: [3000],
-          //       pool: ADDRESS_ZERO,
-          //       exchange: Exchange.None,
-          //     };
-          //   });
-          //   async function subject() {
-          //     await exchangeIssuance.liquidateCollateralTokens(
-          //       _collateralTokenSpent,
-          //       _setToken,
-          //       _setAmount,
-          //       _originalSender,
-          //       _outputToken,
-          //       _minAmountOutputToken,
-          //       _collateralToken,
-          //       _collateralAmount,
-          //       _swapData
-          //     );
-          //   }
-          //   it("should revert", async () => {
-          //     await expect(subject()).to.be.revertedWith(
-          //       "ExchangeIssuance: OVERSPENT COLLATERAL TOKEN",
-          //     );
-          //   });
-          // });
-          // context("When _shortfall == 0", () => {
-          //   let _token: Address;
-          //   let _shortfall: BigNumber;
-          //   let _originalSender: Address;
-          //   beforeEach(async () => {
-          //     _token = setV2Setup.weth.address;
-          //     _shortfall = BigNumber.from(0);
-          //     _originalSender = owner.address;
-          //   });
-          //   async function subject() {
-          //     await setV2Setup.weth.approve(exchangeIssuance.address, MAX_INT_256);
-          //     await exchangeIssuance.transferShortfallFromSender(
-          //       _token,
-          //       _shortfall,
-          //       _originalSender
-          //     );
-          //   }
-          //   it("should succeed", async () => {
-          //     await subject();
-          //   });
-          // });
-          // context("When ethAmount == 0", () => {
-          //   let _collateralToken: Address;
-          //   let _collateralRemaining: BigNumber;
-          //   let _originalSender: Address;
-          //   let _minAmountOutputToken: BigNumber;
-          //   let _swapData: SwapData;
-          //   beforeEach(async () => {
-          //     _collateralToken = setV2Setup.weth.address;
-          //     _collateralRemaining = BigNumber.from(0);
-          //     _originalSender = owner.address;
-          //     _minAmountOutputToken = BigNumber.from(0);
-          //     _swapData = {
-          //       path: [_collateralToken, _collateralToken],
-          //       fees: [3000],
-          //       pool: ADDRESS_ZERO,
-          //       exchange: Exchange.None,
-          //     };
-          //   });
-          //   async function subject() {
-          //     await exchangeIssuance.liquidateCollateralTokensForETH(
-          //       _collateralToken,
-          //       _collateralRemaining,
-          //       _originalSender,
-          //       _minAmountOutputToken,
-          //       _swapData
-          //     );
-          //   }
-          //   it("should succeed", async () => {
-          //     await subject();
-          //   });
-          // });
+            });
+            async function subject() {
+              await aaveSetup.lendingPool.flashLoanMock(
+                subjectReceiver,
+                subjectAssets,
+                subjectAmounts,
+                subjectPremiums,
+                subjectParams
+              );
+            }
+            it("should revert with - ExchangeIssuance: TOO MANY ASSETS", async () => {
+              subjectReceiver = exchangeIssuance.address;
+              subjectAssets = [wethAddress, ADDRESS_ZERO];
+              subjectAmounts = [utils.parseEther("1")];
+              subjectPremiums = [ZERO];
+              subjectParams = ZERO_BYTES;
+              await expect(subject()).to.be.revertedWith(
+                "ExchangeIssuance: TOO MANY ASSETS",
+              );
+            });
+            it("should revert with - ExchangeIssuance: TOO MANY AMOUNTS", async () => {
+              subjectReceiver = exchangeIssuance.address;
+              subjectAssets = [wethAddress];
+              subjectAmounts = [utils.parseEther("1"), utils.parseEther("1")];
+              subjectPremiums = [ZERO];
+              subjectParams = ZERO_BYTES;
+              await expect(subject()).to.be.revertedWith(
+                "ExchangeIssuance: TOO MANY AMOUNTS",
+              );
+            });
+            it("should revert with - ExchangeIssuance: TOO MANY PREMIUMS", async () => {
+              subjectReceiver = exchangeIssuance.address;
+              subjectAssets = [wethAddress];
+              subjectAmounts = [utils.parseEther("1")];
+              subjectPremiums = [ZERO, ZERO];
+              subjectParams = ZERO_BYTES;
+              await expect(subject()).to.be.revertedWith(
+                "ExchangeIssuance: TOO MANY PREMIUMS",
+              );
+            });
+          });
+          context("When spent over collateral token", () => {
+            let _collateralTokenSpent: BigNumber;
+            let _setToken: Address;
+            let _setAmount: BigNumber;
+            let _originalSender: Address;
+            let _outputToken: Address;
+            let _minAmountOutputToken: BigNumber;
+            let _collateralToken: Address;
+            let _collateralAmount: BigNumber;
+            let _swapData: SwapData;
+            beforeEach(async () => {
+              _collateralTokenSpent = BigNumber.from(10000);
+              _setToken = setToken.address;
+              _setAmount = BigNumber.from(100);
+              _originalSender = owner.address;
+              _outputToken = setV2Setup.weth.address;
+              _minAmountOutputToken = BigNumber.from(1000);
+              _collateralToken = setV2Setup.weth.address;
+              _collateralAmount = BigNumber.from(100);
+              _swapData = {
+                path: [setV2Setup.usdc.address, collateralToken.address],
+                fees: [3000],
+                pool: ADDRESS_ZERO,
+                exchange: Exchange.None,
+              };
+            });
+            async function subject() {
+              await exchangeIssuance.liquidateCollateralTokens(
+                _collateralTokenSpent,
+                _setToken,
+                _setAmount,
+                _originalSender,
+                _outputToken,
+                _minAmountOutputToken,
+                _collateralToken,
+                _collateralAmount,
+                _swapData
+              );
+            }
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith(
+                "ExchangeIssuance: OVERSPENT COLLATERAL TOKEN",
+              );
+            });
+          });
+          context("When _shortfall == 0", () => {
+            let _token: Address;
+            let _shortfall: BigNumber;
+            let _originalSender: Address;
+            beforeEach(async () => {
+              _token = setV2Setup.weth.address;
+              _shortfall = BigNumber.from(0);
+              _originalSender = owner.address;
+            });
+            async function subject() {
+              await setV2Setup.weth.approve(exchangeIssuance.address, MAX_INT_256);
+              await exchangeIssuance.transferShortfallFromSender(
+                _token,
+                _shortfall,
+                _originalSender
+              );
+            }
+            it("should succeed", async () => {
+              await subject();
+            });
+          });
+          context("When ethAmount == 0", () => {
+            let _collateralToken: Address;
+            let _collateralRemaining: BigNumber;
+            let _originalSender: Address;
+            let _minAmountOutputToken: BigNumber;
+            let _swapData: SwapData;
+            beforeEach(async () => {
+              _collateralToken = setV2Setup.weth.address;
+              _collateralRemaining = BigNumber.from(0);
+              _originalSender = owner.address;
+              _minAmountOutputToken = BigNumber.from(0);
+              _swapData = {
+                path: [_collateralToken, _collateralToken],
+                fees: [3000],
+                pool: ADDRESS_ZERO,
+                exchange: Exchange.None,
+              };
+            });
+            async function subject() {
+              await exchangeIssuance.liquidateCollateralTokensForETH(
+                _collateralToken,
+                _collateralRemaining,
+                _originalSender,
+                _minAmountOutputToken,
+                _swapData
+              );
+            }
+            it("should succeed", async () => {
+              await subject();
+            });
+          });
           context("When amountInputToken >= _maxAmountInputToken", () => {
             let _collateralToken: Address;
             let _collateralTokenShortfall: BigNumber;
