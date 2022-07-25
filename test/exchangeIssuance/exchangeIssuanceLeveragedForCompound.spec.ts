@@ -2246,8 +2246,6 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
             async function subject() {
               const usdcBalance = await setV2Setup.usdc.balanceOf(owner.address);
               const wethBalance = await setV2Setup.weth.balanceOf(owner.address);
-              console.log("usdcBalance: ", usdcBalance.toString());
-              console.log("wethBalance: ", wethBalance.toString());
 
               setV2Setup.usdc.approve(exchangeIssuance.address, MAX_INT_256);
               setV2Setup.weth.approve(exchangeIssuance.address, MAX_INT_256);
