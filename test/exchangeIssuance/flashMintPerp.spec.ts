@@ -16,7 +16,7 @@ import {
 import { UnitsUtils } from "@utils/common/unitsUtils";
 import { SetFixture } from "@utils/fixtures";
 import { BigNumber, ContractTransaction } from "ethers";
-import { ExchangeIssuancePerp } from "@typechain/ExchangeIssuancePerp";
+import { FlashMintPerp } from "@typechain/FlashMintPerp";
 import { SwapRouter } from "@typechain/SwapRouter";
 import { Quoter } from "@typechain/Quoter";
 import { SlippageIssuanceModule } from "@typechain/SlippageIssuanceModule";
@@ -29,7 +29,7 @@ import {
 
 const expect = getWaffleExpect();
 
-describe("ExchangeIssuancePerp", async () => {
+describe("FlashMintPerp", async () => {
   const WETH_PRICE = 1500;
   const WBTC_PRICE = 22000;
 
@@ -42,7 +42,7 @@ describe("ExchangeIssuancePerp", async () => {
   let setToken: SetToken;
   let setTokenWithWeth: SetToken;
 
-  let exchangeIssuance: ExchangeIssuancePerp;
+  let exchangeIssuance: FlashMintPerp;
 
   cacheBeforeEach(async () => {
     [owner, user, externalPositionModule] = await getAccounts();
@@ -110,8 +110,8 @@ describe("ExchangeIssuancePerp", async () => {
       uniV3Router = uniswapV3Fixture.swapRouter;
     });
 
-    async function subject(): Promise<ExchangeIssuancePerp> {
-      return await deployer.extensions.deployExchangeIssuancePerp(
+    async function subject(): Promise<FlashMintPerp> {
+      return await deployer.extensions.deployFlashMintPerp(
         uniV3Router.address,
         uniV3Quoter.address,
         slippageIssuanceModule.address,
@@ -120,7 +120,7 @@ describe("ExchangeIssuancePerp", async () => {
     }
 
     it("verify state set properly via constructor", async () => {
-      const exchangeIssuanceContract: ExchangeIssuancePerp = await subject();
+      const exchangeIssuanceContract: FlashMintPerp = await subject();
 
       expect(await exchangeIssuanceContract.uniV3Router()).to.eq(uniV3Router.address);
 
@@ -134,7 +134,7 @@ describe("ExchangeIssuancePerp", async () => {
     });
 
     it("approves USDC to the uniswap v3 router and slippage module", async () => {
-      const exchangeIssuance: ExchangeIssuancePerp = await subject();
+      const exchangeIssuance: FlashMintPerp = await subject();
 
       const uniV2UsdcAllownace = await usdc.allowance(
         exchangeIssuance.address,
@@ -257,7 +257,7 @@ describe("ExchangeIssuancePerp", async () => {
         owner.address,
       );
 
-      exchangeIssuance = await deployer.extensions.deployExchangeIssuancePerp(
+      exchangeIssuance = await deployer.extensions.deployFlashMintPerp(
         uniV3Router.address,
         uniV3Quoter.address,
         slippageIssuanceModule.address,

@@ -11,7 +11,7 @@ export { ExchangeIssuance } from "../../typechain/ExchangeIssuance";
 export { ExchangeIssuanceV2 } from "../../typechain/ExchangeIssuanceV2";
 export { ExchangeIssuanceLeveraged } from "../../typechain/ExchangeIssuanceLeveraged";
 export { ExchangeIssuanceZeroEx } from "../../typechain/ExchangeIssuanceZeroEx";
-export { ExchangeIssuancePerp } from "../../typechain/ExchangeIssuancePerp";
+export { FlashMintPerp } from "../../typechain/FlashMintPerp";
 export { FeeSplitExtension } from "../../typechain/FeeSplitExtension";
 export { FlexibleLeverageStrategyExtension } from "../../typechain/FlexibleLeverageStrategyExtension";
 export { FlexibleLeverageStrategyExtensionMock } from "../../typechain/FlexibleLeverageStrategyExtensionMock";

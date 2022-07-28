@@ -37,12 +37,12 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 
 /**
- * @title ExchangeIssuancePerp
+ * @title FlashMintPerp
  *
  * Flash issue basis trading products using SlippageIssuanceModule
  *
  */
-contract ExchangeIssuancePerp is Withdrawable {
+contract FlashMintPerp is Withdrawable {
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
     using SafeCast for int256;

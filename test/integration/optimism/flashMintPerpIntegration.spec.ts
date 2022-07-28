@@ -5,7 +5,7 @@ import DeployHelper from "@utils/deploys";
 import { cacheBeforeEach, ether, getAccounts, getWaffleExpect } from "@utils/index";
 import { SetToken, SlippageIssuanceModule } from "@utils/contracts/setV2";
 import { BigNumber, ContractTransaction } from "ethers";
-import { ExchangeIssuancePerp, StandardTokenMock, WETH9 } from "@utils/contracts/index";
+import { FlashMintPerp, StandardTokenMock, WETH9 } from "@utils/contracts/index";
 import { Quoter, SwapRouter } from "../../../typechain";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import {
@@ -19,7 +19,7 @@ import { UnitsUtils } from "@utils/common/unitsUtils";
 const expect = getWaffleExpect();
 
 if (process.env.INTEGRATIONTEST) {
-  describe("exchangeIssuancePerp - Integration Test", () => {
+  describe("flashMintPerp - Integration Test", () => {
     const MNYeSetTokenAddress: Address = "0x0be27c140f9bdad3474beaff0a413ec7e19e9b93";
     const slippageIssuanceModuleAddress: Address = "0x2B67D4F9407F772374CaE8B010dB36A770C2c3ae";
     const usdcAddress: Address = "0x7F5c764cBc14f9669B88837ca1490cCa17c31607";
@@ -34,7 +34,7 @@ if (process.env.INTEGRATIONTEST) {
     let deployer: DeployHelper;
     let setToken: SetToken;
 
-    let exchangeIssuance: ExchangeIssuancePerp;
+    let exchangeIssuance: FlashMintPerp;
     let slippageIssuanceModule: SlippageIssuanceModule;
 
     let uniV3Router: SwapRouter;
@@ -56,7 +56,7 @@ if (process.env.INTEGRATIONTEST) {
       uniV3Router = <SwapRouter>await ethers.getContractAt("ISwapRouter", uniV3SwapRouterAddress);
       uniV3Quoter = <Quoter>await ethers.getContractAt("IQuoter", uniV3QuoterAddress);
 
-      exchangeIssuance = await deployer.extensions.deployExchangeIssuancePerp(
+      exchangeIssuance = await deployer.extensions.deployFlashMintPerp(
         uniV3Router.address,
         uniV3Quoter.address,
         slippageIssuanceModule.address,

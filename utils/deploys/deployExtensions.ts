@@ -16,7 +16,7 @@ import {
   ExchangeIssuanceV2,
   ExchangeIssuanceLeveraged,
   ExchangeIssuanceZeroEx,
-  ExchangeIssuancePerp,
+  FlashMintPerp,
   FlexibleLeverageStrategyExtension,
   FeeSplitExtension,
   GIMExtension,
@@ -33,7 +33,7 @@ import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIss
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { ExchangeIssuanceLeveraged__factory } from "../../typechain/factories/ExchangeIssuanceLeveraged__factory";
 import { ExchangeIssuanceZeroEx__factory } from "../../typechain/factories/ExchangeIssuanceZeroEx__factory";
-import { ExchangeIssuancePerp__factory } from "../../typechain/factories/ExchangeIssuancePerp__factory";
+import { FlashMintPerp__factory } from "../../typechain/factories/FlashMintPerp__factory";
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
 import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtension__factory";
 import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
@@ -215,13 +215,13 @@ export default class DeployExtensions {
     );
   }
 
-  public async deployExchangeIssuancePerp(
+  public async deployFlashMintPerp(
     uniV3Router: Address,
     uniV3Quoter: Address,
     slippageIssuanceModule: Address,
     usdcAddress: Address,
-  ): Promise<ExchangeIssuancePerp> {
-    return await new ExchangeIssuancePerp__factory(this._deployerSigner).deploy(
+  ): Promise<FlashMintPerp> {
+    return await new FlashMintPerp__factory(this._deployerSigner).deploy(
       uniV3Router,
       uniV3Quoter,
       slippageIssuanceModule,
