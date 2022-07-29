@@ -21,12 +21,13 @@ import {
   SetTokenCreator,
   SingleIndexModule,
   UniswapV2ExchangeAdapter,
-  WrapModule
+  WrapModule,
+  SlippageIssuanceModule,
 } from "../contracts/setV2";
 import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
 import { AaveLeverageModule__factory } from "../../typechain/factories/AaveLeverageModule__factory";
-import { AaveV2__factory  } from "../../typechain/factories/AaveV2__factory";
+import { AaveV2__factory } from "../../typechain/factories/AaveV2__factory";
 import { AirdropModule__factory } from "../../typechain/factories/AirdropModule__factory";
 import { BasicIssuanceModule__factory } from "../../typechain/factories/BasicIssuanceModule__factory";
 import { Controller__factory } from "../../typechain/factories/Controller__factory";
@@ -46,6 +47,7 @@ import { StandardTokenMock__factory } from "../../typechain/factories/StandardTo
 import { UniswapV2ExchangeAdapter__factory } from "../../typechain/factories/UniswapV2ExchangeAdapter__factory";
 import { WETH9__factory } from "../../typechain/factories/WETH9__factory";
 import { WrapModule__factory } from "../../typechain/factories/WrapModule__factory";
+import { SlippageIssuanceModule__factory } from "../../typechain/factories/SlippageIssuanceModule__factory";
 
 export default class DeploySetV2 {
   private _deployerSigner: Signer;
@@ -97,12 +99,12 @@ export default class DeploySetV2 {
   public async deployComptrollerMock(
     comp: Address,
     compAmount: BigNumber,
-    cToken: Address
+    cToken: Address,
   ): Promise<ComptrollerMock> {
     return await new ComptrollerMock__factory(this._deployerSigner).deploy(
       comp,
       compAmount,
-      cToken
+      cToken,
     );
   }
 
@@ -119,14 +121,14 @@ export default class DeploySetV2 {
     weth: Address,
     uniswapRouter: Address,
     sushiswapRouter: Address,
-    balancerProxy: Address
+    balancerProxy: Address,
   ): Promise<SingleIndexModule> {
     return await new SingleIndexModule__factory(this._deployerSigner).deploy(
       controller,
       weth,
       uniswapRouter,
       sushiswapRouter,
-      balancerProxy
+      balancerProxy,
     );
   }
 
@@ -134,10 +136,7 @@ export default class DeploySetV2 {
     controller: Address,
     weth: Address,
   ): Promise<GeneralIndexModule> {
-    return await new GeneralIndexModule__factory(this._deployerSigner).deploy(
-      controller,
-      weth,
-    );
+    return await new GeneralIndexModule__factory(this._deployerSigner).deploy(controller, weth);
   }
 
   public async deployWETH(): Promise<WETH9> {
@@ -158,7 +157,7 @@ export default class DeploySetV2 {
     const compoundLib = await this.deployCompoundLib();
 
     const linkId = convertLibraryNameToLinkId(
-      "contracts/protocol/integration/lib/Compound.sol:Compound"
+      "contracts/protocol/integration/lib/Compound.sol:Compound",
     );
 
     return await new CompoundLeverageModule__factory(
@@ -167,26 +166,16 @@ export default class DeploySetV2 {
         [linkId]: compoundLib.address,
       },
       // @ts-ignore
-      this._deployerSigner
-    ).deploy(
-      controller,
-      compToken,
-      comptroller,
-      cEther,
-      weth,
-    );
+      this._deployerSigner,
+    ).deploy(controller, compToken, comptroller, cEther, weth);
   }
 
   public async deployGovernanceModule(controller: Address): Promise<GovernanceModule> {
     return await new GovernanceModule__factory(this._deployerSigner).deploy(controller);
   }
 
-  public async deployUniswapV2ExchangeAdapter(
-    router: Address
-  ): Promise<UniswapV2ExchangeAdapter> {
-    return await new UniswapV2ExchangeAdapter__factory(this._deployerSigner).deploy(
-      router
-    );
+  public async deployUniswapV2ExchangeAdapter(router: Address): Promise<UniswapV2ExchangeAdapter> {
+    return await new UniswapV2ExchangeAdapter__factory(this._deployerSigner).deploy(router);
   }
 
   public async deployTokenMock(
@@ -194,10 +183,15 @@ export default class DeploySetV2 {
     initialBalance: BigNumberish = ether(1000000000),
     decimals: BigNumberish = 18,
     name: string = "Token",
-    symbol: string = "Symbol"
+    symbol: string = "Symbol",
   ): Promise<StandardTokenMock> {
-    return await new StandardTokenMock__factory(this._deployerSigner)
-      .deploy(initialAccount, initialBalance, name, symbol, decimals);
+    return await new StandardTokenMock__factory(this._deployerSigner).deploy(
+      initialAccount,
+      initialBalance,
+      name,
+      symbol,
+      decimals,
+    );
   }
 
   public async getTokenMock(token: Address): Promise<StandardTokenMock> {
@@ -211,12 +205,12 @@ export default class DeploySetV2 {
   public async deployAaveLeverageModule(
     controller: string,
     lendingPoolAddressesProvider: string,
-    protocolDataProvider: string
+    protocolDataProvider: string,
   ): Promise<AaveLeverageModule> {
     const aaveV2Lib = await this.deployAaveV2Lib();
 
     const linkId = convertLibraryNameToLinkId(
-      "contracts/protocol/integration/lib/AaveV2.sol:AaveV2"
+      "contracts/protocol/integration/lib/AaveV2.sol:AaveV2",
     );
 
     return await new AaveLeverageModule__factory(
@@ -225,12 +219,8 @@ export default class DeploySetV2 {
         [linkId]: aaveV2Lib.address,
       },
       // @ts-ignore
-      this._deployerSigner
-    ).deploy(
-      controller,
-      lendingPoolAddressesProvider,
-      protocolDataProvider
-    );
+      this._deployerSigner,
+    ).deploy(controller, lendingPoolAddressesProvider, protocolDataProvider);
   }
 
   public async deployAirdropModule(controller: Address): Promise<AirdropModule> {
@@ -239,5 +229,9 @@ export default class DeploySetV2 {
 
   public async deployWrapModule(controller: Address, weth: Address): Promise<WrapModule> {
     return await new WrapModule__factory(this._deployerSigner).deploy(controller, weth);
+  }
+
+  public async deploySlippageIssuanceModule(controller: Address): Promise<SlippageIssuanceModule> {
+    return await new SlippageIssuanceModule__factory(this._deployerSigner).deploy(controller);
   }
 }
