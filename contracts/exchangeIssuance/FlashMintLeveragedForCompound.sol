@@ -52,7 +52,7 @@ import { Exponential } from "../lib/Exponential.sol";
  * Both the collateral as well as the debt token have to be available for flashloand and be
  * tradeable against each other on Sushi / Quickswap
  */
-contract ExchangeIssuanceLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoanReceiverBaseV2 {
+contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
     using DEXAdapter for DEXAdapter.Addresses;
     using Address for address payable;

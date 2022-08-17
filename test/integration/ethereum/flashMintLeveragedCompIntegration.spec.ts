@@ -205,7 +205,7 @@ if (process.env.INTEGRATIONTEST) {
                     subjectMaxAmountIn = amountIn;
                     await weth.approve(exchangeIssuance.address, MAX_UINT_256);
                   } else if (inputTokenName == "ERC20") {
-                    amountIn = usdc(100)
+                    amountIn = usdc(100);
                     const quickRouter = (await ethers.getContractAt(
                       "IUniswapV2Router",
                       addresses.dexes.uniV2.router,
@@ -232,7 +232,7 @@ if (process.env.INTEGRATIONTEST) {
                     subjectInputToken = inputToken.address;
                   }
                   subjectSetToken = setToken.address;
-                  
+
                   await setToken.approve(exchangeIssuance.address, MAX_UINT_256);
 
                   swapDataDebtToCollateral = {
@@ -312,7 +312,7 @@ if (process.env.INTEGRATIONTEST) {
                       ? await owner.wallet.getBalance()
                       : await inputToken.balanceOf(owner.address);
                   let inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
-                  
+
                   if (inputTokenName == "ETH") {
                     const gasFee = await exchangeIssuance.estimateGas.issueExactSetFromETH(
                       subjectSetToken,
@@ -323,7 +323,7 @@ if (process.env.INTEGRATIONTEST) {
                     );
                     const gasCost = gasFee.mul(result.gasPrice);
 
-                    inputSpent = inputSpent.sub(gasCost)
+                    inputSpent = inputSpent.sub(gasCost);
                   }
                   const quotedInputAmount = await subjectQuote();
                   expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.99)));
@@ -390,7 +390,7 @@ if (process.env.INTEGRATIONTEST) {
                     await outputToken.approve(exchangeIssuance.address, MAX_UINT_256);
                   }
                   subjectSetToken = setToken.address;
-                  
+
                   swapDataCollateralToDebt = {
                     path: [collateralTokenAddress, uSDC.address],
                     fees: [3000],
@@ -452,7 +452,7 @@ if (process.env.INTEGRATIONTEST) {
                       ? await owner.wallet.getBalance()
                       : await outputToken.balanceOf(owner.address);
                   outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
-                  gasCount = preciseMul(gasCount, ether(0.9))
+                  gasCount = preciseMul(gasCount, ether(0.9));
                   gasCost = gasCount.mul(result.gasPrice);
                   outputObtained = outputObtained.add(gasCost);
                   const outputAmountQuote = await subjectQuote();

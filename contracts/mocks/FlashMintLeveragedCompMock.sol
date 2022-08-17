@@ -4,17 +4,17 @@ pragma experimental ABIEncoderV2;
 
 
 import { 
-    ExchangeIssuanceLeveragedForCompound,
+    FlashMintLeveragedForCompound,
     ISetToken,
     DEXAdapter,
     IController,
     IDebtIssuanceModule,
     ICompoundLeverageModule,
     IERC20
-} from "../exchangeIssuance/ExchangeIssuanceLeveragedForCompound.sol";
+} from "../exchangeIssuance/FlashMintLeveragedForCompound.sol";
 
 
-contract ExchangeIssuanceLeveragedCompMock is ExchangeIssuanceLeveragedForCompound {
+contract FlashMintLeveragedCompMock is FlashMintLeveragedForCompound {
     constructor(
         address _weth,
         address _quickRouter,
@@ -28,7 +28,7 @@ contract ExchangeIssuanceLeveragedCompMock is ExchangeIssuanceLeveragedForCompou
         address _curveAddressProvider,
         address _curveCalculator
     ) public
-    ExchangeIssuanceLeveragedForCompound(
+    FlashMintLeveragedForCompound(
         _weth,
         _quickRouter,
         _sushiRouter,
