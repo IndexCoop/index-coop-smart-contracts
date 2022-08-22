@@ -15,7 +15,11 @@ import {
   ExchangeIssuance,
   ExchangeIssuanceV2,
   ExchangeIssuanceLeveraged,
+<<<<<<< HEAD
   FlashMintLeveragedForCompound,
+=======
+  ExchangeIssuanceLeveragedForCompound,
+>>>>>>> upstream/Feat/FlashMintLeveragedForCompound
   ExchangeIssuanceZeroEx,
   FlashMintPerp,
   FlexibleLeverageStrategyExtension,
@@ -33,7 +37,11 @@ import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__facto
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { ExchangeIssuanceLeveraged__factory } from "../../typechain/factories/ExchangeIssuanceLeveraged__factory";
+<<<<<<< HEAD
 import { FlashMintLeveragedForCompound__factory } from "../../typechain/factories/FlashMintLeveragedForCompound__factory";
+=======
+import { ExchangeIssuanceLeveragedForCompound__factory } from "../../typechain/factories/ExchangeIssuanceLeveragedForCompound__factory";
+>>>>>>> upstream/Feat/FlashMintLeveragedForCompound
 import { ExchangeIssuanceZeroEx__factory } from "../../typechain/factories/ExchangeIssuanceZeroEx__factory";
 import { FlashMintPerp__factory } from "../../typechain/factories/FlashMintPerp__factory";
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
@@ -217,14 +225,22 @@ export default class DeployExtensions {
     aaveAddressProviderAddress: Address,
     curveCalculatorAddress: Address,
     curveAddressProviderAddress: Address,
+<<<<<<< HEAD
   ): Promise<FlashMintLeveragedForCompound> {
+=======
+  ): Promise<ExchangeIssuanceLeveragedForCompound> {
+>>>>>>> upstream/Feat/FlashMintLeveragedForCompound
     const dexAdapter = await this.deployDEXAdapter();
 
     const linkId = convertLibraryNameToLinkId(
       "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
     );
 
+<<<<<<< HEAD
     return await new FlashMintLeveragedForCompound__factory(
+=======
+    return await new ExchangeIssuanceLeveragedForCompound__factory(
+>>>>>>> upstream/Feat/FlashMintLeveragedForCompound
       // @ts-ignore
       {
         [linkId]: dexAdapter.address,

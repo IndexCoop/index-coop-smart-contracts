@@ -30,8 +30,13 @@ import { WrapAdapterMock__factory } from "../../typechain/factories/WrapAdapterM
 import { ZeroExExchangeProxyMock__factory  } from "../../typechain/factories/ZeroExExchangeProxyMock__factory";
 import { AaveV2LendingPoolMock__factory } from "@typechain/factories/AaveV2LendingPoolMock__factory";
 import { AaveV2LendingPoolMock } from "@typechain/AaveV2LendingPoolMock";
+<<<<<<< HEAD
 import { FlashMintLeveragedCompMock } from "@typechain/FlashMintLeveragedCompMock";
 import { FlashMintLeveragedCompMock__factory } from "@typechain/factories/FlashMintLeveragedCompMock__factory";
+=======
+import { ExchangeIssuanceLeveragedCompMock } from "@typechain/ExchangeIssuanceLeveragedCompMock";
+import { ExchangeIssuanceLeveragedCompMock__factory } from "@typechain/factories/ExchangeIssuanceLeveragedCompMock__factory";
+>>>>>>> upstream/Feat/FlashMintLeveragedForCompound
 
 export default class DeployMocks {
   private _deployerSigner: Signer;
@@ -127,7 +132,11 @@ export default class DeployMocks {
     return await new DEXAdapter__factory(this._deployerSigner).deploy();
   }
 
+<<<<<<< HEAD
   public async deployFlashMintLeveragedCompMock(
+=======
+  public async deployExchangeIssuanceLeveragedCompMock(
+>>>>>>> upstream/Feat/FlashMintLeveragedForCompound
     wethAddress: Address,
     quickRouterAddress: Address,
     sushiRouterAddress: Address,
@@ -139,14 +148,22 @@ export default class DeployMocks {
     aaveAddressProviderAddress: Address,
     curveCalculatorAddress: Address,
     curveAddressProviderAddress: Address,
+<<<<<<< HEAD
   ): Promise<FlashMintLeveragedCompMock> {
+=======
+  ): Promise<ExchangeIssuanceLeveragedCompMock> {
+>>>>>>> upstream/Feat/FlashMintLeveragedForCompound
     const dexAdapter = await this.deployDEXAdapter();
 
     const linkId = convertLibraryNameToLinkId(
       "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
     );
 
+<<<<<<< HEAD
     return await new FlashMintLeveragedCompMock__factory(
+=======
+    return await new ExchangeIssuanceLeveragedCompMock__factory(
+>>>>>>> upstream/Feat/FlashMintLeveragedForCompound
       // @ts-ignore
       {
         [linkId]: dexAdapter.address,
