@@ -4,13 +4,8 @@ import DeployHelper from "@utils/deploys";
 import { getAccounts, getWaffleExpect, preciseMul, usdc } from "@utils/index";
 import { ethers } from "hardhat";
 import { BigNumber, utils } from "ethers";
-import { ExchangeIssuanceLeveragedForCompound } from "@utils/contracts/index";
-import {
-  IWETH,
-  WETH9,
-  StandardTokenMock,
-  IUniswapV2Router
-} from "../../../typechain";
+import { FlashMintLeveragedForCompound } from "@utils/contracts/index";
+import { IWETH, WETH9, StandardTokenMock, IUniswapV2Router } from "../../../typechain";
 import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "./addresses";
 import { ADDRESS_ZERO, MAX_UINT_256, ZERO } from "@utils/constants";
 import { ether } from "@utils/index";
@@ -48,7 +43,10 @@ if (process.env.INTEGRATIONTEST) {
         "StandardTokenMock",
         addresses.tokens.ETH2xFli,
       )) as StandardTokenMock;
-      uSDC = (await ethers.getContractAt("StandardTokenMock", addresses.tokens.USDC)) as StandardTokenMock;
+      uSDC = (await ethers.getContractAt(
+        "StandardTokenMock",
+        addresses.tokens.USDC,
+      )) as StandardTokenMock;
       weth = (await ethers.getContractAt("IWETH", addresses.tokens.weth)) as IWETH;
     });
 
@@ -62,7 +60,7 @@ if (process.env.INTEGRATIONTEST) {
     });
 
     context("When exchange issuance is deployed", () => {
-      let exchangeIssuance: ExchangeIssuanceLeveragedForCompound;
+      let exchangeIssuance: FlashMintLeveragedForCompound;
       before(async () => {
         exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveragedForCompound(
           addresses.tokens.weth,
@@ -98,16 +96,12 @@ if (process.env.INTEGRATIONTEST) {
 
       it("uniV2 router address is set correctly", async () => {
         const returnedAddresses = await exchangeIssuance.addresses();
-        expect(returnedAddresses.quickRouter).to.eq(
-          utils.getAddress(addresses.dexes.uniV2.router),
-        );
+        expect(returnedAddresses.quickRouter).to.eq(utils.getAddress(addresses.dexes.uniV2.router));
       });
 
       it("uniV3 router address is set correctly", async () => {
         const returnedAddresses = await exchangeIssuance.addresses();
-        expect(returnedAddresses.uniV3Router).to.eq(
-          utils.getAddress(addresses.dexes.uniV3.router),
-        );
+        expect(returnedAddresses.uniV3Router).to.eq(utils.getAddress(addresses.dexes.uniV3.router));
       });
 
       it("controller address is set correctly", async () => {
@@ -193,19 +187,20 @@ if (process.env.INTEGRATIONTEST) {
 
                 beforeEach(async () => {
                   const inputTokenMapping: { [key: string]: StandardTokenMock | WETH9 | IWETH } = {
-                    "CollateralToken": collateralToken,
-                    "ETH": weth,
-                    "ERC20": uSDC,
+                    CollateralToken: collateralToken,
+                    ETH: weth,
+                    ERC20: uSDC,
                   };
                   inputToken = inputTokenMapping[inputTokenName];
-                  subjectInputToken = inputTokenName == "ETH" ? addresses.dexes.curve.ethAddress : inputToken.address;
+                  subjectInputToken =
+                    inputTokenName == "ETH" ? addresses.dexes.curve.ethAddress : inputToken.address;
 
                   if (inputTokenName == "CollateralToken") {
                     await weth.deposit({ value: amountIn });
                     subjectMaxAmountIn = amountIn;
                     await weth.approve(exchangeIssuance.address, MAX_UINT_256);
                   } else if (inputTokenName == "ERC20") {
-                    amountIn = usdc(100)
+                    amountIn = usdc(100);
                     const quickRouter = (await ethers.getContractAt(
                       "IUniswapV2Router",
                       addresses.dexes.uniV2.router,
@@ -215,7 +210,7 @@ if (process.env.INTEGRATIONTEST) {
                       [weth.address, uSDC.address],
                       owner.address,
                       BigNumber.from("1688894490"),
-                      {value: ether(1)}
+                      { value: ether(1) },
                     );
                     await inputToken.approve(exchangeIssuance.address, MAX_UINT_256);
                   } else {
@@ -232,7 +227,7 @@ if (process.env.INTEGRATIONTEST) {
                     subjectInputToken = inputToken.address;
                   }
                   subjectSetToken = setToken.address;
-                  
+
                   await setToken.approve(exchangeIssuance.address, MAX_UINT_256);
 
                   swapDataDebtToCollateral = {
@@ -275,7 +270,7 @@ if (process.env.INTEGRATIONTEST) {
                     subjectSetToken,
                     subjectSetAmount,
                     swapDataDebtToCollateral,
-                    swapDataInputToken
+                    swapDataInputToken,
                   );
                 }
 
@@ -312,7 +307,7 @@ if (process.env.INTEGRATIONTEST) {
                       ? await owner.wallet.getBalance()
                       : await inputToken.balanceOf(owner.address);
                   let inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
-                  
+
                   if (inputTokenName == "ETH") {
                     const gasFee = await exchangeIssuance.estimateGas.issueExactSetFromETH(
                       subjectSetToken,
@@ -323,7 +318,7 @@ if (process.env.INTEGRATIONTEST) {
                     );
                     const gasCost = gasFee.mul(result.gasPrice);
 
-                    inputSpent = inputSpent.sub(gasCost)
+                    inputSpent = inputSpent.sub(gasCost);
                   }
                   const quotedInputAmount = await subjectQuote();
                   expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.99)));
@@ -369,18 +364,21 @@ if (process.env.INTEGRATIONTEST) {
                     subjectSetToken,
                     subjectSetAmount,
                     swapDataCollateralToDebt,
-                    swapDataOutputToken
+                    swapDataOutputToken,
                   );
                 }
 
                 beforeEach(async () => {
                   const inputTokenMapping: { [key: string]: StandardTokenMock | WETH9 | IWETH } = {
-                    "CollateralToken": collateralToken,
-                    "ETH": weth,
-                    "ERC20": uSDC,
+                    CollateralToken: collateralToken,
+                    ETH: weth,
+                    ERC20: uSDC,
                   };
                   outputToken = inputTokenMapping[inputTokenName];
-                  subjectOutputToken = inputTokenName == "ETH" ? addresses.dexes.curve.ethAddress : outputToken.address;
+                  subjectOutputToken =
+                    inputTokenName == "ETH"
+                      ? addresses.dexes.curve.ethAddress
+                      : outputToken.address;
 
                   subjectMinAmountOut = ZERO;
                   if (inputTokenName == "CollateralToken") {
@@ -390,7 +388,7 @@ if (process.env.INTEGRATIONTEST) {
                     await outputToken.approve(exchangeIssuance.address, MAX_UINT_256);
                   }
                   subjectSetToken = setToken.address;
-                  
+
                   swapDataCollateralToDebt = {
                     path: [collateralTokenAddress, uSDC.address],
                     fees: [3000],
@@ -404,7 +402,6 @@ if (process.env.INTEGRATIONTEST) {
                     pool: ADDRESS_ZERO,
                     exchange: Exchange.Quickswap,
                   };
-
                 });
 
                 it("should redeem the correct amount of tokens", async () => {
@@ -452,7 +449,7 @@ if (process.env.INTEGRATIONTEST) {
                       ? await owner.wallet.getBalance()
                       : await outputToken.balanceOf(owner.address);
                   outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
-                  gasCount = preciseMul(gasCount, ether(0.9))
+                  gasCount = preciseMul(gasCount, ether(0.9));
                   gasCost = gasCount.mul(result.gasPrice);
                   outputObtained = outputObtained.add(gasCost);
                   const outputAmountQuote = await subjectQuote();

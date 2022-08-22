@@ -30,8 +30,8 @@ import { WrapAdapterMock__factory } from "../../typechain/factories/WrapAdapterM
 import { ZeroExExchangeProxyMock__factory  } from "../../typechain/factories/ZeroExExchangeProxyMock__factory";
 import { AaveV2LendingPoolMock__factory } from "@typechain/factories/AaveV2LendingPoolMock__factory";
 import { AaveV2LendingPoolMock } from "@typechain/AaveV2LendingPoolMock";
-import { ExchangeIssuanceLeveragedCompMock } from "@typechain/ExchangeIssuanceLeveragedCompMock";
-import { ExchangeIssuanceLeveragedCompMock__factory } from "@typechain/factories/ExchangeIssuanceLeveragedCompMock__factory";
+import { FlashMintLeveragedCompMock } from "@typechain/FlashMintLeveragedCompMock";
+import { FlashMintLeveragedCompMock__factory } from "@typechain/factories/FlashMintLeveragedCompMock__factory";
 
 export default class DeployMocks {
   private _deployerSigner: Signer;
@@ -127,7 +127,7 @@ export default class DeployMocks {
     return await new DEXAdapter__factory(this._deployerSigner).deploy();
   }
 
-  public async deployExchangeIssuanceLeveragedCompMock(
+  public async deployFlashMintLeveragedCompMock(
     wethAddress: Address,
     quickRouterAddress: Address,
     sushiRouterAddress: Address,
@@ -139,14 +139,14 @@ export default class DeployMocks {
     aaveAddressProviderAddress: Address,
     curveCalculatorAddress: Address,
     curveAddressProviderAddress: Address,
-  ): Promise<ExchangeIssuanceLeveragedCompMock> {
+  ): Promise<FlashMintLeveragedCompMock> {
     const dexAdapter = await this.deployDEXAdapter();
 
     const linkId = convertLibraryNameToLinkId(
       "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
     );
 
-    return await new ExchangeIssuanceLeveragedCompMock__factory(
+    return await new FlashMintLeveragedCompMock__factory(
       // @ts-ignore
       {
         [linkId]: dexAdapter.address,
