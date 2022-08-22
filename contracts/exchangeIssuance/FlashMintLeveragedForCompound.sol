@@ -44,13 +44,14 @@ import { DEXAdapter } from "./DEXAdapter.sol";
 import { Exponential } from "../lib/Exponential.sol";
 
 /**
- * @title ExchangeIssuanceLeveragedForCompound
+ * @title FlashMintLeveragedForCompound
  * @author Index Coop
  *
- * Contract for issuing and redeeming a leveraged Set Token
- * Supports all tokens with one collateral Position in the form of an AToken and one debt position
- * Both the collateral as well as the debt token have to be available for flashloand and be
- * tradeable against each other on Sushi / Quickswap
+ * Contract for minting and redeeming a leveraged Set token.
+ * Supports all tokens with one collateral Position in the form of a cToken and one debt position
+ * The collateral underlying  must be available on an Aave flashloan.
+ * The collateral and debt tokens must be available on Compound.
+ * Input/Output tokens must be tradeable on supported dexes.
  */
 contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoanReceiverBaseV2 {
 
@@ -89,38 +90,40 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     uint256 constant private MAX_UINT256 = type(uint256).max;
     uint256 public constant ROUNDING_ERROR_MARGIN = 2;
 
-    /* ============ State Variables ============ */
-
+    /* ============ Immutables ============ */
+    
+    address public immutable cEtherAddress;
     IController public immutable setController;
     IDebtIssuanceModule public immutable debtIssuanceModule;
     ICompoundLeverageModule public immutable compoundLeverageModule;
-    DEXAdapter.Addresses public addresses;
-    address public immutable cEtherAddress;
 
+    /* ============ State Variables ============ */
+
+    DEXAdapter.Addresses public addresses;
     mapping(address => address) public cTokenPairs;
 
     /* ============ Events ============ */
 
-    event ExchangeIssue(
-        address indexed _recipient,     // The recipient address of the issued SetTokens
-        ISetToken indexed _setToken,    // The issued SetToken
-        address indexed _inputToken,    // The address of the input asset(ERC20/ETH) used to issue the SetTokens
-        uint256 _amountInputToken,      // The amount of input tokens used for issuance
-        uint256 _amountSetIssued        // The amount of SetTokens received by the recipient
+    event FlashMint(
+        address indexed _recipient,     // The recipient address of the minted Set token
+        ISetToken indexed _setToken,    // The minted Set token
+        address indexed _inputToken,    // The address of the input asset(ERC20/ETH) used to mint the Set tokens
+        uint256 _amountInputToken,      // The amount of input tokens used for minting
+        uint256 _amountSetIssued        // The amount of Set tokens received by the recipient
     );
 
-    event ExchangeRedeem(
-        address indexed _recipient,     // The recipient address which redeemed the SetTokens
-        ISetToken indexed _setToken,    // The redeemed SetToken
+    event FlashRedeem(
+        address indexed _recipient,     // The recipient address which redeemed the Set token
+        ISetToken indexed _setToken,    // The redeemed Set token
         address indexed _outputToken,   // The address of output asset(ERC20/ETH) received by the recipient
-        uint256 _amountSetRedeemed,     // The amount of SetTokens redeemed for output tokens
+        uint256 _amountSetRedeemed,     // The amount of Set token redeemed for output tokens
         uint256 _amountOutputToken      // The amount of output tokens received by the recipient
     );
 
     /* ============ Modifiers ============ */
 
     modifier onlyLendingPool() {
-        require(msg.sender == address(LENDING_POOL), "ExchangeIssuance: LENDING POOL ONLY");
+        require(msg.sender == address(LENDING_POOL), "FlashMint: LENDING POOL ONLY");
         _;
     }
 
@@ -133,12 +136,12 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
         if(_inputToken != _outputToken){
             require(
                 _path[0] == _inputToken || (_inputToken == addresses.weth && _path[0] == DEXAdapter.ETH_ADDRESS),
-                "ExchangeIssuance: INPUT_TOKEN_NOT_IN_PATH"
+                "FlashMint: INPUT_TOKEN_NOT_IN_PATH"
             );
             require(
                 _path[_path.length-1] == _outputToken ||
                 (_outputToken == addresses.weth && _path[_path.length-1] == DEXAdapter.ETH_ADDRESS),
-                "ExchangeIssuance: OUTPUT_TOKEN_NOT_IN_PATH"
+                "FlashMint: OUTPUT_TOKEN_NOT_IN_PATH"
             );
         }
         _;
@@ -155,9 +158,9 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     * @param _sushiRouter               Address of sushiswap router
     * @param _uniV3Router               Address of uniswap v3 router
     * @param _uniV3Quoter               Address of uniswap v3 quoter
-    * @param _setController             SetToken controller used to verify a given token is a set
+    * @param _setController             Set token controller used to verify a given token is a set
     * @param _debtIssuanceModule        DebtIssuanceModule used to issue and redeem tokens
-    * @param _compoundLeverageModule    CompoundLeverageModule to sync before every issuance / redemption
+    * @param _compoundLeverageModule    CompoundLeverageModule to sync before every mint / redemption
     * @param _aaveAddressProvider       Address of address provider for aaves addresses
     * @param _curveAddressProvider      Contract to get current implementation address of curve registry
     * @param _curveCalculator           Contract to calculate required input to receive given output in curve (for exact output swaps)
@@ -191,37 +194,36 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
         addresses.curveCalculator = _curveCalculator;
 
         address _cEtherAddress = CompoundLeverageModuleStorage(address(_compoundLeverageModule)).underlyingToCToken(_weth);
-        require(_cEtherAddress != address(0x0), "ExchangeIssuance: CEtherAddress ZERO");
+        require(_cEtherAddress != address(0x0), "FlashMint: CEtherAddress ZERO");
         cEtherAddress = _cEtherAddress;
     }
 
     /* ============ External Functions ============ */
 
     /**
-     * Returns the collateral / debt token addresses and amounts for a leveraged index
+     * Returns the collateral / debt token addresses and amounts for a leveraged index.
      *
-     * @param _setToken              Address of the SetToken to be issued / redeemed
-     * @param _setAmount             Amount of SetTokens to issue / redeem
-     * @param _isIssuance            Boolean indicating if the SetToken is to be issued or redeemed
+     * @param _setToken     Address of the Set token to be minted / redeemed
+     * @param _setAmount    Amount to mint / redeem
+     * @param _isMint       Boolean indicating if the Set token is to be issued/minted or redeemed
      *
      * @return Struct containing the collateral / debt token addresses and amounts
      */
     function getLeveragedTokenData(
         ISetToken _setToken,
         uint256 _setAmount,
-        bool _isIssuance
+        bool _isMint
     )
     external
     view
     returns (LeveragedTokenData memory)
     {
-        return _getLeveragedTokenData(_setToken, _setAmount, _isIssuance);
+        return _getLeveragedTokenData(_setToken, _setAmount, _isMint);
     }
 
     /**
      * Runs all the necessary approval functions required for a given ERC20 token.
-     * This function can be called when a new token is added to a SetToken during a
-     * rebalance.
+     * This function can be called when a new token is added to a Set token during a rebalance.
      *
      * @param _token    Address of the token which needs approval
      */
@@ -230,17 +232,16 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Gets the input cost of issuing a given amount of a set token. This
-     * function is not marked view, but should be static called from frontends.
+     * Gets the input cost of issuing/minting a given amount of a Set token. This
+     * function is not marked view, but should be static called off-chain.
      * This constraint is due to the need to interact with the Uniswap V3 quoter
-     * contract and call sync on CompoundLeverageModule. Note: If the two SwapData
-     * paths contain the same tokens, there will be a slight error introduced
-     * in the result.
+     * contract and call sync on CompoundLeverageModule. 
+     * @dev If the two SwapData paths contain the same tokens, there will be a slight error introduced in the result.
      *
-     * @param _setToken                     the set token to issue
-     * @param _setAmount                    amount of set tokens
-     * @param _swapDataDebtForCollateral    swap data for the debt to collateral swap
-     * @param _swapDataInputToken           swap data for the input token to collateral swap
+     * @param _setToken                     Set token to mint
+     * @param _setAmount                    Amount to mint
+     * @param _swapDataDebtForCollateral    SwapData (token addresses and fee levels) to describe the swap path from debt to collateral token
+     * @param _swapDataInputToken           SwapData (token addresses and fee levels) to describe the swap path from input to collateral token
      *
      * @return                              the amount of input tokens required to perfrom the issuance
      */
@@ -254,7 +255,7 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     returns (uint256)
     {
         compoundLeverageModule.sync(_setToken, false);
-        LeveragedTokenData memory issueInfo = _updateCompoundRageAndGetLeveragedTokenData(_setToken, _setAmount, true);
+        LeveragedTokenData memory issueInfo = _updateCompoundRateAndGetLeveragedTokenData(_setToken, _setAmount, true);
         uint256 collateralOwed = issueInfo.collateralAmount.preciseMul(1.0009 ether);
         uint256 borrowSaleProceeds = DEXAdapter.getAmountOut(addresses, _swapDataDebtForCollateral, issueInfo.debtAmount);
         collateralOwed = collateralOwed.sub(borrowSaleProceeds);
@@ -265,16 +266,15 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
      * Gets the proceeds of a redemption of a given amount of a set token. This
      * function is not marked view, but should be static called from frontends.
      * This constraint is due to the need to interact with the Uniswap V3 quoter
-     * contract and call sync on CompoundLeverageModule. Note: If the two SwapData
-     * paths contain the same tokens, there will be a slight error introduced
-     * in the result.
+     * contract and call sync on CompoundLeverageModule. 
+     * @dev If the two SwapData paths contain the same tokens, there will be a slight error introduced in the result.
      *
-     * @param _setToken                     the set token to issue
-     * @param _setAmount                    amount of set tokens
-     * @param _swapDataCollateralForDebt    swap data for the collateral to debt swap
-     * @param _swapDataOutputToken          swap data for the collateral token to the output token
+     * @param _setToken                     Set token to redeem
+     * @param _setAmount                    Amount to redeem
+     * @param _swapDataCollateralForDebt    SwapData (token path and fee levels) describing the swap from collateral to debt token
+     * @param _swapDataOutputToken          SwapData (token path and fee levels) describing the swap from collateral to output token
      *
-     * @return                              amount of _outputToken that would be obtained from the redemption
+     * @return                              amount of output token that would be obtained from the redemption
      */
     function getRedeemExactSet(
         ISetToken _setToken,
@@ -286,7 +286,7 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     returns (uint256)
     {
         compoundLeverageModule.sync(_setToken, true);
-        LeveragedTokenData memory redeemInfo = _updateCompoundRageAndGetLeveragedTokenData(_setToken, _setAmount, false);
+        LeveragedTokenData memory redeemInfo = _updateCompoundRateAndGetLeveragedTokenData(_setToken, _setAmount, false);
         uint256 debtOwed = redeemInfo.debtAmount.preciseMul(1.0009 ether);
         uint256 debtPurchaseCost = DEXAdapter.getAmountIn(addresses, _swapDataCollateralForDebt, debtOwed);
         uint256 extraCollateral = redeemInfo.collateralAmount.sub(debtPurchaseCost);
@@ -294,13 +294,13 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Trigger redemption of set token to pay the user with Eth
+     * Trigger redemption of Set token to pay the user with Eth
      *
      * @param _setToken                   Set token to redeem
      * @param _setAmount                  Amount to redeem
      * @param _minAmountOutputToken       Minimum amount of ETH to send to the user
-     * @param _swapDataCollateralForDebt  Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
-     * @param _swapDataOutputToken        Data (token path and fee levels) describing the swap from Collateral Token to Eth
+     * @param _swapDataCollateralForDebt  SwapData (token path and fee levels) describing the swap from collateral token to debt token
+     * @param _swapDataOutputToken        SwapData (token path and fee levels) describing the swap from collateral token to output token
      */
     function redeemExactSetForETH(
         ISetToken _setToken,
@@ -312,7 +312,7 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     external
     nonReentrant
     {
-        _initiateRedemption(
+        _flashRedeem(
             _setToken,
             _setAmount,
             DEXAdapter.ETH_ADDRESS,
@@ -323,14 +323,14 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Trigger redemption of set token to pay the user with an arbitrary ERC20
+     * Trigger redemption of Set token to pay the user with an arbitrary ERC20
      *
      * @param _setToken                   Set token to redeem
      * @param _setAmount                  Amount to redeem
      * @param _outputToken                Address of the ERC20 token to send to the user
      * @param _minAmountOutputToken       Minimum amount of output token to send to the user
-     * @param _swapDataCollateralForDebt  Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
-     * @param _swapDataOutputToken        Data (token path and fee levels) describing the swap from Collateral Token to Output token
+     * @param _swapDataCollateralForDebt  SwapData (token path and fee levels) describing the swap from collateral token to debt token
+     * @param _swapDataOutputToken        SwapData (token path and fee levels) describing the swap from collateral token to output token
      */
     function redeemExactSetForERC20(
         ISetToken _setToken,
@@ -343,7 +343,7 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     external
     nonReentrant
     {
-        _initiateRedemption(
+        _flashRedeem(
             _setToken,
             _setAmount,
             _outputToken,
@@ -354,14 +354,14 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Trigger issuance of set token paying with any arbitrary ERC20 token
+     * Trigger minting of Set token paying with any arbitrary ERC20 token.
      *
-     * @param _setToken                     Set token to issue
-     * @param _setAmount                    Amount to issue
+     * @param _setToken                     Set token to mint
+     * @param _setAmount                    Amount to mint
      * @param _inputToken                   Input token to pay with
      * @param _maxAmountInputToken          Maximum amount of input token to spend
-     * @param _swapDataDebtForCollateral    Data (token addresses and fee levels) to describe the swap path from Debt to collateral token
-     * @param _swapDataInputToken           Data (token addresses and fee levels) to describe the swap path from input to collateral token
+     * @param _swapDataDebtForCollateral    SwapData (token addresses and fee levels) to describe the swap path from debt to collateral token
+     * @param _swapDataInputToken           SwapData (token addresses and fee levels) to describe the swap path from input to collateral token
      */
     function issueExactSetFromERC20(
         ISetToken _setToken,
@@ -374,7 +374,7 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     external
     nonReentrant
     {
-        _initiateIssuance(
+        _flashMint(
             _setToken,
             _setAmount,
             _inputToken,
@@ -385,12 +385,12 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Trigger issuance of set token paying with Eth
+     * Trigger minting of set token paying with ETH.
      *
-     * @param _setToken                     Set token to issue
-     * @param _setAmount                    Amount to issue
-     * @param _swapDataDebtForCollateral    Data (token addresses and fee levels) to describe the swap path from Debt to collateral token
-     * @param _swapDataInputToken           Data (token addresses and fee levels) to describe the swap path from eth to collateral token
+     * @param _setToken                     Set token to mint
+     * @param _setAmount                    Amount to mint
+     * @param _swapDataDebtForCollateral    SwapData (token addresses and fee levels) to describe the swap path from debt to collateral token
+     * @param _swapDataInputToken           SwapData (token addresses and fee levels) to describe the swap path from eth to collateral token
      */
     function issueExactSetFromETH(
         ISetToken _setToken,
@@ -402,7 +402,7 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     payable
     nonReentrant
     {
-        _initiateIssuance(
+        _flashMint(
             _setToken,
             _setAmount,
             DEXAdapter.ETH_ADDRESS,
@@ -424,7 +424,7 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
      * @param initiator  Address that initiated the flashloan
      * @param params     Encoded bytestring of other parameters from the original contract call to be used downstream
      *
-     * @return Boolean indicating success of the operation (fixed to true otherwise the whole transaction would be reverted by lending pool)
+     * @return           Boolean indicating success of the operation (fixed to true otherwise the whole transaction would be reverted by lending pool)
      */
     function executeOperation(
         address[] memory assets,
@@ -438,16 +438,16 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     onlyLendingPool
     returns (bool)
     {
-        require(initiator == address(this), "ExchangeIssuance: INVALID FLASHLOAN INITIATOR");
+        require(initiator == address(this), "FlashMint: INVALID FLASHLOAN INITIATOR");
         // assets.length must be 1.
-        require(assets.length == 1, "ExchangeIssuance: TOO MANY ASSETS");
-        require(amounts.length == 1, "ExchangeIssuance: TOO MANY AMOUNTS");
-        require(premiums.length == 1, "ExchangeIssuance: TOO MANY PREMIUMS");
+        require(assets.length == 1, "FlashMint: TOO MANY ASSETS");
+        require(amounts.length == 1, "FlashMint: TOO MANY AMOUNTS");
+        require(premiums.length == 1, "FlashMint: TOO MANY PREMIUMS");
         
         DecodedParams memory decodedParams = abi.decode(params, (DecodedParams));
 
         if(decodedParams.isIssuance){
-            _performIssuance(assets[0], amounts[0], premiums[0], decodedParams);
+            _performMint(assets[0], amounts[0], premiums[0], decodedParams);
         } else {
             _performRedemption(assets[0], amounts[0], premiums[0], decodedParams);
         }
@@ -467,14 +467,14 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Runs all the necessary approval functions required before issuing
-     * or redeeming a SetToken. This function need to be called only once before the first time
-     * this smart contract is used on any particular SetToken.
+     * Runs all the necessary approval functions required before minting or redeeming a Set token. 
+     * This function need to be called only once before the first time this smart contract is used
+     * on any particular Set token.
      *
      * @param _setToken    Address of the SetToken being initialized
      */
     function approveSetToken(ISetToken _setToken) external {
-        LeveragedTokenData memory leveragedTokenData = _updateCompoundRageAndGetLeveragedTokenData(_setToken, 1 ether, true);
+        LeveragedTokenData memory leveragedTokenData = _updateCompoundRateAndGetLeveragedTokenData(_setToken, 1 ether, true);
 
 
         _approveToken(IERC20(leveragedTokenData.collateralCToken));
@@ -487,14 +487,14 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     /* ============ Internal Functions ============ */
 
     /**
-     * Performs all the necessary steps for issuance using the collateral tokens obtained in the flashloan
+     * Performs all the necessary steps for minting using the collateral tokens obtained in the flashloan.
      *
      * @param _collateralToken            Address of the underlying collateral token that was loaned
      * @param _collateralTokenAmountNet   Amount of collateral token that was received as flashloan
      * @param _premium                    Premium / Interest that has to be returned to the lending pool on top of the loaned amount
-     * @param _decodedParams              Struct containing token addresses / amounts to perform issuance
+     * @param _decodedParams              Struct containing token addresses / amounts to perform mint
      */
-    function _performIssuance(
+    function _performMint(
         address _collateralToken,
         uint256 _collateralTokenAmountNet,
         uint256 _premium,
@@ -505,14 +505,14 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
         // Deposit collateral token obtained from flashloan to get the respective cToken position required for issuance
         _depositToCompound(_decodedParams.leveragedTokenData.collateralCToken, _collateralToken, _collateralTokenAmountNet);
         // Issue set using the cToken returned by deposit step
-        _issueSet(_decodedParams.setToken, _decodedParams.setAmount, _decodedParams.originalSender);
+        _mintSet(_decodedParams.setToken, _decodedParams.setAmount, _decodedParams.originalSender);
         // Obtain necessary collateral tokens to repay flashloan
         uint amountInputTokenSpent = _obtainCollateralTokens(
             _collateralToken,
             _collateralTokenAmountNet + _premium,
             _decodedParams
         );
-        require(amountInputTokenSpent <= _decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
+        require(amountInputTokenSpent <= _decodedParams.limitAmount, "FlashMint: INSUFFICIENT INPUT AMOUNT");
     }
 
     /**
@@ -564,23 +564,23 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
             _decodedParams.leveragedTokenData.collateralAmount  - 2*ROUNDING_ERROR_MARGIN,
             _decodedParams.paymentTokenSwapData
         );
-        require(amountOutputToken >= _decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+        require(amountOutputToken >= _decodedParams.limitAmount, "FlashMint: INSUFFICIENT OUTPUT AMOUNT");
     }
 
 
     /**
     * Returns the collateral / debt token addresses and amounts for a leveraged index
     *
-    * @param _setToken              Address of the SetToken to be issued / redeemed
-    * @param _setAmount             Amount of SetTokens to issue / redeem
-    * @param _isIssuance            Boolean indicating if the SetToken is to be issued or redeemed
+    * @param _setToken      Address of the SetToken to be issued / redeemed
+    * @param _setAmount     Amount of SetTokens to issue / redeem
+    * @param _isMint        Boolean indicating if the SetToken is to be issued or redeemed
     *
     * @return Struct containing the collateral / debt token addresses and amounts
     */
     function _getBasicLeveragedTokenData(
         ISetToken _setToken,
         uint256 _setAmount,
-        bool _isIssuance
+        bool _isMint
     )
     internal
     view
@@ -591,15 +591,15 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
         uint256[] memory debtPositions;
         LeveragedTokenData memory _leveragedTokenData;
 
-        if(_isIssuance){
+        if(_isMint){
             (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentIssuanceUnits(_setToken, _setAmount);
         } else {
             (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentRedemptionUnits(_setToken, _setAmount);
         }
         
-        require(equityPositions[0] == 0 || equityPositions[1] == 0, "ExchangeIssuance: TOO MANY EQUITY POSITIONS");
+        require(equityPositions[0] == 0 || equityPositions[1] == 0, "FlashMint: TOO MANY EQUITY POSITIONS");
         
-        require(debtPositions[0] == 0 || debtPositions[1] == 0, "ExchangeIssuance: TOO MANY DEBT POSITIONS");
+        require(debtPositions[0] == 0 || debtPositions[1] == 0, "FlashMint: TOO MANY DEBT POSITIONS");
 
         if(equityPositions[0] > 0){
             _leveragedTokenData.collateralCToken = components[0];
@@ -624,22 +624,22 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     /**
     * Returns the collateral / debt token addresses and amounts for a leveraged index
     *
-    * @param _setToken              Address of the SetToken to be issued / redeemed
-    * @param _setAmount             Amount of SetTokens to issue / redeem
-    * @param _isIssuance            Boolean indicating if the SetToken is to be issued or redeemed
+    * @param _setToken     Address of the Set token to be minted / redeemed
+    * @param _setAmount    Amount to mint / redeem
+    * @param _isMint       Boolean indicating if the Set token is to be issued/minted or redeemed
     *
     * @return Struct containing the collateral / debt token addresses and amounts
     */
     function _getLeveragedTokenData(
         ISetToken _setToken,
         uint256 _setAmount,
-        bool _isIssuance
+        bool _isMint
     )
     internal
     view
     returns (LeveragedTokenData memory)
     {
-        LeveragedTokenData memory _leveragedTokenData = _getBasicLeveragedTokenData(_setToken, _setAmount, _isIssuance);
+        LeveragedTokenData memory _leveragedTokenData = _getBasicLeveragedTokenData(_setToken, _setAmount, _isMint);
         Exp memory exchangeRate = Exp({mantissa: ICEther(payable(_leveragedTokenData.collateralCToken)).exchangeRateStored()});
         (, uint256 collateralAmount) = mulScalarTruncate(exchangeRate, _leveragedTokenData.cTokenAmount);
         _leveragedTokenData.collateralAmount = collateralAmount + ROUNDING_ERROR_MARGIN;
@@ -649,21 +649,21 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     /**
     * Returns the collateral / debt token addresses and amounts for a leveraged index
     *
-    * @param _setToken              Address of the SetToken to be issued / redeemed
-    * @param _setAmount             Amount of SetTokens to issue / redeem
-    * @param _isIssuance            Boolean indicating if the SetToken is to be issued or redeemed
+    * @param _setToken     Address of the Set token to be minted / redeemed
+    * @param _setAmount    Amount to mint / redeem
+    * @param _isMint       Boolean indicating if the Set token is to be issued/minted or redeemed
     *
     * @return Struct containing the collateral / debt token addresses and amounts
     */
-    function _updateCompoundRageAndGetLeveragedTokenData(
+    function _updateCompoundRateAndGetLeveragedTokenData(
         ISetToken _setToken,
         uint256 _setAmount,
-        bool _isIssuance
+        bool _isMint
     )
     internal
     returns (LeveragedTokenData memory)
     {
-        LeveragedTokenData memory _leveragedTokenData = _getBasicLeveragedTokenData(_setToken, _setAmount, _isIssuance);
+        LeveragedTokenData memory _leveragedTokenData = _getBasicLeveragedTokenData(_setToken, _setAmount, _isMint);
         Exp memory exchangeRate = Exp({mantissa: ICEther(payable(_leveragedTokenData.collateralCToken)).exchangeRateCurrent()});
         (, uint256 collateralAmount) = mulScalarTruncate(exchangeRate, _leveragedTokenData.cTokenAmount);
         _leveragedTokenData.collateralAmount = collateralAmount + ROUNDING_ERROR_MARGIN;
@@ -681,17 +681,17 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Initiates a flashloan call with the correct parameters for issuing set tokens in the callback
-     * Borrows correct amount of collateral token and and forwards encoded memory to controll issuance in the callback.
+     * Initiates a flashloan call with the correct parameters for minting Set tokens in the callback
+     * Borrows correct amount of collateral token and and forwards encoded memory to control mint in the callback.
      *
-     * @param _setToken                     Address of the SetToken being initialized
-     * @param _setAmount                    Amount of the SetToken being initialized
-     * @param _inputToken                   Address of the input token to pay with
-     * @param _maxAmountInputToken          Maximum amount of input token to pay
-     * @param _swapDataDebtForCollateral    Data (token addresses and fee levels) to describe the swap path from Debt to collateral token
-     * @param _swapDataInputToken           Data (token addresses and fee levels) to describe the swap path from input to collateral token
+     * @param _setToken                     Set token to mint
+     * @param _setAmount                    Amount to mint
+     * @param _inputToken                   Input token to pay with
+     * @param _maxAmountInputToken          Maximum amount of input token to spend
+     * @param _swapDataDebtForCollateral    SwapData (token addresses and fee levels) to describe the swap path from debt to collateral token
+     * @param _swapDataInputToken           SwapData (token addresses and fee levels) to describe the swap path from input to collateral token
      */
-    function _initiateIssuance(
+    function _flashMint(
         ISetToken _setToken,
         uint256 _setAmount,
         address _inputToken,
@@ -704,7 +704,7 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
         // need to check (true or false to issue)
         compoundLeverageModule.sync(_setToken, true);
 
-        LeveragedTokenData memory leveragedTokenData = _updateCompoundRageAndGetLeveragedTokenData(_setToken, _setAmount, true);
+        LeveragedTokenData memory leveragedTokenData = _updateCompoundRateAndGetLeveragedTokenData(_setToken, _setAmount, true);
 
         address[] memory assets = new address[](1);
         assets[0] = leveragedTokenData.collateralToken;
@@ -727,16 +727,16 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Initiates a flashloan call with the correct parameters for redeeming set tokens in the callback
+     * Initiates a flashloan call with the correct parameters for redeeming Set tokens in the callback
      *
-     * @param _setToken                   Address of the SetToken to redeem
-     * @param _setAmount                  Amount of the SetToken to redeem
-     * @param _outputToken                Address of token to return to the user
-     * @param _minAmountOutputToken       Minimum amount of output token to receive
-     * @param _swapDataCollateralForDebt  Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
-     * @param _swapDataOutputToken        Data (token path and fee levels) describing the swap from Collateral Token to Output token
+     * @param _setToken                   Set token to redeem
+     * @param _setAmount                  Amount to redeem
+     * @param _outputToken                Address of the output token to send to the user
+     * @param _minAmountOutputToken       Minimum amount of output token to send to the user
+     * @param _swapDataCollateralForDebt  SwapData (token path and fee levels) describing the swap from collateral token to debt token
+     * @param _swapDataOutputToken        SwapData (token path and fee levels) describing the swap from collateral token to output token
      */
-    function _initiateRedemption(
+    function _flashRedeem(
         ISetToken _setToken,
         uint256 _setAmount,
         address  _outputToken,
@@ -747,7 +747,7 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     internal
     {   
         compoundLeverageModule.sync(_setToken, true);
-        LeveragedTokenData memory leveragedTokenData = _updateCompoundRageAndGetLeveragedTokenData(_setToken, _setAmount, false);
+        LeveragedTokenData memory leveragedTokenData = _updateCompoundRateAndGetLeveragedTokenData(_setToken, _setAmount, false);
         address[] memory assets = new address[](1);
         assets[0] = leveragedTokenData.debtToken;
         uint[] memory amounts =  new uint[](1);
@@ -772,18 +772,18 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Gets rid of the obtained collateral tokens from redemption by either sending them to the user
-     * directly or converting them to the payment token and sending those out.
+     * Transfers output tokens to the user from redemption, if conversion is necessary,
+     * exchanges collateral token for output token and then transfers them out.
      *
      * @param _collateralTokenSpent    Amount of collateral token spent to obtain the debt token required for redemption
-     * @param _setToken                Address of the SetToken to be issued
-     * @param _setAmount               Amount of SetTokens to issue
-     * @param _originalSender          Address of the user who initiated the redemption
-     * @param _outputToken             Address of token to return to the user
-     * @param _collateralToken         Address of the collateral token to sell
-     * @param _collateralAmount        Amount of collateral token to sell
-     * @param _minAmountOutputToken    Minimum amount of output token to return to the user
-     * @param _swapData                Struct containing path and fee data for swap
+     * @param _setToken                Set token to redeem
+     * @param _setAmount               Amount to redeem
+     * @param _originalSender          Account that initiated the redemption
+     * @param _outputToken             Token to send to the user
+     * @param _collateralToken         Collateral token to exchange for the output token
+     * @param _collateralAmount        Amount to exchange
+     * @param _minAmountOutputToken    Minimum amount of output token to send to the user
+     * @param _swapData                SwapData (token path and fee levels) describing the swap from collateral token to output token
      *
      * @return Amount of output token returned to the user
      */
@@ -801,7 +801,7 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     internal
     returns (uint256)
     {
-        require(_collateralAmount >= _collateralTokenSpent, "ExchangeIssuance: OVERSPENT COLLATERAL TOKEN");
+        require(_collateralAmount >= _collateralTokenSpent, "FlashMint: OVERSPENT COLLATERAL TOKEN");
         uint256 amountToReturn = _collateralAmount.sub(_collateralTokenSpent);
         uint256 outputAmount;
         if(_outputToken == DEXAdapter.ETH_ADDRESS){
@@ -822,16 +822,16 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
                 _swapData
             );
         }
-        emit ExchangeRedeem(_originalSender, _setToken, _outputToken, _setAmount, outputAmount);
+        emit FlashRedeem(_originalSender, _setToken, _outputToken, _setAmount, outputAmount);
         return outputAmount;
     }
 
     /**
-     * Returns the collateralToken directly to the user
+     * Returns the collateral token directly to the user.
      *
-     * @param _collateralToken       Address of the the collateral token
+     * @param _collateralToken       Collateral token
      * @param _collateralRemaining   Amount of the collateral token remaining after buying required debt tokens
-     * @param _originalSender        Address of the original sender to return the tokens to
+     * @param _originalSender        Original sender that is to receive the collateral token
      */
     function _returnCollateralTokensToSender(
         address _collateralToken,
@@ -844,14 +844,14 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Sells the collateral tokens for the selected output ERC20 and returns that to the user
+     * Exchanges the collateral tokens for the output tokens and transfers them to the user.
      *
-     * @param _collateralToken       Address of the collateral token
-     * @param _collateralRemaining   Amount of the collateral token remaining after buying required debt tokens
-     * @param _originalSender        Address of the original sender to return the tokens to
-     * @param _outputToken           Address of token to return to the user
-     * @param _minAmountOutputToken  Minimum amount of output token to return to the user
-     * @param _swapData              Data (token path and fee levels) describing the swap path from Collateral Token to Output token
+     * @param _collateralToken       Collateral token
+     * @param _collateralRemaining   Amount of the collateral tokens remaining after buying required debt tokens
+     * @param _originalSender        Original sender that is to receive the output tokens
+     * @param _outputToken           ERC20 token to return to the user
+     * @param _minAmountOutputToken  Minimum amount of output token to send to the user
+     * @param _swapData              SwapData (token path and fee levels) describing the swap from collateral token to output token
      *
      * @return Amount of output token returned to the user
      */
@@ -882,13 +882,13 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Sells the remaining collateral tokens for weth, withdraws that and returns native eth to the user
+     * Exchanges the remaining collateral tokens for weth, unwraps that weth and returns native eth to the user.
      *
-     * @param _collateralToken            Address of the collateral token
-     * @param _collateralRemaining        Amount of the collateral token remaining after buying required debt tokens
-     * @param _originalSender             Address of the original sender to return the eth to
-     * @param _minAmountOutputToken       Minimum amount of output token to return to user
-     * @param _swapData                   Data (token path and fee levels) describing the swap path from Collateral Token to eth
+     * @param _collateralToken            Collateral token
+     * @param _collateralRemaining        Amount of the collateral tokens remaining after buying required debt tokens
+     * @param _originalSender             Original sender that is to receive the native eth
+     * @param _minAmountOutputToken       Minimum amount of native eth to send to the user
+     * @param _swapData                   SwapData (token path and fee levels) describing the swap from collateral token to eth
      *
      * @return Amount of eth returned to the user
      */
@@ -918,11 +918,11 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Obtains the tokens necessary to return the flashloan by swapping the debt tokens obtained
-     * from issuance and making up the shortfall using the users funds.
+     * Obtains the collateral tokens necessary to return the flashloan by swapping the debt tokens obtained
+     * from mint and making up the shortfall using the users funds.
      *
-     * @param _collateralToken       collateral token to obtain
-     * @param _amountRequired        Amount of collateralToken required to repay the flashloan
+     * @param _collateralToken       Collateral token
+     * @param _amountRequired        Amount required to repay the flashloan
      * @param _decodedParams         Struct containing decoded data from original call passed through via flashloan
      *
      * @return Amount of input token spent
@@ -963,7 +963,7 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
                 _decodedParams.paymentTokenSwapData
             );
         }
-        emit ExchangeIssue(
+        emit FlashMint(
             _decodedParams.originalSender,
             _decodedParams.setToken,
             _decodedParams.paymentToken,
@@ -974,25 +974,25 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Issues set token using the previously obtained collateral token
-     * Results in debt token being returned to the contract
+     * Mints Set tokens using the previously obtained collateral token.
+     * Results in debt tokens being returned to the contract.
      *
-     * @param _setToken         Address of the SetToken to be issued
-     * @param _setAmount        Amount of SetTokens to issue
-     * @param _originalSender   Adress that initiated the token issuance, which will receive the set tokens
+     * @param _setToken         Set token to mint
+     * @param _setAmount        Amount to mint
+     * @param _originalSender   Account that initiated the mint, which will receive the set tokens
      */
-    function _issueSet(ISetToken _setToken, uint256 _setAmount, address _originalSender) internal {
+    function _mintSet(ISetToken _setToken, uint256 _setAmount, address _originalSender) internal {
        
         debtIssuanceModule.issue(_setToken, _setAmount, _originalSender);
     }
 
     /**
-     * Redeems set token using the previously obtained debt token
-     * Results in collateral token being returned to the contract
+     * Redeems Set tokens using the previously obtained debt token.
+     * Results in collateral tokens being returned to the contract.
      *
-     * @param _setToken         Address of the SetToken to be redeemed
-     * @param _setAmount        Amount of SetTokens to redeem
-     * @param _originalSender   Adress that initiated the token redemption which is the source of the set tokens to be redeemed
+     * @param _setToken         Set token to redeem
+     * @param _setAmount        Amount to redeem
+     * @param _originalSender   Adress that initiated the redemption which is the source of the set tokens to be redeemed
      */
     function _redeemSet(ISetToken _setToken, uint256 _setAmount, address _originalSender) internal {
         _setToken.safeTransferFrom(_originalSender, address(this), _setAmount);
@@ -1001,11 +1001,11 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
 
     /**
      * Transfers the shortfall between the amount of tokens required to return flashloan and what was obtained
-     * from swapping the debt tokens from the users address
+     * from swapping the debt tokens from the users address.
      *
-     * @param _token                 Address of the token to transfer from user
-     * @param _shortfall             Collateral token shortfall required to return the flashloan
-     * @param _originalSender        Adress that initiated the token issuance, which is the adresss form which to transfer the tokens
+     * @param _token                 Set token to exchange shortfall
+     * @param _shortfall             Amount of tokens that the tx is short
+     * @param _originalSender        Account of originator, transfer the Set tokens from that account
      */
     function _transferShortfallFromSender(
         address _token,
@@ -1020,11 +1020,11 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Makes up the collateral token shortfall with user specified ERC20 token
+     * Makes up the collateral token shortfall with user specified ERC20 token.
      *
-     * @param _collateralToken             Address of the collateral token
-     * @param _collateralTokenShortfall    Shortfall of collateral token that was not covered by selling the debt tokens
-     * @param _originalSender              Address of the original sender to return the tokens to
+     * @param _collateralToken             Collateral token
+     * @param _collateralTokenShortfall    Amount of tokens that the tx is short after selling debt tokens
+     * @param _originalSender              Originator account to return the tokens to
      * @param _inputToken                  Input token to pay with
      * @param _maxAmountInputToken         Maximum amount of input token to spend
      *
@@ -1061,11 +1061,11 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Makes up the collateral token shortfall with native eth
+     * Makes up the collateral token shortfall with native eth.
      *
-     * @param _collateralToken             Address of the collateral token
-     * @param _collateralTokenShortfall    Shortfall of collateral token that was not covered by selling the debt tokens
-     * @param _originalSender              Address of the original sender to return the tokens to
+     * @param _collateralToken             Collateral token
+     * @param _collateralTokenShortfall    Amount of tokens that the tx is short after selling debt tokens
+     * @param _originalSender              Originator account to return the tokens to
      * @param _maxAmountEth                Maximum amount of eth to pay
      *
      * @return Amount of eth spent
@@ -1100,12 +1100,12 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Swaps the debt tokens obtained from issuance for the collateral
+     * Swaps the debt tokens obtained from minting for the collateral tokens.
      *
-     * @param _collateralToken            Address of the collateral token buy
-     * @param _debtToken                  Address of the debt token to sell
+     * @param _collateralToken            Collateral token to buy
+     * @param _debtToken                  Debt token to sell
      * @param _debtAmount                 Amount of debt token to sell
-     * @param _swapData                   Struct containing path and fee data for swap
+     * @param _swapData                   SwapData (token path and fee levels) describing the swap from debt token to collateral token
      *
      * @return Amount of collateral token obtained
      */
@@ -1129,13 +1129,13 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Acquires debt tokens needed for flashloan repayment by swapping a portion of the collateral tokens obtained from redemption
+     * Acquires debt tokens needed for flashloan repayment by swapping a portion of the collateral tokens obtained from redemption.
      *
      * @param _debtAmount             Amount of debt token to buy
-     * @param _debtToken              Address of debt token
-     * @param _collateralAmount       Amount of collateral token available to spend / used as maxAmountIn parameter
-     * @param _collateralToken        Address of collateral token
-     * @param _swapData               Struct containing path and fee data for swap
+     * @param _debtToken              Debt token
+     * @param _collateralAmount       Amount of collateral token available (eg. maxAmountIn)
+     * @param _collateralToken        Collateral token
+     * @param _swapData               SwapData (token path and fee levels) describing the swap from collateral token to debt token
      *
      * @return Amount of collateral token spent
      */
@@ -1158,14 +1158,14 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Acquires the required amount of collateral tokens by swapping the input tokens
-     * Does nothing if collateral and input token are indentical
+     * Acquires the required amount of collateral tokens by exchanging the input tokens.
+     * Does nothing if collateral and input token are indentical.
      *
-     * @param _collateralToken       Address of collateral token
-     * @param _amountRequired        Remaining amount of collateral token required to repay flashloan, after having swapped debt tokens for collateral
-     * @param _inputToken            Address of input token to swap
+     * @param _collateralToken       Collateral token
+     * @param _amountRequired        Amount required to repay the flashloan
+     * @param _inputToken            Input token
      * @param _maxAmountInputToken   Maximum amount of input token to spend
-     * @param _swapData              Data (token addresses and fee levels) describing the swap path
+     * @param _swapData              SwapData (token path and fee levels) describing the swap from input token to debt token
      *
      * @return Amount of input token spent
      */
@@ -1197,11 +1197,11 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
      * Swaps the collateral tokens obtained from redemption for the selected output token
      * If both tokens are the same, does nothing
      *
-     * @param _collateralToken        Address of collateral token
-     * @param _collateralTokenAmount  Amount of colalteral token to swap
-     * @param _outputToken            Address of the ERC20 token to swap into
-     * @param _minAmountOutputToken   Minimum amount of output token to return to the user
-     * @param _swapData               Data (token addresses and fee levels) describing the swap path
+     * @param _collateralToken        Collateral token
+     * @param _collateralTokenAmount  Amount to swap
+     * @param _outputToken            ERC20 token to swap into
+     * @param _minAmountOutputToken   Minimum amount of output token to receive
+     * @param _swapData               SwapData (token path and fee levels) describing the swap from collateral token to output token
      *
      * @return Amount of output token obtained
      */
@@ -1224,10 +1224,10 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Deposit collateral to compound to obtain collateralCToken for issuance
+     * Deposit collateral to compound to obtain collateralCToken for mint.
      *
-     * @param _cTokenAddress                Address of cToken
-     * @param _collateralToken              Address of collateral token
+     * @param _cTokenAddress                cToken
+     * @param _collateralToken              Collateral token
      * @param _depositAmount                Amount to deposit
      */
     function _depositToCompound(
@@ -1245,12 +1245,12 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     }
 
     /**
-     * Convert collateralCToken from set redemption to collateralToken by withdrawing underlying from Compound
+     * Redeem Compound cToken for underlying collateral.  
      *
-     * @param _cTokenAddress         Address of cToken
-     * @param _cTokenAmount          amount of cToken
-     * @param _collateralToken       Address of the collateralToken to withdraw from Compound
-     * @param _collateralAmount      Amount of collateralToken to withdraw
+     * @param _cTokenAddress         cToken
+     * @param _cTokenAmount          Amount to redeem
+     * @param _collateralToken       Collateral token to withdraw
+     * @param _collateralAmount      If collateral is ETH (eg. cETH), conver this amount to WETH.
      */
     function _withdrawFromCompound(
         address _cTokenAddress,
@@ -1270,7 +1270,7 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
 
 
     /**
-     * Approves max amount of token to lending pool
+     * Approves max amount of token to Lending Pool.
      *
      * @param _token              Address of the token to approve
      */
@@ -1286,8 +1286,8 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     /**
      * Triggers the flashloan from the Lending Pool
      *
-     * @param assets         Addresses of tokens to loan 
-     * @param amounts        Amounts to loan
+     * @param assets         Tokens to borrow 
+     * @param amounts        Amounts of tokens to borrow
      * @param params         Encoded memory to forward to the executeOperation method
      */
     function _flashloan(
