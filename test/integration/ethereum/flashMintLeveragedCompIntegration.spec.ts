@@ -74,6 +74,7 @@ if (process.env.INTEGRATIONTEST) {
           addresses.lending.aave.addressProvider,
           addresses.dexes.curve.addressProvider,
           addresses.dexes.curve.calculator,
+          addresses.tokens.cEther,
         );
       });
 

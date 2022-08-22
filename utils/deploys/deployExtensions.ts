@@ -217,6 +217,7 @@ export default class DeployExtensions {
     aaveAddressProviderAddress: Address,
     curveCalculatorAddress: Address,
     curveAddressProviderAddress: Address,
+    cEtherAddress: Address,
   ): Promise<FlashMintLeveragedForCompound> {
     const dexAdapter = await this.deployDEXAdapter();
 
@@ -243,6 +244,7 @@ export default class DeployExtensions {
       aaveAddressProviderAddress,
       curveCalculatorAddress,
       curveAddressProviderAddress,
+      cEtherAddress,
     );
   }
 

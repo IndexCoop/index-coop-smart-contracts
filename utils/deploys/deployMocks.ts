@@ -139,6 +139,7 @@ export default class DeployMocks {
     aaveAddressProviderAddress: Address,
     curveCalculatorAddress: Address,
     curveAddressProviderAddress: Address,
+    cEtherAddress: Address
   ): Promise<FlashMintLeveragedCompMock> {
     const dexAdapter = await this.deployDEXAdapter();
 
@@ -165,6 +166,7 @@ export default class DeployMocks {
       aaveAddressProviderAddress,
       curveCalculatorAddress,
       curveAddressProviderAddress,
+      cEtherAddress
     );
   }
 }

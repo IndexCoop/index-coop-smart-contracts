@@ -164,6 +164,7 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     * @param _aaveAddressProvider       Address of address provider for aaves addresses
     * @param _curveAddressProvider      Contract to get current implementation address of curve registry
     * @param _curveCalculator           Contract to calculate required input to receive given output in curve (for exact output swaps)
+    * @param _cEther                    Address of Compound's cEther token
     */
     constructor(
         address _weth,
@@ -176,7 +177,8 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
         ICompoundLeverageModule _compoundLeverageModule,
         address _aaveAddressProvider,
         address _curveAddressProvider,
-        address _curveCalculator
+        address _curveCalculator,
+        address _cEther
     )
     public
     FlashLoanReceiverBaseV2(_aaveAddressProvider)
@@ -193,9 +195,7 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
         addresses.curveAddressProvider = _curveAddressProvider;
         addresses.curveCalculator = _curveCalculator;
 
-        address _cEtherAddress = CompoundLeverageModuleStorage(address(_compoundLeverageModule)).underlyingToCToken(_weth);
-        require(_cEtherAddress != address(0x0), "FlashMint: CEtherAddress ZERO");
-        cEtherAddress = _cEtherAddress;
+        cEtherAddress = _cEther;
     }
 
     /* ============ External Functions ============ */

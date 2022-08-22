@@ -501,6 +501,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
           aaveAddressProviderAddress,
           curveCalculatorAddress,
           curveAddressProviderAddress,
+          cEther.address,
         );
         return result;
       }
@@ -523,28 +524,6 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
       });
     });
 
-    describe("When wrong cEther is input", () => {
-      beforeEach(async () => {});
-      async function subject() {
-        exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveragedForCompound(
-          ADDRESS_ZERO,
-          quickswapRouter.address,
-          sushiswapRouter.address,
-          uniswapV3RouterAddress,
-          uniswapV3Setup.quoter.address,
-          controllerAddress,
-          debtIssuanceModuleAddress,
-          compoundLeverageModule.address,
-          aaveAddressProviderAddress,
-          curveCalculatorAddress,
-          curveAddressProviderAddress,
-        );
-      }
-      it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("FlashMint: CEtherAddress ZERO");
-      });
-    });
-
     describe("When exchangeIssuance is deployed", () => {
       beforeEach(async () => {
         exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveragedForCompound(
@@ -559,6 +538,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
           aaveAddressProviderAddress,
           curveCalculatorAddress,
           curveAddressProviderAddress,
+          cEther.address,
         );
         ethAddress = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
       });
@@ -1507,6 +1487,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
           aaveAddressProviderAddress,
           curveCalculatorAddress,
           curveAddressProviderAddress,
+          cEther.address,
         );
         return result;
       }
@@ -1543,6 +1524,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
           aaveAddressProviderAddress,
           curveCalculatorAddress,
           curveAddressProviderAddress,
+          cEther.address,
         );
         ethAddress = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
       });
@@ -2075,6 +2057,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
           aaveAddressProviderAddress,
           curveCalculatorAddress,
           curveAddressProviderAddress,
+          cEther.address,
         );
         ethAddress = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
       });

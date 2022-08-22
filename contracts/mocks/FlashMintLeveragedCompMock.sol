@@ -26,7 +26,8 @@ contract FlashMintLeveragedCompMock is FlashMintLeveragedForCompound {
         ICompoundLeverageModule _compoundLeverageModule,
         address _aaveAddressProvider,
         address _curveAddressProvider,
-        address _curveCalculator
+        address _curveCalculator,
+        address _cEther
     ) public
     FlashMintLeveragedForCompound(
         _weth,
@@ -39,7 +40,8 @@ contract FlashMintLeveragedCompMock is FlashMintLeveragedForCompound {
         _compoundLeverageModule,
         _aaveAddressProvider,
         _curveAddressProvider,
-        _curveCalculator
+        _curveCalculator,
+        _cEther
     ) {
 
     }
