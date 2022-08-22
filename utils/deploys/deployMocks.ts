@@ -10,10 +10,13 @@ import {
   StringArrayUtilsMock,
   TradeAdapterMock,
   WrapAdapterMock,
+  DEXAdapter,
   ZeroExExchangeProxyMock
 } from "../contracts/index";
 
 import { BaseExtensionMock__factory } from "../../typechain/factories/BaseExtensionMock__factory";
+import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__factory";
+import { convertLibraryNameToLinkId } from "../common";
 import { ChainlinkAggregatorV3Mock__factory } from "../../typechain/factories/ChainlinkAggregatorV3Mock__factory";
 import { FLIStrategyExtensionMock__factory } from "../../typechain/factories/FLIStrategyExtensionMock__factory";
 import { FlexibleLeverageStrategyExtensionMock__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtensionMock__factory";
@@ -25,6 +28,10 @@ import { StandardTokenMock__factory } from "../../typechain/factories/StandardTo
 import { StringArrayUtilsMock__factory } from "../../typechain/factories/StringArrayUtilsMock__factory";
 import { WrapAdapterMock__factory } from "../../typechain/factories/WrapAdapterMock__factory";
 import { ZeroExExchangeProxyMock__factory  } from "../../typechain/factories/ZeroExExchangeProxyMock__factory";
+import { AaveV2LendingPoolMock__factory } from "@typechain/factories/AaveV2LendingPoolMock__factory";
+import { AaveV2LendingPoolMock } from "@typechain/AaveV2LendingPoolMock";
+import { ExchangeIssuanceLeveragedCompMock } from "@typechain/ExchangeIssuanceLeveragedCompMock";
+import { ExchangeIssuanceLeveragedCompMock__factory } from "@typechain/factories/ExchangeIssuanceLeveragedCompMock__factory";
 
 export default class DeployMocks {
   private _deployerSigner: Signer;
@@ -104,5 +111,60 @@ export default class DeployMocks {
 
   public async deployZeroExExchangeProxyMock(): Promise<ZeroExExchangeProxyMock> {
     return await new ZeroExExchangeProxyMock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployAaveV2LendingPoolMock(validationLogicAddress: Address, reserveLogicAddress: Address): Promise<AaveV2LendingPoolMock> {
+    return await new AaveV2LendingPoolMock__factory(
+      {
+        ["__$de8c0cf1a7d7c36c802af9a64fb9d86036$__"]: validationLogicAddress,
+        ["__$22cd43a9dda9ce44e9b92ba393b88fb9ac$__"]: reserveLogicAddress,
+      },
+      this._deployerSigner
+    ).deploy();
+  }
+
+  public async deployDEXAdapter(): Promise<DEXAdapter> {
+    return await new DEXAdapter__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployExchangeIssuanceLeveragedCompMock(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+    aaveLeveragedModuleAddress: Address,
+    aaveAddressProviderAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+  ): Promise<ExchangeIssuanceLeveragedCompMock> {
+    const dexAdapter = await this.deployDEXAdapter();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
+    );
+
+    return await new ExchangeIssuanceLeveragedCompMock__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      wethAddress,
+      quickRouterAddress,
+      sushiRouterAddress,
+      uniV3RouterAddress,
+      uniswapV3QuoterAddress,
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      aaveLeveragedModuleAddress,
+      aaveAddressProviderAddress,
+      curveCalculatorAddress,
+      curveAddressProviderAddress,
+    );
   }
 }

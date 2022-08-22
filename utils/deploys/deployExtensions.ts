@@ -15,6 +15,7 @@ import {
   ExchangeIssuance,
   ExchangeIssuanceV2,
   ExchangeIssuanceLeveraged,
+  ExchangeIssuanceLeveragedForCompound,
   ExchangeIssuanceZeroEx,
   FlashMintPerp,
   FlexibleLeverageStrategyExtension,
@@ -32,6 +33,7 @@ import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__facto
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { ExchangeIssuanceLeveraged__factory } from "../../typechain/factories/ExchangeIssuanceLeveraged__factory";
+import { ExchangeIssuanceLeveragedForCompound__factory } from "../../typechain/factories/ExchangeIssuanceLeveragedForCompound__factory";
 import { ExchangeIssuanceZeroEx__factory } from "../../typechain/factories/ExchangeIssuanceZeroEx__factory";
 import { FlashMintPerp__factory } from "../../typechain/factories/FlashMintPerp__factory";
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
@@ -182,6 +184,47 @@ export default class DeployExtensions {
     );
 
     return await new ExchangeIssuanceLeveraged__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      wethAddress,
+      quickRouterAddress,
+      sushiRouterAddress,
+      uniV3RouterAddress,
+      uniswapV3QuoterAddress,
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      aaveLeveragedModuleAddress,
+      aaveAddressProviderAddress,
+      curveCalculatorAddress,
+      curveAddressProviderAddress,
+    );
+  }
+
+  public async deployExchangeIssuanceLeveragedForCompound(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+    aaveLeveragedModuleAddress: Address,
+    aaveAddressProviderAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+  ): Promise<ExchangeIssuanceLeveragedForCompound> {
+    const dexAdapter = await this.deployDEXAdapter();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
+    );
+
+    return await new ExchangeIssuanceLeveragedForCompound__factory(
       // @ts-ignore
       {
         [linkId]: dexAdapter.address,

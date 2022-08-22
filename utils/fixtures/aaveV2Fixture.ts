@@ -85,7 +85,13 @@ export class AaveV2Fixture {
     // deploy contracts
     this.lendingPoolConfigurator = await this._deployer.external.deployAaveV2LendingPoolConfigurator();
     this.lendingPoolCollateralManager = await this._deployer.external.deployAaveV2LendingPoolCollateralManager();
-    this.lendingPool = await this._deployer.external.deployAaveV2LendingPool(validationLogicAddress, reserveLogicAddress);
+    if (marketId === "Mock") {
+      this.lendingPool = await this._deployer.mocks.deployAaveV2LendingPoolMock(validationLogicAddress, reserveLogicAddress);
+    } else {
+      this.lendingPool = await this._deployer.external.deployAaveV2LendingPool(validationLogicAddress, reserveLogicAddress);
+    }
+    
+
     this.lendingPoolAddressesProvider = await this._deployer.external.deployAaveV2LendingPoolAddressesProvider(this.marketId);
     this.protocolDataProvider = await this._deployer.external.deployAaveV2ProtocolDataProvider(this.lendingPoolAddressesProvider.address);
     this.reserveInterestRateStrategy = await this._deployer.external.deployAaveV2DefaultReserveInterestRateStrategy(

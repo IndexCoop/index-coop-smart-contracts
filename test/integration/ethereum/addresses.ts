@@ -7,6 +7,10 @@ export const PRODUCTION_ADDRESSES = {
     dai: "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063",
     weth: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
     icEth: "0x7C07F7aBe10CE8e33DC6C5aD68FE033085256A84",
+    ETH2xFli: "0xAa6E8127831c9DE45ae56bB1b0d4D4Da6e5665BD",
+    cEther: "0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5",
+    USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    cUSDC: "0x39aa39c021dfbae8fac545936693ac917d5e7563",
   },
   dexes: {
     curve: {
@@ -34,6 +38,7 @@ export const PRODUCTION_ADDRESSES = {
     debtIssuanceModule: "0x39F024d621367C044BacE2bf0Fb15Fb3612eCB92",
     debtIssuanceModuleV2: "0x69a592D2129415a4A1d1b1E309C17051B7F28d57",
     aaveLeverageModule: "0x251Bd1D42Df1f153D86a5BA2305FaADE4D5f51DC",
+    compoundLeverageModule: "0x8d5174eD1dd217e240fDEAa52Eb7f4540b04F419",
   },
   lending: {
     aave: {
@@ -50,6 +55,7 @@ STAGING_ADDRESSES.set = {
   debtIssuanceModule: "0x39F024d621367C044BacE2bf0Fb15Fb3612eCB92",
   debtIssuanceModuleV2: "0x3C0CC7624B1c408cF2cF11b3961301949f2F7820",
   aaveLeverageModule: "0x5d2B710787078B45CD7582C0423AC2fC180262e8",
+  compoundLeverageModule: "0x8d5174eD1dd217e240fDEAa52Eb7f4540b04F419",
 };
 
 STAGING_ADDRESSES.tokens.icEth = "0x219C0C5B42A2DF32782d8F6Bf10eddCD7414CbBf";
