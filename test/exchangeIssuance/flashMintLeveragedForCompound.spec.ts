@@ -541,7 +541,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
         );
       }
       it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("ExchangeIssuance: CEtherAddress ZERO");
+        await expect(subject()).to.be.revertedWith("FlashMint: CEtherAddress ZERO");
       });
     });
 
@@ -633,7 +633,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
             subjectIsIssuance = true;
           });
 
-          it("should revert with - ExchangeIssuance: TOO MANY EQUITY POSITIONS", async () => {
+          it("should revert with - FlashMint: TOO MANY EQUITY POSITIONS", async () => {
             let newSetToken: SetToken;
             newSetToken = await setV2Setup.createSetToken(
               [cTokenAddress, setV2Setup.usdc.address],
@@ -646,12 +646,10 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
               ],
             );
             subjectSetToken = newSetToken.address;
-            await expect(subject()).to.be.revertedWith(
-              "ExchangeIssuance: TOO MANY EQUITY POSITIONS",
-            );
+            await expect(subject()).to.be.revertedWith("FlashMint: TOO MANY EQUITY POSITIONS");
           });
 
-          it("should revert with - ExchangeIssuance: TOO MANY DEBT POSITIONS", async () => {
+          it("should revert with - FlashMint: TOO MANY DEBT POSITIONS", async () => {
             let newSetToken: SetToken;
 
             newSetToken = await deployer.setV2.deploySetToken(
@@ -692,7 +690,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
               BigNumber.from(-100),
             );
             subjectSetToken = newSetToken.address;
-            await expect(subject()).to.be.revertedWith("ExchangeIssuance: TOO MANY DEBT POSITIONS");
+            await expect(subject()).to.be.revertedWith("FlashMint: TOO MANY DEBT POSITIONS");
           });
         });
 
@@ -827,7 +825,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
           });
           it("should emit ExchangeIssuance event", async () => {
             await expect(subject())
-              .to.emit(exchangeIssuance, "ExchangeIssue")
+              .to.emit(exchangeIssuance, "FlashMint")
               .withArgs(
                 owner.address,
                 subjectSetToken,
@@ -844,7 +842,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
               const revertReason =
                 tokenName == "ERC20"
                   ? "UniswapV2Router: EXCESSIVE_INPUT_AMOUNT'"
-                  : "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT";
+                  : "FlashMint: INSUFFICIENT INPUT AMOUNT";
               await expect(subject()).to.be.revertedWith(revertReason);
             });
           });
@@ -880,7 +878,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
             it("should revert", async () => {
               const revertReasonMapping: Record<string, string> = {
                 ERC20: "UniswapV2Router: EXCESSIVE_INPUT_AMOUNT",
-                ETH: "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT",
+                ETH: "FlashMint: INSUFFICIENT INPUT AMOUNT",
                 CollateralToken: "SafeERC20: low-level call failed",
               };
               await expect(subject()).to.be.revertedWith(revertReasonMapping[tokenName]);
@@ -1009,9 +1007,9 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
             if (tokenName == "ETH") amountReturned = amountReturned.add(transactionFee);
             expect(amountReturned.gt(subjectMinAmountOutput)).to.equal(true);
           });
-          it("should emit ExchangeRedeem event", async () => {
+          it("should emit FlashRedeem event", async () => {
             await expect(subject())
-              .to.emit(exchangeIssuance, "ExchangeRedeem")
+              .to.emit(exchangeIssuance, "FlashRedeem")
               .withArgs(
                 owner.address,
                 subjectSetToken,
@@ -1028,7 +1026,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
               const revertReason =
                 tokenName == "ERC20"
                   ? "UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT"
-                  : "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT";
+                  : "FlashMint: INSUFFICIENT OUTPUT AMOUNT";
               await expect(subject()).to.be.revertedWith(revertReason);
             });
           });
@@ -1265,7 +1263,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
               );
             }
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("ExchangeIssuance: LENDING POOL ONLY");
+              await expect(subject()).to.be.revertedWith("FlashMint: LENDING POOL ONLY");
             });
           });
           context("When flashloan initiator is not the Exchange Issuance contract", () => {
@@ -1297,9 +1295,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
               );
             }
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith(
-                "ExchangeIssuance: INVALID FLASHLOAN INITIATOR",
-              );
+              await expect(subject()).to.be.revertedWith("FlashMint: INVALID FLASHLOAN INITIATOR");
             });
           });
         });
@@ -1462,7 +1458,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
             maxInputAmount = collateralAmount;
             inputAddress = setV2Setup.dai.address;
             outputAddress = setV2Setup.usdc.address;
-            await expect(subject()).to.be.revertedWith("ExchangeIssuance: INPUT_TOKEN_NOT_IN_PATH");
+            await expect(subject()).to.be.revertedWith("FlashMint: INPUT_TOKEN_NOT_IN_PATH");
           });
         });
 
@@ -1478,9 +1474,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
             maxInputAmount = collateralAmount;
             inputAddress = setV2Setup.usdc.address;
             outputAddress = setV2Setup.dai.address;
-            await expect(subject()).to.be.revertedWith(
-              "ExchangeIssuance: OUTPUT_TOKEN_NOT_IN_PATH",
-            );
+            await expect(subject()).to.be.revertedWith("FlashMint: OUTPUT_TOKEN_NOT_IN_PATH");
           });
         });
       });
@@ -1623,7 +1617,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
             subjectIsIssuance = true;
           });
 
-          it("should revert with - ExchangeIssuance: TOO MANY EQUITY POSITIONS", async () => {
+          it("should revert with - FlashMint: TOO MANY EQUITY POSITIONS", async () => {
             let newSetToken: SetToken;
             newSetToken = await setV2Setup.createSetToken(
               [cTokenAddress, setV2Setup.usdc.address],
@@ -1636,12 +1630,10 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
               ],
             );
             subjectSetToken = newSetToken.address;
-            await expect(subject()).to.be.revertedWith(
-              "ExchangeIssuance: TOO MANY EQUITY POSITIONS",
-            );
+            await expect(subject()).to.be.revertedWith("FlashMint: TOO MANY EQUITY POSITIONS");
           });
 
-          it("should revert with - ExchangeIssuance: TOO MANY DEBT POSITIONS", async () => {
+          it("should revert with - FlashMint: TOO MANY DEBT POSITIONS", async () => {
             let newSetToken: SetToken;
 
             newSetToken = await deployer.setV2.deploySetToken(
@@ -1682,7 +1674,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
               BigNumber.from(-100),
             );
             subjectSetToken = newSetToken.address;
-            await expect(subject()).to.be.revertedWith("ExchangeIssuance: TOO MANY DEBT POSITIONS");
+            await expect(subject()).to.be.revertedWith("FlashMint: TOO MANY DEBT POSITIONS");
           });
         });
 
@@ -1817,7 +1809,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
           });
           it("should emit ExchangeIssuance event", async () => {
             await expect(subject())
-              .to.emit(exchangeIssuance, "ExchangeIssue")
+              .to.emit(exchangeIssuance, "FlashMint")
               .withArgs(
                 owner.address,
                 subjectSetToken,
@@ -1834,7 +1826,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
               const revertReason =
                 tokenName == "ERC20"
                   ? "UniswapV2Router: EXCESSIVE_INPUT_AMOUNT'"
-                  : "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT";
+                  : "FlashMint: INSUFFICIENT INPUT AMOUNT";
               await expect(subject()).to.be.revertedWith(revertReason);
             });
           });
@@ -1970,9 +1962,9 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
             if (tokenName == "ETH") amountReturned = amountReturned.add(transactionFee);
             expect(amountReturned.gt(subjectMinAmountOutput)).to.equal(true);
           });
-          it("should emit ExchangeRedeem event", async () => {
+          it("should emit FlashRedeem event", async () => {
             await expect(subject())
-              .to.emit(exchangeIssuance, "ExchangeRedeem")
+              .to.emit(exchangeIssuance, "FlashRedeem")
               .withArgs(
                 owner.address,
                 subjectSetToken,
@@ -1989,7 +1981,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
               const revertReason =
                 tokenName == "ERC20"
                   ? "UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT"
-                  : "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT";
+                  : "FlashMint: INSUFFICIENT OUTPUT AMOUNT";
               await expect(subject()).to.be.revertedWith(revertReason);
             });
           });
@@ -2019,7 +2011,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
               );
             }
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("ExchangeIssuance: LENDING POOL ONLY");
+              await expect(subject()).to.be.revertedWith("FlashMint: LENDING POOL ONLY");
             });
           });
           context("When flashloan initiator is not the Exchange Issuance contract", () => {
@@ -2051,9 +2043,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
               );
             }
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith(
-                "ExchangeIssuance: INVALID FLASHLOAN INITIATOR",
-              );
+              await expect(subject()).to.be.revertedWith("FlashMint: INVALID FLASHLOAN INITIATOR");
             });
           });
         });
@@ -2114,7 +2104,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
               );
             }
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("ExchangeIssuance: LENDING POOL ONLY");
+              await expect(subject()).to.be.revertedWith("FlashMint: LENDING POOL ONLY");
             });
           });
           context("When flashloan initiator is not the Exchange Issuance contract", () => {
@@ -2146,9 +2136,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
               );
             }
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith(
-                "ExchangeIssuance: INVALID FLASHLOAN INITIATOR",
-              );
+              await expect(subject()).to.be.revertedWith("FlashMint: INVALID FLASHLOAN INITIATOR");
             });
           });
           context("When there are too many items", () => {
@@ -2167,29 +2155,29 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
                 subjectParams,
               );
             }
-            it("should revert with - ExchangeIssuance: TOO MANY ASSETS", async () => {
+            it("should revert with - FlashMint: TOO MANY ASSETS", async () => {
               subjectReceiver = exchangeIssuance.address;
               subjectAssets = [wethAddress, ADDRESS_ZERO];
               subjectAmounts = [utils.parseEther("1")];
               subjectPremiums = [ZERO];
               subjectParams = ZERO_BYTES;
-              await expect(subject()).to.be.revertedWith("ExchangeIssuance: TOO MANY ASSETS");
+              await expect(subject()).to.be.revertedWith("FlashMint: TOO MANY ASSETS");
             });
-            it("should revert with - ExchangeIssuance: TOO MANY AMOUNTS", async () => {
+            it("should revert with - FlashMint: TOO MANY AMOUNTS", async () => {
               subjectReceiver = exchangeIssuance.address;
               subjectAssets = [wethAddress];
               subjectAmounts = [utils.parseEther("1"), utils.parseEther("1")];
               subjectPremiums = [ZERO];
               subjectParams = ZERO_BYTES;
-              await expect(subject()).to.be.revertedWith("ExchangeIssuance: TOO MANY AMOUNTS");
+              await expect(subject()).to.be.revertedWith("FlashMint: TOO MANY AMOUNTS");
             });
-            it("should revert with - ExchangeIssuance: TOO MANY PREMIUMS", async () => {
+            it("should revert with - FlashMint: TOO MANY PREMIUMS", async () => {
               subjectReceiver = exchangeIssuance.address;
               subjectAssets = [wethAddress];
               subjectAmounts = [utils.parseEther("1")];
               subjectPremiums = [ZERO, ZERO];
               subjectParams = ZERO_BYTES;
-              await expect(subject()).to.be.revertedWith("ExchangeIssuance: TOO MANY PREMIUMS");
+              await expect(subject()).to.be.revertedWith("FlashMint: TOO MANY PREMIUMS");
             });
           });
           context("When spent over collateral token", () => {
@@ -2232,9 +2220,7 @@ describe("ExchangeIssuanceLeveragedForCompound", async () => {
               );
             }
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith(
-                "ExchangeIssuance: OVERSPENT COLLATERAL TOKEN",
-              );
+              await expect(subject()).to.be.revertedWith("FlashMint: OVERSPENT COLLATERAL TOKEN");
             });
           });
           context("When _shortfall == 0", () => {
