@@ -14,6 +14,7 @@ import {
   IntegrationRegistry,
   SetToken,
   SetTokenCreator,
+  SlippageIssuanceModule,
   StreamingFeeModule,
   WrapModule
 } from "../contracts/setV2";
@@ -52,6 +53,7 @@ export class SetFixture {
   public generalIndexModule: GeneralIndexModule;
   public airdropModule: AirdropModule;
   public wrapModule: WrapModule;
+  public slippageIssuanceModule: SlippageIssuanceModule;
 
   public weth: WETH9;
   public usdc: StandardTokenMock;
@@ -78,6 +80,7 @@ export class SetFixture {
     this.debtIssuanceModule = await this._deployer.setV2.deployDebtIssuanceModule(this.controller.address);
     this.governanceModule = await this._deployer.setV2.deployGovernanceModule(this.controller.address);
     this.airdropModule = await this._deployer.setV2.deployAirdropModule(this.controller.address);
+    this.slippageIssuanceModule = await this._deployer.setV2.deploySlippageIssuanceModule(this.controller.address);
 
     await this.initializeStandardComponents();
 
@@ -99,6 +102,7 @@ export class SetFixture {
       this.generalIndexModule.address,
       this.airdropModule.address,
       this.wrapModule.address,
+      this.slippageIssuanceModule.address,
     ];
 
     await this.controller.initialize(
