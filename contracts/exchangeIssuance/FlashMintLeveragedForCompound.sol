@@ -100,7 +100,6 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     /* ============ State Variables ============ */
 
     DEXAdapter.Addresses public addresses;
-    mapping(address => address) public cTokenPairs;
 
     /* ============ Events ============ */
 
@@ -1259,7 +1258,6 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     )
     internal
     {
-        uint256 allowance = _token.allowance(address(this), address(LENDING_POOL));
         _token.approve(address(LENDING_POOL), MAX_UINT256);
     }
 
