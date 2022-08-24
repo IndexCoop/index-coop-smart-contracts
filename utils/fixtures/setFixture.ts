@@ -1,6 +1,7 @@
 import { JsonRpcProvider, Web3Provider } from "@ethersproject/providers";
 import { ContractTransaction, Signer } from "ethers";
 import { BigNumber } from "@ethersproject/bignumber";
+import { CEther, CERc20 } from "@utils/contracts/compound";
 
 import {
   AirdropModule,
