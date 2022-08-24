@@ -153,31 +153,19 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
     /**
     * Sets various contract addresses
     *
-    * @param _weth                      Address of wrapped native token
-    * @param _quickRouter               Address of quickswap router
-    * @param _sushiRouter               Address of sushiswap router
-    * @param _uniV3Router               Address of uniswap v3 router
-    * @param _uniV3Quoter               Address of uniswap v3 quoter
+    * @param _dexAddresses              Address of quickRouter, sushiRouter, uniV3Router, uniV3Router, curveAddressProvider, curveCalculator and weth. 
     * @param _setController             Set token controller used to verify a given token is a set
     * @param _debtIssuanceModule        DebtIssuanceModule used to issue and redeem tokens
     * @param _compoundLeverageModule    CompoundLeverageModule to sync before every mint / redemption
     * @param _aaveAddressProvider       Address of address provider for aaves addresses
-    * @param _curveAddressProvider      Contract to get current implementation address of curve registry
-    * @param _curveCalculator           Contract to calculate required input to receive given output in curve (for exact output swaps)
     * @param _cEther                    Address of Compound's cEther token
     */
     constructor(
-        address _weth,
-        address _quickRouter,
-        address _sushiRouter,
-        address _uniV3Router,
-        address _uniV3Quoter,
+        DEXAdapter.Addresses memory _dexAddresses,
         IController _setController,
         IDebtIssuanceModule _debtIssuanceModule,
         ICompoundLeverageModule _compoundLeverageModule,
         address _aaveAddressProvider,
-        address _curveAddressProvider,
-        address _curveCalculator,
         address _cEther
     )
     public
@@ -186,15 +174,7 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
         setController = _setController;
         debtIssuanceModule = _debtIssuanceModule;
         compoundLeverageModule = _compoundLeverageModule;
-
-        addresses.weth = _weth;
-        addresses.quickRouter = _quickRouter;
-        addresses.sushiRouter = _sushiRouter;
-        addresses.uniV3Router = _uniV3Router;
-        addresses.uniV3Quoter = _uniV3Quoter;
-        addresses.curveAddressProvider = _curveAddressProvider;
-        addresses.curveCalculator = _curveCalculator;
-
+        addresses = _dexAddresses;
         cEtherAddress = _cEther;
     }
 

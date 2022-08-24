@@ -11,7 +11,7 @@ import {
   TradeAdapterMock,
   WrapAdapterMock,
   DEXAdapter,
-  ZeroExExchangeProxyMock
+  ZeroExExchangeProxyMock,
 } from "../contracts/index";
 
 import { BaseExtensionMock__factory } from "../../typechain/factories/BaseExtensionMock__factory";
@@ -27,7 +27,7 @@ import { TradeAdapterMock__factory } from "../../typechain/factories/TradeAdapte
 import { StandardTokenMock__factory } from "../../typechain/factories/StandardTokenMock__factory";
 import { StringArrayUtilsMock__factory } from "../../typechain/factories/StringArrayUtilsMock__factory";
 import { WrapAdapterMock__factory } from "../../typechain/factories/WrapAdapterMock__factory";
-import { ZeroExExchangeProxyMock__factory  } from "../../typechain/factories/ZeroExExchangeProxyMock__factory";
+import { ZeroExExchangeProxyMock__factory } from "../../typechain/factories/ZeroExExchangeProxyMock__factory";
 import { AaveV2LendingPoolMock__factory } from "@typechain/factories/AaveV2LendingPoolMock__factory";
 import { AaveV2LendingPoolMock } from "@typechain/AaveV2LendingPoolMock";
 import { FlashMintLeveragedCompMock } from "@typechain/FlashMintLeveragedCompMock";
@@ -113,13 +113,16 @@ export default class DeployMocks {
     return await new ZeroExExchangeProxyMock__factory(this._deployerSigner).deploy();
   }
 
-  public async deployAaveV2LendingPoolMock(validationLogicAddress: Address, reserveLogicAddress: Address): Promise<AaveV2LendingPoolMock> {
+  public async deployAaveV2LendingPoolMock(
+    validationLogicAddress: Address,
+    reserveLogicAddress: Address,
+  ): Promise<AaveV2LendingPoolMock> {
     return await new AaveV2LendingPoolMock__factory(
       {
         ["__$de8c0cf1a7d7c36c802af9a64fb9d86036$__"]: validationLogicAddress,
         ["__$22cd43a9dda9ce44e9b92ba393b88fb9ac$__"]: reserveLogicAddress,
       },
-      this._deployerSigner
+      this._deployerSigner,
     ).deploy();
   }
 
@@ -139,7 +142,7 @@ export default class DeployMocks {
     aaveAddressProviderAddress: Address,
     curveCalculatorAddress: Address,
     curveAddressProviderAddress: Address,
-    cEtherAddress: Address
+    cEtherAddress: Address,
   ): Promise<FlashMintLeveragedCompMock> {
     const dexAdapter = await this.deployDEXAdapter();
 
@@ -155,18 +158,20 @@ export default class DeployMocks {
       // @ts-ignore
       this._deployerSigner,
     ).deploy(
-      wethAddress,
-      quickRouterAddress,
-      sushiRouterAddress,
-      uniV3RouterAddress,
-      uniswapV3QuoterAddress,
+      {
+        quickRouter: quickRouterAddress,
+        sushiRouter: sushiRouterAddress,
+        uniV3Router: uniV3RouterAddress,
+        uniV3Quoter: uniswapV3QuoterAddress,
+        curveAddressProvider: curveAddressProviderAddress,
+        curveCalculator: curveCalculatorAddress,
+        weth: wethAddress,
+      },
       setControllerAddress,
       basicIssuanceModuleAddress,
       aaveLeveragedModuleAddress,
       aaveAddressProviderAddress,
-      curveCalculatorAddress,
-      curveAddressProviderAddress,
-      cEtherAddress
+      cEtherAddress,
     );
   }
 }

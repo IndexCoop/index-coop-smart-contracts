@@ -16,35 +16,15 @@ import {
 
 contract FlashMintLeveragedCompMock is FlashMintLeveragedForCompound {
     constructor(
-        address _weth,
-        address _quickRouter,
-        address _sushiRouter,
-        address _uniV3Router,
-        address _uniV3Quoter,
+        DEXAdapter.Addresses memory _dexAddresses,
         IController _setController,
         IDebtIssuanceModule _debtIssuanceModule,
         ICompoundLeverageModule _compoundLeverageModule,
         address _aaveAddressProvider,
-        address _curveAddressProvider,
-        address _curveCalculator,
         address _cEther
     ) public
-    FlashMintLeveragedForCompound(
-        _weth,
-        _quickRouter,
-        _sushiRouter,
-        _uniV3Router,
-        _uniV3Quoter,
-        _setController,
-        _debtIssuanceModule,
-        _compoundLeverageModule,
-        _aaveAddressProvider,
-        _curveAddressProvider,
-        _curveCalculator,
-        _cEther
-    ) {
-
-    }
+    FlashMintLeveragedForCompound(_dexAddresses, _setController,_debtIssuanceModule, _compoundLeverageModule, _aaveAddressProvider, _cEther )
+    {}
 
 
     function liquidateCollateralTokens(
