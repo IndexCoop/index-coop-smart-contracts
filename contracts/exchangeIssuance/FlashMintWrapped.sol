@@ -29,8 +29,7 @@ import {IWrapV2Adapter} from "../interfaces/IWrapV2Adapter.sol";
 import {IDebtIssuanceModule} from "../interfaces/IDebtIssuanceModule.sol";
 import {ISetToken} from "../interfaces/ISetToken.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
-
-import {Withdrawable} from "external/contracts/aaveV2/utils/Withdrawable.sol";
+import { Withdrawable } from "external/contracts/aaveV2/utils/Withdrawable.sol";
 import {DEXAdapter} from "./DEXAdapter.sol";
 
 /**
@@ -45,7 +44,9 @@ import {DEXAdapter} from "./DEXAdapter.sol";
  * Supports flash minting for sets that contain both unwrapped and wrapped components.
  * Does not support debt positions on Set token.
  * Wrapping / Unwrapping is skipped for a component if ComponentSwapData[component_index].underlyingERC20 address == set component address
- * If the set contains both wrapped and unwrapped version of a token (e.g. DAI and cDAI) -> supply two separate component data points
+ *
+ * If the set contains both the wrapped and unwrapped version of a token (e.g. DAI and cDAI)
+ * ->  two separate component data points have to be supplied in _swapData and _wrapData
  * e.g. for issue
  * Set components at index 0 = DAI; then -> ComponentSwapData[0].underlyingERC20 = DAI; (no wrapping will happen)
  * Set components at index 1 = cDAI; then -> ComponentSwapData[1].underlyingERC20 = DAI; (wrapping will happen)
@@ -73,7 +74,19 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
     uint256 buyUnderlyingAmount;
   }
 
+  struct ComponentInvokeWrapData {
+    address callTarget; 
+    uint256 value;
+    bytes callData;
+  }
+
   struct ComponentWrapData {
+    address fromToken; // wrap / unwrap from
+    address toToken;  // wrap / unwrap to
+    // amount to wrap / unwrap. 
+    // for wrapping, this would be ComponentSwapData.buyUnderlyingAmount
+    // for unwrapping, it's IssuanceModule.getRequiredComponentRedemptionUnits()
+    uint256 amount; 
     string integrationName; // wrap adapter integration name as listed in the IntegrationRegistry for the wrapModule
     bytes wrapData; // optional wrapData passed to the wrapAdapter
   }
@@ -86,11 +99,12 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
 
   IController public immutable setController;
   IDebtIssuanceModule public immutable debtIssuanceModule; // interface is compatible with DebtIssuanceModuleV2
-  address public immutable wrapModule; // used to obtain a valid wrap adapter
 
   /* ============ State Variables ============ */
 
   DEXAdapter.Addresses public dexAdapter;
+  // for security, only allow-listed addresses are enabled to trigger wrap calls to
+  mapping(address => bool) public wrapTargetsAllowList;
 
   /* ============ Events ============ */
 
@@ -118,7 +132,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    * @param _setToken       set token to check
    */
   modifier isSetToken(ISetToken _setToken) {
-    require(setController.isSet(address(_setToken)), "ExchangeIssuance: INVALID_SET");
+    require(setController.isSet(address(_setToken)), "FlashMint: INVALID_SET");
     _;
   }
 
@@ -157,18 +171,15 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    * @param _dexAddresses              Address of quickRouter, sushiRouter, uniV3Router, uniV3Router, curveAddressProvider, curveCalculator and weth.
    * @param _setController             Set token controller used to verify a given token is a set
    * @param _debtIssuanceModule        DebtIssuanceModule used to issue and redeem tokens
-   * @param _wrapModule                WrapModule used to obtain a valid wrap adapter
    */
   constructor(
     DEXAdapter.Addresses memory _dexAddresses,
     IController _setController,
-    IDebtIssuanceModule _debtIssuanceModule,
-    address _wrapModule
+    IDebtIssuanceModule _debtIssuanceModule
   ) public {
     setController = _setController;
     debtIssuanceModule = _debtIssuanceModule;
     dexAdapter = _dexAddresses;
-    wrapModule = _wrapModule;
   }
 
   /* ============ External Functions ============ */
@@ -184,11 +195,39 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    *
    * @param _setToken          Address of the SetToken being initialized
    */
-  function approveSetToken(ISetToken _setToken) external {
+  function approveSetToken(ISetToken _setToken) external isSetToken(_setToken) {
     address[] memory _components = _setToken.getComponents();
     for (uint256 i = 0; i < _components.length; ++i) {
       DEXAdapter._safeApprove(IERC20(_components[i]), address(debtIssuanceModule), MAX_UINT256);
     }
+  }
+
+  /**
+   * Sets the allow status for an address in the allowList
+   *
+   * @param _wrapTarget          Call target address of wrapping smart contract that should be allowed
+   * @param _allow               Boolean for whether this address should be allowed or denied
+   */
+  function setAllowWrapTarget(address _wrapTarget, bool _allow) external onlyOwner {
+    require(_wrapTarget != address(0), "FlashMint: WRAP_TARGET_INVALID");
+    if(_allow) {
+      wrapTargetsAllowList[_wrapTarget] = true;
+    } else {
+      delete wrapTargetsAllowList[_wrapTarget];
+    }
+  }
+
+  /**
+   * Checks if a certain address is allowed as a wrap callTarget. 
+   * Note that _wrapTargets where the the address target is the wrapped token itself (e.g. CompoundV2) are allowed without
+   * having to be explicitly allowListed.
+   *
+   * @param _wrapTarget          Call target address of wrapping smart contract that should be allowed
+   * @return bool                true if wrap callTarget is allowed
+   */
+  function isWrapCallTarget(address _wrapTarget) external view onlyOwner returns(bool) {
+    require(_wrapTarget != address(0), "FlashMint: WRAP_TARGET_INVALID");
+    return wrapTargetsAllowList[_wrapTarget];
   }
 
   /**
@@ -201,7 +240,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    * @param _amountSetToken        Amount of SetTokens to issue
    * @param _maxAmountInputToken   Maximum amount of input tokens to be used
    * @param _swapData              ComponentSwapData (inputToken -> component) for each set component in the same order
-   * @param _wrapData              ComponentWrapData (unwrapped -> wrapped Set component) for each set component in the same order
+   * @param _invokeWrapData        ComponentInvokeWrapData (unwrapped -> wrapped Set component) for each set component in the same order
    *
    * @return totalInputTokenSold   Amount of input tokens spent for issuance
    */
@@ -211,7 +250,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
     uint256 _amountSetToken,
     uint256 _maxAmountInputToken,
     ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _wrapData
+    ComponentInvokeWrapData[] calldata _invokeWrapData
   ) external nonReentrant returns (uint256) {
     return
       _issueExactSet(
@@ -220,7 +259,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
         _amountSetToken,
         _maxAmountInputToken,
         _swapData,
-        _wrapData,
+        _invokeWrapData,
         false
       );
   }
@@ -232,7 +271,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    * @param _setToken              Address of the SetToken to be issued
    * @param _amountSetToken        Amount of SetTokens to issue
    * @param _swapData              ComponentSwapData (WETH -> component) for each set component in the same order
-   * @param _wrapData              ComponentWrapData (unwrapped -> wrapped Set component) for each set component in the same order
+   * @param _invokeWrapData        ComponentInvokeWrapData (unwrapped -> wrapped Set component) for each set component in the same order
    *
    * @return totalETHSold          Amount of ETH spent for issuance
    */
@@ -240,7 +279,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
     ISetToken _setToken,
     uint256 _amountSetToken,
     ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _wrapData
+    ComponentInvokeWrapData[] calldata _invokeWrapData
   ) external payable nonReentrant returns (uint256) {
     // input token for all operations is WETH (any sent in ETH will be wrapped)
     IERC20 inputToken = IERC20(dexAdapter.weth);
@@ -253,7 +292,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
         _amountSetToken,
         maxAmountInputToken,
         _swapData,
-        _wrapData,
+        _invokeWrapData,
         true
       );
   }
@@ -267,17 +306,17 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    * @param _amountSetToken        Amount of SetTokens to redeem
    * @param _minOutputReceive      Minimum amount of output tokens to be received
    * @param _swapData              ComponentSwapData (underlyingERC20 -> output token) for each _redeemComponents in the same order
-   * @param _unwrapData            ComponentWrapData (wrapped Set component -> underlyingERC20) for each _redeemComponents in the same order
+   * @param _invokeUnwrapData      ComponentInvokeWrapData (wrapped Set component -> underlyingERC20) for each _redeemComponents in the same order
    *
    * @return outputAmount          Amount of output tokens sent to the caller
    */
-  function redeemExactSetForToken(
+  function redeemExactSetForERC20(
     ISetToken _setToken,
     IERC20 _outputToken,
     uint256 _amountSetToken,
     uint256 _minOutputReceive,
     ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _unwrapData
+    ComponentInvokeWrapData[] calldata _invokeUnwrapData
   ) external nonReentrant returns (uint256) {
     return
       _redeemExactSet(
@@ -286,7 +325,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
         _amountSetToken,
         _minOutputReceive,
         _swapData,
-        _unwrapData,
+        _invokeUnwrapData,
         false
       );
   }
@@ -299,7 +338,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    * @param _amountSetToken        Amount of SetTokens to redeem
    * @param _minOutputReceive      Minimum amount of output tokens to be received
    * @param _swapData              ComponentSwapData (underlyingERC20 -> output token) for each _redeemComponents in the same order
-   * @param _unwrapData            ComponentWrapData (wrapped Set component -> underlyingERC20) for each _redeemComponents in the same order
+   * @param _invokeUnwrapData      ComponentInvokeWrapData (wrapped Set component -> underlyingERC20) for each _redeemComponents in the same order
    *
    * @return outputAmount          Amount of ETH sent to the caller
    */
@@ -308,7 +347,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
     uint256 _amountSetToken,
     uint256 _minOutputReceive,
     ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _unwrapData
+    ComponentInvokeWrapData[] calldata _invokeUnwrapData
   ) external nonReentrant returns (uint256) {
     // output token for all operations is WETH (it will be unwrapped in the end and sent as ETH)
     IERC20 outputToken = IERC20(dexAdapter.weth);
@@ -320,9 +359,182 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
         _amountSetToken,
         _minOutputReceive,
         _swapData,
-        _unwrapData,
+        _invokeUnwrapData,
         true
       );
+  }
+
+  /**
+  * Gets the wrap callData required for issuance for the passed in ComponentWrapData
+  *
+  * @param _wrapModule                  Address of wrapModule that the integrations in ComponentWrapData are assigned to
+  * @param _wrapData                    ComponentWrapData (underlyingERC20 -> wrapped Set component) for each requiredComponents in the same order
+  *
+  * @return ComponentInvokeWrapData[]   data used for input in issuance methods
+  */
+  function getWrapCallData(
+    address _wrapModule, 
+    ComponentWrapData[] calldata _wrapData
+  ) external view returns(ComponentInvokeWrapData[] memory){
+
+    ComponentInvokeWrapData[] memory invokeWrapData = new ComponentInvokeWrapData[](_wrapData.length);
+
+    for (uint256 i = 0; i < _wrapData.length; ++i) {
+
+      invokeWrapData[i] = ComponentInvokeWrapData({
+        callTarget: address(0),
+        value: 0,
+        callData: ""
+      });
+
+
+      if(_wrapData[i].fromToken == _wrapData[i].toToken) {
+        // no wrapping needed
+        continue;
+      }
+
+      // get the wrap adapter directly from the integration registry
+      IWrapV2Adapter wrapAdapter = IWrapV2Adapter(_getAndValidateAdapter(_wrapData[i].integrationName, _wrapModule));
+
+      // get wrap call info from adapter
+      (invokeWrapData[i].callTarget, invokeWrapData[i].value, invokeWrapData[i].callData) = wrapAdapter
+        .getWrapCallData(
+          _wrapData[i].fromToken,
+          _wrapData[i].toToken,
+          _wrapData[i].amount, // = buyUndlerlyingAmount of ComponentSwapData
+          address(this),
+          _wrapData[i].wrapData
+        );
+    }
+  
+    return invokeWrapData;
+  }
+
+  /**
+  * Gets the unwrap callData required for issuance for the passed in ComponentWrapData
+  *
+  * @param _wrapModule                  Address of wrapModule that the integrations in ComponentWrapData are assigned to
+  * @param _unwrapData                  ComponentWrapData (wrapped Set component -> underlyingERC20) for each redeemComponents in the same order
+  *
+  * @return ComponentInvokeWrapData[]   data used for input in redeem methods
+  */
+  function getUnwrapCallData(
+    address _wrapModule, 
+    ComponentWrapData[] calldata _unwrapData
+  ) external view returns(ComponentInvokeWrapData[] memory){
+
+    ComponentInvokeWrapData[] memory invokeUnwrapData = new ComponentInvokeWrapData[](_unwrapData.length);
+
+    for (uint256 i = 0; i < _unwrapData.length; ++i) {
+
+      invokeUnwrapData[i] = ComponentInvokeWrapData({
+        callTarget: address(0),
+        value: 0,
+        callData: ""
+      });
+
+      if(_unwrapData[i].fromToken == _unwrapData[i].toToken) {
+        // no unwrapping needed
+        continue;
+      }
+
+      // get the wrap adapter directly from the integration registry
+      IWrapV2Adapter wrapAdapter = IWrapV2Adapter(_getAndValidateAdapter(_unwrapData[i].integrationName, _wrapModule));
+
+      // get unwrap call info from adapter
+      (invokeUnwrapData[i].callTarget, invokeUnwrapData[i].value, invokeUnwrapData[i].callData) = wrapAdapter
+      .getUnwrapCallData(
+        _unwrapData[i].toToken,
+        _unwrapData[i].fromToken,
+        _unwrapData[i].amount, // = IssuanceModule.getRequiredComponentRedemptionUnits()
+        address(this),
+        _unwrapData[i].wrapData
+      );
+    }
+
+    return invokeUnwrapData;
+  }
+
+  /**
+  * ESTIMATES the amount of output ERC20 tokens required to issue an exact amount of SetTokens based on component swap data.
+  * Simulates swapping input to all components in swap data. 
+  * This function is not marked view, but should be static called off-chain.
+  *
+  * @param _setToken              Address of the SetToken being issued
+  * @param _inputToken            Address of the input token used to pay for issuance
+  * @param _setAmount             Amount of SetTokens to issue
+  * @param _swapData              ComponentSwapData (inputToken -> component) for each set component in the same order
+  *
+  * @return amountInputNeeded     Amount of tokens needed to issue specified amount of SetTokens
+  */
+  function getIssueExactSet(
+      ISetToken _setToken,
+      address _inputToken,
+      uint256 _setAmount,
+      ComponentSwapData[] calldata _swapData
+  )
+      external
+      isSetToken(_setToken)
+      returns(uint256 amountInputNeeded)
+  {
+      require(_setAmount > 0, "FlashMint: INVALID_INPUTS");
+      require(_inputToken != address(0), "FlashMint: INVALID_INPUTS");
+
+      for (uint256 i = 0; i < _swapData.length; ++i) {
+        // if the input token is the swap target token, no swapping is needed
+
+        if (_inputToken == _swapData[i].underlyingERC20) {
+          amountInputNeeded = amountInputNeeded.add(_swapData[i].buyUnderlyingAmount);
+          continue;
+        }
+
+        // add required input amount to swap to desired buyUnderlyingAmount
+        uint256 amountInNeeded = dexAdapter.getAmountIn(_swapData[i].dexData, _swapData[i].buyUnderlyingAmount);
+        amountInputNeeded = amountInputNeeded.add(amountInNeeded);
+      }
+
+  }
+
+  /**
+  * ESTIMATES the amount of output ERC20 tokens received when redeeming an exact amount of SetTokens based on component swap data.
+  * Simulates swapping all components to the output token in swap data. 
+  * This function is not marked view, but should be static called off-chain.
+  *
+  * Note that _swapData.buyUnderlyingAmount has to be specified here with the expected underlying amount received after unwrapping
+  *
+  * @param _setToken              Address of the SetToken being redeemed
+  * @param _outputToken           Address of the output token expected to teceive (if redeeming to ETH, outputToken here is WETH)
+  * @param _setAmount             Amount of SetTokens to redeem
+  * @param _swapData              ComponentSwapData (component -> outputToken) for each set component in the same order
+  *
+  * @return amountOutputReceived     Amount of output tokens received
+  */
+  function getRedeemExactSet(
+      ISetToken _setToken,
+      address _outputToken,
+      uint256 _setAmount,
+      ComponentSwapData[] calldata _swapData
+  )
+      external
+      isSetToken(_setToken)
+      returns(uint256 amountOutputReceived)
+  {
+      require(_setAmount > 0, "FlashMint: INVALID_INPUTS");
+      require(_outputToken != address(0), "FlashMint: INVALID_INPUTS");
+
+      for (uint256 i = 0; i < _swapData.length; ++i) {
+        // if the output token is the swap target token, no swapping is needed
+
+        if (_outputToken == _swapData[i].underlyingERC20) {
+          amountOutputReceived = amountOutputReceived.add(_swapData[i].buyUnderlyingAmount);
+          continue;
+        }
+
+        // add received output amount from swap
+        uint256 swapAmountOut = dexAdapter.getAmountOut(_swapData[i].dexData, _swapData[i].buyUnderlyingAmount);
+        amountOutputReceived = amountOutputReceived.add(swapAmountOut);
+      }
+
   }
 
   /* ============ Internal Functions ============ */
@@ -335,7 +547,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    * @param _amountSetToken             Amount of SetTokens to issue
    * @param _maxAmountInputToken        Maximum amount of input tokens to be used
    * @param _swapData                   ComponentSwapData (input token -> underlyingERC20) for each _requiredComponents in the same order
-   * @param _wrapData                   ComponentWrapData (underlyingERC20 -> wrapped Set component) for each _requiredComponents in the same order
+   * @param _invokeWrapData             ComponentInvokeWrapData (underlyingERC20 -> wrapped Set component) for each _requiredComponents in the same order
    * @param _issueFromETH               boolean flag to identify if issuing from ETH or from ERC20 tokens
    *
    * @return totalInputSold             Amount of input token spent for issuance
@@ -346,11 +558,13 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
     uint256 _amountSetToken,
     uint256 _maxAmountInputToken,
     ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _wrapData,
+    ComponentInvokeWrapData[] calldata _invokeWrapData,
     bool _issueFromETH
   ) internal returns (uint256) {
     // 1. validate input params, get required components with amounts and snapshot input token balance before
+    require(address(_inputToken) != address(0), "FlashMint: INVALID_INPUTS");
     uint256 inputTokenBalanceBefore = IERC20(_inputToken).balanceOf(address(this));
+    
     // Prevent stack too deep
     {
       (
@@ -358,11 +572,10 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
         uint256[] memory requiredAmounts
       ) = _validateIssueParams(
           _setToken,
-          _inputToken,
           _amountSetToken,
           _maxAmountInputToken,
           _swapData,
-          _wrapData
+          _invokeWrapData
         );
 
       // 2. transfer input to this contract
@@ -378,7 +591,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
         _inputToken,
         _maxAmountInputToken,
         _swapData,
-        _wrapData,
+        _invokeWrapData,
         requiredComponents,
         requiredAmounts
       );
@@ -417,7 +630,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    * @param _amountSetToken        Amount of SetTokens to redeem
    * @param _minOutputReceive      Minimum amount of output tokens to be received
    * @param _swapData              ComponentSwapData (underlyingERC20 -> output token) for each _redeemComponents in the same order
-   * @param _unwrapData            ComponentWrapData (wrapped Set component -> underlyingERC20) for each _redeemComponents in the same order
+   * @param _invokeUnwrapData      ComponentInvokeWrapData (wrapped Set component -> underlyingERC20) for each _redeemComponents in the same order
    * @param _redeemToETH           boolean flag to identify if redeeming to ETH or to ERC20 tokens
    *
    * @return outputAmount          Amount of output received
@@ -428,7 +641,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
     uint256 _amountSetToken,
     uint256 _minOutputReceive,
     ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _unwrapData,
+    ComponentInvokeWrapData[] calldata _invokeUnwrapData,
     bool _redeemToETH
   ) internal returns (uint256) {
     // 1. validate input params and get required components
@@ -437,7 +650,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
       _outputToken,
       _amountSetToken,
       _swapData,
-      _unwrapData
+      _invokeUnwrapData
     );
 
     // 2. transfer set tokens to be redeemed to this
@@ -450,7 +663,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
     uint256 totalOutputTokenObtained = _unwrapAndSwapComponents(
       _outputToken,
       _swapData,
-      _unwrapData,
+      _invokeUnwrapData,
       redeemComponents,
       redeemAmounts
     );
@@ -477,32 +690,27 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    * Validates input params for _issueExactSet operations
    *
    * @param _setToken                   Address of the SetToken to be redeemed
-   * @param _inputToken                 Input token that will be sold
    * @param _amountSetToken             Amount of SetTokens to issue
    * @param _maxAmountToken             Maximum amount of input token to spend
    * @param _swapData                   ComponentSwapData (input token -> underlyingERC20) for each _requiredComponents in the same order
-   * @param _wrapData                   ComponentWrapData (underlyingERC20 -> wrapped Set component) for each _requiredComponents in the same order
+   * @param _invokeWrapData             ComponentInvokeWrapData (underlyingERC20 -> wrapped Set component) for each _requiredComponents in the same order
    *
    * @return requiredComponents         Array of required issuance components gotten from DebtIssuanceModule.getRequiredComponentIssuanceUnits()
    * @return requiredAmounts            Array of required issuance component amounts gotten from DebtIssuanceModule.getRequiredComponentIssuanceUnits()
    */
   function _validateIssueParams(
     ISetToken _setToken,
-    IERC20 _inputToken,
     uint256 _amountSetToken,
     uint256 _maxAmountToken,
     ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _wrapData
+    ComponentInvokeWrapData[] calldata _invokeWrapData
   )
     internal
     view
     isSetToken(_setToken)
     returns (address[] memory requiredComponents, uint256[] memory requiredAmounts)
   {
-    require(
-      _amountSetToken > 0 && _maxAmountToken > 0 && address(_inputToken) != address(0),
-      "FlashMint: INVALID_INPUTS"
-    );
+    require(_amountSetToken > 0 && _maxAmountToken > 0, "FlashMint: INVALID_INPUTS");
 
     (requiredComponents, requiredAmounts, ) = debtIssuanceModule.getRequiredComponentIssuanceUnits(
       _setToken,
@@ -510,7 +718,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
     );
 
     require(
-      _wrapData.length == _swapData.length && _wrapData.length == requiredComponents.length,
+      _invokeWrapData.length == _swapData.length && _invokeWrapData.length == requiredComponents.length,
       "FlashMint: MISMATCH_INPUT_ARRAYS"
     );
   }
@@ -522,7 +730,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    * @param _outputToken                Output token that will be redeemed to
    * @param _amountSetToken             Amount of SetTokens to redeem
    * @param _swapData                   ComponentSwapData (underlyingERC20 -> output token) for each _redeemComponents in the same order
-   * @param _unwrapData                 ComponentWrapData (wrapped Set component -> underlyingERC20) for each _redeemComponents in the same order
+   * @param _invokeUnwrapData                 ComponentInvokeWrapData (wrapped Set component -> underlyingERC20) for each _redeemComponents in the same order
    *
    * @return redeemComponents          Array of redemption components gotten from DebtIssuanceModule.getRequiredComponentRedemptionUnits()
    * @return redeemAmounts             Array of redemption component amounts gotten from DebtIssuanceModule.getRequiredComponentRedemptionUnits()
@@ -532,7 +740,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
     IERC20 _outputToken,
     uint256 _amountSetToken,
     ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _unwrapData
+    ComponentInvokeWrapData[] calldata _invokeUnwrapData
   )
     internal
     view
@@ -550,7 +758,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
     );
 
     require(
-      _unwrapData.length == _swapData.length && _unwrapData.length == redeemComponents.length,
+      _invokeUnwrapData.length == _swapData.length && _invokeUnwrapData.length == redeemComponents.length,
       "FlashMint: MISMATCH_INPUT_ARRAYS"
     );
   }
@@ -561,7 +769,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    * @param _inputToken                 Input token that will be sold
    * @param _maxAmountInputToken        Maximum amount of input token that can be spent
    * @param _swapData                   ComponentSwapData (input token -> underlyingERC20) for each _requiredComponents in the same order
-   * @param _wrapData                   ComponentWrapData (underlyingERC20 -> wrapped Set component) for each _requiredComponents in the same order
+   * @param _invokeWrapData             ComponentInvokeWrapData (underlyingERC20 -> wrapped Set component) for each _requiredComponents in the same order
    * @param _requiredComponents         Issuance components gotten from DebtIssuanceModule.getRequiredComponentIssuanceUnits()
    * @param _requiredAmounts            Issuance units gotten from DebtIssuanceModule.getRequiredComponentIssuanceUnits()
    */
@@ -569,7 +777,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
     IERC20 _inputToken,
     uint256 _maxAmountInputToken,
     ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _wrapData,
+    ComponentInvokeWrapData[] calldata _invokeWrapData,
     address[] memory _requiredComponents,
     uint256[] memory _requiredAmounts
   ) internal {
@@ -583,15 +791,16 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
     // 3. ensure amount in contract covers required amount for issuance
     for (uint256 i = 0; i < _requiredComponents.length; ++i) {
       // if the required set component is the input token, no swapping or wrapping is needed
+      uint256 requiredAmount = _requiredAmounts[i];
       if (address(_inputToken) == _requiredComponents[i]) {
-        requiredLeftOverInputTokenAmount = _requiredAmounts[i];
+        requiredLeftOverInputTokenAmount = requiredAmount;
         continue;
       }
 
       // snapshot balance of required component before swap and wrap operations
       uint256 componentBalanceBefore = IERC20(_requiredComponents[i]).balanceOf(address(this));
 
-      // swap input token to unwrapped token
+      // swap input token to underlying token
       _swapToExact(
         _inputToken, // input
         IERC20(_swapData[i].underlyingERC20), // output
@@ -600,21 +809,24 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
         _swapData[i].dexData // dex path fees data etc.
       );
 
-      // transform unwrapped token into wrapped version (unless it's the same)
+      uint256 underlyingBalance = IERC20(_swapData[i].underlyingERC20).balanceOf(address(this));
+      require(underlyingBalance >= _swapData[i].buyUnderlyingAmount, "FlashMint: UNDERBOUGHT_COMPONENT");
+
+      // transform underlying token into wrapped version (unless it's the same)
       if (_swapData[i].underlyingERC20 != _requiredComponents[i]) {
         _wrapComponent(
-          _requiredComponents[i],
+          _invokeWrapData[i],
           _swapData[i].buyUnderlyingAmount,
           _swapData[i].underlyingERC20,
-          _wrapData[i]
+          _requiredComponents[i]
         );
       }
 
       // ensure obtained component amount covers required component amount for issuance
       // this is not already covered through _swapToExact because it does not take wrapping into consideration
       uint256 componentBalanceAfter = IERC20(_requiredComponents[i]).balanceOf(address(this));
-      uint256 _omponentAmountObtained = componentBalanceAfter.sub(componentBalanceBefore);
-      require(_omponentAmountObtained >= _requiredAmounts[i], "FlashMint: UNDERBOUGHT_COMPONENT");
+      uint256 componentAmountObtained = componentBalanceAfter.sub(componentBalanceBefore);
+      require(componentAmountObtained >= requiredAmount, "FlashMint: UNDERBOUGHT_COMPONENT");
     }
 
     // ensure left over input token amount covers issuance for component if input token is one of the Set components
@@ -629,7 +841,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    *
    * @param _outputToken                Output token that will be bought
    * @param _swapData                   ComponentSwapData (underlyingERC20 -> output token) for each _redeemComponents in the same order
-   * @param _unwrapData                 ComponentWrapData (wrapped Set component -> underlyingERC20) for each _redeemComponents in the same order
+   * @param _invokeUnwrapData           ComponentInvokeWrapData (wrapped Set component -> underlyingERC20) for each _redeemComponents in the same order
    * @param _redeemComponents           redemption components gotten from DebtIssuanceModule.getRequiredComponentRedemptionUnits()
    * @param _redeemAmounts              redemption units gotten from DebtIssuanceModule.getRequiredComponentRedemptionUnits()
    *
@@ -638,7 +850,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
   function _unwrapAndSwapComponents(
     IERC20 _outputToken,
     ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _unwrapData,
+    ComponentInvokeWrapData[] calldata _invokeUnwrapData,
     address[] memory _redeemComponents,
     uint256[] memory _redeemAmounts
   ) internal returns (uint256 totalOutputTokenObtained) {
@@ -653,23 +865,21 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
 
       // if the set component is the output token, no swapping or wrapping is needed
       if (address(_outputToken) == _redeemComponents[i]) {
-        // add maximum possible amount that was redeemed for this component to totalOutputTokenObtained (=_redeemAmounts[i])
+        // add maximum possible amount that was redeemed for this component to totalOutputTokenObtained (=redeemedAmount)
         totalOutputTokenObtained = totalOutputTokenObtained.add(redeemedAmount);
         continue;
       }
 
       // transform wrapped token into unwrapped version (unless it's the same)
       if (_swapData[i].underlyingERC20 != _redeemComponents[i]) {
-        // snapshot unwrapped balance before to compute the actual redeemed amount of unwrapped token (due to unknown exchange rate)
+        // snapshot unwrapped balance before to compute the actual redeemed amount of underlying token (due to unknown exchange rate)
         uint256 unwrappedBalanceBefore = IERC20(_swapData[i].underlyingERC20).balanceOf(
           address(this)
         );
 
         _unwrapComponent(
-          _redeemComponents[i],
-          _redeemAmounts[i],
-          _swapData[i].underlyingERC20,
-          _unwrapData[i]
+          _invokeUnwrapData[i],
+          _redeemComponents[i]
         );
 
         // recompute actual redeemed amount to the underlyingERC20 token amount obtained through unwrapping
@@ -714,6 +924,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
     returns (uint256)
   {
     // safe approves are done right in the dexAdapter library
+    // swaps are skipped there too if inputToken == outputToken (depending on path)
     return dexAdapter.swapTokensForExactTokens(_amount, _maxAmountIn, _swapDexData);
   }
 
@@ -753,77 +964,45 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
   /**
    * Wraps _wrapAmount of _underlyingToken to _wrappedComponent component
    *
-   * @param _wrappedComponent           Address of wrapped component (e.g. cDAI)
+   * @param _invokeWrapData             invoke wrap data for call target, call value and bytes calldata
    * @param _wrapAmount                 amount of _underlyingToken to wrap
    * @param _underlyingToken            underlying (unwrapped) token to wrap from (e.g. DAI)
-   * @param _wrapData                   ComponentWrapData that contains the integration (adapter) name and optional bytes data
+   * @param _wrappedToken               wrapped token to wrap to
    */
   function _wrapComponent(
-    address _wrappedComponent,
+    ComponentInvokeWrapData calldata _invokeWrapData,
     uint256 _wrapAmount,
     address _underlyingToken,
-    ComponentWrapData calldata _wrapData
+    address _wrappedToken
   ) internal {
-    // 1. get the wrap adapter directly from the integration registry
+    require(_invokeWrapData.callTarget != address(0) && _invokeWrapData.callData[0] != 0,"FlashMint: WRAP_DATA_MISSING");
 
-    // Note we could get the address of the adapter directly in the params instead of the integration name
-    // but that would allow integrators to use their own potentially somehow malicious WrapAdapter
-    // by directly fetching it from our IntegrationRegistry we can be sure that it behaves as expected
-    IWrapV2Adapter wrapAdapter = IWrapV2Adapter(_getAndValidateAdapter(_wrapData.integrationName));
+    require(_invokeWrapData.callTarget == _wrappedToken || wrapTargetsAllowList[_invokeWrapData.callTarget],"FlashMint: WRAP_CALLTARGET_NOT_ALLOWED");
 
-    // 2. get wrap call info from adapter
-    (address wrapCallTarget, uint256 wrapCallValue, bytes memory wrapCallData) = wrapAdapter
-      .getWrapCallData(
-        _underlyingToken,
-        _wrappedComponent,
-        _wrapAmount,
-        address(this),
-        _wrapData.wrapData
-      );
-
-    // 3. approve unwrapped token transfer from this to _wrapCallTarget
-    DEXAdapter._safeApprove(IERC20(_underlyingToken), wrapCallTarget, _wrapAmount);
-
-    // 4. invoke wrap function call
-    wrapCallTarget.functionCallWithValue(wrapCallData, wrapCallValue);
+    // approve _underlyingToken token transfer from this to _wrapCallTarget
+    DEXAdapter._safeApprove(IERC20(_underlyingToken), _invokeWrapData.callTarget, _wrapAmount);
+    // invoke wrap function call. we can't check any response value because the implementation might be different 
+    // between wrapCallTargets... e.g. compoundV2 would return uint256 with value 0 if successful
+    _invokeWrapData.callTarget.functionCallWithValue(_invokeWrapData.callData, _invokeWrapData.value);
   }
 
   /**
    * Unwraps _unwrapAmount of _wrappedComponent to _underlyingToken
    *
-   * @param _wrappedComponent           Address of wrapped component (e.g. cDAI)
-   * @param _unwrapAmount               amount of _wrappedComponent to unwrap
-   * @param _underlyingToken            underlying (unwrapped) token _wrappedComponent will unwrap to (e.g. DAI)
-   * @param _wrapData                   ComponentWrapData that contains the integration (adapter) name and optional bytes data
+   * @param _invokeUnwrapData           invoke unwrap data for call target, call value and bytes calldata
+   * @param _wrappedToken               wrapped token to unwrap from
    */
   function _unwrapComponent(
-    address _wrappedComponent,
-    uint256 _unwrapAmount,
-    address _underlyingToken,
-    ComponentWrapData calldata _wrapData
+    ComponentInvokeWrapData calldata _invokeUnwrapData,
+    address _wrappedToken
   ) internal {
-    // 1. get the wrap adapter directly from the integration registry
+    require(_invokeUnwrapData.callTarget != address(0) && _invokeUnwrapData.callData[0] != 0,"FlashMint: UNWRAP_DATA_MISSING");
 
-    // Note we could get the address of the adapter directly in the params instead of the integration name
-    // but that would allow integrators to use their own potentially somehow malicious WrapAdapter
-    // by directly fetching it from our IntegrationRegistry we can be sure that it behaves as expected
-    IWrapV2Adapter wrapAdapter = IWrapV2Adapter(_getAndValidateAdapter(_wrapData.integrationName));
+    require(_invokeUnwrapData.callTarget == _wrappedToken || wrapTargetsAllowList[_invokeUnwrapData.callTarget],"FlashMint: WRAP_CALLTARGET_NOT_ALLOWED");
 
-    // 2. get wrap call info from adapter
-    (address wrapCallTarget, uint256 wrapCallValue, bytes memory wrapCallData) = wrapAdapter
-      .getUnwrapCallData(
-        _underlyingToken,
-        _wrappedComponent,
-        _unwrapAmount,
-        address(this),
-        _wrapData.wrapData
-      );
-
-    // 3. approve wrapped token transfer from this to _wrapCallTarget
-    DEXAdapter._safeApprove(IERC20(_wrappedComponent), wrapCallTarget, _unwrapAmount);
-
-    // 4. invoke wrap function call
-    wrapCallTarget.functionCallWithValue(wrapCallData, wrapCallValue);
+    // invoke unwrap function call. we can't check any response value because the implementation might be different 
+    // between wrapCallTargets... e.g. compoundV2 would return uint256 with value 0 if successful
+    _invokeUnwrapData.callTarget.functionCallWithValue(_invokeUnwrapData.callData, _invokeUnwrapData.value);
   }
 
   /**
@@ -898,21 +1077,24 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
   }
 
   /**
-   * Gets the integration for the passed in name listed on the wrapModule. Validates that the address is not empty
+   * Gets the integration for the passed in integration name listed on the wrapModule. Validates that the address is not empty
    *
    * @param _integrationName      Name of wrap adapter integration (mapping on integration registry)
+   * @param _wrapModule           address of the wrap module that the integration is assigned to
    *
    * @return adapter              address of the wrap adapter
    */
-  function _getAndValidateAdapter(string memory _integrationName)
+  function _getAndValidateAdapter(string memory _integrationName, address _wrapModule)
     internal
     view
     returns (address adapter)
   {
-    IIntegrationRegistry integrationRegistry = setController.getIntegrationRegistry();
+    // integration registry has resourceId 0, see library ResourceIdentifier
+    // @dev could also be accomplished with using ResourceIdentifier for IController but this results in less bloat in the repo
+    IIntegrationRegistry integrationRegistry = IIntegrationRegistry(setController.resourceId(0));
 
-    integrationRegistry.getIntegrationAdapterWithHash(
-      wrapModule,
+    adapter = integrationRegistry.getIntegrationAdapterWithHash(
+      _wrapModule,
       keccak256(bytes(_integrationName))
     );
 

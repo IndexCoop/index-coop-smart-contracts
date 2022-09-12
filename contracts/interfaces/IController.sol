@@ -23,5 +23,4 @@ interface IController {
     function isSet(address _setToken) external view returns(bool);
     function isSystemContract(address _contractAddress) external view returns (bool);
     function resourceId(uint256 _id) external view returns(address);
-    function getIntegrationRegistry() external view returns(IIntegrationRegistry);
 }
