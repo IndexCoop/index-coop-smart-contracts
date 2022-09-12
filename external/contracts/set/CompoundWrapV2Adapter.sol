@@ -96,10 +96,7 @@ contract CompoundWrapV2Adapter {
         pure
         returns (address, uint256, bytes memory)
     {
-        console.log("in getUnwrapCallData");
         ( , , bytes memory callData) = ICErc20(_wrappedToken).getRedeemCalldata(_wrappedTokenUnits);
-        console.log("got callData");
-        console.log("_wrappedToken", _wrappedToken);
         return (_wrappedToken, 0, callData);
     }
 
