@@ -305,7 +305,10 @@ library DEXAdapter {
         returns (uint256)
     {
         _safeApprove(IERC20(_path[0]), address(_router), _maxAmountIn);
-        return _router.swapTokensForExactTokens(_amountOut, _maxAmountIn, _path, address(this), block.timestamp)[0];
+        uint256[] memory result = _router.swapTokensForExactTokens(_amountOut, _maxAmountIn, _path, address(this), block.timestamp);
+        // result = uint[] memory	The input token amount and all subsequent output token amounts.
+        // we are usually only interested in the actual amount of the output token (so result element at the last place)
+        return result[result.length-1];
     }
 
     /**
@@ -331,7 +334,7 @@ library DEXAdapter {
         private
         returns(uint256)
     {
-
+        
         require(_path.length == _fees.length + 1, "ExchangeIssuance: PATHS_FEES_MISMATCH");
         _safeApprove(IERC20(_path[0]), address(_uniV3Router), _maxAmountIn);
         if(_path.length == 2){
@@ -682,7 +685,10 @@ library DEXAdapter {
         returns (uint256)
     {
         _safeApprove(IERC20(_path[0]), address(_router), _amountIn);
-        return _router.swapExactTokensForTokens(_amountIn, _minAmountOut, _path, address(this), block.timestamp)[1];
+        uint256[] memory result = _router.swapExactTokensForTokens(_amountIn, _minAmountOut, _path, address(this), block.timestamp);
+        // result = uint[] memory	The input token amount and all subsequent output token amounts.
+        // we are usually only interested in the actual amount of the output token (so result element at the last place)
+        return result[result.length-1];
     }
 
     /**
