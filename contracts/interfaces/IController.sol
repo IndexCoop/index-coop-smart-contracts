@@ -13,8 +13,6 @@
 */
 pragma solidity 0.6.10;
 
-import {IIntegrationRegistry} from "./IIntegrationRegistry.sol";
-
 interface IController {
     function addSet(address _setToken) external;
     function feeRecipient() external view returns(address);
