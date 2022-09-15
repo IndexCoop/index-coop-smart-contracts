@@ -4,7 +4,6 @@ import DeployHelper from "@utils/deploys";
 import { getAccounts, getWaffleExpect, usdc, getSetFixture, preciseMul } from "@utils/index";
 import { ethers } from "hardhat";
 import { BigNumber, utils } from "ethers";
-import { DebtIssuanceModule } from "@utils/contracts/index";
 import {
   IWETH,
   StandardTokenMock,
@@ -58,20 +57,8 @@ type ComponentSwapData = {
 };
 
 type ComponentWrapData = {
-  fromToken: Address; // wrap / unwrap from
-  toToken: Address; // wrap / unwrap to
-  // amount to wrap / unwrap.
-  // for wrapping, this would be ComponentSwapData.buyUnderlyingAmount
-  // for unwrapping, it's IssuanceModule.getRequiredComponentRdemptionUnits()
-  amount: BigNumber;
   integrationName: string; // wrap adapter integration name as listed in the IntegrationRegistry for the wrapModule
   wrapData: string; // optional wrapData passed to the wrapAdapter
-};
-
-type ComponentInvokeWrapData = {
-  callTarget: Address;
-  value: BigNumber;
-  callData: string;
 };
 
 //#endregion
@@ -144,34 +131,17 @@ class TestHelper {
     return componentSwapData;
   }
 
-  async getIssuanceInvokeWrapData(
-    componentSwapData: ComponentSwapData[],
-    flashMintContract: FlashMintWrapped,
-    wrapModule: Address,
-  ) {
-    const componentWrapData: ComponentWrapData[] = [
+  getWrapData(): ComponentWrapData[] {
+    return [
       {
-        fromToken: componentSwapData[0].underlyingERC20,
-        toToken: addresses.tokens.cDAI,
-        amount: componentSwapData[0].buyUnderlyingAmount,
         integrationName: compoundWrapAdapterIntegrationName,
         wrapData: ZERO_BYTES,
       },
       {
-        fromToken: componentSwapData[1].underlyingERC20,
-        toToken: addresses.tokens.cUSDC,
-        amount: componentSwapData[1].buyUnderlyingAmount,
         integrationName: compoundWrapAdapterIntegrationName,
         wrapData: ZERO_BYTES,
       },
     ];
-
-    const componentInvokeWrapData: ComponentInvokeWrapData[] = await flashMintContract.getWrapCallData(
-      wrapModule,
-      componentWrapData,
-    );
-
-    return componentInvokeWrapData;
   }
 
   async getRedemptionComponentSwapData(outputToken: Address) {
@@ -204,52 +174,6 @@ class TestHelper {
       },
     ];
     return componentSwapData;
-  }
-
-  async getRedemptionInvokeUnwrapData(
-    componentSwapData: ComponentSwapData[],
-    flashMintContract: FlashMintWrapped,
-    redeemSetAmount: BigNumber,
-    setToken: Address,
-    wrapModule: Address,
-    issuanceModule: IDebtIssuanceModule,
-  ) {
-    // get received redemption components
-    const [
-      redemptionComponents, // cDAI, cUSDC
-      redemptionUnits,
-    ] = await issuanceModule.getRequiredComponentRedemptionUnits(setToken, redeemSetAmount);
-
-    if (
-      JSON.stringify([addresses.tokens.cDAI, addresses.tokens.cUSDC]).toLowerCase() !==
-      JSON.stringify(redemptionComponents).toLowerCase()
-    ) {
-      throw new Error("redemption components test case not implemented");
-    }
-
-    const componentWrapData: ComponentWrapData[] = [
-      {
-        fromToken: addresses.tokens.cDAI,
-        toToken: componentSwapData[0].underlyingERC20,
-        amount: redemptionUnits[0],
-        integrationName: compoundWrapAdapterIntegrationName,
-        wrapData: ZERO_BYTES,
-      },
-      {
-        fromToken: addresses.tokens.cUSDC,
-        toToken: componentSwapData[1].underlyingERC20,
-        amount: redemptionUnits[1],
-        integrationName: compoundWrapAdapterIntegrationName,
-        wrapData: ZERO_BYTES,
-      },
-    ];
-
-    const componentInvokeUnwrapData: ComponentInvokeWrapData[] = await flashMintContract.getUnwrapCallData(
-      wrapModule,
-      componentWrapData,
-    );
-
-    return componentInvokeUnwrapData;
   }
 
   async getRedemptionMinAmountOutput(
@@ -302,7 +226,7 @@ class TestHelper {
     flashMintContract: FlashMintWrapped,
     setToken: Address,
     owner: Account,
-    issuanceModule: DebtIssuanceModule,
+    issuanceModule: IDebtIssuanceModule,
     wrapModule: Address,
     issueSetAmount: BigNumber = ether(100),
   ) {
@@ -332,12 +256,6 @@ class TestHelper {
       issuanceModule,
     );
 
-    const componentInvokeWrapData = await this.getIssuanceInvokeWrapData(
-      componentSwapData,
-      flashMintContract,
-      wrapModule,
-    );
-
     await flashMintContract.approveSetToken(setToken);
 
     return await flashMintContract.issueExactSetFromERC20(
@@ -346,7 +264,7 @@ class TestHelper {
       issueSetAmount,
       amountIn,
       componentSwapData,
-      componentInvokeWrapData,
+      this.getWrapData(),
     );
   }
 }
@@ -417,6 +335,7 @@ if (process.env.INTEGRATIONTEST) {
           addresses.dexes.curve.calculator,
           setV2Setup.controller.address,
           setV2Setup.debtIssuanceModule.address,
+          setV2Setup.wrapModule.address,
         );
       });
 
@@ -454,7 +373,7 @@ if (process.env.INTEGRATIONTEST) {
       });
 
       it("debt issuance module address is set correctly", async () => {
-        expect(await flashMintContract.debtIssuanceModule()).to.eq(
+        expect(await flashMintContract.issuanceModule()).to.eq(
           utils.getAddress(setV2Setup.debtIssuanceModule.address),
         );
       });
@@ -483,7 +402,6 @@ if (process.env.INTEGRATIONTEST) {
                 let inputAmount: BigNumber;
 
                 let componentSwapData: ComponentSwapData[];
-                let componentInvokeWrapData: ComponentInvokeWrapData[];
 
                 beforeEach(async () => {
                   inputAmount = ether(100);
@@ -534,12 +452,6 @@ if (process.env.INTEGRATIONTEST) {
                     subjectSetToken,
                     setV2Setup.debtIssuanceModule,
                   );
-
-                  componentInvokeWrapData = await testHelper.getIssuanceInvokeWrapData(
-                    componentSwapData,
-                    flashMintContract,
-                    setV2Setup.wrapModule.address,
-                  );
                 });
 
                 async function subject() {
@@ -550,14 +462,14 @@ if (process.env.INTEGRATIONTEST) {
                       issueSetAmount,
                       subjectMaxAmountIn,
                       componentSwapData,
-                      componentInvokeWrapData,
+                      testHelper.getWrapData(),
                     );
                   } else {
                     return await flashMintContract.issueExactSetFromETH(
                       subjectSetToken,
                       issueSetAmount,
                       componentSwapData,
-                      componentInvokeWrapData,
+                      testHelper.getWrapData(),
                       { value: subjectMaxAmountIn },
                     );
                   }
@@ -614,7 +526,7 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSetToken,
                       issueSetAmount,
                       componentSwapData,
-                      componentInvokeWrapData,
+                      testHelper.getWrapData(),
                       { value: subjectMaxAmountIn },
                     );
                     const gasCost = gasFee.mul(result.gasPrice);
@@ -641,7 +553,6 @@ if (process.env.INTEGRATIONTEST) {
                 let redeemSetAmount: BigNumber;
 
                 let componentSwapData: ComponentSwapData[];
-                let componentInvokeUnwrapData: ComponentInvokeWrapData[];
 
                 let subjectSetToken: Address;
 
@@ -668,15 +579,6 @@ if (process.env.INTEGRATIONTEST) {
                     outputToken.address,
                   );
 
-                  componentInvokeUnwrapData = await testHelper.getRedemptionInvokeUnwrapData(
-                    componentSwapData,
-                    flashMintContract,
-                    redeemSetAmount,
-                    subjectSetToken,
-                    setV2Setup.wrapModule.address,
-                    setV2Setup.debtIssuanceModule,
-                  );
-
                   minAmounOutput = await testHelper.getRedemptionMinAmountOutput(
                     subjectSetToken,
                     outputToken.address,
@@ -696,7 +598,7 @@ if (process.env.INTEGRATIONTEST) {
                       redeemSetAmount,
                       minAmounOutput,
                       componentSwapData,
-                      componentInvokeUnwrapData,
+                      testHelper.getWrapData(),
                     );
                   }
                   return flashMintContract.redeemExactSetForERC20(
@@ -705,7 +607,7 @@ if (process.env.INTEGRATIONTEST) {
                     redeemSetAmount,
                     minAmounOutput,
                     componentSwapData,
-                    componentInvokeUnwrapData,
+                    testHelper.getWrapData(),
                   );
                 }
 
@@ -765,7 +667,7 @@ if (process.env.INTEGRATIONTEST) {
                       redeemSetAmount,
                       minAmounOutput,
                       componentSwapData,
-                      componentInvokeUnwrapData,
+                      testHelper.getWrapData(),
                     );
                   }
                   const result = await subject();

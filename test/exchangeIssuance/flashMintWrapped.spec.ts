@@ -24,7 +24,6 @@ import { CERc20 } from "@typechain/CERc20";
 import { IERC20 } from "@typechain/IERC20";
 import { IERC20__factory } from "@typechain/factories/IERC20__factory";
 import { expectThrowsAsync, getLastBlockTimestamp } from "@utils/test/testingUtils";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
 
 const expect = getWaffleExpect();
 
@@ -61,20 +60,8 @@ type ComponentSwapData = {
 };
 
 type ComponentWrapData = {
-  fromToken: Address; // wrap / unwrap from
-  toToken: Address; // wrap / unwrap to
-  // amount to wrap / unwrap.
-  // for wrapping, this would be ComponentSwapData.buyUnderlyingAmount
-  // for unwrapping, it's IssuanceModule.getRequiredComponentRdemptionUnits()
-  amount: BigNumber;
   integrationName: string; // wrap adapter integration name as listed in the IntegrationRegistry for the wrapModule
   wrapData: string; // optional wrapData passed to the wrapAdapter
-};
-
-type ComponentInvokeWrapData = {
-  callTarget: Address;
-  value: BigNumber;
-  callData: string;
 };
 
 //#endregion
@@ -318,6 +305,7 @@ class TestHelper {
       ADDRESS_ZERO, // curveAddressProviderAddress
       this.controllerAddress,
       this.issuanceModule.address,
+      this.setV2Setup.wrapModule.address,
     );
   }
 
@@ -419,40 +407,21 @@ class TestHelper {
     return componentSwapData;
   }
 
-  async getIssuanceInvokeWrapData(
-    componentSwapData: ComponentSwapData[],
-    flashMintContract: FlashMintWrapped,
-  ) {
-    const componentWrapData: ComponentWrapData[] = [
+  getWrapData(): ComponentWrapData[] {
+    return [
       {
-        fromToken: componentSwapData[0].underlyingERC20,
-        toToken: this.cDAI.address,
-        amount: componentSwapData[0].buyUnderlyingAmount,
         integrationName: compoundWrapAdapterIntegrationName,
         wrapData: ZERO_BYTES,
       },
       {
-        fromToken: componentSwapData[1].underlyingERC20,
-        toToken: this.cUSDC.address,
-        amount: componentSwapData[1].buyUnderlyingAmount,
         integrationName: compoundWrapAdapterIntegrationName,
         wrapData: ZERO_BYTES,
       },
       {
-        fromToken: componentSwapData[2].underlyingERC20,
-        toToken: this.cUSDT.address,
-        amount: componentSwapData[2].buyUnderlyingAmount,
         integrationName: compoundWrapAdapterIntegrationName,
         wrapData: ZERO_BYTES,
       },
     ];
-
-    const componentInvokeWrapData: ComponentInvokeWrapData[] = await flashMintContract.getWrapCallData(
-      this.setV2Setup.wrapModule.address,
-      componentWrapData,
-    );
-
-    return componentInvokeWrapData;
   }
 
   async getRedemptionComponentSwapData(outputToken: Address) {
@@ -499,57 +468,6 @@ class TestHelper {
     ];
 
     return componentSwapData;
-  }
-
-  async getRedemptionInvokeUnwrapData(
-    componentSwapData: ComponentSwapData[],
-    flashMintContract: FlashMintWrapped,
-    redeemSetAmount: BigNumber,
-    setToken = this.setToken.address,
-  ) {
-    // get received redemption components
-    const [
-      redemptionComponents, // cDAI, cUSDC and cUSDT, in that order
-      redemptionUnits,
-    ] = await this.issuanceModule.getRequiredComponentRedemptionUnits(setToken, redeemSetAmount);
-
-    if (
-      JSON.stringify([this.cDAI.address, this.cUSDC.address, this.cUSDT.address]) !==
-      JSON.stringify(redemptionComponents)
-    ) {
-      throw new Error("redemption components test case not implemented");
-    }
-
-    const componentWrapData: ComponentWrapData[] = [
-      {
-        fromToken: this.cDAI.address,
-        toToken: componentSwapData[0].underlyingERC20,
-        amount: redemptionUnits[0],
-        integrationName: compoundWrapAdapterIntegrationName,
-        wrapData: ZERO_BYTES,
-      },
-      {
-        fromToken: this.cUSDC.address,
-        toToken: componentSwapData[1].underlyingERC20,
-        amount: redemptionUnits[1],
-        integrationName: compoundWrapAdapterIntegrationName,
-        wrapData: ZERO_BYTES,
-      },
-      {
-        fromToken: this.cUSDT.address,
-        toToken: componentSwapData[2].underlyingERC20,
-        amount: redemptionUnits[2],
-        integrationName: compoundWrapAdapterIntegrationName,
-        wrapData: ZERO_BYTES,
-      },
-    ];
-
-    const componentInvokeUnwrapData: ComponentInvokeWrapData[] = await flashMintContract.getUnwrapCallData(
-      this.setV2Setup.wrapModule.address,
-      componentWrapData,
-    );
-
-    return componentInvokeUnwrapData;
   }
 
   async getRedemptionMinAmountOutput(
@@ -603,10 +521,6 @@ class TestHelper {
       inputToken.address,
       issueSetAmount,
     );
-    const componentInvokeWrapData = await this.getIssuanceInvokeWrapData(
-      componentSwapData,
-      flashMintContract,
-    );
 
     const maxAmountInputToken = await this.getRequiredIssuanceInputAmount(
       setToken,
@@ -624,7 +538,7 @@ class TestHelper {
       issueSetAmount,
       maxAmountInputToken,
       componentSwapData,
-      componentInvokeWrapData,
+      this.getWrapData(),
     );
   }
 }
@@ -675,7 +589,7 @@ describe("FlashMintWrapped", async () => {
         expect(addresses.curveCalculator).to.eq(ADDRESS_ZERO, "curveCalculator");
         expect(addresses.weth).to.eq(testHelper.setV2Setup.weth.address, "weth");
 
-        const expectedIssuanceModuleAddress = await flashMintContract.debtIssuanceModule();
+        const expectedIssuanceModuleAddress = await flashMintContract.issuanceModule();
         expect(expectedIssuanceModuleAddress).to.eq(
           testHelper.issuanceModule.address,
           "issuanceModule",
@@ -747,55 +661,8 @@ describe("FlashMintWrapped", async () => {
     });
     //#endregion
 
-    //#region allowList wrapCallTarget
-    describe("#allowList wrap call Target", async () => {
-      async function subject(overwriteFrom?: SignerWithAddress) {
-        await flashMintContract
-          .connect(overwriteFrom || testHelper.owner.wallet)
-          .setAllowWrapTarget(testHelper.setV2Setup.wbtc.address, true);
-      }
-
-      it("should set allowList wrap callTarget", async () => {
-        let isWrapCallTarget = await flashMintContract.isWrapCallTarget(
-          testHelper.setV2Setup.wbtc.address,
-        );
-        expect(isWrapCallTarget).to.equal(false);
-
-        await subject();
-
-        isWrapCallTarget = await flashMintContract.isWrapCallTarget(
-          testHelper.setV2Setup.wbtc.address,
-        );
-        expect(isWrapCallTarget).to.equal(true);
-      });
-
-      it("should unset allowList wrap callTarget", async () => {
-        await subject();
-        let isWrapCallTarget = await flashMintContract.isWrapCallTarget(
-          testHelper.setV2Setup.wbtc.address,
-        );
-        expect(isWrapCallTarget).to.equal(true);
-
-        await flashMintContract.setAllowWrapTarget(testHelper.setV2Setup.wbtc.address, false);
-
-        isWrapCallTarget = await flashMintContract.isWrapCallTarget(
-          testHelper.setV2Setup.wbtc.address,
-        );
-        expect(isWrapCallTarget).to.equal(false);
-      });
-
-      it("should revert if not owner", async () => {
-        await expect(subject((await getAccounts())[2].wallet)).to.be.revertedWith(
-          "Ownable: caller is not the owner",
-        );
-      });
-    });
-    //#endregion
-
     //#region getters
     // all getter functions are indirectly tested through the other tests, only reverts are tested explicitly:
-    // getWrapCallData
-    // getUnwrapCallData
     // getIssueExactSet
     // getRedeemExactSet
     describe("#getIssueExactSet", async () => {
@@ -887,7 +754,7 @@ describe("FlashMintWrapped", async () => {
         let setToken: Address;
         let maxAmountInputToken: BigNumber;
         let componentSwapData: ComponentSwapData[];
-        let componentInvokeWrapData: ComponentInvokeWrapData[];
+        let componentWrapData: ComponentWrapData[];
         let inputToken: StandardTokenMock | WETH9;
         let inputAmountSpent: BigNumber;
 
@@ -911,10 +778,7 @@ describe("FlashMintWrapped", async () => {
             issueSetAmount,
           );
 
-          componentInvokeWrapData = await testHelper.getIssuanceInvokeWrapData(
-            componentSwapData,
-            flashMintContract,
-          );
+          componentWrapData = testHelper.getWrapData();
 
           maxAmountInputToken = await testHelper.getRequiredIssuanceInputAmount(
             setToken,
@@ -935,14 +799,14 @@ describe("FlashMintWrapped", async () => {
               issueSetAmount,
               maxAmountInputToken,
               componentSwapData,
-              componentInvokeWrapData,
+              componentWrapData,
             );
           } else {
             return await flashMintContract.issueExactSetFromETH(
               setToken,
               issueSetAmount,
               componentSwapData,
-              componentInvokeWrapData,
+              componentWrapData,
               { value: maxAmountInputToken },
             );
           }
@@ -1053,10 +917,7 @@ describe("FlashMintWrapped", async () => {
 
         it("should revert if invalid invoke wrap data length", async () => {
           const revertReason = "FlashMint: MISMATCH_INPUT_ARRAYS";
-          componentInvokeWrapData = componentInvokeWrapData.slice(
-            0,
-            componentInvokeWrapData?.length - 1,
-          );
+          componentWrapData = componentWrapData.slice(0, componentWrapData?.length - 1);
           await expect(subject()).to.be.revertedWith(revertReason);
         });
 
@@ -1122,33 +983,6 @@ describe("FlashMintWrapped", async () => {
           await expect(subject()).to.be.revertedWith("ds-math-sub-underflow");
         });
 
-        it("should revert if a not allowListed wrap call target is specified", async () => {
-          componentInvokeWrapData = [
-            { ...componentInvokeWrapData[0], callTarget: testHelper.setV2Setup.wbtc.address },
-            { ...componentInvokeWrapData[1], callTarget: testHelper.setV2Setup.wbtc.address },
-            { ...componentInvokeWrapData[2], callTarget: testHelper.setV2Setup.wbtc.address },
-          ];
-          await expect(subject()).to.be.revertedWith("FlashMint: WRAP_CALLTARGET_NOT_ALLOWED");
-        });
-
-        it("should revert if wrap call data is missing", async () => {
-          componentInvokeWrapData = [
-            { ...componentInvokeWrapData[0], callData: ZERO_BYTES },
-            { ...componentInvokeWrapData[1], callData: ZERO_BYTES },
-            { ...componentInvokeWrapData[2], callData: ZERO_BYTES },
-          ];
-          await expect(subject()).to.be.revertedWith("FlashMint: WRAP_DATA_MISSING");
-        });
-
-        it("should revert if wrap call target is 0x000", async () => {
-          componentInvokeWrapData = [
-            { ...componentInvokeWrapData[0], callTarget: ADDRESS_ZERO },
-            { ...componentInvokeWrapData[1], callTarget: ADDRESS_ZERO },
-            { ...componentInvokeWrapData[2], callTarget: ADDRESS_ZERO },
-          ];
-          await expect(subject()).to.be.revertedWith("FlashMint: WRAP_DATA_MISSING");
-        });
-
         it("should revert if invalid swap path input token is given", async () => {
           const revertReason = "FlashMint: INPUT_TOKEN_NOT_IN_PATH";
           componentSwapData[2].dexData.path[0] = testHelper.setV2Setup.wrapModule.address; // just some other address
@@ -1176,7 +1010,7 @@ describe("FlashMintWrapped", async () => {
         let setToken: Address;
         let minAmounOutput: BigNumber;
         let componentSwapData: ComponentSwapData[];
-        let componentInvokeUnwrapData: ComponentInvokeWrapData[];
+        let componentUnwrapData: ComponentWrapData[];
         let outputToken: StandardTokenMock | WETH9;
         let outputAmountReceived: BigNumber;
 
@@ -1200,11 +1034,7 @@ describe("FlashMintWrapped", async () => {
 
           componentSwapData = await testHelper.getRedemptionComponentSwapData(outputToken.address);
 
-          componentInvokeUnwrapData = await testHelper.getRedemptionInvokeUnwrapData(
-            componentSwapData,
-            flashMintContract,
-            redeemSetAmount,
-          );
+          componentUnwrapData = testHelper.getWrapData();
 
           minAmounOutput = await testHelper.getRedemptionMinAmountOutput(
             setToken,
@@ -1225,7 +1055,7 @@ describe("FlashMintWrapped", async () => {
               redeemSetAmount,
               minAmounOutput,
               componentSwapData,
-              componentInvokeUnwrapData,
+              componentUnwrapData,
             );
           } else {
             return await flashMintContract.redeemExactSetForETH(
@@ -1233,7 +1063,7 @@ describe("FlashMintWrapped", async () => {
               redeemSetAmount,
               minAmounOutput,
               componentSwapData,
-              componentInvokeUnwrapData,
+              componentUnwrapData,
             );
           }
         }
@@ -1318,10 +1148,7 @@ describe("FlashMintWrapped", async () => {
 
         it("should revert if invalid invoke unwrap data length", async () => {
           const revertReason = "FlashMint: MISMATCH_INPUT_ARRAYS";
-          componentInvokeUnwrapData = componentInvokeUnwrapData.slice(
-            0,
-            componentInvokeUnwrapData?.length - 1,
-          );
+          componentUnwrapData = componentUnwrapData.slice(0, componentUnwrapData?.length - 1);
           await expect(subject()).to.be.revertedWith(revertReason);
         });
 
@@ -1385,33 +1212,6 @@ describe("FlashMintWrapped", async () => {
           componentSwapData[1].dexData.exchange = Exchange.Sushiswap;
 
           await expect(subject()).to.be.revertedWith("INSUFFICIENT_OUTPUT_AMOUNT");
-        });
-
-        it("should revert if a not allowListed wrap call target is specified", async () => {
-          componentInvokeUnwrapData = [
-            { ...componentInvokeUnwrapData[0], callTarget: testHelper.setV2Setup.wbtc.address },
-            { ...componentInvokeUnwrapData[1], callTarget: testHelper.setV2Setup.wbtc.address },
-            { ...componentInvokeUnwrapData[2], callTarget: testHelper.setV2Setup.wbtc.address },
-          ];
-          await expect(subject()).to.be.revertedWith("FlashMint: WRAP_CALLTARGET_NOT_ALLOWED");
-        });
-
-        it("should revert if wrap call data is missing", async () => {
-          componentInvokeUnwrapData = [
-            { ...componentInvokeUnwrapData[0], callData: ZERO_BYTES },
-            { ...componentInvokeUnwrapData[1], callData: ZERO_BYTES },
-            { ...componentInvokeUnwrapData[2], callData: ZERO_BYTES },
-          ];
-          await expect(subject()).to.be.revertedWith("FlashMint: UNWRAP_DATA_MISSING");
-        });
-
-        it("should revert if wrap call target is 0x000", async () => {
-          componentInvokeUnwrapData = [
-            { ...componentInvokeUnwrapData[0], callTarget: ADDRESS_ZERO },
-            { ...componentInvokeUnwrapData[1], callTarget: ADDRESS_ZERO },
-            { ...componentInvokeUnwrapData[2], callTarget: ADDRESS_ZERO },
-          ];
-          await expect(subject()).to.be.revertedWith("FlashMint: UNWRAP_DATA_MISSING");
         });
 
         it("should revert if invalid swap path input token is given", async () => {

@@ -319,6 +319,7 @@ export default class DeployExtensions {
     curveAddressProviderAddress: Address,
     setControllerAddress: Address,
     issuanceModuleAddress: Address,
+    wrapModuleAddress: Address,
   ): Promise<FlashMintWrapped> {
     const dexAdapter = await this.deployDEXAdapter();
 
@@ -345,6 +346,7 @@ export default class DeployExtensions {
       },
       setControllerAddress,
       issuanceModuleAddress,
+      wrapModuleAddress,
     );
   }
 }
