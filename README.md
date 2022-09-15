@@ -28,7 +28,7 @@ yarn
 
 ### Run Contract Tests
 
-`yarn test` to run compiled contracts
+`yarn test` to run compiled contracts (executes on network localhost, you need to have `yarn chain` running)
 
 OR `yarn test:clean` if contract typings need to be updated
 
