@@ -87,8 +87,8 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
   /* ============ Immutables ============ */
 
   IController public immutable setController;
-  IDebtIssuanceModule public immutable debtIssuanceModule; // interface is compatible with DebtIssuanceModuleV2
-  IWrapModuleV2 public immutable wrapModule; // used to obtain a valid wrap adapter
+  IDebtIssuanceModule public immutable issuanceModule; // interface is compatible with DebtIssuanceModuleV2
+  address public immutable wrapModule; // used to obtain a valid wrap adapter
 
   /* ============ State Variables ============ */
 
@@ -158,17 +158,17 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    *
    * @param _dexAddresses              Address of quickRouter, sushiRouter, uniV3Router, uniV3Router, curveAddressProvider, curveCalculator and weth.
    * @param _setController             Set token controller used to verify a given token is a set
-   * @param _debtIssuanceModule        DebtIssuanceModule used to issue and redeem tokens
+   * @param _issuanceModule            IDebtIssuanceModule used to issue and redeem tokens
    * @param _wrapModule                WrapModuleV2 used to obtain a valid wrap adapter
    */
   constructor(
     DEXAdapter.Addresses memory _dexAddresses,
     IController _setController,
-    IDebtIssuanceModule _debtIssuanceModule,
-    IWrapModuleV2 _wrapModule
+    IDebtIssuanceModule _issuanceModule,
+    address _wrapModule
   ) public {
     setController = _setController;
-    debtIssuanceModule = _debtIssuanceModule;
+    issuanceModule = _issuanceModule;
     dexAdapter = _dexAddresses;
     wrapModule = _wrapModule;
   }
@@ -189,7 +189,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
   function approveSetToken(ISetToken _setToken) external isSetToken(_setToken) {
     address[] memory _components = _setToken.getComponents();
     for (uint256 i = 0; i < _components.length; ++i) {
-      DEXAdapter._safeApprove(IERC20(_components[i]), address(debtIssuanceModule), MAX_UINT256);
+      DEXAdapter._safeApprove(IERC20(_components[i]), address(issuanceModule), MAX_UINT256);
     }
   }
 
@@ -470,7 +470,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
     }
 
     // 4. issue set tokens
-    debtIssuanceModule.issue(_setToken, _amountSetToken, msg.sender);
+    issuanceModule.issue(_setToken, _amountSetToken, msg.sender);
 
     // 5. ensure not too much of input token was spent (covers case where initial input token balance was > 0)
     uint256 spentInputTokenAmount = _validateMaxAmountInputToken(
@@ -529,7 +529,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
     _setToken.safeTransferFrom(msg.sender, address(this), _amountSetToken);
 
     // 3. redeem set tokens
-    debtIssuanceModule.redeem(_setToken, _amountSetToken, address(this));
+    issuanceModule.redeem(_setToken, _amountSetToken, address(this));
 
     // 4. unwrap all components if needed and swap them to output token
     uint256 totalOutputTokenObtained = _unwrapAndSwapComponents(
@@ -567,8 +567,8 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    * @param _swapData                   ComponentSwapData (input token -> underlyingERC20) for each _requiredComponents in the same order
    * @param _wrapData                   ComponentWrapData (underlyingERC20 -> wrapped Set component) for each _requiredComponents in the same order
    *
-   * @return requiredComponents         Array of required issuance components gotten from DebtIssuanceModule.getRequiredComponentIssuanceUnits()
-   * @return requiredAmounts            Array of required issuance component amounts gotten from DebtIssuanceModule.getRequiredComponentIssuanceUnits()
+   * @return requiredComponents         Array of required issuance components gotten from IDebtIssuanceModule.getRequiredComponentIssuanceUnits()
+   * @return requiredAmounts            Array of required issuance component amounts gotten from IDebtIssuanceModule.getRequiredComponentIssuanceUnits()
    */
   function _validateIssueParams(
     ISetToken _setToken,
@@ -584,7 +584,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
   {
     require(_amountSetToken > 0 && _maxAmountToken > 0, "FlashMint: INVALID_INPUTS");
 
-    (requiredComponents, requiredAmounts, ) = debtIssuanceModule.getRequiredComponentIssuanceUnits(
+    (requiredComponents, requiredAmounts, ) = issuanceModule.getRequiredComponentIssuanceUnits(
       _setToken,
       _amountSetToken
     );
@@ -604,8 +604,8 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    * @param _swapData                  ComponentSwapData (underlyingERC20 -> output token) for each _redeemComponents in the same order
    * @param _unwrapData                ComponentWrapData (wrapped Set component -> underlyingERC20) for each _redeemComponents in the same order
    *
-   * @return redeemComponents          Array of redemption components gotten from DebtIssuanceModule.getRequiredComponentRedemptionUnits()
-   * @return redeemAmounts             Array of redemption component amounts gotten from DebtIssuanceModule.getRequiredComponentRedemptionUnits()
+   * @return redeemComponents          Array of redemption components gotten from IDebtIssuanceModule.getRequiredComponentRedemptionUnits()
+   * @return redeemAmounts             Array of redemption component amounts gotten from IDebtIssuanceModule.getRequiredComponentRedemptionUnits()
    */
   function _validateRedeemParams(
     ISetToken _setToken,
@@ -624,7 +624,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
       "FlashMint: INVALID_INPUTS"
     );
 
-    (redeemComponents, redeemAmounts, ) = debtIssuanceModule.getRequiredComponentRedemptionUnits(
+    (redeemComponents, redeemAmounts, ) = issuanceModule.getRequiredComponentRedemptionUnits(
       _setToken,
       _amountSetToken
     );
@@ -642,8 +642,8 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    * @param _maxAmountInputToken        Maximum amount of input token that can be spent
    * @param _swapData                   ComponentSwapData (input token -> underlyingERC20) for each _requiredComponents in the same order
    * @param _wrapData                   ComponentWrapData (underlyingERC20 -> wrapped Set component) for each _requiredComponents in the same order
-   * @param _requiredComponents         Issuance components gotten from DebtIssuanceModule.getRequiredComponentIssuanceUnits()
-   * @param _requiredAmounts            Issuance units gotten from DebtIssuanceModule.getRequiredComponentIssuanceUnits()
+   * @param _requiredComponents         Issuance components gotten from IDebtIssuanceModule.getRequiredComponentIssuanceUnits()
+   * @param _requiredAmounts            Issuance units gotten from IDebtIssuanceModule.getRequiredComponentIssuanceUnits()
    */
   function _swapAndWrapComponents(
     IERC20 _inputToken,
@@ -711,8 +711,8 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    * @param _outputToken                Output token that will be bought
    * @param _swapData                   ComponentSwapData (underlyingERC20 -> output token) for each _redeemComponents in the same order
    * @param _unwrapData                 ComponentWrapData (wrapped Set component -> underlyingERC20) for each _redeemComponents in the same order
-   * @param _redeemComponents           redemption components gotten from DebtIssuanceModule.getRequiredComponentRedemptionUnits()
-   * @param _redeemAmounts              redemption units gotten from DebtIssuanceModule.getRequiredComponentRedemptionUnits()
+   * @param _redeemComponents           redemption components gotten from IDebtIssuanceModule.getRequiredComponentRedemptionUnits()
+   * @param _redeemAmounts              redemption units gotten from IDebtIssuanceModule.getRequiredComponentRedemptionUnits()
    *
    * @return totalOutputTokenObtained   total output token amount obtained
    */
@@ -898,7 +898,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
 
     // 2. get unwrap call info from adapter
     (address _wrapCallTarget, uint256 _wrapCallValue, bytes memory _wrapCallData) = _wrapAdapter
-      .getWrapCallData(
+      .getUnwrapCallData(
         _underlyingToken,
         _wrappedToken,
         _unwrapAmount,
@@ -986,11 +986,10 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
    * Gets the integration for the passed in integration name listed on the wrapModule. Validates that the address is not empty
    *
    * @param _integrationName      Name of wrap adapter integration (mapping on integration registry)
-   * @param _wrapModule           address of the wrap module that the integration is assigned to
    *
    * @return adapter              address of the wrap adapter
    */
-  function _getAndValidateAdapter(string memory _integrationName, address _wrapModule)
+  function _getAndValidateAdapter(string memory _integrationName)
     internal
     view
     returns (address adapter)
@@ -1000,7 +999,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
     IIntegrationRegistry integrationRegistry = IIntegrationRegistry(setController.resourceId(0));
 
     adapter = integrationRegistry.getIntegrationAdapterWithHash(
-      _wrapModule,
+      wrapModule,
       keccak256(bytes(_integrationName))
     );
 
