@@ -42,8 +42,8 @@ import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__f
 import { GovernanceExtension__factory } from "../../typechain/factories/GovernanceExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 import { WrapExtension__factory } from "../../typechain/factories/WrapExtension__factory";
-import { FlashMintWrapped__factory } from "@typechain/factories/FlashMintWrapped__factory";
-import { FlashMintWrapped } from "@typechain/FlashMintWrapped";
+import { FlashMintWrapped__factory } from "../../typechain/factories/FlashMintWrapped__factory";
+import { FlashMintWrapped } from "../../typechain/FlashMintWrapped";
 
 export default class DeployExtensions {
   private _deployerSigner: Signer;
