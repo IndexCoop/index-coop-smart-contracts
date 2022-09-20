@@ -12,7 +12,7 @@
         "tabWidth": 2,
         "useTabs": false,
         "singleQuote": false,
-        "bracketSpacing": false,
+        "bracketSpacing": true,
         "explicitTypes": "always"
       }
     }
