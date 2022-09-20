@@ -549,7 +549,7 @@ if (process.env.INTEGRATIONTEST) {
                 //#region redeem test setup
                 let outputToken: IERC20;
 
-                let minAmounOutput: BigNumber;
+                let minAmountOutput: BigNumber;
                 let redeemSetAmount: BigNumber;
 
                 let componentSwapData: ComponentSwapData[];
@@ -579,7 +579,7 @@ if (process.env.INTEGRATIONTEST) {
                     outputToken.address,
                   );
 
-                  minAmounOutput = await testHelper.getRedemptionMinAmountOutput(
+                  minAmountOutput = await testHelper.getRedemptionMinAmountOutput(
                     subjectSetToken,
                     outputToken.address,
                     redeemSetAmount,
@@ -596,7 +596,7 @@ if (process.env.INTEGRATIONTEST) {
                     return flashMintContract.redeemExactSetForETH(
                       subjectSetToken,
                       redeemSetAmount,
-                      minAmounOutput,
+                      minAmountOutput,
                       componentSwapData,
                       testHelper.getWrapData(),
                     );
@@ -605,7 +605,7 @@ if (process.env.INTEGRATIONTEST) {
                     subjectSetToken,
                     outputToken.address,
                     redeemSetAmount,
-                    minAmounOutput,
+                    minAmountOutput,
                     componentSwapData,
                     testHelper.getWrapData(),
                   );
@@ -650,7 +650,7 @@ if (process.env.INTEGRATIONTEST) {
                     outputObtained = outputObtained.add(transactionFee);
                   }
 
-                  expect(outputObtained.gte(minAmounOutput)).to.be.true;
+                  expect(outputObtained.gte(minAmountOutput)).to.be.true;
                 });
 
                 it("should quote the correct output amount", async () => {
@@ -665,7 +665,7 @@ if (process.env.INTEGRATIONTEST) {
                     gasCount = await flashMintContract.estimateGas.redeemExactSetForETH(
                       subjectSetToken,
                       redeemSetAmount,
-                      minAmounOutput,
+                      minAmountOutput,
                       componentSwapData,
                       testHelper.getWrapData(),
                     );
