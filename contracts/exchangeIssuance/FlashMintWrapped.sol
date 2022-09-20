@@ -17,21 +17,23 @@
 pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { Address} from "@openzeppelin/contracts/utils/Address.sol";
+import { IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import { SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
+import { ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-import {IController} from "../interfaces/IController.sol";
-import {IIntegrationRegistry} from "../interfaces/IIntegrationRegistry.sol";
-import {IWrapV2Adapter} from "../interfaces/IWrapV2Adapter.sol";
-import {IDebtIssuanceModule} from "../interfaces/IDebtIssuanceModule.sol";
-import {ISetToken} from "../interfaces/ISetToken.sol";
-import {IWETH} from "../interfaces/IWETH.sol";
-import {IWrapModuleV2} from "../interfaces/IWrapModuleV2.sol";
-import { Withdrawable } from "external/contracts/aaveV2/utils/Withdrawable.sol";
-import {DEXAdapter} from "./DEXAdapter.sol";
+import { IController } from "../interfaces/IController.sol";
+import { IIntegrationRegistry } from "../interfaces/IIntegrationRegistry.sol";
+import { IWrapV2Adapter} from "../interfaces/IWrapV2Adapter.sol";
+import { IDebtIssuanceModule} from "../interfaces/IDebtIssuanceModule.sol";
+import { ISetToken} from "../interfaces/ISetToken.sol";
+import { IWETH} from "../interfaces/IWETH.sol";
+import { IWrapModuleV2} from "../interfaces/IWrapModuleV2.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { DEXAdapter } from "./DEXAdapter.sol";
+
+import "hardhat/console.sol";
 
 /**
  * @title FlashMintWrapped
@@ -52,7 +54,7 @@ import {DEXAdapter} from "./DEXAdapter.sol";
  * Set components at index 0 = DAI; then -> ComponentSwapData[0].underlyingERC20 = DAI; (no wrapping will happen)
  * Set components at index 1 = cDAI; then -> ComponentSwapData[1].underlyingERC20 = DAI; (wrapping will happen)
  */
-contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
+contract FlashMintWrapped is Ownable, ReentrancyGuard {
   using DEXAdapter for DEXAdapter.Addresses;
   using Address for address payable;
   using Address for address;
@@ -167,9 +169,9 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
     IDebtIssuanceModule _issuanceModule,
     address _wrapModule
   ) public {
+    dexAdapter = _dexAddresses;
     setController = _setController;
     issuanceModule = _issuanceModule;
-    dexAdapter = _dexAddresses;
     wrapModule = _wrapModule;
   }
 
@@ -177,6 +179,23 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
   receive() external payable {
     // required for weth.withdraw() to work properly
     require(msg.sender == dexAdapter.weth, "FlashMint: DEPOSITS_NOT_ALLOWED");
+  }
+
+  /**
+  * Withdraw slippage to selected address
+  *
+  * @param _tokens    Addresses of tokens to withdraw, specifiy ETH_ADDRESS to withdraw ETH
+  * @param _to        Address to send the tokens to
+  */
+  function withdrawTokens(IERC20[] calldata _tokens, address payable _to) external onlyOwner payable {
+      for(uint256 i = 0; i < _tokens.length; i++) {
+          if(address(_tokens[i]) == DEXAdapter.ETH_ADDRESS){
+              _to.sendValue(address(this).balance);
+          }
+          else{
+              _tokens[i].safeTransfer(_to, _tokens[i].balanceOf(address(this)));
+          }
+      }
   }
 
   /**
@@ -359,7 +378,7 @@ contract FlashMintWrapped is ReentrancyGuard, Withdrawable {
           amountInputNeeded = amountInputNeeded.add(_swapData[i].buyUnderlyingAmount);
           continue;
         }
-
+        
         // add required input amount to swap to desired buyUnderlyingAmount
         uint256 amountInNeeded = dexAdapter.getAmountIn(_swapData[i].dexData, _swapData[i].buyUnderlyingAmount);
         amountInputNeeded = amountInputNeeded.add(amountInNeeded);
