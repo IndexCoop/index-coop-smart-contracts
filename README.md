@@ -28,9 +28,18 @@ yarn
 
 ### Run Contract Tests
 
-`yarn test` to run compiled contracts
+`yarn test` to run compiled contracts (executes on network localhost, you need to have `yarn chain` running)
 
-OR `yarn test:clean` if contracts have been typings need to be updated
+OR `yarn test:clean` if contract typings need to be updated
+
+### Run Integration Tests
+
+`yarn chain:fork:ethereum` in one terminal to run chain fork. replace ethereum with polygon or optimism if needed, see package.json
+
+`yarn test:integration:ethereum` in another terminal, replace chain again as needed
+
+To run an individual test on e.g. a later block, use (replace path):
+`LATESTBLOCK=15508111 INTEGRATIONTEST=true VERBOSE=true npx hardhat test ./test/integration/ethereum/flashMintWrappedIntegration.spec.ts --network localhost`
 
 ### Run Coverage Report for Tests
 

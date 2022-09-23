@@ -42,6 +42,8 @@ import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__f
 import { GovernanceExtension__factory } from "../../typechain/factories/GovernanceExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 import { WrapExtension__factory } from "../../typechain/factories/WrapExtension__factory";
+import { FlashMintWrapped__factory } from "../../typechain/factories/FlashMintWrapped__factory";
+import { FlashMintWrapped } from "../../typechain/FlashMintWrapped";
 
 export default class DeployExtensions {
   private _deployerSigner: Signer;
@@ -305,5 +307,46 @@ export default class DeployExtensions {
 
   public async deployWrapExtension(manager: Address, wrapModule: Address): Promise<WrapExtension> {
     return await new WrapExtension__factory(this._deployerSigner).deploy(manager, wrapModule);
+  }
+
+  public async deployFlashMintWrappedExtension(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+    setControllerAddress: Address,
+    issuanceModuleAddress: Address,
+    wrapModuleAddress: Address,
+  ): Promise<FlashMintWrapped> {
+    const dexAdapter = await this.deployDEXAdapter();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
+    );
+
+    return await new FlashMintWrapped__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      {
+        quickRouter: quickRouterAddress,
+        sushiRouter: sushiRouterAddress,
+        uniV3Router: uniV3RouterAddress,
+        uniV3Quoter: uniswapV3QuoterAddress,
+        curveAddressProvider: curveAddressProviderAddress,
+        curveCalculator: curveCalculatorAddress,
+        weth: wethAddress,
+      },
+      setControllerAddress,
+      issuanceModuleAddress,
+      wrapModuleAddress,
+    );
   }
 }
