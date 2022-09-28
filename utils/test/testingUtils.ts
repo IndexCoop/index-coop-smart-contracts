@@ -1,4 +1,4 @@
-import chai from "chai";
+import chai, { expect } from "chai";
 import { solidity } from "ethereum-waffle";
 chai.use(solidity);
 
@@ -44,7 +44,7 @@ export function cacheBeforeEach(initializer: Mocha.AsyncFunc): void {
   let initialized = false;
   const blockchain = new Blockchain(provider);
 
-  beforeEach(async function () {
+  beforeEach(async function() {
     if (!initialized) {
       await initializer.call(this);
       SNAPSHOTS.push(await blockchain.saveSnapshotAsync());
@@ -56,7 +56,7 @@ export function cacheBeforeEach(initializer: Mocha.AsyncFunc): void {
     }
   });
 
-  after(async function () {
+  after(async function() {
     if (initialized) {
       SNAPSHOTS.pop();
     }
@@ -76,21 +76,13 @@ export async function mineBlockAsync(): Promise<any> {
   await sendJSONRpcRequestAsync("evm_mine", []);
 }
 
-export async function increaseTimeAsync(
-  duration: BigNumber,
-): Promise<any> {
+export async function increaseTimeAsync(duration: BigNumber): Promise<any> {
   await sendJSONRpcRequestAsync("evm_increaseTime", [duration.toNumber()]);
   await mineBlockAsync();
 }
 
-async function sendJSONRpcRequestAsync(
-  method: string,
-  params: any[],
-): Promise<any> {
-  return provider.send(
-    method,
-    params,
-  );
+async function sendJSONRpcRequestAsync(method: string, params: any[]): Promise<any> {
+  return provider.send(method, params);
 }
 
 export async function getTxFee(tx: ContractTransaction) {
@@ -100,3 +92,16 @@ export async function getTxFee(tx: ContractTransaction) {
   const transactionFee = gasPrice.mul(gasUsed);
   return transactionFee;
 }
+
+export const expectThrowsAsync = async (method: Promise<any>, errorMessage: string = "") => {
+  let error!: Error;
+  try {
+    await method;
+  } catch (err) {
+    error = (err as unknown) as Error;
+  }
+  expect(error).to.be.an("Error");
+  if (errorMessage) {
+    expect(error.message).to.include(errorMessage);
+  }
+};

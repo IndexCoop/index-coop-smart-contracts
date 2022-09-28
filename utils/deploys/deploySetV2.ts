@@ -48,6 +48,7 @@ import { UniswapV2ExchangeAdapter__factory } from "../../typechain/factories/Uni
 import { WETH9__factory } from "../../typechain/factories/WETH9__factory";
 import { WrapModule__factory } from "../../typechain/factories/WrapModule__factory";
 import { SlippageIssuanceModule__factory } from "../../typechain/factories/SlippageIssuanceModule__factory";
+import { CompoundWrapV2Adapter__factory } from "@typechain/factories/CompoundWrapV2Adapter__factory";
 
 export default class DeploySetV2 {
   private _deployerSigner: Signer;
@@ -233,5 +234,15 @@ export default class DeploySetV2 {
 
   public async deploySlippageIssuanceModule(controller: Address): Promise<SlippageIssuanceModule> {
     return await new SlippageIssuanceModule__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployCompoundWrapV2Adapter(): Promise<any> {
+    const compoundLibrary = await new Compound__factory(this._deployerSigner).deploy();
+    return await new CompoundWrapV2Adapter__factory(
+      {
+        ["__$059b1e3c35e6526bf44b3e0b6a2a76e329$__"]: compoundLibrary.address,
+      },
+      this._deployerSigner,
+    ).deploy();
   }
 }

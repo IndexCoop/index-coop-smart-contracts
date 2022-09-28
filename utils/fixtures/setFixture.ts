@@ -1,7 +1,6 @@
 import { JsonRpcProvider, Web3Provider } from "@ethersproject/providers";
 import { ContractTransaction, Signer } from "ethers";
 import { BigNumber } from "@ethersproject/bignumber";
-import { CEther, CERc20 } from "@utils/contracts/compound";
 
 import {
   AirdropModule,
@@ -59,6 +58,7 @@ export class SetFixture {
   public usdc: StandardTokenMock;
   public wbtc: StandardTokenMock;
   public dai: StandardTokenMock;
+  public usdt: StandardTokenMock;
 
   constructor(provider: Web3Provider | JsonRpcProvider, ownerAddress: Address) {
     this._provider = provider;
@@ -118,16 +118,19 @@ export class SetFixture {
     this.usdc = await this._deployer.setV2.deployTokenMock(this._ownerAddress, ether(100000), 6);
     this.wbtc = await this._deployer.setV2.deployTokenMock(this._ownerAddress, ether(100000), 8);
     this.dai = await this._deployer.setV2.deployTokenMock(this._ownerAddress, ether(1000000), 18);
+    this.usdt = await this._deployer.setV2.deployTokenMock(this._ownerAddress, ether(100000), 6);
 
     await this.weth.deposit({ value: ether(200000) });
     await this.weth.approve(this.issuanceModule.address, ether(10000));
     await this.usdc.approve(this.issuanceModule.address, ether(10000));
     await this.wbtc.approve(this.issuanceModule.address, ether(10000));
     await this.dai.approve(this.issuanceModule.address, ether(10000));
+    await this.usdt.approve(this.issuanceModule.address, ether(10000));
     await this.weth.approve(this.debtIssuanceModule.address, ether(10000));
     await this.usdc.approve(this.debtIssuanceModule.address, ether(10000));
     await this.wbtc.approve(this.debtIssuanceModule.address, ether(10000));
     await this.dai.approve(this.debtIssuanceModule.address, ether(10000));
+    await this.usdt.approve(this.debtIssuanceModule.address, ether(10000));
   }
 
   public async createSetToken(
