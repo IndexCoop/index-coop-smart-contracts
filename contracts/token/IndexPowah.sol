@@ -109,7 +109,7 @@ contract IndexPowah is IERC20, Ownable {
      */
     function addFarms(StakingRewardsV2[] calldata _newFarms) external onlyOwner {
         for (uint256 i = 0; i < _newFarms.length; i++) {
-            farms.push(_newFarms[0]);
+            farms.push(_newFarms[i]);
         }
     }
 
