@@ -62,11 +62,8 @@ STAGING_ADDRESSES.set = {
   debtIssuanceModule: "0x39F024d621367C044BacE2bf0Fb15Fb3612eCB92",
   debtIssuanceModuleV2: "0x3C0CC7624B1c408cF2cF11b3961301949f2F7820",
   aaveLeverageModule: "0x5d2B710787078B45CD7582C0423AC2fC180262e8",
-<<<<<<< HEAD
   notionalTradeModule: "0x8D21B942A7911254079cAe4333E21f98B2a0D357",
-=======
   compoundLeverageModule: "0x8d5174eD1dd217e240fDEAa52Eb7f4540b04F419",
->>>>>>> upstream/master
 };
 
 STAGING_ADDRESSES.tokens.icEth = "0x219C0C5B42A2DF32782d8F6Bf10eddCD7414CbBf";
