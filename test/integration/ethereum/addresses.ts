@@ -42,13 +42,18 @@ export const PRODUCTION_ADDRESSES = {
     notionalTradeModule: "0x8D21B942A7911254079cAe4333E21f98B2a0D357",
     compoundLeverageModule: "0x8d5174eD1dd217e240fDEAa52Eb7f4540b04F419",
   },
+  setFork: {
+    controller: "0xD2463675a099101E36D85278494268261a66603A",
+    debtIssuanceModuleV2: "0xa0a98EB7Af028BE00d04e46e1316808A62a8fd59",
+    notionalTradeModule: "0x600d9950c6ecAef98Cc42fa207E92397A6c43416",
+  },
   lending: {
     aave: {
       addressProvider: "0xB53C1a33016B2DC2fF3653530bfF1848a515c8c5",
       lendingPool: "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
     },
     notional: {
-      wrappedfCashFactory: "0x3Ccd485B75423F7Bb074eC42D0d01dbB553F7529",
+      wrappedfCashFactory: "0x5D051DeB5db151C2172dCdCCD42e6A2953E27261",
       notionalV2: "0x1344a36a1b56144c3bc62e7757377d288fde0369",
       nUpgreadableBeacon: "0xFAaF0C5B81E802C231A5249221cfe0B6ae639118",
     },
