@@ -688,7 +688,7 @@ describe("ExchangeIssuanceNotional", () => {
                           subjectIssuanceModule,
                           subjectIsDebtIssuance,
                           subjectSlippage,
-                          { gasLimit: 750000000, value: subjectMaxAmountInputToken },
+                          { value: subjectMaxAmountInputToken },
                         );
                     }
 
@@ -702,7 +702,7 @@ describe("ExchangeIssuanceNotional", () => {
                           subjectIssuanceModule,
                           subjectIsDebtIssuance,
                           subjectSlippage,
-                          { gasLimit: 750000000, value: subjectMaxAmountInputToken },
+                          { value: subjectMaxAmountInputToken },
                         );
                     }
 
@@ -975,7 +975,6 @@ describe("ExchangeIssuanceNotional", () => {
                           subjectIssuanceModule,
                           subjectIsDebtIssuance,
                           subjectSlippage,
-                          { gasLimit: 750000000 },
                         );
                     }
                     describe("When caller has enough set token to redeem", () => {
@@ -1006,7 +1005,6 @@ describe("ExchangeIssuanceNotional", () => {
                             issuanceModule.address,
                             useDebtIssuance,
                             subjectSlippage,
-                            { gasLimit: 750000000 },
                           );
                         await setToken.approve(
                           exchangeIssuance.address,
