@@ -322,8 +322,8 @@ if (process.env.INTEGRATIONTEST) {
                     inputSpent = inputSpent.sub(gasCost);
                   }
                   const quotedInputAmount = await subjectQuote();
-                  expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.98)));
-                  expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.02)));
+                  expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.97)));
+                  expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.03)));
                 });
               },
             );
@@ -454,8 +454,8 @@ if (process.env.INTEGRATIONTEST) {
                   gasCost = gasCount.mul(result.gasPrice);
                   outputObtained = outputObtained.add(gasCost);
                   const outputAmountQuote = await subjectQuote();
-                  expect(outputAmountQuote).to.gt(preciseMul(outputObtained, ether(0.99)));
-                  expect(outputAmountQuote).to.lt(preciseMul(outputObtained, ether(1.01)));
+                  expect(outputAmountQuote).to.gt(preciseMul(outputObtained, ether(0.97)));
+                  expect(outputAmountQuote).to.lt(preciseMul(outputObtained, ether(1.03)));
                 });
               },
             );
