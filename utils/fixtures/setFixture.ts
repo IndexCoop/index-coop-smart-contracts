@@ -13,6 +13,7 @@ import {
   IntegrationRegistry,
   SetToken,
   SetTokenCreator,
+  SlippageIssuanceModule,
   StreamingFeeModule,
   WrapModule
 } from "../contracts/setV2";
@@ -51,11 +52,13 @@ export class SetFixture {
   public generalIndexModule: GeneralIndexModule;
   public airdropModule: AirdropModule;
   public wrapModule: WrapModule;
+  public slippageIssuanceModule: SlippageIssuanceModule;
 
   public weth: WETH9;
   public usdc: StandardTokenMock;
   public wbtc: StandardTokenMock;
   public dai: StandardTokenMock;
+  public usdt: StandardTokenMock;
 
   constructor(provider: Web3Provider | JsonRpcProvider, ownerAddress: Address) {
     this._provider = provider;
@@ -77,6 +80,7 @@ export class SetFixture {
     this.debtIssuanceModule = await this._deployer.setV2.deployDebtIssuanceModule(this.controller.address);
     this.governanceModule = await this._deployer.setV2.deployGovernanceModule(this.controller.address);
     this.airdropModule = await this._deployer.setV2.deployAirdropModule(this.controller.address);
+    this.slippageIssuanceModule = await this._deployer.setV2.deploySlippageIssuanceModule(this.controller.address);
 
     await this.initializeStandardComponents();
 
@@ -98,6 +102,7 @@ export class SetFixture {
       this.generalIndexModule.address,
       this.airdropModule.address,
       this.wrapModule.address,
+      this.slippageIssuanceModule.address,
     ];
 
     await this.controller.initialize(
@@ -113,16 +118,19 @@ export class SetFixture {
     this.usdc = await this._deployer.setV2.deployTokenMock(this._ownerAddress, ether(100000), 6);
     this.wbtc = await this._deployer.setV2.deployTokenMock(this._ownerAddress, ether(100000), 8);
     this.dai = await this._deployer.setV2.deployTokenMock(this._ownerAddress, ether(1000000), 18);
+    this.usdt = await this._deployer.setV2.deployTokenMock(this._ownerAddress, ether(100000), 6);
 
     await this.weth.deposit({ value: ether(200000) });
     await this.weth.approve(this.issuanceModule.address, ether(10000));
     await this.usdc.approve(this.issuanceModule.address, ether(10000));
     await this.wbtc.approve(this.issuanceModule.address, ether(10000));
     await this.dai.approve(this.issuanceModule.address, ether(10000));
+    await this.usdt.approve(this.issuanceModule.address, ether(10000));
     await this.weth.approve(this.debtIssuanceModule.address, ether(10000));
     await this.usdc.approve(this.debtIssuanceModule.address, ether(10000));
     await this.wbtc.approve(this.debtIssuanceModule.address, ether(10000));
     await this.dai.approve(this.debtIssuanceModule.address, ether(10000));
+    await this.usdt.approve(this.debtIssuanceModule.address, ether(10000));
   }
 
   public async createSetToken(

@@ -17,13 +17,22 @@ const polygonForkingConfig = {
   blockNumber: 25004110,
 };
 
+const optimismForkingConfig = {
+  url: process.env.OPTIMISM_RPC_URL ?? "",
+  blockNumber: 15275100,
+};
+
 const mainnetForkingConfig = {
   url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
   blockNumber: process.env.LATESTBLOCK ? undefined : 14936000,
 };
 
 const forkingConfig =
-  process.env.NETWORK === "polygon" ? polygonForkingConfig : mainnetForkingConfig;
+  process.env.NETWORK === "polygon"
+    ? polygonForkingConfig
+    : process.env.NETWORK === "optimism"
+    ? optimismForkingConfig
+    : mainnetForkingConfig;
 
 const mochaConfig = {
   grep: "@forked-network",
@@ -31,7 +40,19 @@ const mochaConfig = {
   timeout: process.env.INTEGRATIONTEST ? INTEGRATIONTEST_TIMEOUT : 50000,
 } as Mocha.MochaOptions;
 
-const isPolygon = process.env.NETWORK === "polygon";
+const gasOption =
+  process.env.NETWORK === "polygon"
+    ? {
+        blockGasLimit: 20000000,
+      }
+    : process.env.NETWORK === "optimism"
+    ? {
+        blockGasLimit: 20000000,
+      }
+    : {
+        gas: 12000000,
+        blockGasLimit: 12000000,
+      };
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -58,19 +79,16 @@ const config: HardhatUserConfig = {
     hardhat: {
       forking: process.env.FORK ? forkingConfig : undefined,
       accounts: getHardhatPrivateKeys(),
-      // TODO: Reset gas value to lower level
-      gas: isPolygon ? undefined : 550000000,
-      blockGasLimit: isPolygon ? 20000000 : 750000000,
       // @ts-ignore
       timeout: INTEGRATIONTEST_TIMEOUT,
       initialBaseFeePerGas: 0,
+      ...gasOption,
     },
     localhost: {
       url: "http://127.0.0.1:8545",
-      gas: isPolygon ? undefined : 550000000,
-      blockGasLimit: isPolygon ? 20000000 : 750000000,
       // @ts-ignore
       timeout: INTEGRATIONTEST_TIMEOUT,
+      ...gasOption,
     },
     kovan: {
       url: "https://kovan.infura.io/v3/" + process.env.INFURA_TOKEN,
@@ -91,7 +109,7 @@ const config: HardhatUserConfig = {
 };
 
 function getHardhatPrivateKeys() {
-  return privateKeys.map(key => {
+  return privateKeys.map((key) => {
     const TEN_MILLION_ETH = "10000000000000000000000000";
     return {
       privateKey: key,

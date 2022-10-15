@@ -683,7 +683,13 @@ library DEXAdapter {
         returns (uint256)
     {
         _safeApprove(IERC20(_path[0]), address(_router), _amountIn);
-        return _router.swapExactTokensForTokens(_amountIn, _minAmountOut, _path, address(this), block.timestamp)[1];
+        // NOTE: The following was changed from always returning result at position [1] to returning the last element of the result array
+        // With this change, the actual output is correctly returned also for multi-hop swaps
+        // See https://github.com/IndexCoop/index-coop-smart-contracts/pull/116 
+        uint256[] memory result = _router.swapExactTokensForTokens(_amountIn, _minAmountOut, _path, address(this), block.timestamp);
+        // result = uint[] memory	The input token amount and all subsequent output token amounts.
+        // we are usually only interested in the actual amount of the output token (so result element at the last place)
+        return result[result.length-1];
     }
 
     /**

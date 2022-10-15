@@ -1,9 +1,6 @@
-<p align="center">
-  <a href="https://circleci.com/gh/SetProtocol/index-coop-contracts/tree/master">
-    <img src="https://img.shields.io/circleci/project/github/SetProtocol/index-coop-smart-contracts/master.svg" />
-  </a>
-  <a href='https://coveralls.io/github/SetProtocol/index-coop-contracts?branch=master'><img src='https://coveralls.io/repos/github/SetProtocol/index-coop-smart-contracts/badge.svg?branch=master&amp;t=4pzROZ' alt='Coverage Status' /></a>
-</p>
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/IndexCoop/index-coop-smart-contracts/tree/master.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/IndexCoop/index-coop-smart-contracts/tree/master)
+
+[![Coverage Status](https://coveralls.io/repos/github/IndexCoop/index-coop-smart-contracts/badge.svg)](https://coveralls.io/github/IndexCoop/index-coop-smart-contracts)
 
 # index
 
@@ -31,9 +28,18 @@ yarn
 
 ### Run Contract Tests
 
-`yarn test` to run compiled contracts
+`yarn test` to run compiled contracts (executes on network localhost, you need to have `yarn chain` running)
 
-OR `yarn test:clean` if contracts have been typings need to be updated
+OR `yarn test:clean` if contract typings need to be updated
+
+### Run Integration Tests
+
+`yarn chain:fork:ethereum` in one terminal to run chain fork. replace ethereum with polygon or optimism if needed, see package.json
+
+`yarn test:integration:ethereum` in another terminal, replace chain again as needed
+
+To run an individual test on e.g. a later block, use (replace path):
+`LATESTBLOCK=15508111 INTEGRATIONTEST=true VERBOSE=true npx hardhat test ./test/integration/ethereum/flashMintWrappedIntegration.spec.ts --network localhost`
 
 ### Run Coverage Report for Tests
 

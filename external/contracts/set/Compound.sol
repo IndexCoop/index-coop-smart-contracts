@@ -1,5 +1,5 @@
 /*
-    Copyright 2020 Set Labs Inc.
+    Copyright 2021 Set Labs Inc.
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -145,7 +145,7 @@ library Compound {
     }
 
     /**
-     * Get redeem calldata
+     * Get redeem underlying calldata
      */
     function getRedeemUnderlyingCalldata(
        ICErc20 _cToken,
@@ -166,9 +166,38 @@ library Compound {
      */
     function invokeRedeemUnderlying(ISetToken _setToken, ICErc20 _cToken, uint256 _redeemNotional) external {
         ( , , bytes memory redeemUnderlyingCalldata) = getRedeemUnderlyingCalldata(_cToken, _redeemNotional);
-        
+
         require(
             abi.decode(_setToken.invoke(address(_cToken), 0, redeemUnderlyingCalldata), (uint256)) == 0,
+            "Redeem underlying failed"
+        );
+    }
+
+    /**
+     * Get redeem calldata
+     */
+    function getRedeemCalldata(
+       ICErc20 _cToken,
+       uint256 _redeemNotional
+    )
+        public
+        pure
+        returns (address, uint256, bytes memory)
+    {
+        bytes memory callData = abi.encodeWithSignature("redeem(uint256)", _redeemNotional);
+
+        return (address(_cToken), _redeemNotional, callData);
+    }
+
+
+    /**
+     * Invoke redeem from the SetToken
+     */
+    function invokeRedeem(ISetToken _setToken, ICErc20 _cToken, uint256 _redeemNotional) external {
+        ( , , bytes memory redeemCalldata) = getRedeemCalldata(_cToken, _redeemNotional);
+
+        require(
+            abi.decode(_setToken.invoke(address(_cToken), 0, redeemCalldata), (uint256)) == 0,
             "Redeem failed"
         );
     }

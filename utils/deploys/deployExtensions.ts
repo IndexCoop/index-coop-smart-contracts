@@ -16,7 +16,9 @@ import {
   ExchangeIssuanceV2,
   ExchangeIssuanceLeveraged,
   ExchangeIssuanceNotional,
+  FlashMintLeveragedForCompound,
   ExchangeIssuanceZeroEx,
+  FlashMintPerp,
   FlexibleLeverageStrategyExtension,
   FeeSplitExtension,
   GIMExtension,
@@ -33,13 +35,17 @@ import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIss
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { ExchangeIssuanceLeveraged__factory } from "../../typechain/factories/ExchangeIssuanceLeveraged__factory";
 import { ExchangeIssuanceNotional__factory } from "../../typechain/factories/ExchangeIssuanceNotional__factory";
+import { FlashMintLeveragedForCompound__factory } from "../../typechain/factories/FlashMintLeveragedForCompound__factory";
 import { ExchangeIssuanceZeroEx__factory } from "../../typechain/factories/ExchangeIssuanceZeroEx__factory";
+import { FlashMintPerp__factory } from "../../typechain/factories/FlashMintPerp__factory";
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
 import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtension__factory";
 import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
 import { GovernanceExtension__factory } from "../../typechain/factories/GovernanceExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 import { WrapExtension__factory } from "../../typechain/factories/WrapExtension__factory";
+import { FlashMintWrapped__factory } from "../../typechain/factories/FlashMintWrapped__factory";
+import { FlashMintWrapped } from "../../typechain/FlashMintWrapped";
 
 export default class DeployExtensions {
   private _deployerSigner: Signer;
@@ -203,6 +209,51 @@ export default class DeployExtensions {
     );
   }
 
+  public async deployExchangeIssuanceLeveragedForCompound(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+    aaveLeveragedModuleAddress: Address,
+    aaveAddressProviderAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+    cEtherAddress: Address,
+  ): Promise<FlashMintLeveragedForCompound> {
+    const dexAdapter = await this.deployDEXAdapter();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
+    );
+
+    return await new FlashMintLeveragedForCompound__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      {
+        quickRouter: quickRouterAddress,
+        sushiRouter: sushiRouterAddress,
+        uniV3Router: uniV3RouterAddress,
+        uniV3Quoter: uniswapV3QuoterAddress,
+        curveAddressProvider: curveAddressProviderAddress,
+        curveCalculator: curveCalculatorAddress,
+        weth: wethAddress,
+      },
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      aaveLeveragedModuleAddress,
+      aaveAddressProviderAddress,
+      cEtherAddress,
+    );
+  }
+
   public async deployExchangeIssuanceZeroEx(
     wethAddress: Address,
     setControllerAddress: Address,
@@ -255,6 +306,20 @@ export default class DeployExtensions {
     );
   }
 
+  public async deployFlashMintPerp(
+    uniV3Router: Address,
+    uniV3Quoter: Address,
+    slippageIssuanceModule: Address,
+    usdcAddress: Address,
+  ): Promise<FlashMintPerp> {
+    return await new FlashMintPerp__factory(this._deployerSigner).deploy(
+      uniV3Router,
+      uniV3Quoter,
+      slippageIssuanceModule,
+      usdcAddress,
+    );
+  }
+
   public async deployAirdropExtension(
     manager: Address,
     airdropModule: Address,
@@ -284,5 +349,46 @@ export default class DeployExtensions {
 
   public async deployWrapExtension(manager: Address, wrapModule: Address): Promise<WrapExtension> {
     return await new WrapExtension__factory(this._deployerSigner).deploy(manager, wrapModule);
+  }
+
+  public async deployFlashMintWrappedExtension(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+    setControllerAddress: Address,
+    issuanceModuleAddress: Address,
+    wrapModuleAddress: Address,
+  ): Promise<FlashMintWrapped> {
+    const dexAdapter = await this.deployDEXAdapter();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
+    );
+
+    return await new FlashMintWrapped__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      {
+        quickRouter: quickRouterAddress,
+        sushiRouter: sushiRouterAddress,
+        uniV3Router: uniV3RouterAddress,
+        uniV3Quoter: uniswapV3QuoterAddress,
+        curveAddressProvider: curveAddressProviderAddress,
+        curveCalculator: curveCalculatorAddress,
+        weth: wethAddress,
+      },
+      setControllerAddress,
+      issuanceModuleAddress,
+      wrapModuleAddress,
+    );
   }
 }
