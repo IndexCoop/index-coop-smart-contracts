@@ -708,6 +708,15 @@ describe("FlashMintNotional", () => {
                         );
                     }
 
+                    describe("When setting redeemMaturedPositions to false", () => {
+                      beforeEach(() => {
+                        subjectRedemMaturedPositions = false;
+                      });
+                      it("should still work", async () => {
+                        await subject();
+                      });
+                    });
+
                     describe("When swapData and components are of differing length", () => {
                       beforeEach(() => {
                         subjectComponentQuotes = [];
@@ -781,7 +790,7 @@ describe("FlashMintNotional", () => {
                       subjectIsDebtIssuance = useDebtIssuance;
                       subjectComponentQuotes = [];
                       subjectSlippage = ethers.utils.parseEther("0.00001");
-                        subjectRedemMaturedPositions = true;
+                      subjectRedemMaturedPositions = true;
                       caller = owner;
                     });
 
@@ -797,7 +806,7 @@ describe("FlashMintNotional", () => {
                           subjectIssuanceModule,
                           subjectIsDebtIssuance,
                           subjectSlippage,
-                            subjectRedemMaturedPositions,
+                          subjectRedemMaturedPositions,
                         );
                     }
 
@@ -813,7 +822,7 @@ describe("FlashMintNotional", () => {
                           subjectIssuanceModule,
                           subjectIsDebtIssuance,
                           subjectSlippage,
-                            subjectRedemMaturedPositions,
+                          subjectRedemMaturedPositions,
                         );
                     }
 
@@ -963,7 +972,7 @@ describe("FlashMintNotional", () => {
                       subjectIsDebtIssuance = useDebtIssuance;
                       subjectMinAmountETH = BigNumber.from(1000);
                       subjectSlippage = ether(0.0001);
-                        subjectRedemMaturedPositions = false;
+                      subjectRedemMaturedPositions = false;
                       caller = owner;
                     });
 
@@ -978,7 +987,7 @@ describe("FlashMintNotional", () => {
                           subjectIssuanceModule,
                           subjectIsDebtIssuance,
                           subjectSlippage,
-                            subjectRedemMaturedPositions,
+                          subjectRedemMaturedPositions,
                         );
                     }
                     describe("When caller has enough set token to redeem", () => {
@@ -1007,7 +1016,7 @@ describe("FlashMintNotional", () => {
                             issuanceModule.address,
                             useDebtIssuance,
                             subjectSlippage,
-                              true
+                            true,
                           );
                         await setToken.approve(flashMint.address, ethers.constants.MaxUint256);
 
@@ -1066,6 +1075,15 @@ describe("FlashMintNotional", () => {
                         for (const wrappedfCashMock of wrappedfCashMocks) {
                           await wrappedfCashMock.setMintTokenSpent(10000);
                         }
+                      });
+
+                      describe("When setting redeemMaturedPositions to false", () => {
+                        beforeEach(() => {
+                          subjectRedemMaturedPositions = false;
+                        });
+                        it("should still work", async () => {
+                          await subject();
+                        });
                       });
 
                       describe("When using invalid issuanceModule", () => {
@@ -1127,7 +1145,7 @@ describe("FlashMintNotional", () => {
                       subjectMinAmountOutputToken = BigNumber.from(1000);
                       caller = owner;
                       subjectSlippage = ethers.utils.parseEther("0.00001");
-                        subjectRedemMaturedPositions = true;
+                      subjectRedemMaturedPositions = true;
                     });
                     function subject() {
                       return flashMint
@@ -1141,7 +1159,7 @@ describe("FlashMintNotional", () => {
                           subjectIssuanceModule,
                           subjectIsDebtIssuance,
                           subjectSlippage,
-                            subjectRedemMaturedPositions
+                          subjectRedemMaturedPositions,
                         );
                     }
                     function subjectCallStatic() {
@@ -1156,7 +1174,7 @@ describe("FlashMintNotional", () => {
                           subjectIssuanceModule,
                           subjectIsDebtIssuance,
                           subjectSlippage,
-                            subjectRedemMaturedPositions
+                          subjectRedemMaturedPositions,
                         );
                     }
                     describe("When caller has enough set token to redeem", () => {
@@ -1184,7 +1202,7 @@ describe("FlashMintNotional", () => {
                             issuanceModule.address,
                             useDebtIssuance,
                             subjectSlippage,
-                              true
+                            true,
                           );
                         await setToken.approve(flashMint.address, ethers.constants.MaxUint256);
                       });
