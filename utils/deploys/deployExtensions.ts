@@ -15,7 +15,7 @@ import {
   ExchangeIssuance,
   ExchangeIssuanceV2,
   ExchangeIssuanceLeveraged,
-  ExchangeIssuanceNotional,
+  FlashMintNotional,
   FlashMintLeveragedForCompound,
   ExchangeIssuanceZeroEx,
   FlashMintPerp,
@@ -34,7 +34,7 @@ import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__facto
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { ExchangeIssuanceLeveraged__factory } from "../../typechain/factories/ExchangeIssuanceLeveraged__factory";
-import { ExchangeIssuanceNotional__factory } from "../../typechain/factories/ExchangeIssuanceNotional__factory";
+import { FlashMintNotional__factory } from "../../typechain/factories/FlashMintNotional__factory";
 import { FlashMintLeveragedForCompound__factory } from "../../typechain/factories/FlashMintLeveragedForCompound__factory";
 import { ExchangeIssuanceZeroEx__factory } from "../../typechain/factories/ExchangeIssuanceZeroEx__factory";
 import { FlashMintPerp__factory } from "../../typechain/factories/FlashMintPerp__factory";
@@ -266,7 +266,7 @@ export default class DeployExtensions {
     );
   }
 
-  public async deployExchangeIssuanceNotional(
+  public async deployFlashMintNotional(
     wethAddress: Address,
     setControllerAddress: Address,
     wrappedfCashFactory: Address,
@@ -278,14 +278,14 @@ export default class DeployExtensions {
     curveAddressProvider: Address,
     curveCalculator: Address,
     decodedIdGasLimit: BigNumber,
-  ): Promise<ExchangeIssuanceNotional> {
+  ): Promise<FlashMintNotional> {
     const dexAdapter = await this.deployDEXAdapter();
 
     const linkId = convertLibraryNameToLinkId(
       "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
     );
 
-    return await new ExchangeIssuanceNotional__factory( // @ts-ignore
+    return await new FlashMintNotional__factory( // @ts-ignore
       {
         [linkId]: dexAdapter.address,
       },

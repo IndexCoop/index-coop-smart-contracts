@@ -3,7 +3,7 @@ import { BigNumber } from "ethers";
 import { ethers, network } from "hardhat";
 import { Account, Address, ForkedTokens } from "@utils/types";
 import { getTxFee } from "@utils/test";
-import { DebtIssuanceModule, ExchangeIssuanceNotional } from "@utils/contracts/index";
+import { DebtIssuanceModule, FlashMintNotional } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import { ether } from "@utils/index";
@@ -66,7 +66,7 @@ const emptySwapData: SwapData = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe("ExchangeIssuanceNotional", () => {
+  describe("FlashMintNotional", () => {
     let owner: Account;
     let deployer: DeployHelper;
     let manager: Account;
@@ -235,12 +235,12 @@ if (process.env.INTEGRATIONTEST) {
               await debtIssuanceModule.issue(setToken.address, initialSetBalance, owner.address);
             });
 
-            describe("When exchangeIssuance is deployed", () => {
-              let exchangeIssuance: ExchangeIssuanceNotional;
+            describe("When flashMint is deployed", () => {
+              let flashMint: FlashMintNotional;
               let decodedIdGasLimit: BigNumber;
               beforeEach(async () => {
                 decodedIdGasLimit = BigNumber.from(10 ** 5);
-                exchangeIssuance = await deployer.extensions.deployExchangeIssuanceNotional(
+                flashMint = await deployer.extensions.deployFlashMintNotional(
                   tokens.weth.address,
                   PRODUCTION_ADDRESSES.setFork.controller,
                   wrappedfCashFactory.address,
@@ -275,7 +275,7 @@ if (process.env.INTEGRATIONTEST) {
                   subjectSlippage = ether(0.0001);
                 });
                 function subject() {
-                  return exchangeIssuance.getFilteredComponentsRedemption(
+                  return flashMint.getFilteredComponentsRedemption(
                     subjectSetToken,
                     subjectSetAmount,
                     subjectIssuanceModule,
@@ -321,7 +321,7 @@ if (process.env.INTEGRATIONTEST) {
                   subjectSlippage = ether(0.0001);
                 });
                 function subject() {
-                  return exchangeIssuance.getFilteredComponentsIssuance(
+                  return flashMint.getFilteredComponentsIssuance(
                     subjectSetToken,
                     subjectSetAmount,
                     subjectIssuanceModule,
@@ -367,7 +367,7 @@ if (process.env.INTEGRATIONTEST) {
                 });
 
                 function subject() {
-                  return exchangeIssuance
+                  return flashMint
                     .connect(caller.wallet)
                     .issueExactSetFromETH(
                       subjectSetToken,
@@ -393,7 +393,7 @@ if (process.env.INTEGRATIONTEST) {
                       const [
                         filteredComponents,
                         filteredUnits,
-                      ] = await exchangeIssuance.getFilteredComponentsRedemption(
+                      ] = await flashMint.getFilteredComponentsRedemption(
                         subjectSetToken,
                         subjectSetAmount,
                         subjectIssuanceModule,
@@ -460,7 +460,7 @@ if (process.env.INTEGRATIONTEST) {
                 });
 
                 function subject() {
-                  return exchangeIssuance
+                  return flashMint
                     .connect(caller.wallet)
                     .issueExactSetFromToken(
                       subjectSetToken,
@@ -504,7 +504,7 @@ if (process.env.INTEGRATIONTEST) {
                           }
 
                           await inputToken.approve(
-                            exchangeIssuance.address,
+                            flashMint.address,
                             ethers.constants.MaxUint256,
                           );
                           subjectInputToken = inputToken.address;
@@ -513,7 +513,7 @@ if (process.env.INTEGRATIONTEST) {
 
                           const [
                             filteredComponents,
-                          ] = await exchangeIssuance.getFilteredComponentsIssuance(
+                          ] = await flashMint.getFilteredComponentsIssuance(
                             subjectSetToken,
                             subjectSetAmount,
                             subjectIssuanceModule,
@@ -575,7 +575,7 @@ if (process.env.INTEGRATIONTEST) {
                 });
 
                 function subject() {
-                  return exchangeIssuance
+                  return flashMint
                     .connect(caller.wallet)
                     .redeemExactSetForETH(
                       subjectSetToken,
@@ -591,11 +591,11 @@ if (process.env.INTEGRATIONTEST) {
                   beforeEach(async () => {
                     await underlyingToken
                       .connect(caller.wallet)
-                      .approve(exchangeIssuance.address, ethers.constants.MaxUint256);
+                      .approve(flashMint.address, ethers.constants.MaxUint256);
 
                     const [
                       filteredComponents,
-                    ] = await exchangeIssuance.getFilteredComponentsIssuance(
+                    ] = await flashMint.getFilteredComponentsIssuance(
                       subjectSetToken,
                       subjectSetAmount,
                       subjectIssuanceModule,
@@ -603,7 +603,7 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSlippage,
                     );
                     const swapData = filteredComponents.map(() => emptySwapData);
-                    await exchangeIssuance
+                    await flashMint
                       .connect(caller.wallet)
                       .issueExactSetFromToken(
                         setToken.address,
@@ -616,7 +616,7 @@ if (process.env.INTEGRATIONTEST) {
                         subjectSlippage,
                         { gasLimit },
                       );
-                    await setToken.approve(exchangeIssuance.address, ethers.constants.MaxUint256);
+                    await setToken.approve(flashMint.address, ethers.constants.MaxUint256);
                   });
                   [false, true].forEach(hasMatured => {
                     describe(`when component has ${!hasMatured ? "not " : ""}matured`, () => {
@@ -632,7 +632,7 @@ if (process.env.INTEGRATIONTEST) {
 
                         const [
                           filteredComponents,
-                        ] = await exchangeIssuance.getFilteredComponentsRedemption(
+                        ] = await flashMint.getFilteredComponentsRedemption(
                           subjectSetToken,
                           subjectSetAmount,
                           subjectIssuanceModule,
@@ -693,7 +693,7 @@ if (process.env.INTEGRATIONTEST) {
                   caller = owner;
                 });
                 function subject() {
-                  return exchangeIssuance
+                  return flashMint
                     .connect(caller.wallet)
                     .redeemExactSetForToken(
                       subjectSetToken,
@@ -710,11 +710,11 @@ if (process.env.INTEGRATIONTEST) {
                   beforeEach(async () => {
                     await underlyingToken
                       .connect(caller.wallet)
-                      .approve(exchangeIssuance.address, ethers.constants.MaxUint256);
+                      .approve(flashMint.address, ethers.constants.MaxUint256);
 
                     const [
                       filteredComponents,
-                    ] = await exchangeIssuance.getFilteredComponentsIssuance(
+                    ] = await flashMint.getFilteredComponentsIssuance(
                       subjectSetToken,
                       subjectSetAmount,
                       subjectIssuanceModule,
@@ -722,7 +722,7 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSlippage,
                     );
                     const swapData = filteredComponents.map(() => emptySwapData);
-                    await exchangeIssuance
+                    await flashMint
                       .connect(caller.wallet)
                       .issueExactSetFromToken(
                         setToken.address,
@@ -735,7 +735,7 @@ if (process.env.INTEGRATIONTEST) {
                         subjectSlippage,
                         { gasLimit },
                       );
-                    await setToken.approve(exchangeIssuance.address, ethers.constants.MaxUint256);
+                    await setToken.approve(flashMint.address, ethers.constants.MaxUint256);
                   });
                   [false, true].forEach(hasMatured => {
                     describe(`when component has ${!hasMatured ? "not " : ""}matured`, () => {
@@ -778,7 +778,7 @@ if (process.env.INTEGRATIONTEST) {
                             await notionalTradeModule.redeemMaturedPositions(setToken.address);
                             const [
                               filteredComponents,
-                            ] = await exchangeIssuance.getFilteredComponentsRedemption(
+                            ] = await flashMint.getFilteredComponentsRedemption(
                               subjectSetToken,
                               subjectSetAmount,
                               subjectIssuanceModule,

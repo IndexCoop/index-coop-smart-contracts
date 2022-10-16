@@ -6,7 +6,7 @@ import { Account, Address } from "@utils/types";
 import {
   BasicIssuanceModule,
   DebtIssuanceModule,
-  ExchangeIssuanceNotional,
+  FlashMintNotional,
   NotionalTradeModuleMock,
   StandardTokenMock,
   WrappedfCashMock,
@@ -51,7 +51,7 @@ const emptySwapData: SwapData = {
   exchange: Exchange.None,
 };
 
-describe("ExchangeIssuanceNotional", () => {
+describe("FlashMintNotional", () => {
   let owner: Account;
   let deployer: DeployHelper;
   let manager: Account;
@@ -135,14 +135,14 @@ describe("ExchangeIssuanceNotional", () => {
     afterEach(async () => {
       await network.provider.send("evm_revert", [snapshotId]);
     });
-    describe("When exchangeIssuance is deployed", () => {
-      let exchangeIssuance: ExchangeIssuanceNotional;
+    describe("When flashMint is deployed", () => {
+      let flashMint: FlashMintNotional;
       let notionalTradeModule: NotionalTradeModuleMock;
       let decodedIdGasLimit: BigNumber;
       beforeEach(async () => {
         decodedIdGasLimit = BigNumber.from(10 ** 5);
         notionalTradeModule = await deployer.mocks.deployNotionalTradeModuleMock();
-        exchangeIssuance = await deployer.extensions.deployExchangeIssuanceNotional(
+        flashMint = await deployer.extensions.deployFlashMintNotional(
           setV2Setup.weth.address,
           setV2Setup.controller.address,
           wrappedfCashFactoryMock.address,
@@ -160,8 +160,8 @@ describe("ExchangeIssuanceNotional", () => {
       describe("When sending eth to the ei contract", () => {
         it("should revert", async () => {
           await expect(
-            owner.wallet.sendTransaction({ value: ether(1), to: exchangeIssuance.address }),
-          ).to.be.revertedWith("ExchangeIssuance: Direct deposits not allowed");
+            owner.wallet.sendTransaction({ value: ether(1), to: flashMint.address }),
+          ).to.be.revertedWith("FlashMint: Direct deposits not allowed");
         });
       });
 
@@ -177,19 +177,19 @@ describe("ExchangeIssuanceNotional", () => {
           erc20Token = setV2Setup.dai;
           erc20Amount = ether(2);
           ethAmount = ether(1);
-          subjectTokens = [erc20Token.address, await exchangeIssuance.ETH_ADDRESS()];
+          subjectTokens = [erc20Token.address, await flashMint.ETH_ADDRESS()];
           receiver = manager;
           subjectTo = receiver.address;
           caller = owner;
         });
         function subject() {
-          return exchangeIssuance.connect(caller.wallet).withdrawTokens(subjectTokens, subjectTo);
+          return flashMint.connect(caller.wallet).withdrawTokens(subjectTokens, subjectTo);
         }
-        describe("when ExchangeIssuanceNotional holds funds", () => {
+        describe("when FlashMintNotional holds funds", () => {
           beforeEach(async () => {
-            await erc20Token.transfer(exchangeIssuance.address, erc20Amount);
+            await erc20Token.transfer(flashMint.address, erc20Amount);
             const funder = await deployer.mocks.deployForceFunderMock();
-            await funder.fund(exchangeIssuance.address, { value: ethAmount });
+            await funder.fund(flashMint.address, { value: ethAmount });
           });
 
           it("should transfer eth", async () => {
@@ -221,17 +221,17 @@ describe("ExchangeIssuanceNotional", () => {
         let subjectDecodedIdGasLimit: BigNumber;
         let caller: Account;
         beforeEach(async () => {
-          subjectDecodedIdGasLimit = (await exchangeIssuance.decodedIdGasLimit()).mul(2);
+          subjectDecodedIdGasLimit = (await flashMint.decodedIdGasLimit()).mul(2);
           caller = owner;
         });
         function subject() {
-          return exchangeIssuance
+          return flashMint
             .connect(caller.wallet)
             .updateDecodedIdGasLimit(subjectDecodedIdGasLimit);
         }
         it("should update state correctly", async () => {
           await subject();
-          expect(await exchangeIssuance.decodedIdGasLimit()).to.eq(subjectDecodedIdGasLimit);
+          expect(await flashMint.decodedIdGasLimit()).to.eq(subjectDecodedIdGasLimit);
         });
 
         describe("when caller is not the owner", () => {
@@ -412,7 +412,7 @@ describe("ExchangeIssuanceNotional", () => {
                       }
                     });
                     function subject() {
-                      return exchangeIssuance.callStatic.getFilteredComponentsRedemptionAfterMaturityRedemption(
+                      return flashMint.callStatic.getFilteredComponentsRedemptionAfterMaturityRedemption(
                         subjectSetToken,
                         subjectSetAmount,
                         subjectIssuanceModule,
@@ -457,7 +457,7 @@ describe("ExchangeIssuanceNotional", () => {
                       }
                     });
                     function subject() {
-                      return exchangeIssuance.getFilteredComponentsRedemption(
+                      return flashMint.getFilteredComponentsRedemption(
                         subjectSetToken,
                         subjectSetAmount,
                         subjectIssuanceModule,
@@ -529,7 +529,7 @@ describe("ExchangeIssuanceNotional", () => {
                       }
                     });
                     function subject() {
-                      return exchangeIssuance.getFilteredComponentsIssuance(
+                      return flashMint.getFilteredComponentsIssuance(
                         subjectSetToken,
                         subjectSetAmount,
                         subjectIssuanceModule,
@@ -574,7 +574,7 @@ describe("ExchangeIssuanceNotional", () => {
                       }
                     });
                     function subject() {
-                      return exchangeIssuance.callStatic.getFilteredComponentsIssuanceAfterMaturityRedemption(
+                      return flashMint.callStatic.getFilteredComponentsIssuanceAfterMaturityRedemption(
                         subjectSetToken,
                         subjectSetAmount,
                         subjectIssuanceModule,
@@ -621,7 +621,7 @@ describe("ExchangeIssuanceNotional", () => {
                       const [
                         filteredComponents,
                         filteredUnits,
-                      ] = await exchangeIssuance.getFilteredComponentsRedemption(
+                      ] = await flashMint.getFilteredComponentsRedemption(
                         subjectSetToken,
                         subjectSetAmount,
                         subjectIssuanceModule,
@@ -679,7 +679,7 @@ describe("ExchangeIssuanceNotional", () => {
                     });
 
                     function subject() {
-                      return exchangeIssuance
+                      return flashMint
                         .connect(caller.wallet)
                         .issueExactSetFromETH(
                           subjectSetToken,
@@ -693,7 +693,7 @@ describe("ExchangeIssuanceNotional", () => {
                     }
 
                     function subjectCallStatic() {
-                      return exchangeIssuance
+                      return flashMint
                         .connect(caller.wallet)
                         .callStatic.issueExactSetFromETH(
                           subjectSetToken,
@@ -723,7 +723,7 @@ describe("ExchangeIssuanceNotional", () => {
                       });
                       it("should revert", async () => {
                         await expect(subject()).to.be.revertedWith(
-                          "ExchangeIssuance: INVALID ISSUANCE MODULE",
+                          "FlashMint: INVALID ISSUANCE MODULE",
                         );
                       });
                     });
@@ -782,7 +782,7 @@ describe("ExchangeIssuanceNotional", () => {
                     });
 
                     function subject() {
-                      return exchangeIssuance
+                      return flashMint
                         .connect(caller.wallet)
                         .issueExactSetFromToken(
                           subjectSetToken,
@@ -797,7 +797,7 @@ describe("ExchangeIssuanceNotional", () => {
                     }
 
                     function subjectCallStatic() {
-                      return exchangeIssuance
+                      return flashMint
                         .connect(caller.wallet)
                         .callStatic.issueExactSetFromToken(
                           subjectSetToken,
@@ -822,14 +822,14 @@ describe("ExchangeIssuanceNotional", () => {
                                 setV2Setup[tokenType];
 
                           await inputToken.approve(
-                            exchangeIssuance.address,
+                            flashMint.address,
                             ethers.constants.MaxUint256,
                           );
                           subjectInputToken = inputToken.address;
 
                           const [
                             filteredComponents,
-                          ] = await exchangeIssuance.getFilteredComponentsIssuance(
+                          ] = await flashMint.getFilteredComponentsIssuance(
                             subjectSetToken,
                             subjectSetAmount,
                             subjectIssuanceModule,
@@ -888,7 +888,7 @@ describe("ExchangeIssuanceNotional", () => {
                           });
                           it("should revert", async () => {
                             await expect(subject()).to.be.revertedWith(
-                              "ExchangeIssuance: INVALID ISSUANCE MODULE",
+                              "FlashMint: INVALID ISSUANCE MODULE",
                             );
                           });
                         });
@@ -897,12 +897,12 @@ describe("ExchangeIssuanceNotional", () => {
                           describe("When spending more than the max amount", async () => {
                             beforeEach(async () => {
                               const spentAmount = await subjectCallStatic();
-                              await inputToken.transfer(exchangeIssuance.address, spentAmount);
+                              await inputToken.transfer(flashMint.address, spentAmount);
                               subjectMaxAmountInputToken = spentAmount.sub(1);
                             });
                             it("should revert", async () => {
                               await expect(subject()).to.be.revertedWith(
-                                "ExchangeIssuance: OVERSPENT",
+                                "FlashMint: OVERSPENT",
                               );
                             });
                           });
@@ -965,7 +965,7 @@ describe("ExchangeIssuanceNotional", () => {
                     });
 
                     function subject() {
-                      return exchangeIssuance
+                      return flashMint
                         .connect(caller.wallet)
                         .redeemExactSetForETH(
                           subjectSetToken,
@@ -982,11 +982,11 @@ describe("ExchangeIssuanceNotional", () => {
                       beforeEach(async () => {
                         await underlyingToken
                           .connect(caller.wallet)
-                          .approve(exchangeIssuance.address, ethers.constants.MaxUint256);
+                          .approve(flashMint.address, ethers.constants.MaxUint256);
 
                         let [
                           filteredComponents,
-                        ] = await exchangeIssuance.getFilteredComponentsIssuance(
+                        ] = await flashMint.getFilteredComponentsIssuance(
                           subjectSetToken,
                           subjectSetAmount,
                           subjectIssuanceModule,
@@ -994,7 +994,7 @@ describe("ExchangeIssuanceNotional", () => {
                           subjectSlippage,
                         );
                         const swapData = filteredComponents.map(() => emptySwapData);
-                        await exchangeIssuance
+                        await flashMint
                           .connect(caller.wallet)
                           .issueExactSetFromToken(
                             setToken.address,
@@ -1007,7 +1007,7 @@ describe("ExchangeIssuanceNotional", () => {
                             subjectSlippage,
                           );
                         await setToken.approve(
-                          exchangeIssuance.address,
+                          flashMint.address,
                           ethers.constants.MaxUint256,
                         );
 
@@ -1021,7 +1021,7 @@ describe("ExchangeIssuanceNotional", () => {
                           );
                         }
 
-                        [filteredComponents] = await exchangeIssuance.getFilteredComponentsIssuance(
+                        [filteredComponents] = await flashMint.getFilteredComponentsIssuance(
                           subjectSetToken,
                           subjectSetAmount,
                           subjectIssuanceModule,
@@ -1074,7 +1074,7 @@ describe("ExchangeIssuanceNotional", () => {
                         });
                         it("should revert", async () => {
                           await expect(subject()).to.be.revertedWith(
-                            "ExchangeIssuance: INVALID ISSUANCE MODULE",
+                            "FlashMint: INVALID ISSUANCE MODULE",
                           );
                         });
                       });
@@ -1128,7 +1128,7 @@ describe("ExchangeIssuanceNotional", () => {
                       subjectSlippage = ethers.utils.parseEther("0.00001");
                     });
                     function subject() {
-                      return exchangeIssuance
+                      return flashMint
                         .connect(caller.wallet)
                         .redeemExactSetForToken(
                           subjectSetToken,
@@ -1142,7 +1142,7 @@ describe("ExchangeIssuanceNotional", () => {
                         );
                     }
                     function subjectCallStatic() {
-                      return exchangeIssuance
+                      return flashMint
                         .connect(caller.wallet)
                         .callStatic.redeemExactSetForToken(
                           subjectSetToken,
@@ -1159,11 +1159,11 @@ describe("ExchangeIssuanceNotional", () => {
                       beforeEach(async () => {
                         await underlyingToken
                           .connect(caller.wallet)
-                          .approve(exchangeIssuance.address, ethers.constants.MaxUint256);
+                          .approve(flashMint.address, ethers.constants.MaxUint256);
 
                         const [
                           filteredComponents,
-                        ] = await exchangeIssuance.getFilteredComponentsIssuance(
+                        ] = await flashMint.getFilteredComponentsIssuance(
                           subjectSetToken,
                           subjectSetAmount,
                           subjectIssuanceModule,
@@ -1171,7 +1171,7 @@ describe("ExchangeIssuanceNotional", () => {
                           subjectSlippage,
                         );
                         const swapData = filteredComponents.map(() => emptySwapData);
-                        await exchangeIssuance
+                        await flashMint
                           .connect(caller.wallet)
                           .issueExactSetFromToken(
                             setToken.address,
@@ -1184,7 +1184,7 @@ describe("ExchangeIssuanceNotional", () => {
                             subjectSlippage,
                           );
                         await setToken.approve(
-                          exchangeIssuance.address,
+                          flashMint.address,
                           ethers.constants.MaxUint256,
                         );
                       });
@@ -1215,7 +1215,7 @@ describe("ExchangeIssuanceNotional", () => {
 
                             const [
                               filteredComponents,
-                            ] = await exchangeIssuance.getFilteredComponentsIssuance(
+                            ] = await flashMint.getFilteredComponentsIssuance(
                               subjectSetToken,
                               subjectSetAmount,
                               subjectIssuanceModule,
@@ -1269,7 +1269,7 @@ describe("ExchangeIssuanceNotional", () => {
                             });
                             it("should revert", async () => {
                               await expect(subject()).to.be.revertedWith(
-                                "ExchangeIssuance: UNDERBOUGHT",
+                                "FlashMint: UNDERBOUGHT",
                               );
                             });
                           });
@@ -1280,7 +1280,7 @@ describe("ExchangeIssuanceNotional", () => {
                             });
                             it("should revert", async () => {
                               await expect(subject()).to.be.revertedWith(
-                                "ExchangeIssuance: INVALID ISSUANCE MODULE",
+                                "FlashMint: INVALID ISSUANCE MODULE",
                               );
                             });
                           });

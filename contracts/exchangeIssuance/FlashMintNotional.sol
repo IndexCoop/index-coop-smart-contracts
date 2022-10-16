@@ -37,7 +37,7 @@ import { DEXAdapter } from "./DEXAdapter.sol";
 
 
 
-contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
+contract FlashMintNotional is Ownable, ReentrancyGuard {
 
     using Address for address payable;
     using Address for address;
@@ -91,7 +91,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
     /* ============ Modifiers ============ */
 
     modifier isValidModule(address _issuanceModule) {
-        require(setController.isModule(_issuanceModule), "ExchangeIssuance: INVALID ISSUANCE MODULE");
+        require(setController.isModule(_issuanceModule), "FlashMint: INVALID ISSUANCE MODULE");
          _;
     }
 
@@ -512,7 +512,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
 
         IBasicIssuanceModule(_tradeData.issuanceModule).issue(_tradeData.setToken, _tradeData.amountSetToken, msg.sender);
 
-        require(inputTokenBalanceBefore.sub(_tradeData.paymentToken.balanceOf(address(this))) <= _tradeData.limitAmount, "ExchangeIssuance: OVERSPENT");
+        require(inputTokenBalanceBefore.sub(_tradeData.paymentToken.balanceOf(address(this))) <= _tradeData.limitAmount, "FlashMint: OVERSPENT");
 
         emit ExchangeIssue(msg.sender, _tradeData.setToken, _tradeData.paymentToken, _tradeData.limitAmount, _tradeData.amountSetToken);
         return inputTokenBalanceBefore.sub(_tradeData.paymentToken.balanceOf(address(this)));
@@ -538,7 +538,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
 
         uint256 outputAmount = _tradeData.paymentToken.balanceOf(address(this)).sub(outputTokenBalanceBefore);
 
-        require(outputAmount >= _tradeData.limitAmount, "ExchangeIssuance: UNDERBOUGHT");
+        require(outputAmount >= _tradeData.limitAmount, "FlashMint: UNDERBOUGHT");
         // Emit event
         emit ExchangeRedeem(msg.sender, _tradeData.setToken, _tradeData.paymentToken, _tradeData.amountSetToken, outputAmount);
         // Return output amount
@@ -878,7 +878,7 @@ contract ExchangeIssuanceNotional is Ownable, ReentrancyGuard {
      */
     receive() external payable {
         // required for weth.withdraw() to work properly
-        require(msg.sender == addresses.weth, "ExchangeIssuance: Direct deposits not allowed");
+        require(msg.sender == addresses.weth, "FlashMint: Direct deposits not allowed");
     }
 
 }
