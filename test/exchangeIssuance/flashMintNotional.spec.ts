@@ -225,9 +225,7 @@ describe("FlashMintNotional", () => {
           caller = owner;
         });
         function subject() {
-          return flashMint
-            .connect(caller.wallet)
-            .updateDecodedIdGasLimit(subjectDecodedIdGasLimit);
+          return flashMint.connect(caller.wallet).updateDecodedIdGasLimit(subjectDecodedIdGasLimit);
         }
         it("should update state correctly", async () => {
           await subject();
@@ -608,6 +606,7 @@ describe("FlashMintNotional", () => {
                     let subjectIssuanceModule: Address;
                     let subjectIsDebtIssuance: boolean;
                     let subjectSlippage: BigNumber;
+                    let subjectRedemMaturedPositions: boolean;
                     let caller: Account;
 
                     beforeEach(async () => {
@@ -616,6 +615,7 @@ describe("FlashMintNotional", () => {
                       subjectIssuanceModule = issuanceModule.address;
                       subjectIsDebtIssuance = useDebtIssuance;
                       subjectSlippage = ether(0.0001);
+                      subjectRedemMaturedPositions = true;
                       caller = owner;
 
                       const [
@@ -688,6 +688,7 @@ describe("FlashMintNotional", () => {
                           subjectIssuanceModule,
                           subjectIsDebtIssuance,
                           subjectSlippage,
+                          subjectRedemMaturedPositions,
                           { value: subjectMaxAmountInputToken },
                         );
                     }
@@ -702,6 +703,7 @@ describe("FlashMintNotional", () => {
                           subjectIssuanceModule,
                           subjectIsDebtIssuance,
                           subjectSlippage,
+                          subjectRedemMaturedPositions,
                           { value: subjectMaxAmountInputToken },
                         );
                     }
@@ -769,6 +771,7 @@ describe("FlashMintNotional", () => {
                     let subjectIssuanceModule: Address;
                     let subjectIsDebtIssuance: boolean;
                     let subjectSlippage: BigNumber;
+                    let subjectRedemMaturedPositions: boolean;
                     let caller: Account;
 
                     beforeEach(async () => {
@@ -778,6 +781,7 @@ describe("FlashMintNotional", () => {
                       subjectIsDebtIssuance = useDebtIssuance;
                       subjectComponentQuotes = [];
                       subjectSlippage = ethers.utils.parseEther("0.00001");
+                        subjectRedemMaturedPositions = true;
                       caller = owner;
                     });
 
@@ -793,6 +797,7 @@ describe("FlashMintNotional", () => {
                           subjectIssuanceModule,
                           subjectIsDebtIssuance,
                           subjectSlippage,
+                            subjectRedemMaturedPositions,
                         );
                     }
 
@@ -808,6 +813,7 @@ describe("FlashMintNotional", () => {
                           subjectIssuanceModule,
                           subjectIsDebtIssuance,
                           subjectSlippage,
+                            subjectRedemMaturedPositions,
                         );
                     }
 
@@ -821,10 +827,7 @@ describe("FlashMintNotional", () => {
                               : // @ts-ignore
                                 setV2Setup[tokenType];
 
-                          await inputToken.approve(
-                            flashMint.address,
-                            ethers.constants.MaxUint256,
-                          );
+                          await inputToken.approve(flashMint.address, ethers.constants.MaxUint256);
                           subjectInputToken = inputToken.address;
 
                           const [
@@ -901,9 +904,7 @@ describe("FlashMintNotional", () => {
                               subjectMaxAmountInputToken = spentAmount.sub(1);
                             });
                             it("should revert", async () => {
-                              await expect(subject()).to.be.revertedWith(
-                                "FlashMint: OVERSPENT",
-                              );
+                              await expect(subject()).to.be.revertedWith("FlashMint: OVERSPENT");
                             });
                           });
                         }
@@ -950,6 +951,7 @@ describe("FlashMintNotional", () => {
                     let subjectIssuanceModule: Address;
                     let subjectIsDebtIssuance: boolean;
                     let subjectSlippage: BigNumber;
+                    let subjectRedemMaturedPositions: boolean;
                     let setAmountEth: number;
                     let caller: Account;
 
@@ -961,6 +963,7 @@ describe("FlashMintNotional", () => {
                       subjectIsDebtIssuance = useDebtIssuance;
                       subjectMinAmountETH = BigNumber.from(1000);
                       subjectSlippage = ether(0.0001);
+                        subjectRedemMaturedPositions = false;
                       caller = owner;
                     });
 
@@ -975,6 +978,7 @@ describe("FlashMintNotional", () => {
                           subjectIssuanceModule,
                           subjectIsDebtIssuance,
                           subjectSlippage,
+                            subjectRedemMaturedPositions,
                         );
                     }
                     describe("When caller has enough set token to redeem", () => {
@@ -984,9 +988,7 @@ describe("FlashMintNotional", () => {
                           .connect(caller.wallet)
                           .approve(flashMint.address, ethers.constants.MaxUint256);
 
-                        let [
-                          filteredComponents,
-                        ] = await flashMint.getFilteredComponentsIssuance(
+                        let [filteredComponents] = await flashMint.getFilteredComponentsIssuance(
                           subjectSetToken,
                           subjectSetAmount,
                           subjectIssuanceModule,
@@ -1005,11 +1007,9 @@ describe("FlashMintNotional", () => {
                             issuanceModule.address,
                             useDebtIssuance,
                             subjectSlippage,
+                              true
                           );
-                        await setToken.approve(
-                          flashMint.address,
-                          ethers.constants.MaxUint256,
-                        );
+                        await setToken.approve(flashMint.address, ethers.constants.MaxUint256);
 
                         redeemAmountReturned = BigNumber.from(1000);
 
@@ -1117,6 +1117,7 @@ describe("FlashMintNotional", () => {
                     let subjectIssuanceModule: Address;
                     let subjectIsDebtIssuance: boolean;
                     let subjectSlippage: BigNumber;
+                    let subjectRedemMaturedPositions: boolean;
                     let caller: Account;
                     beforeEach(async () => {
                       subjectSetToken = setToken.address;
@@ -1126,6 +1127,7 @@ describe("FlashMintNotional", () => {
                       subjectMinAmountOutputToken = BigNumber.from(1000);
                       caller = owner;
                       subjectSlippage = ethers.utils.parseEther("0.00001");
+                        subjectRedemMaturedPositions = true;
                     });
                     function subject() {
                       return flashMint
@@ -1139,6 +1141,7 @@ describe("FlashMintNotional", () => {
                           subjectIssuanceModule,
                           subjectIsDebtIssuance,
                           subjectSlippage,
+                            subjectRedemMaturedPositions
                         );
                     }
                     function subjectCallStatic() {
@@ -1153,6 +1156,7 @@ describe("FlashMintNotional", () => {
                           subjectIssuanceModule,
                           subjectIsDebtIssuance,
                           subjectSlippage,
+                            subjectRedemMaturedPositions
                         );
                     }
                     describe("When caller has enough set token to redeem", () => {
@@ -1161,9 +1165,7 @@ describe("FlashMintNotional", () => {
                           .connect(caller.wallet)
                           .approve(flashMint.address, ethers.constants.MaxUint256);
 
-                        const [
-                          filteredComponents,
-                        ] = await flashMint.getFilteredComponentsIssuance(
+                        const [filteredComponents] = await flashMint.getFilteredComponentsIssuance(
                           subjectSetToken,
                           subjectSetAmount,
                           subjectIssuanceModule,
@@ -1182,11 +1184,9 @@ describe("FlashMintNotional", () => {
                             issuanceModule.address,
                             useDebtIssuance,
                             subjectSlippage,
+                              true
                           );
-                        await setToken.approve(
-                          flashMint.address,
-                          ethers.constants.MaxUint256,
-                        );
+                        await setToken.approve(flashMint.address, ethers.constants.MaxUint256);
                       });
                       ["underlyingToken", "usdc"].forEach(tokenType => {
                         describe(`When redeeming to ${tokenType}`, () => {
@@ -1268,9 +1268,7 @@ describe("FlashMintNotional", () => {
                               subjectMinAmountOutputToken = returnedAmount.add(1);
                             });
                             it("should revert", async () => {
-                              await expect(subject()).to.be.revertedWith(
-                                "FlashMint: UNDERBOUGHT",
-                              );
+                              await expect(subject()).to.be.revertedWith("FlashMint: UNDERBOUGHT");
                             });
                           });
 

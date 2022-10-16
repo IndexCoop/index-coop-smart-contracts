@@ -32,7 +32,6 @@ const expect = getWaffleExpect();
 
 const tokenAddresses: Record<string, string> = {
   cDai: "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
-  // cUsdc: "0x39AA39c021dfbaE8faC545936693aC917d5E7563",
   cEth: "0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5",
 };
 
@@ -355,6 +354,7 @@ if (process.env.INTEGRATIONTEST) {
                 let subjectIssuanceModule: Address;
                 let subjectIsDebtIssuance: boolean;
                 let subjectSlippage: BigNumber;
+                let subjectRedeemMaturedPositions: boolean;
                 let caller: Account;
 
                 beforeEach(async () => {
@@ -363,6 +363,7 @@ if (process.env.INTEGRATIONTEST) {
                   subjectIssuanceModule = debtIssuanceModule.address;
                   subjectIsDebtIssuance = true;
                   subjectSlippage = ether(0.0001);
+                  subjectRedeemMaturedPositions = true;
                   caller = owner;
                 });
 
@@ -376,6 +377,7 @@ if (process.env.INTEGRATIONTEST) {
                       subjectIssuanceModule,
                       subjectIsDebtIssuance,
                       subjectSlippage,
+                      subjectRedeemMaturedPositions,
                       { gasLimit, value: subjectMaxAmountInputToken },
                     );
                 }
@@ -448,6 +450,7 @@ if (process.env.INTEGRATIONTEST) {
                 let subjectIssuanceModule: Address;
                 let subjectIsDebtIssuance: boolean;
                 let subjectSlippage: BigNumber;
+                let subjectRedeemMaturedPositions: boolean;
                 let caller: Account;
 
                 beforeEach(async () => {
@@ -457,6 +460,7 @@ if (process.env.INTEGRATIONTEST) {
                   subjectIsDebtIssuance = true;
                   caller = owner;
                   subjectSlippage = ether(0.1);
+                  subjectRedeemMaturedPositions = true;
                 });
 
                 function subject() {
@@ -471,6 +475,7 @@ if (process.env.INTEGRATIONTEST) {
                       subjectIssuanceModule,
                       subjectIsDebtIssuance,
                       subjectSlippage,
+                      subjectRedeemMaturedPositions,
                       { gasLimit },
                     );
                 }
@@ -503,10 +508,7 @@ if (process.env.INTEGRATIONTEST) {
                             inputToken = inputToken.connect(owner.wallet);
                           }
 
-                          await inputToken.approve(
-                            flashMint.address,
-                            ethers.constants.MaxUint256,
-                          );
+                          await inputToken.approve(flashMint.address, ethers.constants.MaxUint256);
                           subjectInputToken = inputToken.address;
                           subjectMaxAmountInputToken = await inputToken.balanceOf(caller.address);
                           expect(subjectMaxAmountInputToken).to.be.gt(0);
@@ -560,6 +562,7 @@ if (process.env.INTEGRATIONTEST) {
                 let subjectIssuanceModule: Address;
                 let subjectIsDebtIssuance: boolean;
                 let subjectSlippage: BigNumber;
+                let subjectRedeemMaturedPositions: boolean;
                 let setAmountEth: number;
                 let caller: Account;
 
@@ -571,6 +574,7 @@ if (process.env.INTEGRATIONTEST) {
                   subjectIsDebtIssuance = true;
                   subjectMinAmountETH = BigNumber.from(1000);
                   subjectSlippage = ether(0.0001);
+                  subjectRedeemMaturedPositions = true;
                   caller = owner;
                 });
 
@@ -585,6 +589,7 @@ if (process.env.INTEGRATIONTEST) {
                       subjectIssuanceModule,
                       subjectIsDebtIssuance,
                       subjectSlippage,
+                      subjectRedeemMaturedPositions,
                     );
                 }
                 describe("When caller has enough set token to redeem", () => {
@@ -593,9 +598,7 @@ if (process.env.INTEGRATIONTEST) {
                       .connect(caller.wallet)
                       .approve(flashMint.address, ethers.constants.MaxUint256);
 
-                    const [
-                      filteredComponents,
-                    ] = await flashMint.getFilteredComponentsIssuance(
+                    const [filteredComponents] = await flashMint.getFilteredComponentsIssuance(
                       subjectSetToken,
                       subjectSetAmount,
                       subjectIssuanceModule,
@@ -614,6 +617,7 @@ if (process.env.INTEGRATIONTEST) {
                         debtIssuanceModule.address,
                         true,
                         subjectSlippage,
+                        true,
                         { gasLimit },
                       );
                     await setToken.approve(flashMint.address, ethers.constants.MaxUint256);
@@ -680,6 +684,7 @@ if (process.env.INTEGRATIONTEST) {
                 let subjectIssuanceModule: Address;
                 let subjectIsDebtIssuance: boolean;
                 let subjectSlippage: BigNumber;
+                let subjectRedeemMaturedPositions: boolean;
                 let setAmountEth: number;
                 let caller: Account;
                 beforeEach(async () => {
@@ -690,6 +695,7 @@ if (process.env.INTEGRATIONTEST) {
                   subjectIsDebtIssuance = true;
                   subjectMinAmountOutputToken = BigNumber.from(0);
                   subjectSlippage = ether(0.0001);
+                  subjectRedeemMaturedPositions = true;
                   caller = owner;
                 });
                 function subject() {
@@ -704,6 +710,7 @@ if (process.env.INTEGRATIONTEST) {
                       subjectIssuanceModule,
                       subjectIsDebtIssuance,
                       subjectSlippage,
+                      subjectRedeemMaturedPositions,
                     );
                 }
                 describe("When caller has enough set token to redeem", () => {
@@ -712,9 +719,7 @@ if (process.env.INTEGRATIONTEST) {
                       .connect(caller.wallet)
                       .approve(flashMint.address, ethers.constants.MaxUint256);
 
-                    const [
-                      filteredComponents,
-                    ] = await flashMint.getFilteredComponentsIssuance(
+                    const [filteredComponents] = await flashMint.getFilteredComponentsIssuance(
                       subjectSetToken,
                       subjectSetAmount,
                       subjectIssuanceModule,
@@ -733,6 +738,7 @@ if (process.env.INTEGRATIONTEST) {
                         debtIssuanceModule.address,
                         true,
                         subjectSlippage,
+                        true,
                         { gasLimit },
                       );
                     await setToken.approve(flashMint.address, ethers.constants.MaxUint256);

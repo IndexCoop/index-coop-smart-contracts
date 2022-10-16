@@ -55,6 +55,7 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
         address issuanceModule;
         bool isDebtIssuance;
         uint256 slippage;
+        bool redeemMaturedPositions;
     }
 
     /* ============ Constants ============== */
@@ -72,7 +73,7 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
 
     /* ============ Events ============ */
 
-    event ExchangeIssue(
+    event FlashMint(
         address indexed _recipient,     // The recipient address of the issued SetTokens
         ISetToken indexed _setToken,    // The issued SetToken
         IERC20 indexed _inputToken,     // The address of the input asset(ERC20/ETH) used to issue the SetTokens
@@ -80,7 +81,7 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
         uint256 _amountSetIssued        // The amount of SetTokens received by the recipient
     );
 
-    event ExchangeRedeem(
+    event FlashRedeem(
         address indexed _recipient,     // The recipient adress of the output tokens obtained for redemption
         ISetToken indexed _setToken,    // The redeemed SetToken
         IERC20 indexed _outputToken,    // The address of output asset(ERC20/ETH) received by the recipient
@@ -314,12 +315,13 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
     /**
      * Issue set token for ETH
      *
-     * @param _setToken          Address of the set token to issue
-     * @param _amountSetToken    Amount of set token to issue
-     * @param _swapData          Swap data for each element of the filtered components in the same order as returned by getFilteredComponentsIssuance
-     * @param _issuanceModule    Address of the issuance module to use for getting raw list of components and units
-     * @param _isDebtIssuance    Boolean indicating wether given issuance module is an instance of Debt- or BasicIssuanceModule
-     * @param _slippage          Relative slippage (with 18 decimals) to add to wrappedfCash's estimated issuance cost to allow for approximation error
+     * @param _setToken                  Address of the set token to issue
+     * @param _amountSetToken            Amount of set token to issue
+     * @param _swapData                  Swap data for each element of the filtered components in the same order as returned by getFilteredComponentsIssuance
+     * @param _issuanceModule            Address of the issuance module to use for getting raw list of components and units
+     * @param _isDebtIssuance            Boolean indicating wether given issuance module is an instance of Debt- or BasicIssuanceModule
+     * @param _slippage                  Relative slippage (with 18 decimals) to add to wrappedfCash's estimated issuance cost to allow for approximation error
+     * @param _redeemMaturedPositions    Set to false to skip redeeming matured positions and save gas, wich will fail if there are any matured positions
      */
     function issueExactSetFromETH(
         ISetToken _setToken,
@@ -327,7 +329,8 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
         DEXAdapter.SwapData[] memory _swapData,
         address _issuanceModule,
         bool _isDebtIssuance,
-        uint256 _slippage
+        uint256 _slippage,
+        bool _redeemMaturedPositions
     )
         isValidModule(_issuanceModule)
         external
@@ -344,7 +347,8 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
             msg.value,
             _issuanceModule,
             _isDebtIssuance,
-            _slippage
+            _slippage,
+            _redeemMaturedPositions
         );
         uint256 totalInputTokenSpent = _issueExactSetFromToken(tradeData,  _swapData);
         uint256 amountTokenReturn = msg.value.sub(totalInputTokenSpent);
@@ -358,14 +362,15 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
     /**
      * Issue set token for ERC20 Token
      *
-     * @param _setToken               Address of the set token to issue
-     * @param _amountSetToken         Amount of set token to issue
-     * @param _inputToken             Address of the input token to spent
-     * @param _maxAmountInputToken    Maximum amount of input token to spent
-     * @param _swapData               Configuration of swaps from input token to each element of the filtered components in the same order as returned by getFilteredComponentsIssuance
-     * @param _issuanceModule         Address of the issuance module to use for getting raw list of components and units
-     * @param _isDebtIssuance         Boolean indicating wether given issuance module is an instance of Debt- or BasicIssuanceModule
-     * @param _slippage               Relative slippage (with 18 decimals) to add to wrappedfCash's estimated issuance cost to allow for approximation error
+     * @param _setToken                  Address of the set token to issue
+     * @param _amountSetToken            Amount of set token to issue
+     * @param _inputToken                Address of the input token to spent
+     * @param _maxAmountInputToken       Maximum amount of input token to spent
+     * @param _swapData                  Configuration of swaps from input token to each element of the filtered components in the same order as returned by getFilteredComponentsIssuance
+     * @param _issuanceModule            Address of the issuance module to use for getting raw list of components and units
+     * @param _isDebtIssuance            Boolean indicating wether given issuance module is an instance of Debt- or BasicIssuanceModule
+     * @param _slippage                  Relative slippage (with 18 decimals) to add to wrappedfCash's estimated issuance cost to allow for approximation error
+     * @param _redeemMaturedPositions    Set to false to skip redeeming matured positions and save gas, wich will fail if there are any matured positions
      */
     function issueExactSetFromToken(
         ISetToken _setToken,
@@ -375,7 +380,8 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
         DEXAdapter.SwapData[] memory _swapData,
         address _issuanceModule,
         bool _isDebtIssuance,
-        uint256 _slippage
+        uint256 _slippage,
+        bool _redeemMaturedPositions
     )
         isValidModule(_issuanceModule)
         external
@@ -391,7 +397,8 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
             _maxAmountInputToken,
             _issuanceModule,
             _isDebtIssuance,
-            _slippage
+            _slippage,
+            _redeemMaturedPositions
         );
         uint256 totalInputTokenSpent = _issueExactSetFromToken(tradeData, _swapData);
         _returnExcessInputToken(_inputToken, _maxAmountInputToken, totalInputTokenSpent);
@@ -401,14 +408,15 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
     /**
      * Redeem set token for selected output token
      *
-     * @param _setToken               Address of the set token to redeem
-     * @param _amountSetToken         Amount of set token to redeem
-     * @param _outputToken            Address of the output token to spent
-     * @param _minOutputReceive       Minimum amount of output token to receive
-     * @param _swapData               Configuration of swaps from each element of the filtered components to the output token in the same order as returned by getFilteredComponentsIssuance
-     * @param _issuanceModule         Address of the issuance module to use for getting raw list of components and units
-     * @param _isDebtIssuance         Boolean indicating wether given issuance module is an instance of Debt- or BasicIssuanceModule
-     * @param _slippage               Relative slippage (with 18 decimals) to subtract from wrappedfCash's estimated redemption amount to allow for approximation error
+     * @param _setToken                  Address of the set token to redeem
+     * @param _amountSetToken            Amount of set token to redeem
+     * @param _outputToken               Address of the output token to spent
+     * @param _minOutputReceive          Minimum amount of output token to receive
+     * @param _swapData                  Configuration of swaps from each element of the filtered components to the output token in the same order as returned by getFilteredComponentsIssuance
+     * @param _issuanceModule            Address of the issuance module to use for getting raw list of components and units
+     * @param _isDebtIssuance            Boolean indicating wether given issuance module is an instance of Debt- or BasicIssuanceModule
+     * @param _slippage                  Relative slippage (with 18 decimals) to subtract from wrappedfCash's estimated redemption amount to allow for approximation error
+     * @param _redeemMaturedPositions    Set to false to skip redeeming matured positions and save gas, wich will fail if there are any matured positions
      */
     function redeemExactSetForToken(
         ISetToken _setToken,
@@ -418,7 +426,8 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
         DEXAdapter.SwapData[] memory _swapData,
         address _issuanceModule,
         bool _isDebtIssuance,
-        uint256 _slippage
+        uint256 _slippage,
+        bool _redeemMaturedPositions
     )
         isValidModule(_issuanceModule)
         external
@@ -433,7 +442,8 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
             _minOutputReceive,
             _issuanceModule,
             _isDebtIssuance,
-            _slippage
+            _slippage,
+            _redeemMaturedPositions
         );
         uint256 outputAmount = _redeemExactSetForToken(tradeData, _swapData);
         _outputToken.safeTransfer(msg.sender, outputAmount);
@@ -443,13 +453,14 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
     /**
      * Redeem set token for eth
      *
-     * @param _setToken               Address of the set token to redeem
-     * @param _amountSetToken         Amount of set token to redeem
-     * @param _minOutputReceive       Minimum amount of output token to receive
-     * @param _swapData               Configuration of swaps from each element of the filtered components to the output token in the same order as returned by getFilteredComponentsIssuance
-     * @param _issuanceModule         Address of the issuance module to use for getting raw list of components and units
-     * @param _isDebtIssuance         Boolean indicating wether given issuance module is an instance of Debt- or BasicIssuanceModule
-     * @param _slippage               Relative slippage (with 18 decimals) to subtract from wrappedfCash's estimated redemption amount to allow for approximation error
+     * @param _setToken                  Address of the set token to redeem
+     * @param _amountSetToken            Amount of set token to redeem
+     * @param _minOutputReceive          Minimum amount of output token to receive
+     * @param _swapData                  Configuration of swaps from each element of the filtered components to the output token in the same order as returned by getFilteredComponentsIssuance
+     * @param _issuanceModule            Address of the issuance module to use for getting raw list of components and units
+     * @param _isDebtIssuance            Boolean indicating wether given issuance module is an instance of Debt- or BasicIssuanceModule
+     * @param _slippage                  Relative slippage (with 18 decimals) to subtract from wrappedfCash's estimated redemption amount to allow for approximation error
+     * @param _redeemMaturedPositions    Set to false to skip redeeming matured positions and save gas, wich will fail if there are any matured positions
      */
     function redeemExactSetForETH(
         ISetToken _setToken,
@@ -458,7 +469,8 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
         DEXAdapter.SwapData[] memory _swapData,
         address _issuanceModule,
         bool _isDebtIssuance,
-        uint256 _slippage
+        uint256 _slippage,
+        bool _redeemMaturedPositions
     )
         isValidModule(_issuanceModule)
         external
@@ -474,7 +486,8 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
             _minOutputReceive,
             _issuanceModule,
             _isDebtIssuance,
-            _slippage
+            _slippage,
+            _redeemMaturedPositions
         );
         uint256 outputAmount = _redeemExactSetForToken(tradeData, _swapData);
         IWETH(addresses.weth).withdraw(outputAmount);
@@ -497,7 +510,9 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
     {
 
         uint256 inputTokenBalanceBefore = _tradeData.paymentToken.balanceOf(address(this));
-        notionalTradeModule.redeemMaturedPositions(_tradeData.setToken);
+        if(_tradeData.redeemMaturedPositions) {
+            notionalTradeModule.redeemMaturedPositions(_tradeData.setToken);
+        }
 
         (address[] memory componentsBought, uint256[] memory amountsBought) =  _buyComponentsForInputToken(
             _tradeData,
@@ -514,7 +529,7 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
 
         require(inputTokenBalanceBefore.sub(_tradeData.paymentToken.balanceOf(address(this))) <= _tradeData.limitAmount, "FlashMint: OVERSPENT");
 
-        emit ExchangeIssue(msg.sender, _tradeData.setToken, _tradeData.paymentToken, _tradeData.limitAmount, _tradeData.amountSetToken);
+        emit FlashMint(msg.sender, _tradeData.setToken, _tradeData.paymentToken, _tradeData.limitAmount, _tradeData.amountSetToken);
         return inputTokenBalanceBefore.sub(_tradeData.paymentToken.balanceOf(address(this)));
     }
 
@@ -530,7 +545,9 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
     {
 
         uint256 outputTokenBalanceBefore = _tradeData.paymentToken.balanceOf(address(this));
-        notionalTradeModule.redeemMaturedPositions(_tradeData.setToken);
+        if(_tradeData.redeemMaturedPositions) {
+            notionalTradeModule.redeemMaturedPositions(_tradeData.setToken);
+        }
         _redeemExactSet(_tradeData.setToken, _tradeData.amountSetToken, _tradeData.issuanceModule);
 
         _redeemWrappedFCashPositions(_tradeData);
@@ -540,7 +557,7 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
 
         require(outputAmount >= _tradeData.limitAmount, "FlashMint: UNDERBOUGHT");
         // Emit event
-        emit ExchangeRedeem(msg.sender, _tradeData.setToken, _tradeData.paymentToken, _tradeData.amountSetToken, outputAmount);
+        emit FlashRedeem(msg.sender, _tradeData.setToken, _tradeData.paymentToken, _tradeData.amountSetToken, outputAmount);
         // Return output amount
         return outputAmount;
     }
