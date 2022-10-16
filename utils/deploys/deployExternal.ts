@@ -380,5 +380,4 @@ export default class DeployExternalContracts {
   public async deployAaveTokenV2Mintable(): Promise<AaveTokenV2Mintable> {
     return await new AaveTokenV2Mintable__factory(this._deployerSigner).deploy();
   }
-
 }

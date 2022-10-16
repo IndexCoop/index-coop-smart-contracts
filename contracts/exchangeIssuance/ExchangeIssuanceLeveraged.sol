@@ -146,6 +146,7 @@ contract ExchangeIssuanceLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
     * @param _setController         SetToken controller used to verify a given token is a set
     * @param _debtIssuanceModule    DebtIssuanceModule used to issue and redeem tokens
     * @param _aaveLeverageModule    AaveLeverageModule to sync before every issuance / redemption
+    * @param _aaveAddressProvider   Address of address provider for aaves addresses
     * @param _curveAddressProvider  Contract to get current implementation address of curve registry
     * @param _curveCalculator       Contract to calculate required input to receive given output in curve (for exact output swaps)
     */
