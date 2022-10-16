@@ -362,7 +362,7 @@ if (process.env.INTEGRATIONTEST) {
                   subjectSetAmount = ethers.utils.parseEther("1");
                   subjectIssuanceModule = debtIssuanceModule.address;
                   subjectIsDebtIssuance = true;
-                  subjectSlippage = ether(0.0001);
+                  subjectSlippage = ether(0.01);
                   subjectRedeemMaturedPositions = true;
                   caller = owner;
                 });
@@ -383,59 +383,91 @@ if (process.env.INTEGRATIONTEST) {
                 }
                 [false, true].forEach(hasMatured => {
                   describe(`when component has ${!hasMatured ? "not " : ""}matured`, () => {
+                    let filteredComponents: any;
+                    let filteredUnits: any;
+                    let filteredComponentsBefore: any;
+                    let filteredUnitsBefore: any;
                     beforeEach(async () => {
-                      if (hasMatured) {
-                        await network.provider.send("evm_setNextBlockTimestamp", [
-                          maturity.toNumber() + 1,
-                        ]);
-                        await network.provider.send("evm_mine", []);
-                        // TODO: Remove this statement and fix related issues
-                        await notionalTradeModule.redeemMaturedPositions(setToken.address);
-                      }
-                      const [
-                        filteredComponents,
-                        filteredUnits,
-                      ] = await flashMint.getFilteredComponentsRedemption(
+                      [
+                        filteredComponentsBefore,
+                        filteredUnitsBefore,
+                      ] = await flashMint.callStatic.getFilteredComponentsRedemptionAfterMaturityRedemption(
                         subjectSetToken,
                         subjectSetAmount,
                         subjectIssuanceModule,
                         subjectIsDebtIssuance,
                         subjectSlippage,
                       );
-                      subjectComponentQuotes = filteredComponents.map((component: Address) => {
-                        return {
-                          path: [tokens.weth.address, component],
-                          fees: [3000],
-                          pool: ADDRESS_ZERO,
-                          exchange: Exchange.UniV3,
-                        };
-                      });
-                      if (
-                        ethers.utils.getAddress(filteredComponents[0]) !=
-                        ethers.utils.getAddress(tokens.weth.address)
-                      ) {
-                        subjectMaxAmountInputToken = (await caller.wallet.getBalance()).div(10);
-                      } else {
-                        subjectMaxAmountInputToken = filteredUnits[0].mul(2);
+
+                      if (hasMatured) {
+                        await network.provider.send("evm_setNextBlockTimestamp", [
+                          maturity.toNumber() + 1,
+                        ]);
+                        await network.provider.send("evm_mine", []);
                       }
-                    });
-
-                    it("should issue correct amount of set token", async () => {
-                      const balanceBefore = await setToken.balanceOf(caller.address);
-                      await subject();
-                      const issuedAmount = (await setToken.balanceOf(caller.address)).sub(
-                        balanceBefore,
+                      [
+                        filteredComponents,
+                        filteredUnits,
+                      ] = await flashMint.callStatic.getFilteredComponentsRedemptionAfterMaturityRedemption(
+                        subjectSetToken,
+                        subjectSetAmount,
+                        subjectIssuanceModule,
+                        subjectIsDebtIssuance,
+                        subjectSlippage,
                       );
-                      expect(issuedAmount).to.eq(subjectSetAmount);
                     });
 
-                    it("should spend correct amount of input token", async () => {
-                      const balanceBefore = await caller.wallet.getBalance();
-                      const txFee = await getTxFee(await subject());
-                      const spentAmount = balanceBefore
-                        .sub(await caller.wallet.getBalance())
-                        .sub(txFee);
-                      expect(spentAmount).to.be.lte(subjectMaxAmountInputToken);
+                    [false, true].forEach(redeemMaturedPositions => {
+                      describe(`when setting redeemMaturedPositions flag to: ${redeemMaturedPositions} `, () => {
+                        beforeEach(async () => {
+                          subjectRedeemMaturedPositions = redeemMaturedPositions;
+
+                          if (hasMatured && !redeemMaturedPositions) {
+                            filteredComponents = filteredComponentsBefore;
+                            filteredUnits = filteredUnitsBefore;
+                          }
+                          subjectComponentQuotes = filteredComponents.map((component: Address) => {
+                            return {
+                              path: [tokens.weth.address, component],
+                              fees: [3000],
+                              pool: ADDRESS_ZERO,
+                              exchange: Exchange.UniV3,
+                            };
+                          });
+                          if (
+                            ethers.utils.getAddress(filteredComponents[0]) !=
+                            ethers.utils.getAddress(tokens.weth.address)
+                          ) {
+                            subjectMaxAmountInputToken = (await caller.wallet.getBalance()).div(10);
+                          } else {
+                            subjectMaxAmountInputToken = filteredUnits[0].mul(2);
+                          }
+                        });
+
+                        if (hasMatured && !redeemMaturedPositions) {
+                          it("should revert", async () => {
+                            await expect(subject()).to.be.revertedWith("fCash matured");
+                          });
+                        } else {
+                          it("should issue correct amount of set token", async () => {
+                            const balanceBefore = await setToken.balanceOf(caller.address);
+                            await subject();
+                            const issuedAmount = (await setToken.balanceOf(caller.address)).sub(
+                              balanceBefore,
+                            );
+                            expect(issuedAmount).to.eq(subjectSetAmount);
+                          });
+
+                          it("should spend correct amount of input token", async () => {
+                            const balanceBefore = await caller.wallet.getBalance();
+                            const txFee = await getTxFee(await subject());
+                            const spentAmount = balanceBefore
+                              .sub(await caller.wallet.getBalance())
+                              .sub(txFee);
+                            expect(spentAmount).to.be.lte(subjectMaxAmountInputToken);
+                          });
+                        }
+                      });
                     });
                   });
                 });
@@ -481,73 +513,108 @@ if (process.env.INTEGRATIONTEST) {
                 }
                 [false, true].forEach(hasMatured => {
                   describe(`when component has ${!hasMatured ? "not " : ""}matured`, () => {
+                    let filteredComponents: any;
+                    let filteredComponentsBefore: any;
                     beforeEach(async () => {
+                      [
+                        filteredComponentsBefore,
+                      ] = await flashMint.callStatic.getFilteredComponentsRedemptionAfterMaturityRedemption(
+                        subjectSetToken,
+                        subjectSetAmount,
+                        subjectIssuanceModule,
+                        subjectIsDebtIssuance,
+                        subjectSlippage,
+                      );
+
                       if (hasMatured) {
                         await network.provider.send("evm_setNextBlockTimestamp", [
                           maturity.toNumber() + 1,
                         ]);
                         await network.provider.send("evm_mine", []);
-                        await notionalTradeModule.redeemMaturedPositions(setToken.address);
                       }
+                      [
+                        filteredComponents,
+                      ] = await flashMint.callStatic.getFilteredComponentsRedemptionAfterMaturityRedemption(
+                        subjectSetToken,
+                        subjectSetAmount,
+                        subjectIssuanceModule,
+                        subjectIsDebtIssuance,
+                        subjectSlippage,
+                      );
                     });
 
-                    ["underlyingToken", "usdc"].forEach((tokenType: string) => {
-                      describe(`When issuing from ${tokenType}`, () => {
-                        let inputToken: IERC20;
+                    [false, true].forEach(redeemMaturedPositions => {
+                      describe(`when setting redeemMaturedPositions flag to: ${redeemMaturedPositions} `, () => {
                         beforeEach(async () => {
-                          if (tokenType == "underlyingToken") {
-                            inputToken = underlyingToken;
-                          } else {
-                            inputToken = tokens[tokenType];
-                            await inputToken.transfer(
-                              owner.address,
-                              (
-                                await inputToken.balanceOf(await inputToken.signer.getAddress())
-                              ).div(10),
-                            );
-                            inputToken = inputToken.connect(owner.wallet);
-                          }
+                          subjectRedeemMaturedPositions = redeemMaturedPositions;
+                        });
 
-                          await inputToken.approve(flashMint.address, ethers.constants.MaxUint256);
-                          subjectInputToken = inputToken.address;
-                          subjectMaxAmountInputToken = await inputToken.balanceOf(caller.address);
-                          expect(subjectMaxAmountInputToken).to.be.gt(0);
+                        ["underlyingToken", "usdc"].forEach((tokenType: string) => {
+                          describe(`When issuing from ${tokenType}`, () => {
+                            let inputToken: IERC20;
+                            beforeEach(async () => {
+                              if (tokenType == "underlyingToken") {
+                                inputToken = underlyingToken;
+                              } else {
+                                inputToken = tokens[tokenType];
+                                await inputToken.transfer(
+                                  owner.address,
+                                  (
+                                    await inputToken.balanceOf(await inputToken.signer.getAddress())
+                                  ).div(10),
+                                );
+                                inputToken = inputToken.connect(owner.wallet);
+                              }
 
-                          const [
-                            filteredComponents,
-                          ] = await flashMint.getFilteredComponentsIssuance(
-                            subjectSetToken,
-                            subjectSetAmount,
-                            subjectIssuanceModule,
-                            subjectIsDebtIssuance,
-                            subjectSlippage,
-                          );
-                          subjectComponentQuotes = filteredComponents.map((component: Address) => {
-                            return {
-                              path: [inputToken.address, component],
-                              fees: [3000],
-                              pool: ADDRESS_ZERO,
-                              exchange: Exchange.UniV3,
-                            };
+                              await inputToken.approve(
+                                flashMint.address,
+                                ethers.constants.MaxUint256,
+                              );
+                              subjectInputToken = inputToken.address;
+                              subjectMaxAmountInputToken = await inputToken.balanceOf(
+                                caller.address,
+                              );
+                              expect(subjectMaxAmountInputToken).to.be.gt(0);
+
+                              if (hasMatured && !redeemMaturedPositions) {
+                                filteredComponents = filteredComponentsBefore;
+                              }
+                              subjectComponentQuotes = filteredComponents.map(
+                                (component: Address) => {
+                                  return {
+                                    path: [inputToken.address, component],
+                                    fees: [3000],
+                                    pool: ADDRESS_ZERO,
+                                    exchange: Exchange.UniV3,
+                                  };
+                                },
+                              );
+                            });
+
+                            if (hasMatured && !redeemMaturedPositions) {
+                              it("should revert", async () => {
+                                await expect(subject()).to.be.revertedWith("fCash matured");
+                              });
+                            } else {
+                              it("should issue correct amount of set token", async () => {
+                                const balanceBefore = await setToken.balanceOf(caller.address);
+                                await subject();
+                                const issuedAmount = (await setToken.balanceOf(caller.address)).sub(
+                                  balanceBefore,
+                                );
+                                expect(issuedAmount).to.eq(subjectSetAmount);
+                              });
+
+                              it("should spend correct amount of input token", async () => {
+                                const balanceBefore = await inputToken.balanceOf(caller.address);
+                                await subject();
+                                const spentAmount = balanceBefore.sub(
+                                  await inputToken.balanceOf(caller.address),
+                                );
+                                expect(spentAmount).to.be.lte(subjectMaxAmountInputToken);
+                              });
+                            }
                           });
-                        });
-
-                        it("should issue correct amount of set token", async () => {
-                          const balanceBefore = await setToken.balanceOf(caller.address);
-                          await subject();
-                          const issuedAmount = (await setToken.balanceOf(caller.address)).sub(
-                            balanceBefore,
-                          );
-                          expect(issuedAmount).to.eq(subjectSetAmount);
-                        });
-
-                        it("should spend correct amount of input token", async () => {
-                          const balanceBefore = await inputToken.balanceOf(caller.address);
-                          await subject();
-                          const spentAmount = balanceBefore.sub(
-                            await inputToken.balanceOf(caller.address),
-                          );
-                          expect(spentAmount).to.be.lte(subjectMaxAmountInputToken);
                         });
                       });
                     });
@@ -624,19 +691,12 @@ if (process.env.INTEGRATIONTEST) {
                   });
                   [false, true].forEach(hasMatured => {
                     describe(`when component has ${!hasMatured ? "not " : ""}matured`, () => {
+                      let filteredComponents: any;
+                      let filteredComponentsBefore: any;
                       beforeEach(async () => {
-                        if (hasMatured) {
-                          await network.provider.send("evm_setNextBlockTimestamp", [
-                            maturity.toNumber() + 1,
-                          ]);
-                          await network.provider.send("evm_mine", []);
-                          // TODO: Remove this statement and fix related issues
-                          await notionalTradeModule.redeemMaturedPositions(setToken.address);
-                        }
-
-                        const [
-                          filteredComponents,
-                        ] = await flashMint.getFilteredComponentsRedemption(
+                        [
+                          filteredComponentsBefore,
+                        ] = await flashMint.callStatic.getFilteredComponentsRedemptionAfterMaturityRedemption(
                           subjectSetToken,
                           subjectSetAmount,
                           subjectIssuanceModule,
@@ -644,32 +704,68 @@ if (process.env.INTEGRATIONTEST) {
                           subjectSlippage,
                         );
 
-                        subjectComponentQuotes = filteredComponents.map((component: Address) => {
-                          return {
-                            path: [component, tokens.weth.address],
-                            fees: [3000],
-                            pool: ADDRESS_ZERO,
-                            exchange: Exchange.UniV3,
-                          };
-                        });
-                        subjectMinAmountETH = BigNumber.from(1000);
-                      });
-
-                      it("should redeem correct amount of set token", async () => {
-                        const balanceBefore = await setToken.balanceOf(caller.address);
-                        await subject();
-                        const redeemedAmount = balanceBefore.sub(
-                          await setToken.balanceOf(caller.address),
+                        if (hasMatured) {
+                          await network.provider.send("evm_setNextBlockTimestamp", [
+                            maturity.toNumber() + 1,
+                          ]);
+                          await network.provider.send("evm_mine", []);
+                        }
+                        [
+                          filteredComponents,
+                        ] = await flashMint.callStatic.getFilteredComponentsRedemptionAfterMaturityRedemption(
+                          subjectSetToken,
+                          subjectSetAmount,
+                          subjectIssuanceModule,
+                          subjectIsDebtIssuance,
+                          subjectSlippage,
                         );
-                        expect(redeemedAmount).to.eq(subjectSetAmount);
                       });
 
-                      it("should return correct amount of ETH", async () => {
-                        const balanceBefore = await caller.wallet.getBalance();
-                        const txFee = await getTxFee(await subject());
-                        const balanceAfter = await caller.wallet.getBalance();
-                        const returnedAmount = balanceAfter.sub(balanceBefore).add(txFee);
-                        expect(returnedAmount).to.gte(subjectMinAmountETH);
+                      [false, true].forEach(redeemMaturedPositions => {
+                        describe(`when setting redeemMaturedPositions flag to: ${redeemMaturedPositions} `, () => {
+                          beforeEach(async () => {
+                            subjectRedeemMaturedPositions = redeemMaturedPositions;
+                            if (hasMatured && !redeemMaturedPositions) {
+                              filteredComponents = filteredComponentsBefore;
+                            }
+                            subjectComponentQuotes = filteredComponents.map(
+                              (component: Address) => {
+                                return {
+                                  path: [component, tokens.weth.address],
+                                  fees: [3000],
+                                  pool: ADDRESS_ZERO,
+                                  exchange: Exchange.UniV3,
+                                };
+                              },
+                            );
+                            subjectMinAmountETH = BigNumber.from(1000);
+                          });
+
+                          if (hasMatured && !redeemMaturedPositions) {
+                            it("should revert", async () => {
+                              await expect(subject()).to.be.revertedWith(
+                                "Components / Swapdata mismatch",
+                              );
+                            });
+                          } else {
+                            it("should redeem correct amount of set token", async () => {
+                              const balanceBefore = await setToken.balanceOf(caller.address);
+                              await subject();
+                              const redeemedAmount = balanceBefore.sub(
+                                await setToken.balanceOf(caller.address),
+                              );
+                              expect(redeemedAmount).to.eq(subjectSetAmount);
+                            });
+
+                            it("should return correct amount of ETH", async () => {
+                              const balanceBefore = await caller.wallet.getBalance();
+                              const txFee = await getTxFee(await subject());
+                              const balanceAfter = await caller.wallet.getBalance();
+                              const returnedAmount = balanceAfter.sub(balanceBefore).add(txFee);
+                              expect(returnedAmount).to.gte(subjectMinAmountETH);
+                            });
+                          }
+                        });
                       });
                     });
                   });
@@ -745,82 +841,116 @@ if (process.env.INTEGRATIONTEST) {
                   });
                   [false, true].forEach(hasMatured => {
                     describe(`when component has ${!hasMatured ? "not " : ""}matured`, () => {
+                      let filteredComponents: any;
+                      let filteredComponentsBefore: any;
                       beforeEach(async () => {
+                        [
+                          filteredComponentsBefore,
+                        ] = await flashMint.callStatic.getFilteredComponentsRedemptionAfterMaturityRedemption(
+                          subjectSetToken,
+                          subjectSetAmount,
+                          subjectIssuanceModule,
+                          subjectIsDebtIssuance,
+                          subjectSlippage,
+                        );
+
                         if (hasMatured) {
                           await network.provider.send("evm_setNextBlockTimestamp", [
                             maturity.toNumber() + 1,
                           ]);
                           await network.provider.send("evm_mine", []);
                         }
+                        [
+                          filteredComponents,
+                        ] = await flashMint.callStatic.getFilteredComponentsRedemptionAfterMaturityRedemption(
+                          subjectSetToken,
+                          subjectSetAmount,
+                          subjectIssuanceModule,
+                          subjectIsDebtIssuance,
+                          subjectSlippage,
+                        );
                       });
-
-                      ["underlyingToken", "usdc"].forEach(tokenType => {
-                        describe(`When redeeming to ${tokenType}`, () => {
-                          let redeemAmountReturned: BigNumber;
-                          let outputToken: IERC20;
+                      [false, true].forEach(redeemMaturedPositions => {
+                        describe(`when setting redeemMaturedPositions flag to: ${redeemMaturedPositions} `, () => {
                           beforeEach(async () => {
-                            if (tokenType == "underlyingToken") {
-                              outputToken = underlyingToken;
-                            } else {
-                              outputToken = tokens[tokenType];
-                              await outputToken.transfer(
-                                owner.address,
-                                (
-                                  await outputToken.balanceOf(await outputToken.signer.getAddress())
-                                ).div(10),
-                              );
-                              outputToken = outputToken.connect(owner.wallet);
-                            }
-                            subjectOutputToken = outputToken.address;
-
-                            const notionalProxy = (await ethers.getContractAt(
-                              "INotionalProxy",
-                              PRODUCTION_ADDRESSES.lending.notional.notionalV2,
-                            )) as INotionalProxy;
-                            await notionalProxy.settleAccount(wrappedfCashInstance.address);
-                            redeemAmountReturned = await wrappedfCashInstance.previewRedeem(
-                              wrappedfCashPosition.mul(setAmountEth),
-                            );
-                            await notionalTradeModule.redeemMaturedPositions(setToken.address);
-                            const [
-                              filteredComponents,
-                            ] = await flashMint.getFilteredComponentsRedemption(
-                              subjectSetToken,
-                              subjectSetAmount,
-                              subjectIssuanceModule,
-                              subjectIsDebtIssuance,
-                              subjectSlippage,
-                            );
-                            subjectMinAmountOutputToken =
-                              tokenType == "underlyingToken"
-                                ? redeemAmountReturned
-                                : BigNumber.from(1000);
-
-                            subjectComponentQuotes = filteredComponents.map(
-                              (component: Address) => {
-                                return {
-                                  path: [component, outputToken.address],
-                                  fees: [3000],
-                                  pool: ADDRESS_ZERO,
-                                  exchange: Exchange.UniV3,
-                                };
-                              },
-                            );
+                            subjectRedeemMaturedPositions = redeemMaturedPositions;
                           });
-                          it("should redeem correct amount of set token", async () => {
-                            const balanceBefore = await setToken.balanceOf(caller.address);
-                            await subject();
-                            const redeemedAmount = balanceBefore.sub(
-                              await setToken.balanceOf(caller.address),
-                            );
-                            expect(redeemedAmount).to.eq(subjectSetAmount);
-                          });
-                          it("should return correct amount of output token", async () => {
-                            const balanceBefore = await outputToken.balanceOf(caller.address);
-                            await subject();
-                            const balanceAfter = await outputToken.balanceOf(caller.address);
-                            const returnedAmount = balanceAfter.sub(balanceBefore);
-                            expect(returnedAmount).to.gte(subjectMinAmountOutputToken);
+
+                          ["underlyingToken", "usdc"].forEach(tokenType => {
+                            describe(`When redeeming to ${tokenType}`, () => {
+                              let redeemAmountReturned: BigNumber;
+                              let outputToken: IERC20;
+                              beforeEach(async () => {
+                                if (tokenType == "underlyingToken") {
+                                  outputToken = underlyingToken;
+                                } else {
+                                  outputToken = tokens[tokenType];
+                                  await outputToken.transfer(
+                                    owner.address,
+                                    (
+                                      await outputToken.balanceOf(
+                                        await outputToken.signer.getAddress(),
+                                      )
+                                    ).div(10),
+                                  );
+                                  outputToken = outputToken.connect(owner.wallet);
+                                }
+                                subjectOutputToken = outputToken.address;
+
+                                const notionalProxy = (await ethers.getContractAt(
+                                  "INotionalProxy",
+                                  PRODUCTION_ADDRESSES.lending.notional.notionalV2,
+                                )) as INotionalProxy;
+                                await notionalProxy.settleAccount(wrappedfCashInstance.address);
+                                redeemAmountReturned = await wrappedfCashInstance.previewRedeem(
+                                  wrappedfCashPosition.mul(setAmountEth),
+                                );
+                                await notionalTradeModule.redeemMaturedPositions(setToken.address);
+
+                                subjectMinAmountOutputToken =
+                                  tokenType == "underlyingToken"
+                                    ? redeemAmountReturned
+                                    : BigNumber.from(1000);
+
+                                if (hasMatured && !redeemMaturedPositions) {
+                                  filteredComponents = filteredComponentsBefore;
+                                }
+
+                                subjectComponentQuotes = filteredComponents.map(
+                                  (component: Address) => {
+                                    return {
+                                      path: [component, outputToken.address],
+                                      fees: [3000],
+                                      pool: ADDRESS_ZERO,
+                                      exchange: Exchange.UniV3,
+                                    };
+                                  },
+                                );
+                              });
+                              if (hasMatured && !redeemMaturedPositions) {
+                                it("should revert", async () => {
+                                  await expect(subject()).to.be.revertedWith(
+                                    "Components / Swapdata mismatch",
+                                  );
+                                });
+                              } else {
+                                it("should redeem correct amount of set token", async () => {
+                                  const balanceBefore = await setToken.balanceOf(caller.address);
+                                  await subject();
+                                  const redeemedAmount = balanceBefore.sub(
+                                    await setToken.balanceOf(caller.address),
+                                  );
+                                  expect(redeemedAmount).to.eq(subjectSetAmount);
+                                });
+                                it("should return correct amount of output token", async () => {
+                                  const balanceBefore = await outputToken.balanceOf(caller.address);
+                                  await subject();
+                                  const balanceAfter = await outputToken.balanceOf(caller.address);
+                                  const returnedAmount = balanceAfter.sub(balanceBefore);
+                                  expect(returnedAmount).to.gte(subjectMinAmountOutputToken);
+                                });
+                              }
+                            });
                           });
                         });
                       });
