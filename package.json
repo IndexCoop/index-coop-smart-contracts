@@ -95,8 +95,6 @@
     "typescript": "^3.9.3"
   },
   "dependencies": {
-    "openzeppelin-contracts-V4": "npm:@openzeppelin/contracts@4.5",
-    "@openzeppelin-upgradeable/contracts": "npm:@openzeppelin/contracts-upgradeable@4.5.2",
     "@chainlink/contracts": "^0.3.1",
     "@ethersproject/abstract-signer": "5.0.9",
     "@ethersproject/bignumber": "5.0.12",
