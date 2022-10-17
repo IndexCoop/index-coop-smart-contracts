@@ -37,6 +37,17 @@ import { DEXAdapter } from "./DEXAdapter.sol";
 
 
 
+/**
+ * @title FlashMintNotional
+ * @author Index Coop
+ *
+ * Contract for issuing and redeeming a Set Token that contains wrappedfCash position
+ * Includes (in the issuance case):
+ *    - Matching fCash components to their underlying asset
+ *    - Swapping input token to underlying asset
+ *    - Minting fCash positions from underlying asset
+ *    - Issuing set token   
+ */
 contract FlashMintNotional is Ownable, ReentrancyGuard {
 
     using Address for address payable;
@@ -235,7 +246,6 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
         returns (address[] memory filteredComponents, uint[] memory filteredUnits)
     {
         return _getFilteredComponentsRedemption(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance, _slippage);
-
     }
 
     /**
