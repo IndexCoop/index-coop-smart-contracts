@@ -595,6 +595,7 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
         for (uint256 i = 0; i < components.length; i++) {
             uint256 maxAmountSell = componentUnits[i];
             address component = components[i];
+            // Component Address being zero means the filtered list is finished and all remaining components are 0 as well
             if(component == address(0)){
                 break;
             }
