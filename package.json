@@ -35,7 +35,6 @@
     "lint-sol": "solhint 'contracts/**/*.sol'",
     "lint-ts": "tslint -c tslint.json -p tsconfig.json --fix",
     "patch-hardhat-typechain": "node scripts/patch-hardhat-typechain.js",
-    "postinstall": "patch-package",
     "precommit": "lint-staged",
     "prepare": "yarn build",
     "prepublishOnly": "yarn clean && yarn build:npm",
