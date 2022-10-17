@@ -84,12 +84,16 @@ const config: HardhatUserConfig = {
     kovan: {
       url: "https://kovan.infura.io/v3/" + process.env.INFURA_TOKEN,
       // @ts-ignore
-      accounts: [`0x${process.env.KOVAN_DEPLOY_PRIVATE_KEY}`],
+      accounts: process.env.KOVAN_DEPLOY_PRIVATE_KEY
+        ? [`0x${process.env.KOVAN_DEPLOY_PRIVATE_KEY}`]
+        : undefined,
     },
     production: {
       url: "https://mainnet.infura.io/v3/" + process.env.INFURA_TOKEN,
       // @ts-ignore
-      accounts: [`0x${process.env.PRODUCTION_MAINNET_DEPLOY_PRIVATE_KEY}`],
+      accounts: process.env.PRODUCTION_MAINNET_DEPLOY_PRIVATE_KEY
+        ? [`0x${process.env.PRODUCTION_MAINNET_DEPLOY_PRIVATE_KEY}`]
+        : undefined,
     },
   },
   mocha: mochaConfig,
