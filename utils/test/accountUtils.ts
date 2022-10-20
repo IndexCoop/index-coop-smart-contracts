@@ -96,7 +96,6 @@ export const getForkedTokens = (): ForkedTokens => {
   return forkedTokens;
 };
 
-<<<<<<< HEAD
 function toRpcQuantity(x: NumberLike): string {
   let hex: string;
   if (typeof x === "number" || typeof x === "bigint") {
