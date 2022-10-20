@@ -293,7 +293,7 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
         view
         returns (address[] memory filteredComponents, uint[] memory filteredUnits)
     {
-        return _getFilteredComponentsIssuance(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance, _slippage);
+        (filteredComponents, filteredUnits, ) = _getFilteredComponentsIssuance(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance, _slippage);
     }
 
     /**
@@ -318,7 +318,7 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
         returns (address[] memory filteredComponents, uint[] memory filteredUnits)
     {
         notionalTradeModule.redeemMaturedPositions(_setToken);
-        return _getFilteredComponentsIssuance(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance, _slippage);
+        (filteredComponents, filteredUnits, ) =  _getFilteredComponentsIssuance(_setToken, _amountSetToken, _issuanceModule, _isDebtIssuance, _slippage);
 
     }
 
@@ -524,7 +524,7 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
             notionalTradeModule.redeemMaturedPositions(_tradeData.setToken);
         }
 
-        (address[] memory componentsBought, uint256[] memory amountsBought) =  _buyComponentsForInputToken(
+        (address[] memory componentsBought, uint256[] memory amountsBought, uint256[] memory mappingToFilteredComponents) =  _buyComponentsForInputToken(
             _tradeData,
             _swapData
         );
@@ -532,7 +532,8 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
         _mintWrappedFCashPositions(
             _tradeData,
             componentsBought,
-            amountsBought
+            amountsBought,
+            mappingToFilteredComponents
         );
 
         IBasicIssuanceModule(_tradeData.issuanceModule).issue(_tradeData.setToken, _tradeData.amountSetToken, msg.sender);
@@ -639,7 +640,8 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
     function _mintWrappedFCashPositions(
         TradeData memory _tradeData,
         address[] memory componentsBought,
-        uint256[] memory amountsAvailable
+        uint256[] memory amountsAvailable,
+        uint256[] memory mappingToFilteredComponents
     ) 
     internal
     {
@@ -655,15 +657,15 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
             uint256 units = componentUnits[i];
             if(_isWrappedFCash(component)) {
                 IERC20 underlyingToken = _getUnderlyingToken(IWrappedfCash(component));
-                uint256 componentIndex = _findComponent(componentsBought, address(underlyingToken));
-                uint256 amountAvailable = amountsAvailable[componentIndex-1];
+                uint256 componentIndex = mappingToFilteredComponents[i];
+                uint256 amountAvailable = amountsAvailable[componentIndex];
                 underlyingToken.safeApprove(component, amountAvailable);
                 uint256 underlyingBalanceBefore = underlyingToken.balanceOf(address(this));
 
                 IWrappedfCash(component).mintViaUnderlying(amountAvailable, uint88(units), address(this), 0);
 
                 uint256 amountSpent = underlyingBalanceBefore.sub(underlyingToken.balanceOf(address(this)));
-                amountsAvailable[componentIndex-1] = amountsAvailable[componentIndex-1].sub(amountSpent);
+                amountsAvailable[componentIndex] = amountsAvailable[componentIndex].sub(amountSpent);
             }
             IERC20(component).safeApprove(_tradeData.issuanceModule, units);
         }
@@ -781,9 +783,9 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
         DEXAdapter.SwapData[] memory _swapData
     ) 
     internal
-    returns(address[] memory, uint256[] memory)
+    returns(address[] memory, uint256[] memory, uint256[] memory)
     {
-        (address[] memory components, uint256[] memory componentUnits) = _getFilteredComponentsIssuance(
+        (address[] memory components, uint256[] memory componentUnits, uint256[] memory mappingToFilteredComponents) = _getFilteredComponentsIssuance(
             _tradeData.setToken,
             _tradeData.amountSetToken,
             _tradeData.issuanceModule,
@@ -810,7 +812,7 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
             }
         }
 
-        return(components, boughtAmounts);
+        return(components, boughtAmounts, mappingToFilteredComponents);
     }
 
     /**
@@ -869,12 +871,13 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
     )
         internal
         view
-        returns (address[] memory filteredComponents, uint[] memory filteredUnits)
+        returns (address[] memory filteredComponents, uint[] memory filteredUnits, uint256[] memory mappingToFilteredComponent)
     {
         (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(_issuanceModule, _isDebtIssuance, _setToken, _amountSetToken);
 
         filteredComponents = new address[](components.length);
         filteredUnits = new uint256[](components.length);
+        mappingToFilteredComponent = new uint256[](components.length);
         uint j = 0;
 
         for (uint256 i = 0; i < components.length; i++) {
@@ -893,9 +896,11 @@ contract FlashMintNotional is Ownable, ReentrancyGuard {
             uint256 componentIndex = _findComponent(filteredComponents, component);
             if(componentIndex > 0){
                 filteredUnits[componentIndex - 1] = filteredUnits[componentIndex - 1].add(units);
+                mappingToFilteredComponent[i] = componentIndex - 1;
             } else {
                 filteredComponents[j] = component;
                 filteredUnits[j] = units;
+                mappingToFilteredComponent[i] = j;
                 j++;
             }
         }
