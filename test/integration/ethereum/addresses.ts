@@ -13,6 +13,12 @@ export const PRODUCTION_ADDRESSES = {
     cUSDC: "0x39aa39c021dfbae8fac545936693ac917d5e7563",
     cDAI: "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
   },
+  whales: {
+    stEth: "0xdc24316b9ae028f1497c275eb9192a3ea0f67022",
+    dai: "0x075e72a5edf65f0a5f44699c7654c1a76941ddc8",
+    weth: "0x2f0b23f53734252bda2277357e97e1517d6b042a",
+    USDC: "0x55fe002aeff02f77364de339a1292923a15844b8",
+  },
   dexes: {
     curve: {
       calculator: "0xc1DB00a8E5Ef7bfa476395cdbcc98235477cDE4E",
@@ -39,7 +45,6 @@ export const PRODUCTION_ADDRESSES = {
     debtIssuanceModule: "0x39F024d621367C044BacE2bf0Fb15Fb3612eCB92",
     debtIssuanceModuleV2: "0x69a592D2129415a4A1d1b1E309C17051B7F28d57",
     aaveLeverageModule: "0x251Bd1D42Df1f153D86a5BA2305FaADE4D5f51DC",
-    notionalTradeModule: "0x8D21B942A7911254079cAe4333E21f98B2a0D357",
     compoundLeverageModule: "0x8d5174eD1dd217e240fDEAa52Eb7f4540b04F419",
   },
   setFork: {
@@ -67,7 +72,6 @@ STAGING_ADDRESSES.set = {
   debtIssuanceModule: "0x39F024d621367C044BacE2bf0Fb15Fb3612eCB92",
   debtIssuanceModuleV2: "0x3C0CC7624B1c408cF2cF11b3961301949f2F7820",
   aaveLeverageModule: "0x5d2B710787078B45CD7582C0423AC2fC180262e8",
-  notionalTradeModule: "0x8D21B942A7911254079cAe4333E21f98B2a0D357",
   compoundLeverageModule: "0x8d5174eD1dd217e240fDEAa52Eb7f4540b04F419",
 };
 

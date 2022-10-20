@@ -2,7 +2,6 @@ import { ethers, network } from "hardhat";
 import { BigNumber } from "ethers";
 import { Account, Address, ForkedTokens } from "../types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
-import dependencies from "../deploys/dependencies";
 import { IERC20__factory } from "../../typechain";
 import { ether } from "../common";
 
@@ -17,12 +16,7 @@ interface BNLike {
   toString(base?: number): string;
 }
 
-export type NumberLike =
-  | number
-  | bigint
-  | string
-  | EthersBigNumberLike
-  | BNLike;
+export type NumberLike = number | bigint | string | EthersBigNumberLike | BNLike;
 
 export const getAccounts = async (): Promise<Account[]> => {
   const accounts: Account[] = [];
@@ -58,37 +52,38 @@ export const getWallets = async (): Promise<SignerWithAddress[]> => {
   return (await ethers.getSigners()) as SignerWithAddress[];
 };
 
-const getForkedDependencyAddresses = (): any => {
+const getForkedDependencyAddresses = (addresses: any): any => {
   return {
     whales: [
-      dependencies.DAI_WHALE,
-      dependencies.WETH_WHALE,
-      dependencies.WBTC_WHALE,
-      dependencies.USDC_WHALE,
-      dependencies.STETH_WHALE,
+      addresses.whales.dai,
+      addresses.whales.weth,
+      addresses.whales.USDC,
+      addresses.whales.stEth,
     ],
 
     tokens: [
-      dependencies.DAI[1],
-      dependencies.WETH[1],
-      dependencies.WBTC[1],
-      dependencies.USDC[1],
-      dependencies.STETH[1],
+      addresses.tokens.dai,
+      addresses.tokens.weth,
+      addresses.tokens.USDC,
+      addresses.tokens.stEth,
     ],
   };
 };
 
 // Mainnet token instances connected their impersonated
 // top holders to enable approval / transfer etc.
-export const getForkedTokens = (): ForkedTokens => {
-
-  const enum ids { DAI, WETH, WBTC, USDC, STETH }
-  const { whales, tokens } = getForkedDependencyAddresses();
+export const getForkedTokens = (addresses: any): ForkedTokens => {
+  const enum ids {
+    DAI,
+    WETH,
+    USDC,
+    STETH,
+  }
+  const { whales, tokens } = getForkedDependencyAddresses(addresses);
 
   const forkedTokens = {
     dai: IERC20__factory.connect(tokens[ids.DAI], provider.getSigner(whales[ids.DAI])),
     weth: IERC20__factory.connect(tokens[ids.WETH], provider.getSigner(whales[ids.WETH])),
-    wbtc: IERC20__factory.connect(tokens[ids.WBTC], provider.getSigner(whales[ids.WBTC])),
     usdc: IERC20__factory.connect(tokens[ids.USDC], provider.getSigner(whales[ids.USDC])),
     steth: IERC20__factory.connect(tokens[ids.STETH], provider.getSigner(whales[ids.STETH])),
   };
@@ -103,9 +98,7 @@ function toRpcQuantity(x: NumberLike): string {
     hex = `0x${x.toString(16)}`;
   } else if (typeof x === "string") {
     if (!x.startsWith("0x")) {
-      throw new Error(
-        "Only 0x-prefixed hex-encoded strings are accepted"
-      );
+      throw new Error("Only 0x-prefixed hex-encoded strings are accepted");
     }
     hex = x;
   } else if ("toHexString" in x) {
@@ -113,9 +106,7 @@ function toRpcQuantity(x: NumberLike): string {
   } else if ("toString" in x) {
     hex = x.toString(16);
   } else {
-    throw new Error(
-      `${x as any} cannot be converted to an RPC quantity`
-    );
+    throw new Error(`${x as any} cannot be converted to an RPC quantity`);
   }
 
   if (hex === "0x0") return hex;
@@ -129,10 +120,7 @@ function toRpcQuantity(x: NumberLike): string {
  * @param address The address whose balance will be edited.
  * @param balance The new balance to set for the given address, in wei.
  */
-export async function setEthBalance(
-  address: string,
-  balance: NumberLike
-): Promise<void> {
+export async function setEthBalance(address: string, balance: NumberLike): Promise<void> {
   const provider = network.provider;
   const balanceHex = toRpcQuantity(balance);
   await provider.request({
@@ -141,8 +129,8 @@ export async function setEthBalance(
   });
 }
 
-export const initializeForkedTokens = async () => {
-  const { whales } = getForkedDependencyAddresses();
+export const initializeForkedTokens = async (addresses: any) => {
+  const { whales } = getForkedDependencyAddresses(addresses);
 
   for (const whale of whales) {
     await network.provider.request({
