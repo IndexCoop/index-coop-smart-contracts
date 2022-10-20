@@ -82,8 +82,6 @@ const getForkedDependencyAddresses = (): any => {
 // top holders to enable approval / transfer etc.
 export const getForkedTokens = (): ForkedTokens => {
 
-  // (eslint is confused by typescript enum keyword)
-  // eslint-disable-next-line no-unused-vars
   const enum ids { DAI, WETH, WBTC, USDC, STETH }
   const { whales, tokens } = getForkedDependencyAddresses();
 
@@ -98,6 +96,7 @@ export const getForkedTokens = (): ForkedTokens => {
   return forkedTokens;
 };
 
+<<<<<<< HEAD
 function toRpcQuantity(x: NumberLike): string {
   let hex: string;
   if (typeof x === "number" || typeof x === "bigint") {
@@ -152,6 +151,7 @@ export const initializeForkedTokens = async () => {
       params: [whale],
     });
 
-    await setEthBalance(whale, ether(100));
+    const gasBudget = ether(100);
+    await setEthBalance(whale, gasBudget);
   }
 };
