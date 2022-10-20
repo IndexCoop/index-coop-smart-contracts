@@ -34,6 +34,7 @@ export {
   initializeForkedTokens,
   mineBlockAsync,
   cacheBeforeEach,
+  setEthBalance
 } from "./test";
 
 export {

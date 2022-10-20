@@ -5,9 +5,24 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-wit
 import dependencies from "../deploys/dependencies";
 import { IERC20__factory } from "../../typechain";
 import { ether } from "../common";
-import type DeployHelper  from "../deploys";
 
 const provider = ethers.provider;
+
+interface EthersBigNumberLike {
+  toHexString(): string;
+}
+
+interface BNLike {
+  toNumber(): number;
+  toString(base?: number): string;
+}
+
+export type NumberLike =
+  | number
+  | bigint
+  | string
+  | EthersBigNumberLike
+  | BNLike;
 
 export const getAccounts = async (): Promise<Account[]> => {
   const accounts: Account[] = [];
@@ -83,16 +98,60 @@ export const getForkedTokens = (): ForkedTokens => {
   return forkedTokens;
 };
 
-export const initializeForkedTokens = async (deployer: DeployHelper): Promise<void> => {
+function toRpcQuantity(x: NumberLike): string {
+  let hex: string;
+  if (typeof x === "number" || typeof x === "bigint") {
+    // TODO: check that number is safe
+    hex = `0x${x.toString(16)}`;
+  } else if (typeof x === "string") {
+    if (!x.startsWith("0x")) {
+      throw new Error(
+        "Only 0x-prefixed hex-encoded strings are accepted"
+      );
+    }
+    hex = x;
+  } else if ("toHexString" in x) {
+    hex = x.toHexString();
+  } else if ("toString" in x) {
+    hex = x.toString(16);
+  } else {
+    throw new Error(
+      `${x as any} cannot be converted to an RPC quantity`
+    );
+  }
+
+  if (hex === "0x0") return hex;
+
+  return hex.startsWith("0x") ? hex.replace(/0x0+/, "0x") : `0x${hex}`;
+}
+
+/**
+ * Sets the balance for the given address.
+ *
+ * @param address The address whose balance will be edited.
+ * @param balance The new balance to set for the given address, in wei.
+ */
+export async function setEthBalance(
+  address: string,
+  balance: NumberLike
+): Promise<void> {
+  const provider = network.provider;
+  const balanceHex = toRpcQuantity(balance);
+  await provider.request({
+    method: "hardhat_setBalance",
+    params: [address, balanceHex],
+  });
+}
+
+export const initializeForkedTokens = async () => {
   const { whales } = getForkedDependencyAddresses();
 
   for (const whale of whales) {
     await network.provider.request({
       method: "hardhat_impersonateAccount",
-      params: [whale]},
-    );
+      params: [whale],
+    });
 
-    const funder = await deployer.mocks.deployForceFunderMock();
-    await funder.fund(whale, {value: ether(100)}); // Gas money
+    await setEthBalance(whale, ether(100));
   }
 };

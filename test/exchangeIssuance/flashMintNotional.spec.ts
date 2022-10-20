@@ -15,7 +15,7 @@ import {
 import { UniswapV2Router02 } from "@utils/contracts/uniswap";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
-import { ether, usdc } from "@utils/index";
+import { ether, usdc, setEthBalance } from "@utils/index";
 import {
   getAccounts,
   getSetFixture,
@@ -188,8 +188,7 @@ describe("FlashMintNotional", () => {
         describe("when FlashMintNotional holds funds", () => {
           beforeEach(async () => {
             await erc20Token.transfer(flashMint.address, erc20Amount);
-            const funder = await deployer.mocks.deployForceFunderMock();
-            await funder.fund(flashMint.address, { value: ethAmount });
+            await setEthBalance(flashMint.address, ethAmount);
           });
 
           it("should transfer eth", async () => {

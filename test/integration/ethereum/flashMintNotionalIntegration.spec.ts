@@ -87,7 +87,7 @@ if (process.env.INTEGRATIONTEST) {
         PRODUCTION_ADDRESSES.setFork.debtIssuanceModuleV2,
       )) as DebtIssuanceModule;
 
-      await initializeForkedTokens(deployer);
+      await initializeForkedTokens();
       tokens = getForkedTokens();
     });
 

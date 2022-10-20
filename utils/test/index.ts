@@ -5,6 +5,7 @@ export {
   getRandomAccount,
   getRandomAddress,
   initializeForkedTokens,
+  setEthBalance
 } from "./accountUtils";
 export {
   addSnapshotBeforeRestoreAfterEach,
