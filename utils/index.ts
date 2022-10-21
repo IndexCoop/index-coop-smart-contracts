@@ -22,6 +22,7 @@ export const getUniswapV3Fixture = (ownerAddress: Address) => new UniswapV3Fixtu
 export {
   getAccounts,
   getEthBalance,
+  getForkedTokens,
   getLastBlockTimestamp,
   getProvider,
   getTransactionTimestamp,
@@ -30,8 +31,10 @@ export {
   getRandomAccount,
   getRandomAddress,
   increaseTimeAsync,
+  initializeForkedTokens,
   mineBlockAsync,
   cacheBeforeEach,
+  setEthBalance
 } from "./test";
 
 export {

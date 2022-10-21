@@ -24,7 +24,7 @@ const optimismForkingConfig = {
 
 const mainnetForkingConfig = {
   url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
-  blockNumber: process.env.LATESTBLOCK ? undefined : 14433300,
+  blockNumber: process.env.LATESTBLOCK ? undefined : 15754500,
 };
 
 const forkingConfig =
@@ -35,8 +35,6 @@ const forkingConfig =
     : mainnetForkingConfig;
 
 const mochaConfig = {
-  grep: "@forked-network",
-  invert: process.env.FORK ? false : true,
   timeout: process.env.INTEGRATIONTEST ? INTEGRATIONTEST_TIMEOUT : 50000,
 } as Mocha.MochaOptions;
 
@@ -56,10 +54,12 @@ const gasOption =
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: "0.6.10",
-    settings: {
-      optimizer: { enabled: true, runs: 200 },
-    },
+    compilers: [
+      {
+        version: "0.6.10",
+        settings: { optimizer: { enabled: true, runs: 200 } },
+      },
+    ],
   },
   namedAccounts: {
     deployer: 0,
@@ -82,12 +82,16 @@ const config: HardhatUserConfig = {
     kovan: {
       url: "https://kovan.infura.io/v3/" + process.env.INFURA_TOKEN,
       // @ts-ignore
-      accounts: [`0x${process.env.KOVAN_DEPLOY_PRIVATE_KEY}`],
+      accounts: process.env.KOVAN_DEPLOY_PRIVATE_KEY
+        ? [`0x${process.env.KOVAN_DEPLOY_PRIVATE_KEY}`]
+        : undefined,
     },
     production: {
       url: "https://mainnet.infura.io/v3/" + process.env.INFURA_TOKEN,
       // @ts-ignore
-      accounts: [`0x${process.env.PRODUCTION_MAINNET_DEPLOY_PRIVATE_KEY}`],
+      accounts: process.env.PRODUCTION_MAINNET_DEPLOY_PRIVATE_KEY
+        ? [`0x${process.env.PRODUCTION_MAINNET_DEPLOY_PRIVATE_KEY}`]
+        : undefined,
     },
   },
   mocha: mochaConfig,

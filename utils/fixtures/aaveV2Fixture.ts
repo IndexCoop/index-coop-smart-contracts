@@ -90,7 +90,7 @@ export class AaveV2Fixture {
     } else {
       this.lendingPool = await this._deployer.external.deployAaveV2LendingPool(validationLogicAddress, reserveLogicAddress);
     }
-    
+
 
     this.lendingPoolAddressesProvider = await this._deployer.external.deployAaveV2LendingPoolAddressesProvider(this.marketId);
     this.protocolDataProvider = await this._deployer.external.deployAaveV2ProtocolDataProvider(this.lendingPoolAddressesProvider.address);

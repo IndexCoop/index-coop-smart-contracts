@@ -1,8 +1,11 @@
 export {
   getAccounts,
   getEthBalance,
+  getForkedTokens,
   getRandomAccount,
   getRandomAddress,
+  initializeForkedTokens,
+  setEthBalance
 } from "./accountUtils";
 export {
   addSnapshotBeforeRestoreAfterEach,

@@ -15,6 +15,7 @@ import {
   ExchangeIssuance,
   ExchangeIssuanceV2,
   ExchangeIssuanceLeveraged,
+  FlashMintNotional,
   FlashMintLeveragedForCompound,
   ExchangeIssuanceZeroEx,
   FlashMintPerp,
@@ -33,6 +34,7 @@ import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__facto
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { ExchangeIssuanceLeveraged__factory } from "../../typechain/factories/ExchangeIssuanceLeveraged__factory";
+import { FlashMintNotional__factory } from "../../typechain/factories/FlashMintNotional__factory";
 import { FlashMintLeveragedForCompound__factory } from "../../typechain/factories/FlashMintLeveragedForCompound__factory";
 import { ExchangeIssuanceZeroEx__factory } from "../../typechain/factories/ExchangeIssuanceZeroEx__factory";
 import { FlashMintPerp__factory } from "../../typechain/factories/FlashMintPerp__factory";
@@ -261,6 +263,46 @@ export default class DeployExtensions {
       wethAddress,
       setControllerAddress,
       swapTarget,
+    );
+  }
+
+  public async deployFlashMintNotional(
+    wethAddress: Address,
+    setControllerAddress: Address,
+    wrappedfCashFactory: Address,
+    notionalTradeModule: Address,
+    quickRouter: Address,
+    sushiRouter: Address,
+    uniV3Router: Address,
+    uniV3Quoter: Address,
+    curveAddressProvider: Address,
+    curveCalculator: Address,
+    decodedIdGasLimit: BigNumber,
+  ): Promise<FlashMintNotional> {
+    const dexAdapter = await this.deployDEXAdapter();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
+    );
+
+    return await new FlashMintNotional__factory( // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      wethAddress,
+      setControllerAddress,
+      wrappedfCashFactory,
+      notionalTradeModule,
+      quickRouter,
+      sushiRouter,
+      uniV3Router,
+      uniV3Quoter,
+      curveAddressProvider,
+      curveCalculator,
+      decodedIdGasLimit,
     );
   }
 

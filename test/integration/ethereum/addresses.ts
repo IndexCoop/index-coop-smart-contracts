@@ -13,6 +13,12 @@ export const PRODUCTION_ADDRESSES = {
     cUSDC: "0x39aa39c021dfbae8fac545936693ac917d5e7563",
     cDAI: "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
   },
+  whales: {
+    stEth: "0xdc24316b9ae028f1497c275eb9192a3ea0f67022",
+    dai: "0x075e72a5edf65f0a5f44699c7654c1a76941ddc8",
+    weth: "0x2f0b23f53734252bda2277357e97e1517d6b042a",
+    USDC: "0x55fe002aeff02f77364de339a1292923a15844b8",
+  },
   dexes: {
     curve: {
       calculator: "0xc1DB00a8E5Ef7bfa476395cdbcc98235477cDE4E",
@@ -30,7 +36,7 @@ export const PRODUCTION_ADDRESSES = {
       router: "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
     },
     uniV3: {
-      router: "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6",
+      router: "0xE592427A0AEce92De3Edee1F18E0157C05861564",
       quoter: "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6",
     },
   },
@@ -41,10 +47,20 @@ export const PRODUCTION_ADDRESSES = {
     aaveLeverageModule: "0x251Bd1D42Df1f153D86a5BA2305FaADE4D5f51DC",
     compoundLeverageModule: "0x8d5174eD1dd217e240fDEAa52Eb7f4540b04F419",
   },
+  setFork: {
+    controller: "0xD2463675a099101E36D85278494268261a66603A",
+    debtIssuanceModuleV2: "0xa0a98EB7Af028BE00d04e46e1316808A62a8fd59",
+    notionalTradeModule: "0x600d9950c6ecAef98Cc42fa207E92397A6c43416",
+  },
   lending: {
     aave: {
       addressProvider: "0xB53C1a33016B2DC2fF3653530bfF1848a515c8c5",
       lendingPool: "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
+    },
+    notional: {
+      wrappedfCashFactory: "0x5D051DeB5db151C2172dCdCCD42e6A2953E27261",
+      notionalV2: "0x1344a36a1b56144c3bc62e7757377d288fde0369",
+      nUpgreadableBeacon: "0xFAaF0C5B81E802C231A5249221cfe0B6ae639118",
     },
   },
 };

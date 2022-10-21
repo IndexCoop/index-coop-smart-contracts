@@ -1,6 +1,7 @@
 import { ContractTransaction as ContractTransactionType, Wallet as WalletType } from "ethers";
 import { BigNumber } from "@ethersproject/bignumber";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signer-with-address";
+import { IERC20 } from "../typechain";
 
 export type Account = {
   address: Address;
@@ -29,6 +30,10 @@ export interface MerkleDistributorInfo {
 }
 
 export type DistributionFormat = { address: string; earnings: BigNumber };
+
+export type ForkedTokens = {
+  [key: string]: IERC20;
+};
 
 export interface ContractSettings {
   setToken: Address;

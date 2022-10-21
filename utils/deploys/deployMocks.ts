@@ -6,12 +6,15 @@ import {
   FlexibleLeverageStrategyExtensionMock,
   GovernanceAdapterMock,
   MutualUpgradeMock,
+  NotionalTradeModuleMock,
   StandardTokenMock,
   StringArrayUtilsMock,
   TradeAdapterMock,
   WrapAdapterMock,
-  DEXAdapter,
+  WrappedfCashMock,
+  WrappedfCashFactoryMock,
   ZeroExExchangeProxyMock,
+  DEXAdapter,
 } from "../contracts/index";
 
 import { BaseExtensionMock__factory } from "../../typechain/factories/BaseExtensionMock__factory";
@@ -23,11 +26,14 @@ import { FlexibleLeverageStrategyExtensionMock__factory } from "../../typechain/
 import { GovernanceAdapterMock__factory } from "../../typechain/factories/GovernanceAdapterMock__factory";
 import { MasterChefMock__factory } from "../../typechain/factories/MasterChefMock__factory";
 import { MutualUpgradeMock__factory } from "../../typechain/factories/MutualUpgradeMock__factory";
+import { NotionalTradeModuleMock__factory } from "../../typechain/factories/NotionalTradeModuleMock__factory";
 import { TradeAdapterMock__factory } from "../../typechain/factories/TradeAdapterMock__factory";
 import { StandardTokenMock__factory } from "../../typechain/factories/StandardTokenMock__factory";
 import { StringArrayUtilsMock__factory } from "../../typechain/factories/StringArrayUtilsMock__factory";
 import { WrapAdapterMock__factory } from "../../typechain/factories/WrapAdapterMock__factory";
-import { ZeroExExchangeProxyMock__factory } from "../../typechain/factories/ZeroExExchangeProxyMock__factory";
+import { WrappedfCashMock__factory } from "../../typechain/factories/WrappedfCashMock__factory";
+import { WrappedfCashFactoryMock__factory } from "../../typechain/factories/WrappedfCashFactoryMock__factory";
+import { ZeroExExchangeProxyMock__factory  } from "../../typechain/factories/ZeroExExchangeProxyMock__factory";
 import { AaveV2LendingPoolMock__factory } from "@typechain/factories/AaveV2LendingPoolMock__factory";
 import { AaveV2LendingPoolMock } from "@typechain/AaveV2LendingPoolMock";
 import { FlashMintLeveragedCompMock } from "@typechain/FlashMintLeveragedCompMock";
@@ -112,6 +118,19 @@ export default class DeployMocks {
   public async deployZeroExExchangeProxyMock(): Promise<ZeroExExchangeProxyMock> {
     return await new ZeroExExchangeProxyMock__factory(this._deployerSigner).deploy();
   }
+
+  public async deployWrappedfCashMock(assetToken: Address, underlyingToken: Address, weth: Address): Promise<WrappedfCashMock> {
+    return await new WrappedfCashMock__factory(this._deployerSigner).deploy(assetToken, underlyingToken, weth);
+  }
+
+  public async deployWrappedfCashFactoryMock(): Promise<WrappedfCashFactoryMock> {
+    return await new WrappedfCashFactoryMock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployNotionalTradeModuleMock(): Promise<NotionalTradeModuleMock> {
+    return await new NotionalTradeModuleMock__factory(this._deployerSigner).deploy();
+  }
+
 
   public async deployAaveV2LendingPoolMock(
     validationLogicAddress: Address,
