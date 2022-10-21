@@ -35,8 +35,6 @@ const forkingConfig =
     : mainnetForkingConfig;
 
 const mochaConfig = {
-  grep: "@forked-network",
-  invert: process.env.FORK ? false : true,
   timeout: process.env.INTEGRATIONTEST ? INTEGRATIONTEST_TIMEOUT : 50000,
 } as Mocha.MochaOptions;
 

@@ -57,28 +57,6 @@ jobs:
             TEST_FILES="$(circleci tests glob "./test/**/*.spec.ts" | circleci tests split)"
             yarn test ${TEST_FILES}
 
-  test_forked_network:
-    docker:
-      - image: cimg/node:lts
-    working_directory: ~/index-coop-smart-contracts
-    steps:
-      - setup_remote_docker:
-          docker_layer_caching: false
-      - run:
-          name: Fetch solc version
-          command: docker pull ethereum/solc:0.6.10
-      - restore_cache:
-          key: compiled-env-{{ .Environment.CIRCLE_SHA1 }}
-      - run:
-          name: Set Up Environment Variables
-          command: cp .env.default .env
-      - run:
-          name: Test RPC
-          command: yarn chain
-          background: true
-      - run:
-          name: Hardhat Test
-          command: yarn test:fork
 
   test_integration_polygon:
     docker:
@@ -185,37 +163,6 @@ jobs:
             - cov_0.json
             - cov_1.json
 
-  coverage_forked_network:
-    docker:
-      - image: cimg/node:lts
-    working_directory: ~/index-coop-smart-contracts
-    steps:
-      - setup_remote_docker:
-          docker_layer_caching: false
-      - run:
-          name: Fetch solc version
-          command: docker pull ethereum/solc:0.6.10
-      - restore_cache:
-          key: compiled-env-{{ .Environment.CIRCLE_SHA1 }}
-      - run:
-          name: Set Up Environment Variables
-          command: cp .env.default .env
-      - run:
-          name: Create shared coverage outputs folder
-          command: mkdir -p /tmp/coverage
-      - run:
-          name: Coverage
-          command: |
-            yarn coverage:fork
-      - run:
-          name: Save coverage
-          command: |
-            cp coverage.json /tmp/coverage/cov_fork.json
-            chmod -R 777 /tmp/coverage/cov_fork.json
-      - persist_to_workspace:
-          root: /tmp/coverage
-          paths:
-            - cov_fork.json
 
   report_coverage:
     docker:
@@ -245,9 +192,6 @@ workflows:
       - test:
           requires:
             - checkout_and_compile
-      - test_forked_network:
-          requires:
-            - checkout_and_compile
       - test_integration_ethereum:
           requires:
             - checkout_and_compile
@@ -260,10 +204,6 @@ workflows:
       - coverage:
           requires:
             - checkout_and_compile
-      - coverage_forked_network:
-          requires:
-            - checkout_and_compile
       - report_coverage:
           requires:
             - coverage
-            - coverage_forked_network
