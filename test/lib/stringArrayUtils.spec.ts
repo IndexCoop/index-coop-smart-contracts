@@ -52,7 +52,7 @@ describe("StringArrayUtils", () => {
     });
 
     async function subject(): Promise<any> {
-      return stringArrayUtils.testIndexOf(subjectArray, subjectString);
+      return stringArrayUtils.mockIndexOf(subjectArray, subjectString);
     }
 
     it("should return the correct index and true", async () => {
@@ -85,7 +85,7 @@ describe("StringArrayUtils", () => {
     });
 
     async function subject(): Promise<any> {
-      return stringArrayUtils.testRemoveStorage(subjectString);
+      return stringArrayUtils.mockRemoveStorage(subjectString);
     }
 
     it("should make the correct updates to the storage array", async () => {

@@ -27,11 +27,11 @@ contract StringArrayUtilsMock {
 
     string[] public storageArray;
 
-    function testIndexOf(string[] memory A, string memory a) external pure returns (uint256, bool) {
+    function mockIndexOf(string[] memory A, string memory a) external pure returns (uint256, bool) {
         return A.indexOf(a);
     }
 
-    function testRemoveStorage(string memory a) external {
+    function mockRemoveStorage(string memory a) external {
         storageArray.removeStorage(a);
     }
 
