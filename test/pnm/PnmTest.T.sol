@@ -10,6 +10,6 @@ contract FlashMintWrappedTest is PTest {
 	}
 
 	function invariantFundLoss() external view {
-		assertEq(testNumber, 42);
+		require(testNumber == 42, "");
 	}
 }
