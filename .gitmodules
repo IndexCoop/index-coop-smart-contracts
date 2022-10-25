@@ -1,0 +1,3 @@
+[submodule "lib/pnm-contracts"]
+	path = lib/pnm-contracts
+	url = https://github.com/PwnedNoMore/pnm-contracts
