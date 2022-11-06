@@ -6,6 +6,8 @@
 /dist
 /etherscan
 /flatten
+/forge-cache
+/lib
 /deployments/kovan
 /deployments/localhost_31337
 /deployments/production_1
@@ -13,6 +15,7 @@
 /deployments/42-staging.json
 /deployments/1-staging.json
 /node_modules
+/out
 /transpiled
 /types/generated/*
 /typechain
