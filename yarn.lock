@@ -1007,6 +1007,11 @@
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-3.3.0.tgz#ffdb693c5c349fc33bba420248dd3ac0a2d7c408"
   integrity sha512-AemZEsQYtUp1WRkcmZm1div5ORfTpLquLaziCIrSagjxyKdmObxuaY1yjQ5SHFMctR8rLwp706NXTbiIRJg7pw==
 
+"@pwnednomore/contracts@^0.2.9":
+  version "0.2.9"
+  resolved "https://registry.yarnpkg.com/@pwnednomore/contracts/-/contracts-0.2.9.tgz#163a96f534c9482ddef0769b636718f6b0d20282"
+  integrity sha512-ldcDa15DS5LYcBXhn9fF11H/ovlsV9m+IdEObjYMB+kQwfyAQXnxYM+1NYO21exsdXeBruit33sKD1xo2htICg==
+
 "@resolver-engine/core@^0.3.3":
   version "0.3.3"
   resolved "https://registry.yarnpkg.com/@resolver-engine/core/-/core-0.3.3.tgz#590f77d85d45bc7ecc4e06c654f41345db6ca967"
