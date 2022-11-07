@@ -3,7 +3,7 @@ version: 2
 jobs:
   checkout_and_compile:
     docker:
-      - image: cimg/node:lts
+      - image: cimg/node:16.18
     working_directory: ~/index-coop-smart-contracts
     steps:
       - checkout
@@ -33,7 +33,7 @@ jobs:
             - ~/index-coop-smart-contracts
   test:
     docker:
-      - image: cimg/node:lts
+      - image: cimg/node:16.18
     working_directory: ~/index-coop-smart-contracts
     parallelism: 2
     steps:
@@ -57,10 +57,32 @@ jobs:
             TEST_FILES="$(circleci tests glob "./test/**/*.spec.ts" | circleci tests split)"
             yarn test ${TEST_FILES}
 
+  test_forked_network:
+    docker:
+      - image: cimg/node:16.18
+    working_directory: ~/index-coop-smart-contracts
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: false
+      - run:
+          name: Fetch solc version
+          command: docker pull ethereum/solc:0.6.10
+      - restore_cache:
+          key: compiled-env-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Set Up Environment Variables
+          command: cp .env.default .env
+      - run:
+          name: Test RPC
+          command: yarn chain
+          background: true
+      - run:
+          name: Hardhat Test
+          command: yarn test:fork
 
   test_integration_polygon:
     docker:
-      - image: cimg/node:lts
+      - image: cimg/node:16.18
     working_directory: ~/index-coop-smart-contracts
     steps:
       - setup_remote_docker:
@@ -83,7 +105,7 @@ jobs:
 
   test_integration_optimism:
     docker:
-      - image: cimg/node:lts
+      - image: cimg/node:16.18
     working_directory: ~/index-coop-smart-contracts
     steps:
       - setup_remote_docker:
@@ -106,7 +128,7 @@ jobs:
 
   test_integration_ethereum:
     docker:
-      - image: cimg/node:lts
+      - image: cimg/node:16.18
     working_directory: ~/index-coop-smart-contracts
     steps:
       - setup_remote_docker:
@@ -129,7 +151,7 @@ jobs:
 
   coverage:
     docker:
-      - image: cimg/node:lts
+      - image: cimg/node:16.18
     working_directory: ~/index-coop-smart-contracts
     parallelism: 2
     steps:
@@ -163,10 +185,41 @@ jobs:
             - cov_0.json
             - cov_1.json
 
+  coverage_forked_network:
+    docker:
+      - image: cimg/node:lts
+    working_directory: ~/index-coop-smart-contracts
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: false
+      - run:
+          name: Fetch solc version
+          command: docker pull ethereum/solc:0.6.10
+      - restore_cache:
+          key: compiled-env-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Set Up Environment Variables
+          command: cp .env.default .env
+      - run:
+          name: Create shared coverage outputs folder
+          command: mkdir -p /tmp/coverage
+      - run:
+          name: Coverage
+          command: |
+            yarn coverage:fork
+      - run:
+          name: Save coverage
+          command: |
+            cp coverage.json /tmp/coverage/cov_fork.json
+            chmod -R 777 /tmp/coverage/cov_fork.json
+      - persist_to_workspace:
+          root: /tmp/coverage
+          paths:
+            - cov_fork.json
 
   report_coverage:
     docker:
-      - image: cimg/node:lts
+      - image: cimg/node:16.18
     working_directory: ~/index-coop-smart-contracts
     steps:
       - attach_workspace:
