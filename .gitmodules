@@ -1,3 +1,6 @@
 [submodule "lib/pnm-contracts"]
 	path = lib/pnm-contracts
 	url = https://github.com/PwnedNoMore/pnm-contracts
+[submodule "lib/forge-std"]
+	path = lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
