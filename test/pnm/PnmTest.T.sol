@@ -1,6 +1,6 @@
 pragma solidity 0.6.10;
 
-import { PTest } from "@pwnednomore/contracts//PTest.sol";
+import { PTest } from "pnm-contracts/PTest.sol";
 
 contract FlashMintWrappedTest is PTest {
 	uint256 testNumber;
