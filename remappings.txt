@@ -1,1 +1,3 @@
-@pwnednomore/contracts/=node_modules/@pwnednomore/contracts/
+@pwnednomore/=node_modules/@pwnednomore/
+ds-test/=node_modules/@pwnednomore/contracts/lib/forge-std/lib/ds-test/src/
+forge-std/=node_modules/@pwnednomore/contracts/lib/forge-std/src/
