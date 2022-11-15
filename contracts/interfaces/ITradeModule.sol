@@ -19,6 +19,15 @@ pragma solidity 0.6.10;
 import { ISetToken } from "../interfaces/ISetToken.sol";
 
 interface ITradeModule {
+    function initialize(ISetToken _setToken) external;
 
-    function trade(ISetToken _setToken) external;    
+    function trade(
+        ISetToken _setToken,
+        string memory _exchangeName,
+        address _sendToken,
+        uint256 _sendQuantity,
+        address _receiveToken,
+        uint256 _minReceiveQuantity,
+        bytes memory _data
+    ) external;
 }
