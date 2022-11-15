@@ -19,6 +19,12 @@
 pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { Math } from "@openzeppelin/contracts/math/Math.sol";
+import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
+import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+
 import { BaseExtension } from "../lib/BaseExtension.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
@@ -29,41 +35,81 @@ import { ITradeModule } from "../interfaces/ITradeModule.sol";
  * @title StakeWiseReinvestmentExtension
  * @author FlattestWhite
  * 
- * 
+ * Smart contract that enables reinvesting the accrued rETH2 into a SetToken into sETH2.
  */
 contract StakeWiseReinvestmentExtension is BaseExtension {
+    
+    using Address for address;
+    using PreciseUnitMath for uint256;
+    using SafeMath for uint256;
+    using SafeCast for int256;
 
-    ISetToken setToken;
-    IAirdropModule airdropModule;
-    ITradeModule tradeModule;
+    /* ============ Structs ============ */
 
+    struct Settings {
+        string exchangeName;
+        address sETH2;
+        address rETH2;
+        bytes exchangeCallData;
+    }
+
+    /* ========== State Variables ========= */
+
+    ISetToken public immutable setToken;                // The set token 
+    IAirdropModule public immutable airdropModule;      // The airdrop module
+    ITradeModule public immutable tradeModule;          // The trade module
+    Settings internal settings;                         // The reinvestment settings
+
+    /* ============  Constructor ============ */ 
+    /**
+     * Sets state variables
+     * 
+     * @param _manager Manager contract
+     * @param _airdropModule Airdrop module contract
+     * @param _tradeModule Trade module contract
+     * @param _settings Reinvestment settings
+     */
     constructor(
         IBaseManager _manager,
         IAirdropModule _airdropModule,
-        ITradeModule _tradeModule
+        ITradeModule _tradeModule,
+        Settings _settings
     ) public BaseExtension(_manager) {
         setToken = _manager.setToken();
         airdropModule = _airdropModule;
         tradeModule = _tradeModule;
+        settings = _settings;
     }
 
-    function reinvest(address memory _exchangeName, uint256 _minReceiveQuantity) external onlyAllowedCaller(msg.sender) {
+    /* ============ External Functions ============ */
+
+    /**
+     * ONLY ALLOWED CALLER:
+     * 
+     * Passes in a _minReceivedQuantity. Typically, this value is calculated by getting an expected amount
+     * from the supplied exchange.
+     */
+    function reinvest(uint256 _minReceiveQuantity) external onlyAllowedCaller(msg.sender) {
         bytes memory absorbCallData = abi.encodeWithSelector(
             IAirdropModule.absorb.selector,
             setToken,
-            "rETH2"
+            settings.rETH2
         );
         invokeManager(airdropModule, absorbCallData);
 
         bytes memory tradeCallData = abi.encodeWithSelector(
             ITradeModule.trade.selector,
-            _exchangeName,
-            "rETH2",
-            setToken.getTotalComponentRealUnits("rETH2"),
-            "sETH2",
+            settings.exchangeName,
+            settings.rETH2,
+            setToken.getTotalComponentRealUnits(settings.rETH2),
+            settings.sETH2,
             _minReceiveQuantity,
-            "TODO: add trade callData"
+            settings.exchangeCallData
         );
         invokeManager(tradeModule, tradeCallData);
+    }
+
+    function updateSettings(Settings _settings) external onlyAllowedCaller(msg.sender) {
+        settings = _settings;
     }
 }
