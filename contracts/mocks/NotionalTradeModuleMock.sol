@@ -41,4 +41,6 @@ contract NotionalTradeModuleMock is INotionalTradeModule{
     function settleAccount(address) external override {
     }
 
+    function getFCashComponents(ISetToken _setToken) external view override returns(address[] memory fCashComponents) {
+    }
 }

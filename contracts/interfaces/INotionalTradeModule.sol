@@ -9,6 +9,7 @@ interface INotionalTradeModule {
     function owner() external view returns(address);
     function settleAccount(address) external;
     function setRedeemToUnderlying(ISetToken, bool) external;
+    function getFCashComponents(ISetToken _setToken) external view returns(address[] memory fCashComponents);
 
 }
 

@@ -1,4 +1,4 @@
-import { Signer, BigNumber } from "ethers";
+import { Signer, BigNumber, BigNumberish } from "ethers";
 import {
   Address,
   ContractSettings,
@@ -42,6 +42,7 @@ import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitEx
 import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtension__factory";
 import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
 import { GovernanceExtension__factory } from "../../typechain/factories/GovernanceExtension__factory";
+import { NotionalMaturityRolloverExtension__factory } from "../../typechain/factories/NotionalMaturityRolloverExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 import { WrapExtension__factory } from "../../typechain/factories/WrapExtension__factory";
 import { FlashMintWrapped__factory } from "../../typechain/factories/FlashMintWrapped__factory";
@@ -389,6 +390,26 @@ export default class DeployExtensions {
       setControllerAddress,
       issuanceModuleAddress,
       wrapModuleAddress,
+    );
+  }
+
+  public deployNotionalMaturityRolloverExtension(
+    manager: Address,
+    setToken: Address,
+    notionalTradeModule: Address,
+    underlyingToken: Address,
+    maturities: BigNumberish[],
+    allocations: BigNumberish[],
+    validMaturities: BigNumberish[],
+  ) {
+    return new NotionalMaturityRolloverExtension__factory(this._deployerSigner).deploy(
+      manager,
+      setToken,
+      notionalTradeModule,
+      underlyingToken,
+      maturities,
+      allocations,
+      validMaturities,
     );
   }
 }
