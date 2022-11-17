@@ -5,12 +5,14 @@ import { Address } from "@utils/types";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import { ether } from "@utils/index";
+import { ethers } from "ethers";
 
 import { getAccounts, getWaffleExpect } from "@utils/index";
 import {
   BaseManagerV2,
   NotionalMaturityRolloverExtension,
   SetToken__factory,
+  IWrappedfCashComplete__factory,
 } from "../../../typechain";
 import { ADDRESS_ZERO } from "@utils/constants";
 import { PRODUCTION_ADDRESSES } from "./addresses";
@@ -60,8 +62,10 @@ if (process.env.INTEGRATIONTEST) {
         let maturities: BigNumberish[];
         let allocations: BigNumberish[];
         let underlyingToken: Address;
+        let assetToken: Address;
         beforeEach(async () => {
           underlyingToken = addresses.tokens.dai;
+          assetToken = addresses.tokens.cDAI;
           const maturitiesMonths = [3, 6];
           maturities = maturitiesMonths.map(m => m * 30 * 24 * 60 * 60);
           validMaturities = maturities;
@@ -70,21 +74,59 @@ if (process.env.INTEGRATIONTEST) {
             baseManagerV2.address,
             setToken.address,
             addresses.setFork.notionalTradeModule,
+            addresses.lending.notional.notionalV2,
+            addresses.lending.notional.wrappedfCashFactory,
             underlyingToken,
+            assetToken,
             maturities,
             allocations,
             validMaturities,
           );
         });
 
-        describe("#getFCashComponentsAndMaturities", () => {
+        describe("#getAbsoluteMaturities", () => {
           function subject() {
-            return rolloverExtension.getFCashComponentsAndMaturities();
+            return rolloverExtension.getAbsoluteMaturities();
           }
           it("should work", async () => {
-            const [components, maturities] = await subject();
-            expect(components.length).to.eq(2);
-            expect(maturities.length).to.eq(2);
+            const absoluteMaturities = (await subject()).map((bn: any) => bn.toNumber());
+            console.log(
+              "absoluteMaturities",
+              absoluteMaturities.map((n: any) => new Date(n * 1000)),
+            );
+            const expectedMaturities = await Promise.all(
+              (await setToken.getComponents()).map(c => {
+                const wrappedfCash = IWrappedfCashComplete__factory.connect(c, operator);
+                return wrappedfCash.getMaturity();
+              }),
+            );
+            console.log(
+              "expectedMaturities",
+              expectedMaturities.map((n: any) => new Date(n * 1000)),
+            );
+
+            expect(absoluteMaturities).to.have.same.members(expectedMaturities);
+          });
+        });
+
+        describe("#getShortfalls", () => {
+          function subject() {
+            return rolloverExtension.getShortfalls();
+          }
+          it("should work", async () => {
+            const shortfalls = await subject();
+            console.log("shortfalls", shortfalls.map((n: any) => n.toString()));
+          });
+        });
+
+        describe("#getTotalFCashPosition", () => {
+          function subject() {
+            return rolloverExtension.getTotalFCashPosition();
+          }
+          it("should work", async () => {
+            const totalFCashPosition = await subject();
+            const expectedTotalFCashPosition = ethers.utils.parseUnits("100", 8);
+            expect(totalFCashPosition).to.eq(expectedTotalFCashPosition);
           });
         });
       });
