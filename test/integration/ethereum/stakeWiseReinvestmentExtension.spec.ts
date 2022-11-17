@@ -47,7 +47,7 @@ if (process.env.INTEGRATIONTEST) {
       setToken = await setV2Setup.createSetToken(
         [setV2Setup.dai.address],
         [ether(100)],
-        [setV2Setup.airdropModule.address, setV2Setup.issuanceModule.address, setV2Setup.]
+        [setV2Setup.airdropModule.address, setV2Setup.issuanceModule.address]
       );
 
       await setV2Setup.issuanceModule.initialize(
@@ -107,51 +107,5 @@ if (process.env.INTEGRATIONTEST) {
         expect(airdropModule).to.eq(subjectAirdropModule);
       });
     });
-
-  //   context("when extension is deployed and module needs to be initialized", async () => {
-  //     beforeEach(async () => {
-
-  //       // Transfer ownership to BaseManager
-  //       await setToken.setManager(baseManagerV2.address);
-  //     });
-
-  //     describe("#initialize", async () => {
-  //       let subjectCaller: Account;
-  //       let subjectAirdropSettings: AirdropSettings;
-
-  //       beforeEach(async () => {
-  //         subjectCaller = operator;
-  //         subjectAirdropSettings = {
-  //           airdrops: [setV2Setup.dai.address],
-  //           feeRecipient: await getRandomAddress(),
-  //           airdropFee: BigNumber.from(12345),
-  //           anyoneAbsorb: false,
-  //         };
-  //       });
-
-  //       async function subject(): Promise<ContractTransaction> {
-  //         return await airdropExtension.connect(subjectCaller.wallet).initializeAirdropModule(
-  //           subjectAirdropSettings
-  //         );
-  //       }
-
-  //       it("should initialize AirdropModule", async () => {
-  //         await subject();
-
-  //         const isInitialized = await setToken.isInitializedModule(setV2Setup.airdropModule.address);
-  //         expect(isInitialized).to.be.true;
-  //       });
-
-  //       it("should set the correct AirdropSettings", async () => {
-  //         await subject();
-
-  //         const settings = await setV2Setup.airdropModule.airdropSettings(setToken.address);
-
-  //         expect(settings.airdropFee).to.eq(subjectAirdropSettings.airdropFee);
-  //         expect(settings.feeRecipient).to.eq(subjectAirdropSettings.feeRecipient);
-  //         expect(settings.anyoneAbsorb).to.eq(subjectAirdropSettings.anyoneAbsorb);
-  //       });
-  //   });
-  // });
 });
 }
