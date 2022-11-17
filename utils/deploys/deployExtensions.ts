@@ -46,6 +46,7 @@ import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/S
 import { WrapExtension__factory } from "../../typechain/factories/WrapExtension__factory";
 import { FlashMintWrapped__factory } from "../../typechain/factories/FlashMintWrapped__factory";
 import { FlashMintWrapped } from "../../typechain/FlashMintWrapped";
+import { StakeWiseReinvestmentExtension__factory } from "@typechain/index";
 
 export default class DeployExtensions {
   private _deployerSigner: Signer;
@@ -325,6 +326,20 @@ export default class DeployExtensions {
     airdropModule: Address,
   ): Promise<AirdropExtension> {
     return await new AirdropExtension__factory(this._deployerSigner).deploy(manager, airdropModule);
+  }
+
+  public async deployStakeWiseReinvestmentExtension(
+    manager: Address,
+    airdropModule: Address,
+    tradeModule: Address,
+    settings: { exchangeName: string; exchangeCallData: string },
+  ) {
+    return await new StakeWiseReinvestmentExtension__factory(this._deployerSigner).deploy(
+      manager,
+      airdropModule,
+      tradeModule,
+      settings,
+    );
   }
 
   public async deployAaveLeverageStrategyExtension(

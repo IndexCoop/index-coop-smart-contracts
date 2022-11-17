@@ -20,10 +20,7 @@ pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { Math } from "@openzeppelin/contracts/math/Math.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
-import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import { BaseExtension } from "../lib/BaseExtension.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
@@ -40,17 +37,18 @@ import { ITradeModule } from "../interfaces/ITradeModule.sol";
 contract StakeWiseReinvestmentExtension is BaseExtension {
     
     using Address for address;
-    using PreciseUnitMath for uint256;
-    using SafeMath for uint256;
     using SafeCast for int256;
 
-    /* ============ Structs ============ */
+    /* ============ Constants ============= */
 
-    struct Settings {
+    address public constant S_ETH2 = 0xFe2e637202056d30016725477c5da089Ab0A043A;
+    address public constant R_ETH2 = 0x20BC832ca081b91433ff6c17f85701B6e92486c5;
+
+    /* ========== Structs ================= */
+
+    struct ExecutionSettings {
         string exchangeName;
-        address sETH2;
-        address rETH2;
-        bytes exchangeCallData;
+        string exchangeCallData;
     }
 
     /* ========== State Variables ========= */
@@ -58,7 +56,7 @@ contract StakeWiseReinvestmentExtension is BaseExtension {
     ISetToken public immutable setToken;                // The set token 
     IAirdropModule public immutable airdropModule;      // The airdrop module
     ITradeModule public immutable tradeModule;          // The trade module
-    Settings internal settings;                         // The reinvestment settings
+    ExecutionSettings public settings;         // The execution settings
 
     /* ============  Constructor ============ */ 
     /**
@@ -73,7 +71,7 @@ contract StakeWiseReinvestmentExtension is BaseExtension {
         IBaseManager _manager,
         IAirdropModule _airdropModule,
         ITradeModule _tradeModule,
-        Settings _settings
+        ExecutionSettings memory _settings
     ) public BaseExtension(_manager) {
         setToken = _manager.setToken();
         airdropModule = _airdropModule;
@@ -86,30 +84,29 @@ contract StakeWiseReinvestmentExtension is BaseExtension {
     /**
      * ONLY ALLOWED CALLER:
      * 
-     * Passes in a _minReceivedQuantity. Typically, this value is calculated by getting an expected amount
-     * from the supplied exchange.
      */
-    function reinvest(uint256 _minReceiveQuantity) external onlyAllowedCaller(msg.sender) {
+    function reinvest() external onlyAllowedCaller(msg.sender) {
         bytes memory absorbCallData = abi.encodeWithSelector(
             IAirdropModule.absorb.selector,
             setToken,
-            settings.rETH2
+            R_ETH2 
         );
-        invokeManager(airdropModule, absorbCallData);
+        invokeManager(address(airdropModule), absorbCallData);
 
+        uint256 rEthUnits = uint256(setToken.getTotalComponentRealUnits(R_ETH2));
         bytes memory tradeCallData = abi.encodeWithSelector(
             ITradeModule.trade.selector,
             settings.exchangeName,
-            settings.rETH2,
-            setToken.getTotalComponentRealUnits(settings.rETH2),
-            settings.sETH2,
-            _minReceiveQuantity,
+            R_ETH2,
+            rEthUnits,
+            S_ETH2,
+            rEthUnits, // Assume 1:1 exchange
             settings.exchangeCallData
         );
-        invokeManager(tradeModule, tradeCallData);
+        invokeManager(address(tradeModule), tradeCallData);
     }
 
-    function updateSettings(Settings _settings) external onlyAllowedCaller(msg.sender) {
+    function updateExecutionSettings(ExecutionSettings memory _settings) external onlyAllowedCaller(msg.sender) {
         settings = _settings;
     }
 }
