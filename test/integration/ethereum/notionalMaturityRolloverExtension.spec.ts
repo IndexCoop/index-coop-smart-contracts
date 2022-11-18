@@ -102,7 +102,6 @@ if (process.env.INTEGRATIONTEST) {
           await operator.getAddress(),
         );
         await baseManagerV2.authorizeInitialization();
-        // await setToken.connect(operator).setManager(baseManagerV2.address);
       });
       describe("When extension is deployed", () => {
         let rolloverExtension: NotionalMaturityRolloverExtension;
@@ -143,65 +142,22 @@ if (process.env.INTEGRATIONTEST) {
           }
           it("should work", async () => {
             const absoluteMaturities = (await subject()).map((bn: any) => bn.toNumber());
-            console.log(
-              "absoluteMaturities",
-              absoluteMaturities.map((n: any) => new Date(n * 1000)),
-            );
-            console.log(
-              "componentMaturities",
-              componentMaturities.map((n: any) => new Date(n * 1000)),
-            );
 
             expect(absoluteMaturities).to.have.same.members(componentMaturities);
           });
         });
 
         describe("#rebalanceCalls", () => {
+          const subjectShare = ethers.utils.parseEther("0.9");
           function subject() {
-            return rolloverExtension.rebalanceCalls();
+            return rolloverExtension.rebalanceCalls(subjectShare);
           }
           it("should work", async () => {
-            const calls = await subject();
-            console.log("calls", calls);
+            await subject();
           });
           describe("when positions differ from target", () => {
             const redeemPositionIndex = 1;
             beforeEach(async () => {
-              console.log(
-                "componentPositions before",
-                componentPositions.map((p: any) => {
-                  return { component: p.component, unit: p.unit.toString() };
-                }),
-              );
-              const wrappedfCash = IWrappedfCashComplete__factory.connect(
-                componentPositions[redeemPositionIndex].component,
-                operator,
-              );
-              const maturity = await wrappedfCash.getMaturity();
-              const quoteInput = ethers.utils.parseUnits("1", 8);
-              const previewRedeem = await wrappedfCash.previewRedeem(quoteInput);
-              console.log("PreviewRedeem before", {
-                quoteInput: quoteInput.toString(),
-                previewRedeem: previewRedeem.toString(),
-              });
-
-              const minLendRate = 0;
-              const blockTime = (await ethers.provider.getBlock("latest")).timestamp;
-              const [
-                depositAmountUnderlying,
-                depositAmountAsset,
-              ] = await notionalProxy.getDepositFromfCashLend(
-                currencyId,
-                quoteInput,
-                maturity,
-                minLendRate,
-                blockTime,
-              );
-              console.log("notionalQuoteBefore", {
-                depositAmountUnderlying: depositAmountUnderlying.toString(),
-                depositAmountAsset: depositAmountAsset.toString(),
-              });
-
               await notionalTradeModule
                 .connect(operator)
                 .redeemFixedFCashForToken(
@@ -212,20 +168,8 @@ if (process.env.INTEGRATIONTEST) {
                   assetToken,
                   0,
                 );
-              console.log(
-                "componentPositions after",
-                (await setToken.getPositions()).map((p: any) => {
-                  return { component: p.component, unit: p.unit.toString() };
-                }),
-              );
-              console.log(
-                "assetTokenBalance",
-                (await assetTokenContract.balanceOf(setToken.address)).toString(),
-              );
             });
             it("should work", async () => {
-              const totalFCashPosition = await rolloverExtension.getTotalFCashPosition();
-              console.log("totalFCashPosition", totalFCashPosition.toString());
               const calls = await subject();
               console.log(
                 "Calls",
@@ -240,23 +184,8 @@ if (process.env.INTEGRATIONTEST) {
                   };
                 }),
               );
-              const {
-                setToken,
-                currencyId,
-                maturity,
-                mintAmount,
-                sendToken,
-                maxSendAmount,
-              } = calls.find((element: any): boolean => element.setToken != ADDRESS_ZERO) ?? calls[0];
-              console.log("Call to execute", {
-                setToken,
-                currencyId,
-                maturity: new Date(maturity * 1000),
-                mintAmount: mintAmount.toString(),
-                sendToken,
-                maxSendAmount: maxSendAmount.toString(),
-              });
-
+              const { setToken, currencyId, maturity, mintAmount, sendToken, maxSendAmount } =
+                calls.find((element: any): boolean => element.setToken != ADDRESS_ZERO) ?? calls[0];
               await notionalTradeModule.mintFixedFCashForToken(
                 setToken,
                 currencyId,
@@ -266,15 +195,6 @@ if (process.env.INTEGRATIONTEST) {
                 maxSendAmount,
               );
             });
-          });
-        });
-
-        describe("#rebalance", () => {
-          function subject() {
-            return rolloverExtension.rebalance();
-          }
-          it("should work", async () => {
-            await subject();
           });
           describe("when first position has matured", () => {
             beforeEach(async () => {
@@ -308,6 +228,111 @@ if (process.env.INTEGRATIONTEST) {
                 "positionsAfter",
                 positionsAfter.map((n: any) => n.toString()),
               );
+            });
+            it("should work", async () => {
+              const calls = await subject();
+              console.log(
+                "Calls",
+                calls.map((c: any) => {
+                  return {
+                    setToken: c.setToken,
+                    currencyId: c.currencyId,
+                    maturity: new Date(c.maturity * 1000),
+                    mintAmount: c.mintAmount.toString(),
+                    sendToken: c.sendToken,
+                    maxSendAmount: c.maxSendAmount.toString(),
+                  };
+                }),
+              );
+              const { setToken, currencyId, maturity, mintAmount, sendToken, maxSendAmount } =
+                calls.find((element: any): boolean => element.setToken != ADDRESS_ZERO) ?? calls[0];
+              await notionalTradeModule.mintFixedFCashForToken(
+                setToken,
+                currencyId,
+                maturity,
+                mintAmount.mul(99).div(100),
+                sendToken,
+                maxSendAmount,
+              );
+            });
+          });
+        });
+
+        describe("#rebalance", () => {
+          const subjectShare = ethers.utils.parseEther("0.9");
+          function subject() {
+            return rolloverExtension.rebalance(subjectShare);
+          }
+          describe("when fcash position are correct", () => {
+            beforeEach(async () => {
+              await setToken.connect(operator).setManager(baseManagerV2.address);
+            });
+            it("should work", async () => {
+              await subject();
+            });
+          });
+          describe("when fcash position was reduced", () => {
+            const redeemPositionIndex = 1;
+            beforeEach(async () => {
+              await notionalTradeModule
+                .connect(operator)
+                .redeemFixedFCashForToken(
+                  setToken.address,
+                  currencyId,
+                  componentMaturities[redeemPositionIndex],
+                  componentPositions[redeemPositionIndex].unit,
+                  assetToken,
+                  0,
+                );
+              console.log(
+                "componentPositions after",
+                (await setToken.getPositions()).map((p: any) => {
+                  return { component: p.component, unit: p.unit.toString() };
+                }),
+              );
+              console.log(
+                "assetTokenBalance",
+                (await assetTokenContract.balanceOf(setToken.address)).toString(),
+              );
+              await setToken.connect(operator).setManager(baseManagerV2.address);
+            });
+            it("should work", async () => {
+              await subject();
+            });
+          });
+          describe("when first position has matured", () => {
+            beforeEach(async () => {
+              const componentsBefore = await setToken.getComponents();
+              const positionsBefore = await Promise.all(
+                componentsBefore.map(c => setToken.getDefaultPositionRealUnit(c)),
+              );
+              console.log(
+                "positionsBefore",
+                positionsBefore.map((n: any) => n.toString()),
+              );
+              console.log("componentsBefore", componentsBefore);
+              const componentMaturities = (await Promise.all(
+                componentsBefore.map(c => {
+                  const wrappedfCash = IWrappedfCashComplete__factory.connect(c, operator);
+                  return wrappedfCash.getMaturity();
+                }),
+              )) as number[];
+              const firstMaturity = Math.min(...componentMaturities);
+              console.log("firstMaturity", new Date(firstMaturity * 1000));
+              await network.provider.send("evm_setNextBlockTimestamp", [firstMaturity + 1]);
+              await network.provider.send("evm_mine");
+              await notionalTradeModule.redeemMaturedPositions(setToken.address);
+
+              const componentsAfter = await setToken.getComponents();
+              const positionsAfter = await Promise.all(
+                componentsAfter.map(c => setToken.getDefaultPositionRealUnit(c)),
+              );
+              console.log("componentsAfter", componentsAfter);
+              console.log(
+                "positionsAfter",
+                positionsAfter.map((n: any) => n.toString()),
+              );
+              await setToken.connect(operator).setManager(baseManagerV2.address);
             });
             it("should work", async () => {
               await subject();

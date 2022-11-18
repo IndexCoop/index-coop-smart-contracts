@@ -114,17 +114,17 @@ contract NotionalMaturityRolloverExtension is BaseExtension {
 
     // /* ============ External Functions ============ */
 
-    function rebalance() external onlyOperator {
+    function rebalance(uint256 share) external onlyOperator {
         (uint256[] memory shortfallPositions, uint256[] memory absoluteMaturities) = getShortfalls();
         for(uint256 i = 0; i < shortfallPositions.length; i++) {
             uint256 shortfall = shortfallPositions[i];
             if(shortfall > 0) {
-                _mintFCash(absoluteMaturities[i], shortfall / 1000);
+                _mintFCash(absoluteMaturities[i], shortfall.preciseMul(share));
             }
         }
     }
 
-    function rebalanceCalls() external view returns(CallArguments[] memory callArgs) {
+    function rebalanceCalls(uint256 share) external view returns(CallArguments[] memory callArgs) {
         (uint256[] memory shortfallPositions, uint256[] memory absoluteMaturities) = getShortfalls();
         callArgs = new CallArguments[](shortfallPositions.length);
         uint256 assetTokenPosition = uint256(setToken.getDefaultPositionRealUnit(assetToken));
@@ -135,7 +135,7 @@ contract NotionalMaturityRolloverExtension is BaseExtension {
                     address(setToken),
                     currencyId,
                     uint40(absoluteMaturities[i]),
-                    shortfall,
+                    shortfall.preciseMul(share),
                     address(assetToken),
                     assetTokenPosition
                 );
@@ -151,14 +151,14 @@ contract NotionalMaturityRolloverExtension is BaseExtension {
         );
     }
     function _getCalldata(uint256 _maturity, uint256 _fCashAmount) internal returns(bytes memory) {
-        uint256 assetTokenBalance = IERC20(assetToken).balanceOf(address(this));
+        uint256 assetTokenPosition = uint256(setToken.getDefaultPositionRealUnit(assetToken));
         return abi.encodeWithSignature("mintFixedFCashForToken(address,uint16,uint40,uint256,address,uint256)",
                 address(setToken),
                 currencyId,
                 uint40(_maturity),
                 _fCashAmount,
                 address(assetToken),
-                assetTokenBalance
+                assetTokenPosition
         );
     }
 
