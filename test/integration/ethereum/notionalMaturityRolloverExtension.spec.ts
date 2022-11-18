@@ -1,5 +1,5 @@
 import "module-alias/register";
-import { BigNumberish, Signer } from "ethers";
+import { BigNumber, BigNumberish, Signer } from "ethers";
 import { network } from "hardhat";
 import { Address } from "@utils/types";
 import { SetToken } from "@utils/contracts/setV2";
@@ -20,7 +20,7 @@ import {
   INotionalProxy,
   INotionalProxy__factory,
 } from "../../../typechain";
-import { ADDRESS_ZERO } from "@utils/constants";
+import { ADDRESS_ZERO, ZERO } from "@utils/constants";
 import { PRODUCTION_ADDRESSES } from "./addresses";
 import { impersonateAccount } from "./utils";
 
@@ -54,25 +54,6 @@ if (process.env.INTEGRATIONTEST) {
         addresses.setFork.notionalTradeModule,
         operator,
       );
-      const minLendRate = 0;
-      const currencyId = 2;
-      const maturity = 1679616000;
-      const quoteInput = ethers.utils.parseUnits("1", 8);
-      const blockTime = (await ethers.provider.getBlock("latest")).timestamp;
-      const [
-        depositAmountUnderlying,
-        depositAmountAsset,
-      ] = await notionalProxy.getDepositFromfCashLend(
-        currencyId,
-        quoteInput,
-        maturity,
-        minLendRate,
-        blockTime,
-      );
-      console.log("notionalQuoteAtTheBeginning", {
-        depositAmountUnderlying: ethers.utils.formatEther(depositAmountUnderlying.toString()),
-        depositAmountAsset: ethers.utils.formatUnits(depositAmountAsset, 8),
-      });
 
       componentMaturities = await Promise.all(
         (await setToken.getComponents()).map(c => {
@@ -124,10 +105,10 @@ if (process.env.INTEGRATIONTEST) {
             baseManagerV2.address,
             setToken.address,
             addresses.setFork.notionalTradeModule,
-            addresses.lending.notional.notionalV2,
+            notionalProxy.address,
             addresses.lending.notional.wrappedfCashFactory,
             underlyingToken,
-            assetToken,
+            assetTokenContract.address,
             maturities,
             allocations,
             validMaturities,
@@ -171,86 +152,13 @@ if (process.env.INTEGRATIONTEST) {
             });
             it("should work", async () => {
               const calls = await subject();
-              console.log(
-                "Calls",
-                calls.map((c: any) => {
-                  return {
-                    setToken: c.setToken,
-                    currencyId: c.currencyId,
-                    maturity: new Date(c.maturity * 1000),
-                    mintAmount: c.mintAmount.toString(),
-                    sendToken: c.sendToken,
-                    maxSendAmount: c.maxSendAmount.toString(),
-                  };
-                }),
-              );
               const { setToken, currencyId, maturity, mintAmount, sendToken, maxSendAmount } =
                 calls.find((element: any): boolean => element.setToken != ADDRESS_ZERO) ?? calls[0];
               await notionalTradeModule.mintFixedFCashForToken(
                 setToken,
                 currencyId,
                 maturity,
-                mintAmount.mul(99).div(100),
-                sendToken,
-                maxSendAmount,
-              );
-            });
-          });
-          describe("when first position has matured", () => {
-            beforeEach(async () => {
-              const componentsBefore = await setToken.getComponents();
-              const positionsBefore = await Promise.all(
-                componentsBefore.map(c => setToken.getDefaultPositionRealUnit(c)),
-              );
-              console.log(
-                "positionsBefore",
-                positionsBefore.map((n: any) => n.toString()),
-              );
-              console.log("componentsBefore", componentsBefore);
-              const componentMaturities = (await Promise.all(
-                componentsBefore.map(c => {
-                  const wrappedfCash = IWrappedfCashComplete__factory.connect(c, operator);
-                  return wrappedfCash.getMaturity();
-                }),
-              )) as number[];
-              const firstMaturity = Math.min(...componentMaturities);
-              console.log("firstMaturity", new Date(firstMaturity * 1000));
-              await network.provider.send("evm_setNextBlockTimestamp", [firstMaturity + 1]);
-              await network.provider.send("evm_mine");
-              await notionalTradeModule.redeemMaturedPositions(setToken.address);
-
-              const componentsAfter = await setToken.getComponents();
-              const positionsAfter = await Promise.all(
-                componentsAfter.map(c => setToken.getDefaultPositionRealUnit(c)),
-              );
-              console.log("componentsAfter", componentsAfter);
-              console.log(
-                "positionsAfter",
-                positionsAfter.map((n: any) => n.toString()),
-              );
-            });
-            it("should work", async () => {
-              const calls = await subject();
-              console.log(
-                "Calls",
-                calls.map((c: any) => {
-                  return {
-                    setToken: c.setToken,
-                    currencyId: c.currencyId,
-                    maturity: new Date(c.maturity * 1000),
-                    mintAmount: c.mintAmount.toString(),
-                    sendToken: c.sendToken,
-                    maxSendAmount: c.maxSendAmount.toString(),
-                  };
-                }),
-              );
-              const { setToken, currencyId, maturity, mintAmount, sendToken, maxSendAmount } =
-                calls.find((element: any): boolean => element.setToken != ADDRESS_ZERO) ?? calls[0];
-              await notionalTradeModule.mintFixedFCashForToken(
-                setToken,
-                currencyId,
-                maturity,
-                mintAmount.mul(99).div(100),
+                mintAmount,
                 sendToken,
                 maxSendAmount,
               );
@@ -284,54 +192,6 @@ if (process.env.INTEGRATIONTEST) {
                   assetToken,
                   0,
                 );
-              console.log(
-                "componentPositions after",
-                (await setToken.getPositions()).map((p: any) => {
-                  return { component: p.component, unit: p.unit.toString() };
-                }),
-              );
-              console.log(
-                "assetTokenBalance",
-                (await assetTokenContract.balanceOf(setToken.address)).toString(),
-              );
-              await setToken.connect(operator).setManager(baseManagerV2.address);
-            });
-            it("should work", async () => {
-              await subject();
-            });
-          });
-          describe("when first position has matured", () => {
-            beforeEach(async () => {
-              const componentsBefore = await setToken.getComponents();
-              const positionsBefore = await Promise.all(
-                componentsBefore.map(c => setToken.getDefaultPositionRealUnit(c)),
-              );
-              console.log(
-                "positionsBefore",
-                positionsBefore.map((n: any) => n.toString()),
-              );
-              console.log("componentsBefore", componentsBefore);
-              const componentMaturities = (await Promise.all(
-                componentsBefore.map(c => {
-                  const wrappedfCash = IWrappedfCashComplete__factory.connect(c, operator);
-                  return wrappedfCash.getMaturity();
-                }),
-              )) as number[];
-              const firstMaturity = Math.min(...componentMaturities);
-              console.log("firstMaturity", new Date(firstMaturity * 1000));
-              await network.provider.send("evm_setNextBlockTimestamp", [firstMaturity + 1]);
-              await network.provider.send("evm_mine");
-              await notionalTradeModule.redeemMaturedPositions(setToken.address);
-
-              const componentsAfter = await setToken.getComponents();
-              const positionsAfter = await Promise.all(
-                componentsAfter.map(c => setToken.getDefaultPositionRealUnit(c)),
-              );
-              console.log("componentsAfter", componentsAfter);
-              console.log(
-                "positionsAfter",
-                positionsAfter.map((n: any) => n.toString()),
-              );
               await setToken.connect(operator).setManager(baseManagerV2.address);
             });
             it("should work", async () => {
@@ -346,26 +206,14 @@ if (process.env.INTEGRATIONTEST) {
           }
           it("should work", async () => {
             const [shortfallPositions, absoluteMaturities] = await subject();
-            console.log(
-              "shortfallPositions",
-              shortfallPositions.map((n: any) => n.toString()),
-            );
-            console.log(
-              "absoluteMaturities",
-              absoluteMaturities.map((n: any) => new Date(n * 1000)),
+            expect(shortfallPositions).to.deep.equal([ZERO, ZERO]);
+            expect(absoluteMaturities.map((bn: BigNumber) => bn.toNumber())).to.have.same.members(
+              componentMaturities,
             );
           });
           describe("when first position has matured", () => {
             beforeEach(async () => {
               const componentsBefore = await setToken.getComponents();
-              const positionsBefore = await Promise.all(
-                componentsBefore.map(c => setToken.getDefaultPositionRealUnit(c)),
-              );
-              console.log(
-                "positionsBefore",
-                positionsBefore.map((n: any) => n.toString()),
-              );
-              console.log("componentsBefore", componentsBefore);
               const componentMaturities = (await Promise.all(
                 componentsBefore.map(c => {
                   const wrappedfCash = IWrappedfCashComplete__factory.connect(c, operator);
@@ -373,31 +221,24 @@ if (process.env.INTEGRATIONTEST) {
                 }),
               )) as number[];
               const firstMaturity = Math.min(...componentMaturities);
-              console.log("firstMaturity", new Date(firstMaturity * 1000));
               await network.provider.send("evm_setNextBlockTimestamp", [firstMaturity + 1]);
               await network.provider.send("evm_mine");
               await notionalTradeModule.redeemMaturedPositions(setToken.address);
-
-              const componentsAfter = await setToken.getComponents();
-              const positionsAfter = await Promise.all(
-                componentsAfter.map(c => setToken.getDefaultPositionRealUnit(c)),
-              );
-              console.log("componentsAfter", componentsAfter);
-              console.log(
-                "positionsAfter",
-                positionsAfter.map((n: any) => n.toString()),
-              );
             });
             it("should work", async () => {
               const [shortfallPositions, absoluteMaturities] = await subject();
-              console.log(
-                "shortfallPositions",
-                shortfallPositions.map((n: any) => n.toString()),
+
+              const nonMaturedMaturity = new Date("2023-03-24T00:00:00.000Z").getTime() / 1000;
+              const nonMaturedPositionIndex = absoluteMaturities.findIndex(
+                (m: BigNumber) => m.toNumber() == nonMaturedMaturity,
               );
-              console.log(
-                "absoluteMaturities",
-                absoluteMaturities.map((n: any) => new Date(n * 1000)),
+              expect(shortfallPositions[nonMaturedPositionIndex]).to.equal(ZERO);
+
+              const newMaturity = new Date("2023-06-22T00:00:00.000Z").getTime() / 1000;
+              const newPositionIndex = absoluteMaturities.findIndex(
+                (m: BigNumber) => m.toNumber() == newMaturity,
               );
+              expect(shortfallPositions[newPositionIndex]).to.be.gt(ZERO);
             });
           });
         });
