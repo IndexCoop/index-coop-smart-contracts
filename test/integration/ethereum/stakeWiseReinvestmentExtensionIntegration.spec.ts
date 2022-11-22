@@ -37,12 +37,12 @@ if (process.env.INTEGRATIONTEST) {
 
       setToken = (await ethers.getContractAt(
         "SetToken",
-        addresses.setFork.wsETH2,
+        addresses.tokens.wsETH2,
       )) as SetToken;
 
       manager = (await ethers.getContractAt(
         "BaseManagerV2",
-        addresses.setFork.wsETH2Manager,
+        await setToken.manager(),
       )) as BaseManagerV2;
 
       airdropModule = (await ethers.getContractAt(

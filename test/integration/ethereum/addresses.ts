@@ -12,6 +12,7 @@ export const PRODUCTION_ADDRESSES = {
     USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     cUSDC: "0x39aa39c021dfbae8fac545936693ac917d5e7563",
     cDAI: "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
+    wsETH2: "", // TODO: add wsETH2 address
   },
   whales: {
     stEth: "0xdc24316b9ae028f1497c275eb9192a3ea0f67022",
@@ -51,10 +52,8 @@ export const PRODUCTION_ADDRESSES = {
     controller: "0xD2463675a099101E36D85278494268261a66603A",
     debtIssuanceModuleV2: "0xa0a98EB7Af028BE00d04e46e1316808A62a8fd59",
     notionalTradeModule: "0x600d9950c6ecAef98Cc42fa207E92397A6c43416",
-    tradeModule: "",
-    airdropModule: "",
-    wsETH2: "",
-    wsETH2Manager: "",
+    tradeModule: "", // TODO: add tradeModule address
+    airdropModule: "", // TODO: add airdropModule address
   },
   lending: {
     aave: {
