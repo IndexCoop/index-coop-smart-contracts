@@ -49,9 +49,9 @@ contract NotionalMaturityRolloverExtension is BaseExtension {
         address setToken;
         uint16 currencyId;
         uint40 maturity;
-        uint256 mintAmount;
+        uint256 minMintAmount;
         address sendToken;
-        uint256 maxSendAmount;
+        uint256 sendAmount;
     }
 
     // /* ============ Events ============ */
@@ -117,9 +117,9 @@ contract NotionalMaturityRolloverExtension is BaseExtension {
     function rebalance(uint256 share) external onlyOperator {
         (uint256[] memory shortfallPositions, uint256[] memory absoluteMaturities) = getShortfalls();
         for(uint256 i = 0; i < shortfallPositions.length; i++) {
-            uint256 shortfall = shortfallPositions[i];
-            if(shortfall > 0) {
-                _mintFCash(absoluteMaturities[i], shortfall.preciseMul(share));
+            uint256 sendAmount = shortfallPositions[i].preciseMul(share);
+            if(sendAmount > 0) {
+                _mintFCash(absoluteMaturities[i], sendAmount);
             }
         }
     }
@@ -135,34 +135,31 @@ contract NotionalMaturityRolloverExtension is BaseExtension {
                     address(setToken),
                     currencyId,
                     uint40(absoluteMaturities[i]),
-                    shortfall.preciseMul(share),
+                    0,
                     address(assetToken),
-                    assetTokenPosition
+                    shortfall.preciseMul(share)
                 );
             }
         }
     }
 
-    function _mintFCash(uint256 _maturity, uint256 _fCashAmount) internal {
-        bytes memory callData = _getCalldata(_maturity, _fCashAmount);
-        invokeManager(
-            address(notionalTradeModule),
-            callData
-        );
-    }
-
-    function _getCalldata(uint256 _maturity, uint256 _fCashAmount) internal returns(bytes memory) {
+    function _mintFCash(uint256 _maturity, uint256 _assetTokenAmount) internal {
         uint256 assetTokenPosition = uint256(setToken.getDefaultPositionRealUnit(assetToken));
-        return abi.encodeWithSignature("mintFixedFCashForToken(address,uint16,uint40,uint256,address,uint256)",
-                address(setToken),
-                currencyId,
-                uint40(_maturity),
-                _fCashAmount,
-                address(assetToken),
-                assetTokenPosition
-        );
+        if(assetTokenPosition >= _assetTokenAmount) {
+            bytes memory callData = abi.encodeWithSignature("mintFCashForFixedToken(address,uint16,uint40,uint256,address,uint256)",
+                    address(setToken),
+                    currencyId,
+                    uint40(_maturity),
+                    0,
+                    address(assetToken),
+                    _assetTokenAmount
+            );
+            invokeManager(
+                address(notionalTradeModule),
+                callData
+            );
+        }
     }
-
 
     function getTotalFCashPosition() public view returns(uint256 totalFCashPosition) {
         address[] memory fCashComponents = notionalTradeModule.getFCashComponents(setToken);

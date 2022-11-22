@@ -17,6 +17,7 @@ import {
   IWrappedfCashComplete__factory,
   IERC20__factory,
   IERC20,
+  ICErc20__factory,
   INotionalProxy,
   INotionalProxy__factory,
 } from "../../../typechain";
@@ -134,7 +135,8 @@ if (process.env.INTEGRATIONTEST) {
             return rolloverExtension.rebalanceCalls(subjectShare);
           }
           it("should work", async () => {
-            await subject();
+            const calls = await subject();
+            expect(calls.length).to.eq(2);
           });
           describe("when positions differ from target", () => {
             const redeemPositionIndex = 1;
@@ -152,15 +154,15 @@ if (process.env.INTEGRATIONTEST) {
             });
             it("should work", async () => {
               const calls = await subject();
-              const { setToken, currencyId, maturity, mintAmount, sendToken, maxSendAmount } =
+              const { setToken, currencyId, maturity, minMintAmount, sendToken, sendAmount } =
                 calls.find((element: any): boolean => element.setToken != ADDRESS_ZERO) ?? calls[0];
-              await notionalTradeModule.mintFixedFCashForToken(
+              await notionalTradeModule.mintFCashForFixedToken(
                 setToken,
                 currencyId,
                 maturity,
-                mintAmount,
+                minMintAmount,
                 sendToken,
-                maxSendAmount,
+                sendAmount,
               );
             });
           });
@@ -250,8 +252,11 @@ if (process.env.INTEGRATIONTEST) {
           }
           it("should work", async () => {
             const totalFCashPosition = await subject();
-            const expectedTotalFCashPosition = ethers.utils.parseUnits("100", 8);
-            expect(totalFCashPosition).to.eq(expectedTotalFCashPosition);
+            const expectedPositionInFCash = ethers.utils.parseUnits("100", 8);
+            const exchangeRate = await ICErc20__factory.connect(assetToken, operator).exchangeRateStored();
+            const expectedTotalFCashPosition = expectedPositionInFCash.mul(ethers.utils.parseUnits("1", 28)).div(exchangeRate);
+            expect(totalFCashPosition).to.be.gt(expectedTotalFCashPosition.mul(95).div(100));
+            expect(totalFCashPosition).to.be.lt(expectedTotalFCashPosition.mul(105).div(100));
           });
         });
       });

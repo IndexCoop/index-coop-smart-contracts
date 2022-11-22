@@ -27,6 +27,25 @@ interface INotionalTradeModule {
         uint256 _minReceiveAmount
     ) external returns(uint256);
 
+    function mintFCashForFixedToken(
+        ISetToken _setToken,
+        uint16 _currencyId,
+        uint40 _maturity,
+        uint256 _minMintAmount,
+        address _sendToken,
+        uint256 _sendAmount
+    ) external returns(uint256);
+
+    function redeemFCashForFixedToken(
+        ISetToken _setToken,
+        uint16 _currencyId,
+        uint40 _maturity,
+        uint256 _maxRedeemAmount,
+        address _receiveToken,
+        uint256 _receiveAmount,
+        uint256 _maxReceiveAmountDeviation
+    ) external returns(uint256);
+
 
 }
 
