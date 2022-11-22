@@ -51,6 +51,10 @@ export const PRODUCTION_ADDRESSES = {
     controller: "0xD2463675a099101E36D85278494268261a66603A",
     debtIssuanceModuleV2: "0xa0a98EB7Af028BE00d04e46e1316808A62a8fd59",
     notionalTradeModule: "0x600d9950c6ecAef98Cc42fa207E92397A6c43416",
+    tradeModule: "",
+    airdropModule: "",
+    wsETH2: "",
+    wsETH2Manager: "",
   },
   lending: {
     aave: {

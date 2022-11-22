@@ -117,6 +117,7 @@ contract StakeWiseReinvestmentExtension is BaseExtension {
         invokeManager(address(airdropModule), absorbCallData);
 
         uint256 rEthUnits = uint256(setToken.getTotalComponentRealUnits(R_ETH2));
+        require(rEthUnits > 0, "rETH2 units must be greater than zero");
         bytes memory tradeCallData = abi.encodeWithSelector(
             ITradeModule.trade.selector,
             settings.exchangeName,
