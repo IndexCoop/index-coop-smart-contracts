@@ -150,6 +150,7 @@ contract NotionalMaturityRolloverExtension is BaseExtension {
             callData
         );
     }
+
     function _getCalldata(uint256 _maturity, uint256 _fCashAmount) internal returns(bytes memory) {
         uint256 assetTokenPosition = uint256(setToken.getDefaultPositionRealUnit(assetToken));
         return abi.encodeWithSignature("mintFixedFCashForToken(address,uint16,uint40,uint256,address,uint256)",
@@ -168,18 +169,29 @@ contract NotionalMaturityRolloverExtension is BaseExtension {
         for(uint256 i = 0; i < fCashComponents.length; i++) {
             int256 currentPositionSigned = setToken.getDefaultPositionRealUnit(fCashComponents[i]);
             require(currentPositionSigned >= 0, "Negative position");
-            totalFCashPosition = totalFCashPosition.add(uint256(currentPositionSigned));
+            uint256 maturity = IWrappedfCashComplete(fCashComponents[i]).getMaturity();
+            uint256 currentPositionDiscounted = _convertToAssetToken(uint256(currentPositionSigned), maturity);
+            totalFCashPosition = totalFCashPosition.add(uint256(currentPositionDiscounted));
         }
+    }
+
+    function _convertToAssetToken(uint256 _amount, uint256 _maturity) internal view returns(uint256) {
+        (,uint256 currentPositionDiscounted,,) = notionalProxy.getDepositFromfCashLend(
+            currencyId,
+            _amount,
+            _maturity,
+            0,
+            block.timestamp
+        );
+        return currentPositionDiscounted;
     }
 
     function getShortfalls() public view returns(uint256[] memory, uint256[] memory) {
         int256 assetPosition = setToken.getDefaultPositionRealUnit(assetToken);
         require(assetPosition >= 0, "Negative asset position");
         uint256 assetPositionUint = uint256(assetPosition);
-        uint256 exchangeRate = ICErc20(assetToken).exchangeRateStored();
-        uint256 equivalentFCash = assetPositionUint.mul(exchangeRate).div(1e28);
-        uint256 totalFCashPosition = getTotalFCashPosition();
-        return _getShortfalls(equivalentFCash.add(totalFCashPosition));
+        uint256 discountedFCashPosition = getTotalFCashPosition();
+        return _getShortfalls(discountedFCashPosition.add(assetPositionUint));
     }
 
     function _getShortfalls(uint256 _totalFCashAndUnderlyingPosition) internal view returns(uint256[] memory shortfallPositions, uint256[] memory absoluteMaturities) {
@@ -191,7 +203,7 @@ contract NotionalMaturityRolloverExtension is BaseExtension {
             address wrappedfCash = wrappedfCashFactory.computeAddress(currencyId, uint40(maturity));
             int256 currentPositionSigned = setToken.getDefaultPositionRealUnit(wrappedfCash);
             require(currentPositionSigned >= 0, "Negative position");
-            uint256 currentPosition = uint256(currentPositionSigned);
+            uint256 currentPosition = _convertToAssetToken(uint256(currentPositionSigned), maturity);
             uint256 targetPosition = allocations[i].preciseMul(_totalFCashAndUnderlyingPosition);
             if(currentPosition < targetPosition) {
                 shortfallPositions[i] = targetPosition.sub(currentPosition);

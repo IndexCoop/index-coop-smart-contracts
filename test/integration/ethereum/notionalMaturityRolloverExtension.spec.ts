@@ -166,10 +166,10 @@ if (process.env.INTEGRATIONTEST) {
           });
         });
 
-        describe("#rebalanceTrade", () => {
+        describe("#rebalance", () => {
           const subjectShare = ethers.utils.parseEther("0.9");
           function subject() {
-            // return rolloverExtension.rebalance(subjectShare);
+            return rolloverExtension.rebalance(subjectShare);
           }
           describe("when fcash position are correct", () => {
             beforeEach(async () => {
@@ -206,39 +206,40 @@ if (process.env.INTEGRATIONTEST) {
           }
           it("should work", async () => {
             const [shortfallPositions, absoluteMaturities] = await subject();
-            expect(shortfallPositions).to.deep.equal([ZERO, ZERO]);
+            console.log(
+              "shortfallPositions: ",
+              shortfallPositions.map((bn: BigNumber) => bn.toNumber()),
+            );
+            expect(shortfallPositions[0]).to.equal(ZERO);
+            expect(shortfallPositions[1]).to.be.gt(ZERO);
             expect(absoluteMaturities.map((bn: BigNumber) => bn.toNumber())).to.have.same.members(
               componentMaturities,
             );
           });
-          describe("when first position has matured", () => {
+          describe("when fcash position was reduced", () => {
+            const redeemPositionIndex = 1;
             beforeEach(async () => {
-              const componentsBefore = await setToken.getComponents();
-              const componentMaturities = (await Promise.all(
-                componentsBefore.map(c => {
-                  const wrappedfCash = IWrappedfCashComplete__factory.connect(c, operator);
-                  return wrappedfCash.getMaturity();
-                }),
-              )) as number[];
-              const firstMaturity = Math.min(...componentMaturities);
-              await network.provider.send("evm_setNextBlockTimestamp", [firstMaturity + 1]);
-              await network.provider.send("evm_mine");
-              await notionalTradeModule.redeemMaturedPositions(setToken.address);
+              await notionalTradeModule
+                .connect(operator)
+                .redeemFixedFCashForToken(
+                  setToken.address,
+                  currencyId,
+                  componentMaturities[redeemPositionIndex],
+                  componentPositions[redeemPositionIndex].unit,
+                  assetToken,
+                  0,
+                );
+              await setToken.connect(operator).setManager(baseManagerV2.address);
             });
             it("should work", async () => {
               const [shortfallPositions, absoluteMaturities] = await subject();
-
-              const nonMaturedMaturity = new Date("2023-03-24T00:00:00.000Z").getTime() / 1000;
-              const nonMaturedPositionIndex = absoluteMaturities.findIndex(
-                (m: BigNumber) => m.toNumber() == nonMaturedMaturity,
+              console.log(
+                "shortfallPositions: ",
+                shortfallPositions.map((bn: BigNumber) => bn.toNumber()),
               );
-              expect(shortfallPositions[nonMaturedPositionIndex]).to.equal(ZERO);
-
-              const newMaturity = new Date("2023-06-22T00:00:00.000Z").getTime() / 1000;
-              const newPositionIndex = absoluteMaturities.findIndex(
-                (m: BigNumber) => m.toNumber() == newMaturity,
+              expect(absoluteMaturities.map((bn: BigNumber) => bn.toNumber())).to.have.same.members(
+                componentMaturities,
               );
-              expect(shortfallPositions[newPositionIndex]).to.be.gt(ZERO);
             });
           });
         });
