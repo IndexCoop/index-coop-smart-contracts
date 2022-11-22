@@ -166,10 +166,10 @@ if (process.env.INTEGRATIONTEST) {
           });
         });
 
-        describe("#rebalance", () => {
+        describe("#rebalanceTrade", () => {
           const subjectShare = ethers.utils.parseEther("0.9");
           function subject() {
-            return rolloverExtension.rebalance(subjectShare);
+            // return rolloverExtension.rebalance(subjectShare);
           }
           describe("when fcash position are correct", () => {
             beforeEach(async () => {
