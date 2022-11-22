@@ -10,7 +10,6 @@ import {
   StandardTokenMock,
   StringArrayUtilsMock,
   TradeAdapterMock,
-  TradeModuleMock,
   WrapAdapterMock,
   WrappedfCashMock,
   WrappedfCashFactoryMock,
@@ -39,7 +38,6 @@ import { AaveV2LendingPoolMock__factory } from "@typechain/factories/AaveV2Lendi
 import { AaveV2LendingPoolMock } from "@typechain/AaveV2LendingPoolMock";
 import { FlashMintLeveragedCompMock } from "@typechain/FlashMintLeveragedCompMock";
 import { FlashMintLeveragedCompMock__factory } from "@typechain/factories/FlashMintLeveragedCompMock__factory";
-import { TradeModuleMock__factory } from "@typechain/index";
 
 export default class DeployMocks {
   private _deployerSigner: Signer;
@@ -54,10 +52,6 @@ export default class DeployMocks {
 
   public async deployTradeAdapterMock(): Promise<TradeAdapterMock> {
     return await new TradeAdapterMock__factory(this._deployerSigner).deploy();
-  }
-
-  public async deployTradeModuleMock(): Promise<TradeModuleMock> {
-    return await new TradeModuleMock__factory(this._deployerSigner).deploy();
   }
 
   public async deployGovernanceAdapterMock(
