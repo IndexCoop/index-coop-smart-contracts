@@ -23,6 +23,7 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
 
 import { BaseExtension } from "../lib/BaseExtension.sol";
+import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IAirdropModule } from "../interfaces/IAirdropModule.sol";
@@ -56,7 +57,7 @@ contract StakeWiseReinvestmentExtension is BaseExtension {
     ISetToken public immutable setToken;                // The set token 
     IAirdropModule public immutable airdropModule;      // The airdrop module
     ITradeModule public immutable tradeModule;          // The trade module
-    ExecutionSettings public settings;         // The execution settings
+    ExecutionSettings public settings;                  // The execution settings
 
     /* ============  Constructor ============ */ 
     /**
@@ -81,11 +82,33 @@ contract StakeWiseReinvestmentExtension is BaseExtension {
 
     /* ============ External Functions ============ */
 
+    function initialize() external onlyOperator {
+        address[] memory tokens = new address[](1);
+        tokens[0] = R_ETH2;
+        IAirdropModule.AirdropSettings memory airdropSettings = IAirdropModule.AirdropSettings ({
+            airdrops: tokens,
+            feeRecipient: address(setToken),
+            airdropFee: 0,
+            anyoneAbsorb: false
+        });
+        bytes memory airdropModuleData = abi.encodeWithSelector(airdropModule.initialize.selector, setToken, airdropSettings);
+        invokeManager(address(airdropModule), airdropModuleData);
+
+        bytes memory tradeModuleData = abi.encodeWithSelector(tradeModule.initialize.selector, setToken);
+        invokeManager(address(tradeModule), tradeModuleData);
+    }
+
     /**
-     * ONLY ALLOWED CALLER:
      * 
+     * 1. Absorbs rETH2 into the SetToken
+     * 2. Trades rETH2 into sETH2 with _minReceivedQuantity
+     * 
+     * It was considered to remove _minReceivedQuantity parameter and store a slippage parameter as part of
+     * ExecutionSettings. However, in the event of a black swan event where rETH2 de-pegs, we'd need to updateExecutionSettings
+     * which would involve a multi-sig txn. Once rETH2 can be redeemed for sETH2 directly, the exchange rate is guaranteed to be 1:1.
+     * Therefore, _minReceiveQuantity can be removed and this function can be made public.
      */
-    function reinvest() external onlyAllowedCaller(msg.sender) {
+    function reinvest(uint256 _minReceiveQuantity) external onlyAllowedCaller(msg.sender) {
         bytes memory absorbCallData = abi.encodeWithSelector(
             IAirdropModule.absorb.selector,
             setToken,
@@ -100,7 +123,7 @@ contract StakeWiseReinvestmentExtension is BaseExtension {
             R_ETH2,
             rEthUnits,
             S_ETH2,
-            rEthUnits, // Assume 1:1 exchange
+            _minReceiveQuantity,
             settings.exchangeCallData
         );
         invokeManager(address(tradeModule), tradeCallData);
