@@ -27,6 +27,8 @@ import { impersonateAccount } from "./utils";
 
 const expect = getWaffleExpect();
 
+const { parseUnits, parseEther } = ethers.utils;
+
 if (process.env.INTEGRATIONTEST) {
   describe("NotionalMaturityRolloverExtension", () => {
     let deployer: DeployHelper;
@@ -36,6 +38,9 @@ if (process.env.INTEGRATIONTEST) {
     let componentMaturities: number[];
     let componentPositions: any[];
     let notionalProxy: INotionalProxy;
+
+    const threeMonthComponent = "0x6Af2a72FB8DeF29cF2cEcc41097EE750C031E5af";
+    const sixMonthComponent = "0x8220fA35c63A5e8F1c029f9bb0cbb0292d30b8C4";
 
     const addresses = PRODUCTION_ADDRESSES;
 
@@ -73,6 +78,19 @@ if (process.env.INTEGRATIONTEST) {
     afterEach(async () => {
       await network.provider.send("evm_revert", [snapshotId]);
     });
+
+    async function logPositions(label: string) {
+      const positionsAfter = await setToken.getPositions();
+      console.log(
+        label,
+        positionsAfter.map((p: any) => {
+          return {
+            component: p.component,
+            unit: p.unit.toString(),
+          };
+        }),
+      );
+    }
 
     describe("When token control is transferred to manager contract", () => {
       let baseManagerV2: BaseManagerV2;
@@ -130,7 +148,7 @@ if (process.env.INTEGRATIONTEST) {
         });
 
         describe("#rebalanceCalls", () => {
-          const subjectShare = ethers.utils.parseEther("0.9");
+          const subjectShare = parseEther("0.9");
           function subject() {
             return rolloverExtension.rebalanceCalls(subjectShare);
           }
@@ -168,8 +186,8 @@ if (process.env.INTEGRATIONTEST) {
           });
         });
 
-        describe("#rebalance", () => {
-          const subjectShare = ethers.utils.parseEther("0.9");
+        describe("#rebalanceTrade", () => {
+          const subjectShare = parseEther("1");
           function subject() {
             return rolloverExtension.rebalance(subjectShare);
           }
@@ -198,6 +216,64 @@ if (process.env.INTEGRATIONTEST) {
             });
             it("should work", async () => {
               await subject();
+              expect(await setToken.getDefaultPositionRealUnit(assetToken)).to.lt(5000);
+              expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.gt(
+                parseUnits("75", 8),
+              );
+              expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.lt(
+                parseUnits("77", 8),
+              );
+              expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.gt(
+                parseUnits("24.5", 8),
+              );
+              expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.lt(
+                parseUnits("25.5", 8),
+              );
+            });
+          });
+          describe("when fcash position was moved", () => {
+            const redeemPositionIndex = 1;
+            beforeEach(async () => {
+              await notionalTradeModule
+                .connect(operator)
+                .redeemFixedFCashForToken(
+                  setToken.address,
+                  currencyId,
+                  componentMaturities[redeemPositionIndex],
+                  componentPositions[redeemPositionIndex].unit,
+                  assetToken,
+                  0,
+                );
+              const obtainedAssetTokenPosition = await setToken.getDefaultPositionRealUnit(assetToken);
+              await notionalTradeModule
+                .connect(operator)
+                .mintFCashForFixedToken(
+                  setToken.address,
+                  currencyId,
+                  componentMaturities[(redeemPositionIndex + 1) % 2],
+                  0,
+                  assetToken,
+                  obtainedAssetTokenPosition,
+                );
+              await setToken.connect(operator).setManager(baseManagerV2.address);
+            });
+            it("should work", async () => {
+              await logPositions("before rebalance");
+              await subject();
+              await logPositions("after rebalance");
+              expect(await setToken.getDefaultPositionRealUnit(assetToken)).to.lt(5000);
+              expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.gt(
+                parseUnits("75", 8),
+              );
+              expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.lt(
+                parseUnits("77", 8),
+              );
+              expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.gt(
+                parseUnits("24.5", 8),
+              );
+              expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.lt(
+                parseUnits("25.5", 8),
+              );
             });
           });
         });
@@ -252,9 +328,14 @@ if (process.env.INTEGRATIONTEST) {
           }
           it("should work", async () => {
             const totalFCashPosition = await subject();
-            const expectedPositionInFCash = ethers.utils.parseUnits("100", 8);
-            const exchangeRate = await ICErc20__factory.connect(assetToken, operator).exchangeRateStored();
-            const expectedTotalFCashPosition = expectedPositionInFCash.mul(ethers.utils.parseUnits("1", 28)).div(exchangeRate);
+            const expectedPositionInFCash = parseUnits("100", 8);
+            const exchangeRate = await ICErc20__factory.connect(
+              assetToken,
+              operator,
+            ).exchangeRateStored();
+            const expectedTotalFCashPosition = expectedPositionInFCash
+              .mul(parseUnits("1", 28))
+              .div(exchangeRate);
             expect(totalFCashPosition).to.be.gt(expectedTotalFCashPosition.mul(95).div(100));
             expect(totalFCashPosition).to.be.lt(expectedTotalFCashPosition.mul(105).div(100));
           });
