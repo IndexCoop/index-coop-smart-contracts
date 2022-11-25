@@ -37,7 +37,8 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  * @title FixedRebalanceExtension
  * @author IndexCoop
  *
- * Smart contract that enables trustless rollover of matured notional / fCash positions at maturity, maintining configured maturity allocation
+ * Smart contract that enables rebalancing of FIXED products
+ * Will sell redeem fCash positions and mint underweight fCash positions via NotionalTradeModule
  */
 contract FixedRebalanceExtension is BaseExtension {
     using PreciseUnitMath for uint256;
@@ -55,16 +56,14 @@ contract FixedRebalanceExtension is BaseExtension {
 
     // /* ============ Events ============ */
 
-    event Engaged();
     event AllocationSet(uint256 _maturity, uint256 _oldAllocation, uint256 _newAllocation);
     event MaturityStatusSet(uint256 _maturity, bool _newStatus);
-    event Disengaged();
 
     // /* ============ State Variables ============ */
 
     mapping(uint256 => bool) internal isValidMaturity;              // Mapping of valid maturities
-    uint256[] validMaturities;
-    ISetToken setToken;                             // Instance of leverage token
+    uint256[] validMaturities;                                      // Array of valid maturities
+    ISetToken setToken;                                             // Instance of leverage token
     INotionalTradeModule notionalTradeModule;                             // Instance of leverage token
     INotionalProxy notionalProxy;                             
     IWrappedfCashFactory wrappedfCashFactory;                             // Instance of leverage token
@@ -113,46 +112,38 @@ contract FixedRebalanceExtension is BaseExtension {
 
     // /* ============ External Functions ============ */
 
-    function rebalance(uint256 share) external onlyOperator {
+    function rebalance(uint256 _share) external onlyOperator {
+        _sellOverweightPositions(_share);
+        _buyUnderweightPositions(_share);
+    }
+
+    function _sellOverweightPositions(uint256 _share) internal {
         (
-            uint256[] memory surplusPositions,
+            uint256[] memory overweightPositions,
             uint256[] memory currentPositions,
             uint256[] memory absoluteMaturities
-        ) = _getSurplusPositions();
-        for(uint256 i = 0; i < surplusPositions.length; i++) {
-            if(surplusPositions[i] > 0) {
-                _redeemFCash(absoluteMaturities[i], surplusPositions[i], currentPositions[i]);
+        ) = _getOverweightPositions();
+        for(uint256 i = 0; i < overweightPositions.length; i++) {
+            uint256 receiveAmount = overweightPositions[i].preciseMul(_share);
+            if(overweightPositions[i] > 0) {
+                _redeemFCash(absoluteMaturities[i], receiveAmount, currentPositions[i]);
             }
         }
+    }
+
+    function _buyUnderweightPositions(uint256 _share) internal {
         (
-            uint256[] memory shortfallPositions,,
-        ) = _getShortfallPositions();
-        for(uint256 i = 0; i < shortfallPositions.length; i++) {
-            uint256 sendAmount = shortfallPositions[i].preciseMul(share);
+            uint256[] memory underweightPositions,,
+            uint256[] memory absoluteMaturities
+        ) = _getUnderweightPositions();
+        for(uint256 i = 0; i < underweightPositions.length; i++) {
+            uint256 sendAmount = underweightPositions[i].preciseMul(_share);
             if(sendAmount > 0) {
                 _mintFCash(absoluteMaturities[i], sendAmount);
             }
         }
     }
 
-    function rebalanceCalls(uint256 share) external view returns(CallArguments[] memory callArgs) {
-        (uint256[] memory shortfallPositions,,uint256[] memory absoluteMaturities) = getShortfalls();
-        callArgs = new CallArguments[](shortfallPositions.length);
-        uint256 assetTokenPosition = uint256(setToken.getDefaultPositionRealUnit(assetToken));
-        for(uint256 i = 0; i < shortfallPositions.length; i++) {
-            uint256 shortfall = shortfallPositions[i];
-            if(shortfall > 0) {
-                callArgs[i] = CallArguments(
-                    address(setToken),
-                    currencyId,
-                    uint40(absoluteMaturities[i]),
-                    0,
-                    address(assetToken),
-                    shortfall.preciseMul(share)
-                );
-            }
-        }
-    }
 
     function _mintFCash(uint256 _maturity, uint256 _assetTokenAmount) internal {
         uint256 assetTokenPosition = uint256(setToken.getDefaultPositionRealUnit(assetToken));
@@ -210,15 +201,15 @@ contract FixedRebalanceExtension is BaseExtension {
         return currentPositionDiscounted;
     }
 
-    function getShortfalls() public view returns(uint256[] memory, uint256[] memory,  uint256[] memory) {
-        return _getShortfallPositions();
+    function getUnderweightPositions() public view returns(uint256[] memory, uint256[] memory,  uint256[] memory) {
+        return _getUnderweightPositions();
     }
 
-    function _getSurplusPositions()
+    function _getOverweightPositions()
         internal
         view
         returns(
-            uint256[] memory surplusPositions,
+            uint256[] memory overweightPositions,
             uint256[] memory currentPositions,
             uint256[] memory absoluteMaturities
         )
@@ -227,7 +218,7 @@ contract FixedRebalanceExtension is BaseExtension {
         require(assetPosition >= 0, "Negative asset position");
         uint256 totalFCashAndUnderlyingPosition = getTotalFCashPosition().add(uint256(assetPosition));
 
-        surplusPositions = new uint256[](maturities.length);
+        overweightPositions = new uint256[](maturities.length);
         currentPositions = new uint256[](maturities.length);
         absoluteMaturities = new uint256[](maturities.length);
         for(uint i = 0; i < maturities.length; i++) {
@@ -241,15 +232,15 @@ contract FixedRebalanceExtension is BaseExtension {
 
             currentPositions[i] = uint256(currentPositionSigned);
             if(currentPosition > targetPosition) {
-                surplusPositions[i] = currentPosition.sub(targetPosition);
+                overweightPositions[i] = currentPosition.sub(targetPosition);
             }
         }
     }
-    function _getShortfallPositions()
+    function _getUnderweightPositions()
         internal
         view
         returns(
-            uint256[] memory shortfallPositions,
+            uint256[] memory underweightPositions,
             uint256[] memory currentPositions,
             uint256[] memory absoluteMaturities
         )
@@ -258,7 +249,7 @@ contract FixedRebalanceExtension is BaseExtension {
         require(assetPosition >= 0, "Negative asset position");
         uint256 totalFCashAndUnderlyingPosition = getTotalFCashPosition().add(uint256(assetPosition));
 
-        shortfallPositions = new uint256[](maturities.length);
+        underweightPositions = new uint256[](maturities.length);
         currentPositions = new uint256[](maturities.length);
         absoluteMaturities = new uint256[](maturities.length);
         for(uint i = 0; i < maturities.length; i++) {
@@ -272,22 +263,13 @@ contract FixedRebalanceExtension is BaseExtension {
 
             currentPositions[i] = uint256(currentPositionSigned);
             if(currentPosition < targetPosition) {
-                shortfallPositions[i] = targetPosition.sub(currentPosition);
+                underweightPositions[i] = targetPosition.sub(currentPosition);
             }
         }
     }
 
     function getFCashComponentsAndMaturities() external view returns (address[] memory, uint256[] memory) {
         return _getFCashComponentsAndMaturities();
-    }
-
-    function _remainingToAbsoluteMaturity(uint256 _remainingMaturity) internal view returns (uint256) {
-        for(uint256 i = 0; i < validMaturities.length; i++) {
-            if(validMaturities[i] >= _remainingMaturity) {
-                return validMaturities[i];
-            }
-        }
-        revert("Remaining maturity is larger than any valid maturity");
     }
 
     function getAbsoluteMaturities() external view returns (uint256[] memory absoluteMaturities) {
@@ -309,6 +291,12 @@ contract FixedRebalanceExtension is BaseExtension {
         require(absoluteMaturity > 0, "No active market found for given relative maturity");
     }
 
+
+
+    // /* ============ Internal Functions ============ */
+
+    // @dev Returns fCash component address and their relative maturities
+    // @dev Will revert if set token contains an fCash component that does not correspond to a whitelisted maturity
     function _getFCashComponentsAndMaturities() 
     internal
     view
@@ -317,12 +305,30 @@ contract FixedRebalanceExtension is BaseExtension {
         fCashComponents = notionalTradeModule.getFCashComponents(setToken);
         fCashMaturities = new uint256[](fCashComponents.length);
         for(uint256 i = 0; i < fCashComponents.length; i++) {
-            fCashMaturities[i] = _remainingToAbsoluteMaturity(IWrappedfCashComplete(fCashComponents[i]).getMaturity() - block.timestamp);
+            fCashMaturities[i] = _absoluteToRelativeMaturity(
+                IWrappedfCashComplete(fCashComponents[i]).getMaturity()
+            );
         }
     }
 
+    // @dev Converts absolute maturity to corresponding relative maturity if it is whitelisted
+    // @param _absoluteMaturity Absolute maturity to convert (i.e. "2022-12-22" in seconds)
+    // @return Corresponding relative maturity (i.e. "3 months" in seconds)
+    // @dev Returns smallest whitelisted relative maturity that is greater than the remaining maturity
+    // @dev Reverts if absolute maturity cannot be matched to a whitelisted relative maturity
+    function _absoluteToRelativeMaturity(uint256 _absoluteMaturity) internal view returns (uint256) {
+        // This will revert if absolute maturity is less than timestamp (i.e. matured positions)
+        // TODO: Verify that this is not an issue
+        uint256 remainingMaturity = _absoluteMaturity.sub(block.timestamp);
+        // Valid maturities is sorted in ascending order
+        for(uint256 i = 0; i < validMaturities.length; i++) {
+            if(validMaturities[i] >= remainingMaturity) {
+                return validMaturities[i];
+            }
+        }
+        revert("Remaining maturity is larger than any valid maturity");
+    }
 
-    // /* ============ Internal Functions ============ */
 
     function _setAllocations(uint256[] memory _maturities, uint256[] memory _allocations) internal {
         require(_maturities.length == _allocations.length, "Maturities and allocations must be same length");

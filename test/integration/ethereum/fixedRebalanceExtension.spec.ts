@@ -21,7 +21,7 @@ import {
   INotionalProxy,
   INotionalProxy__factory,
 } from "../../../typechain";
-import { ADDRESS_ZERO, ZERO } from "@utils/constants";
+import { ZERO } from "@utils/constants";
 import { PRODUCTION_ADDRESSES } from "./addresses";
 import { impersonateAccount } from "./utils";
 
@@ -147,46 +147,7 @@ if (process.env.INTEGRATIONTEST) {
           });
         });
 
-        describe("#rebalanceCalls", () => {
-          const subjectShare = parseEther("0.9");
-          function subject() {
-            return rolloverExtension.rebalanceCalls(subjectShare);
-          }
-          it("should work", async () => {
-            const calls = await subject();
-            expect(calls.length).to.eq(2);
-          });
-          describe("when positions differ from target", () => {
-            const redeemPositionIndex = 1;
-            beforeEach(async () => {
-              await notionalTradeModule
-                .connect(operator)
-                .redeemFixedFCashForToken(
-                  setToken.address,
-                  currencyId,
-                  componentMaturities[redeemPositionIndex],
-                  componentPositions[redeemPositionIndex].unit,
-                  assetToken,
-                  0,
-                );
-            });
-            it("should work", async () => {
-              const calls = await subject();
-              const { setToken, currencyId, maturity, minMintAmount, sendToken, sendAmount } =
-                calls.find((element: any): boolean => element.setToken != ADDRESS_ZERO) ?? calls[0];
-              await notionalTradeModule.mintFCashForFixedToken(
-                setToken,
-                currencyId,
-                maturity,
-                minMintAmount,
-                sendToken,
-                sendAmount,
-              );
-            });
-          });
-        });
-
-        describe("#rebalanceTrade", () => {
+        describe("#rebalance", () => {
           const subjectShare = parseEther("1");
           function subject() {
             return rolloverExtension.rebalance(subjectShare);
@@ -271,14 +232,14 @@ if (process.env.INTEGRATIONTEST) {
           });
         });
 
-        describe("#getShortfalls", () => {
+        describe("#getUnderweightPositions", () => {
           function subject() {
-            return rolloverExtension.getShortfalls();
+            return rolloverExtension.getUnderweightPositions();
           }
           it("should work", async () => {
-            const [shortfallPositions, , absoluteMaturities] = await subject();
-            expect(shortfallPositions[0]).to.equal(ZERO);
-            expect(shortfallPositions[1]).to.be.gt(ZERO);
+            const [underweightPositions, , absoluteMaturities] = await subject();
+            expect(underweightPositions[0]).to.equal(ZERO);
+            expect(underweightPositions[1]).to.be.gt(ZERO);
             expect(absoluteMaturities.map((bn: BigNumber) => bn.toNumber())).to.have.same.members(
               componentMaturities,
             );
