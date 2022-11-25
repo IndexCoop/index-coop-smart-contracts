@@ -61,16 +61,16 @@ contract FixedRebalanceExtension is BaseExtension {
 
     // /* ============ State Variables ============ */
 
-    mapping(uint256 => bool) internal isValidMaturity;              // Mapping of valid maturities
-    uint256[] validMaturities;                                      // Array of valid maturities
-    ISetToken setToken;                                             // Instance of leverage token
-    INotionalTradeModule notionalTradeModule;                             // Instance of leverage token
-    INotionalProxy notionalProxy;                             
-    IWrappedfCashFactory wrappedfCashFactory;                             // Instance of leverage token
+    mapping(uint256 => bool) internal isValidMaturity;       // Mapping of valid maturities
+    uint256[] validMaturities;                               // Array of valid maturities
+    ISetToken setToken;                                      // Instance of leverage token
+    INotionalTradeModule notionalTradeModule;                // Instance of leverage token
+    INotionalProxy notionalProxy;                            
+    IWrappedfCashFactory wrappedfCashFactory;                // Instance of leverage token
     address underlyingToken;
     address assetToken;
-    uint256[] maturities;                           // Array of relative maturities in seconds (i.e. 3 months / 6 months)
-    uint256[] allocations;                          // Relative allocations 
+    uint256[] maturities;                                    // Array of relative maturities in seconds (i.e. 3 months / 6 months)
+    uint256[] allocations;                                   // Relative allocations 
     uint16 public currencyId;
 
     // /* ============ Constructor ============ */
@@ -112,11 +112,48 @@ contract FixedRebalanceExtension is BaseExtension {
 
     // /* ============ External Functions ============ */
 
+    /**
+     * ONLY OPERATOR: Rebalances the positions towards the configured allocation percentages.
+     *
+     * @param _share                Relative share of the necessary trade volume to execute (allows for splitting the rebalance over multiple transactions
+     */
     function rebalance(uint256 _share) external onlyOperator {
+        require(_share > 0, "Share must be greater than 0");
+        require(_share <= 1 ether, "Share cannot exceed 100%");
+
+        // TODO: Review if we want to open up this method for anyone to call.
         _sellOverweightPositions(_share);
         _buyUnderweightPositions(_share);
     }
 
+    // Aggregates all fCash positions + asset token position into a single value
+    // @dev The value represents the current value of all relevant positions and can be multiplied by the relative allocation to calculate the target position size
+    function getTotalAllocation() external view returns(uint256) {
+        return _getTotalAllocation();
+    }
+
+
+    // Get positions that are currently below their targeted weight
+    function getUnderweightPositions() external view returns(uint256[] memory, uint256[] memory,  uint256[] memory) {
+        return _getUnderweightPositions();
+    }
+
+    // Get absolute maturities corresponding to currently configured allocations
+    function getAbsoluteMaturities() external view returns (uint256[] memory absoluteMaturities) {
+        absoluteMaturities = new uint256[](maturities.length);
+        for(uint256 i = 0; i < maturities.length; i++) {
+            absoluteMaturities[i] = _relativeToAbsoluteMaturity(maturities[i]);
+        }
+    }
+
+
+
+
+    // /* ============ Internal Functions ============ */
+
+    // @dev Sells fCash positions that are currently above their targeted allocation
+    // @dev _maturity         absolute maturity of fCash to redeem
+    // @param _share          Relative share of the necessary trade volume to execute (allows for splitting the rebalance over multiple transactions
     function _sellOverweightPositions(uint256 _share) internal {
         (
             uint256[] memory overweightPositions,
@@ -131,6 +168,9 @@ contract FixedRebalanceExtension is BaseExtension {
         }
     }
 
+    // @dev Buys fCash positions that are currently below their targeted allocation
+    // @dev _maturity         absolute maturity of fCash to redeem
+    // @param _share          Relative share of the necessary trade volume to execute (allows for splitting the rebalance over multiple transactions
     function _buyUnderweightPositions(uint256 _share) internal {
         (
             uint256[] memory underweightPositions,,
@@ -144,67 +184,7 @@ contract FixedRebalanceExtension is BaseExtension {
         }
     }
 
-
-    function _mintFCash(uint256 _maturity, uint256 _assetTokenAmount) internal {
-        uint256 assetTokenPosition = uint256(setToken.getDefaultPositionRealUnit(assetToken));
-        require(assetTokenPosition >= _assetTokenAmount, "Insufficient asset token balance for mint");
-        bytes memory callData = abi.encodeWithSignature("mintFCashForFixedToken(address,uint16,uint40,uint256,address,uint256)",
-                address(setToken),
-                currencyId,
-                uint40(_maturity),
-                0,
-                address(assetToken),
-                _assetTokenAmount
-        );
-        invokeManager(
-            address(notionalTradeModule),
-            callData
-        );
-    }
-
-    function _redeemFCash(uint256 _maturity, uint256 _assetTokenAmount, uint256 _fCashPosition) internal {
-        bytes memory callData = abi.encodeWithSignature("redeemFCashForFixedToken(address,uint16,uint40,uint256,address,uint256,uint256)",
-                address(setToken),
-                currencyId,
-                uint40(_maturity),
-                _fCashPosition,
-                address(assetToken),
-                _assetTokenAmount,
-                0.01 ether
-        );
-        invokeManager(
-            address(notionalTradeModule),
-            callData
-        );
-    }
-
-
-    function getTotalFCashPosition() public view returns(uint256 totalFCashPosition) {
-        address[] memory fCashComponents = notionalTradeModule.getFCashComponents(setToken);
-        for(uint256 i = 0; i < fCashComponents.length; i++) {
-            int256 currentPositionSigned = setToken.getDefaultPositionRealUnit(fCashComponents[i]);
-            require(currentPositionSigned >= 0, "Negative position");
-            uint256 maturity = IWrappedfCashComplete(fCashComponents[i]).getMaturity();
-            uint256 currentPositionDiscounted = _convertToAssetToken(uint256(currentPositionSigned), maturity);
-            totalFCashPosition = totalFCashPosition.add(uint256(currentPositionDiscounted));
-        }
-    }
-
-    function _convertToAssetToken(uint256 _amount, uint256 _maturity) internal view returns(uint256) {
-        (,uint256 currentPositionDiscounted,,) = notionalProxy.getDepositFromfCashLend(
-            currencyId,
-            _amount,
-            _maturity,
-            0,
-            block.timestamp
-        );
-        return currentPositionDiscounted;
-    }
-
-    function getUnderweightPositions() public view returns(uint256[] memory, uint256[] memory,  uint256[] memory) {
-        return _getUnderweightPositions();
-    }
-
+    // @dev Get positions that are currently above their targeted weight
     function _getOverweightPositions()
         internal
         view
@@ -214,15 +194,13 @@ contract FixedRebalanceExtension is BaseExtension {
             uint256[] memory absoluteMaturities
         )
     {
-        int256 assetPosition = setToken.getDefaultPositionRealUnit(assetToken);
-        require(assetPosition >= 0, "Negative asset position");
-        uint256 totalFCashAndUnderlyingPosition = getTotalFCashPosition().add(uint256(assetPosition));
+        uint256 totalFCashAndUnderlyingPosition = _getTotalAllocation();
 
         overweightPositions = new uint256[](maturities.length);
         currentPositions = new uint256[](maturities.length);
         absoluteMaturities = new uint256[](maturities.length);
         for(uint i = 0; i < maturities.length; i++) {
-            uint256 maturity = getAbsoluteMaturity(maturities[i]);
+            uint256 maturity = _relativeToAbsoluteMaturity(maturities[i]);
             absoluteMaturities[i] = maturity;
             address wrappedfCash = wrappedfCashFactory.computeAddress(currencyId, uint40(maturity));
             int256 currentPositionSigned = setToken.getDefaultPositionRealUnit(wrappedfCash);
@@ -236,6 +214,8 @@ contract FixedRebalanceExtension is BaseExtension {
             }
         }
     }
+
+    // @dev Get positions that are currently below their targeted weight
     function _getUnderweightPositions()
         internal
         view
@@ -245,15 +225,13 @@ contract FixedRebalanceExtension is BaseExtension {
             uint256[] memory absoluteMaturities
         )
     {
-        int256 assetPosition = setToken.getDefaultPositionRealUnit(assetToken);
-        require(assetPosition >= 0, "Negative asset position");
-        uint256 totalFCashAndUnderlyingPosition = getTotalFCashPosition().add(uint256(assetPosition));
+        uint256 totalFCashAndUnderlyingPosition = _getTotalAllocation();
 
         underweightPositions = new uint256[](maturities.length);
         currentPositions = new uint256[](maturities.length);
         absoluteMaturities = new uint256[](maturities.length);
         for(uint i = 0; i < maturities.length; i++) {
-            uint256 maturity = getAbsoluteMaturity(maturities[i]);
+            uint256 maturity = _relativeToAbsoluteMaturity(maturities[i]);
             absoluteMaturities[i] = maturity;
             address wrappedfCash = wrappedfCashFactory.computeAddress(currencyId, uint40(maturity));
             int256 currentPositionSigned = setToken.getDefaultPositionRealUnit(wrappedfCash);
@@ -268,32 +246,90 @@ contract FixedRebalanceExtension is BaseExtension {
         }
     }
 
-    function getFCashComponentsAndMaturities() external view returns (address[] memory, uint256[] memory) {
-        return _getFCashComponentsAndMaturities();
+    // @dev Aggregates all fCash positions + asset token position into a single value
+    // @dev The value represents the current value of all relevant positions and can be multiplied by the relative allocation to calculate the target position size
+    function _getTotalAllocation() internal view returns(uint256) {
+        int256 assetPosition = setToken.getDefaultPositionRealUnit(assetToken);
+        require(assetPosition >= 0, "Negative asset position");
+        return _getTotalFCashPosition().add(uint256(assetPosition));
     }
 
-    function getAbsoluteMaturities() external view returns (uint256[] memory absoluteMaturities) {
-        absoluteMaturities = new uint256[](maturities.length);
-        for(uint256 i = 0; i < maturities.length; i++) {
-            absoluteMaturities[i] = getAbsoluteMaturity(maturities[i]);
+    // @dev Aggregates all fCash positions into a single value
+    // @dev Converts all fCashPosition to their equivalent assetToken value and returns the sum
+    function _getTotalFCashPosition() internal view returns(uint256 totalFCashPosition) {
+        address[] memory fCashComponents = notionalTradeModule.getFCashComponents(setToken);
+        for(uint256 i = 0; i < fCashComponents.length; i++) {
+            int256 currentPositionSigned = setToken.getDefaultPositionRealUnit(fCashComponents[i]);
+            require(currentPositionSigned >= 0, "Negative position");
+            uint256 maturity = IWrappedfCashComplete(fCashComponents[i]).getMaturity();
+            uint256 currentPositionDiscounted = _convertToAssetToken(uint256(currentPositionSigned), maturity);
+            totalFCashPosition = totalFCashPosition.add(uint256(currentPositionDiscounted));
         }
     }
 
-    function getAbsoluteMaturity(uint256 _relativeMaturity) public view returns (uint256 absoluteMaturity) {
-        MarketParameters[] memory  activeMarkets = notionalProxy.getActiveMarkets(currencyId);
-        for(uint256 i = 0; i < activeMarkets.length; i++) {
-            if(activeMarkets[i].maturity > block.timestamp && (activeMarkets[i].maturity - block.timestamp) < _relativeMaturity) {
-                if(activeMarkets[i].maturity > absoluteMaturity) {
-                    absoluteMaturity = activeMarkets[i].maturity;
-                }
-            }
-        }
-        require(absoluteMaturity > 0, "No active market found for given relative maturity");
+    // @dev Converts a given amount of fcash at given maturity to the equivalent asset token value
+    // @dev Represents the current / discounted value of the fCash position
+    function _convertToAssetToken(uint256 _amount, uint256 _maturity) internal view returns(uint256) {
+        (,uint256 currentPositionDiscounted,,) = notionalProxy.getDepositFromfCashLend(
+            currencyId,
+            _amount,
+            _maturity,
+            0,
+            block.timestamp
+        );
+        return currentPositionDiscounted;
     }
 
+    // @dev Mint fCash for asset token
+    // @dev _maturity         absolute maturity of fCash to redeem
+    // @dev _assetTokenAmount corresponding assetToken amount for which to mint fCash
+    function _mintFCash(uint256 _maturity, uint256 _assetTokenAmount) internal {
+        uint256 assetTokenPosition = uint256(setToken.getDefaultPositionRealUnit(assetToken));
+        require(assetTokenPosition >= _assetTokenAmount, "Insufficient asset token balance for mint");
 
+        // TODO: Check if we need to calculate a better value for slippage protection etc.
+        uint256 minFCashAmount = 0;
+        bytes memory callData = abi.encodeWithSignature(
+                "mintFCashForFixedToken(address,uint16,uint40,uint256,address,uint256)",
+                address(setToken),
+                currencyId,
+                uint40(_maturity),
+                minFCashAmount,
+                address(assetToken),
+                _assetTokenAmount
+        );
+        invokeManager(
+            address(notionalTradeModule),
+            callData
+        );
+    }
 
-    // /* ============ Internal Functions ============ */
+    // @dev Redeems fCash for asset token
+    // @dev _maturity         absolute maturity of fCash to redeem
+    // @dev _assetTokenAmount corresponding assetToken amount for which to redeem fCash
+    // @dev _fCashPosiiton    current fCash position of the setToken
+    function _redeemFCash(
+        uint256 _maturity,
+        uint256 _assetTokenAmount,
+        uint256 _fCashPosition
+    )
+    internal
+    {
+        bytes memory callData = abi.encodeWithSignature(
+                "redeemFCashForFixedToken(address,uint16,uint40,uint256,address,uint256,uint256)",
+                address(setToken),
+                currencyId,
+                uint40(_maturity),
+                _fCashPosition,
+                address(assetToken),
+                _assetTokenAmount,
+                0.01 ether
+        );
+        invokeManager(
+            address(notionalTradeModule),
+            callData
+        );
+    }
 
     // @dev Returns fCash component address and their relative maturities
     // @dev Will revert if set token contains an fCash component that does not correspond to a whitelisted maturity
@@ -329,7 +365,26 @@ contract FixedRebalanceExtension is BaseExtension {
         revert("Remaining maturity is larger than any valid maturity");
     }
 
+    // @dev Converts relative to absolute maturity
+    // @param _relativeMaturity     Relative maturity to convert (i.e. "3 months" in seconds)
+    // @return absoluteMaturity     Absolute maturity to convert (i.e. "2022-12-22" in seconds)
+    // @dev Returns largest active maturity on notional that is smaller than the relative maturity
+    // @dev Inverse of _absoluteToRelativeMaturity TODO: Check that this is correct
+    function _relativeToAbsoluteMaturity(uint256 _relativeMaturity) internal view returns (uint256 absoluteMaturity) {
+        MarketParameters[] memory  activeMarkets = notionalProxy.getActiveMarkets(currencyId);
+        for(uint256 i = 0; i < activeMarkets.length; i++) {
+            if(activeMarkets[i].maturity > block.timestamp && (activeMarkets[i].maturity - block.timestamp) < _relativeMaturity) {
+                if(activeMarkets[i].maturity > absoluteMaturity) {
+                    absoluteMaturity = activeMarkets[i].maturity;
+                }
+            }
+        }
+        require(absoluteMaturity > 0, "No active market found for given relative maturity");
+    }
 
+
+
+    // @dev Sets configured allocations for the setToken
     function _setAllocations(uint256[] memory _maturities, uint256[] memory _allocations) internal {
         require(_maturities.length == _allocations.length, "Maturities and allocations must be same length");
         uint256 totalAllocation = 0;
@@ -341,4 +396,5 @@ contract FixedRebalanceExtension is BaseExtension {
         maturities = _maturities;
         allocations = _allocations;
     }
+
 }

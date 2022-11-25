@@ -268,9 +268,9 @@ if (process.env.INTEGRATIONTEST) {
           });
         });
 
-        describe("#getTotalFCashPosition", () => {
+        describe("#getTotalAllocation", () => {
           function subject() {
-            return rolloverExtension.getTotalFCashPosition();
+            return rolloverExtension.getTotalAllocation();
           }
           it("should work", async () => {
             const totalFCashPosition = await subject();
