@@ -79,18 +79,18 @@ if (process.env.INTEGRATIONTEST) {
       await network.provider.send("evm_revert", [snapshotId]);
     });
 
-    async function logPositions(label: string) {
-      const positionsAfter = await setToken.getPositions();
-      console.log(
-        label,
-        positionsAfter.map((p: any) => {
-          return {
-            component: p.component,
-            unit: p.unit.toString(),
-          };
-        }),
-      );
-    }
+    // async function logPositions(label: string) {
+    //   const positionsAfter = await setToken.getPositions();
+    //   console.log(
+    //     label,
+    //     positionsAfter.map((p: any) => {
+    //       return {
+    //         component: p.component,
+    //         unit: p.unit.toString(),
+    //       };
+    //     }),
+    //   );
+    // }
 
     describe("When token control is transferred to manager contract", () => {
       let baseManagerV2: BaseManagerV2;
@@ -191,12 +191,29 @@ if (process.env.INTEGRATIONTEST) {
           function subject() {
             return rolloverExtension.rebalance(subjectShare);
           }
+
+          async function checkAllocation() {
+            expect(await setToken.getDefaultPositionRealUnit(assetToken)).to.lt(10000);
+            expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.gt(
+              parseUnits("75", 8),
+            );
+            expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.lt(
+              parseUnits("75.5", 8),
+            );
+            expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.gt(
+              parseUnits("24.5", 8),
+            );
+            expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.lt(
+              parseUnits("25", 8),
+            );
+          }
           describe("when fcash position are correct", () => {
             beforeEach(async () => {
               await setToken.connect(operator).setManager(baseManagerV2.address);
             });
             it("should work", async () => {
               await subject();
+              await checkAllocation();
             });
           });
           describe("when fcash position was reduced", () => {
@@ -216,19 +233,7 @@ if (process.env.INTEGRATIONTEST) {
             });
             it("should work", async () => {
               await subject();
-              expect(await setToken.getDefaultPositionRealUnit(assetToken)).to.lt(5000);
-              expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.gt(
-                parseUnits("75", 8),
-              );
-              expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.lt(
-                parseUnits("77", 8),
-              );
-              expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.gt(
-                parseUnits("24.5", 8),
-              );
-              expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.lt(
-                parseUnits("25.5", 8),
-              );
+              await checkAllocation();
             });
           });
           describe("when fcash position was moved", () => {
@@ -244,7 +249,9 @@ if (process.env.INTEGRATIONTEST) {
                   assetToken,
                   0,
                 );
-              const obtainedAssetTokenPosition = await setToken.getDefaultPositionRealUnit(assetToken);
+              const obtainedAssetTokenPosition = await setToken.getDefaultPositionRealUnit(
+                assetToken,
+              );
               await notionalTradeModule
                 .connect(operator)
                 .mintFCashForFixedToken(
@@ -258,22 +265,8 @@ if (process.env.INTEGRATIONTEST) {
               await setToken.connect(operator).setManager(baseManagerV2.address);
             });
             it("should work", async () => {
-              await logPositions("before rebalance");
               await subject();
-              await logPositions("after rebalance");
-              expect(await setToken.getDefaultPositionRealUnit(assetToken)).to.lt(5000);
-              expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.gt(
-                parseUnits("75", 8),
-              );
-              expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.lt(
-                parseUnits("77", 8),
-              );
-              expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.gt(
-                parseUnits("24.5", 8),
-              );
-              expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.lt(
-                parseUnits("25.5", 8),
-              );
+              await checkAllocation();
             });
           });
         });
@@ -283,11 +276,7 @@ if (process.env.INTEGRATIONTEST) {
             return rolloverExtension.getShortfalls();
           }
           it("should work", async () => {
-            const [shortfallPositions, absoluteMaturities] = await subject();
-            console.log(
-              "shortfallPositions: ",
-              shortfallPositions.map((bn: BigNumber) => bn.toNumber()),
-            );
+            const [shortfallPositions, , absoluteMaturities] = await subject();
             expect(shortfallPositions[0]).to.equal(ZERO);
             expect(shortfallPositions[1]).to.be.gt(ZERO);
             expect(absoluteMaturities.map((bn: BigNumber) => bn.toNumber())).to.have.same.members(
@@ -310,11 +299,7 @@ if (process.env.INTEGRATIONTEST) {
               await setToken.connect(operator).setManager(baseManagerV2.address);
             });
             it("should work", async () => {
-              const [shortfallPositions, absoluteMaturities] = await subject();
-              console.log(
-                "shortfallPositions: ",
-                shortfallPositions.map((bn: BigNumber) => bn.toNumber()),
-              );
+              const [, , absoluteMaturities] = await subject();
               expect(absoluteMaturities.map((bn: BigNumber) => bn.toNumber())).to.have.same.members(
                 componentMaturities,
               );
