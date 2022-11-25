@@ -42,7 +42,7 @@ import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitEx
 import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtension__factory";
 import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
 import { GovernanceExtension__factory } from "../../typechain/factories/GovernanceExtension__factory";
-import { NotionalMaturityRolloverExtension__factory } from "../../typechain/factories/NotionalMaturityRolloverExtension__factory";
+import { FixedRebalanceExtension__factory } from "../../typechain/factories/FixedRebalanceExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 import { WrapExtension__factory } from "../../typechain/factories/WrapExtension__factory";
 import { FlashMintWrapped__factory } from "../../typechain/factories/FlashMintWrapped__factory";
@@ -393,7 +393,7 @@ export default class DeployExtensions {
     );
   }
 
-  public deployNotionalMaturityRolloverExtension(
+  public deployFixedRebalanceExtension(
     manager: Address,
     setToken: Address,
     notionalTradeModule: Address,
@@ -405,7 +405,7 @@ export default class DeployExtensions {
     allocations: BigNumberish[],
     validMaturities: BigNumberish[],
   ) {
-    return new NotionalMaturityRolloverExtension__factory(this._deployerSigner).deploy(
+    return new FixedRebalanceExtension__factory(this._deployerSigner).deploy(
       manager,
       setToken,
       notionalTradeModule,

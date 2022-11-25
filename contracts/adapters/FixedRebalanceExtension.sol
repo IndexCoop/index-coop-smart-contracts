@@ -33,14 +33,13 @@ import { IWrappedfCashFactory } from "../interfaces/IWrappedfCashFactory.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 
-
 /**
- * @title NotionalMaturityRolloverExtension
+ * @title FixedRebalanceExtension
  * @author IndexCoop
  *
  * Smart contract that enables trustless rollover of matured notional / fCash positions at maturity, maintining configured maturity allocation
  */
-contract NotionalMaturityRolloverExtension is BaseExtension {
+contract FixedRebalanceExtension is BaseExtension {
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
 

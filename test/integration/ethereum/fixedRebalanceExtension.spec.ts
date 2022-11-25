@@ -10,7 +10,7 @@ import { ethers } from "hardhat";
 import { getAccounts, getWaffleExpect } from "@utils/index";
 import {
   BaseManagerV2,
-  NotionalMaturityRolloverExtension,
+  FixedRebalanceExtension,
   INotionalTradeModule,
   INotionalTradeModule__factory,
   SetToken__factory,
@@ -30,7 +30,7 @@ const expect = getWaffleExpect();
 const { parseUnits, parseEther } = ethers.utils;
 
 if (process.env.INTEGRATIONTEST) {
-  describe("NotionalMaturityRolloverExtension", () => {
+  describe("FixedRebalanceExtension", () => {
     let deployer: DeployHelper;
     let operator: Signer;
     let setToken: SetToken;
@@ -104,7 +104,7 @@ if (process.env.INTEGRATIONTEST) {
         await baseManagerV2.authorizeInitialization();
       });
       describe("When extension is deployed", () => {
-        let rolloverExtension: NotionalMaturityRolloverExtension;
+        let rolloverExtension: FixedRebalanceExtension;
         let validMaturities: BigNumberish[];
         let maturities: BigNumberish[];
         let allocations: BigNumberish[];
@@ -120,7 +120,7 @@ if (process.env.INTEGRATIONTEST) {
           maturities = maturitiesMonths.map(m => m * 30 * 24 * 60 * 60);
           validMaturities = maturities;
           allocations = [ether(0.25), ether(0.75)];
-          rolloverExtension = await deployer.extensions.deployNotionalMaturityRolloverExtension(
+          rolloverExtension = await deployer.extensions.deployFixedRebalanceExtension(
             baseManagerV2.address,
             setToken.address,
             addresses.setFork.notionalTradeModule,
