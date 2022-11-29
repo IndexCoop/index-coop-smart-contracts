@@ -157,7 +157,15 @@ contract FixedRebalanceExtension is BaseExtension {
         }
     }
 
+    // Get absolute maturities corresponding to currently configured allocations
+    function getValidMaturities() external view returns (uint256[] memory) {
+        return validMaturities;
+    }
 
+    // Get maturities and allocations
+    function getAllocations() external view returns (uint256[] memory, uint256[] memory) {
+        return (maturities, allocations);
+    }
 
 
     // /* ============ Internal Functions ============ */
@@ -414,8 +422,8 @@ contract FixedRebalanceExtension is BaseExtension {
         require(_validMaturities.length > 0, "Must have at least one valid maturity");
 
         for(uint256 i = 0; i < validMaturities.length; i++) {
-            isValidMaturity[_validMaturities[i]] = false;
-            emit MaturityStatusSet(_validMaturities[i], false);
+            isValidMaturity[validMaturities[i]] = false;
+            emit MaturityStatusSet(validMaturities[i], false);
         }
 
         for(uint256 i = 0; i < _validMaturities.length; i++) {

@@ -21,7 +21,7 @@ import {
   INotionalProxy,
   INotionalProxy__factory,
 } from "../../../typechain";
-import { ZERO } from "@utils/constants";
+import { ONE_MONTH_IN_SECONDS, ZERO } from "@utils/constants";
 import { PRODUCTION_ADDRESSES } from "./addresses";
 import { impersonateAccount } from "./utils";
 
@@ -33,6 +33,7 @@ if (process.env.INTEGRATIONTEST) {
   describe("FixedRebalanceExtension", () => {
     let deployer: DeployHelper;
     let operator: Signer;
+    let user: Signer;
     let setToken: SetToken;
     let notionalTradeModule: INotionalTradeModule;
     let componentMaturities: number[];
@@ -48,8 +49,9 @@ if (process.env.INTEGRATIONTEST) {
 
     beforeEach(async () => {
       snapshotId = await network.provider.send("evm_snapshot", []);
-      const [owner] = await getAccounts();
-      setToken = SetToken__factory.connect(addresses.tokens.fixedDai, owner.wallet);
+      const [userAccount] = await getAccounts();
+      user = userAccount.wallet;
+      setToken = SetToken__factory.connect(addresses.tokens.fixedDai, user);
       const operatorAddress = await setToken.manager();
       operator = await impersonateAccount(operatorAddress);
       notionalProxy = INotionalProxy__factory.connect(
@@ -112,14 +114,18 @@ if (process.env.INTEGRATIONTEST) {
         let assetToken: Address;
         let currencyId: number;
         let assetTokenContract: IERC20;
+        let threeMonthAllocation: BigNumber;
+        let sixMonthAllocation: BigNumber;
         beforeEach(async () => {
           underlyingToken = addresses.tokens.dai;
           assetToken = addresses.tokens.cDAI;
           assetTokenContract = IERC20__factory.connect(assetToken, operator);
           const maturitiesMonths = [3, 6];
-          maturities = maturitiesMonths.map(m => m * 30 * 24 * 60 * 60);
+          maturities = maturitiesMonths.map(m => ONE_MONTH_IN_SECONDS.mul(m));
           validMaturities = maturities;
-          allocations = [ether(0.25), ether(0.75)];
+          sixMonthAllocation = ether(0.75);
+          threeMonthAllocation = ether(0.25);
+          allocations = [threeMonthAllocation, sixMonthAllocation];
           rolloverExtension = await deployer.extensions.deployFixedRebalanceExtension(
             baseManagerV2.address,
             setToken.address,
@@ -142,11 +148,97 @@ if (process.env.INTEGRATIONTEST) {
           }
           it("should work", async () => {
             const absoluteMaturities = (await subject()).map((bn: any) => bn.toNumber());
-
             expect(absoluteMaturities).to.have.same.members(componentMaturities);
           });
         });
 
+        describe("#setValidMaturities", () => {
+          let subjectMaturities: BigNumberish[];
+          let caller: Signer;
+          beforeEach(() => {
+            subjectMaturities = [ONE_MONTH_IN_SECONDS.mul(3)];
+          });
+
+          function subject() {
+            return rolloverExtension.connect(caller).setValidMaturities(subjectMaturities);
+          }
+
+          describe("when the caller is not the owner", () => {
+            beforeEach(async () => {
+              caller = user;
+            });
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith("Must be operator");
+            });
+          });
+          describe("when the caller is the owner", () => {
+            beforeEach(async () => {
+              caller = operator;
+            });
+            it("should work", async () => {
+              await subject();
+            });
+            it("should set valid maturities correctly", async () => {
+              await subject();
+              const validMaturities = await rolloverExtension.getValidMaturities();
+              expect(validMaturities).to.deep.equal(subjectMaturities);
+            });
+            describe("when the maturities are ordered incorrectly", () => {
+              beforeEach(async () => {
+                subjectMaturities = [ONE_MONTH_IN_SECONDS.mul(3), ONE_MONTH_IN_SECONDS];
+              });
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith(
+                  "validMaturities must be in ascending order",
+                );
+              });
+            });
+          });
+        });
+
+        describe("#setMaturities", () => {
+          let subjectMaturities: BigNumberish[];
+          let subjectAllocations: BigNumberish[];
+          let caller: Signer;
+          beforeEach(() => {
+            subjectMaturities = [ONE_MONTH_IN_SECONDS.mul(6), ONE_MONTH_IN_SECONDS.mul(3)];
+            subjectAllocations = [ether(0.5), ether(0.5)];
+          });
+
+          function subject() {
+            return rolloverExtension
+              .connect(caller)
+              .setAllocations(subjectMaturities, subjectAllocations);
+          }
+
+          describe("when the caller is not the owner", () => {
+            beforeEach(async () => {
+              caller = user;
+            });
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith("Must be operator");
+            });
+          });
+          describe("when the caller is the owner", () => {
+            beforeEach(async () => {
+              caller = operator;
+            });
+            it("should work", async () => {
+              await subject();
+            });
+            it("should set maturities correctly", async () => {
+              await subject();
+              const [maturities] = await rolloverExtension.getAllocations();
+              expect(maturities).to.deep.equal(subjectMaturities);
+            });
+
+            it("should set allocations correctly", async () => {
+              await subject();
+              const [, allocations] = await rolloverExtension.getAllocations();
+              expect(allocations).to.deep.equal(subjectAllocations);
+            });
+          });
+        });
         describe("#rebalance", () => {
           const subjectShare = parseEther("1");
           function subject() {
@@ -154,21 +246,35 @@ if (process.env.INTEGRATIONTEST) {
           }
 
           async function checkAllocation() {
+            const totalValue = parseUnits("100", 8);
+            const tolerance = parseUnits("0.5", 8);
             expect(await setToken.getDefaultPositionRealUnit(assetToken)).to.lt(10000);
             expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.gt(
-              parseUnits("75", 8),
+              totalValue
+                .mul(sixMonthAllocation)
+                .div(ether(1))
+                .sub(tolerance),
             );
             expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.lt(
-              parseUnits("75.5", 8),
+              totalValue
+                .mul(sixMonthAllocation)
+                .div(ether(1))
+                .add(tolerance),
             );
             expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.gt(
-              parseUnits("24.5", 8),
+              totalValue
+                .mul(threeMonthAllocation)
+                .div(ether(1))
+                .sub(tolerance),
             );
             expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.lt(
-              parseUnits("25", 8),
+              totalValue
+                .mul(threeMonthAllocation)
+                .div(ether(1))
+                .add(tolerance),
             );
           }
-          describe("when fcash position are correct", () => {
+          describe("when allocations are unchanged", () => {
             beforeEach(async () => {
               await setToken.connect(operator).setManager(baseManagerV2.address);
             });
@@ -177,6 +283,22 @@ if (process.env.INTEGRATIONTEST) {
               await checkAllocation();
             });
           });
+
+          describe("when allocation was changed", () => {
+            beforeEach(async () => {
+              await setToken.connect(operator).setManager(baseManagerV2.address);
+              threeMonthAllocation = ether(0.5);
+              sixMonthAllocation = ether(0.5);
+              const maturities = [ONE_MONTH_IN_SECONDS.mul(6), ONE_MONTH_IN_SECONDS.mul(3)];
+              const allocations = [sixMonthAllocation, threeMonthAllocation];
+              await rolloverExtension.connect(operator).setAllocations(maturities, allocations);
+            });
+            it("should work", async () => {
+              await subject();
+              await checkAllocation();
+            });
+          });
+
           describe("when fcash position was reduced", () => {
             const redeemPositionIndex = 1;
             beforeEach(async () => {
