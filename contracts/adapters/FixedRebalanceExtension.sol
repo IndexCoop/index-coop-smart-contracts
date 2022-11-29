@@ -33,6 +33,10 @@ import { IWrappedfCashFactory } from "../interfaces/IWrappedfCashFactory.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 
+
+// TODO: Add support for trading via the underlying token (DAI) instead of the asset token (cDai)
+
+
 /**
  * @title FixedRebalanceExtension
  * @author IndexCoop
