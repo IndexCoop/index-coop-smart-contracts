@@ -274,6 +274,20 @@ if (process.env.INTEGRATIONTEST) {
                 .add(tolerance),
             );
           }
+          describe("When trading via the underlying token", () => {
+            beforeEach(async () => {
+              await rolloverExtension.connect(operator).setTradeViaUnderlying(true);
+            });
+            describe("when allocations are unchanged", () => {
+              beforeEach(async () => {
+                await setToken.connect(operator).setManager(baseManagerV2.address);
+              });
+              it("should work", async () => {
+                await subject();
+                await checkAllocation();
+              });
+            });
+          });
           describe("when allocations are unchanged", () => {
             beforeEach(async () => {
               await setToken.connect(operator).setManager(baseManagerV2.address);
