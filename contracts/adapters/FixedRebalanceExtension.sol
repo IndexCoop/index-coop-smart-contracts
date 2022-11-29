@@ -138,14 +138,16 @@ contract FixedRebalanceExtension is BaseExtension {
      * ONLY OPERATOR: Rebalances the positions towards the configured allocation percentages.
      *
      * @param _share                Relative share of the necessary trade volume to execute (allows for splitting the rebalance over multiple transactions
+     * @param _minPositions         Minimum positions (in set token units) for each maturity after rebalance. (slippage protection)
      */
-    function rebalance(uint256 _share) external onlyOperator {
+    function rebalance(uint256 _share, uint256[] memory _minPositions) external onlyOperator {
         require(_share > 0, "Share must be greater than 0");
         require(_share <= 1 ether, "Share cannot exceed 100%");
 
         // TODO: Review if we want to open up this method for anyone to call.
         _sellOverweightPositions(_share);
         _buyUnderweightPositions(_share);
+        _checkCurrentPositions(_minPositions);
     }
 
     // Aggregates all fCash positions + asset token position into a single value
@@ -211,6 +213,20 @@ contract FixedRebalanceExtension is BaseExtension {
             if(sendAmount > 0) {
                 _mintFCash(absoluteMaturities[i], sendAmount);
             }
+        }
+    }
+
+    function _checkCurrentPositions(uint256[] memory _minPositions)
+        internal
+        view
+    {
+        require(_minPositions.length == maturities.length, "Min positions must be same length as maturities");
+        for(uint i = 0; i < maturities.length; i++) {
+            uint256 maturity = _relativeToAbsoluteMaturity(maturities[i]);
+            address wrappedfCash = wrappedfCashFactory.computeAddress(currencyId, uint40(maturity));
+            int256 currentPositionSigned = setToken.getDefaultPositionRealUnit(wrappedfCash);
+            require(currentPositionSigned >= 0, "Negative position");
+            require(uint256(currentPositionSigned) >= _minPositions[i], "Position below min");
         }
     }
 

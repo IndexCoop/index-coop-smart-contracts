@@ -241,8 +241,12 @@ if (process.env.INTEGRATIONTEST) {
         });
         describe("#rebalance", () => {
           const subjectShare = parseEther("1");
+          let subjectMinPositions: BigNumber[];
+          beforeEach(async () => {
+            subjectMinPositions = [parseUnits("0.45", 8), parseUnits("0.45", 8)];
+          });
           function subject() {
-            return rolloverExtension.rebalance(subjectShare);
+            return rolloverExtension.rebalance(subjectShare, subjectMinPositions);
           }
 
           async function checkAllocation() {
@@ -281,6 +285,16 @@ if (process.env.INTEGRATIONTEST) {
               beforeEach(async () => {
                 await rolloverExtension.connect(operator).setTradeViaUnderlying(tradeViaUnderlying);
               });
+              describe("when minPositions  are too high", () => {
+                beforeEach(async () => {
+                  await setToken.connect(operator).setManager(baseManagerV2.address);
+                  subjectMinPositions = [parseUnits("100", 8), parseUnits("100", 8)];
+                });
+                it("should revert", async () => {
+                  await expect(subject()).to.be.revertedWith("Position below min");
+                });
+              });
+
               describe("when allocations are unchanged", () => {
                 beforeEach(async () => {
                   await setToken.connect(operator).setManager(baseManagerV2.address);
