@@ -274,96 +274,91 @@ if (process.env.INTEGRATIONTEST) {
                 .add(tolerance),
             );
           }
-          describe("When trading via the underlying token", () => {
-            beforeEach(async () => {
-              await rolloverExtension.connect(operator).setTradeViaUnderlying(true);
-            });
-            describe("when allocations are unchanged", () => {
+          [true, false].forEach(tradeViaUnderlying => {
+            describe(`When trading via the ${
+              tradeViaUnderlying ? "underlying" : "asset"
+            } token`, () => {
               beforeEach(async () => {
-                await setToken.connect(operator).setManager(baseManagerV2.address);
+                await rolloverExtension.connect(operator).setTradeViaUnderlying(tradeViaUnderlying);
               });
-              it("should work", async () => {
-                await subject();
-                await checkAllocation();
+              describe("when allocations are unchanged", () => {
+                beforeEach(async () => {
+                  await setToken.connect(operator).setManager(baseManagerV2.address);
+                });
+                it("should work", async () => {
+                  await subject();
+                  await checkAllocation();
+                });
               });
-            });
-          });
-          describe("when allocations are unchanged", () => {
-            beforeEach(async () => {
-              await setToken.connect(operator).setManager(baseManagerV2.address);
-            });
-            it("should work", async () => {
-              await subject();
-              await checkAllocation();
-            });
-          });
 
-          describe("when allocation was changed", () => {
-            beforeEach(async () => {
-              await setToken.connect(operator).setManager(baseManagerV2.address);
-              threeMonthAllocation = ether(0.5);
-              sixMonthAllocation = ether(0.5);
-              const maturities = [ONE_MONTH_IN_SECONDS.mul(6), ONE_MONTH_IN_SECONDS.mul(3)];
-              const allocations = [sixMonthAllocation, threeMonthAllocation];
-              await rolloverExtension.connect(operator).setAllocations(maturities, allocations);
-            });
-            it("should work", async () => {
-              await subject();
-              await checkAllocation();
-            });
-          });
+              describe("when allocation was changed", () => {
+                beforeEach(async () => {
+                  await setToken.connect(operator).setManager(baseManagerV2.address);
+                  threeMonthAllocation = ether(0.5);
+                  sixMonthAllocation = ether(0.5);
+                  const maturities = [ONE_MONTH_IN_SECONDS.mul(6), ONE_MONTH_IN_SECONDS.mul(3)];
+                  const allocations = [sixMonthAllocation, threeMonthAllocation];
+                  await rolloverExtension.connect(operator).setAllocations(maturities, allocations);
+                });
+                it("should work", async () => {
+                  await subject();
+                  await checkAllocation();
+                });
+              });
 
-          describe("when fcash position was reduced", () => {
-            const redeemPositionIndex = 1;
-            beforeEach(async () => {
-              await notionalTradeModule
-                .connect(operator)
-                .redeemFixedFCashForToken(
-                  setToken.address,
-                  currencyId,
-                  componentMaturities[redeemPositionIndex],
-                  componentPositions[redeemPositionIndex].unit,
-                  assetToken,
-                  0,
-                );
-              await setToken.connect(operator).setManager(baseManagerV2.address);
-            });
-            it("should work", async () => {
-              await subject();
-              await checkAllocation();
-            });
-          });
-          describe("when fcash position was moved", () => {
-            const redeemPositionIndex = 1;
-            beforeEach(async () => {
-              await notionalTradeModule
-                .connect(operator)
-                .redeemFixedFCashForToken(
-                  setToken.address,
-                  currencyId,
-                  componentMaturities[redeemPositionIndex],
-                  componentPositions[redeemPositionIndex].unit,
-                  assetToken,
-                  0,
-                );
-              const obtainedAssetTokenPosition = await setToken.getDefaultPositionRealUnit(
-                assetToken,
-              );
-              await notionalTradeModule
-                .connect(operator)
-                .mintFCashForFixedToken(
-                  setToken.address,
-                  currencyId,
-                  componentMaturities[(redeemPositionIndex + 1) % 2],
-                  0,
-                  assetToken,
-                  obtainedAssetTokenPosition,
-                );
-              await setToken.connect(operator).setManager(baseManagerV2.address);
-            });
-            it("should work", async () => {
-              await subject();
-              await checkAllocation();
+              describe("when fcash position was reduced", () => {
+                const redeemPositionIndex = 1;
+                beforeEach(async () => {
+                  await notionalTradeModule
+                    .connect(operator)
+                    .redeemFixedFCashForToken(
+                      setToken.address,
+                      currencyId,
+                      componentMaturities[redeemPositionIndex],
+                      componentPositions[redeemPositionIndex].unit,
+                      tradeViaUnderlying ? underlyingToken : assetToken,
+                      0,
+                    );
+                  await setToken.connect(operator).setManager(baseManagerV2.address);
+                });
+                it("should work", async () => {
+                  await subject();
+                  await checkAllocation();
+                });
+              });
+              describe("when fcash position was moved", () => {
+                const redeemPositionIndex = 1;
+                beforeEach(async () => {
+                  await notionalTradeModule
+                    .connect(operator)
+                    .redeemFixedFCashForToken(
+                      setToken.address,
+                      currencyId,
+                      componentMaturities[redeemPositionIndex],
+                      componentPositions[redeemPositionIndex].unit,
+                      assetToken,
+                      0,
+                    );
+                  const obtainedAssetTokenPosition = await setToken.getDefaultPositionRealUnit(
+                    assetToken,
+                  );
+                  await notionalTradeModule
+                    .connect(operator)
+                    .mintFCashForFixedToken(
+                      setToken.address,
+                      currencyId,
+                      componentMaturities[(redeemPositionIndex + 1) % 2],
+                      0,
+                      assetToken,
+                      obtainedAssetTokenPosition,
+                    );
+                  await setToken.connect(operator).setManager(baseManagerV2.address);
+                });
+                it("should work", async () => {
+                  await subject();
+                  await checkAllocation();
+                });
+              });
             });
           });
         });
