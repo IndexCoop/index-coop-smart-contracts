@@ -56,7 +56,7 @@ contract FixedRebalanceExtension is BaseExtension {
 
     // /* ============ Events ============ */
 
-    event AllocationSet(uint256 _maturity, uint256 _oldAllocation, uint256 _newAllocation);
+    event AllocationsUpdated(uint256[] _maturities, uint256[] _allocations);
     event MaturityStatusSet(uint256 _maturity, bool _newStatus);
 
     // /* ============ State Variables ============ */
@@ -98,19 +98,30 @@ contract FixedRebalanceExtension is BaseExtension {
         assetToken = _assetToken;
         currencyId = _notionalProxy.getCurrencyId(_assetToken);
 
-        for(uint256 i = 0; i < _validMaturities.length; i++) {
-            if(i < _validMaturities.length - 1) {
-                require(_validMaturities[i] < _validMaturities[i + 1], "validMaturities must be in ascending order");
-            }
-            isValidMaturity[_validMaturities[i]] = true;
-            emit MaturityStatusSet(_validMaturities[i], true);
-        }
-        validMaturities = _validMaturities;
-
+        _setValidMaturities(_validMaturities);
         _setAllocations(_maturities, _allocations);
     }
 
     // /* ============ External Functions ============ */
+
+    /**
+     * ONLY OPERATOR: Updates the relative maturities that are valid to allocate to
+     *
+     * @param _validMaturities                Relative maturities (i.e. "3 months") in seconds, in ascending order
+     */
+    function setValidMaturities(uint256[] memory _validMaturities) external onlyOperator {
+        _setValidMaturities(_validMaturities);
+    }
+
+    /**
+     * ONLY OPERATOR: Updates the relative maturities that are valid to allocate to
+     *
+     * @param _maturities                Relative maturities (i.e. "3 months") in seconds
+     * @param _allocations               Relative allocations (i.e. 0.9 = 90%) with 18 decimals corresponding to the respective maturity
+     */
+    function setAllocations(uint256[] memory _maturities, uint256[] memory _allocations) external onlyOperator {
+        _setAllocations(_maturities, _allocations);
+    }
 
     /**
      * ONLY OPERATOR: Rebalances the positions towards the configured allocation percentages.
@@ -394,7 +405,28 @@ contract FixedRebalanceExtension is BaseExtension {
         }
         require(totalAllocation == PreciseUnitMath.preciseUnit(), "Allocations must sum to 1");
         maturities = _maturities;
+        emit AllocationsUpdated(_maturities, _allocations);
         allocations = _allocations;
     }
+
+    // @dev Sets configured allocations for the setToken
+    function _setValidMaturities(uint256[] memory _validMaturities) internal {
+        require(_validMaturities.length > 0, "Must have at least one valid maturity");
+
+        for(uint256 i = 0; i < validMaturities.length; i++) {
+            isValidMaturity[_validMaturities[i]] = false;
+            emit MaturityStatusSet(_validMaturities[i], false);
+        }
+
+        for(uint256 i = 0; i < _validMaturities.length; i++) {
+            if(i < _validMaturities.length - 1) {
+                require(_validMaturities[i] < _validMaturities[i + 1], "validMaturities must be in ascending order");
+            }
+            isValidMaturity[_validMaturities[i]] = true;
+            emit MaturityStatusSet(_validMaturities[i], true);
+        }
+        validMaturities = _validMaturities;
+    }
+
 
 }
