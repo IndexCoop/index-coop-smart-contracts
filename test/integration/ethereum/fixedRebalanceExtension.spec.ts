@@ -284,6 +284,9 @@ if (process.env.INTEGRATIONTEST) {
             } token`, () => {
               beforeEach(async () => {
                 await rolloverExtension.connect(operator).setTradeViaUnderlying(tradeViaUnderlying);
+                await notionalTradeModule
+                  .connect(operator)
+                  .setRedeemToUnderlying(setToken.address, tradeViaUnderlying);
               });
               describe("when minPositions  are too high", () => {
                 beforeEach(async () => {
@@ -298,6 +301,24 @@ if (process.env.INTEGRATIONTEST) {
               describe("when allocations are unchanged", () => {
                 beforeEach(async () => {
                   await setToken.connect(operator).setManager(baseManagerV2.address);
+                });
+                it("should work", async () => {
+                  await subject();
+                  await checkAllocation();
+                });
+              });
+
+              describe("when 3 month position has expired", () => {
+                beforeEach(async () => {
+                  subjectMinPositions = [parseUnits("0.45", 8), parseUnits("0.45", 8)];
+                  await setToken.connect(operator).setManager(baseManagerV2.address);
+                  const maturity = await IWrappedfCashComplete__factory.connect(
+                    threeMonthComponent,
+                    operator,
+                  ).getMaturity();
+                  await network.provider.send("evm_setNextBlockTimestamp", [maturity + 1]);
+                  await network.provider.send("evm_mine"); // this on
+                  await notionalTradeModule.redeemMaturedPositions(setToken.address);
                 });
                 it("should work", async () => {
                   await subject();
