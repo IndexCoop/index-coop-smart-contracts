@@ -116,4 +116,10 @@ interface INotionalProxy {
         bytes32 encodedTrade
     );
 
+    function initializeMarkets(
+        uint16 currencyId,
+        bool flag
+    ) external;
+
+
 }

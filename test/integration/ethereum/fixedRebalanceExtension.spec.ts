@@ -15,6 +15,8 @@ import {
   INotionalTradeModule__factory,
   SetToken__factory,
   IWrappedfCashComplete__factory,
+  IWrappedfCashFactory,
+  IWrappedfCashFactory__factory,
   IERC20__factory,
   IERC20,
   ICErc20__factory,
@@ -39,9 +41,10 @@ if (process.env.INTEGRATIONTEST) {
     let componentMaturities: number[];
     let componentPositions: any[];
     let notionalProxy: INotionalProxy;
+    let wrappedfCashFactory: IWrappedfCashFactory;
 
-    const threeMonthComponent = "0x6Af2a72FB8DeF29cF2cEcc41097EE750C031E5af";
-    const sixMonthComponent = "0x8220fA35c63A5e8F1c029f9bb0cbb0292d30b8C4";
+    let threeMonthComponent = "0x6Af2a72FB8DeF29cF2cEcc41097EE750C031E5af";
+    let sixMonthComponent = "0x8220fA35c63A5e8F1c029f9bb0cbb0292d30b8C4";
 
     const addresses = PRODUCTION_ADDRESSES;
 
@@ -54,6 +57,11 @@ if (process.env.INTEGRATIONTEST) {
       setToken = SetToken__factory.connect(addresses.tokens.fixedDai, user);
       const operatorAddress = await setToken.manager();
       operator = await impersonateAccount(operatorAddress);
+      wrappedfCashFactory = IWrappedfCashFactory__factory.connect(
+        addresses.lending.notional.wrappedfCashFactory,
+        operator,
+      );
+
       notionalProxy = INotionalProxy__factory.connect(
         addresses.lending.notional.notionalV2,
         operator,
@@ -106,7 +114,7 @@ if (process.env.INTEGRATIONTEST) {
         await baseManagerV2.authorizeInitialization();
       });
       describe("When extension is deployed", () => {
-        let rolloverExtension: FixedRebalanceExtension;
+        let rebalanceExtension: FixedRebalanceExtension;
         let validMaturities: BigNumberish[];
         let maturities: BigNumberish[];
         let allocations: BigNumberish[];
@@ -126,25 +134,25 @@ if (process.env.INTEGRATIONTEST) {
           sixMonthAllocation = ether(0.75);
           threeMonthAllocation = ether(0.25);
           allocations = [threeMonthAllocation, sixMonthAllocation];
-          rolloverExtension = await deployer.extensions.deployFixedRebalanceExtension(
+          rebalanceExtension = await deployer.extensions.deployFixedRebalanceExtension(
             baseManagerV2.address,
             setToken.address,
             addresses.setFork.notionalTradeModule,
             notionalProxy.address,
-            addresses.lending.notional.wrappedfCashFactory,
+            wrappedfCashFactory.address,
             underlyingToken,
             assetTokenContract.address,
             maturities,
             allocations,
             validMaturities,
           );
-          await baseManagerV2.connect(operator).addExtension(rolloverExtension.address);
-          currencyId = await rolloverExtension.currencyId();
+          await baseManagerV2.connect(operator).addExtension(rebalanceExtension.address);
+          currencyId = await rebalanceExtension.currencyId();
         });
 
         describe("#getAbsoluteMaturities", () => {
           function subject() {
-            return rolloverExtension.getAbsoluteMaturities();
+            return rebalanceExtension.getAbsoluteMaturities();
           }
           it("should work", async () => {
             const absoluteMaturities = (await subject()).map((bn: any) => bn.toNumber());
@@ -160,7 +168,7 @@ if (process.env.INTEGRATIONTEST) {
           });
 
           function subject() {
-            return rolloverExtension.connect(caller).setValidMaturities(subjectMaturities);
+            return rebalanceExtension.connect(caller).setValidMaturities(subjectMaturities);
           }
 
           describe("when the caller is not the owner", () => {
@@ -180,7 +188,7 @@ if (process.env.INTEGRATIONTEST) {
             });
             it("should set valid maturities correctly", async () => {
               await subject();
-              const validMaturities = await rolloverExtension.getValidMaturities();
+              const validMaturities = await rebalanceExtension.getValidMaturities();
               expect(validMaturities).to.deep.equal(subjectMaturities);
             });
             describe("when the maturities are ordered incorrectly", () => {
@@ -206,7 +214,7 @@ if (process.env.INTEGRATIONTEST) {
           });
 
           function subject() {
-            return rolloverExtension
+            return rebalanceExtension
               .connect(caller)
               .setAllocations(subjectMaturities, subjectAllocations);
           }
@@ -228,13 +236,13 @@ if (process.env.INTEGRATIONTEST) {
             });
             it("should set maturities correctly", async () => {
               await subject();
-              const [maturities] = await rolloverExtension.getAllocations();
+              const [maturities] = await rebalanceExtension.getAllocations();
               expect(maturities).to.deep.equal(subjectMaturities);
             });
 
             it("should set allocations correctly", async () => {
               await subject();
-              const [, allocations] = await rolloverExtension.getAllocations();
+              const [, allocations] = await rebalanceExtension.getAllocations();
               expect(allocations).to.deep.equal(subjectAllocations);
             });
           });
@@ -246,12 +254,12 @@ if (process.env.INTEGRATIONTEST) {
             subjectMinPositions = [parseUnits("0.45", 8), parseUnits("0.45", 8)];
           });
           function subject() {
-            return rolloverExtension.rebalance(subjectShare, subjectMinPositions);
+            return rebalanceExtension.rebalance(subjectShare, subjectMinPositions);
           }
 
           async function checkAllocation() {
             const totalValue = parseUnits("100", 8);
-            const tolerance = parseUnits("0.5", 8);
+            const tolerance = parseUnits("0.75", 8);
             expect(await setToken.getDefaultPositionRealUnit(assetToken)).to.lt(10000);
             expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.gt(
               totalValue
@@ -278,12 +286,14 @@ if (process.env.INTEGRATIONTEST) {
                 .add(tolerance),
             );
           }
-          [true, false].forEach(tradeViaUnderlying => {
+          [false, true].forEach(tradeViaUnderlying => {
             describe(`When trading via the ${
               tradeViaUnderlying ? "underlying" : "asset"
             } token`, () => {
               beforeEach(async () => {
-                await rolloverExtension.connect(operator).setTradeViaUnderlying(tradeViaUnderlying);
+                await rebalanceExtension
+                  .connect(operator)
+                  .setTradeViaUnderlying(tradeViaUnderlying);
                 await notionalTradeModule
                   .connect(operator)
                   .setRedeemToUnderlying(setToken.address, tradeViaUnderlying);
@@ -309,7 +319,12 @@ if (process.env.INTEGRATIONTEST) {
               });
 
               describe("when 3 month position has expired", () => {
+                let threeMonthComponentBefore: string;
+                let sixMonthComponentBefore: string;
                 beforeEach(async () => {
+                  threeMonthComponentBefore = threeMonthComponent;
+                  sixMonthComponentBefore = sixMonthComponent;
+
                   subjectMinPositions = [parseUnits("0.45", 8), parseUnits("0.45", 8)];
                   await setToken.connect(operator).setManager(baseManagerV2.address);
                   const maturity = await IWrappedfCashComplete__factory.connect(
@@ -318,7 +333,23 @@ if (process.env.INTEGRATIONTEST) {
                   ).getMaturity();
                   await network.provider.send("evm_setNextBlockTimestamp", [maturity + 1]);
                   await network.provider.send("evm_mine"); // this on
+
+                  await notionalProxy.initializeMarkets(currencyId, false);
                   await notionalTradeModule.redeemMaturedPositions(setToken.address);
+
+                  threeMonthComponent = sixMonthComponent;
+
+                  const sixMonthAbsoluteMaturity = await rebalanceExtension.relativeToAbsoluteMaturity(
+                    ONE_MONTH_IN_SECONDS.mul(6),
+                  );
+                  sixMonthComponent = await wrappedfCashFactory.computeAddress(
+                    currencyId,
+                    sixMonthAbsoluteMaturity,
+                  );
+                });
+                afterEach(() => {
+                  threeMonthComponent = threeMonthComponentBefore;
+                  sixMonthComponent = sixMonthComponentBefore;
                 });
                 it("should work", async () => {
                   await subject();
@@ -333,7 +364,9 @@ if (process.env.INTEGRATIONTEST) {
                   sixMonthAllocation = ether(0.5);
                   const maturities = [ONE_MONTH_IN_SECONDS.mul(6), ONE_MONTH_IN_SECONDS.mul(3)];
                   const allocations = [sixMonthAllocation, threeMonthAllocation];
-                  await rolloverExtension.connect(operator).setAllocations(maturities, allocations);
+                  await rebalanceExtension
+                    .connect(operator)
+                    .setAllocations(maturities, allocations);
                 });
                 it("should work", async () => {
                   await subject();
@@ -400,7 +433,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("#getUnderweightPositions", () => {
           function subject() {
-            return rolloverExtension.getUnderweightPositions();
+            return rebalanceExtension.getUnderweightPositions();
           }
           it("should work", async () => {
             const [underweightPositions, , absoluteMaturities] = await subject();
@@ -436,7 +469,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("#getTotalAllocation", () => {
           function subject() {
-            return rolloverExtension.getTotalAllocation();
+            return rebalanceExtension.getTotalAllocation();
           }
           it("should work", async () => {
             const totalFCashPosition = await subject();

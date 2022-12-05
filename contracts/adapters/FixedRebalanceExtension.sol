@@ -180,6 +180,12 @@ contract FixedRebalanceExtension is BaseExtension {
         return (maturities, allocations);
     }
 
+    // Convert relative to aboslute maturity
+    function relativeToAbsoluteMaturity(uint256 _relativeMaturity) external view returns (uint256) {
+        return _relativeToAbsoluteMaturity(_relativeMaturity);
+    }
+
+
 
     // /* ============ Internal Functions ============ */
 
