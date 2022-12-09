@@ -154,7 +154,7 @@ if (process.env.INTEGRATIONTEST) {
           function subject() {
             return rebalanceExtension.getAbsoluteMaturities();
           }
-          it("should work", async () => {
+          it("should have the same members as componentMaturities", async () => {
             const absoluteMaturities = (await subject()).map((bn: any) => bn.toNumber());
             expect(absoluteMaturities).to.have.same.members(componentMaturities);
           });
@@ -171,7 +171,7 @@ if (process.env.INTEGRATIONTEST) {
             return rebalanceExtension.connect(caller).setValidMaturities(subjectMaturities);
           }
 
-          describe("when the caller is not the owner", () => {
+          describe("when the caller is not the operator", () => {
             beforeEach(async () => {
               caller = user;
             });
@@ -179,7 +179,7 @@ if (process.env.INTEGRATIONTEST) {
               await expect(subject()).to.be.revertedWith("Must be operator");
             });
           });
-          describe("when the caller is the owner", () => {
+          describe("when the caller is the operator", () => {
             beforeEach(async () => {
               caller = operator;
             });
@@ -219,7 +219,7 @@ if (process.env.INTEGRATIONTEST) {
               .setAllocations(subjectMaturities, subjectAllocations);
           }
 
-          describe("when the caller is not the owner", () => {
+          describe("when the caller is not the operator", () => {
             beforeEach(async () => {
               caller = user;
             });
