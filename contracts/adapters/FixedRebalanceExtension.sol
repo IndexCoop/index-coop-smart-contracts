@@ -110,7 +110,7 @@ contract FixedRebalanceExtension is BaseExtension {
     /**
      * ONLY OPERATOR: Updates the relative maturities that are valid to allocate to
      *
-     * @param _tradeViaUnderlying        Boolean indicating wether or not to trade viat the underlying token
+     * @param _tradeViaUnderlying        Boolean indicating whether or not to trade via the underlying token
      */
     function setTradeViaUnderlying(bool _tradeViaUnderlying) external onlyOperator {
         tradeViaUnderlying = _tradeViaUnderlying;
