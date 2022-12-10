@@ -24,7 +24,7 @@ const optimismForkingConfig = {
 
 const mainnetForkingConfig = {
   url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
-  blockNumber: process.env.LATESTBLOCK ? undefined : 15754500,
+  blockNumber: process.env.LATESTBLOCK ? undefined : 16151107,
 };
 
 const forkingConfig =

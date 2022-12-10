@@ -1,16 +1,18 @@
 import "module-alias/register";
-import { Account } from "@utils/types";
-import DeployHelper from "@utils/deploys";
 import { ethers, network } from "hardhat";
+import { BigNumberish } from "ethers";
+
+import { Account } from "@utils/types";
 import { ether, getAccounts, getWaffleExpect } from "@utils/index";
+import DeployHelper from "@utils/deploys";
+import { EMPTY_BYTES } from "@utils/constants";
+
 import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "./addresses";
 import { StakeWiseReinvestmentExtension } from "../../../typechain/StakeWiseReinvestmentExtension";
-import { EMPTY_BYTES } from "@utils/constants";
-import { AirdropModule } from "@typechain/AirdropModule";
-import { BaseManagerV2 } from "@typechain/BaseManagerV2";
-import { BigNumberish } from "ethers";
-import { SetToken } from "@typechain/SetToken";
-import { TradeModule } from "@typechain/TradeModule";
+import { IAirdropModule } from "../../../typechain/IAirdropModule";
+import { BaseManagerV2 } from "../../../typechain/BaseManagerV2";
+import { ITradeModule } from "../../../typechain/ITradeModule";
+import { ISetToken } from "../../../typechain/ISetToken";
 
 const expect = getWaffleExpect();
 const addresses = process.env.USE_STAGING_ADDRESSES ? STAGING_ADDRESSES : PRODUCTION_ADDRESSES;
@@ -19,10 +21,10 @@ if (process.env.INTEGRATIONTEST) {
   describe("StakeWiseReinvestmentExtension - Integration Test", () => {
     let owner: Account;
     let deployer: DeployHelper;
-    let setToken: SetToken;
+    let setToken: ISetToken;
     let manager: BaseManagerV2;
-    let airdropModule: AirdropModule;
-    let tradeModule: TradeModule;
+    let airdropModule: IAirdropModule;
+    let tradeModule: ITradeModule;
 
     let extension: StakeWiseReinvestmentExtension;
     let snapshotId: number;
@@ -36,24 +38,32 @@ if (process.env.INTEGRATIONTEST) {
       deployer = new DeployHelper(owner.wallet);
 
       setToken = (await ethers.getContractAt(
-        "SetToken",
+        "ISetToken",
         addresses.tokens.wsETH2,
-      )) as SetToken;
+      )) as ISetToken;
+
+      console.log(await setToken.connect(owner.wallet).manager());
 
       manager = (await ethers.getContractAt(
         "BaseManagerV2",
         await setToken.manager(),
       )) as BaseManagerV2;
 
+      console.log("1");
+
       airdropModule = (await ethers.getContractAt(
-        "AirdropModule",
+        "IAirdropModule",
         addresses.setFork.airdropModule,
-      )) as AirdropModule;
+      )) as IAirdropModule;
+
+      console.log("1");
 
       tradeModule = (await ethers.getContractAt(
-        "TradeModule",
+        "ITradeModule",
         addresses.setFork.tradeModule,
-      )) as TradeModule;
+      )) as ITradeModule;
+
+      console.log("1");
 
       await deployStakeWiseReinvestmentExtension();
     });

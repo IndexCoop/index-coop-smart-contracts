@@ -12,7 +12,7 @@ export const PRODUCTION_ADDRESSES = {
     USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     cUSDC: "0x39aa39c021dfbae8fac545936693ac917d5e7563",
     cDAI: "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
-    wsETH2: "", // TODO: add wsETH2 address
+    wsETH2: "0x5dA21D9e63F1EA13D34e48B7223bcc97e3ecD687",
   },
   whales: {
     stEth: "0xdc24316b9ae028f1497c275eb9192a3ea0f67022",
