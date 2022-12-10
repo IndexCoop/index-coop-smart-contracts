@@ -36,17 +36,17 @@ import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeI
 import { ExchangeIssuanceLeveraged__factory } from "../../typechain/factories/ExchangeIssuanceLeveraged__factory";
 import { FlashMintNotional__factory } from "../../typechain/factories/FlashMintNotional__factory";
 import { FlashMintLeveragedForCompound__factory } from "../../typechain/factories/FlashMintLeveragedForCompound__factory";
+import { FlashMintWrapped } from "../../typechain/FlashMintWrapped";
+import { FlashMintWrapped__factory } from "../../typechain/factories/FlashMintWrapped__factory";
 import { ExchangeIssuanceZeroEx__factory } from "../../typechain/factories/ExchangeIssuanceZeroEx__factory";
 import { FlashMintPerp__factory } from "../../typechain/factories/FlashMintPerp__factory";
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
 import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtension__factory";
 import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
 import { GovernanceExtension__factory } from "../../typechain/factories/GovernanceExtension__factory";
+import { StakeWiseReinvestmentExtension__factory } from "../../typechain/factories/StakeWiseReinvestmentExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 import { WrapExtension__factory } from "../../typechain/factories/WrapExtension__factory";
-import { FlashMintWrapped__factory } from "../../typechain/factories/FlashMintWrapped__factory";
-import { FlashMintWrapped } from "../../typechain/FlashMintWrapped";
-import { StakeWiseReinvestmentExtension__factory } from "@typechain/index";
 
 export default class DeployExtensions {
   private _deployerSigner: Signer;
