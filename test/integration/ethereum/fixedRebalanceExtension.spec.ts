@@ -154,7 +154,7 @@ if (process.env.INTEGRATIONTEST) {
           function subject() {
             return rebalanceExtension.getAbsoluteMaturities();
           }
-          it("should work", async () => {
+          it("should return the correct maturities", async () => {
             const absoluteMaturities = (await subject()).map((bn: any) => bn.toNumber());
             expect(absoluteMaturities).to.have.same.members(componentMaturities);
           });
@@ -183,7 +183,7 @@ if (process.env.INTEGRATIONTEST) {
             beforeEach(async () => {
               caller = operator;
             });
-            it("should work", async () => {
+            it("should not revert", async () => {
               await subject();
             });
             it("should set valid maturities correctly", async () => {
@@ -231,7 +231,7 @@ if (process.env.INTEGRATIONTEST) {
             beforeEach(async () => {
               caller = operator;
             });
-            it("should work", async () => {
+            it("should not revert", async () => {
               await subject();
             });
             it("should set maturities correctly", async () => {
@@ -312,7 +312,7 @@ if (process.env.INTEGRATIONTEST) {
                 beforeEach(async () => {
                   await setToken.connect(operator).setManager(baseManagerV2.address);
                 });
-                it("should work", async () => {
+                it("should adjust the allocations correctly", async () => {
                   await subject();
                   await checkAllocation();
                 });
@@ -351,7 +351,7 @@ if (process.env.INTEGRATIONTEST) {
                   threeMonthComponent = threeMonthComponentBefore;
                   sixMonthComponent = sixMonthComponentBefore;
                 });
-                it("should work", async () => {
+                it("should adjust the allocations correctly", async () => {
                   await subject();
                   await checkAllocation();
                 });
@@ -368,7 +368,7 @@ if (process.env.INTEGRATIONTEST) {
                     .connect(operator)
                     .setAllocations(maturities, allocations);
                 });
-                it("should work", async () => {
+                it("should adjust the allocations correctly", async () => {
                   await subject();
                   await checkAllocation();
                 });
@@ -389,7 +389,7 @@ if (process.env.INTEGRATIONTEST) {
                     );
                   await setToken.connect(operator).setManager(baseManagerV2.address);
                 });
-                it("should work", async () => {
+                it("should adjust the allocations correctly", async () => {
                   await subject();
                   await checkAllocation();
                 });
@@ -422,7 +422,7 @@ if (process.env.INTEGRATIONTEST) {
                     );
                   await setToken.connect(operator).setManager(baseManagerV2.address);
                 });
-                it("should work", async () => {
+                it("should adjust the allocations correctly", async () => {
                   await subject();
                   await checkAllocation();
                 });
@@ -435,7 +435,7 @@ if (process.env.INTEGRATIONTEST) {
           function subject() {
             return rebalanceExtension.getUnderweightPositions();
           }
-          it("should work", async () => {
+          it("should return correct values (6 months position should slightly be underweighted)", async () => {
             const [underweightPositions, , absoluteMaturities] = await subject();
             expect(underweightPositions[0]).to.equal(ZERO);
             expect(underweightPositions[1]).to.be.gt(ZERO);
@@ -443,7 +443,7 @@ if (process.env.INTEGRATIONTEST) {
               componentMaturities,
             );
           });
-          describe("when fcash position was reduced", () => {
+          describe("when 3 month position was sold", () => {
             const redeemPositionIndex = 1;
             beforeEach(async () => {
               await notionalTradeModule
@@ -458,8 +458,10 @@ if (process.env.INTEGRATIONTEST) {
                 );
               await setToken.connect(operator).setManager(baseManagerV2.address);
             });
-            it("should work", async () => {
-              const [, , absoluteMaturities] = await subject();
+            it("should return correct values (both fCash positions should be underweighted)", async () => {
+              const [underweightPositions, , absoluteMaturities] = await subject();
+              expect(underweightPositions[0]).to.be.gt(ZERO);
+              expect(underweightPositions[1]).to.be.gt(ZERO);
               expect(absoluteMaturities.map((bn: BigNumber) => bn.toNumber())).to.have.same.members(
                 componentMaturities,
               );
@@ -471,18 +473,32 @@ if (process.env.INTEGRATIONTEST) {
           function subject() {
             return rebalanceExtension.getTotalAllocation();
           }
-          it("should work", async () => {
-            const totalFCashPosition = await subject();
-            const expectedPositionInFCash = parseUnits("100", 8);
-            const exchangeRate = await ICErc20__factory.connect(
-              assetToken,
-              operator,
-            ).exchangeRateStored();
-            const expectedTotalFCashPosition = expectedPositionInFCash
-              .mul(parseUnits("1", 28))
-              .div(exchangeRate);
-            expect(totalFCashPosition).to.be.gt(expectedTotalFCashPosition.mul(95).div(100));
-            expect(totalFCashPosition).to.be.lt(expectedTotalFCashPosition.mul(105).div(100));
+          describe("when extension is set to trade via asset token (cToken)", () => {
+            it("should return correct value (ca. 100 USD worth of cToken)", async () => {
+              const totalFCashPosition = await subject();
+              const expectedPositionInFCash = parseUnits("100", 8);
+              const exchangeRate = await ICErc20__factory.connect(
+                assetToken,
+                operator,
+              ).exchangeRateStored();
+              const expectedTotalFCashPosition = expectedPositionInFCash
+                .mul(parseUnits("1", 28))
+                .div(exchangeRate);
+              expect(totalFCashPosition).to.be.gt(expectedTotalFCashPosition.mul(95).div(100));
+              expect(totalFCashPosition).to.be.lt(expectedTotalFCashPosition.mul(105).div(100));
+            });
+          });
+
+          describe("when extension is set to trade via underlying token", () => {
+            beforeEach(async () => {
+              await rebalanceExtension.connect(operator).setTradeViaUnderlying(true);
+            });
+            it("should return correct value (ca. 100 USD worth of underlying)", async () => {
+              const totalFCashPosition = await subject();
+              const expectedTotalUnderlyingPosition = parseUnits("100", 18);
+              expect(totalFCashPosition).to.be.gt(expectedTotalUnderlyingPosition.mul(95).div(100));
+              expect(totalFCashPosition).to.be.lt(expectedTotalUnderlyingPosition.mul(105).div(100));
+            });
           });
         });
       });
