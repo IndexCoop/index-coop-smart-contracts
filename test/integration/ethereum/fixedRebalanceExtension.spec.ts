@@ -236,7 +236,16 @@ if (process.env.INTEGRATIONTEST) {
               await expect(subject()).to.be.revertedWith("Must be operator");
             });
           });
-          describe("when the caller is the owner", () => {
+
+          describe("when the operator has changed is not the operator", () => {
+            beforeEach(async () => {
+              baseManagerV2.connect(operator).setOperator(await user.getAddress());
+            });
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith("Must be operator");
+            });
+          });
+          describe("when the caller is the operator", () => {
             beforeEach(async () => {
               caller = operator;
             });
