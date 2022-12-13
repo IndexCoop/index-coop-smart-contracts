@@ -54,7 +54,6 @@ contract FixedRebalanceExtension is BaseExtension {
 
     // /* ============ State Variables ============ */
 
-    uint256[] internal validMaturities;                          // Array of valid maturities
     uint256[] internal maturities;                               // Array of relative maturities in seconds (i.e. 3 months / 6 months)
     uint256[] internal allocations;                              // Relative allocations 
 
@@ -150,11 +149,6 @@ contract FixedRebalanceExtension is BaseExtension {
         for(uint256 i = 0; i < maturities.length; i++) {
             absoluteMaturities[i] = _relativeToAbsoluteMaturity(maturities[i]);
         }
-    }
-
-    // Get absolute maturities corresponding to currently configured allocations
-    function getValidMaturities() external view returns (uint256[] memory) {
-        return validMaturities;
     }
 
     // Get maturities and allocations
