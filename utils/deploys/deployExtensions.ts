@@ -403,7 +403,6 @@ export default class DeployExtensions {
     assetToken: Address,
     maturities: BigNumberish[],
     allocations: BigNumberish[],
-    validMaturities: BigNumberish[],
   ) {
     return new FixedRebalanceExtension__factory(this._deployerSigner).deploy(
       manager,
@@ -415,7 +414,6 @@ export default class DeployExtensions {
       assetToken,
       maturities,
       allocations,
-      validMaturities,
     );
   }
 }

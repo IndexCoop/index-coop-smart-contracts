@@ -115,7 +115,6 @@ if (process.env.INTEGRATIONTEST) {
       });
       describe("When extension is deployed", () => {
         let rebalanceExtension: FixedRebalanceExtension;
-        let validMaturities: BigNumberish[];
         let maturities: BigNumberish[];
         let allocations: BigNumberish[];
         let underlyingToken: Address;
@@ -130,7 +129,6 @@ if (process.env.INTEGRATIONTEST) {
           assetTokenContract = IERC20__factory.connect(assetToken, operator);
           const maturitiesMonths = [3, 6];
           maturities = maturitiesMonths.map(m => ONE_MONTH_IN_SECONDS.mul(m));
-          validMaturities = maturities;
           sixMonthAllocation = ether(0.75);
           threeMonthAllocation = ether(0.25);
           allocations = [threeMonthAllocation, sixMonthAllocation];
@@ -144,7 +142,6 @@ if (process.env.INTEGRATIONTEST) {
             assetTokenContract.address,
             maturities,
             allocations,
-            validMaturities,
           );
           await baseManagerV2.connect(operator).addExtension(rebalanceExtension.address);
           currencyId = await rebalanceExtension.currencyId();
@@ -157,59 +154,6 @@ if (process.env.INTEGRATIONTEST) {
           it("should have the same members as componentMaturities", async () => {
             const absoluteMaturities = (await subject()).map((bn: any) => bn.toNumber());
             expect(absoluteMaturities).to.have.same.members(componentMaturities);
-          });
-        });
-
-        describe("#setValidMaturities", () => {
-          let subjectMaturities: BigNumberish[];
-          let caller: Signer;
-          beforeEach(() => {
-            subjectMaturities = [ONE_MONTH_IN_SECONDS.mul(3)];
-          });
-
-          function subject() {
-            return rebalanceExtension.connect(caller).setValidMaturities(subjectMaturities);
-          }
-
-          describe("when the caller is not the operator", () => {
-            beforeEach(async () => {
-              caller = user;
-            });
-            it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Must be operator");
-            });
-          });
-
-          describe("when the caller is the operator", () => {
-            beforeEach(async () => {
-              caller = operator;
-            });
-            it("should not revert", async () => {
-              await subject();
-            });
-            describe("when trying to set to empty set of maturities", () => {
-              beforeEach(async () => {
-                subjectMaturities = [];
-              });
-              it("should revert", async () => {
-                await expect(subject()).to.be.revertedWith("Must have at least one valid maturity");
-              });
-            });
-            it("should set valid maturities correctly", async () => {
-              await subject();
-              const validMaturities = await rebalanceExtension.getValidMaturities();
-              expect(validMaturities).to.deep.equal(subjectMaturities);
-            });
-            describe("when the maturities are ordered incorrectly", () => {
-              beforeEach(async () => {
-                subjectMaturities = [ONE_MONTH_IN_SECONDS.mul(3), ONE_MONTH_IN_SECONDS];
-              });
-              it("should revert", async () => {
-                await expect(subject()).to.be.revertedWith(
-                  "validMaturities must be in ascending order",
-                );
-              });
-            });
           });
         });
 
@@ -237,8 +181,9 @@ if (process.env.INTEGRATIONTEST) {
             });
           });
 
-          describe("when the operator has changed is not the operator", () => {
+          describe("when the operator has changed", () => {
             beforeEach(async () => {
+              caller = operator;
               baseManagerV2.connect(operator).setOperator(await user.getAddress());
             });
             it("should revert", async () => {

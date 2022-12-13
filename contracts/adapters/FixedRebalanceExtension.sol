@@ -54,7 +54,6 @@ contract FixedRebalanceExtension is BaseExtension {
 
     // /* ============ State Variables ============ */
 
-    mapping(uint256 => bool) internal isValidMaturity;           // Mapping of valid maturities
     uint256[] internal validMaturities;                          // Array of valid maturities
     uint256[] internal maturities;                               // Array of relative maturities in seconds (i.e. 3 months / 6 months)
     uint256[] internal allocations;                              // Relative allocations 
@@ -80,8 +79,7 @@ contract FixedRebalanceExtension is BaseExtension {
         address _underlyingToken,
         address _assetToken,
         uint256[] memory _maturities,
-        uint256[] memory _allocations,
-        uint256[] memory _validMaturities
+        uint256[] memory _allocations
     )
         public
         BaseExtension(_manager)
@@ -94,7 +92,6 @@ contract FixedRebalanceExtension is BaseExtension {
         assetToken = _assetToken;
         currencyId = _notionalProxy.getCurrencyId(_assetToken);
 
-        _setValidMaturities(_validMaturities);
         _setAllocations(_maturities, _allocations);
     }
 
@@ -107,14 +104,6 @@ contract FixedRebalanceExtension is BaseExtension {
      */
     function setTradeViaUnderlying(bool _tradeViaUnderlying) external onlyOperator {
         tradeViaUnderlying = _tradeViaUnderlying;
-    }
-    /**
-     * ONLY OPERATOR: Updates the relative maturities that are valid to allocate to
-     *
-     * @param _validMaturities                Relative maturities (i.e. "3 months") in seconds, in ascending order
-     */
-    function setValidMaturities(uint256[] memory _validMaturities) external onlyOperator {
-        _setValidMaturities(_validMaturities);
     }
 
     /**
@@ -402,7 +391,6 @@ contract FixedRebalanceExtension is BaseExtension {
         require(_maturities.length == _allocations.length, "Maturities and allocations must be same length");
         uint256 totalAllocation = 0;
         for (uint256 i = 0; i < _maturities.length; i++) {
-            require(isValidMaturity[_maturities[i]], "Invalid maturity");
             totalAllocation = totalAllocation.add(_allocations[i]);
         }
         require(totalAllocation == PreciseUnitMath.preciseUnit(), "Allocations must sum to 1");
@@ -411,31 +399,9 @@ contract FixedRebalanceExtension is BaseExtension {
         allocations = _allocations;
     }
 
-    // @dev Sets configured allocations for the setToken
-    function _setValidMaturities(uint256[] memory _validMaturities) internal {
-        require(_validMaturities.length > 0, "Must have at least one valid maturity");
-
-        for(uint256 i = 0; i < validMaturities.length; i++) {
-            isValidMaturity[validMaturities[i]] = false;
-            emit MaturityStatusSet(validMaturities[i], false);
-        }
-
-        for(uint256 i = 0; i < _validMaturities.length; i++) {
-            if(i < _validMaturities.length - 1) {
-                require(_validMaturities[i] < _validMaturities[i + 1], "validMaturities must be in ascending order");
-            }
-            isValidMaturity[_validMaturities[i]] = true;
-            emit MaturityStatusSet(_validMaturities[i], true);
-        }
-        validMaturities = _validMaturities;
-    }
-
     // @dev Returns the token via which to trade
     function _getTradeToken() internal view returns(address) {
         return tradeViaUnderlying ? underlyingToken : assetToken;
     }
-
-
-
 
 }
