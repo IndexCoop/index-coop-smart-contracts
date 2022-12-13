@@ -179,12 +179,21 @@ if (process.env.INTEGRATIONTEST) {
               await expect(subject()).to.be.revertedWith("Must be operator");
             });
           });
+
           describe("when the caller is the operator", () => {
             beforeEach(async () => {
               caller = operator;
             });
             it("should not revert", async () => {
               await subject();
+            });
+            describe("when trying to set to empty set of maturities", () => {
+              beforeEach(async () => {
+                subjectMaturities = [];
+              });
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith("Must have at least one valid maturity");
+              });
             });
             it("should set valid maturities correctly", async () => {
               await subject();
@@ -248,9 +257,10 @@ if (process.env.INTEGRATIONTEST) {
           });
         });
         describe("#rebalance", () => {
-          const subjectShare = parseEther("1");
+          let subjectShare: BigNumber;
           let subjectMinPositions: BigNumber[];
           beforeEach(async () => {
+            subjectShare = parseEther("1");
             subjectMinPositions = [parseUnits("0.45", 8), parseUnits("0.45", 8)];
           });
           function subject() {
@@ -286,6 +296,49 @@ if (process.env.INTEGRATIONTEST) {
                 .add(tolerance),
             );
           }
+
+          describe("when share is too high", () => {
+            beforeEach(async () => {
+              await setToken.connect(operator).setManager(baseManagerV2.address);
+              subjectShare = parseEther("1.1");
+            });
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith("Share cannot exceed 100%");
+            });
+          });
+
+          describe("when share is zero", () => {
+            beforeEach(async () => {
+              await setToken.connect(operator).setManager(baseManagerV2.address);
+              subjectShare = ZERO;
+            });
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith("Share must be greater than 0");
+            });
+          });
+
+          describe("when minPositions  are too high", () => {
+            beforeEach(async () => {
+              await setToken.connect(operator).setManager(baseManagerV2.address);
+              subjectMinPositions = [parseUnits("100", 8), parseUnits("100", 8)];
+            });
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith("Position below min");
+            });
+          });
+
+          describe("when minPositions  have wrong length", () => {
+            beforeEach(async () => {
+              await setToken.connect(operator).setManager(baseManagerV2.address);
+              subjectMinPositions = [parseUnits("100", 8)];
+            });
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith(
+                "Min positions must be same length as maturities",
+              );
+            });
+          });
+
           [false, true].forEach(tradeViaUnderlying => {
             describe(`When trading via the ${
               tradeViaUnderlying ? "underlying" : "asset"
@@ -297,25 +350,6 @@ if (process.env.INTEGRATIONTEST) {
                 await notionalTradeModule
                   .connect(operator)
                   .setRedeemToUnderlying(setToken.address, tradeViaUnderlying);
-              });
-              describe("when minPositions  are too high", () => {
-                beforeEach(async () => {
-                  await setToken.connect(operator).setManager(baseManagerV2.address);
-                  subjectMinPositions = [parseUnits("100", 8), parseUnits("100", 8)];
-                });
-                it("should revert", async () => {
-                  await expect(subject()).to.be.revertedWith("Position below min");
-                });
-              });
-
-              describe("when minPositions  have wrong length", () => {
-                beforeEach(async () => {
-                  await setToken.connect(operator).setManager(baseManagerV2.address);
-                  subjectMinPositions = [parseUnits("100", 8)];
-                });
-                it("should revert", async () => {
-                  await expect(subject()).to.be.revertedWith("Min positions must be same length as maturities");
-                });
               });
 
               describe("when allocations are unchanged", () => {
@@ -404,7 +438,7 @@ if (process.env.INTEGRATIONTEST) {
                   await checkAllocation();
                 });
               });
-              describe("when fcash position was moved", () => {
+              describe("when 6 month position was sold in favor of 3 month position", () => {
                 const redeemPositionIndex = 1;
                 beforeEach(async () => {
                   await notionalTradeModule
@@ -435,6 +469,41 @@ if (process.env.INTEGRATIONTEST) {
                 it("should adjust the allocations correctly", async () => {
                   await subject();
                   await checkAllocation();
+                });
+                describe("when only partially executing the trade", () => {
+                  beforeEach(() => {
+                    subjectShare = ether(0.5);
+                  });
+                  it("should adjust the allocations correctly", async () => {
+                    await subject();
+                    const totalValue = parseUnits("100", 8);
+                    const tolerance = parseUnits("0.75", 8);
+                    const expectedSixMonthPosition = totalValue.mul(
+                      sixMonthAllocation.add(
+                        ether(1)
+                          .sub(sixMonthAllocation)
+                          .mul(subjectShare)
+                          .div(ether(1)),
+                      ),
+                    );
+                    const expectedThreeMonthPosition = totalValue.mul(
+                      threeMonthAllocation
+                          .mul(subjectShare)
+                          .div(ether(1)),
+                    );
+                    expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.gt(
+                      expectedSixMonthPosition.div(ether(1)).sub(tolerance),
+                    );
+                    expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.lt(
+                      expectedSixMonthPosition.div(ether(1)).add(tolerance),
+                    );
+                    expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.gt(
+                      expectedThreeMonthPosition.div(ether(1)).sub(tolerance),
+                    );
+                    expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.lt(
+                      expectedThreeMonthPosition.div(ether(1)).add(tolerance),
+                    );
+                  });
                 });
               });
             });
@@ -507,7 +576,9 @@ if (process.env.INTEGRATIONTEST) {
               const totalFCashPosition = await subject();
               const expectedTotalUnderlyingPosition = parseUnits("100", 18);
               expect(totalFCashPosition).to.be.gt(expectedTotalUnderlyingPosition.mul(95).div(100));
-              expect(totalFCashPosition).to.be.lt(expectedTotalUnderlyingPosition.mul(105).div(100));
+              expect(totalFCashPosition).to.be.lt(
+                expectedTotalUnderlyingPosition.mul(105).div(100),
+              );
             });
           });
         });
