@@ -54,18 +54,20 @@ contract FixedRebalanceExtension is BaseExtension {
 
     // /* ============ State Variables ============ */
 
-    mapping(uint256 => bool) internal isValidMaturity;       // Mapping of valid maturities
-    uint256[] validMaturities;                               // Array of valid maturities
-    ISetToken setToken;                                      // Instance of leverage token
-    INotionalTradeModule notionalTradeModule;                // Instance of leverage token
-    INotionalProxy notionalProxy;                            
-    IWrappedfCashFactory wrappedfCashFactory;                // Instance of leverage token
-    address underlyingToken;
-    address assetToken;
-    uint256[] maturities;                                    // Array of relative maturities in seconds (i.e. 3 months / 6 months)
-    uint256[] allocations;                                   // Relative allocations 
-    uint16 public currencyId;
-    bool tradeViaUnderlying;
+    mapping(uint256 => bool) internal isValidMaturity;           // Mapping of valid maturities
+    uint256[] internal validMaturities;                          // Array of valid maturities
+    uint256[] internal maturities;                               // Array of relative maturities in seconds (i.e. 3 months / 6 months)
+    uint256[] internal allocations;                              // Relative allocations 
+
+    ISetToken internal immutable setToken;                       // Instance of leverage token
+    INotionalTradeModule internal immutable notionalTradeModule; // Instance of leverage token
+    INotionalProxy internal immutable notionalProxy;                            
+    IWrappedfCashFactory internal immutable wrappedfCashFactory; // Instance of leverage token
+    address internal immutable underlyingToken;
+    address internal immutable assetToken;
+    uint16 public immutable currencyId;
+    
+    bool internal tradeViaUnderlying;
 
     // /* ============ Constructor ============ */
 
@@ -101,7 +103,7 @@ contract FixedRebalanceExtension is BaseExtension {
     /**
      * ONLY OPERATOR: Updates the relative maturities that are valid to allocate to
      *
-     * @param _tradeViaUnderlying        Boolean indicating wether or not to trade viat the underlying token
+     * @param _tradeViaUnderlying        Boolean indicating whether or not to trade via the underlying token
      */
     function setTradeViaUnderlying(bool _tradeViaUnderlying) external onlyOperator {
         tradeViaUnderlying = _tradeViaUnderlying;
