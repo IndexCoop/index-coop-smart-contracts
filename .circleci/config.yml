@@ -153,9 +153,6 @@ jobs:
               circleci tests split | xargs | sed -e 's/ /,/g')}"
             yarn coverage -- --testfiles "$TEST_FILES"
       - run:
-          name: Coverage integration tests (ethereum)
-          command: COVERAGE=true INTEGRATIONTEST=true FORK=true VERBOSE=true node --max-old-space-size=4096 ./node_modules/.bin/hardhat coverage --testfiles "test/integration/ethereum/**"
-      - run:
           name: Save coverage
           command: |
             cp coverage.json /tmp/coverage/cov_$CIRCLE_NODE_INDEX.json
