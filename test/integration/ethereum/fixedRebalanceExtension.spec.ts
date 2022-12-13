@@ -308,6 +308,16 @@ if (process.env.INTEGRATIONTEST) {
                 });
               });
 
+              describe("when minPositions  have wrong length", () => {
+                beforeEach(async () => {
+                  await setToken.connect(operator).setManager(baseManagerV2.address);
+                  subjectMinPositions = [parseUnits("100", 8)];
+                });
+                it("should revert", async () => {
+                  await expect(subject()).to.be.revertedWith("Min positions must be same length as maturities");
+                });
+              });
+
               describe("when allocations are unchanged", () => {
                 beforeEach(async () => {
                   await setToken.connect(operator).setManager(baseManagerV2.address);
