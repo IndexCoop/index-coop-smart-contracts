@@ -377,45 +377,10 @@ contract FixedRebalanceExtension is BaseExtension {
         );
     }
 
-    // @dev Returns fCash component address and their relative maturities
-    // @dev Will revert if set token contains an fCash component that does not correspond to a whitelisted maturity
-    function _getFCashComponentsAndMaturities() 
-    internal
-    view
-    returns (address[] memory fCashComponents, uint256[] memory fCashMaturities)
-    {
-        fCashComponents = notionalTradeModule.getFCashComponents(setToken);
-        fCashMaturities = new uint256[](fCashComponents.length);
-        for(uint256 i = 0; i < fCashComponents.length; i++) {
-            fCashMaturities[i] = _absoluteToRelativeMaturity(
-                IWrappedfCashComplete(fCashComponents[i]).getMaturity()
-            );
-        }
-    }
-
-    // @dev Converts absolute maturity to corresponding relative maturity if it is whitelisted
-    // @param _absoluteMaturity Absolute maturity to convert (i.e. "2022-12-22" in seconds)
-    // @return Corresponding relative maturity (i.e. "3 months" in seconds)
-    // @dev Returns smallest whitelisted relative maturity that is greater than the remaining maturity
-    // @dev Reverts if absolute maturity cannot be matched to a whitelisted relative maturity
-    function _absoluteToRelativeMaturity(uint256 _absoluteMaturity) internal view returns (uint256) {
-        // This will revert if absolute maturity is less than timestamp (i.e. matured positions)
-        // TODO: Verify that this is not an issue
-        uint256 remainingMaturity = _absoluteMaturity.sub(block.timestamp);
-        // Valid maturities is sorted in ascending order
-        for(uint256 i = 0; i < validMaturities.length; i++) {
-            if(validMaturities[i] >= remainingMaturity) {
-                return validMaturities[i];
-            }
-        }
-        revert("Remaining maturity is larger than any valid maturity");
-    }
-
     // @dev Converts relative to absolute maturity
     // @param _relativeMaturity     Relative maturity to convert (i.e. "3 months" in seconds)
     // @return absoluteMaturity     Absolute maturity to convert (i.e. "2022-12-22" in seconds)
     // @dev Returns largest active maturity on notional that is smaller than the relative maturity
-    // @dev Inverse of _absoluteToRelativeMaturity TODO: Check that this is correct
     function _relativeToAbsoluteMaturity(uint256 _relativeMaturity) internal view returns (uint256 absoluteMaturity) {
         MarketParameters[] memory  activeMarkets = notionalProxy.getActiveMarkets(currencyId);
         for(uint256 i = 0; i < activeMarkets.length; i++) {
