@@ -47,15 +47,6 @@ contract FixedRebalanceExtension is BaseExtension {
     using SafeMath for uint256;
 
 
-    struct CallArguments {
-        address setToken;
-        uint16 currencyId;
-        uint40 maturity;
-        uint256 minMintAmount;
-        address sendToken;
-        uint256 sendAmount;
-    }
-
     // /* ============ Events ============ */
 
     event AllocationsUpdated(uint256[] _maturities, uint256[] _allocations);
