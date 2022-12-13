@@ -72,7 +72,7 @@ if (process.env.INTEGRATIONTEST) {
       );
 
       componentMaturities = await Promise.all(
-        (await setToken.getComponents()).map(c => {
+        (await setToken.getComponents()).map((c) => {
           const wrappedfCash = IWrappedfCashComplete__factory.connect(c, operator);
           return wrappedfCash.getMaturity();
         }),
@@ -128,7 +128,7 @@ if (process.env.INTEGRATIONTEST) {
           assetToken = addresses.tokens.cDAI;
           assetTokenContract = IERC20__factory.connect(assetToken, operator);
           const maturitiesMonths = [3, 6];
-          maturities = maturitiesMonths.map(m => ONE_MONTH_IN_SECONDS.mul(m));
+          maturities = maturitiesMonths.map((m) => ONE_MONTH_IN_SECONDS.mul(m));
           sixMonthAllocation = ether(0.75);
           threeMonthAllocation = ether(0.25);
           allocations = [threeMonthAllocation, sixMonthAllocation];
@@ -157,7 +157,7 @@ if (process.env.INTEGRATIONTEST) {
           });
         });
 
-        describe("#setMaturities", () => {
+        describe("#setAllocations", () => {
           let subjectMaturities: BigNumberish[];
           let subjectAllocations: BigNumberish[];
           let caller: Signer;
@@ -207,6 +207,26 @@ if (process.env.INTEGRATIONTEST) {
               await subject();
               const [, allocations] = await rebalanceExtension.getAllocations();
               expect(allocations).to.deep.equal(subjectAllocations);
+            });
+
+            describe("when allocations don't add up to 1", () => {
+              beforeEach(async () => {
+                subjectAllocations = [ether(0.8), ether(0.5)];
+              });
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith("Allocations must sum to 1");
+              });
+            });
+
+            describe("when maturities and allocations are of different length", () => {
+              beforeEach(async () => {
+                subjectMaturities = [ONE_MONTH_IN_SECONDS.mul(6)];
+              });
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith(
+                  "Maturities and allocations must be same length",
+                );
+              });
             });
           });
         });
@@ -293,7 +313,20 @@ if (process.env.INTEGRATIONTEST) {
             });
           });
 
-          [false, true].forEach(tradeViaUnderlying => {
+          describe("when invalid maturity was set", () => {
+            beforeEach(async () => {
+              await setToken.connect(operator).setManager(baseManagerV2.address);
+              await rebalanceExtension.connect(operator).setAllocations([ZERO], [ether(1)]);
+              subjectMinPositions = [parseUnits("100", 8)];
+            });
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith(
+                "No active market found for given relative maturity",
+              );
+            });
+          });
+
+          [false, true].forEach((tradeViaUnderlying) => {
             describe(`When trading via the ${
               tradeViaUnderlying ? "underlying" : "asset"
             } token`, () => {
@@ -441,9 +474,7 @@ if (process.env.INTEGRATIONTEST) {
                       ),
                     );
                     const expectedThreeMonthPosition = totalValue.mul(
-                      threeMonthAllocation
-                          .mul(subjectShare)
-                          .div(ether(1)),
+                      threeMonthAllocation.mul(subjectShare).div(ether(1)),
                     );
                     expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.gt(
                       expectedSixMonthPosition.div(ether(1)).sub(tolerance),
