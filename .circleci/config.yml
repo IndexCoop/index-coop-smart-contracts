@@ -154,10 +154,7 @@ jobs:
             yarn coverage -- --testfiles "$TEST_FILES"
       - run:
           name: Coverage integration tests
-          command: |
-            TEST_FILES="{$(circleci tests glob "./test/**/*.spec.ts" | \
-              circleci tests split | xargs | sed -e 's/ /,/g')}"
-            COVERAGE=true INTEGRATIONTEST=true FORK=true yarn coverage -- --testfiles "$TEST_FILES"
+          command: COVERAGE=true INTEGRATIONTEST=true FORK=true VERBOSE=true node --max-old-space-size=4096 ./node_modules/.bin/hardhat coverage --testfiles "test/integration/ethereum/**"
       - run:
           name: Save coverage
           command: |
