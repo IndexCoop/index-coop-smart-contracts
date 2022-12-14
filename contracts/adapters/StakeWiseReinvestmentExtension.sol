@@ -28,7 +28,6 @@ import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IAirdropModule } from "../interfaces/IAirdropModule.sol";
 import { ITradeModule } from "../interfaces/ITradeModule.sol";
-import "hardhat/console.sol";
 
 /**
  * @title StakeWiseReinvestmentExtension
