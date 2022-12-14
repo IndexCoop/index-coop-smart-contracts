@@ -13,7 +13,7 @@ import { IAirdropModule } from "../../../typechain/IAirdropModule";
 import { BaseManagerV2 } from "../../../typechain/BaseManagerV2";
 import { ITradeModule } from "../../../typechain/ITradeModule";
 import { ISetToken } from "../../../typechain/ISetToken";
-import { impersonateAccount, } from "./utils";
+import { impersonateAccount } from "./utils";
 
 const expect = getWaffleExpect();
 const addresses = process.env.USE_STAGING_ADDRESSES ? STAGING_ADDRESSES : PRODUCTION_ADDRESSES;
@@ -68,6 +68,15 @@ if (process.env.INTEGRATIONTEST) {
       )) as ITradeModule;
 
       await deployStakeWiseReinvestmentExtension();
+
+      await extension.connect(operator).updateCallerStatus([await operator.getAddress()], [true]);
+
+      // Modules need to first be added through the manager before the extension can initialize.
+      await manager.connect(operator).addModule(airdropModule.address);
+      await manager.connect(operator).addModule(tradeModule.address);
+
+      await manager.connect(operator).authorizeInitialization();
+      await manager.connect(operator).addExtension(extension.address);
     });
 
     afterEach(async () => {
@@ -109,14 +118,12 @@ if (process.env.INTEGRATIONTEST) {
         return await extension.connect(operator).initialize();
       }
 
-      it("should have 2 initialized modules", async () => {
+      it("should have airdrop and trade modules", async () => {
         await subject();
 
         const modules = await setToken.getModules();
-        expect(modules.length).to.eq(2);
-
-        expect(modules[0]).to.eq(airdropModule.address);
-        expect(modules[1]).to.eq(tradeModule.address);
+        expect(modules).to.contain(airdropModule.address);
+        expect(modules).to.contain(tradeModule.address);
       });
 
       it("should set initialize AirdropModule Settings", async () => {
@@ -148,10 +155,7 @@ if (process.env.INTEGRATIONTEST) {
       it("should have the updated ExecutionSettings", async () => {
         await subject();
 
-        expect(await extension.settings()).to.eq({
-          exchangeName,
-          exchangeCallData,
-        });
+        expect(await extension.settings()).to.deep.eq([exchangeName, exchangeCallData]);
       });
     });
 
@@ -160,6 +164,7 @@ if (process.env.INTEGRATIONTEST) {
 
       beforeEach(async () => {
         minReceiveQuantity = ether(1);
+        await extension.connect(operator).initialize();
       });
       async function subject() {
         await extension.connect(operator).reinvest(minReceiveQuantity);
