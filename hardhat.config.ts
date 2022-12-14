@@ -24,7 +24,7 @@ const optimismForkingConfig = {
 
 const mainnetForkingConfig = {
   url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
-  blockNumber: process.env.LATESTBLOCK ? undefined : 16151107,
+  blockNumber: process.env.LATESTBLOCK ? undefined : 16180859,
 };
 
 const forkingConfig =
@@ -49,7 +49,7 @@ const gasOption =
       }
     : {
         gas: 12000000,
-        blockGasLimit: 12000000,
+        blockGasLimit: 30000000,
       };
 
 const config: HardhatUserConfig = {

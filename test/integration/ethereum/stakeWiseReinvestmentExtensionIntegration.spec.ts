@@ -1,9 +1,9 @@
 import "module-alias/register";
 import { ethers, network } from "hardhat";
-import { BigNumberish } from "ethers";
+import { BigNumberish, Signer } from "ethers";
 
 import { Account } from "@utils/types";
-import { ether, getAccounts, getWaffleExpect } from "@utils/index";
+import { ether, getAccounts, getWaffleExpect, setEthBalance } from "@utils/index";
 import DeployHelper from "@utils/deploys";
 import { EMPTY_BYTES } from "@utils/constants";
 
@@ -13,6 +13,7 @@ import { IAirdropModule } from "../../../typechain/IAirdropModule";
 import { BaseManagerV2 } from "../../../typechain/BaseManagerV2";
 import { ITradeModule } from "../../../typechain/ITradeModule";
 import { ISetToken } from "../../../typechain/ISetToken";
+import { impersonateAccount, } from "./utils";
 
 const expect = getWaffleExpect();
 const addresses = process.env.USE_STAGING_ADDRESSES ? STAGING_ADDRESSES : PRODUCTION_ADDRESSES;
@@ -25,6 +26,7 @@ if (process.env.INTEGRATIONTEST) {
     let manager: BaseManagerV2;
     let airdropModule: IAirdropModule;
     let tradeModule: ITradeModule;
+    let operator: Signer;
 
     let extension: StakeWiseReinvestmentExtension;
     let snapshotId: number;
@@ -49,21 +51,21 @@ if (process.env.INTEGRATIONTEST) {
         await setToken.manager(),
       )) as BaseManagerV2;
 
-      console.log("1");
+      const operatorAddress = await manager.operator();
+
+      await setEthBalance(operatorAddress, ether(100));
+
+      operator = await impersonateAccount(operatorAddress);
 
       airdropModule = (await ethers.getContractAt(
         "IAirdropModule",
         addresses.setFork.airdropModule,
       )) as IAirdropModule;
 
-      console.log("1");
-
       tradeModule = (await ethers.getContractAt(
         "ITradeModule",
         addresses.setFork.tradeModule,
       )) as ITradeModule;
-
-      console.log("1");
 
       await deployStakeWiseReinvestmentExtension();
     });
@@ -98,16 +100,13 @@ if (process.env.INTEGRATIONTEST) {
       });
 
       it("should set the correct executionSettings", async () => {
-        expect(await extension.settings()).to.eq({
-          exchangeName: "",
-          exchangeCallData: EMPTY_BYTES,
-        });
+        expect(await extension.settings()).to.deep.eq(["UniswapV3ExchangeAdapter", EMPTY_BYTES]);
       });
     });
 
     describe("#initialize", () => {
       async function subject() {
-        return await extension.initialize();
+        return await extension.connect(operator).initialize();
       }
 
       it("should have 2 initialized modules", async () => {
@@ -140,7 +139,7 @@ if (process.env.INTEGRATIONTEST) {
       });
 
       async function subject() {
-        await extension.updateExecutionSettings({
+        await extension.connect(operator).updateExecutionSettings({
           exchangeName,
           exchangeCallData,
         });
@@ -163,7 +162,7 @@ if (process.env.INTEGRATIONTEST) {
         minReceiveQuantity = ether(1);
       });
       async function subject() {
-        await extension.reinvest(minReceiveQuantity);
+        await extension.connect(operator).reinvest(minReceiveQuantity);
       }
 
       it("should absorb and reinvest rETH2 into sETH2", async () => {
@@ -172,16 +171,16 @@ if (process.env.INTEGRATIONTEST) {
           await extension.S_ETH2(),
         );
 
-        expect(beforeREth2Units).to.be.greaterThan(0);
-        expect(beforeSEth2Units).to.be.greaterThan(0);
+        expect(beforeREth2Units.gte(0)).to.be.true;
+        expect(beforeSEth2Units.gte(0)).to.be.true;
 
         await subject();
 
         const afterSEth2Units = await setToken.getTotalComponentRealUnits(await extension.S_ETH2());
         const afterREth2Units = await setToken.balanceOf(await extension.R_ETH2());
 
-        expect(afterREth2Units).to.equal(0);
-        expect(afterSEth2Units).to.be.greaterThan(beforeSEth2Units.add(minReceiveQuantity));
+        expect(afterREth2Units.eq(0)).to.be.true;
+        expect(afterSEth2Units.gt(beforeSEth2Units.add(minReceiveQuantity))).to.be.true;
       });
     });
   });
