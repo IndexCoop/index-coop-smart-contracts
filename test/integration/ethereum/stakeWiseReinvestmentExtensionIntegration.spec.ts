@@ -5,7 +5,7 @@ import { BigNumberish, Signer } from "ethers";
 import { Account } from "@utils/types";
 import { ether, getAccounts, getWaffleExpect, setEthBalance } from "@utils/index";
 import DeployHelper from "@utils/deploys";
-import { EMPTY_BYTES, MAX_UINT_256 } from "@utils/constants";
+import { EMPTY_BYTES, MAX_UINT_256, ZERO } from "@utils/constants";
 
 import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "./addresses";
 import { StakeWiseReinvestmentExtension } from "../../../typechain/StakeWiseReinvestmentExtension";
@@ -58,31 +58,26 @@ if (process.env.INTEGRATIONTEST) {
       operator = await impersonateAccount(operatorAddress);
       whale = await impersonateAccount("0x7BdDb2C97AF91f97E73F07dEB976fdFC2d2Ee93c");
 
-      airdropModule = await ethers.getContractAt(
+      airdropModule = (await ethers.getContractAt(
         "IAirdropModule",
         addresses.setFork.airdropModule,
-      ) as IAirdropModule;
+      )) as IAirdropModule;
 
-      tradeModule = await ethers.getContractAt(
+      tradeModule = (await ethers.getContractAt(
         "ITradeModule",
         addresses.setFork.tradeModule,
-      ) as ITradeModule;
+      )) as ITradeModule;
 
-      rETH2 = await ethers.getContractAt(
-        "IERC20",
-        addresses.tokens.rETH2
-      ) as IERC20;
+      rETH2 = (await ethers.getContractAt("IERC20", addresses.tokens.rETH2)) as IERC20;
 
-      sETH2 = await ethers.getContractAt(
-        "IERC20",
-        addresses.tokens.sETH2
-      ) as IERC20;
+      sETH2 = (await ethers.getContractAt("IERC20", addresses.tokens.sETH2)) as IERC20;
 
       await deployStakeWiseReinvestmentExtension();
 
       await extension.connect(operator).updateCallerStatus([await operator.getAddress()], [true]);
 
       // Modules need to first be added through the manager before the extension can initialize.
+      // TODO (Richard): these lines can be removed once modeuls get added to the manager and blockNumber is advanced
       await manager.connect(operator).addModule(airdropModule.address);
       await manager.connect(operator).addModule(tradeModule.address);
 
@@ -92,14 +87,15 @@ if (process.env.INTEGRATIONTEST) {
       // Fund owner wallet from whale
       await sETH2.connect(whale).transfer(owner.address, ether(1));
 
-      const debtIssuanceModule = await ethers.getContractAt(
+      const debtIssuanceModule = (await ethers.getContractAt(
         "IDebtIssuanceModule",
         addresses.setFork.debtIssuanceModuleV2,
-      ) as IDebtIssuanceModule;
+      )) as IDebtIssuanceModule;
 
       await sETH2.connect(owner.wallet).approve(debtIssuanceModule.address, MAX_UINT_256);
       await rETH2.connect(owner.wallet).approve(debtIssuanceModule.address, MAX_UINT_256);
 
+      // Issue 1 wsETH2 for owner
       await debtIssuanceModule
         .connect(owner.wallet)
         .issue(setToken.address, ether(1), owner.address);
@@ -117,6 +113,7 @@ if (process.env.INTEGRATIONTEST) {
         {
           exchangeName: "UniswapV3ExchangeAdapterV2",
           exchangeCallData:
+            // From generateDataParams on UniswapV3ExchangeAdapterV2
             "0x20bc832ca081b91433ff6c17f85701b6e92486c50001f4fe2e637202056d30016725477c5da089ab0a043a01",
         },
       );
@@ -161,7 +158,7 @@ if (process.env.INTEGRATIONTEST) {
 
         const settings = await airdropModule.airdropSettings(setToken.address);
         expect(settings[0]).to.equal(setToken.address);
-        expect(settings[1]).to.equal(0);
+        expect(settings[1]).to.equal(ZERO);
         expect(settings[2]).to.equal(false);
       });
     });
@@ -193,7 +190,7 @@ if (process.env.INTEGRATIONTEST) {
       let minReceiveQuantity: BigNumberish;
 
       beforeEach(async () => {
-        minReceiveQuantity = ether(0.8);
+        minReceiveQuantity = ether(10);
         await extension.connect(operator).initialize();
       });
 
@@ -204,56 +201,41 @@ if (process.env.INTEGRATIONTEST) {
       context("when rETH2 balance of setToken is 0", async () => {
         it("should revert", async () => {
           const rETh2Units = await setToken.balanceOf(await extension.R_ETH2());
-          expect(rETh2Units.eq(0)).to.be.true;
+          expect(rETh2Units).to.eq(ZERO);
 
           await expect(subject()).to.be.revertedWith("rETH2 units must be greater than zero");
         });
       });
 
       context("when rETH2 balance of setToken is greater than 0", async () => {
-        let amount: BigNumberish;
-
         beforeEach(async () => {
-          amount = ether(1);
-          await rETH2.connect(whale).transfer(setToken.address, amount);
+          await rETH2.connect(whale).transfer(setToken.address, minReceiveQuantity);
         });
 
         it("should absorb and reinvest rETH2 into sETH2", async () => {
-          // const bytes = airdropModule.interface.encodeFunctionData("absorb", [setToken.address, rETH2.address]);
-
-          // await manager.connect(operator).interactManager(airdropModule.address, bytes);
-
-          // const bytes1 = tradeModule.interface.encodeFunctionData("trade", [
-          //   setToken.address,
-          //   "UniswapV3ExchangeAdapterV2",
-          //   rETH2.address,
-          //   ether(1),
-          //   sETH2.address,
-          //   ether(0.5),
-          //   "0x20bc832ca081b91433ff6c17f85701b6e92486c50001f4fe2e637202056d30016725477c5da089ab0a043a01"
-          // ]);
-
-          // await manager.connect(operator).interactManager(tradeModule.address, bytes1);
           const beforeREth2Units = await rETH2.balanceOf(setToken.address);
           const beforeSEth2Units = await setToken.getTotalComponentRealUnits(
             await extension.S_ETH2(),
           );
 
-          expect(beforeREth2Units.gt(0)).to.be.true;
-          expect(beforeSEth2Units.gt(0)).to.be.true;
+          expect(beforeREth2Units).to.eq(ether(10));
+          expect(beforeSEth2Units).to.eq(ether(1));
 
           await subject();
-          console.log("1");
 
           const afterSEth2Units = await setToken.getTotalComponentRealUnits(
             await extension.S_ETH2(),
           );
-          console.log("1");
-          const afterREth2Units = await setToken.balanceOf(await extension.R_ETH2());
+          const afterREth2Units = await rETH2.balanceOf(setToken.address);
 
-          console.log("1");
-          expect(afterREth2Units.eq(0)).to.be.true;
-          expect(afterSEth2Units.gt(beforeSEth2Units.add(minReceiveQuantity))).to.be.true;
+          expect(afterREth2Units).to.eq(ZERO);
+          expect(afterSEth2Units).to.gte(beforeSEth2Units.add(minReceiveQuantity));
+          expect(afterSEth2Units).to.lte(
+            beforeSEth2Units
+              .add(minReceiveQuantity)
+              .mul(101)
+              .div(100),
+          );
         });
       });
     });

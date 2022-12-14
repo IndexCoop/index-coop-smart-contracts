@@ -50,7 +50,7 @@ contract StakeWiseReinvestmentExtension is BaseExtension {
 
     struct ExecutionSettings {
         string exchangeName;
-        string exchangeCallData;
+        bytes exchangeCallData;
     }
 
     /* ========== State Variables ========= */
