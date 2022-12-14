@@ -103,9 +103,9 @@ contract StakeWiseReinvestmentExtension is BaseExtension {
      * 1. Absorbs rETH2 into the SetToken
      * 2. Trades rETH2 into sETH2 with _minReceivedQuantity
      * 
-     * It was considered to remove _minReceivedQuantity parameter and store a slippage parameter as part of
+     * We considered removing the _minReceivedQuantity parameter and storing the slippage parameter as part of
      * ExecutionSettings. However, in the event of a black swan event where rETH2 de-pegs, we'd need to updateExecutionSettings
-     * which would involve a multi-sig txn. Once rETH2 can be redeemed for sETH2 directly, the exchange rate is guaranteed to be 1:1.
+     * which would involve a multi-sig txn. Once rETH2 can be redeemed for sETH2 directly, the exchange rate is guaranteed to be at least 1:1.
      * Therefore, _minReceiveQuantity can be removed and this function can be made public.
      */
     function reinvest(uint256 _minReceiveQuantity) external onlyAllowedCaller(msg.sender) {
