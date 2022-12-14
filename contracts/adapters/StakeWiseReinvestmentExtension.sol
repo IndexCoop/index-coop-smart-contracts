@@ -28,6 +28,7 @@ import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IAirdropModule } from "../interfaces/IAirdropModule.sol";
 import { ITradeModule } from "../interfaces/ITradeModule.sol";
+import "hardhat/console.sol";
 
 /**
  * @title StakeWiseReinvestmentExtension
@@ -120,6 +121,7 @@ contract StakeWiseReinvestmentExtension is BaseExtension {
         require(rEthUnits > 0, "rETH2 units must be greater than zero");
         bytes memory tradeCallData = abi.encodeWithSelector(
             ITradeModule.trade.selector,
+            setToken,
             settings.exchangeName,
             R_ETH2,
             rEthUnits,
