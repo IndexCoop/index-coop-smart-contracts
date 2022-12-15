@@ -18,6 +18,7 @@ export const MAX_INT_256 = "0x7fffffffffffffffffffffffffffffffffffffffffffffffff
 export const MIN_INT_256 = "-0x8000000000000000000000000000000000000000000000000000000000000000";
 export const ONE_DAY_IN_SECONDS = BigNumber.from(60 * 60 * 24);
 export const ONE_HOUR_IN_SECONDS = BigNumber.from(60 * 60);
+export const ONE_MONTH_IN_SECONDS = ONE_DAY_IN_SECONDS.mul(30);
 export const ONE_YEAR_IN_SECONDS = BigNumber.from(31557600);
 
 export const PRECISE_UNIT: BigNumber = constants.WeiPerEther;

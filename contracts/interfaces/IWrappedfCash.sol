@@ -69,5 +69,7 @@ interface IWrappedfCash {
 }
 
 
-interface IWrappedfCashComplete is IWrappedfCash, IERC20 {} 
+interface IWrappedfCashComplete is IWrappedfCash, IERC20 {
+    function getMaturity() external view returns (uint40);
+} 
 

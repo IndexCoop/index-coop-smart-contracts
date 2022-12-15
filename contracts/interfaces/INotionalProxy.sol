@@ -64,4 +64,62 @@ interface INotionalProxy {
 
     function settleAccount(address account) external;
 
+   function getfCashLendFromDeposit(
+        uint16 currencyId,
+        uint256 depositAmountExternal,
+        uint256 maturity,
+        uint32 minLendRate,
+        uint256 blockTime,
+        bool useUnderlying
+    ) external view returns (
+        uint88 fCashAmount,
+        uint8 marketIndex,
+        bytes32 encodedTrade
+    );
+
+    function getDepositFromfCashLend(
+        uint16 currencyId,
+        uint256 fCashAmount,
+        uint256 maturity,
+        uint32 minLendRate,
+        uint256 blockTime
+    ) external view returns (
+        uint256 depositAmountUnderlying,
+        uint256 depositAmountAsset,
+        uint8 marketIndex,
+        bytes32 encodedTrade
+    );
+
+    function getPrincipalFromfCashBorrow(
+        uint16 currencyId,
+        uint256 fCashBorrow,
+        uint256 maturity,
+        uint32 maxBorrowRate,
+        uint256 blockTime
+    ) external view returns (
+        uint256 borrowAmountUnderlying,
+        uint256 borrowAmountAsset,
+        uint8 marketIndex,
+        bytes32 encodedTrade
+    );    
+
+    function getfCashBorrowFromPrincipal(
+        uint16 currencyId,
+        uint256 borrowedAmountExternal,
+        uint256 maturity,
+        uint32 maxBorrowRate,
+        uint256 blockTime,
+        bool useUnderlying
+    ) external view returns (
+        uint88 fCashDebt,
+        uint8 marketIndex,
+        bytes32 encodedTrade
+    );
+
+    function initializeMarkets(
+        uint16 currencyId,
+        bool flag
+    ) external;
+
+
 }

@@ -41,4 +41,46 @@ contract NotionalTradeModuleMock is INotionalTradeModule{
     function settleAccount(address) external override {
     }
 
+    function getFCashComponents(ISetToken _setToken) external view override returns(address[] memory fCashComponents) {
+    }
+
+    function mintFixedFCashForToken(
+        ISetToken _setToken,
+        uint16 _currencyId,
+        uint40 _maturity,
+        uint256 _mintAmount,
+        address _sendToken,
+        uint256 _maxSendAmount
+    ) external override returns(uint256 spentAmount) {
+    }
+    function redeemFixedFCashForToken(
+        ISetToken _setToken,
+        uint16 _currencyId,
+        uint40 _maturity,
+        uint256 _redeemAmount,
+        address _receiveToken,
+        uint256 _minReceiveAmount
+    ) external override returns(uint256 receivedAmount) {
+    }
+
+    function mintFCashForFixedToken(
+        ISetToken _setToken,
+        uint16 _currencyId,
+        uint40 _maturity,
+        uint256 _minMintAmount,
+        address _sendToken,
+        uint256 _sendAmount
+    ) external override returns(uint256) {}
+
+    function redeemFCashForFixedToken(
+        ISetToken _setToken,
+        uint16 _currencyId,
+        uint40 _maturity,
+        uint256 _maxRedeemAmount,
+        address _receiveToken,
+        uint256 _receiveAmount,
+        uint256 _maxReceiveAmountDeviation
+    ) external override returns(uint256) {}
+
+
 }
