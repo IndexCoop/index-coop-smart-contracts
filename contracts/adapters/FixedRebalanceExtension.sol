@@ -56,10 +56,10 @@ contract FixedRebalanceExtension is BaseExtension {
     uint256[] internal maturities;                               // Array of relative maturities in seconds (i.e. 3 months / 6 months)
     uint256[] internal allocations;                              // Relative allocations 
 
-    ISetToken internal immutable setToken;                       // Instance of leverage token
-    INotionalTradeModule internal immutable notionalTradeModule; // Instance of leverage token
+    ISetToken public immutable setToken;                       
+    INotionalTradeModule internal immutable notionalTradeModule; 
     INotionalProxy internal immutable notionalProxy;                            
-    IWrappedfCashFactory internal immutable wrappedfCashFactory; // Instance of leverage token
+    IWrappedfCashFactory internal immutable wrappedfCashFactory; 
     address internal immutable underlyingToken;
     address internal immutable assetToken;
     uint16 public immutable currencyId;
