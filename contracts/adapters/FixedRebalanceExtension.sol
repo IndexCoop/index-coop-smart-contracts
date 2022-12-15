@@ -50,7 +50,6 @@ contract FixedRebalanceExtension is BaseExtension {
     // /* ============ Events ============ */
 
     event AllocationsUpdated(uint256[] _maturities, uint256[] _allocations);
-    event MaturityStatusSet(uint256 _maturity, bool _newStatus);
 
     // /* ============ State Variables ============ */
 
