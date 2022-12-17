@@ -48,25 +48,29 @@ contract StakeWiseReinvestmentExtension is BaseExtension {
     /* ========== Structs ================= */
 
     struct ExecutionSettings {
+        // Name of the exchange adapter stored in the IntegrationRegistry. Typically the name of the contract
+        // such as UniswapV3ExchangeAdapterV2.
         string exchangeName;
+        // The callData that needs to be passed along to the exchange adapter. This is usually generated with
+        // a external view call on the adapter contract using the function generateDataParam.
         bytes exchangeCallData;
     }
 
     /* ========== State Variables ========= */
 
-    ISetToken public immutable setToken;                // The set token 
-    IAirdropModule public immutable airdropModule;      // The airdrop module
-    ITradeModule public immutable tradeModule;          // The trade module
-    ExecutionSettings public settings;                  // The execution settings
+    ISetToken public immutable setToken;
+    IAirdropModule public immutable airdropModule;
+    ITradeModule public immutable tradeModule;
+    ExecutionSettings public settings;
 
     /* ============  Constructor ============ */ 
     /**
      * Sets state variables
      * 
-     * @param _manager Manager contract
-     * @param _airdropModule Airdrop module contract
-     * @param _tradeModule Trade module contract
-     * @param _settings Reinvestment settings
+     * @param _manager // The manager contract. Used to invoke calls on the underlying SetToken.
+     * @param _airdropModule // The airdropModule contract. Used to absorb tokens into the SetToken so that it's part of SetToken's accounting.
+     * @param _tradeModule // The tradeModule contract. Used to trade the absorbed rETH2 into sETH2.
+     * @param _settings // Determines which exchange adapter is used to execute the trade through the TradeModule contract.
      */
     constructor(
         IBaseManager _manager,
@@ -82,6 +86,11 @@ contract StakeWiseReinvestmentExtension is BaseExtension {
 
     /* ============ External Functions ============ */
 
+    /**
+     * Initializes the extension by:
+     * 1. Calling initialize on the AirdropModule for the SetToken with required airdrop settings.
+     * 2. Initializing the TradeModule for the SetToken to allow trading trading with the SetToken.
+     */
     function initialize() external onlyOperator {
         address[] memory tokens = new address[](1);
         tokens[0] = R_ETH2;

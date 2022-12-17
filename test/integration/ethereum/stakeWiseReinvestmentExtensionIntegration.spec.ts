@@ -141,25 +141,42 @@ if (process.env.INTEGRATIONTEST) {
     });
 
     describe("#initialize", () => {
+      let caller: Signer;
+
       async function subject() {
-        return await extension.connect(operator).initialize();
+        return await extension.connect(caller).initialize();
       }
 
-      it("should have airdrop and trade modules", async () => {
-        await subject();
+      context("the caller is the operator", async () => {
+        beforeEach(() => {
+          caller = operator;
+        });
 
-        const modules = await setToken.getModules();
-        expect(modules).to.contain(airdropModule.address);
-        expect(modules).to.contain(tradeModule.address);
+        it("should have airdrop and trade modules", async () => {
+          await subject();
+
+          const modules = await setToken.getModules();
+          expect(modules).to.contain(airdropModule.address);
+          expect(modules).to.contain(tradeModule.address);
+        });
+
+        it("should set initialize AirdropModule Settings", async () => {
+          await subject();
+
+          const settings = await airdropModule.airdropSettings(setToken.address);
+          expect(settings[0]).to.equal(setToken.address);
+          expect(settings[1]).to.equal(ZERO);
+          expect(settings[2]).to.equal(false);
+        });
       });
 
-      it("should set initialize AirdropModule Settings", async () => {
-        await subject();
-
-        const settings = await airdropModule.airdropSettings(setToken.address);
-        expect(settings[0]).to.equal(setToken.address);
-        expect(settings[1]).to.equal(ZERO);
-        expect(settings[2]).to.equal(false);
+      context("when the caller is not the operator", async () => {
+        beforeEach(() => {
+          caller = owner.wallet;
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be operator");
+        });
       });
     });
 
@@ -183,6 +200,19 @@ if (process.env.INTEGRATIONTEST) {
         await subject();
 
         expect(await extension.settings()).to.deep.eq([exchangeName, exchangeCallData]);
+      });
+
+      context("when the caller is not an allowed caller", async () => {
+        async function subject() {
+          await extension.connect(owner.wallet).updateExecutionSettings({
+            exchangeName,
+            exchangeCallData,
+          });
+        }
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Address not permitted to call");
+        });
       });
     });
 
@@ -236,6 +266,16 @@ if (process.env.INTEGRATIONTEST) {
               .mul(101)
               .div(100),
           );
+        });
+      });
+
+      context("when the caller is not an allowed caller", async () => {
+        async function subject() {
+          await extension.connect(owner.wallet).reinvest(minReceiveQuantity);
+        }
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Address not permitted to call");
         });
       });
     });
