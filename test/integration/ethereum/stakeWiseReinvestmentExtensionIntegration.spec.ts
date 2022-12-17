@@ -14,8 +14,8 @@ import { BaseManagerV2 } from "../../../typechain/BaseManagerV2";
 import { ITradeModule } from "../../../typechain/ITradeModule";
 import { ISetToken } from "../../../typechain/ISetToken";
 import { impersonateAccount } from "./utils";
-import { IERC20 } from "@typechain/IERC20";
-import { IDebtIssuanceModule } from "@typechain/IDebtIssuanceModule";
+import { IERC20 } from "../../../typechain/IERC20";
+import { IDebtIssuanceModule } from "../../../typechain/IDebtIssuanceModule";
 
 const expect = getWaffleExpect();
 const addresses = process.env.USE_STAGING_ADDRESSES ? STAGING_ADDRESSES : PRODUCTION_ADDRESSES;
