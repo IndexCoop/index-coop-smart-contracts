@@ -72,7 +72,7 @@ if (process.env.INTEGRATIONTEST) {
       );
 
       componentMaturities = await Promise.all(
-        (await setToken.getComponents()).map((c) => {
+        (await setToken.getComponents()).map(c => {
           const wrappedfCash = IWrappedfCashComplete__factory.connect(c, operator);
           return wrappedfCash.getMaturity();
         }),
@@ -128,7 +128,7 @@ if (process.env.INTEGRATIONTEST) {
           assetToken = addresses.tokens.cDAI;
           assetTokenContract = IERC20__factory.connect(assetToken, operator);
           const maturitiesMonths = [3, 6];
-          maturities = maturitiesMonths.map((m) => ONE_MONTH_IN_SECONDS.mul(m));
+          maturities = maturitiesMonths.map(m => ONE_MONTH_IN_SECONDS.mul(m));
           sixMonthAllocation = ether(0.75);
           threeMonthAllocation = ether(0.25);
           allocations = [threeMonthAllocation, sixMonthAllocation];
@@ -326,7 +326,7 @@ if (process.env.INTEGRATIONTEST) {
             });
           });
 
-          [false, true].forEach((tradeViaUnderlying) => {
+          [false, true].forEach(tradeViaUnderlying => {
             describe(`When trading via the ${
               tradeViaUnderlying ? "underlying" : "asset"
             } token`, () => {
