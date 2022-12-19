@@ -1,4 +1,4 @@
-import { Signer, BigNumber } from "ethers";
+import { Signer, BigNumber, BigNumberish } from "ethers";
 import {
   Address,
   ContractSettings,
@@ -44,6 +44,7 @@ import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitEx
 import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtension__factory";
 import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
 import { GovernanceExtension__factory } from "../../typechain/factories/GovernanceExtension__factory";
+import { FixedRebalanceExtension__factory } from "../../typechain/factories/FixedRebalanceExtension__factory";
 import { StakeWiseReinvestmentExtension__factory } from "../../typechain/factories/StakeWiseReinvestmentExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 import { WrapExtension__factory } from "../../typechain/factories/WrapExtension__factory";
@@ -404,6 +405,30 @@ export default class DeployExtensions {
       setControllerAddress,
       issuanceModuleAddress,
       wrapModuleAddress,
+    );
+  }
+
+  public deployFixedRebalanceExtension(
+    manager: Address,
+    setToken: Address,
+    notionalTradeModule: Address,
+    notionalV2: Address,
+    wrappedfCashFactory: Address,
+    underlyingToken: Address,
+    assetToken: Address,
+    maturities: BigNumberish[],
+    allocations: BigNumberish[],
+  ) {
+    return new FixedRebalanceExtension__factory(this._deployerSigner).deploy(
+      manager,
+      setToken,
+      notionalTradeModule,
+      notionalV2,
+      wrappedfCashFactory,
+      underlyingToken,
+      assetToken,
+      maturities,
+      allocations,
     );
   }
 }
