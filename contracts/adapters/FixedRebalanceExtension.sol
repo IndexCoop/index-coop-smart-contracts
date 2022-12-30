@@ -115,16 +115,15 @@ contract FixedRebalanceExtension is BaseExtension {
     }
 
     /**
-     * ONLY OPERATOR: Rebalances the positions towards the configured allocation percentages.
+     * ONLY EOA AND ALLOWED CALLER: Rebalances the positions towards the configured allocation percentages.
      *
      * @param _share                Relative share of the necessary trade volume to execute (allows for splitting the rebalance over multiple transactions
      * @param _minPositions         Minimum positions (in set token units) for each maturity after rebalance. (slippage protection)
      */
-    function rebalance(uint256 _share, uint256[] memory _minPositions) external onlyOperator {
+    function rebalance(uint256 _share, uint256[] memory _minPositions) external onlyAllowedCaller(msg.sender) {
         require(_share > 0, "Share must be greater than 0");
         require(_share <= 1 ether, "Share cannot exceed 100%");
 
-        // TODO: Review if we want to open up this method for anyone to call.
         _sellOverweightPositions(_share);
         _buyUnderweightPositions(_share);
         _checkCurrentPositions(_minPositions);

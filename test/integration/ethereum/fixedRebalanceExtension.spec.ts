@@ -233,12 +233,14 @@ if (process.env.INTEGRATIONTEST) {
         describe("#rebalance", () => {
           let subjectShare: BigNumber;
           let subjectMinPositions: BigNumber[];
+          let caller: Signer;
           beforeEach(async () => {
             subjectShare = parseEther("1");
             subjectMinPositions = [parseUnits("0.45", 8), parseUnits("0.45", 8)];
+            caller = user;
           });
           function subject() {
-            return rebalanceExtension.rebalance(subjectShare, subjectMinPositions);
+            return rebalanceExtension.connect(caller).rebalance(subjectShare, subjectMinPositions);
           }
 
           async function checkAllocation() {
@@ -271,223 +273,238 @@ if (process.env.INTEGRATIONTEST) {
             );
           }
 
-          describe("when share is too high", () => {
+          describe("when caller is not approved", () => {
             beforeEach(async () => {
-              await setToken.connect(operator).setManager(baseManagerV2.address);
-              subjectShare = parseEther("1.1");
+              // Even the operator can't call this method if he is not in the allow mapping
+              caller = operator;
+              await rebalanceExtension.updateCallerStatus([await caller.getAddress()], [false]);
             });
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Share cannot exceed 100%");
+              await expect(subject()).to.be.revertedWith("Address not permitted to call");
             });
           });
-
-          describe("when share is zero", () => {
+          describe("when caller is approved", () => {
             beforeEach(async () => {
-              await setToken.connect(operator).setManager(baseManagerV2.address);
-              subjectShare = ZERO;
+              await rebalanceExtension.updateCallerStatus([await caller.getAddress()], [true]);
             });
-            it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Share must be greater than 0");
-            });
-          });
-
-          describe("when minPositions  are too high", () => {
-            beforeEach(async () => {
-              await setToken.connect(operator).setManager(baseManagerV2.address);
-              subjectMinPositions = [parseUnits("100", 8), parseUnits("100", 8)];
-            });
-            it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Position below min");
-            });
-          });
-
-          describe("when minPositions  have wrong length", () => {
-            beforeEach(async () => {
-              await setToken.connect(operator).setManager(baseManagerV2.address);
-              subjectMinPositions = [parseUnits("100", 8)];
-            });
-            it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith(
-                "Min positions must be same length as maturities",
-              );
-            });
-          });
-
-          describe("when invalid maturity was set", () => {
-            beforeEach(async () => {
-              await setToken.connect(operator).setManager(baseManagerV2.address);
-              await rebalanceExtension.connect(operator).setAllocations([ZERO], [ether(1)]);
-              subjectMinPositions = [parseUnits("100", 8)];
-            });
-            it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith(
-                "No active market found for given relative maturity",
-              );
-            });
-          });
-
-          [false, true].forEach(tradeViaUnderlying => {
-            describe(`When trading via the ${
-              tradeViaUnderlying ? "underlying" : "asset"
-            } token`, () => {
+            describe("when share is too high", () => {
               beforeEach(async () => {
-                await rebalanceExtension
-                  .connect(operator)
-                  .setTradeViaUnderlying(tradeViaUnderlying);
-                await notionalTradeModule
-                  .connect(operator)
-                  .setRedeemToUnderlying(setToken.address, tradeViaUnderlying);
+                await setToken.connect(operator).setManager(baseManagerV2.address);
+                subjectShare = parseEther("1.1");
               });
-
-              describe("when allocations are unchanged", () => {
-                beforeEach(async () => {
-                  await setToken.connect(operator).setManager(baseManagerV2.address);
-                });
-                it("should adjust the allocations correctly", async () => {
-                  await subject();
-                  await checkAllocation();
-                });
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith("Share cannot exceed 100%");
               });
+            });
 
-              describe("when 3 month position has expired", () => {
-                let threeMonthComponentBefore: string;
-                let sixMonthComponentBefore: string;
-                beforeEach(async () => {
-                  threeMonthComponentBefore = threeMonthComponent;
-                  sixMonthComponentBefore = sixMonthComponent;
-
-                  subjectMinPositions = [parseUnits("0.45", 8), parseUnits("0.45", 8)];
-                  await setToken.connect(operator).setManager(baseManagerV2.address);
-                  const maturity = await IWrappedfCashComplete__factory.connect(
-                    threeMonthComponent,
-                    operator,
-                  ).getMaturity();
-                  await network.provider.send("evm_setNextBlockTimestamp", [maturity + 1]);
-                  await network.provider.send("evm_mine"); // this on
-
-                  await notionalProxy.initializeMarkets(currencyId, false);
-                  await notionalTradeModule.redeemMaturedPositions(setToken.address);
-
-                  threeMonthComponent = sixMonthComponent;
-
-                  const sixMonthAbsoluteMaturity = await rebalanceExtension.relativeToAbsoluteMaturity(
-                    ONE_MONTH_IN_SECONDS.mul(6),
-                  );
-                  sixMonthComponent = await wrappedfCashFactory.computeAddress(
-                    currencyId,
-                    sixMonthAbsoluteMaturity,
-                  );
-                });
-                afterEach(() => {
-                  threeMonthComponent = threeMonthComponentBefore;
-                  sixMonthComponent = sixMonthComponentBefore;
-                });
-                it("should adjust the allocations correctly", async () => {
-                  await subject();
-                  await checkAllocation();
-                });
+            describe("when share is zero", () => {
+              beforeEach(async () => {
+                await setToken.connect(operator).setManager(baseManagerV2.address);
+                subjectShare = ZERO;
               });
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith("Share must be greater than 0");
+              });
+            });
 
-              describe("when allocation was changed", () => {
+            describe("when minPositions  are too high", () => {
+              beforeEach(async () => {
+                await setToken.connect(operator).setManager(baseManagerV2.address);
+                subjectMinPositions = [parseUnits("100", 8), parseUnits("100", 8)];
+              });
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith("Position below min");
+              });
+            });
+
+            describe("when minPositions  have wrong length", () => {
+              beforeEach(async () => {
+                await setToken.connect(operator).setManager(baseManagerV2.address);
+                subjectMinPositions = [parseUnits("100", 8)];
+              });
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith(
+                  "Min positions must be same length as maturities",
+                );
+              });
+            });
+
+            describe("when invalid maturity was set", () => {
+              beforeEach(async () => {
+                await setToken.connect(operator).setManager(baseManagerV2.address);
+                await rebalanceExtension.connect(operator).setAllocations([ZERO], [ether(1)]);
+                subjectMinPositions = [parseUnits("100", 8)];
+              });
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith(
+                  "No active market found for given relative maturity",
+                );
+              });
+            });
+
+            [false, true].forEach(tradeViaUnderlying => {
+              describe(`When trading via the ${
+                tradeViaUnderlying ? "underlying" : "asset"
+              } token`, () => {
                 beforeEach(async () => {
-                  await setToken.connect(operator).setManager(baseManagerV2.address);
-                  threeMonthAllocation = ether(0.5);
-                  sixMonthAllocation = ether(0.5);
-                  const maturities = [ONE_MONTH_IN_SECONDS.mul(6), ONE_MONTH_IN_SECONDS.mul(3)];
-                  const allocations = [sixMonthAllocation, threeMonthAllocation];
                   await rebalanceExtension
                     .connect(operator)
-                    .setAllocations(maturities, allocations);
+                    .setTradeViaUnderlying(tradeViaUnderlying);
+                  await notionalTradeModule
+                    .connect(operator)
+                    .setRedeemToUnderlying(setToken.address, tradeViaUnderlying);
                 });
-                it("should adjust the allocations correctly", async () => {
-                  await subject();
-                  await checkAllocation();
-                });
-              });
 
-              describe("when fcash position was reduced", () => {
-                const redeemPositionIndex = 1;
-                beforeEach(async () => {
-                  await notionalTradeModule
-                    .connect(operator)
-                    .redeemFixedFCashForToken(
-                      setToken.address,
-                      currencyId,
-                      componentMaturities[redeemPositionIndex],
-                      componentPositions[redeemPositionIndex].unit,
-                      tradeViaUnderlying ? underlyingToken : assetToken,
-                      0,
-                    );
-                  await setToken.connect(operator).setManager(baseManagerV2.address);
-                });
-                it("should adjust the allocations correctly", async () => {
-                  await subject();
-                  await checkAllocation();
-                });
-              });
-              describe("when 6 month position was sold in favor of 3 month position", () => {
-                const redeemPositionIndex = 1;
-                beforeEach(async () => {
-                  await notionalTradeModule
-                    .connect(operator)
-                    .redeemFixedFCashForToken(
-                      setToken.address,
-                      currencyId,
-                      componentMaturities[redeemPositionIndex],
-                      componentPositions[redeemPositionIndex].unit,
-                      assetToken,
-                      0,
-                    );
-                  const obtainedAssetTokenPosition = await setToken.getDefaultPositionRealUnit(
-                    assetToken,
-                  );
-                  await notionalTradeModule
-                    .connect(operator)
-                    .mintFCashForFixedToken(
-                      setToken.address,
-                      currencyId,
-                      componentMaturities[(redeemPositionIndex + 1) % 2],
-                      0,
-                      assetToken,
-                      obtainedAssetTokenPosition,
-                    );
-                  await setToken.connect(operator).setManager(baseManagerV2.address);
-                });
-                it("should adjust the allocations correctly", async () => {
-                  await subject();
-                  await checkAllocation();
-                });
-                describe("when only partially executing the trade", () => {
-                  beforeEach(() => {
-                    subjectShare = ether(0.5);
+                describe("when allocations are unchanged", () => {
+                  beforeEach(async () => {
+                    await setToken.connect(operator).setManager(baseManagerV2.address);
                   });
                   it("should adjust the allocations correctly", async () => {
                     await subject();
-                    const totalValue = parseUnits("100", 8);
-                    const tolerance = parseUnits("0.75", 8);
-                    const expectedSixMonthPosition = totalValue.mul(
-                      sixMonthAllocation.add(
-                        ether(1)
-                          .sub(sixMonthAllocation)
-                          .mul(subjectShare)
-                          .div(ether(1)),
-                      ),
+                    await checkAllocation();
+                  });
+                });
+
+                describe("when 3 month position has expired", () => {
+                  let threeMonthComponentBefore: string;
+                  let sixMonthComponentBefore: string;
+                  beforeEach(async () => {
+                    threeMonthComponentBefore = threeMonthComponent;
+                    sixMonthComponentBefore = sixMonthComponent;
+
+                    subjectMinPositions = [parseUnits("0.45", 8), parseUnits("0.45", 8)];
+                    await setToken.connect(operator).setManager(baseManagerV2.address);
+                    const maturity = await IWrappedfCashComplete__factory.connect(
+                      threeMonthComponent,
+                      operator,
+                    ).getMaturity();
+                    await network.provider.send("evm_setNextBlockTimestamp", [maturity + 1]);
+                    await network.provider.send("evm_mine"); // this on
+
+                    await notionalProxy.initializeMarkets(currencyId, false);
+                    await notionalTradeModule.redeemMaturedPositions(setToken.address);
+
+                    threeMonthComponent = sixMonthComponent;
+
+                    const sixMonthAbsoluteMaturity = await rebalanceExtension.relativeToAbsoluteMaturity(
+                      ONE_MONTH_IN_SECONDS.mul(6),
                     );
-                    const expectedThreeMonthPosition = totalValue.mul(
-                      threeMonthAllocation.mul(subjectShare).div(ether(1)),
+                    sixMonthComponent = await wrappedfCashFactory.computeAddress(
+                      currencyId,
+                      sixMonthAbsoluteMaturity,
                     );
-                    expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.gt(
-                      expectedSixMonthPosition.div(ether(1)).sub(tolerance),
+                  });
+                  afterEach(() => {
+                    threeMonthComponent = threeMonthComponentBefore;
+                    sixMonthComponent = sixMonthComponentBefore;
+                  });
+                  it("should adjust the allocations correctly", async () => {
+                    await subject();
+                    await checkAllocation();
+                  });
+                });
+
+                describe("when allocation was changed", () => {
+                  beforeEach(async () => {
+                    await setToken.connect(operator).setManager(baseManagerV2.address);
+                    threeMonthAllocation = ether(0.5);
+                    sixMonthAllocation = ether(0.5);
+                    const maturities = [ONE_MONTH_IN_SECONDS.mul(6), ONE_MONTH_IN_SECONDS.mul(3)];
+                    const allocations = [sixMonthAllocation, threeMonthAllocation];
+                    await rebalanceExtension
+                      .connect(operator)
+                      .setAllocations(maturities, allocations);
+                  });
+                  it("should adjust the allocations correctly", async () => {
+                    await subject();
+                    await checkAllocation();
+                  });
+                });
+
+                describe("when fcash position was reduced", () => {
+                  const redeemPositionIndex = 1;
+                  beforeEach(async () => {
+                    await notionalTradeModule
+                      .connect(operator)
+                      .redeemFixedFCashForToken(
+                        setToken.address,
+                        currencyId,
+                        componentMaturities[redeemPositionIndex],
+                        componentPositions[redeemPositionIndex].unit,
+                        tradeViaUnderlying ? underlyingToken : assetToken,
+                        0,
+                      );
+                    await setToken.connect(operator).setManager(baseManagerV2.address);
+                  });
+                  it("should adjust the allocations correctly", async () => {
+                    await subject();
+                    await checkAllocation();
+                  });
+                });
+                describe("when 6 month position was sold in favor of 3 month position", () => {
+                  const redeemPositionIndex = 1;
+                  beforeEach(async () => {
+                    await notionalTradeModule
+                      .connect(operator)
+                      .redeemFixedFCashForToken(
+                        setToken.address,
+                        currencyId,
+                        componentMaturities[redeemPositionIndex],
+                        componentPositions[redeemPositionIndex].unit,
+                        assetToken,
+                        0,
+                      );
+                    const obtainedAssetTokenPosition = await setToken.getDefaultPositionRealUnit(
+                      assetToken,
                     );
-                    expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.lt(
-                      expectedSixMonthPosition.div(ether(1)).add(tolerance),
-                    );
-                    expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.gt(
-                      expectedThreeMonthPosition.div(ether(1)).sub(tolerance),
-                    );
-                    expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.lt(
-                      expectedThreeMonthPosition.div(ether(1)).add(tolerance),
-                    );
+                    await notionalTradeModule
+                      .connect(operator)
+                      .mintFCashForFixedToken(
+                        setToken.address,
+                        currencyId,
+                        componentMaturities[(redeemPositionIndex + 1) % 2],
+                        0,
+                        assetToken,
+                        obtainedAssetTokenPosition,
+                      );
+                    await setToken.connect(operator).setManager(baseManagerV2.address);
+                  });
+                  it("should adjust the allocations correctly", async () => {
+                    await subject();
+                    await checkAllocation();
+                  });
+                  describe("when only partially executing the trade", () => {
+                    beforeEach(() => {
+                      subjectShare = ether(0.5);
+                    });
+                    it("should adjust the allocations correctly", async () => {
+                      await subject();
+                      const totalValue = parseUnits("100", 8);
+                      const tolerance = parseUnits("0.75", 8);
+                      const expectedSixMonthPosition = totalValue.mul(
+                        sixMonthAllocation.add(
+                          ether(1)
+                            .sub(sixMonthAllocation)
+                            .mul(subjectShare)
+                            .div(ether(1)),
+                        ),
+                      );
+                      const expectedThreeMonthPosition = totalValue.mul(
+                        threeMonthAllocation.mul(subjectShare).div(ether(1)),
+                      );
+                      expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.gt(
+                        expectedSixMonthPosition.div(ether(1)).sub(tolerance),
+                      );
+                      expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.lt(
+                        expectedSixMonthPosition.div(ether(1)).add(tolerance),
+                      );
+                      expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.gt(
+                        expectedThreeMonthPosition.div(ether(1)).sub(tolerance),
+                      );
+                      expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.lt(
+                        expectedThreeMonthPosition.div(ether(1)).add(tolerance),
+                      );
+                    });
                   });
                 });
               });
