@@ -2,12 +2,8 @@ import "module-alias/register";
 import { Account } from "@utils/types";
 import DeployHelper from "@utils/deploys";
 import { getAccounts, getWaffleExpect } from "@utils/index";
-import { ethers } from "hardhat";
-import {
-  IERC20,
-  ISetToken,
-  SetTokenRateViewer,
-} from "../../../../typechain";
+import { ethers, network } from "hardhat";
+import { IERC20, ISetToken, SetTokenRateViewer } from "../../../../typechain";
 import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "../addresses";
 import { ether } from "@utils/index";
 
@@ -19,30 +15,74 @@ if (process.env.INTEGRATIONTEST) {
     let owner: Account;
     let deployer: DeployHelper;
 
+    let snapshotId: number;
     let viewer: SetTokenRateViewer;
-    let wseth2: ISetToken;
-    let seth2: IERC20;
+    let setToken: ISetToken;
+    let component: IERC20;
 
     before(async () => {
       [owner] = await getAccounts();
       deployer = new DeployHelper(owner.wallet);
-
-      wseth2 = (await ethers.getContractAt(
-        "ISetToken",
-        addresses.tokens.wsETH2,
-      )) as ISetToken;
-
-      seth2 = (await ethers.getContractAt(
-        "IERC20",
-        addresses.tokens.sETH2,
-      )) as IERC20;
-
-      viewer = await deployer.viewers.deploySetTokenRateViewer(wseth2.address, seth2.address);
     });
 
-    it("should get the amount of sETH2 per wsETH2 token", async () => {
+    beforeEach(async () => {
+      snapshotId = await network.provider.send("evm_snapshot", []);
+    });
+
+    async function subject() {
+      viewer = await deployer.viewers.deploySetTokenRateViewer(setToken.address, component.address);
+    }
+
+    afterEach(async () => {
+      await network.provider.send("evm_revert", [snapshotId]);
+    });
+
+    context("wsEth2", async () => {
+      it("should get the amount of sETH2 per wsETH2 token", async () => {
+        setToken = (await ethers.getContractAt("ISetToken", addresses.tokens.wsETH2)) as ISetToken;
+        component = (await ethers.getContractAt("IERC20", addresses.tokens.sETH2)) as IERC20;
+
+        await subject();
+
         const rate = await viewer.getRate();
         expect(rate).to.eq(ether(1));
+      });
+
+      it("should get the amount of rETH2 per wsETh2 token", async () => {
+        setToken = (await ethers.getContractAt("ISetToken", addresses.tokens.wsETH2)) as ISetToken;
+        component = (await ethers.getContractAt("IERC20", addresses.tokens.rETH2)) as IERC20;
+
+        await subject();
+
+        const rate = await viewer.getRate();
+        expect(rate).to.eq(0);
+      });
+    });
+
+    context("iceth", async () => {
+      it("should get the amount of weth debt per token", async () => {
+        setToken = (await ethers.getContractAt("ISetToken", addresses.tokens.icEth)) as ISetToken;
+
+        component = (await ethers.getContractAt("IERC20", addresses.tokens.weth)) as IERC20;
+
+        await subject();
+
+        const rate = await viewer.getRate();
+        expect(rate).to.gt(ether(1.6));
+        expect(rate).to.lt(ether(1.7));
+      });
+
+      it("should get the amount of aSTETH per token", async () => {
+        setToken = (await ethers.getContractAt("ISetToken", addresses.tokens.icEth)) as ISetToken;
+
+        component = (await ethers.getContractAt("IERC20", addresses.tokens.aSTETH)) as IERC20;
+
+        await subject();
+
+        const rate = await viewer.getRate();
+        expect(rate).to.gt(ether(2.7));
+        expect(rate).to.lt(ether(2.8));
+      });
     });
   });
 }
