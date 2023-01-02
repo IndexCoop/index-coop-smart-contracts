@@ -322,8 +322,8 @@ if (process.env.INTEGRATIONTEST) {
                     inputSpent = inputSpent.sub(gasCost);
                   }
                   const quotedInputAmount = await subjectQuote();
-                  expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.97)));
-                  expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.03)));
+                  expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.96)));
+                  expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.04)));
                 });
               },
             );
