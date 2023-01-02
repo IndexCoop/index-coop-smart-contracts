@@ -1,11 +1,11 @@
 import "module-alias/register";
+import { ethers, network } from "hardhat";
 import { Account } from "@utils/types";
 import DeployHelper from "@utils/deploys";
-import { getAccounts, getWaffleExpect } from "@utils/index";
-import { ethers, network } from "hardhat";
+import { getAccounts, getWaffleExpect, ether } from "@utils/index";
+
 import { IERC20, ISetToken, SetTokenRateViewer } from "../../../../typechain";
 import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "../addresses";
-import { ether } from "@utils/index";
 
 const expect = getWaffleExpect();
 
