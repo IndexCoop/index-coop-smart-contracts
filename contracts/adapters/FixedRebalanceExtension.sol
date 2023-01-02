@@ -115,7 +115,7 @@ contract FixedRebalanceExtension is BaseExtension {
     }
 
     /**
-     * ONLY EOA AND ALLOWED CALLER: Rebalances the positions towards the configured allocation percentages.
+     * ONLY ALLOWED CALLER: Rebalances the positions towards the configured allocation percentages.
      *
      * @param _share                Relative share of the necessary trade volume to execute (allows for splitting the rebalance over multiple transactions
      * @param _minPositions         Minimum positions (in set token units) for each maturity after rebalance. (slippage protection)
