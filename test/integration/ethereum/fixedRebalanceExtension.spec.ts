@@ -72,7 +72,7 @@ if (process.env.INTEGRATIONTEST) {
       );
 
       componentMaturities = await Promise.all(
-        (await setToken.getComponents()).map((c) => {
+        (await setToken.getComponents()).map(c => {
           const wrappedfCash = IWrappedfCashComplete__factory.connect(c, operator);
           return wrappedfCash.getMaturity();
         }),
@@ -124,14 +124,14 @@ if (process.env.INTEGRATIONTEST) {
         let assetTokenContract: IERC20;
         let threeMonthAllocation: BigNumber;
         let sixMonthAllocation: BigNumber;
-        let minPositions = [parseUnits("20", 8), parseUnits("20", 8)];
+        const minPositions = [parseUnits("20", 8), parseUnits("20", 8)];
 
         beforeEach(async () => {
           underlyingToken = addresses.tokens.dai;
           assetToken = addresses.tokens.cDAI;
           assetTokenContract = IERC20__factory.connect(assetToken, operator);
           const maturitiesMonths = [3, 6];
-          maturities = maturitiesMonths.map((m) => ONE_MONTH_IN_SECONDS.mul(m));
+          maturities = maturitiesMonths.map(m => ONE_MONTH_IN_SECONDS.mul(m));
           sixMonthAllocation = ether(0.75);
           threeMonthAllocation = ether(0.25);
           allocations = [threeMonthAllocation, sixMonthAllocation];
@@ -169,7 +169,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("#setAllocations", () => {
           let subjectMaturities: BigNumberish[];
           let subjectAllocations: BigNumberish[];
-          let subjectMinPositions = minPositions;
+          const subjectMinPositions = minPositions;
           let caller: Signer;
           beforeEach(() => {
             subjectMaturities = [ONE_MONTH_IN_SECONDS.mul(6), ONE_MONTH_IN_SECONDS.mul(3)];
@@ -358,7 +358,7 @@ if (process.env.INTEGRATIONTEST) {
               });
             });
 
-            [false, true].forEach((tradeViaUnderlying) => {
+            [false, true].forEach(tradeViaUnderlying => {
               describe(`When trading via the ${
                 tradeViaUnderlying ? "underlying" : "asset"
               } token`, () => {
@@ -498,24 +498,23 @@ if (process.env.INTEGRATIONTEST) {
                       subjectMinPositions = currentPositions.map((curPosition, i) => {
                         const minPosition = minPositions[i];
                         let weightedDiff;
+                        let weightedMinPosition;
                         if (curPosition.gt(minPosition)) {
-                          let weightedMinPosition;
                           weightedDiff = curPosition
                             .sub(minPosition)
                             .mul(subjectShare)
                             .div(ether(1));
 
                           weightedMinPosition = curPosition.sub(weightedDiff);
-                          return weightedMinPosition;
                         } else {
                           weightedDiff = minPosition
                             .sub(curPosition)
                             .mul(subjectShare)
                             .div(ether(1));
 
-                          let weightedMinPosition = curPosition.add(weightedDiff);
-                          return weightedMinPosition;
+                          weightedMinPosition = curPosition.add(weightedDiff);
                         }
+                        return weightedMinPosition;
                       });
                     });
                     it("should adjust the allocations correctly", async () => {
