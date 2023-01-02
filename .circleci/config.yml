@@ -79,7 +79,9 @@ jobs:
           background: true
       - run:
           name: Hardhat Test
-          command: yarn test:integration:polygon
+          command: |
+            TEST_FILES="${circleci tests glob "./test/integration/polygon/**/*.spec.ts" | circle tests split)"
+            INTEGRATIONTEST=true yarn test ${TEST_FILES}
 
   test_integration_optimism:
     docker:
@@ -102,7 +104,9 @@ jobs:
           background: true
       - run:
           name: Hardhat Test
-          command: yarn test:integration:optimism
+          command: |
+            TEST_FILES="${circleci tests glob "./test/integration/optimism/**/*.spec.ts" | circle tests split)"
+            INTEGRATIONTEST=true yarn test ${TEST_FILES}
 
   test_integration_ethereum:
     docker:
@@ -125,7 +129,9 @@ jobs:
           background: true
       - run:
           name: Hardhat Test
-          command: yarn test:integration:ethereum
+          command: |
+            TEST_FILES="${circleci tests glob "./test/integration/ethereum/**/*.spec.ts" | circle tests split)"
+            INTEGRATIONTEST=true yarn test ${TEST_FILES}
 
   coverage:
     docker:
