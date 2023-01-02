@@ -48,12 +48,16 @@ contract SetTokenRateViewer is IRateProvider {
         component = _component;
     }
 
+    /* =========== External Functions ============ */
+
     /**
      * @return the amount of component per set token.
      */
     function getRate() external view override returns (uint256) {
         return abs(setToken.getTotalComponentRealUnits(address(component)));
     }
+
+    /* ================= Internal Functions ================= */
 
     /**
      * @dev Returns the absolute unsigned value of a signed value.
