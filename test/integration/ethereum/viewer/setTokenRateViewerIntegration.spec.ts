@@ -60,16 +60,14 @@ if (process.env.INTEGRATIONTEST) {
     });
 
     context("iceth", async () => {
-      it("should get the amount of weth debt per token", async () => {
+      it("should revert on weth debt", async () => {
         setToken = (await ethers.getContractAt("ISetToken", addresses.tokens.icEth)) as ISetToken;
 
         component = (await ethers.getContractAt("IERC20", addresses.tokens.weth)) as IERC20;
 
         await subject();
 
-        const rate = await viewer.getRate();
-        expect(rate).to.gt(ether(1.6));
-        expect(rate).to.lt(ether(1.7));
+        await expect(viewer.getRate()).to.be.revertedWith("SafeCast: value must be positive");
       });
 
       it("should get the amount of aSTETH per token", async () => {
