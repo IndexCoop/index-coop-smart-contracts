@@ -49,12 +49,13 @@ contract FixedRebalanceExtension is BaseExtension {
 
     // /* ============ Events ============ */
 
-    event AllocationsUpdated(uint256[] _maturities, uint256[] _allocations);
+    event AllocationsUpdated(uint256[] _maturities, uint256[] _allocations, uint256[] _minPositions);
 
     // /* ============ State Variables ============ */
 
     uint256[] internal maturities;                               // Array of relative maturities in seconds (i.e. 3 months / 6 months)
     uint256[] internal allocations;                              // Relative allocations 
+    uint256[] internal minPositions;                             // Minimum positions to achieve after rebalancing
 
     ISetToken public immutable setToken;                       
     INotionalTradeModule internal immutable notionalTradeModule; 
@@ -77,7 +78,8 @@ contract FixedRebalanceExtension is BaseExtension {
         address _underlyingToken,
         address _assetToken,
         uint256[] memory _maturities,
-        uint256[] memory _allocations
+        uint256[] memory _allocations,
+        uint256[] memory _minPositions
     )
         public
         BaseExtension(_manager)
@@ -90,7 +92,7 @@ contract FixedRebalanceExtension is BaseExtension {
         assetToken = _assetToken;
         currencyId = _notionalProxy.getCurrencyId(_assetToken);
 
-        _setAllocations(_maturities, _allocations);
+        _setAllocations(_maturities, _allocations, _minPositions);
     }
 
     // /* ============ External Functions ============ */
@@ -110,8 +112,8 @@ contract FixedRebalanceExtension is BaseExtension {
      * @param _maturities                Relative maturities (i.e. "3 months") in seconds
      * @param _allocations               Relative allocations (i.e. 0.9 = 90%) with 18 decimals corresponding to the respective maturity
      */
-    function setAllocations(uint256[] memory _maturities, uint256[] memory _allocations) external onlyOperator {
-        _setAllocations(_maturities, _allocations);
+    function setAllocations(uint256[] memory _maturities, uint256[] memory _allocations, uint256[] memory _minPositions) external onlyOperator {
+        _setAllocations(_maturities, _allocations, _minPositions);
     }
 
     /**
@@ -124,9 +126,9 @@ contract FixedRebalanceExtension is BaseExtension {
         require(_share > 0, "Share must be greater than 0");
         require(_share <= 1 ether, "Share cannot exceed 100%");
 
-        _sellOverweightPositions(_share);
+        uint256[] memory currentPositionsBefore = _sellOverweightPositions(_share);
         _buyUnderweightPositions(_share);
-        _checkCurrentPositions(_minPositions);
+        _checkCurrentPositions(currentPositionsBefore, _minPositions, _share);
     }
 
     // Aggregates all fCash positions + asset token position into a single value
@@ -149,9 +151,9 @@ contract FixedRebalanceExtension is BaseExtension {
         }
     }
 
-    // Get maturities and allocations
-    function getAllocations() external view returns (uint256[] memory, uint256[] memory) {
-        return (maturities, allocations);
+    // Get maturities, allocations and minPositions
+    function getAllocations() external view returns (uint256[] memory, uint256[] memory, uint256[] memory) {
+        return (maturities, allocations, minPositions);
     }
 
     // Convert relative to aboslute maturity
@@ -166,7 +168,7 @@ contract FixedRebalanceExtension is BaseExtension {
     // @dev Sells fCash positions that are currently above their targeted allocation
     // @dev _maturity         absolute maturity of fCash to redeem
     // @param _share          Relative share of the necessary trade volume to execute (allows for splitting the rebalance over multiple transactions
-    function _sellOverweightPositions(uint256 _share) internal {
+    function _sellOverweightPositions(uint256 _share) internal returns(uint256[] memory){
         (
             uint256[] memory overweightPositions,
             uint256[] memory currentPositions,
@@ -178,6 +180,7 @@ contract FixedRebalanceExtension is BaseExtension {
                 _redeemFCash(absoluteMaturities[i], receiveAmount, currentPositions[i]);
             }
         }
+        return currentPositions;
     }
 
     // @dev Buys fCash positions that are currently below their targeted allocation
@@ -196,17 +199,43 @@ contract FixedRebalanceExtension is BaseExtension {
         }
     }
 
-    function _checkCurrentPositions(uint256[] memory _minPositions)
+    function _checkCurrentPositions(uint256[] memory _positionsBefore, uint256[] memory _minPositions, uint256 _share)
         internal
         view
     {
-        require(_minPositions.length == maturities.length, "Min positions must be same length as maturities");
+        require(_minPositions.length == maturities.length , "Min positions must be same length as maturities");
         for(uint i = 0; i < maturities.length; i++) {
+
+            uint256 weightedMinPosition;
+            if(minPositions[i] > _positionsBefore[i]) {
+                // If the position was below the min position before you have to increase it by at least _share % of the difference
+                weightedMinPosition = _positionsBefore[i].add(minPositions[i].sub(_positionsBefore[i]).preciseMul(_share));
+            } else {
+                // If the position was above the min position before you can only decrease it by maximum _share % of the difference
+                weightedMinPosition = _positionsBefore[i].sub(_positionsBefore[i].sub(minPositions[i]).preciseMul(_share));
+            } 
+
+            require(_minPositions[i] >= weightedMinPosition, "Caller provided min position must not be less than operator specified value weighted by share");
             uint256 maturity = _relativeToAbsoluteMaturity(maturities[i]);
             address wrappedfCash = wrappedfCashFactory.computeAddress(currencyId, uint40(maturity));
             int256 currentPositionSigned = setToken.getDefaultPositionRealUnit(wrappedfCash);
             require(currentPositionSigned >= 0, "Negative position");
             require(uint256(currentPositionSigned) >= _minPositions[i], "Position below min");
+        }
+    }
+
+    function getCurrentPositions()
+        external
+        view
+        returns(uint256[] memory currentPositions)
+    {
+        currentPositions = new uint256[](maturities.length);
+        for(uint i = 0; i < maturities.length; i++) {
+            uint256 maturity = _relativeToAbsoluteMaturity(maturities[i]);
+            address wrappedfCash = wrappedfCashFactory.computeAddress(currencyId, uint40(maturity));
+            int256 currentPositionSigned = setToken.getDefaultPositionRealUnit(wrappedfCash);
+            require(currentPositionSigned >= 0, "Negative position");
+            currentPositions[i] = uint256(currentPositionSigned);
         }
     }
 
@@ -379,21 +408,21 @@ contract FixedRebalanceExtension is BaseExtension {
 
 
     // @dev Sets configured allocations for the setToken
-    function _setAllocations(uint256[] memory _maturities, uint256[] memory _allocations) internal {
-        require(_maturities.length == _allocations.length, "Maturities and allocations must be same length");
+    function _setAllocations(uint256[] memory _maturities, uint256[] memory _allocations, uint256[] memory _minPositions) internal {
+        require((_maturities.length == _allocations.length) && (_maturities.length == _minPositions.length), "Maturities, minPositions and allocations must be same length");
         uint256 totalAllocation = 0;
         for (uint256 i = 0; i < _maturities.length; i++) {
             totalAllocation = totalAllocation.add(_allocations[i]);
         }
         require(totalAllocation == PreciseUnitMath.preciseUnit(), "Allocations must sum to 1");
         maturities = _maturities;
-        emit AllocationsUpdated(_maturities, _allocations);
         allocations = _allocations;
+        minPositions = _minPositions;
+        emit AllocationsUpdated(_maturities, _allocations, _minPositions);
     }
 
     // @dev Returns the token via which to trade
     function _getTradeToken() internal view returns(address) {
         return tradeViaUnderlying ? underlyingToken : assetToken;
     }
-
 }

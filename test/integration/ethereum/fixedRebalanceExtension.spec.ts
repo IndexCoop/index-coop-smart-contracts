@@ -72,7 +72,7 @@ if (process.env.INTEGRATIONTEST) {
       );
 
       componentMaturities = await Promise.all(
-        (await setToken.getComponents()).map(c => {
+        (await setToken.getComponents()).map((c) => {
           const wrappedfCash = IWrappedfCashComplete__factory.connect(c, operator);
           return wrappedfCash.getMaturity();
         }),
@@ -101,6 +101,7 @@ if (process.env.INTEGRATIONTEST) {
     //     }),
     //   );
     // }
+    //
 
     describe("When token control is transferred to manager contract", () => {
       let baseManagerV2: BaseManagerV2;
@@ -123,12 +124,14 @@ if (process.env.INTEGRATIONTEST) {
         let assetTokenContract: IERC20;
         let threeMonthAllocation: BigNumber;
         let sixMonthAllocation: BigNumber;
+        let minPositions = [parseUnits("20", 8), parseUnits("20", 8)];
+
         beforeEach(async () => {
           underlyingToken = addresses.tokens.dai;
           assetToken = addresses.tokens.cDAI;
           assetTokenContract = IERC20__factory.connect(assetToken, operator);
           const maturitiesMonths = [3, 6];
-          maturities = maturitiesMonths.map(m => ONE_MONTH_IN_SECONDS.mul(m));
+          maturities = maturitiesMonths.map((m) => ONE_MONTH_IN_SECONDS.mul(m));
           sixMonthAllocation = ether(0.75);
           threeMonthAllocation = ether(0.25);
           allocations = [threeMonthAllocation, sixMonthAllocation];
@@ -142,9 +145,15 @@ if (process.env.INTEGRATIONTEST) {
             assetTokenContract.address,
             maturities,
             allocations,
+            minPositions,
           );
           await baseManagerV2.connect(operator).addExtension(rebalanceExtension.address);
           currencyId = await rebalanceExtension.currencyId();
+        });
+        describe("#constructor", () => {
+          it("should set the correct state variables", async () => {
+            expect(await rebalanceExtension.setToken()).to.eq(setToken.address);
+          });
         });
 
         describe("#getAbsoluteMaturities", () => {
@@ -160,6 +169,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("#setAllocations", () => {
           let subjectMaturities: BigNumberish[];
           let subjectAllocations: BigNumberish[];
+          let subjectMinPositions = minPositions;
           let caller: Signer;
           beforeEach(() => {
             subjectMaturities = [ONE_MONTH_IN_SECONDS.mul(6), ONE_MONTH_IN_SECONDS.mul(3)];
@@ -169,7 +179,7 @@ if (process.env.INTEGRATIONTEST) {
           function subject() {
             return rebalanceExtension
               .connect(caller)
-              .setAllocations(subjectMaturities, subjectAllocations);
+              .setAllocations(subjectMaturities, subjectAllocations, subjectMinPositions);
           }
 
           describe("when the caller is not the operator", () => {
@@ -209,6 +219,12 @@ if (process.env.INTEGRATIONTEST) {
               expect(allocations).to.deep.equal(subjectAllocations);
             });
 
+            it("should set minPositions correctly", async () => {
+              await subject();
+              const [, , _minPositions] = await rebalanceExtension.getAllocations();
+              expect(_minPositions).to.deep.equal(subjectMinPositions);
+            });
+
             describe("when allocations don't add up to 1", () => {
               beforeEach(async () => {
                 subjectAllocations = [ether(0.8), ether(0.5)];
@@ -224,7 +240,7 @@ if (process.env.INTEGRATIONTEST) {
               });
               it("should revert", async () => {
                 await expect(subject()).to.be.revertedWith(
-                  "Maturities and allocations must be same length",
+                  "Maturities, minPositions and allocations must be same length",
                 );
               });
             });
@@ -236,7 +252,7 @@ if (process.env.INTEGRATIONTEST) {
           let caller: Signer;
           beforeEach(async () => {
             subjectShare = parseEther("1");
-            subjectMinPositions = [parseUnits("0.45", 8), parseUnits("0.45", 8)];
+            subjectMinPositions = [parseUnits("21", 8), parseUnits("21", 8)];
             caller = user;
           });
           function subject() {
@@ -332,7 +348,7 @@ if (process.env.INTEGRATIONTEST) {
             describe("when invalid maturity was set", () => {
               beforeEach(async () => {
                 await setToken.connect(operator).setManager(baseManagerV2.address);
-                await rebalanceExtension.connect(operator).setAllocations([ZERO], [ether(1)]);
+                await rebalanceExtension.connect(operator).setAllocations([ZERO], [ether(1)], [0]);
                 subjectMinPositions = [parseUnits("100", 8)];
               });
               it("should revert", async () => {
@@ -342,7 +358,7 @@ if (process.env.INTEGRATIONTEST) {
               });
             });
 
-            [false, true].forEach(tradeViaUnderlying => {
+            [false, true].forEach((tradeViaUnderlying) => {
               describe(`When trading via the ${
                 tradeViaUnderlying ? "underlying" : "asset"
               } token`, () => {
@@ -372,7 +388,7 @@ if (process.env.INTEGRATIONTEST) {
                     threeMonthComponentBefore = threeMonthComponent;
                     sixMonthComponentBefore = sixMonthComponent;
 
-                    subjectMinPositions = [parseUnits("0.45", 8), parseUnits("0.45", 8)];
+                    subjectMinPositions = [parseUnits("21", 8), parseUnits("21", 8)];
                     await setToken.connect(operator).setManager(baseManagerV2.address);
                     const maturity = await IWrappedfCashComplete__factory.connect(
                       threeMonthComponent,
@@ -413,7 +429,7 @@ if (process.env.INTEGRATIONTEST) {
                     const allocations = [sixMonthAllocation, threeMonthAllocation];
                     await rebalanceExtension
                       .connect(operator)
-                      .setAllocations(maturities, allocations);
+                      .setAllocations(maturities, allocations, minPositions);
                   });
                   it("should adjust the allocations correctly", async () => {
                     await subject();
@@ -474,8 +490,33 @@ if (process.env.INTEGRATIONTEST) {
                     await checkAllocation();
                   });
                   describe("when only partially executing the trade", () => {
-                    beforeEach(() => {
+                    beforeEach(async () => {
                       subjectShare = ether(0.5);
+
+                      const currentPositions = await rebalanceExtension.getCurrentPositions();
+                      expect(currentPositions.length).to.eq(minPositions.length);
+                      subjectMinPositions = currentPositions.map((curPosition, i) => {
+                        const minPosition = minPositions[i];
+                        let weightedDiff;
+                        if (curPosition.gt(minPosition)) {
+                          let weightedMinPosition;
+                          weightedDiff = curPosition
+                            .sub(minPosition)
+                            .mul(subjectShare)
+                            .div(ether(1));
+
+                          weightedMinPosition = curPosition.sub(weightedDiff);
+                          return weightedMinPosition;
+                        } else {
+                          weightedDiff = minPosition
+                            .sub(curPosition)
+                            .mul(subjectShare)
+                            .div(ether(1));
+
+                          let weightedMinPosition = curPosition.add(weightedDiff);
+                          return weightedMinPosition;
+                        }
+                      });
                     });
                     it("should adjust the allocations correctly", async () => {
                       await subject();
