@@ -309,6 +309,7 @@ if (process.env.INTEGRATIONTEST) {
                       : await inputToken.balanceOf(owner.address);
                   let inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
 
+
                   if (inputTokenName == "ETH") {
                     const gasFee = await exchangeIssuance.estimateGas.issueExactSetFromETH(
                       subjectSetToken,
