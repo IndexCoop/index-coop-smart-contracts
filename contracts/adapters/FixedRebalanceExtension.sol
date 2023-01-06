@@ -123,13 +123,13 @@ contract FixedRebalanceExtension is BaseExtension {
      * @param _rebalanceMinPositions Minimum positions (in set token units) for each maturity after this rebalance operation. 
      * @dev Will revert if _rebalanceMinPositions is lower than the minPositions configured by the operator (weighted by share)
      */
-    function rebalance(uint256 _share, uint256[] memory _rebalanceMinPositions) external onlyAllowedCaller(msg.sender) {
+    function rebalance(uint256 _share, uint256[] memory _rebalanceMinPositions) external onlyAllowedCaller(msg.sender) returns(uint256[] memory) {
         require(_share > 0, "Share must be greater than 0");
         require(_share <= 1 ether, "Share cannot exceed 100%");
 
         uint256[] memory currentPositionsBefore = _sellOverweightPositions(_share);
         _buyUnderweightPositions(_share);
-        _checkCurrentPositions(currentPositionsBefore, _rebalanceMinPositions, _share);
+        return _checkCurrentPositions(currentPositionsBefore, _rebalanceMinPositions, _share);
     }
 
     // Aggregates all fCash positions + asset token position into a single value
@@ -222,8 +222,10 @@ contract FixedRebalanceExtension is BaseExtension {
     function _checkCurrentPositions(uint256[] memory _positionsBefore, uint256[] memory _rebalanceMinPositions, uint256 _share)
         internal
         view
+        returns(uint256[] memory currentPositions)
     {
         require(_rebalanceMinPositions.length == maturities.length , "Min positions must be same length as maturities");
+        currentPositions = new uint256[](maturities.length);
         for(uint i = 0; i < maturities.length; i++) {
 
             uint256 weightedMinPosition = _getWeightedMinPosition(minPositions[i], _positionsBefore[i], _share);
@@ -233,6 +235,7 @@ contract FixedRebalanceExtension is BaseExtension {
             int256 currentPositionSigned = setToken.getDefaultPositionRealUnit(wrappedfCash);
             require(currentPositionSigned >= 0, "Negative position");
             require(uint256(currentPositionSigned) >= _rebalanceMinPositions[i], "Position below min");
+            currentPositions[i] = uint256(currentPositionSigned);
         }
     }
 
