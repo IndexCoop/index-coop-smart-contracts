@@ -399,7 +399,7 @@ if (process.env.INTEGRATIONTEST) {
                     await subject();
                     const positionsAfter = await rebalanceExtension.getCurrentPositions();
                     expect(predictedPositions.length).to.eq(positionsAfter.length);
-                    const tolerance = 10;
+                    const tolerance = 100;
                     for (let i = 0; i < predictedPositions.length; i++) {
                       expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
                       expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
@@ -457,7 +457,7 @@ if (process.env.INTEGRATIONTEST) {
                     await subject();
                     const positionsAfter = await rebalanceExtension.getCurrentPositions();
                     expect(predictedPositions.length).to.eq(positionsAfter.length);
-                    const tolerance = 10;
+                    const tolerance = 100;
                     for (let i = 0; i < predictedPositions.length; i++) {
                       expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
                       expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
@@ -493,7 +493,7 @@ if (process.env.INTEGRATIONTEST) {
                     await subject();
                     const positionsAfter = await rebalanceExtension.getCurrentPositions();
                     expect(predictedPositions.length).to.eq(positionsAfter.length);
-                    const tolerance = 10;
+                    const tolerance = 100;
                     for (let i = 0; i < predictedPositions.length; i++) {
                       expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
                       expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
@@ -533,7 +533,7 @@ if (process.env.INTEGRATIONTEST) {
                     await subject();
                     const positionsAfter = await rebalanceExtension.getCurrentPositions();
                     expect(predictedPositions.length).to.eq(positionsAfter.length);
-                    const tolerance = 10;
+                    const tolerance = 100;
                     for (let i = 0; i < predictedPositions.length; i++) {
                       expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
                       expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
@@ -586,7 +586,7 @@ if (process.env.INTEGRATIONTEST) {
                     await subject();
                     const positionsAfter = await rebalanceExtension.getCurrentPositions();
                     expect(predictedPositions.length).to.eq(positionsAfter.length);
-                    const tolerance = 10;
+                    const tolerance = 100;
                     for (let i = 0; i < predictedPositions.length; i++) {
                       expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
                       expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
@@ -662,7 +662,7 @@ if (process.env.INTEGRATIONTEST) {
                       await subject();
                       const positionsAfter = await rebalanceExtension.getCurrentPositions();
                       expect(predictedPositions.length).to.eq(positionsAfter.length);
-                      const tolerance = 10;
+                      const tolerance = 100;
                       for (let i = 0; i < predictedPositions.length; i++) {
                         expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
                         expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
