@@ -259,6 +259,12 @@ if (process.env.INTEGRATIONTEST) {
             return rebalanceExtension.connect(caller).rebalance(subjectShare, subjectMinPositions);
           }
 
+          function subjectStatic() {
+            return rebalanceExtension
+              .connect(caller)
+              .callStatic.rebalance(subjectShare, subjectMinPositions);
+          }
+
           async function checkAllocation() {
             const totalValue = parseUnits("100", 8);
             const tolerance = parseUnits("0.75", 8);
@@ -379,6 +385,26 @@ if (process.env.INTEGRATIONTEST) {
                     await subject();
                     await checkAllocation();
                   });
+
+                  it("predicted positions should be greater than minimum values passed", async () => {
+                    const positionsAfter = await subjectStatic();
+                    expect(positionsAfter.length).to.eq(subjectMinPositions.length);
+                    for (let i = 0; i < positionsAfter.length; i++) {
+                      expect(positionsAfter[i]).to.gte(subjectMinPositions[i]);
+                    }
+                  });
+
+                  it("predicted positions should be equal to returned current positions after", async () => {
+                    const predictedPositions = await subjectStatic();
+                    await subject();
+                    const positionsAfter = await rebalanceExtension.getCurrentPositions();
+                    expect(predictedPositions.length).to.eq(positionsAfter.length);
+                    const tolerance = 10;
+                    for (let i = 0; i < predictedPositions.length; i++) {
+                      expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
+                      expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
+                    }
+                  });
                 });
 
                 describe("when 3 month position has expired", () => {
@@ -418,6 +444,25 @@ if (process.env.INTEGRATIONTEST) {
                     await subject();
                     await checkAllocation();
                   });
+                  it("predicted positions should be greater than minimum values passed", async () => {
+                    const positionsAfter = await subjectStatic();
+                    expect(positionsAfter.length).to.eq(subjectMinPositions.length);
+                    for (let i = 0; i < positionsAfter.length; i++) {
+                      expect(positionsAfter[i]).to.gte(subjectMinPositions[i]);
+                    }
+                  });
+
+                  it("predicted positions should be equal to returned current positions after", async () => {
+                    const predictedPositions = await subjectStatic();
+                    await subject();
+                    const positionsAfter = await rebalanceExtension.getCurrentPositions();
+                    expect(predictedPositions.length).to.eq(positionsAfter.length);
+                    const tolerance = 10;
+                    for (let i = 0; i < predictedPositions.length; i++) {
+                      expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
+                      expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
+                    }
+                  });
                 });
 
                 describe("when allocation was changed", () => {
@@ -434,6 +479,25 @@ if (process.env.INTEGRATIONTEST) {
                   it("should adjust the allocations correctly", async () => {
                     await subject();
                     await checkAllocation();
+                  });
+                  it("predicted positions should be greater than minimum values passed", async () => {
+                    const positionsAfter = await subjectStatic();
+                    expect(positionsAfter.length).to.eq(subjectMinPositions.length);
+                    for (let i = 0; i < positionsAfter.length; i++) {
+                      expect(positionsAfter[i]).to.gte(subjectMinPositions[i]);
+                    }
+                  });
+
+                  it("predicted positions should be equal to returned current positions after", async () => {
+                    const predictedPositions = await subjectStatic();
+                    await subject();
+                    const positionsAfter = await rebalanceExtension.getCurrentPositions();
+                    expect(predictedPositions.length).to.eq(positionsAfter.length);
+                    const tolerance = 10;
+                    for (let i = 0; i < predictedPositions.length; i++) {
+                      expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
+                      expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
+                    }
                   });
                 });
 
@@ -455,6 +519,25 @@ if (process.env.INTEGRATIONTEST) {
                   it("should adjust the allocations correctly", async () => {
                     await subject();
                     await checkAllocation();
+                  });
+                  it("predicted positions should be greater than minimum values passed", async () => {
+                    const positionsAfter = await subjectStatic();
+                    expect(positionsAfter.length).to.eq(subjectMinPositions.length);
+                    for (let i = 0; i < positionsAfter.length; i++) {
+                      expect(positionsAfter[i]).to.gte(subjectMinPositions[i]);
+                    }
+                  });
+
+                  it("predicted positions should be equal to returned current positions after", async () => {
+                    const predictedPositions = await subjectStatic();
+                    await subject();
+                    const positionsAfter = await rebalanceExtension.getCurrentPositions();
+                    expect(predictedPositions.length).to.eq(positionsAfter.length);
+                    const tolerance = 10;
+                    for (let i = 0; i < predictedPositions.length; i++) {
+                      expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
+                      expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
+                    }
                   });
                 });
                 describe("when 6 month position was sold in favor of 3 month position", () => {
@@ -489,6 +572,27 @@ if (process.env.INTEGRATIONTEST) {
                     await subject();
                     await checkAllocation();
                   });
+
+                  it("predicted positions should be greater than minimum values passed", async () => {
+                    const positionsAfter = await subjectStatic();
+                    expect(positionsAfter.length).to.eq(subjectMinPositions.length);
+                    for (let i = 0; i < positionsAfter.length; i++) {
+                      expect(positionsAfter[i]).to.gte(subjectMinPositions[i]);
+                    }
+                  });
+
+                  it("predicted positions should be equal to returned current positions after", async () => {
+                    const predictedPositions = await subjectStatic();
+                    await subject();
+                    const positionsAfter = await rebalanceExtension.getCurrentPositions();
+                    expect(predictedPositions.length).to.eq(positionsAfter.length);
+                    const tolerance = 10;
+                    for (let i = 0; i < predictedPositions.length; i++) {
+                      expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
+                      expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
+                    }
+                  });
+
                   describe("when only partially executing the trade", () => {
                     beforeEach(async () => {
                       subjectShare = ether(0.5);
@@ -544,6 +648,25 @@ if (process.env.INTEGRATIONTEST) {
                       expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.lt(
                         expectedThreeMonthPosition.div(ether(1)).add(tolerance),
                       );
+                    });
+                    it("predicted positions should be greater than minimum values passed", async () => {
+                      const positionsAfter = await subjectStatic();
+                      expect(positionsAfter.length).to.eq(subjectMinPositions.length);
+                      for (let i = 0; i < positionsAfter.length; i++) {
+                        expect(positionsAfter[i]).to.gte(subjectMinPositions[i]);
+                      }
+                    });
+
+                    it("predicted positions should be equal to returned current positions after", async () => {
+                      const predictedPositions = await subjectStatic();
+                      await subject();
+                      const positionsAfter = await rebalanceExtension.getCurrentPositions();
+                      expect(predictedPositions.length).to.eq(positionsAfter.length);
+                      const tolerance = 10;
+                      for (let i = 0; i < predictedPositions.length; i++) {
+                        expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
+                        expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
+                      }
                     });
                   });
                 });
