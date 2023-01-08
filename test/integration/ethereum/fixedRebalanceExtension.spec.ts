@@ -101,6 +101,7 @@ if (process.env.INTEGRATIONTEST) {
     //     }),
     //   );
     // }
+    //
 
     describe("When token control is transferred to manager contract", () => {
       let baseManagerV2: BaseManagerV2;
@@ -123,6 +124,8 @@ if (process.env.INTEGRATIONTEST) {
         let assetTokenContract: IERC20;
         let threeMonthAllocation: BigNumber;
         let sixMonthAllocation: BigNumber;
+        const minPositions = [parseUnits("20", 8), parseUnits("20", 8)];
+
         beforeEach(async () => {
           underlyingToken = addresses.tokens.dai;
           assetToken = addresses.tokens.cDAI;
@@ -142,9 +145,15 @@ if (process.env.INTEGRATIONTEST) {
             assetTokenContract.address,
             maturities,
             allocations,
+            minPositions,
           );
           await baseManagerV2.connect(operator).addExtension(rebalanceExtension.address);
           currencyId = await rebalanceExtension.currencyId();
+        });
+        describe("#constructor", () => {
+          it("should set the correct state variables", async () => {
+            expect(await rebalanceExtension.setToken()).to.eq(setToken.address);
+          });
         });
 
         describe("#getAbsoluteMaturities", () => {
@@ -160,6 +169,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("#setAllocations", () => {
           let subjectMaturities: BigNumberish[];
           let subjectAllocations: BigNumberish[];
+          const subjectMinPositions = minPositions;
           let caller: Signer;
           beforeEach(() => {
             subjectMaturities = [ONE_MONTH_IN_SECONDS.mul(6), ONE_MONTH_IN_SECONDS.mul(3)];
@@ -169,7 +179,7 @@ if (process.env.INTEGRATIONTEST) {
           function subject() {
             return rebalanceExtension
               .connect(caller)
-              .setAllocations(subjectMaturities, subjectAllocations);
+              .setAllocations(subjectMaturities, subjectAllocations, subjectMinPositions);
           }
 
           describe("when the caller is not the operator", () => {
@@ -209,6 +219,12 @@ if (process.env.INTEGRATIONTEST) {
               expect(allocations).to.deep.equal(subjectAllocations);
             });
 
+            it("should set minPositions correctly", async () => {
+              await subject();
+              const [, , _minPositions] = await rebalanceExtension.getAllocations();
+              expect(_minPositions).to.deep.equal(subjectMinPositions);
+            });
+
             describe("when allocations don't add up to 1", () => {
               beforeEach(async () => {
                 subjectAllocations = [ether(0.8), ether(0.5)];
@@ -224,7 +240,7 @@ if (process.env.INTEGRATIONTEST) {
               });
               it("should revert", async () => {
                 await expect(subject()).to.be.revertedWith(
-                  "Maturities and allocations must be same length",
+                  "Maturities, minPositions and allocations must be same length",
                 );
               });
             });
@@ -233,12 +249,20 @@ if (process.env.INTEGRATIONTEST) {
         describe("#rebalance", () => {
           let subjectShare: BigNumber;
           let subjectMinPositions: BigNumber[];
+          let caller: Signer;
           beforeEach(async () => {
             subjectShare = parseEther("1");
-            subjectMinPositions = [parseUnits("0.45", 8), parseUnits("0.45", 8)];
+            subjectMinPositions = [parseUnits("21", 8), parseUnits("21", 8)];
+            caller = user;
           });
           function subject() {
-            return rebalanceExtension.rebalance(subjectShare, subjectMinPositions);
+            return rebalanceExtension.connect(caller).rebalance(subjectShare, subjectMinPositions);
+          }
+
+          function subjectStatic() {
+            return rebalanceExtension
+              .connect(caller)
+              .callStatic.rebalance(subjectShare, subjectMinPositions);
           }
 
           async function checkAllocation() {
@@ -271,223 +295,379 @@ if (process.env.INTEGRATIONTEST) {
             );
           }
 
-          describe("when share is too high", () => {
+          describe("when caller is not approved", () => {
             beforeEach(async () => {
-              await setToken.connect(operator).setManager(baseManagerV2.address);
-              subjectShare = parseEther("1.1");
+              // Even the operator can't call this method if he is not in the allow mapping
+              caller = operator;
+              await rebalanceExtension.updateCallerStatus([await caller.getAddress()], [false]);
             });
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Share cannot exceed 100%");
+              await expect(subject()).to.be.revertedWith("Address not permitted to call");
             });
           });
-
-          describe("when share is zero", () => {
+          describe("when caller is approved", () => {
             beforeEach(async () => {
-              await setToken.connect(operator).setManager(baseManagerV2.address);
-              subjectShare = ZERO;
+              await rebalanceExtension.updateCallerStatus([await caller.getAddress()], [true]);
             });
-            it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Share must be greater than 0");
-            });
-          });
-
-          describe("when minPositions  are too high", () => {
-            beforeEach(async () => {
-              await setToken.connect(operator).setManager(baseManagerV2.address);
-              subjectMinPositions = [parseUnits("100", 8), parseUnits("100", 8)];
-            });
-            it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Position below min");
-            });
-          });
-
-          describe("when minPositions  have wrong length", () => {
-            beforeEach(async () => {
-              await setToken.connect(operator).setManager(baseManagerV2.address);
-              subjectMinPositions = [parseUnits("100", 8)];
-            });
-            it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith(
-                "Min positions must be same length as maturities",
-              );
-            });
-          });
-
-          describe("when invalid maturity was set", () => {
-            beforeEach(async () => {
-              await setToken.connect(operator).setManager(baseManagerV2.address);
-              await rebalanceExtension.connect(operator).setAllocations([ZERO], [ether(1)]);
-              subjectMinPositions = [parseUnits("100", 8)];
-            });
-            it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith(
-                "No active market found for given relative maturity",
-              );
-            });
-          });
-
-          [false, true].forEach(tradeViaUnderlying => {
-            describe(`When trading via the ${
-              tradeViaUnderlying ? "underlying" : "asset"
-            } token`, () => {
+            describe("when share is too high", () => {
               beforeEach(async () => {
-                await rebalanceExtension
-                  .connect(operator)
-                  .setTradeViaUnderlying(tradeViaUnderlying);
-                await notionalTradeModule
-                  .connect(operator)
-                  .setRedeemToUnderlying(setToken.address, tradeViaUnderlying);
+                await setToken.connect(operator).setManager(baseManagerV2.address);
+                subjectShare = parseEther("1.1");
               });
-
-              describe("when allocations are unchanged", () => {
-                beforeEach(async () => {
-                  await setToken.connect(operator).setManager(baseManagerV2.address);
-                });
-                it("should adjust the allocations correctly", async () => {
-                  await subject();
-                  await checkAllocation();
-                });
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith("Share cannot exceed 100%");
               });
+            });
 
-              describe("when 3 month position has expired", () => {
-                let threeMonthComponentBefore: string;
-                let sixMonthComponentBefore: string;
-                beforeEach(async () => {
-                  threeMonthComponentBefore = threeMonthComponent;
-                  sixMonthComponentBefore = sixMonthComponent;
-
-                  subjectMinPositions = [parseUnits("0.45", 8), parseUnits("0.45", 8)];
-                  await setToken.connect(operator).setManager(baseManagerV2.address);
-                  const maturity = await IWrappedfCashComplete__factory.connect(
-                    threeMonthComponent,
-                    operator,
-                  ).getMaturity();
-                  await network.provider.send("evm_setNextBlockTimestamp", [maturity + 1]);
-                  await network.provider.send("evm_mine"); // this on
-
-                  await notionalProxy.initializeMarkets(currencyId, false);
-                  await notionalTradeModule.redeemMaturedPositions(setToken.address);
-
-                  threeMonthComponent = sixMonthComponent;
-
-                  const sixMonthAbsoluteMaturity = await rebalanceExtension.relativeToAbsoluteMaturity(
-                    ONE_MONTH_IN_SECONDS.mul(6),
-                  );
-                  sixMonthComponent = await wrappedfCashFactory.computeAddress(
-                    currencyId,
-                    sixMonthAbsoluteMaturity,
-                  );
-                });
-                afterEach(() => {
-                  threeMonthComponent = threeMonthComponentBefore;
-                  sixMonthComponent = sixMonthComponentBefore;
-                });
-                it("should adjust the allocations correctly", async () => {
-                  await subject();
-                  await checkAllocation();
-                });
+            describe("when share is zero", () => {
+              beforeEach(async () => {
+                await setToken.connect(operator).setManager(baseManagerV2.address);
+                subjectShare = ZERO;
               });
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith("Share must be greater than 0");
+              });
+            });
 
-              describe("when allocation was changed", () => {
+            describe("when minPositions are too high", () => {
+              beforeEach(async () => {
+                await setToken.connect(operator).setManager(baseManagerV2.address);
+                subjectMinPositions = [parseUnits("100", 8), parseUnits("100", 8)];
+              });
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith("Position below min");
+              });
+            });
+
+            describe("when minPositions have wrong length", () => {
+              beforeEach(async () => {
+                await setToken.connect(operator).setManager(baseManagerV2.address);
+                subjectMinPositions = [parseUnits("100", 8)];
+              });
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith(
+                  "Min positions must be same length as maturities",
+                );
+              });
+            });
+
+            describe("when invalid maturity was set", () => {
+              beforeEach(async () => {
+                await setToken.connect(operator).setManager(baseManagerV2.address);
+                await rebalanceExtension.connect(operator).setAllocations([ZERO], [ether(1)], [0]);
+                subjectMinPositions = [parseUnits("100", 8)];
+              });
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith(
+                  "No active market found for given relative maturity",
+                );
+              });
+            });
+
+            [false, true].forEach(tradeViaUnderlying => {
+              describe(`When trading via the ${
+                tradeViaUnderlying ? "underlying" : "asset"
+              } token`, () => {
                 beforeEach(async () => {
-                  await setToken.connect(operator).setManager(baseManagerV2.address);
-                  threeMonthAllocation = ether(0.5);
-                  sixMonthAllocation = ether(0.5);
-                  const maturities = [ONE_MONTH_IN_SECONDS.mul(6), ONE_MONTH_IN_SECONDS.mul(3)];
-                  const allocations = [sixMonthAllocation, threeMonthAllocation];
                   await rebalanceExtension
                     .connect(operator)
-                    .setAllocations(maturities, allocations);
+                    .setTradeViaUnderlying(tradeViaUnderlying);
+                  await notionalTradeModule
+                    .connect(operator)
+                    .setRedeemToUnderlying(setToken.address, tradeViaUnderlying);
                 });
-                it("should adjust the allocations correctly", async () => {
-                  await subject();
-                  await checkAllocation();
-                });
-              });
 
-              describe("when fcash position was reduced", () => {
-                const redeemPositionIndex = 1;
-                beforeEach(async () => {
-                  await notionalTradeModule
-                    .connect(operator)
-                    .redeemFixedFCashForToken(
-                      setToken.address,
-                      currencyId,
-                      componentMaturities[redeemPositionIndex],
-                      componentPositions[redeemPositionIndex].unit,
-                      tradeViaUnderlying ? underlyingToken : assetToken,
-                      0,
-                    );
-                  await setToken.connect(operator).setManager(baseManagerV2.address);
-                });
-                it("should adjust the allocations correctly", async () => {
-                  await subject();
-                  await checkAllocation();
-                });
-              });
-              describe("when 6 month position was sold in favor of 3 month position", () => {
-                const redeemPositionIndex = 1;
-                beforeEach(async () => {
-                  await notionalTradeModule
-                    .connect(operator)
-                    .redeemFixedFCashForToken(
-                      setToken.address,
-                      currencyId,
-                      componentMaturities[redeemPositionIndex],
-                      componentPositions[redeemPositionIndex].unit,
-                      assetToken,
-                      0,
-                    );
-                  const obtainedAssetTokenPosition = await setToken.getDefaultPositionRealUnit(
-                    assetToken,
-                  );
-                  await notionalTradeModule
-                    .connect(operator)
-                    .mintFCashForFixedToken(
-                      setToken.address,
-                      currencyId,
-                      componentMaturities[(redeemPositionIndex + 1) % 2],
-                      0,
-                      assetToken,
-                      obtainedAssetTokenPosition,
-                    );
-                  await setToken.connect(operator).setManager(baseManagerV2.address);
-                });
-                it("should adjust the allocations correctly", async () => {
-                  await subject();
-                  await checkAllocation();
-                });
-                describe("when only partially executing the trade", () => {
-                  beforeEach(() => {
-                    subjectShare = ether(0.5);
+                describe("when allocations are unchanged", () => {
+                  beforeEach(async () => {
+                    await setToken.connect(operator).setManager(baseManagerV2.address);
                   });
                   it("should adjust the allocations correctly", async () => {
                     await subject();
-                    const totalValue = parseUnits("100", 8);
-                    const tolerance = parseUnits("0.75", 8);
-                    const expectedSixMonthPosition = totalValue.mul(
-                      sixMonthAllocation.add(
-                        ether(1)
-                          .sub(sixMonthAllocation)
-                          .mul(subjectShare)
-                          .div(ether(1)),
-                      ),
+                    await checkAllocation();
+                  });
+
+                  it("predicted positions should be greater than minimum values passed", async () => {
+                    const positionsAfter = await subjectStatic();
+                    expect(positionsAfter.length).to.eq(subjectMinPositions.length);
+                    for (let i = 0; i < positionsAfter.length; i++) {
+                      expect(positionsAfter[i]).to.gte(subjectMinPositions[i]);
+                    }
+                  });
+
+                  it("predicted positions should be equal to returned current positions after", async () => {
+                    const predictedPositions = await subjectStatic();
+                    await subject();
+                    const positionsAfter = await rebalanceExtension.getCurrentPositions();
+                    expect(predictedPositions.length).to.eq(positionsAfter.length);
+                    const tolerance = 100;
+                    for (let i = 0; i < predictedPositions.length; i++) {
+                      expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
+                      expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
+                    }
+                  });
+                });
+
+                describe("when 3 month position has expired", () => {
+                  let threeMonthComponentBefore: string;
+                  let sixMonthComponentBefore: string;
+                  beforeEach(async () => {
+                    threeMonthComponentBefore = threeMonthComponent;
+                    sixMonthComponentBefore = sixMonthComponent;
+
+                    subjectMinPositions = [parseUnits("21", 8), parseUnits("21", 8)];
+                    await setToken.connect(operator).setManager(baseManagerV2.address);
+                    const maturity = await IWrappedfCashComplete__factory.connect(
+                      threeMonthComponent,
+                      operator,
+                    ).getMaturity();
+                    await network.provider.send("evm_setNextBlockTimestamp", [maturity + 1]);
+                    await network.provider.send("evm_mine"); // this on
+
+                    await notionalProxy.initializeMarkets(currencyId, false);
+                    await notionalTradeModule.redeemMaturedPositions(setToken.address);
+
+                    threeMonthComponent = sixMonthComponent;
+
+                    const sixMonthAbsoluteMaturity = await rebalanceExtension.relativeToAbsoluteMaturity(
+                      ONE_MONTH_IN_SECONDS.mul(6),
                     );
-                    const expectedThreeMonthPosition = totalValue.mul(
-                      threeMonthAllocation.mul(subjectShare).div(ether(1)),
+                    sixMonthComponent = await wrappedfCashFactory.computeAddress(
+                      currencyId,
+                      sixMonthAbsoluteMaturity,
                     );
-                    expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.gt(
-                      expectedSixMonthPosition.div(ether(1)).sub(tolerance),
+                  });
+                  afterEach(() => {
+                    threeMonthComponent = threeMonthComponentBefore;
+                    sixMonthComponent = sixMonthComponentBefore;
+                  });
+                  it("should adjust the allocations correctly", async () => {
+                    await subject();
+                    await checkAllocation();
+                  });
+                  it("predicted positions should be greater than minimum values passed", async () => {
+                    const positionsAfter = await subjectStatic();
+                    expect(positionsAfter.length).to.eq(subjectMinPositions.length);
+                    for (let i = 0; i < positionsAfter.length; i++) {
+                      expect(positionsAfter[i]).to.gte(subjectMinPositions[i]);
+                    }
+                  });
+
+                  it("predicted positions should be equal to returned current positions after", async () => {
+                    const predictedPositions = await subjectStatic();
+                    await subject();
+                    const positionsAfter = await rebalanceExtension.getCurrentPositions();
+                    expect(predictedPositions.length).to.eq(positionsAfter.length);
+                    const tolerance = 100;
+                    for (let i = 0; i < predictedPositions.length; i++) {
+                      expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
+                      expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
+                    }
+                  });
+                });
+
+                describe("when allocation was changed", () => {
+                  beforeEach(async () => {
+                    await setToken.connect(operator).setManager(baseManagerV2.address);
+                    threeMonthAllocation = ether(0.5);
+                    sixMonthAllocation = ether(0.5);
+                    const maturities = [ONE_MONTH_IN_SECONDS.mul(6), ONE_MONTH_IN_SECONDS.mul(3)];
+                    const allocations = [sixMonthAllocation, threeMonthAllocation];
+                    await rebalanceExtension
+                      .connect(operator)
+                      .setAllocations(maturities, allocations, minPositions);
+                  });
+                  it("should adjust the allocations correctly", async () => {
+                    await subject();
+                    await checkAllocation();
+                  });
+                  it("predicted positions should be greater than minimum values passed", async () => {
+                    const positionsAfter = await subjectStatic();
+                    expect(positionsAfter.length).to.eq(subjectMinPositions.length);
+                    for (let i = 0; i < positionsAfter.length; i++) {
+                      expect(positionsAfter[i]).to.gte(subjectMinPositions[i]);
+                    }
+                  });
+
+                  it("predicted positions should be equal to returned current positions after", async () => {
+                    const predictedPositions = await subjectStatic();
+                    await subject();
+                    const positionsAfter = await rebalanceExtension.getCurrentPositions();
+                    expect(predictedPositions.length).to.eq(positionsAfter.length);
+                    const tolerance = 100;
+                    for (let i = 0; i < predictedPositions.length; i++) {
+                      expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
+                      expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
+                    }
+                  });
+                });
+
+                describe("when fcash position was reduced", () => {
+                  const redeemPositionIndex = 1;
+                  beforeEach(async () => {
+                    await notionalTradeModule
+                      .connect(operator)
+                      .redeemFixedFCashForToken(
+                        setToken.address,
+                        currencyId,
+                        componentMaturities[redeemPositionIndex],
+                        componentPositions[redeemPositionIndex].unit,
+                        tradeViaUnderlying ? underlyingToken : assetToken,
+                        0,
+                      );
+                    await setToken.connect(operator).setManager(baseManagerV2.address);
+                  });
+                  it("should adjust the allocations correctly", async () => {
+                    await subject();
+                    await checkAllocation();
+                  });
+                  it("predicted positions should be greater than minimum values passed", async () => {
+                    const positionsAfter = await subjectStatic();
+                    expect(positionsAfter.length).to.eq(subjectMinPositions.length);
+                    for (let i = 0; i < positionsAfter.length; i++) {
+                      expect(positionsAfter[i]).to.gte(subjectMinPositions[i]);
+                    }
+                  });
+
+                  it("predicted positions should be equal to returned current positions after", async () => {
+                    const predictedPositions = await subjectStatic();
+                    await subject();
+                    const positionsAfter = await rebalanceExtension.getCurrentPositions();
+                    expect(predictedPositions.length).to.eq(positionsAfter.length);
+                    const tolerance = 100;
+                    for (let i = 0; i < predictedPositions.length; i++) {
+                      expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
+                      expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
+                    }
+                  });
+                });
+                describe("when 6 month position was sold in favor of 3 month position", () => {
+                  const redeemPositionIndex = 1;
+                  beforeEach(async () => {
+                    await notionalTradeModule
+                      .connect(operator)
+                      .redeemFixedFCashForToken(
+                        setToken.address,
+                        currencyId,
+                        componentMaturities[redeemPositionIndex],
+                        componentPositions[redeemPositionIndex].unit,
+                        assetToken,
+                        0,
+                      );
+                    const obtainedAssetTokenPosition = await setToken.getDefaultPositionRealUnit(
+                      assetToken,
                     );
-                    expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.lt(
-                      expectedSixMonthPosition.div(ether(1)).add(tolerance),
-                    );
-                    expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.gt(
-                      expectedThreeMonthPosition.div(ether(1)).sub(tolerance),
-                    );
-                    expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.lt(
-                      expectedThreeMonthPosition.div(ether(1)).add(tolerance),
-                    );
+                    await notionalTradeModule
+                      .connect(operator)
+                      .mintFCashForFixedToken(
+                        setToken.address,
+                        currencyId,
+                        componentMaturities[(redeemPositionIndex + 1) % 2],
+                        0,
+                        assetToken,
+                        obtainedAssetTokenPosition,
+                      );
+                    await setToken.connect(operator).setManager(baseManagerV2.address);
+                  });
+                  it("should adjust the allocations correctly", async () => {
+                    await subject();
+                    await checkAllocation();
+                  });
+
+                  it("predicted positions should be greater than minimum values passed", async () => {
+                    const positionsAfter = await subjectStatic();
+                    expect(positionsAfter.length).to.eq(subjectMinPositions.length);
+                    for (let i = 0; i < positionsAfter.length; i++) {
+                      expect(positionsAfter[i]).to.gte(subjectMinPositions[i]);
+                    }
+                  });
+
+                  it("predicted positions should be equal to returned current positions after", async () => {
+                    const predictedPositions = await subjectStatic();
+                    await subject();
+                    const positionsAfter = await rebalanceExtension.getCurrentPositions();
+                    expect(predictedPositions.length).to.eq(positionsAfter.length);
+                    const tolerance = 100;
+                    for (let i = 0; i < predictedPositions.length; i++) {
+                      expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
+                      expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
+                    }
+                  });
+
+                  describe("when only partially executing the trade", () => {
+                    beforeEach(async () => {
+                      subjectShare = ether(0.5);
+
+                      const currentPositions = await rebalanceExtension.getCurrentPositions();
+                      expect(currentPositions.length).to.eq(minPositions.length);
+                      subjectMinPositions = currentPositions.map((curPosition, i) => {
+                        const minPosition = minPositions[i];
+                        let weightedDiff;
+                        let weightedMinPosition;
+                        if (curPosition.gt(minPosition)) {
+                          weightedDiff = curPosition
+                            .sub(minPosition)
+                            .mul(subjectShare)
+                            .div(ether(1));
+
+                          weightedMinPosition = curPosition.sub(weightedDiff);
+                        } else {
+                          weightedDiff = minPosition
+                            .sub(curPosition)
+                            .mul(subjectShare)
+                            .div(ether(1));
+
+                          weightedMinPosition = curPosition.add(weightedDiff);
+                        }
+                        return weightedMinPosition;
+                      });
+                    });
+                    it("should adjust the allocations correctly", async () => {
+                      await subject();
+                      const totalValue = parseUnits("100", 8);
+                      const tolerance = parseUnits("0.75", 8);
+                      const expectedSixMonthPosition = totalValue.mul(
+                        sixMonthAllocation.add(
+                          ether(1)
+                            .sub(sixMonthAllocation)
+                            .mul(subjectShare)
+                            .div(ether(1)),
+                        ),
+                      );
+                      const expectedThreeMonthPosition = totalValue.mul(
+                        threeMonthAllocation.mul(subjectShare).div(ether(1)),
+                      );
+                      expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.gt(
+                        expectedSixMonthPosition.div(ether(1)).sub(tolerance),
+                      );
+                      expect(await setToken.getDefaultPositionRealUnit(sixMonthComponent)).to.lt(
+                        expectedSixMonthPosition.div(ether(1)).add(tolerance),
+                      );
+                      expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.gt(
+                        expectedThreeMonthPosition.div(ether(1)).sub(tolerance),
+                      );
+                      expect(await setToken.getDefaultPositionRealUnit(threeMonthComponent)).to.lt(
+                        expectedThreeMonthPosition.div(ether(1)).add(tolerance),
+                      );
+                    });
+                    it("predicted positions should be greater than minimum values passed", async () => {
+                      const positionsAfter = await subjectStatic();
+                      expect(positionsAfter.length).to.eq(subjectMinPositions.length);
+                      for (let i = 0; i < positionsAfter.length; i++) {
+                        expect(positionsAfter[i]).to.gte(subjectMinPositions[i]);
+                      }
+                    });
+
+                    it("predicted positions should be equal to returned current positions after", async () => {
+                      const predictedPositions = await subjectStatic();
+                      await subject();
+                      const positionsAfter = await rebalanceExtension.getCurrentPositions();
+                      expect(predictedPositions.length).to.eq(positionsAfter.length);
+                      const tolerance = 100;
+                      for (let i = 0; i < predictedPositions.length; i++) {
+                        expect(predictedPositions[i]).to.gte(positionsAfter[i].sub(tolerance));
+                        expect(predictedPositions[i]).to.lte(positionsAfter[i].add(tolerance));
+                      }
+                    });
                   });
                 });
               });
