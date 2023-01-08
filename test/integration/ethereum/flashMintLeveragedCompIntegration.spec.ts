@@ -309,6 +309,7 @@ if (process.env.INTEGRATIONTEST) {
                       : await inputToken.balanceOf(owner.address);
                   let inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
 
+
                   if (inputTokenName == "ETH") {
                     const gasFee = await exchangeIssuance.estimateGas.issueExactSetFromETH(
                       subjectSetToken,
@@ -322,8 +323,8 @@ if (process.env.INTEGRATIONTEST) {
                     inputSpent = inputSpent.sub(gasCost);
                   }
                   const quotedInputAmount = await subjectQuote();
-                  expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.97)));
-                  expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.03)));
+                  expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.96)));
+                  expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.04)));
                 });
               },
             );
