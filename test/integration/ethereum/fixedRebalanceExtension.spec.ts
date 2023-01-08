@@ -339,7 +339,7 @@ if (process.env.INTEGRATIONTEST) {
               });
             });
 
-            describe("when minPositions  have wrong length", () => {
+            describe("when minPositions have wrong length", () => {
               beforeEach(async () => {
                 await setToken.connect(operator).setManager(baseManagerV2.address);
                 subjectMinPositions = [parseUnits("100", 8)];

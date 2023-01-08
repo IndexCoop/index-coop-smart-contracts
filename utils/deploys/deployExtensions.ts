@@ -430,7 +430,7 @@ export default class DeployExtensions {
       assetToken,
       maturities,
       allocations,
-        minPositions,
+      minPositions,
     );
   }
 }
