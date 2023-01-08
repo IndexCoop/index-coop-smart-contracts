@@ -329,7 +329,7 @@ if (process.env.INTEGRATIONTEST) {
               });
             });
 
-            describe("when minPositions  are too high", () => {
+            describe("when minPositions are too high", () => {
               beforeEach(async () => {
                 await setToken.connect(operator).setManager(baseManagerV2.address);
                 subjectMinPositions = [parseUnits("100", 8), parseUnits("100", 8)];
