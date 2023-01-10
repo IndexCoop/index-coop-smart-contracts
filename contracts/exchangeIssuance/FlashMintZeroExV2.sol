@@ -33,7 +33,7 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 /**
  * FlashMint contract for minting/redeeming dsEth.
  */
-contract FlashMintDsEth is Ownable, ReentrancyGuard {
+contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
 
     using Address for address payable;
     using SafeMath for uint256;
