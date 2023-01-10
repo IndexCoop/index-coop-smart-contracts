@@ -22,6 +22,7 @@ import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+import { ExchangeIssuanceZeroEx } from "./ExchangeIssuanceZeroEx.sol";
 import { IBasicIssuanceModule } from "../interfaces/IBasicIssuanceModule.sol";
 import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { IController } from "../interfaces/IController.sol";
@@ -41,14 +42,8 @@ contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using SafeERC20 for ISetToken;
 
-    struct IssuanceModuleData {
-        bool isAllowed;
-        bool isDebtIssuanceModule;
-    }
-
-    struct IssueExactSetFromTokenParams {
+    struct FlashMintParams {
         ISetToken setToken;
-        IERC20 inputToken;
         uint256 amountSetToken;
         uint256 maxAmountInputToken;
         bytes[] componentQuotes;
@@ -56,31 +51,10 @@ contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
         bool isDebtIssuance;
     }
 
-    struct IssueExactSetFromEthParams {
-        ISetToken setToken;
-        uint256 amountSetToken;
-        bytes[] componentQuotes;
-        address issuanceModule;
-        bool isDebtIssuance;
-    }
-
-    struct RedeemExactSetForTokenParams {
-        ISetToken setToken;
-        IERC20 outputToken;
-        uint256 amountSetToken;
-        uint256 minOutputReceive;
-        bytes[] componentQuotes;
-        address issuanceModule;
-        bool isDebtIssuance;
-    }
-
-    struct RedeemExactSetForEthParams {
-        ISetToken setToken;
-        uint256 amountSetToken;
-        uint256 minEthReceive;
-        bytes[] componentQuotes;
-        address issuanceModule;
-        bool isDebtIssuance;
+    struct ComponentParams {
+        bool isFlashed; // Use FlashMintZeroEx
+        bytes zeroExQuote; // zeroExQuote. Empty if not used.
+        FlashMintParams flashMintParams; // flashMintParams. Empty if not used.
     }
 
     /* ============ Constants ============== */
@@ -93,6 +67,7 @@ contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
     address public immutable WETH;
     IController public immutable setController;
     address public immutable swapTarget;
+    address payable public immutable flashMintZeroEx;
 
     /* ============ Events ============ */
 
@@ -122,13 +97,15 @@ contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
     constructor(
         address _weth,
         IController _setController,
-        address _swapTarget
+        address _swapTarget,
+        address payable _flashMintZeroEx
     )
         public
     {
         WETH = _weth;
         setController = _setController;
         swapTarget = _swapTarget;
+        flashMintZeroEx = _flashMintZeroEx;
     }
 
     /* ============ External Functions ============ */
@@ -141,10 +118,9 @@ contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
      */
     function withdrawTokens(IERC20[] calldata _tokens, address payable _to) external onlyOwner payable {
         for(uint256 i = 0; i < _tokens.length; i++) {
-            if(address(_tokens[i]) == ETH_ADDRESS){
+            if (address(_tokens[i]) == ETH_ADDRESS) {
                 _to.sendValue(address(this).balance);
-            }
-            else{
+            } else {
                 _tokens[i].safeTransfer(_to, _tokens[i].balanceOf(address(this)));
             }
         }
@@ -152,7 +128,7 @@ contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
 
     receive() external payable {
         // required for weth.withdraw() to work properly
-        require(msg.sender == WETH, "FlashMintDsEth: Direct deposits not allowed");
+        require(msg.sender == WETH, "FlashMint: Direct deposits not allowed");
     }
 
     /* ============ Public Functions ============ */
@@ -205,7 +181,9 @@ contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
     * @param _inputToken            Address of the input token
     * @param _amountSetToken        Amount of SetTokens to issue
     * @param _maxAmountInputToken   Maximum amount of input tokens to be used to issue SetTokens.
-    * @param _componentQuotes       The encoded 0x transactions to execute 
+    * @param _params                The params for attaining the component
+    * @param _issuanceModule        The address of the issuance module to be used to issue the SetToken.
+    * @param _isDebtIssuance        Whether the issuance module is of the debt issuance type.    
     *
     * @return totalInputTokenSold   Amount of input token spent for issuance
     */
@@ -214,8 +192,7 @@ contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
         IERC20 _inputToken,
         uint256 _amountSetToken,
         uint256 _maxAmountInputToken,
-        bytes[] memory _componentQuotes,
-        bytes[] memory _flashMintParams,
+        ComponentParams[] memory _params,
         address _issuanceModule,
         bool _isDebtIssuance
     )
@@ -228,8 +205,8 @@ contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
         _inputToken.safeTransferFrom(msg.sender, address(this), _maxAmountInputToken);
         _safeApprove(_inputToken, swapTarget, _maxAmountInputToken);
 
-        uint256 totalInputTokenSold = _buyComponentsForInputToken(_setToken, _amountSetToken,  _componentQuotes, _inputToken, _issuanceModule, _isDebtIssuance);
-        require(totalInputTokenSold <= _maxAmountInputToken, "ExchangeIssuance: OVERSPENT TOKEN");
+        uint256 totalInputTokenSold = _getComponents(_setToken, _amountSetToken,  _params, _inputToken, _issuanceModule, _isDebtIssuance);
+        require(totalInputTokenSold <= _maxAmountInputToken, "FlashMint: OVERSPENT TOKEN");
 
         IBasicIssuanceModule(_issuanceModule).issue(_setToken, _amountSetToken, msg.sender);
 
@@ -253,7 +230,7 @@ contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
     function issueExactSetFromETH(
         ISetToken _setToken,
         uint256 _amountSetToken,
-        bytes[] memory _componentQuotes,
+        ComponentParams[] memory _componentQuotes,
         address _issuanceModule,
         bool _isDebtIssuance
     )
@@ -268,7 +245,7 @@ contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
         IWETH(WETH).deposit{value: msg.value}();
         _safeApprove(IERC20(WETH), swapTarget, msg.value);
 
-        uint256 totalEthSold = _buyComponentsForInputToken(_setToken, _amountSetToken, _componentQuotes, IERC20(WETH), _issuanceModule, _isDebtIssuance);
+        uint256 totalEthSold = _getComponents(_setToken, _amountSetToken, _componentQuotes, IERC20(WETH), _issuanceModule, _isDebtIssuance);
 
         require(totalEthSold <= msg.value, "ExchangeIssuance: OVERSPENT ETH");
         IBasicIssuanceModule(_issuanceModule).issue(_setToken, _amountSetToken, msg.sender);
@@ -302,7 +279,7 @@ contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
         IERC20 _outputToken,
         uint256 _amountSetToken,
         uint256 _minOutputReceive,
-        bytes[] memory _componentQuotes,
+        ComponentParams[] memory _componentQuotes,
         address _issuanceModule,
         bool _isDebtIssuance
     )
@@ -343,7 +320,7 @@ contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
         ISetToken _setToken,
         uint256 _amountSetToken,
         uint256 _minEthReceive,
-        bytes[] memory _componentQuotes,
+        ComponentParams[] memory _componentQuotes,
         address _issuanceModule,
         bool _isDebtIssuance
     )
@@ -386,16 +363,16 @@ contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
      *
      * @param _setToken             Address of the SetToken being issued
      * @param _amountSetToken       Amount of SetTokens to be issued
-     * @param _quotes               The encoded 0x transaction calldata to execute against the 0x ExchangeProxy
+     * @param _params               The execution params for getting the component.
      * @param _inputToken           Token to use to pay for issuance. Must be the sellToken of the 0x trades.
      * @param _issuanceModule       Issuance module to use for set token issuance.
      *
      * @return totalInputTokenSold  Total amount of input token spent on this issuance
      */
-    function _buyComponentsForInputToken(
+    function _getComponents(
         ISetToken _setToken,
         uint256 _amountSetToken,
-        bytes[] memory _quotes,
+        ComponentParams[] memory _params,
         IERC20 _inputToken,
         address _issuanceModule,
         bool _isDebtIssuance
@@ -413,16 +390,30 @@ contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
             uint256 units = componentUnits[i];
 
             // If the component is equal to the input token we don't have to trade
-            if(component == address(_inputToken)) {
+            if (component == address(_inputToken)) {
                 totalInputTokenSold = totalInputTokenSold.add(units);
                 componentAmountBought = units;
-            }
-            else {
+            } else if (_params[i].isFlashed) {
+                // Flash Mint the component
                 uint256 componentBalanceBefore = IERC20(component).balanceOf(address(this));
-                _fillQuote(_quotes[i]);
+                ExchangeIssuanceZeroEx(flashMintZeroEx).issueExactSetFromToken(
+                    _params[i].flashMintParams.setToken,
+                    _inputToken,
+                    units,
+                    _params[i].flashMintParams.maxAmountInputToken,
+                    _params[i].flashMintParams.componentQuotes,
+                    _params[i].flashMintParams.issuanceModule,
+                    _params[i].flashMintParams.isDebtIssuance
+                );
                 uint256 componentBalanceAfter = IERC20(component).balanceOf(address(this));
                 componentAmountBought = componentBalanceAfter.sub(componentBalanceBefore);
-                require(componentAmountBought >= units, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
+                require(componentAmountBought >= units, "FlashMint: UNDERMINTED COMPONENT");
+            } else {
+                uint256 componentBalanceBefore = IERC20(component).balanceOf(address(this));
+                _fillQuote(_params[i].zeroExQuote);
+                uint256 componentBalanceAfter = IERC20(component).balanceOf(address(this));
+                componentAmountBought = componentBalanceAfter.sub(componentBalanceBefore);
+                require(componentAmountBought >= units, "FlashMint: UNDERBOUGHT COMPONENT");
             }
         }
         uint256 inputTokenBalanceAfter = _inputToken.balanceOf(address(this));
@@ -441,7 +432,7 @@ contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
      *
      * @return totalOutputTokenBought  Total amount of output token received after liquidating all SetToken components
      */
-    function _sellComponentsForOutputToken(ISetToken _setToken, uint256 _amountSetToken, bytes[] memory _swaps, IERC20 _outputToken, address _issuanceModule, bool _isDebtIssuance)
+    function _sellComponentsForOutputToken(ISetToken _setToken, uint256 _amountSetToken, ComponentParams[] memory _swaps, IERC20 _outputToken, address _issuanceModule, bool _isDebtIssuance)
         internal
         returns (uint256 totalOutputTokenBought)
     {
@@ -456,11 +447,20 @@ contract FlashMintZeroExV2 is Ownable, ReentrancyGuard {
             if(components[i] == address(_outputToken)) {
                 totalOutputTokenBought = totalOutputTokenBought.add(maxAmountSell);
                 componentAmountSold = maxAmountSell;
-            }
-            else {
+            } else if (_swaps[i].isFlashed) {
+                ExchangeIssuanceZeroEx(flashMintZeroEx).redeemExactSetForToken(
+                    _swaps[i].flashMintParams.setToken,
+                    _outputToken,
+                    maxAmountSell,
+                    _swaps[i] .flashMintParams.maxAmountInputToken,
+                    _swaps[i].flashMintParams.componentQuotes,
+                    _swaps[i].flashMintParams.issuanceModule,
+                    _swaps[i].flashMintParams.isDebtIssuance
+                );
+            } else {
                 _safeApprove(IERC20(components[i]), address(swapTarget), maxAmountSell);
                 uint256 componentBalanceBefore = IERC20(components[i]).balanceOf(address(this));
-                _fillQuote(_swaps[i]);
+                _fillQuote(_swaps[i].zeroExQuote);
                 uint256 componentBalanceAfter = IERC20(components[i]).balanceOf(address(this));
                 componentAmountSold = componentBalanceBefore.sub(componentBalanceAfter);
                 require(maxAmountSell >= componentAmountSold, "ExchangeIssuance: OVERSOLD COMPONENT");
