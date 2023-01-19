@@ -71,6 +71,5 @@ Set Protocol V2 has undergone several audits. For more information see https://i
 ## Vulnerability Reporting ##
 
 If you believe you’ve found a security vulnerability in one of our contracts or platforms, we encourage you to submit it through our [ImmuneFi Bug Bounty][32] program.
-You may send it to us by emailing [security@indexcoop.com](mailto:security@indexcoop.com).
 
 [32]: https://immunefi.com/bounty/indexcoop/
