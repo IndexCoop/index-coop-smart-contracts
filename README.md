@@ -35,7 +35,7 @@ OR `yarn test:clean` if contract typings need to be updated
 
 ### Run Integration Tests
 
-`yarn chain:fork:ethereum` in one terminal to run chain fork. replace ethereum with polygon or optimism if needed, see package.json
+`yarn chain:fork:ethereum` in one terminal to run chain fork. replace ethereum with polygon if needed, see package.json
 
 `yarn test:integration:ethereum` in another terminal, replace chain again as needed
 

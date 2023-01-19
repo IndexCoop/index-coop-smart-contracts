@@ -17,11 +17,6 @@ const polygonForkingConfig = {
   blockNumber: 25004110,
 };
 
-const optimismForkingConfig = {
-  url: process.env.OPTIMISM_RPC_URL ?? "",
-  blockNumber: 15275100,
-};
-
 const mainnetForkingConfig = {
   url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
   blockNumber: process.env.LATESTBLOCK ? undefined : 16180859,
@@ -30,8 +25,6 @@ const mainnetForkingConfig = {
 const forkingConfig =
   process.env.NETWORK === "polygon"
     ? polygonForkingConfig
-    : process.env.NETWORK === "optimism"
-    ? optimismForkingConfig
     : mainnetForkingConfig;
 
 const mochaConfig = {
@@ -40,10 +33,6 @@ const mochaConfig = {
 
 const gasOption =
   process.env.NETWORK === "polygon"
-    ? {
-        blockGasLimit: 20000000,
-      }
-    : process.env.NETWORK === "optimism"
     ? {
         blockGasLimit: 20000000,
       }
