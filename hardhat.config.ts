@@ -1,7 +1,13 @@
 require("dotenv").config();
 
-import { HardhatUserConfig } from "hardhat/config";
+import { HardhatUserConfig, task } from "hardhat/config";
 import { privateKeys } from "./utils/wallets";
+import type { CompilationJob, DependencyGraph } from "hardhat/types";
+import {
+  TASK_COMPILE_SOLIDITY_COMPILE_JOB,
+  TASK_COMPILE_SOLIDITY_GET_COMPILATION_JOB_FOR_FILE,
+  TASK_COMPILE_SOLIDITY_GET_DEPENDENCY_GRAPH,
+} from "hardhat/builtin-tasks/task-names";
 
 import "@nomiclabs/hardhat-waffle";
 import "hardhat-typechain";
@@ -57,7 +63,7 @@ const config: HardhatUserConfig = {
     compilers: [
       {
         version: "0.6.10",
-        settings: { optimizer: { enabled: true, runs: 200 } }
+        settings: { optimizer: { enabled: true, runs: 200 } },
       },
     ],
   },
@@ -110,5 +116,75 @@ function getHardhatPrivateKeys() {
     };
   });
 }
+
+task("index:compile:one", "Compiles a single contract in isolation")
+  .addPositionalParam("contractName")
+  .setAction(async function(args, env) {
+    const sourceName = env.artifacts.readArtifactSync(args.contractName).sourceName;
+
+    const dependencyGraph: DependencyGraph = await env.run(
+      TASK_COMPILE_SOLIDITY_GET_DEPENDENCY_GRAPH,
+      { sourceNames: [sourceName] },
+    );
+
+    const resolvedFiles = dependencyGraph.getResolvedFiles().filter((resolvedFile) => {
+      return resolvedFile.sourceName === sourceName;
+    });
+
+    const compilationJob: CompilationJob = await env.run(
+      TASK_COMPILE_SOLIDITY_GET_COMPILATION_JOB_FOR_FILE,
+      {
+        dependencyGraph,
+        file: resolvedFiles[0],
+      },
+    );
+
+    await env.run(TASK_COMPILE_SOLIDITY_COMPILE_JOB, {
+      compilationJob,
+      compilationJobs: [compilationJob],
+      compilationJobIndex: 0,
+      emitsArtifacts: true,
+      quiet: true,
+    });
+
+    await env.run("typechain");
+  });
+
+task("index:compile:all", "Compiles all contracts in isolation").setAction(async function(
+  _args,
+  env,
+) {
+  const allArtifacts = await env.artifacts.getAllFullyQualifiedNames();
+  for (const contractName of allArtifacts) {
+    const sourceName = env.artifacts.readArtifactSync(contractName).sourceName;
+
+    const dependencyGraph: DependencyGraph = await env.run(
+      TASK_COMPILE_SOLIDITY_GET_DEPENDENCY_GRAPH,
+      {
+        sourceNames: [sourceName],
+      },
+    );
+
+    const resolvedFiles = dependencyGraph.getResolvedFiles().filter((resolvedFile) => {
+      return resolvedFile.sourceName === sourceName;
+    });
+
+    const compilationJob: CompilationJob = await env.run(
+      TASK_COMPILE_SOLIDITY_GET_COMPILATION_JOB_FOR_FILE,
+      {
+        dependencyGraph,
+        file: resolvedFiles[0],
+      },
+    );
+
+    await env.run(TASK_COMPILE_SOLIDITY_COMPILE_JOB, {
+      compilationJob,
+      compilationJobs: [compilationJob],
+      compilationJobIndex: 0,
+      emitsArtifacts: true,
+      quiet: true,
+    });
+  }
+});
 
 export default config;
