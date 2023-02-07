@@ -17,7 +17,6 @@
 pragma solidity 0.6.10;
 pragma experimental "ABIEncoderV2";
 
-import { IAToken } from "../interfaces/IAToken.sol";
 import { IMorpho } from "../interfaces/external/IMorpho.sol";
 
 /**
@@ -99,5 +98,14 @@ contract MorphoAaveWrapV2Adapter {
         );
 
         return (address(morpho), 0, callData);
+    }
+
+    /**
+     * Returns the address to approve source tokens for wrapping.
+     *
+     * @return address        Address of the contract to approve tokens to
+     */
+    function getSpenderAddress(address /* _underlyingToken */, address  /* _wrappedToken */) external view returns(address) {
+        return address(morpho);
     }
 }
