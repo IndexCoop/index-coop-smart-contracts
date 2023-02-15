@@ -26,7 +26,7 @@ export { ICManager } from "../../typechain/ICManager";
 export { IndexToken } from "../../typechain/IndexToken";
 export { MasterChefMock } from "../../typechain/MasterChefMock";
 export { MerkleDistributor } from "../../typechain/MerkleDistributor";
-export { MorphoAaveWrapV2Adapter } from "../../typechain/MorphoAaveWrapV2Adapter";
+export { ERC4626WrapV2Adapter } from "../../typechain/ERC4626WrapV2Adapter";
 export { MutualUpgradeMock } from "../../typechain/MutualUpgradeMock";
 export { NotionalTradeModuleMock } from "../../typechain/NotionalTradeModuleMock";
 export { RewardsDistributionRecipient } from "../../typechain/RewardsDistributionRecipient";

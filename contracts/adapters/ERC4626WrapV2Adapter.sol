@@ -17,87 +17,87 @@
 pragma solidity 0.6.10;
 pragma experimental "ABIEncoderV2";
 
-import { IMorpho } from "../interfaces/external/IMorpho.sol";
+import { IERC4626 } from "../interfaces/external/IERC4626.sol";
 
 /**
- * @title MorphoAaveWrapV2Adapter
+ * @title ERC4626WrapV2Adapter
  * @author pblivin0x
  *
- * Wrap adapter for Morpho Aave that returns data for wraps/unwraps of tokens
+ * Wrap adapter for ERC-4626 Vaults that returns data for wraps/unwraps of tokens
  */
-contract MorphoAaveWrapV2Adapter {
-
-    /* ========== State Variables ========= */
-
-    // Address of the Morpho contract
-    IMorpho public morpho;
-
-    /* ============ Constructor ============ */
-
-    constructor(IMorpho _morpho) public {
-        morpho = _morpho;
-    }
+contract ERC4626WrapV2Adapter {
 
     /* ============ External Getter Functions ============ */
 
     /**
-     * Generates the calldata to wrap an aToken into an maToken.
+     * Generates the calldata to wrap an underlying asset into a wrappedToken.
      *
-     * @param _underlyingToken      Address of the aToken to be wrapped
+     * @param _underlyingToken      Address of the component to be wrapped
+     * @param _wrappedToken         Address of the desired wrapped token
      * @param _underlyingUnits      Total quantity of underlying units to wrap
+     * @param _to                   Address to send the wrapped tokens to
      *
      * @return address              Target contract address
-     * @return uint256              Total quantity of underlying units (if underlying is ETH). This will always be 0 for aTokens.
+     * @return uint256              Total quantity of underlying units (if underlying is ETH)
      * @return bytes                Wrap calldata
      */
     function getWrapCallData(
         address _underlyingToken,
-        address /* _wrappedToken */,
+        address _wrappedToken,
         uint256 _underlyingUnits,
-        address /* _to */,
+        address _to,
         bytes memory /* _wrapData */
     )
         external
         view
         returns (address, uint256, bytes memory)
     {
+        IERC4626 vault = IERC4626(_wrappedToken);
+        require(vault.asset() == _underlyingToken, "Vault underlying token mismatch");
+
         bytes memory callData = abi.encodeWithSignature(
-            "supply(address, uint256)",
-            _underlyingToken,
-            _underlyingUnits
+            "deposit(uint256, address)",
+            _underlyingUnits,
+            _to
         );
 
-        return (address(morpho), 0, callData);
+        return (address(vault), 0, callData);
     }
 
     /**
-     * Generates the calldata to unwrap an maToken into its underlying aToken.
+     * Generates the calldata to unwrap a wrapped asset into its underlying.
      *
-     * @param _wrappedToken         Address of the maToken to be unwrapped
+     * @param _underlyingToken      Address of the underlying asset
+     * @param _wrappedToken         Address of the component to be unwrapped
      * @param _wrappedTokenUnits    Total quantity of wrapped token units to unwrap
+     * @param _to                   Address to send the unwrapped tokens to
      *
      * @return address              Target contract address
      * @return uint256              Total quantity of wrapped token units to unwrap. This will always be 0 for unwrapping
      * @return bytes                Unwrap calldata
      */
     function getUnwrapCallData(
-        address /* _underlyingToken */,
+        address _underlyingToken,
         address _wrappedToken,
         uint256 _wrappedTokenUnits,
-        address /* _to */,
+        address _to,
         bytes memory /* _wrapData */
     )
         external
         view
         returns (address, uint256, bytes memory)
     {
+        IERC4626 vault = IERC4626(_wrappedToken);
+        require(vault.asset() == _underlyingToken, "Vault underlying token mismatch");
+
         bytes memory callData = abi.encodeWithSignature(
-            "withdraw(address, uint256)",
-            _wrappedToken,
-            _wrappedTokenUnits
+            "withdraw(uint256, address, address)",
+            _wrappedTokenUnits,
+            _to,
+            _to
         );
 
-        return (address(morpho), 0, callData);
+        return (address(vault), 0, callData);
     }
 
     /**
@@ -105,7 +105,7 @@ contract MorphoAaveWrapV2Adapter {
      *
      * @return address        Address of the contract to approve tokens to
      */
-    function getSpenderAddress(address /* _underlyingToken */, address  /* _wrappedToken */) external view returns(address) {
-        return address(morpho);
+    function getSpenderAddress(address /* _underlyingToken */, address  _wrappedToken) external view returns(address) {
+        return _wrappedToken;
     }
 }

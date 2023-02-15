@@ -23,7 +23,7 @@ import {
   FeeSplitExtension,
   GIMExtension,
   GovernanceExtension,
-  MorphoAaveWrapV2Adapter,
+  ERC4626WrapV2Adapter,
   StreamingFeeSplitExtension,
   WrapExtension,
 } from "../contracts/index";
@@ -45,7 +45,7 @@ import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitEx
 import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtension__factory";
 import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
 import { GovernanceExtension__factory } from "../../typechain/factories/GovernanceExtension__factory";
-import { MorphoAaveWrapV2Adapter__factory } from "../../typechain/factories/MorphoAaveWrapV2Adapter__factory";
+import { ERC4626WrapV2Adapter__factory } from "../../typechain/factories/ERC4626WrapV2Adapter__factory";
 import { FixedRebalanceExtension__factory } from "../../typechain/factories/FixedRebalanceExtension__factory";
 import { StakeWiseReinvestmentExtension__factory } from "../../typechain/factories/StakeWiseReinvestmentExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
@@ -436,7 +436,7 @@ export default class DeployExtensions {
     );
   }
 
-  public async deployMorphoAaveWrapV2Adapter(morpho: Address): Promise<MorphoAaveWrapV2Adapter> {
-    return await new MorphoAaveWrapV2Adapter__factory(this._deployerSigner).deploy(morpho);
+  public async deployERC4626WrapV2Adapter(): Promise<ERC4626WrapV2Adapter> {
+    return await new ERC4626WrapV2Adapter__factory(this._deployerSigner).deploy();
   }
 }
