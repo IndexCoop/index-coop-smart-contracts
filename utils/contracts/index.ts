@@ -27,6 +27,7 @@ export { IndexToken } from "../../typechain/IndexToken";
 export { MasterChefMock } from "../../typechain/MasterChefMock";
 export { MerkleDistributor } from "../../typechain/MerkleDistributor";
 export { ERC4626WrapV2Adapter } from "../../typechain/ERC4626WrapV2Adapter";
+export { ERC4626Mock } from "../../typechain/ERC4626Mock";
 export { MutualUpgradeMock } from "../../typechain/MutualUpgradeMock";
 export { NotionalTradeModuleMock } from "../../typechain/NotionalTradeModuleMock";
 export { RewardsDistributionRecipient } from "../../typechain/RewardsDistributionRecipient";
