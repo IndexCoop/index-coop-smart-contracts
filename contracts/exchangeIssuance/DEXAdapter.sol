@@ -437,7 +437,7 @@ library DEXAdapter {
         }
 
         if(_path[_path.length-1] == ETH_ADDRESS){
-            IWETH(_addresses.weth).deposit{ value: returnedAmountOut }();
+            IWETH(_addresses.weth).deposit{ value: _amountOut }();
         }
 
         return _maxAmountIn.sub(swappedBackAmountIn);
