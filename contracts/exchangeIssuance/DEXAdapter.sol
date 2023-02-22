@@ -429,6 +429,9 @@ library DEXAdapter {
         );
         require(amountIn <= _maxAmountIn, "ExchangeIssuance: CURVE_OVERSPENT");
 
+        require(ICurvePool(_pool).get_dy(i, j, amountIn) >= _amountOut, "ExchangeIssuance: amountIn too low");
+
+
         if(_path[0] == ETH_ADDRESS){
             IWETH(_addresses.weth).withdraw(amountIn);
         }
