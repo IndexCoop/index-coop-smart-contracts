@@ -420,27 +420,27 @@ library DEXAdapter {
         require(_path.length == 2, "ExchangeIssuance: CURVE_WRONG_PATH_LENGTH");
         (int128 i, int128 j) = _getCoinIndices(_pool, _path[0], _path[1], ICurveAddressProvider(_addresses.curveAddressProvider));
 
-        uint256 amountIn = _getAmountInCurve(
-            _pool,
-            i,
-            j,
-            _amountOut,
-            _addresses
-        );
-        require(amountIn <= _maxAmountIn, "ExchangeIssuance: CURVE_OVERSPENT");
 
         if(_path[0] == ETH_ADDRESS){
-            IWETH(_addresses.weth).withdraw(amountIn);
+            IWETH(_addresses.weth).withdraw(_maxAmountIn);
         }
 
-        uint256 returnedAmountOut = _exchangeCurve(i, j, _pool, amountIn, _amountOut, _path[0]);
+        uint256 returnedAmountOut = _exchangeCurve(i, j, _pool, _maxAmountIn, _amountOut, _path[0]);
         require(_amountOut <= returnedAmountOut, "ExchangeIssuance: CURVE_UNDERBOUGHT");
 
-        if(_path[_path.length-1] == ETH_ADDRESS){
-            IWETH(_addresses.weth).deposit{ value: returnedAmountOut }();
+        uint256 swappedBackAmountIn;
+        if(returnedAmountOut > _amountOut){
+            swappedBackAmountIn = _exchangeCurve(j, i, _pool, returnedAmountOut.sub(_amountOut), 0, _path[1]);
+            if(_path[0] == ETH_ADDRESS){
+                IWETH(_addresses.weth).deposit{ value: swappedBackAmountIn }();
+            }
         }
 
-        return amountIn;
+        if(_path[_path.length-1] == ETH_ADDRESS){
+            IWETH(_addresses.weth).deposit{ value: _amountOut }();
+        }
+
+        return _maxAmountIn.sub(swappedBackAmountIn);
     }
     
     function _exchangeCurve(
