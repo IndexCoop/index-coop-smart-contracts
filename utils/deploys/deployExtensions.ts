@@ -12,6 +12,7 @@ import {
   AaveLeverageStrategyExtension,
   AirdropExtension,
   DEXAdapter,
+  ERC4626WrapV2Adapter,
   ExchangeIssuance,
   ExchangeIssuanceV2,
   ExchangeIssuanceLeveraged,
@@ -31,6 +32,7 @@ import { convertLibraryNameToLinkId } from "../common";
 import { AaveLeverageStrategyExtension__factory } from "../../typechain/factories/AaveLeverageStrategyExtension__factory";
 import { AirdropExtension__factory } from "../../typechain/factories/AirdropExtension__factory";
 import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__factory";
+import { ERC4626WrapV2Adapter__factory } from "../../typechain/factories/ERC4626WrapV2Adapter__factory";
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { ExchangeIssuanceLeveraged__factory } from "../../typechain/factories/ExchangeIssuanceLeveraged__factory";
@@ -432,5 +434,9 @@ export default class DeployExtensions {
       allocations,
       minPositions,
     );
+  }
+
+  public async deployERC4626WrapV2Adapter(): Promise<ERC4626WrapV2Adapter> {
+    return await new ERC4626WrapV2Adapter__factory(this._deployerSigner).deploy();
   }
 }

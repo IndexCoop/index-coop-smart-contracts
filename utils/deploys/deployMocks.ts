@@ -2,6 +2,7 @@ import { Signer, BigNumber } from "ethers";
 import { Address } from "../types";
 import {
   BaseExtensionMock,
+  ERC4626Mock,
   FLIStrategyExtensionMock,
   FlexibleLeverageStrategyExtensionMock,
   GovernanceAdapterMock,
@@ -21,6 +22,7 @@ import { BaseExtensionMock__factory } from "../../typechain/factories/BaseExtens
 import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__factory";
 import { convertLibraryNameToLinkId } from "../common";
 import { ChainlinkAggregatorV3Mock__factory } from "../../typechain/factories/ChainlinkAggregatorV3Mock__factory";
+import { ERC4626Mock__factory } from "../../typechain/factories/ERC4626Mock__factory";
 import { FLIStrategyExtensionMock__factory } from "../../typechain/factories/FLIStrategyExtensionMock__factory";
 import { FlexibleLeverageStrategyExtensionMock__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtensionMock__factory";
 import { GovernanceAdapterMock__factory } from "../../typechain/factories/GovernanceAdapterMock__factory";
@@ -191,6 +193,18 @@ export default class DeployMocks {
       aaveLeveragedModuleAddress,
       aaveAddressProviderAddress,
       cEtherAddress,
+    );
+  }
+
+  public async deployERC4626Mock(
+    name: string,
+    symbol: string,
+    asset: Address,
+  ): Promise<ERC4626Mock> {
+    return await new ERC4626Mock__factory(this._deployerSigner).deploy(
+      name,
+      symbol,
+      asset,
     );
   }
 }

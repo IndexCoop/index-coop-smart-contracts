@@ -8,6 +8,8 @@ export { ChainlinkAggregatorV3Mock } from "../../typechain/ChainlinkAggregatorV3
 export { DebtIssuanceModule } from "../../typechain/DebtIssuanceModule";
 export { BasicIssuanceModule } from "../../typechain/BasicIssuanceModule";
 export { DEXAdapter } from "../../typechain/DEXAdapter";
+export { ERC4626Mock } from "../../typechain/ERC4626Mock";
+export { ERC4626WrapV2Adapter } from "../../typechain/ERC4626WrapV2Adapter";
 export { ExchangeIssuance } from "../../typechain/ExchangeIssuance";
 export { ExchangeIssuanceV2 } from "../../typechain/ExchangeIssuanceV2";
 export { ExchangeIssuanceLeveraged } from "../../typechain/ExchangeIssuanceLeveraged";
