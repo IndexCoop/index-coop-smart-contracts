@@ -39,7 +39,7 @@ jobs:
       - name: copy env
         run: cp .env.default .env
       - name: install
-        run: yarn
+        run: yarn install --immutable
       - name: prepublish
         run: yarn prepublishOnly
       - name: release
