@@ -36,6 +36,7 @@ const forkingConfig =
 
 const mochaConfig = {
   timeout: process.env.INTEGRATIONTEST ? INTEGRATIONTEST_TIMEOUT : 50000,
+  parallel: !process.env.INTEGRATIONTEST,
 } as Mocha.MochaOptions;
 
 const gasOption =

@@ -74,7 +74,7 @@ jobs:
       - name: test
         run: |
           yarn chain &
-          find test/${{ matrix.dir }} -type f -name '*.spec.ts' | xargs yarn run test --parallel
+          find test/${{ matrix.dir }} -type f -name '*.spec.ts' | xargs yarn run test
   
   test-integration:
     runs-on: ubuntu-latest
@@ -108,6 +108,10 @@ jobs:
       - name: untar output
         run: tar -xvf outputs-${{ github.run_id }}.tar
       - name: test
+        env:
+          ALCHEMY_TOKEN: ${{ secrets.ALCHEMY_TOKEN }}
+          OPTIMISM_RPC_URL: ${{ secrets.OPTIMISM_RPC_URL }}
+          POLYGON_RPC_URL: ${{ secrets.POLYGON_RPC_URL I}}
         run: |
           yarn chain:fork:${{ matrix.network }} &
           yarn test:integration:${{ matrix.network }}
