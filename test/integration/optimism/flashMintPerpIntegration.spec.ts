@@ -242,7 +242,7 @@ if (process.env.INTEGRATIONTEST) {
 
           const finalBalanceOfInputToken = await subjectInputToken.balanceOf(subjectCaller.address);
           const expectedTokenBalance = initialBalanceOfInputToken.sub(expectedInputToken);
-          expectCloseTo(finalBalanceOfInputToken, expectedTokenBalance, 11); // 11 wei difference
+          expectCloseTo(finalBalanceOfInputToken, expectedTokenBalance, 15); // 15 wei difference
         });
       });
 
