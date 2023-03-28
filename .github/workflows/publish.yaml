@@ -59,7 +59,7 @@ jobs:
       - name: test
         run: |
           yarn chain &
-          yarn test "test/${{ matrix.dir }}/**/*.spec.ts"
+          find test/${{ matrix.dir }} -type f name '*.spec.ts' | xargs yarn run test
   
   test-integration:
     runs-on: ubuntu-latest
