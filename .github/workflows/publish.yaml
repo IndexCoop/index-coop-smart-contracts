@@ -36,7 +36,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        dir: [adapters, exchangeIssuance, hooks, interfaces, keepers, lib, manager, mocks, staking, token, viewers]
+        dir: [adapters, exchangeIssuance, hooks, keepers, lib, manager, token, viewers]
 
     steps:
       - uses: actions/checkout@v3
@@ -58,7 +58,7 @@ jobs:
       - name: test
         run: |
           yarn chain &
-          yarn test 'contracts/${{ matrix.dir }}/**/*.sol'
+          yarn test test/${{ matrix.dir }}/**/*.spec.ts    
 
   publish:
     runs-on: ubuntu-latest
