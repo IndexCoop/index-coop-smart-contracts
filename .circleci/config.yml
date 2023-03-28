@@ -207,3 +207,7 @@ workflows:
       - report_coverage:
           requires:
             - coverage
+      - publish:
+          filters:
+            branches:
+              only: master
