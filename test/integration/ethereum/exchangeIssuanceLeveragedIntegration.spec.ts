@@ -2,7 +2,7 @@ import "module-alias/register";
 import { Account, Address } from "@utils/types";
 import DeployHelper from "@utils/deploys";
 import { getAccounts, getWaffleExpect, preciseMul } from "@utils/index";
-import { ethers } from "hardhat";
+import { ethers, network } from "hardhat";
 import { BigNumber, utils } from "ethers";
 import { ExchangeIssuanceLeveraged } from "@utils/contracts/index";
 import {
@@ -42,6 +42,8 @@ if (process.env.INTEGRATIONTEST) {
     let setToken: StandardTokenMock;
     let weth: IWETH;
 
+    let snapshotId: number;
+
     // const collateralTokenAddress = addresses.tokens.stEth;
 
     before(async () => {
@@ -59,6 +61,14 @@ if (process.env.INTEGRATIONTEST) {
       )) as StandardTokenMock;
 
       weth = (await ethers.getContractAt("IWETH", addresses.tokens.weth)) as IWETH;
+    });
+
+    beforeEach(async () => {
+      snapshotId = await network.provider.send("evm_snapshot", []);
+    });
+
+    afterEach(async () => {
+      await network.provider.send("evm_revert", [snapshotId]);
     });
 
     it("can get lending pool from address provider", async () => {
