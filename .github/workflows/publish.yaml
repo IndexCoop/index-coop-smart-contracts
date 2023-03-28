@@ -17,6 +17,11 @@ jobs:
           node-version: 16
       - name: copy env
         run: cp .env.default .env
+      - name: cache node_modules
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: module-cache-${{ hashFiles("yarn.lock") }}
       - name: install
         run: yarn
       - name: build
