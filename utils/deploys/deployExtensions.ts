@@ -24,7 +24,7 @@ import {
   GIMExtension,
   GovernanceExtension,
   StreamingFeeSplitExtension,
-  WrapExtension,
+  WrapExtension, NotionalTradeExtension,
 } from "../contracts/index";
 import { convertLibraryNameToLinkId } from "../common";
 
@@ -48,6 +48,7 @@ import { FixedRebalanceExtension__factory } from "../../typechain/factories/Fixe
 import { StakeWiseReinvestmentExtension__factory } from "../../typechain/factories/StakeWiseReinvestmentExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 import { WrapExtension__factory } from "../../typechain/factories/WrapExtension__factory";
+import { NotionalTradeExtension__factory } from "@typechain/factories/NotionalTradeExtension__factory";
 
 export default class DeployExtensions {
   private _deployerSigner: Signer;
@@ -319,6 +320,16 @@ export default class DeployExtensions {
       uniV3Quoter,
       slippageIssuanceModule,
       usdcAddress,
+    );
+  }
+
+  public async deployNotionalTradeExtension(
+    manager: Address,
+    notionalTradeModule: Address,
+  ): Promise<NotionalTradeExtension> {
+    return await new NotionalTradeExtension__factory(this._deployerSigner).deploy(
+      manager,
+      notionalTradeModule
     );
   }
 
