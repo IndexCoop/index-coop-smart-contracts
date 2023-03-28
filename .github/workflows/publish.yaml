@@ -29,6 +29,15 @@ jobs:
         run: yarn install --immutable
       - name: build
         run: yarn build
+      - name: tar outputs
+        run: tar -cvf outputs-${{ github.run_id }}.tar artifacts/ dist/ typechain/
+      - name: upload outputs
+        uses: actions/upload-artifact@v3
+        with:
+          name: outputs-${{ github.run_id }}
+          path: outputs-${{ github.run_id }}.tar
+          retention-days: 1
+
 
   test:
     runs-on: ubuntu-latest
@@ -56,6 +65,12 @@ jobs:
       - name: generate node_modules
         if: steps.cache-node_modules.outputs.cache-hit != 'true'
         run: yarn install --immutable
+      - name: download outputs
+        uses: actions/download-artifact@v3
+        with:
+          name: outputs-${{ github.run_id }}
+      - name: untar output
+        run: tar -xvf outputs-${{ github.run_id }}.tar
       - name: test
         run: |
           yarn chain &
@@ -86,6 +101,12 @@ jobs:
       - name: generate node_modules
         if: steps.cache-node_modules.outputs.cache-hit != 'true'
         run: yarn install --immutable
+      - name: download outputs
+        uses: actions/download-artifact@v3
+        with:
+          name: outputs-${{ github.run_id }}
+      - name: untar output
+        run: tar -xvf outputs-${{ github.run_id }}.tar
       - name: test
         run: |
           yarn chain:fork:${{ matrix.network }} &
