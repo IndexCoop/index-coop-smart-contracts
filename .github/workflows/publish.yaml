@@ -18,7 +18,14 @@ jobs:
           cache: 'yarn'
       - name: copy env
         run: cp .env.default .env
-      - name: install
+      - name: cache node_modules
+        id: cache-node_modules
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: module-cache-${{ hashFiles('yarn.lock') }}
+      - name: Generate Prime Numbers
+        if: steps.cache-node_modules.outputs.cache-hit != 'true'
         run: yarn install --immutable
       - name: build
         run: yarn build
@@ -39,7 +46,14 @@ jobs:
           cache: 'yarn'
       - name: copy env
         run: cp .env.default .env
-      - name: install
+      - name: cache node_modules
+        id: cache-node_modules
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: module-cache-${{ hashFiles('yarn.lock') }}
+      - name: Generate Prime Numbers
+        if: steps.cache-node_modules.outputs.cache-hit != 'true'
         run: yarn install --immutable
       - name: prepublish
         run: yarn prepublishOnly
