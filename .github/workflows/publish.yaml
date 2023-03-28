@@ -8,7 +8,7 @@ on:
 
 jobs:
 
-  build-and-test:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -29,15 +29,41 @@ jobs:
         run: yarn install --immutable
       - name: build
         run: yarn build
+
+  test:
+    run-on: ubuntu-latest
+    needs: [build]
+    strategy:
+      fail-fast: true
+      matrix:
+        dir: [adapters, exchangeIssuance, hooks, interfaces, keepers, lib, manager, mocks, staking, token, viewers]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          cache: 'yarn'
+      - name: copy env
+        run: cp .env.default .env
+      - name: cache node_modules
+        id: cache-node_modules
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: module-cache-${{ hashFiles('yarn.lock') }}
+      - name: generate node_modules
+        if: steps.cache-node_modules.outputs.cache-hit != 'true'
+        run: yarn install --immutable
       - name: test
         run: |
           yarn chain &
-          yarn test
+          yarn test 'contracts/${{ matrix.dir }}/**/*.sol'
 
   publish:
     runs-on: ubuntu-latest
     if: ${{ github.ref == 'refs/heads/master' }}
-    needs: [build-and-test]
+    needs: [build, test]
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v3
