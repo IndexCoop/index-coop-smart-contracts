@@ -24,7 +24,7 @@ jobs:
         with:
           path: node_modules
           key: module-cache-${{ hashFiles('yarn.lock') }}
-      - name: Generate Prime Numbers
+      - name: generate node_modules
         if: steps.cache-node_modules.outputs.cache-hit != 'true'
         run: yarn install --immutable
       - name: build
@@ -52,7 +52,7 @@ jobs:
         with:
           path: node_modules
           key: module-cache-${{ hashFiles('yarn.lock') }}
-      - name: Generate Prime Numbers
+      - name: generate node_modules
         if: steps.cache-node_modules.outputs.cache-hit != 'true'
         run: yarn install --immutable
       - name: prepublish
