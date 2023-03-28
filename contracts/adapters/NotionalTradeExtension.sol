@@ -44,8 +44,8 @@ contract NotionalTradeExtension is BaseExtension {
     /**
      * Sets state variables
      *
-     * @param _manager          Manager contract
-     * @param _wrapModule       Set Protocol NotionalTradeModule
+     * @param _manager                  Manager contract
+     * @param _notionalTradeModule      Set Protocol NotionalTradeModule
      */
     constructor(IBaseManager _manager, INotionalTradeModule _notionalTradeModule) public BaseExtension(_manager) {
         manager = _manager;
@@ -79,7 +79,7 @@ contract NotionalTradeExtension is BaseExtension {
     }
 
     function redeemFixedFCashForToken(uint16 _currencyId, uint40 _maturity, uint256 _redeemAmount, address _receiveToken, uint256 _minReceiveAmount) external onlyOperator {
-        bytes memory data = abi.encodeWithSelector(notionalTradeModule.redeemFixedFCashForToken, setToken, _currencyId, _maturity, _redeemAmount, _receiveToken, _minReceiveAmount);
+        bytes memory data = abi.encodeWithSelector(notionalTradeModule.redeemFixedFCashForToken.selector, setToken, _currencyId, _maturity, _redeemAmount, _receiveToken, _minReceiveAmount);
         invokeManager(address(notionalTradeModule), data);
     }
 
