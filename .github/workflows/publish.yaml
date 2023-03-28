@@ -111,7 +111,7 @@ jobs:
         env:
           ALCHEMY_TOKEN: ${{ secrets.ALCHEMY_TOKEN }}
           OPTIMISM_RPC_URL: ${{ secrets.OPTIMISM_RPC_URL }}
-          POLYGON_RPC_URL: ${{ secrets.POLYGON_RPC_URL I}}
+          POLYGON_RPC_URL: ${{ secrets.POLYGON_RPC_URL }}
         run: |
           yarn chain:fork:${{ matrix.network }} &
           yarn test:integration:${{ matrix.network }}
