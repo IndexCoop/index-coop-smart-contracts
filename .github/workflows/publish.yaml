@@ -36,6 +36,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
+        # Keep in sync with top level dirs in test folder
         dir: [adapters, exchangeIssuance, hooks, keepers, lib, manager, token, viewers]
 
     steps:
@@ -58,12 +59,42 @@ jobs:
       - name: test
         run: |
           yarn chain &
-          yarn test test/${{ matrix.dir }}/**/*.spec.ts    
+          yarn test "test/${{ matrix.dir }}/**/*.spec.ts"
+  
+  test-integration:
+    runs-on: ubuntu-latest
+    needs: [build]
+    strategy:
+      fail-fast: true
+      matrix:
+        network: [ethereum, polygon, optimism]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          cache: 'yarn'
+      - name: copy env
+        run: cp .env.default .env
+      - name: cache node_modules
+        id: cache-node_modules
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: module-cache-${{ hashFiles('yarn.lock') }}
+      - name: generate node_modules
+        if: steps.cache-node_modules.outputs.cache-hit != 'true'
+        run: yarn install --immutable
+      - name: test
+        run: |
+          yarn chain:fork:${{ matrix.network }} &
+          yarn test:integration:${{ matrix.network }}
 
   publish:
     runs-on: ubuntu-latest
     if: ${{ github.ref == 'refs/heads/master' }}
-    needs: [build, test]
+    needs: [build, test, test-integration]
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v3
