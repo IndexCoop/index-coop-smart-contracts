@@ -13,7 +13,7 @@ import {
 } from "../../../typechain";
 import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "./addresses";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
-import { ether } from "@utils/index";
+import { ether, setEthBalance } from "@utils/index";
 
 const expect = getWaffleExpect();
 
@@ -65,6 +65,7 @@ if (process.env.INTEGRATIONTEST) {
 
     beforeEach(async () => {
       snapshotId = await network.provider.send("evm_snapshot", []);
+      await setEthBalance(owner.address, ether(10_000));
     });
 
     afterEach(async () => {
@@ -82,7 +83,7 @@ if (process.env.INTEGRATIONTEST) {
 
     context("When exchange issuance is deployed", () => {
       let exchangeIssuance: ExchangeIssuanceLeveraged;
-      before(async () => {
+      beforeEach(async () => {
         exchangeIssuance = await deployer.extensions.deployExchangeIssuanceLeveraged(
           addresses.tokens.weth,
           addresses.dexes.uniV2.router,
@@ -142,7 +143,7 @@ if (process.env.INTEGRATIONTEST) {
         let collateralATokenAddress: Address;
         let collateralTokenAddress: Address;
         let debtTokenAddress: Address;
-        before(async () => {
+        beforeEach(async () => {
           await exchangeIssuance.approveSetToken(setToken.address);
 
           const leveragedTokenData = await exchangeIssuance.getLeveragedTokenData(
