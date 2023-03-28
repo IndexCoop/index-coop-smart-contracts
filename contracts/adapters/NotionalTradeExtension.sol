@@ -18,10 +18,10 @@
 
 pragma solidity 0.6.10;
 
-import { BaseExtension } from "../lib/BaseExtension.sol";
-import { IBaseManager } from "../interfaces/IBaseManager.sol";
-import { ISetToken } from "../interfaces/ISetToken.sol";
-import { INotionalTradeModule } from "../interfaces/INotionalTradeModule.sol";
+import {BaseExtension} from "../lib/BaseExtension.sol";
+import {IBaseManager} from "../interfaces/IBaseManager.sol";
+import {ISetToken} from "../interfaces/ISetToken.sol";
+import {INotionalTradeModule} from "../interfaces/INotionalTradeModule.sol";
 
 /**
  * @title NotionalTradeExtension
@@ -30,7 +30,6 @@ import { INotionalTradeModule } from "../interfaces/INotionalTradeModule.sol";
  * Manager extension for interacting with NotionalTradeModule
  */
 contract NotionalTradeExtension is BaseExtension {
-
     /* ========== State Variables ========= */
 
     // Address of Set Token
@@ -69,27 +68,86 @@ contract NotionalTradeExtension is BaseExtension {
     }
 
     function setRedeemToUnderlying(bool _toUnderlying) external onlyOperator {
-        bytes memory data = abi.encodeWithSelector(notionalTradeModule.setRedeemToUnderlying.selector, setToken, _toUnderlying);
+        bytes memory data =
+            abi.encodeWithSelector(notionalTradeModule.setRedeemToUnderlying.selector, setToken, _toUnderlying);
         invokeManager(address(notionalTradeModule), data);
     }
 
-    function mintFixedFCashForToken(uint16 _currencyId, uint40 _maturity, uint256 _mintAmount, address _sendToken, uint256 _maxSendAmount) external onlyOperator {
-        bytes memory data = abi.encodeWithSelector(notionalTradeModule.mintFixedFCashForToken.selector, setToken, _currencyId, _maturity, _mintAmount, _sendToken, _maxSendAmount);
+    function mintFixedFCashForToken(
+        uint16 _currencyId,
+        uint40 _maturity,
+        uint256 _mintAmount,
+        address _sendToken,
+        uint256 _maxSendAmount
+    ) external onlyOperator {
+        bytes memory data = abi.encodeWithSelector(
+            notionalTradeModule.mintFixedFCashForToken.selector,
+            setToken,
+            _currencyId,
+            _maturity,
+            _mintAmount,
+            _sendToken,
+            _maxSendAmount
+        );
         invokeManager(address(notionalTradeModule), data);
     }
 
-    function redeemFixedFCashForToken(uint16 _currencyId, uint40 _maturity, uint256 _redeemAmount, address _receiveToken, uint256 _minReceiveAmount) external onlyOperator {
-        bytes memory data = abi.encodeWithSelector(notionalTradeModule.redeemFixedFCashForToken.selector, setToken, _currencyId, _maturity, _redeemAmount, _receiveToken, _minReceiveAmount);
+    function redeemFixedFCashForToken(
+        uint16 _currencyId,
+        uint40 _maturity,
+        uint256 _redeemAmount,
+        address _receiveToken,
+        uint256 _minReceiveAmount
+    ) external onlyOperator {
+        bytes memory data = abi.encodeWithSelector(
+            notionalTradeModule.redeemFixedFCashForToken.selector,
+            setToken,
+            _currencyId,
+            _maturity,
+            _redeemAmount,
+            _receiveToken,
+            _minReceiveAmount
+        );
         invokeManager(address(notionalTradeModule), data);
     }
 
-    function mintFCashForFixedToken(uint16 _currencyId, uint40 _maturity, uint256 _minMintAmount, address _sendToken, uint256 _sendAmount) external onlyOperator {
-        bytes memory data = abi.encodeWithSelector(notionalTradeModule.mintFCashForFixedToken.selector, setToken, _currencyId, _maturity, _minMintAmount, _sendToken, _sendAmount);
+    function mintFCashForFixedToken(
+        uint16 _currencyId,
+        uint40 _maturity,
+        uint256 _minMintAmount,
+        address _sendToken,
+        uint256 _sendAmount
+    ) external onlyOperator {
+        bytes memory data = abi.encodeWithSelector(
+            notionalTradeModule.mintFCashForFixedToken.selector,
+            setToken,
+            _currencyId,
+            _maturity,
+            _minMintAmount,
+            _sendToken,
+            _sendAmount
+        );
         invokeManager(address(notionalTradeModule), data);
     }
 
-    function redeemFCashForFixedToken(uint16 _currencyId, uint40 _maturity, uint256 _maxRedeemAmount, address _receiveToken, uint256 _receiveAmount, uint256 _maxReceiveAmountDeviation) external onlyOperator {
-        bytes memory data = abi.encodeWithSelector(notionalTradeModule.redeemFCashForFixedToken.selector, setToken, _currencyId, _maturity, _maxRedeemAmount, _receiveToken, _receiveAmount, _maxReceiveAmountDeviation);
+    function redeemFCashForFixedToken(
+        uint16 _currencyId,
+        uint40 _maturity,
+        uint256 _maxRedeemAmount,
+        address _receiveToken,
+        uint256 _receiveAmount,
+        uint256 _maxReceiveAmountDeviation
+    ) external onlyOperator {
+        bytes memory data = abi.encodeWithSelector(
+            notionalTradeModule.redeemFCashForFixedToken.selector,
+            setToken,
+            _currencyId,
+            _maturity,
+            _maxRedeemAmount,
+            _receiveToken,
+            _receiveAmount,
+            _maxReceiveAmountDeviation
+        );
         invokeManager(address(notionalTradeModule), data);
     }
 }
