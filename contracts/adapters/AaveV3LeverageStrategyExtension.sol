@@ -1,5 +1,5 @@
 /*
-    Copyright 2021 Set Labs Inc.
+    Copyright 2023 Index Coop
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -18,19 +18,16 @@
 
 pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
-import { AaveLeverageStrategyExtension } from "./AaveLeverageStrategyExtension.sol";
 
-import { IBaseManager } from "../interfaces/IBaseManager.sol";
+import {AaveLeverageStrategyExtension} from "./AaveLeverageStrategyExtension.sol";
 
+import {IBaseManager} from "../interfaces/IBaseManager.sol";
 
 /**
  * @title AaveV3LeverageStrategyExtension
- * @author Set Protocol
+ * @author Index Coop
  *
- * Smart contract that enables trustless leverage tokens. This extension is paired with the AaveV3LeverageModule from Set protocol where module 
- * interactions are invoked via the IBaseManager contract. Any leveraged token can be constructed as long as the collateral and borrow asset 
- * is available on AaveV3. This extension contract also allows the operator to set an ETH reward to incentivize keepers calling the rebalance
- * function at different leverage thresholds.
+ * Extension of AaveLeverageStrategyExtension to add endpoint for setting the eMode categoryId
  *
  */
 contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
@@ -43,15 +40,30 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
         string[] memory _exchangeNames,
         ExchangeSettings[] memory _exchangeSettings
     )
-    public
-    AaveLeverageStrategyExtension(
-        _manager,
-        _strategy,
-        _methodology,
-        _execution,
-        _incentive,
-        _exchangeNames,
-        _exchangeSettings
-    )
-    { }
+        public
+        AaveLeverageStrategyExtension(
+            _manager,
+            _strategy,
+            _methodology,
+            _execution,
+            _incentive,
+            _exchangeNames,
+            _exchangeSettings
+        )
+    {}
+
+    /**
+     * OPERATOR ONLY: Set eMode categoryId to new value
+     *
+     * @param _categoryId    eMode categoryId as defined on aaveV3
+     */
+    function setEModeCategory(uint8 _categoryId) external onlyOperator {
+        _setEModeCategory(_categoryId);
+    }
+
+    function _setEModeCategory(uint8 _categoryId) internal {
+        bytes memory setEmodeCallData =
+            abi.encodeWithSignature("setEModeCategory(address,uint8)", address(strategy.setToken), _categoryId);
+        invokeManager(address(strategy.leverageModule), setEmodeCallData);
+    }
 }
