@@ -48,6 +48,8 @@ import { FixedRebalanceExtension__factory } from "../../typechain/factories/Fixe
 import { StakeWiseReinvestmentExtension__factory } from "../../typechain/factories/StakeWiseReinvestmentExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 import { WrapExtension__factory } from "../../typechain/factories/WrapExtension__factory";
+import {FlashMint4626, FlashMint4626__factory} from "../../typechain";
+import {FlashMint4626LibraryAddresses} from "../../typechain/factories/FlashMint4626__factory"
 
 export default class DeployExtensions {
   private _deployerSigner: Signer;
@@ -391,6 +393,45 @@ export default class DeployExtensions {
         [linkId]: dexAdapter.address,
       },
       // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      {
+        quickRouter: quickRouterAddress,
+        sushiRouter: sushiRouterAddress,
+        uniV3Router: uniV3RouterAddress,
+        uniV3Quoter: uniswapV3QuoterAddress,
+        curveAddressProvider: curveAddressProviderAddress,
+        curveCalculator: curveCalculatorAddress,
+        weth: wethAddress,
+      },
+      setControllerAddress,
+      issuanceModuleAddress,
+      wrapModuleAddress,
+    );
+  }
+
+  public async deployFlashMint4626(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+    setControllerAddress: Address,
+    issuanceModuleAddress: Address,
+    wrapModuleAddress: Address,
+  ): Promise<FlashMint4626> {
+    const dexAdapter = await this.deployDEXAdapter();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
+    ) as keyof FlashMint4626LibraryAddresses;
+
+    return await new FlashMint4626__factory(
+      {
+        [linkId]: dexAdapter.address,
+      },
       this._deployerSigner,
     ).deploy(
       {
