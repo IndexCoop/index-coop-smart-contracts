@@ -49,6 +49,7 @@ import { WETH9__factory } from "../../typechain/factories/WETH9__factory";
 import { WrapModule__factory } from "../../typechain/factories/WrapModule__factory";
 import { SlippageIssuanceModule__factory } from "../../typechain/factories/SlippageIssuanceModule__factory";
 import { CompoundWrapV2Adapter__factory } from "@typechain/factories/CompoundWrapV2Adapter__factory";
+import { ERC4626WrapV2Adapter__factory } from "@typechain/factories/ERC4626WrapV2Adapter__factory";
 
 export default class DeploySetV2 {
   private _deployerSigner: Signer;
@@ -234,6 +235,10 @@ export default class DeploySetV2 {
 
   public async deploySlippageIssuanceModule(controller: Address): Promise<SlippageIssuanceModule> {
     return await new SlippageIssuanceModule__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployERC4626WrapV2Adapter(): Promise<any> {
+    return await new ERC4626WrapV2Adapter__factory(this._deployerSigner).deploy();
   }
 
   public async deployCompoundWrapV2Adapter(): Promise<any> {

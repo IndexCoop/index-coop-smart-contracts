@@ -6,14 +6,12 @@ import { ethers } from "hardhat";
 import { BigNumber, utils } from "ethers";
 import {
   IWETH,
-  StandardTokenMock,
   IUniswapV2Router,
   FlashMintWrapped,
   IERC20__factory,
   IERC20,
   IDebtIssuanceModule,
-  CERc20__factory,
-  ICErc20__factory,
+  ICErc20__factory, SetToken,
 } from "../../../typechain";
 import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "./addresses";
 import { ADDRESS_ZERO, ZERO, ZERO_BYTES } from "@utils/constants";
@@ -25,7 +23,7 @@ const expect = getWaffleExpect();
 const addresses = process.env.USE_STAGING_ADDRESSES ? STAGING_ADDRESSES : PRODUCTION_ADDRESSES;
 
 //#region types, consts
-const compoundWrapAdapterIntegrationName: string = "ERC4626WrapV2Adapter";
+const erc4626WrapV2AdapterName: string = "ERC4626WrapV2Adapter";
 
 enum Exchange {
   None,
@@ -62,7 +60,7 @@ type ComponentWrapData = {
 };
 
 //#endregion
-const maUSDC = "0xA5269A8e31B93Ff27B887B56720A25F844db0529" // maUSDC
+const maUSDC = "0xA5269A8e31B93Ff27B887B56720A25F844db0529"; // maUSDC
 
 
 class TestHelper {
@@ -74,12 +72,9 @@ class TestHelper {
   ) {
     // get required issuance components
     const [
-      issuanceComponents, // cDAI, cUSDC
-      issuanceUnits,
+      issuanceComponents, // maUSDC
+      ,
     ] = await issuanceModule.getRequiredComponentIssuanceUnits(setToken, issueSetAmount);
-
-    const cDAI = CERc20__factory.connect(addresses.tokens.cDAI, ethers.provider);
-    const cUSDC = CERc20__factory.connect(addresses.tokens.cUSDC, ethers.provider);
 
     if (
       JSON.stringify([maUSDC]).toLowerCase() !==
@@ -107,7 +102,7 @@ class TestHelper {
         path: [inputToken, addresses.tokens.weth, addresses.tokens.USDC],
         fees: [3000],
         pool: ADDRESS_ZERO,
-        exchange: 3,
+        exchange: 3, // UniV3
       },
       buyUnderlyingAmount: usdc(102),
     },
@@ -119,7 +114,7 @@ class TestHelper {
   getWrapData(): ComponentWrapData[] {
     return [
       {
-        integrationName: compoundWrapAdapterIntegrationName,
+        integrationName: erc4626WrapV2AdapterName,
         wrapData: ZERO_BYTES,
       },
     ];
@@ -254,11 +249,11 @@ if (process.env.INTEGRATIONTEST) {
   describe("FlashMint4626 - Integration Test", async () => {
     let owner: Account;
     let deployer: DeployHelper;
-    let setToken: StandardTokenMock;
-    let USDC: StandardTokenMock;
+    let setToken: SetToken;
+    let USDC: IERC20;
     let weth: IWETH;
     let setV2Setup: SetFixture;
-    let setTokenAddr : string;
+    let setTokenAddr: string;
 
     before(async () => {
       [owner] = await getAccounts();
@@ -268,13 +263,12 @@ if (process.env.INTEGRATIONTEST) {
       await setV2Setup.initialize();
 
       // deploy CompoundWrapV2Adapter
-      const compoundWrapAdapter = await deployer.setV2.deployCompoundWrapV2Adapter();
+      const erc4626WrapAdapter = await deployer.setV2.deployERC4626WrapV2Adapter();
       await setV2Setup.integrationRegistry.addIntegration(
         setV2Setup.wrapModule.address,
-        compoundWrapAdapterIntegrationName,
-        compoundWrapAdapter.address,
+        erc4626WrapV2AdapterName,
+        erc4626WrapAdapter.address,
       );
-
 
       // create set token with cDAI and cUSDC
       setToken = await setV2Setup.createSetToken(
@@ -298,9 +292,9 @@ if (process.env.INTEGRATIONTEST) {
       );
 
       USDC = (await ethers.getContractAt(
-        "StandardTokenMock",
+        "IERC20",
         addresses.tokens.USDC,
-      )) as StandardTokenMock;
+      )) as IERC20;
 
       weth = (await ethers.getContractAt("IWETH", addresses.tokens.weth)) as IWETH;
     });
@@ -365,7 +359,7 @@ if (process.env.INTEGRATIONTEST) {
 
       describe("When setToken is approved", () => {
         before(async () => {
-          console.log(setTokenAddr)
+          console.log(setTokenAddr);
           await flashMintContract.approveSetToken(setTokenAddr);
         });
 
@@ -427,7 +421,7 @@ if (process.env.INTEGRATIONTEST) {
                       .connect(owner.wallet)
                       .approve(flashMintContract.address, subjectMaxAmountIn);
                   }
-                  console.log(subjectMaxAmountIn.toString())
+                  console.log(subjectMaxAmountIn.toString());
 
                   subjectSetToken = setTokenAddr;
                   issueSetAmount = ether(1);
@@ -473,10 +467,10 @@ if (process.env.INTEGRATIONTEST) {
 
                 //#region issue tests
                 it.only("should issue the correct amount of tokens", async () => {
-                  const setBalancebefore = await setToken.balanceOf(owner.address);
+                  const setBalanceBefore = await setToken.balanceOf(owner.address);
                   await subject();
                   const setBalanceAfter = await setToken.balanceOf(owner.address);
-                  const setObtained = setBalanceAfter.sub(setBalancebefore);
+                  const setObtained = setBalanceAfter.sub(setBalanceBefore);
                   expect(setObtained).to.eq(issueSetAmount);
                 });
 
