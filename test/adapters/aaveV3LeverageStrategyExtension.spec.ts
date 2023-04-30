@@ -17,6 +17,8 @@ import { BaseManager, TradeAdapterMock, ChainlinkAggregatorV3Mock } from "@utils
 import {
   AaveV2AToken,
   AaveV2AToken__factory,
+  AaveV2VariableDebtToken,
+  AaveV2VariableDebtToken__factory,
   AaveV3LeverageModule,
   AaveV3LeverageStrategyExtension,
   Controller,
@@ -31,6 +33,8 @@ import {
   SetTokenCreator__factory,
   SetToken,
   SetToken__factory,
+  IAToken,
+  IAToken__factory,
   IAaveProtocolDataProvider,
   IAaveProtocolDataProvider__factory,
   IERC20,
@@ -59,7 +63,6 @@ import {
   calculateMaxRedeemForDeleverToZero,
 } from "@utils/index";
 import { SetFixture, AaveV2Fixture } from "@utils/fixtures";
-import { AaveV2VariableDebtToken } from "@typechain/AaveV2VariableDebtToken";
 import { calculateTotalRebalanceNotionalAave } from "@utils/flexibleLeverageUtils/flexibleLeverage";
 
 const expect = getWaffleExpect();
@@ -123,8 +126,8 @@ describe("AaveV3LeverageStrategyExtension", () => {
   let integrationRegistry: IntegrationRegistry;
   let setTokenCreator: SetTokenCreator;
   let uniswapV3ExchangeAdapterV2: UniswapV3ExchangeAdapterV2;
-  let aWeth: AaveV2AToken;
-  let aUsdc: AaveV2AToken;
+  let aWeth: IAToken;
+  let aUsdc: IAToken;
   let usdcVariableDebtToken: AaveV2VariableDebtToken;
   let weth: IERC20;
   let usdc: IERC20;
@@ -152,6 +155,13 @@ describe("AaveV3LeverageStrategyExtension", () => {
     manager = owner.address;
     usdc = IERC20__factory.connect(tokenAddresses.usdc, owner.wallet);
     weth = IERC20__factory.connect(tokenAddresses.weth, owner.wallet);
+
+    aWeth = IAToken__factory.connect(tokenAddresses.aWethV3, owner.wallet);
+    aUsdc = IAToken__factory.connect(tokenAddresses.aUSDC, owner.wallet);
+    usdcVariableDebtToken = AaveV2VariableDebtToken__factory.connect(
+      tokenAddresses.aUsdcVariableDebtTokenV3,
+      owner.wallet,
+    );
 
     uniswapV3ExchangeAdapterV2 = UniswapV3ExchangeAdapterV2__factory.connect(
       contractAddresses.uniswapV3ExchangeAdapterV2,
@@ -226,6 +236,12 @@ describe("AaveV3LeverageStrategyExtension", () => {
       "AaveLeverageModuleV3",
       aaveLeverageModule.address,
     );
+
+    // Deploy Chainlink mocks
+    chainlinkCollateralPriceMock = await deployer.mocks.deployChainlinkAggregatorMock();
+    await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1000).mul(10 ** 8));
+    chainlinkBorrowPriceMock = await deployer.mocks.deployChainlinkAggregatorMock();
+    await chainlinkBorrowPriceMock.setPrice(10 ** 8);
   });
 
   async function createSetToken(
@@ -286,7 +302,7 @@ describe("AaveV3LeverageStrategyExtension", () => {
 
     // Transfer ownership to ic manager
     if ((await setToken.manager()) == owner.address) {
-    console.log("Transfering ownership");
+      console.log("Transfering ownership");
       await setToken.connect(owner.wallet).setManager(baseManagerV2.address);
     }
     console.log("Done with manager");
