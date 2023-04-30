@@ -24,7 +24,7 @@ const optimismForkingConfig = {
 
 const mainnetForkingConfig = {
   url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
-  blockNumber: process.env.LATESTBLOCK ? undefined : 16180859,
+  blockNumber: process.env.LATESTBLOCK ? undefined : 17150000,
 };
 
 const forkingConfig =
@@ -57,6 +57,10 @@ const config: HardhatUserConfig = {
     compilers: [
       {
         version: "0.6.10",
+        settings: { optimizer: { enabled: true, runs: 200 } }
+      },
+      {
+        version: "0.8.17",
         settings: { optimizer: { enabled: true, runs: 200 } }
       },
     ],

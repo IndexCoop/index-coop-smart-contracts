@@ -24,6 +24,12 @@ import {
   WrapModule,
   SlippageIssuanceModule,
 } from "../contracts/setV2";
+import {
+  AaveV3LeverageModule,
+  AaveV3LeverageModule__factory,
+  AaveV3,
+  AaveV3__factory,
+} from "../../typechain";
 import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
 import { AaveLeverageModule__factory } from "../../typechain/factories/AaveLeverageModule__factory";
@@ -203,6 +209,10 @@ export default class DeploySetV2 {
     return await new AaveV2__factory(this._deployerSigner).deploy();
   }
 
+  public async deployAaveV3Lib(): Promise<AaveV3> {
+    return await new AaveV3__factory(this._deployerSigner).deploy();
+  }
+
   public async deployAaveLeverageModule(
     controller: string,
     lendingPoolAddressesProvider: string,
@@ -222,6 +232,32 @@ export default class DeploySetV2 {
       // @ts-ignore
       this._deployerSigner,
     ).deploy(controller, lendingPoolAddressesProvider, protocolDataProvider);
+  }
+
+  public async deployAaveV3LeverageModule(
+    controller: string,
+    lendingPoolAddressesProvider: string,
+  ): Promise<AaveV3LeverageModule> {
+    console.log("deployAaveV3Lib");
+    const aaveV3Lib = await this.deployAaveV3Lib();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/protocol/integration/lib/AaveV3.sol:AaveV3",
+    );
+
+    console.log("deployAaveV3LeverageModule", {
+      aaveV3LibAddress: aaveV3Lib.address,
+      lendingPoolAddressesProvider,
+      linkId,
+    });
+    return await new AaveV3LeverageModule__factory(
+      // @ts-ignore
+      {
+        [linkId]: aaveV3Lib.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(controller, lendingPoolAddressesProvider);
   }
 
   public async deployAirdropModule(controller: Address): Promise<AirdropModule> {
