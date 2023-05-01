@@ -3530,165 +3530,165 @@ describe("AaveV3LeverageStrategyExtension", () => {
         });
       },
     );
-  });
-
-  // describe("#setMethodologySettings", async () => {
-  //   let subjectMethodologySettings: MethodologySettings;
-  //   let subjectCaller: Account;
-
-  //   const initializeSubjectVariables = () => {
-  //     subjectMethodologySettings = {
-  //       targetLeverageRatio: ether(2.1),
-  //       minLeverageRatio: ether(1.1),
-  //       maxLeverageRatio: ether(2.5),
-  //       recenteringSpeed: ether(0.1),
-  //       rebalanceInterval: BigNumber.from(43200),
-  //     };
-  //     subjectCaller = owner;
-  //   };
-
-  //   async function subject(): Promise<any> {
-  //     leverageStrategyExtension = leverageStrategyExtension.connect(subjectCaller.wallet);
-  //     return leverageStrategyExtension.setMethodologySettings(subjectMethodologySettings);
-  //   }
-
-  //   describe("when rebalance is not in progress", () => {
-  //     cacheBeforeEach(initializeRootScopeContracts);
-  //     beforeEach(initializeSubjectVariables);
-
-  //     it("should set the correct methodology parameters", async () => {
-  //       await subject();
-  //       const methodology = await leverageStrategyExtension.getMethodology();
-
-  //       expect(methodology.targetLeverageRatio).to.eq(
-  //         subjectMethodologySettings.targetLeverageRatio,
-  //       );
-  //       expect(methodology.minLeverageRatio).to.eq(subjectMethodologySettings.minLeverageRatio);
-  //       expect(methodology.maxLeverageRatio).to.eq(subjectMethodologySettings.maxLeverageRatio);
-  //       expect(methodology.recenteringSpeed).to.eq(subjectMethodologySettings.recenteringSpeed);
-  //       expect(methodology.rebalanceInterval).to.eq(subjectMethodologySettings.rebalanceInterval);
-  //     });
-
-  //     it("should emit MethodologySettingsUpdated event", async () => {
-  //       await expect(subject())
-  //         .to.emit(leverageStrategyExtension, "MethodologySettingsUpdated")
-  //         .withArgs(
-  //           subjectMethodologySettings.targetLeverageRatio,
-  //           subjectMethodologySettings.minLeverageRatio,
-  //           subjectMethodologySettings.maxLeverageRatio,
-  //           subjectMethodologySettings.recenteringSpeed,
-  //           subjectMethodologySettings.rebalanceInterval,
-  //         );
-  //     });
-
-  //     describe("when the caller is not the operator", async () => {
-  //       beforeEach(async () => {
-  //         subjectCaller = await getRandomAccount();
-  //       });
-
-  //       it("should revert", async () => {
-  //         await expect(subject()).to.be.revertedWith("Must be operator");
-  //       });
-  //     });
-
-  //     describe("when min leverage ratio is 0", async () => {
-  //       beforeEach(async () => {
-  //         subjectMethodologySettings.minLeverageRatio = ZERO;
-  //       });
-
-  //       it("should revert", async () => {
-  //         await expect(subject()).to.be.revertedWith("Must be valid min leverage");
-  //       });
-  //     });
-
-  //     describe("when min leverage ratio is above target", async () => {
-  //       beforeEach(async () => {
-  //         subjectMethodologySettings.minLeverageRatio = ether(2.2);
-  //       });
-
-  //       it("should revert", async () => {
-  //         await expect(subject()).to.be.revertedWith("Must be valid min leverage");
-  //       });
-  //     });
-
-  //     describe("when max leverage ratio is below target", async () => {
-  //       beforeEach(async () => {
-  //         subjectMethodologySettings.maxLeverageRatio = ether(1.9);
-  //       });
-
-  //       it("should revert", async () => {
-  //         await expect(subject()).to.be.revertedWith("Must be valid max leverage");
-  //       });
-  //     });
-
-  //     describe("when max leverage ratio is above incentivized leverage ratio", async () => {
-  //       beforeEach(async () => {
-  //         subjectMethodologySettings.maxLeverageRatio = ether(5);
-  //       });
-
-  //       it("should revert", async () => {
-  //         await expect(subject()).to.be.revertedWith(
-  //           "Incentivized leverage ratio must be > max leverage ratio",
-  //         );
-  //       });
-  //     });
-
-  //     describe("when recentering speed is >100%", async () => {
-  //       beforeEach(async () => {
-  //         subjectMethodologySettings.recenteringSpeed = ether(1.1);
-  //       });
-
-  //       it("should revert", async () => {
-  //         await expect(subject()).to.be.revertedWith("Must be valid recentering speed");
-  //       });
-  //     });
-
-  //     describe("when recentering speed is 0%", async () => {
-  //       beforeEach(async () => {
-  //         subjectMethodologySettings.recenteringSpeed = ZERO;
-  //       });
-
-  //       it("should revert", async () => {
-  //         await expect(subject()).to.be.revertedWith("Must be valid recentering speed");
-  //       });
-  //     });
-
-  //     describe("when rebalance interval is shorter than TWAP cooldown period", async () => {
-  //       beforeEach(async () => {
-  //         subjectMethodologySettings.rebalanceInterval = ZERO;
-  //       });
-
-  //       it("should revert", async () => {
-  //         await expect(subject()).to.be.revertedWith(
-  //           "Rebalance interval must be greater than TWAP cooldown period",
-  //         );
-  //       });
-  //     });
-  //   });
-
-  //   describe("when rebalance is in progress", async () => {
-  //     beforeEach(async () => {
-  //       await initializeRootScopeContracts();
-  //       initializeSubjectVariables();
-
-  //       // Approve tokens to issuance module and call issue
-  //       await aWeth.approve(debtIssuanceModule.address, ether(1000));
-
-  //       // Issue 1 SetToken
-  //       const issueQuantity = ether(1);
-  //       await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
-
-  //       await weth.transfer(tradeAdapterMock.address, ether(0.5));
-
-  //       // Engage to initial leverage
-  //       await leverageStrategyExtension.engage(exchangeName);
-  //     });
-
-  //     it("should revert", async () => {
-  //       await expect(subject()).to.be.revertedWith("Rebalance is currently in progress");
-  //     });
-  //   });
   // });
+
+  describe("#setMethodologySettings", async () => {
+    let subjectMethodologySettings: MethodologySettings;
+    let subjectCaller: Account;
+
+    const initializeSubjectVariables = () => {
+      subjectMethodologySettings = {
+        targetLeverageRatio: ether(2.1),
+        minLeverageRatio: ether(1.1),
+        maxLeverageRatio: ether(2.5),
+        recenteringSpeed: ether(0.1),
+        rebalanceInterval: BigNumber.from(43200),
+      };
+      subjectCaller = owner;
+    };
+
+    async function subject(): Promise<any> {
+      leverageStrategyExtension = leverageStrategyExtension.connect(subjectCaller.wallet);
+      return leverageStrategyExtension.setMethodologySettings(subjectMethodologySettings);
+    }
+
+    describe("when rebalance is not in progress", () => {
+      cacheBeforeEach(initializeRootScopeContracts);
+      beforeEach(initializeSubjectVariables);
+
+      it("should set the correct methodology parameters", async () => {
+        await subject();
+        const methodology = await leverageStrategyExtension.getMethodology();
+
+        expect(methodology.targetLeverageRatio).to.eq(
+          subjectMethodologySettings.targetLeverageRatio,
+        );
+        expect(methodology.minLeverageRatio).to.eq(subjectMethodologySettings.minLeverageRatio);
+        expect(methodology.maxLeverageRatio).to.eq(subjectMethodologySettings.maxLeverageRatio);
+        expect(methodology.recenteringSpeed).to.eq(subjectMethodologySettings.recenteringSpeed);
+        expect(methodology.rebalanceInterval).to.eq(subjectMethodologySettings.rebalanceInterval);
+      });
+
+      it("should emit MethodologySettingsUpdated event", async () => {
+        await expect(subject())
+          .to.emit(leverageStrategyExtension, "MethodologySettingsUpdated")
+          .withArgs(
+            subjectMethodologySettings.targetLeverageRatio,
+            subjectMethodologySettings.minLeverageRatio,
+            subjectMethodologySettings.maxLeverageRatio,
+            subjectMethodologySettings.recenteringSpeed,
+            subjectMethodologySettings.rebalanceInterval,
+          );
+      });
+
+      describe("when the caller is not the operator", async () => {
+        beforeEach(async () => {
+          subjectCaller = await getRandomAccount();
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be operator");
+        });
+      });
+
+      describe("when min leverage ratio is 0", async () => {
+        beforeEach(async () => {
+          subjectMethodologySettings.minLeverageRatio = ZERO;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be valid min leverage");
+        });
+      });
+
+      describe("when min leverage ratio is above target", async () => {
+        beforeEach(async () => {
+          subjectMethodologySettings.minLeverageRatio = ether(2.2);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be valid min leverage");
+        });
+      });
+
+      describe("when max leverage ratio is below target", async () => {
+        beforeEach(async () => {
+          subjectMethodologySettings.maxLeverageRatio = ether(1.9);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be valid max leverage");
+        });
+      });
+
+      describe("when max leverage ratio is above incentivized leverage ratio", async () => {
+        beforeEach(async () => {
+          subjectMethodologySettings.maxLeverageRatio = ether(5);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith(
+            "Incentivized leverage ratio must be > max leverage ratio",
+          );
+        });
+      });
+
+      describe("when recentering speed is >100%", async () => {
+        beforeEach(async () => {
+          subjectMethodologySettings.recenteringSpeed = ether(1.1);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be valid recentering speed");
+        });
+      });
+
+      describe("when recentering speed is 0%", async () => {
+        beforeEach(async () => {
+          subjectMethodologySettings.recenteringSpeed = ZERO;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be valid recentering speed");
+        });
+      });
+
+      describe("when rebalance interval is shorter than TWAP cooldown period", async () => {
+        beforeEach(async () => {
+          subjectMethodologySettings.rebalanceInterval = ZERO;
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith(
+            "Rebalance interval must be greater than TWAP cooldown period",
+          );
+        });
+      });
+    });
+
+    describe("when rebalance is in progress", async () => {
+      beforeEach(async () => {
+        await initializeRootScopeContracts();
+        initializeSubjectVariables();
+
+        // Approve tokens to issuance module and call issue
+        await aWeth.approve(debtIssuanceModule.address, ether(1000));
+
+        // Issue 1 SetToken
+        const issueQuantity = ether(1);
+        await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
+
+        await weth.transfer(tradeAdapterMock.address, ether(0.5));
+
+        // Engage to initial leverage
+        await leverageStrategyExtension.engage(exchangeName);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Rebalance is currently in progress");
+      });
+    });
+  });
 
   // describe("#setExecutionSettings", async () => {
   //   let subjectExecutionSettings: ExecutionSettings;
