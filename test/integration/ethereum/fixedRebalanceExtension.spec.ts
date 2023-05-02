@@ -1,11 +1,10 @@
 import "module-alias/register";
 import { BigNumber, BigNumberish, Signer } from "ethers";
-import { network } from "hardhat";
+import { ethers, network } from "hardhat";
 import { Address } from "@utils/types";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import { ether } from "@utils/index";
-import { ethers } from "hardhat";
 
 import { getAccounts, getWaffleExpect } from "@utils/index";
 import {
@@ -26,6 +25,7 @@ import {
 import { ONE_MONTH_IN_SECONDS, ZERO } from "@utils/constants";
 import { PRODUCTION_ADDRESSES } from "./addresses";
 import { impersonateAccount } from "./utils";
+import { setBlockNumber } from "@utils/test/testingUtils";
 
 const expect = getWaffleExpect();
 
@@ -50,6 +50,7 @@ if (process.env.INTEGRATIONTEST) {
 
     let snapshotId: number;
 
+    setBlockNumber(16180859);
     beforeEach(async () => {
       snapshotId = await network.provider.send("evm_snapshot", []);
       const [userAccount] = await getAccounts();
@@ -88,20 +89,6 @@ if (process.env.INTEGRATIONTEST) {
     afterEach(async () => {
       await network.provider.send("evm_revert", [snapshotId]);
     });
-
-    // async function logPositions(label: string) {
-    //   const positionsAfter = await setToken.getPositions();
-    //   console.log(
-    //     label,
-    //     positionsAfter.map((p: any) => {
-    //       return {
-    //         component: p.component,
-    //         unit: p.unit.toString(),
-    //       };
-    //     }),
-    //   );
-    // }
-    //
 
     describe("When token control is transferred to manager contract", () => {
       let baseManagerV2: BaseManagerV2;

@@ -9,30 +9,11 @@ import "solidity-coverage";
 import "hardhat-deploy";
 import "hardhat-contract-sizer";
 import "./tasks";
+import { forkingConfig } from "./utils/config";
+
 
 const INTEGRATIONTEST_TIMEOUT = 600000;
 
-const polygonForkingConfig = {
-  url: process.env.POLYGON_RPC_URL ?? "",
-  blockNumber: 25004110,
-};
-
-const optimismForkingConfig = {
-  url: process.env.OPTIMISM_RPC_URL ?? "",
-  blockNumber: 15275100,
-};
-
-const mainnetForkingConfig = {
-  url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
-  blockNumber: process.env.LATESTBLOCK ? undefined : 17150000,
-};
-
-const forkingConfig =
-  process.env.NETWORK === "polygon"
-    ? polygonForkingConfig
-    : process.env.NETWORK === "optimism"
-    ? optimismForkingConfig
-    : mainnetForkingConfig;
 
 const mochaConfig = {
   timeout: process.env.INTEGRATIONTEST ? INTEGRATIONTEST_TIMEOUT : 50000,

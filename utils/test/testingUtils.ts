@@ -7,6 +7,7 @@ import { ethers, network } from "hardhat";
 import { BigNumber, ContractTransaction, Signer } from "ethers";
 import { JsonRpcProvider } from "@ethersproject/providers";
 import { Blockchain } from "../common";
+import { forkingConfig } from "../config";
 
 const provider = ethers.provider;
 // const blockchain = new Blockchain(provider);
@@ -114,4 +115,31 @@ export async function impersonateAccount(address: string): Promise<Signer> {
   return await ethers.getSigner(address);
 }
 
-
+export function setBlockNumber(blockNumber: number) {
+  before(async () => {
+    await network.provider.request({
+      method: "hardhat_reset",
+      params: [
+        {
+          forking: {
+            jsonRpcUrl: forkingConfig.url,
+            blockNumber,
+          },
+        },
+      ],
+    });
+  });
+  after(async () => {
+    await network.provider.request({
+      method: "hardhat_reset",
+      params: [
+        {
+          forking: {
+            jsonRpcUrl: forkingConfig.url,
+            blockNumber: forkingConfig.blockNumber,
+          },
+        },
+      ],
+    });
+  });
+}

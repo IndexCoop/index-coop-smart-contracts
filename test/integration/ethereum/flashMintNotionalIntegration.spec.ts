@@ -8,6 +8,7 @@ import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import { ether } from "@utils/index";
 import { ProtocolUtils } from "@utils/common";
+import { setBlockNumber } from "@utils/test/testingUtils";
 
 import {
   getAccounts,
@@ -75,6 +76,8 @@ if (process.env.INTEGRATIONTEST) {
     const addresses = USE_PRODUCTION_ADDRESSES ? PRODUCTION_ADDRESSES : PRODUCTION_ADDRESSES;
 
     let snapshotId: number;
+
+  setBlockNumber(16180859);
 
     beforeEach(async () => {
       snapshotId = await network.provider.send("evm_snapshot", []);
