@@ -38,11 +38,11 @@ const config: HardhatUserConfig = {
     compilers: [
       {
         version: "0.6.10",
-        settings: { optimizer: { enabled: true, runs: 200 } }
+        settings: { optimizer: { enabled: true, runs: 200 } },
       },
       {
         version: "0.8.17",
-        settings: { optimizer: { enabled: true, runs: 200 } }
+        settings: { optimizer: { enabled: true, runs: 200 } },
       },
     ],
   },
@@ -87,7 +87,7 @@ const config: HardhatUserConfig = {
 };
 
 function getHardhatPrivateKeys() {
-  return privateKeys.map((key) => {
+  return privateKeys.map(key => {
     const TEN_MILLION_ETH = "10000000000000000000000000";
     return {
       privateKey: key,
