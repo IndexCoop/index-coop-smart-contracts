@@ -238,18 +238,12 @@ export default class DeploySetV2 {
     controller: string,
     lendingPoolAddressesProvider: string,
   ): Promise<AaveV3LeverageModule> {
-    console.log("deployAaveV3Lib");
     const aaveV3Lib = await this.deployAaveV3Lib();
 
     const linkId = convertLibraryNameToLinkId(
       "contracts/protocol/integration/lib/AaveV3.sol:AaveV3",
     );
 
-    console.log("deployAaveV3LeverageModule", {
-      aaveV3LibAddress: aaveV3Lib.address,
-      lendingPoolAddressesProvider,
-      linkId,
-    });
     return await new AaveV3LeverageModule__factory(
       // @ts-ignore
       {

@@ -680,6 +680,53 @@ if (process.env.INTEGRATIONTEST) {
       });
     });
 
+    describe("#setEModeCategory", () => {
+      let subjectCaller: Account;
+      let subjectEModeCategory: number;
+      cacheBeforeEach(initializeRootScopeContracts);
+      beforeEach(() => {
+        subjectCaller = owner;
+      });
+      async function subject() {
+        return await leverageStrategyExtension
+          .connect(subjectCaller.wallet)
+          .setEModeCategory(subjectEModeCategory);
+      }
+
+      describe("When setting eModeCategory to ETH-Category from default", () => {
+        beforeEach(() => {
+          subjectEModeCategory = 1;
+        });
+
+        it("sets the EMode category for the set Token user correctly", async () => {
+          await subject();
+          const categoryId = await lendingPool.getUserEMode(setToken.address);
+          expect(categoryId).to.eq(subjectEModeCategory);
+        });
+
+        describe("When the caller is not the operator", () => {
+          beforeEach(() => {
+            subjectCaller = methodologist;
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("Must be operator");
+          });
+        });
+      });
+      describe("When setting the category back to default", () => {
+        beforeEach(async () => {
+          await leverageStrategyExtension.connect(owner.wallet).setEModeCategory(1);
+          subjectEModeCategory = 0;
+        });
+
+        it("sets the EMode category for the set Token user correctly", async () => {
+          await subject();
+          const categoryId = await lendingPool.getUserEMode(setToken.address);
+          expect(categoryId).to.eq(subjectEModeCategory);
+        });
+      });
+    });
     describe("#engage", async () => {
       let destinationTokenQuantity: BigNumber;
       let subjectCaller: Account;
