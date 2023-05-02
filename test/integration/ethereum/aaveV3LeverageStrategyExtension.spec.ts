@@ -11,7 +11,7 @@ import {
   IncentiveSettings,
   ExchangeSettings,
 } from "@utils/types";
-import { impersonateAccount } from "../../utils/test/testingUtils";
+import { impersonateAccount } from "../../../utils/test/testingUtils";
 import { ADDRESS_ZERO, EMPTY_BYTES, ZERO, ONE, TWO, THREE, MAX_UINT_256 } from "@utils/constants";
 import { BaseManager, ChainlinkAggregatorV3Mock } from "@utils/contracts/index";
 import {
@@ -41,7 +41,7 @@ import {
   IPool,
   IPool__factory,
   TradeAdapterMock,
-} from "../../typechain";
+} from "../../../typechain";
 import DeployHelper from "@utils/deploys";
 import {
   cacheBeforeEach,
