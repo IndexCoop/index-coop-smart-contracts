@@ -87,7 +87,7 @@ class TestHelper {
         pool: ADDRESS_ZERO,
         exchange: Exchange.UniV3,
       },
-      buyUnderlyingAmount: usdc(100),
+      buyUnderlyingAmount: usdc(200),
     },
     ];
 
@@ -133,7 +133,7 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
     // create set token with morpho-aave usdc component
     setToken = await setV2Setup.createSetToken(
       [maUSDC],
-      [ether(0.991424841884336539)],
+      [ether(0.991424841884336539).mul(100)],
       [
         setV2Setup.debtIssuanceModule.address,
         setV2Setup.streamingFeeModule.address,
@@ -247,45 +247,31 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
               let componentSwapData: ComponentSwapData[];
 
               beforeEach(async () => {
-                inputAmount = ether(100);
 
                 inputToken = USDC;
-
-                if (tokenName !== "ETH") {
-                  inputAmount = usdc(100);
-
-                  const uniV2Router = (await ethers.getContractAt(
-                    "IUniswapV2Router",
-                    addresses.dexes.uniV2.router,
-                  )) as IUniswapV2Router;
-
-                  const usdcbeforetest = await inputToken.balanceOf(owner.address);
-                  await inputToken.transfer("0x00000000000000000000000000000000DeaDBeef", usdcbeforetest);
-                  await uniV2Router.swapETHForExactTokens(
-                    inputAmount,
-                    [weth.address, USDC.address],
-                    owner.address,
-                    BigNumber.from("1688894490"),
-                    { value: ether(100) },
-                  );
-                }
-
+                inputAmount = usdc(200);
+                subjectSetToken = setTokenAddr;
+                issueSetAmount = ether(2);
                 subjectMaxAmountIn = inputAmount;
 
-                const inputTokenBalance: BigNumber = await (tokenName === "ETH"
-                  ? owner.wallet.getBalance()
-                  : inputToken.balanceOf(owner.address));
-                if (tokenName === "ETH") {
-                  subjectMaxAmountIn = inputAmount;
-                } else {
-                  subjectMaxAmountIn = inputTokenBalance;
+                const uniV2Router = (await ethers.getContractAt(
+                  "IUniswapV2Router",
+                  addresses.dexes.uniV2.router,
+                )) as IUniswapV2Router;
 
-                  await inputToken
-                    .connect(owner.wallet)
-                    .approve(flashMintContract.address, subjectMaxAmountIn);
-                }
-                subjectSetToken = setTokenAddr;
-                issueSetAmount = ether(1);
+                const usdcbeforetest = await inputToken.balanceOf(owner.address);
+                await inputToken.transfer("0x00000000000000000000000000000000DeaDBeef", usdcbeforetest);
+                await uniV2Router.swapETHForExactTokens(
+                  inputAmount,
+                  [weth.address, USDC.address],
+                  owner.address,
+                  BigNumber.from("1688894490"),
+                  { value: ether(100) },
+                );
+
+                await inputToken
+                  .connect(owner.wallet)
+                  .approve(flashMintContract.address, subjectMaxAmountIn);
 
                 componentSwapData = await testHelper.getIssuanceComponentSwapData(
                   inputToken.address,
@@ -341,6 +327,18 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
 
                 const actual = formatUnits(componentRetained);
                 const expected = formatUnits(ether(0));
+                expect(actual).to.eq(expected);
+              });
+
+              it("should not retain any input tokens", async () => {
+                const inputTokenDecimals = 6;
+                const inputTokenBalanceBefore = await inputToken.balanceOf(flashMintContract.address);
+                await subject();
+                const inputTokenBalanceAfter = await inputToken.balanceOf(flashMintContract.address);
+                const inputTokensRetained = inputTokenBalanceAfter.sub(inputTokenBalanceBefore);
+
+                const actual = formatUnits(inputTokensRetained, inputTokenDecimals);
+                const expected = formatUnits(0, inputTokenDecimals);
                 expect(actual).to.eq(expected);
               });
 
