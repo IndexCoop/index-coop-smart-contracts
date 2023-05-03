@@ -85,7 +85,7 @@ class TestHelper {
         path: [inputToken, addresses.tokens.weth, addresses.tokens.USDC],
         fees: [3000],
         pool: ADDRESS_ZERO,
-        exchange: 3, // UniV3
+        exchange: Exchange.UniV3,
       },
       buyUnderlyingAmount: usdc(100),
     },
