@@ -33,6 +33,26 @@ import { IWrapModuleV2} from "../interfaces/IWrapModuleV2.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { DEXAdapter } from "./DEXAdapter.sol";
 
+interface IERC4626 {
+    function asset() external view returns (address assetTokenAddress);
+    function totalAssets() external view returns (uint256 totalManagedAssets);
+    function convertToShares(uint256 assets) external view returns (uint256 shares);
+    function convertToAssets(uint256 shares) external view returns (uint256 assets);
+    function maxDeposit(address receiver) external view returns (uint256 maxAssets);
+    function previewDeposit(uint256 assets) external view returns (uint256 shares);
+    function deposit(uint256 assets, address receiver) external returns (uint256 shares);
+    function maxMint(address receiver) external view returns (uint256 maxShares);
+    function previewMint(uint256 shares) external view returns (uint256 assets);
+    function mint(uint256 shares, address receiver) external returns (uint256 assets);
+    function maxWithdraw(address owner) external view returns (uint256 maxAssets);
+    function previewWithdraw(uint256 assets) external view returns (uint256 shares);
+    function withdraw(uint256 assets, address receiver, address owner) external returns (uint256 shares);
+    function maxRedeem(address owner) external view returns (uint256 maxShares);
+    function previewRedeem(uint256 shares) external view returns (uint256 assets);
+    function redeem(uint256 shares, address receiver, address owner) external returns (uint256 assets);
+    event Deposit(address indexed caller, address indexed owner, uint256 assets, uint256 shares);
+    event Withdraw(address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
+}
 
 /**
  * @title FlashMint4626
@@ -481,7 +501,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
         _inputToken,
         _maxAmountInputToken,
         _swapData,
-        _wrapData,
         requiredComponents,
         requiredAmounts
       );
@@ -659,7 +678,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
    * @param _inputToken                 Input token that will be sold
    * @param _maxAmountInputToken        Maximum amount of input token that can be spent
    * @param _swapData                   ComponentSwapData (input token -> underlyingERC20) for each _requiredComponents in the same order
-   * @param _wrapData                   ComponentWrapData (underlyingERC20 -> wrapped Set component) for each _requiredComponents in the same order
    * @param _requiredComponents         Issuance components gotten from IDebtIssuanceModule.getRequiredComponentIssuanceUnits()
    * @param _requiredAmounts            Issuance units gotten from IDebtIssuanceModule.getRequiredComponentIssuanceUnits()
    */
@@ -667,7 +685,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
     IERC20 _inputToken,
     uint256 _maxAmountInputToken,
     ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _wrapData,
     address[] memory _requiredComponents,
     uint256[] memory _requiredAmounts
   ) internal {
@@ -689,24 +706,23 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
 
       // snapshot balance of required component before swap and wrap operations
       uint256 componentBalanceBefore = IERC20(_requiredComponents[i]).balanceOf(address(this));
+      // we now assume that the required component is a vault and the required amount are shares
+      IERC4626 vault = IERC4626(_requiredComponents[i]);
 
+      uint256 requiredUnderlying = vault.previewMint(requiredAmount);
       // swap input token to underlying token
       _swapToExact(
         _inputToken, // input
         IERC20(_swapData[i].underlyingERC20), // output
-        _swapData[i].buyUnderlyingAmount, // buy amount: must come from flash mint caller, we do not know the exchange rate wrapped <> unwrapped
+        requiredUnderlying, // buy amount
         _maxAmountInputToken, // maximum spend amount: _maxAmountInputToken as transferred by the flash mint caller
         _swapData[i].dexData // dex path fees data etc.
       );
 
       // transform underlying token into wrapped version (unless it's the same)
       if (_swapData[i].underlyingERC20 != _requiredComponents[i]) {
-        _wrapComponent(
-          _wrapData[i],
-          _swapData[i].buyUnderlyingAmount,
-          _swapData[i].underlyingERC20,
-          _requiredComponents[i]
-        );
+        DEXAdapter._safeApprove(IERC20(_swapData[i].underlyingERC20), address(vault), requiredUnderlying);
+        vault.mint(requiredAmount, address(this));
       }
 
       // ensure obtained component amount covers required component amount for issuance
@@ -858,40 +874,40 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
    * @param _underlyingToken            underlying (unwrapped) token to wrap from (e.g. DAI)
    * @param _wrappedToken               wrapped token to wrap to
    */
-  function _wrapComponent(
-    ComponentWrapData calldata _wrapData,
-    uint256 _wrapAmount,
-    address _underlyingToken,
-    address _wrappedToken
-  ) internal {
-    // 1. get the wrap adapter directly from the integration registry
+  // function _wrapComponent(
+  //   ComponentWrapData calldata _wrapData,
+  //   uint256 _wrapAmount,
+  //   address _underlyingToken,
+  //   address _wrappedToken
+  // ) internal {
+  //   // 1. get the wrap adapter directly from the integration registry
 
-    // Note we could get the address of the adapter directly in the params instead of the integration name 
-    // but that would allow integrators to use their own potentially somehow malicious WrapAdapter
-    // by directly fetching it from our IntegrationRegistry we can be sure that it behaves as expected
-    IWrapV2Adapter _wrapAdapter = IWrapV2Adapter(_getAndValidateAdapter(_wrapData.integrationName));
+  //   // Note we could get the address of the adapter directly in the params instead of the integration name 
+  //   // but that would allow integrators to use their own potentially somehow malicious WrapAdapter
+  //   // by directly fetching it from our IntegrationRegistry we can be sure that it behaves as expected
+  //   IWrapV2Adapter _wrapAdapter = IWrapV2Adapter(_getAndValidateAdapter(_wrapData.integrationName));
 
-    // 2. get wrap call info from adapter
-    (address _wrapCallTarget, uint256 _wrapCallValue, bytes memory _wrapCallData) = _wrapAdapter
-      .getWrapCallData(
-        _underlyingToken,
-        _wrappedToken,
-        _wrapAmount,
-        address(this),
-        _wrapData.wrapData
-      );
+  //   // 2. get wrap call info from adapter
+  //   (address _wrapCallTarget, uint256 _wrapCallValue, bytes memory _wrapCallData) = _wrapAdapter
+  //     .getWrapCallData(
+  //       _underlyingToken,
+  //       _wrappedToken,
+  //       _wrapAmount,
+  //       address(this),
+  //       _wrapData.wrapData
+  //     );
 
-    // 3. approve token transfer from this to _wrapCallTarget
-    DEXAdapter._safeApprove(
-      IERC20(_underlyingToken),
-      _wrapCallTarget,
-      _wrapAmount
-    );
+  //   // 3. approve token transfer from this to _wrapCallTarget
+  //   DEXAdapter._safeApprove(
+  //     IERC20(_underlyingToken),
+  //     _wrapCallTarget,
+  //     _wrapAmount
+  //   );
 
-    // 4. invoke wrap function call. we can't check any response value because the implementation might be different 
-    // between wrapCallTargets... e.g. compoundV2 would return uint256 with value 0 if successful
-    _wrapCallTarget.functionCallWithValue(_wrapCallData, _wrapCallValue);
-  }
+  //   // 4. invoke wrap function call. we can't check any response value because the implementation might be different 
+  //   // between wrapCallTargets... e.g. compoundV2 would return uint256 with value 0 if successful
+  //   _wrapCallTarget.functionCallWithValue(_wrapCallData, _wrapCallValue);
+  // }
 
   /**
    * Unwraps _unwrapAmount of _wrappedToken to _underlyingToken
