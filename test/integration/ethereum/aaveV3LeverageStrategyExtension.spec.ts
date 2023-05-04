@@ -303,16 +303,6 @@ if (process.env.INTEGRATIONTEST) {
         owner.address,
         ADDRESS_ZERO,
       );
-      // const feeRecipient = owner.address;
-      // const maxStreamingFeePercentage = ether(0.1);
-      // const streamingFeePercentage = ether(0.02);
-      // const streamingFeeSettings = {
-      //   feeRecipient,
-      //   maxStreamingFeePercentage,
-      //   streamingFeePercentage,
-      //   lastStreamingFeeTimestamp: ZERO,
-      // };
-      // await .streamingFeeModule.initialize(setToken.address, streamingFeeSettings);
       await aaveLeverageModule.initialize(setToken.address, [weth.address], [usdc.address]);
 
       baseManagerV2 = await deployer.manager.deployBaseManager(

@@ -40,7 +40,8 @@ if (process.env.INTEGRATIONTEST) {
     let snapshotId: number;
 
 
-  setBlockNumber(16180859);
+    setBlockNumber(16180859);
+
     beforeEach(async () => {
       snapshotId = await network.provider.send("evm_snapshot", []);
       [owner] = await getAccounts();
