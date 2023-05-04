@@ -9,7 +9,7 @@ import {
   IUniswapV2Router,
   FlashMint4626,
   IERC20,
-  IDebtIssuanceModule,
+  IERC4626,
   SetToken,
 } from "../../../typechain";
 import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "./addresses";
@@ -53,50 +53,12 @@ type ComponentSwapData = {
 
 
 const maUSDC = "0xA5269A8e31B93Ff27B887B56720A25F844db0529"; // maUSDC
-
-class TestHelper {
-  async getIssuanceComponentSwapData(
-    inputToken: Address,
-    issueSetAmount: BigNumber,
-    setToken: Address,
-    issuanceModule: IDebtIssuanceModule,
-  ) {
-    // get required issuance components
-    const [
-      issuanceComponents, // maUSDC
-      ,
-    ] = await issuanceModule.getRequiredComponentIssuanceUnits(setToken, issueSetAmount);
-
-    if (
-      JSON.stringify([maUSDC]).toLowerCase() !==
-      JSON.stringify(issuanceComponents).toLowerCase()
-    ) {
-      throw new Error("issuance components test case not implemented");
-    }
-
-    const componentSwapData: ComponentSwapData[] = [{
-      underlyingERC20: addresses.tokens.USDC,
-      dexData: {
-        path: [inputToken, addresses.tokens.weth, addresses.tokens.USDC],
-        fees: [3000],
-        pool: ADDRESS_ZERO,
-        exchange: Exchange.UniV3,
-      },
-      buyUnderlyingAmount: usdc(200),
-    },
-    ];
-
-    return componentSwapData;
-  }
-
-
-}
 process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", async () => {
   let owner: Account;
   let deployer: DeployHelper;
   let setToken: SetToken;
   let USDC: IERC20;
-  let MaUSDC: IERC20;
+  let MaUSDC: IERC4626;
 
   let weth: IWETH;
   let setV2Setup: SetFixture;
@@ -109,10 +71,20 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
     setV2Setup = getSetFixture(owner.address);
     await setV2Setup.initialize();
 
+    USDC = (await ethers.getContractAt(
+      "IERC20",
+      addresses.tokens.USDC,
+    )) as IERC20;
+
+    MaUSDC = (await ethers.getContractAt(
+      "IERC4626",
+      maUSDC,
+    )) as IERC4626;
+
     // create set token with morpho-aave usdc component
     setToken = await setV2Setup.createSetToken(
-      [maUSDC],
-      [ether(0.991424841884336539).mul(100)],
+      [MaUSDC.address],
+      [await MaUSDC.convertToShares(usdc(100))],
       [
         setV2Setup.debtIssuanceModule.address,
         setV2Setup.streamingFeeModule.address,
@@ -129,23 +101,11 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
       ADDRESS_ZERO,
     );
 
-    USDC = (await ethers.getContractAt(
-      "IERC20",
-      addresses.tokens.USDC,
-    )) as IERC20;
-
-    MaUSDC = (await ethers.getContractAt(
-      "IERC20",
-      maUSDC,
-    )) as IERC20;
-
-
     weth = (await ethers.getContractAt("IWETH", addresses.tokens.weth)) as IWETH;
   });
 
-  context("When flash mint wrapped is deployed", () => {
+  context("When flash mint wrapped is deployed and a setToken approved", () => {
     let flashMintContract: FlashMint4626;
-    //#region basic setup and constructor with addresses set correctly checks
     before(async () => {
       flashMintContract = await deployer.extensions.deployFlashMint4626(
         addresses.tokens.weth,
@@ -158,6 +118,7 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
         setV2Setup.controller.address,
         setV2Setup.debtIssuanceModule.address,
       );
+      await flashMintContract.approveSetToken(setTokenAddr);
     });
 
     it("weth address is set correctly", async () => {
@@ -198,170 +159,132 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
         utils.getAddress(setV2Setup.debtIssuanceModule.address),
       );
     });
-    //#endregion
 
-    describe("When setToken is approved", () => {
-      before(async () => {
-        await flashMintContract.approveSetToken(setTokenAddr);
-      });
+    describe(`When input/output token is USDC`, () => {
+      describe(
+        "#issueExactSetFromERC20",
+        () => {
+          let inputToken: IERC20;
 
-      ["USDC"].forEach(tokenName => {
-        describe(`When input/output token is ${tokenName}`, () => {
-          const testHelper = new TestHelper();
+          let subjectSetToken: Address;
+          let subjectMaxAmountIn: BigNumber;
 
-          describe(
-            tokenName == "ETH" ? "issueExactSetFromETH" : "#issueExactSetFromERC20",
-            () => {
-              let inputToken: IERC20;
+          let issueSetAmount: BigNumber;
+          let inputAmount: BigNumber;
 
-              let subjectSetToken: Address;
-              let subjectMaxAmountIn: BigNumber;
+          let componentSwapData: ComponentSwapData[];
 
-              let issueSetAmount: BigNumber;
-              let inputAmount: BigNumber;
+          beforeEach(async () => {
 
-              let componentSwapData: ComponentSwapData[];
+            inputToken = USDC;
+            inputAmount = usdc(201);
+            subjectSetToken = setTokenAddr;
+            issueSetAmount = ether(2);
+            subjectMaxAmountIn = inputAmount;
 
-              beforeEach(async () => {
+            const uniV2Router = (await ethers.getContractAt(
+              "IUniswapV2Router",
+              addresses.dexes.uniV2.router,
+            )) as IUniswapV2Router;
 
-                inputToken = USDC;
-                inputAmount = usdc(200);
-                subjectSetToken = setTokenAddr;
-                issueSetAmount = ether(2);
-                subjectMaxAmountIn = inputAmount;
+            const usdcbeforetest = await inputToken.balanceOf(owner.address);
+            await inputToken.transfer("0x00000000000000000000000000000000DeaDBeef", usdcbeforetest);
+            await uniV2Router.swapETHForExactTokens(
+              inputAmount,
+              [weth.address, USDC.address],
+              owner.address,
+              BigNumber.from("1699894490"), // November 13, 2023 4:54:50 PM GMT
+              { value: ether(100) },
+            );
 
-                const uniV2Router = (await ethers.getContractAt(
-                  "IUniswapV2Router",
-                  addresses.dexes.uniV2.router,
-                )) as IUniswapV2Router;
+            componentSwapData = [{
+              underlyingERC20: addresses.tokens.USDC,
+              dexData: {
+                path: [inputToken.address, addresses.tokens.weth, addresses.tokens.USDC],
+                fees: [3000],
+                pool: ADDRESS_ZERO,
+                exchange: Exchange.UniV3,
+              },
+              buyUnderlyingAmount: usdc(200),
+            }];
 
-                const usdcbeforetest = await inputToken.balanceOf(owner.address);
-                await inputToken.transfer("0x00000000000000000000000000000000DeaDBeef", usdcbeforetest);
-                await uniV2Router.swapETHForExactTokens(
-                  inputAmount,
-                  [weth.address, USDC.address],
-                  owner.address,
-                  BigNumber.from("1688894490"),
-                  { value: ether(100) },
-                );
+            await inputToken
+              .connect(owner.wallet)
+              .approve(flashMintContract.address, subjectMaxAmountIn);
 
-                await inputToken
-                  .connect(owner.wallet)
-                  .approve(flashMintContract.address, subjectMaxAmountIn);
+          });
 
-                componentSwapData = await testHelper.getIssuanceComponentSwapData(
-                  inputToken.address,
-                  issueSetAmount,
-                  subjectSetToken,
-                  setV2Setup.debtIssuanceModule,
-                );
-              });
+          async function subject() {
+            return await flashMintContract.issueExactSetFromERC20(
+              subjectSetToken,
+              inputToken.address,
+              issueSetAmount,
+              subjectMaxAmountIn,
+              componentSwapData,
+            );
+          }
 
-              async function subject() {
-                if (tokenName !== "ETH") {
-                  return await flashMintContract.issueExactSetFromERC20(
-                    subjectSetToken,
-                    inputToken.address,
-                    issueSetAmount,
-                    subjectMaxAmountIn,
-                    componentSwapData,
-                  );
-                } else {
-                  return await flashMintContract.issueExactSetFromETH(
-                    subjectSetToken,
-                    issueSetAmount,
-                    componentSwapData,
-                    { value: subjectMaxAmountIn },
-                  );
-                }
-              }
+          async function subjectQuote() {
+            return flashMintContract.callStatic.getIssueExactSet(
+              subjectSetToken,
+              inputToken.address,
+              issueSetAmount,
+              componentSwapData,
+            );
+          }
 
-              async function subjectQuote() {
-                return flashMintContract.callStatic.getIssueExactSet(
-                  subjectSetToken,
-                  inputToken.address,
-                  issueSetAmount,
-                  componentSwapData,
-                );
-              }
+          it("should issue the correct amount of tokens", async () => {
+            const setBalanceBefore = await setToken.balanceOf(owner.address);
+            await subject();
+            const setBalanceAfter = await setToken.balanceOf(owner.address);
+            const setObtained = setBalanceAfter.sub(setBalanceBefore);
+            expect(setObtained).to.eq(issueSetAmount);
+          });
 
-              it("should issue the correct amount of tokens", async () => {
-                const setBalanceBefore = await setToken.balanceOf(owner.address);
-                await subject();
-                const setBalanceAfter = await setToken.balanceOf(owner.address);
-                const setObtained = setBalanceAfter.sub(setBalanceBefore);
-                expect(setObtained).to.eq(issueSetAmount);
-              });
+          it("should not retain any component tokens", async () => {
+            const componentBalanceBefore = await MaUSDC.balanceOf(flashMintContract.address);
+            await subject();
+            const componentBalanceAfter = await MaUSDC.balanceOf(flashMintContract.address);
+            const componentRetained = componentBalanceAfter.sub(componentBalanceBefore);
 
-              it("should not retain any component tokens", async () => {
-                const componentBalanceBefore = await MaUSDC.balanceOf(flashMintContract.address);
-                await subject();
-                const componentBalanceAfter = await MaUSDC.balanceOf(flashMintContract.address);
-                const componentRetained = componentBalanceAfter.sub(componentBalanceBefore);
+            const actual = formatUnits(componentRetained);
+            const expected = formatUnits(ether(0));
+            expect(actual).to.eq(expected);
+          });
 
-                const actual = formatUnits(componentRetained);
-                const expected = formatUnits(ether(0));
-                expect(actual).to.eq(expected);
-              });
+          it("should not retain any input tokens", async () => {
+            const inputTokenDecimals = 6;
+            const inputTokenBalanceBefore = await inputToken.balanceOf(flashMintContract.address);
+            await subject();
+            const inputTokenBalanceAfter = await inputToken.balanceOf(flashMintContract.address);
+            const inputTokensRetained = inputTokenBalanceAfter.sub(inputTokenBalanceBefore);
 
-              it("should not retain any input tokens", async () => {
-                const inputTokenDecimals = 6;
-                const inputTokenBalanceBefore = await inputToken.balanceOf(flashMintContract.address);
-                await subject();
-                const inputTokenBalanceAfter = await inputToken.balanceOf(flashMintContract.address);
-                const inputTokensRetained = inputTokenBalanceAfter.sub(inputTokenBalanceBefore);
+            const actual = formatUnits(inputTokensRetained, inputTokenDecimals);
+            const expected = formatUnits(0, inputTokenDecimals);
+            expect(actual).to.eq(expected);
+          });
 
-                const actual = formatUnits(inputTokensRetained, inputTokenDecimals);
-                const expected = formatUnits(0, inputTokenDecimals);
-                expect(actual).to.eq(expected);
-              });
+          it("should spend less than specified max amount", async () => {
+            const inputBalanceBefore = await inputToken.balanceOf(owner.address);
+            await subject();
+            const inputBalanceAfter = await inputToken.balanceOf(owner.address);
+            const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
+            expect(inputSpent.gt(0)).to.be.true;
+            expect(inputSpent.lte(subjectMaxAmountIn)).to.be.true;
+          });
 
-              it("should spend less than specified max amount", async () => {
-                const inputBalanceBefore =
-                  tokenName == "ETH"
-                    ? await owner.wallet.getBalance()
-                    : await inputToken.balanceOf(owner.address);
-                await subject();
-                const inputBalanceAfter =
-                  tokenName == "ETH"
-                    ? await owner.wallet.getBalance()
-                    : await inputToken.balanceOf(owner.address);
-                const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
-                expect(inputSpent.gt(0)).to.be.true;
-                expect(inputSpent.lte(subjectMaxAmountIn)).to.be.true;
-              });
+          it("should quote the correct input amount", async () => {
+            const inputBalanceBefore = await inputToken.balanceOf(owner.address);
+            await subject();
+            const inputBalanceAfter = await inputToken.balanceOf(owner.address);
+            const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
 
-              it("should quote the correct input amount", async () => {
-                const inputBalanceBefore =
-                  tokenName == "ETH"
-                    ? await owner.wallet.getBalance()
-                    : await inputToken.balanceOf(owner.address);
-                const result = await subject();
-                const inputBalanceAfter =
-                  tokenName == "ETH"
-                    ? await owner.wallet.getBalance()
-                    : await inputToken.balanceOf(owner.address);
-                let inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
-
-                if (tokenName == "ETH") {
-                  const gasFee = await flashMintContract.estimateGas.issueExactSetFromETH(
-                    subjectSetToken,
-                    issueSetAmount,
-                    componentSwapData,
-                    { value: subjectMaxAmountIn },
-                  );
-                  const gasCost = gasFee.mul(result.gasPrice);
-
-                  inputSpent = inputSpent.sub(gasCost);
-                }
-                const quotedInputAmount = await subjectQuote();
-                expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.99)));
-                expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.01)));
-              });
-            },
-          );
-        });
-      });
+            const quotedInputAmount = await subjectQuote();
+            expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.99)));
+            expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.01)));
+          });
+        },
+      );
     });
   });
 });
