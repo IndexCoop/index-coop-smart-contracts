@@ -13,7 +13,7 @@ import {
   SetToken,
 } from "../../../typechain";
 import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "./addresses";
-import { ADDRESS_ZERO, ZERO, ZERO_BYTES } from "@utils/constants";
+import { ADDRESS_ZERO, ZERO } from "@utils/constants";
 import { ether } from "@utils/index";
 import { SetFixture } from "@utils/fixtures";
 import { formatUnits } from "ethers/lib/utils";
@@ -21,7 +21,6 @@ import { formatUnits } from "ethers/lib/utils";
 const expect = getWaffleExpect();
 const addresses = process.env.USE_STAGING_ADDRESSES ? STAGING_ADDRESSES : PRODUCTION_ADDRESSES;
 
-const erc4626WrapV2AdapterName: string = "ERC4626WrapV2Adapter";
 
 enum Exchange {
   None,
@@ -52,10 +51,6 @@ type ComponentSwapData = {
   buyUnderlyingAmount: BigNumber;
 };
 
-type ComponentWrapData = {
-  integrationName: string; // wrap adapter integration name as listed in the IntegrationRegistry for the wrapModule
-  wrapData: string; // optional wrapData passed to the wrapAdapter
-};
 
 const maUSDC = "0xA5269A8e31B93Ff27B887B56720A25F844db0529"; // maUSDC
 
@@ -94,14 +89,6 @@ class TestHelper {
     return componentSwapData;
   }
 
-  getWrapData(): ComponentWrapData[] {
-    return [
-      {
-        integrationName: erc4626WrapV2AdapterName,
-        wrapData: ZERO_BYTES,
-      },
-    ];
-  }
 
 }
 process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", async () => {
@@ -122,14 +109,6 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
     setV2Setup = getSetFixture(owner.address);
     await setV2Setup.initialize();
 
-    // deploy ERC4626WrapV2Adapter
-    const erc4626WrapAdapter = await deployer.setV2.deployERC4626WrapV2Adapter();
-    await setV2Setup.integrationRegistry.addIntegration(
-      setV2Setup.wrapModule.address,
-      erc4626WrapV2AdapterName,
-      erc4626WrapAdapter.address,
-    );
-
     // create set token with morpho-aave usdc component
     setToken = await setV2Setup.createSetToken(
       [maUSDC],
@@ -137,7 +116,6 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
       [
         setV2Setup.debtIssuanceModule.address,
         setV2Setup.streamingFeeModule.address,
-        setV2Setup.wrapModule.address,
       ],
     );
     setTokenAddr = setToken.address;
