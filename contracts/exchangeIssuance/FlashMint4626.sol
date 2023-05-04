@@ -24,8 +24,6 @@ import { SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import { ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import { IController } from "../interfaces/IController.sol";
-import { IIntegrationRegistry } from "../interfaces/IIntegrationRegistry.sol";
-import { IWrapV2Adapter} from "../interfaces/IWrapV2Adapter.sol";
 import { IDebtIssuanceModule} from "../interfaces/IDebtIssuanceModule.sol";
 import { ISetToken} from "../interfaces/ISetToken.sol";
 import { IWETH} from "../interfaces/IWETH.sol";
