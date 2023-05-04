@@ -29,7 +29,6 @@ import { IWrapV2Adapter} from "../interfaces/IWrapV2Adapter.sol";
 import { IDebtIssuanceModule} from "../interfaces/IDebtIssuanceModule.sol";
 import { ISetToken} from "../interfaces/ISetToken.sol";
 import { IWETH} from "../interfaces/IWETH.sol";
-import { IWrapModuleV2} from "../interfaces/IWrapModuleV2.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { DEXAdapter } from "./DEXAdapter.sol";
 
@@ -61,7 +60,6 @@ interface IERC4626 {
  *
  * Compatible with:
  * IssuanceModules: DebtIssuanceModule, DebtIssuanceModuleV2
- * WrapAdapters: IWrapV2Adapter
  *
  * Supports flash minting for sets that contain both unwrapped and wrapped components.
  * Does not support debt positions on Set token.
@@ -96,11 +94,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
     uint256 buyUnderlyingAmount;
   }
 
-  struct ComponentWrapData {
-    string integrationName; // wrap adapter integration name as listed in the IntegrationRegistry for the wrapModule
-    bytes wrapData; // optional wrapData passed to the wrapAdapter
-  }
-
   /* ============ Constants ============= */
 
   uint256 private constant MAX_UINT256 = type(uint256).max;
@@ -109,7 +102,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
 
   IController public immutable setController;
   IDebtIssuanceModule public immutable issuanceModule; // interface is compatible with DebtIssuanceModuleV2
-  address public immutable wrapModule; // used to obtain a valid wrap adapter
 
   /* ============ State Variables ============ */
 
@@ -180,18 +172,15 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
    * @param _dexAddresses              Address of quickRouter, sushiRouter, uniV3Router, uniV3Router, curveAddressProvider, curveCalculator and weth.
    * @param _setController             Set token controller used to verify a given token is a set
    * @param _issuanceModule            IDebtIssuanceModule used to issue and redeem tokens
-   * @param _wrapModule                WrapModuleV2 used to obtain a valid wrap adapter
    */
   constructor(
     DEXAdapter.Addresses memory _dexAddresses,
     IController _setController,
-    IDebtIssuanceModule _issuanceModule,
-    address _wrapModule
+    IDebtIssuanceModule _issuanceModule
   ) public {
     dexAdapter = _dexAddresses;
     setController = _setController;
     issuanceModule = _issuanceModule;
-    wrapModule = _wrapModule;
   }
 
   /* ============ External Functions ============ */
@@ -241,7 +230,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
    * @param _amountSetToken        Amount of SetTokens to issue
    * @param _maxAmountInputToken   Maximum amount of input tokens to be used
    * @param _swapData              ComponentSwapData (inputToken -> component) for each set component in the same order
-   * @param _wrapData              ComponentWrapData (underlyingERC20 -> wrapped component) for each required set token component in the exact same order
    *
    * @return totalInputTokenSold   Amount of input tokens spent for issuance
    */
@@ -250,8 +238,7 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
     IERC20 _inputToken,
     uint256 _amountSetToken,
     uint256 _maxAmountInputToken,
-    ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _wrapData
+    ComponentSwapData[] calldata _swapData
   ) external nonReentrant returns (uint256) {
     return
       _issueExactSet(
@@ -260,7 +247,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
         _amountSetToken,
         _maxAmountInputToken,
         _swapData,
-        _wrapData,
         false
       );
   }
@@ -272,15 +258,13 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
    * @param _setToken              Address of the SetToken to be issued
    * @param _amountSetToken        Amount of SetTokens to issue
    * @param _swapData              ComponentSwapData (WETH -> component) for each set component in the same order
-   * @param _wrapData              ComponentWrapData (underlyingERC20 -> wrapped component) for each required set token component in the exact same order
    *
    * @return totalETHSold          Amount of ETH spent for issuance
    */
   function issueExactSetFromETH(
     ISetToken _setToken,
     uint256 _amountSetToken,
-    ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _wrapData
+    ComponentSwapData[] calldata _swapData
   ) external payable nonReentrant returns (uint256) {
     // input token for all operations is WETH (any sent in ETH will be wrapped)
     IERC20 inputToken = IERC20(dexAdapter.weth);
@@ -293,7 +277,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
         _amountSetToken,
         maxAmountInputToken,
         _swapData,
-        _wrapData,
         true
       );
   }
@@ -307,7 +290,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
    * @param _amountSetToken        Amount of SetTokens to redeem
    * @param _minOutputReceive      Minimum amount of output tokens to be received
    * @param _swapData              ComponentSwapData (underlyingERC20 -> output token) for each _redeemComponents in the same order
-   * @param _unwrapData            ComponentWrapData (wrapped Set component -> underlyingERC20) for each required set token component in the exact same order
    *
    * @return outputAmount          Amount of output tokens sent to the caller
    */
@@ -316,8 +298,7 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
     IERC20 _outputToken,
     uint256 _amountSetToken,
     uint256 _minOutputReceive,
-    ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _unwrapData
+    ComponentSwapData[] calldata _swapData
   ) external nonReentrant returns (uint256) {
     return
       _redeemExactSet(
@@ -326,7 +307,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
         _amountSetToken,
         _minOutputReceive,
         _swapData,
-        _unwrapData,
         false
       );
   }
@@ -339,7 +319,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
    * @param _amountSetToken        Amount of SetTokens to redeem
    * @param _minOutputReceive      Minimum amount of output tokens to be received
    * @param _swapData              ComponentSwapData (underlyingERC20 -> output token) for each _redeemComponents in the same order
-   * @param _unwrapData            ComponentWrapData (wrapped Set component -> underlyingERC20) for each required set token component in the exact same order
    *
    * @return outputAmount          Amount of ETH sent to the caller
    */
@@ -347,9 +326,8 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
     ISetToken _setToken,
     uint256 _amountSetToken,
     uint256 _minOutputReceive,
-    ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _unwrapData
-  ) external nonReentrant returns (uint256) {
+    ComponentSwapData[] calldata _swapData
+    ) external nonReentrant returns (uint256) {
     // output token for all operations is WETH (it will be unwrapped in the end and sent as ETH)
     IERC20 outputToken = IERC20(dexAdapter.weth);
 
@@ -360,7 +338,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
         _amountSetToken,
         _minOutputReceive,
         _swapData,
-        _unwrapData,
         true
       );
   }
@@ -457,7 +434,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
    * @param _amountSetToken             Amount of SetTokens to issue
    * @param _maxAmountInputToken        Maximum amount of input tokens to be used
    * @param _swapData                   ComponentSwapData (input token -> underlyingERC20) for each _requiredComponents in the same order
-   * @param _wrapData                   ComponentWrapData (underlyingERC20 -> wrapped component) for each required set token component in the exact same order
    * @param _issueFromETH               boolean flag to identify if issuing from ETH or from ERC20 tokens
    *
    * @return totalInputSold             Amount of input token spent for issuance
@@ -468,7 +444,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
     uint256 _amountSetToken,
     uint256 _maxAmountInputToken,
     ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _wrapData,
     bool _issueFromETH
   ) internal returns (uint256) {
     // 1. validate input params, get required components with amounts and snapshot input token balance before
@@ -484,9 +459,7 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
           _setToken,
           _amountSetToken,
           _maxAmountInputToken,
-          _swapData,
-          _wrapData
-        );
+          _swapData);
 
       // 2. transfer input to this contract
       if (_issueFromETH) {
@@ -539,7 +512,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
    * @param _amountSetToken        Amount of SetTokens to redeem
    * @param _minOutputReceive      Minimum amount of output tokens to be received
    * @param _swapData              ComponentSwapData (underlyingERC20 -> output token) for each _redeemComponents in the same order
-   * @param _unwrapData            ComponentWrapData (wrapped Set component -> underlyingERC20) for each _redeemComponents in the same order
    * @param _redeemToETH           boolean flag to identify if redeeming to ETH or to ERC20 tokens
    *
    * @return outputAmount          Amount of output received
@@ -550,7 +522,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
     uint256 _amountSetToken,
     uint256 _minOutputReceive,
     ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _unwrapData,
     bool _redeemToETH
   ) internal returns (uint256) {
     // 1. validate input params and get required components
@@ -558,9 +529,7 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
       _setToken,
       _outputToken,
       _amountSetToken,
-      _swapData,
-      _unwrapData
-    );
+      _swapData);
 
     // 2. transfer set tokens to be redeemed to this
     _setToken.safeTransferFrom(msg.sender, address(this), _amountSetToken);
@@ -572,7 +541,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
     uint256 totalOutputTokenObtained = _unwrapAndSwapComponents(
       _outputToken,
       _swapData,
-      _unwrapData,
       redeemComponents,
       redeemAmounts
     );
@@ -602,7 +570,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
    * @param _amountSetToken             Amount of SetTokens to issue
    * @param _maxAmountToken             Maximum amount of input token to spend
    * @param _swapData                   ComponentSwapData (input token -> underlyingERC20) for each _requiredComponents in the same order
-   * @param _wrapData                   ComponentWrapData (underlyingERC20 -> wrapped Set component) for each _requiredComponents in the same order
    *
    * @return requiredComponents         Array of required issuance components gotten from IDebtIssuanceModule.getRequiredComponentIssuanceUnits()
    * @return requiredAmounts            Array of required issuance component amounts gotten from IDebtIssuanceModule.getRequiredComponentIssuanceUnits()
@@ -611,8 +578,7 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
     ISetToken _setToken,
     uint256 _amountSetToken,
     uint256 _maxAmountToken,
-    ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _wrapData
+    ComponentSwapData[] calldata _swapData
   )
     internal
     view
@@ -627,7 +593,7 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
     );
 
     require(
-      _wrapData.length == _swapData.length && _wrapData.length == requiredComponents.length,
+      _swapData.length == requiredComponents.length,
       "FlashMint: MISMATCH_INPUT_ARRAYS"
     );
   }
@@ -639,7 +605,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
    * @param _outputToken               Output token that will be redeemed to
    * @param _amountSetToken            Amount of SetTokens to redeem
    * @param _swapData                  ComponentSwapData (underlyingERC20 -> output token) for each _redeemComponents in the same order
-   * @param _unwrapData                ComponentWrapData (wrapped Set component -> underlyingERC20) for each _redeemComponents in the same order
    *
    * @return redeemComponents          Array of redemption components gotten from IDebtIssuanceModule.getRequiredComponentRedemptionUnits()
    * @return redeemAmounts             Array of redemption component amounts gotten from IDebtIssuanceModule.getRequiredComponentRedemptionUnits()
@@ -648,8 +613,7 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
     ISetToken _setToken,
     IERC20 _outputToken,
     uint256 _amountSetToken,
-    ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _unwrapData
+    ComponentSwapData[] calldata _swapData
   )
     internal
     view
@@ -667,7 +631,7 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
     );
 
     require(
-      _unwrapData.length == _swapData.length && _unwrapData.length == redeemComponents.length,
+     _swapData.length == redeemComponents.length,
       "FlashMint: MISMATCH_INPUT_ARRAYS"
     );
   }
@@ -744,7 +708,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
    *
    * @param _outputToken                Output token that will be bought
    * @param _swapData                   ComponentSwapData (underlyingERC20 -> output token) for each _redeemComponents in the same order
-   * @param _unwrapData                 ComponentWrapData (wrapped Set component -> underlyingERC20) for each _redeemComponents in the same order
    * @param _redeemComponents           redemption components gotten from IDebtIssuanceModule.getRequiredComponentRedemptionUnits()
    * @param _redeemAmounts              redemption units gotten from IDebtIssuanceModule.getRequiredComponentRedemptionUnits()
    *
@@ -753,7 +716,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
   function _unwrapAndSwapComponents(
     IERC20 _outputToken,
     ComponentSwapData[] calldata _swapData,
-    ComponentWrapData[] calldata _unwrapData,
     address[] memory _redeemComponents,
     uint256[] memory _redeemAmounts
   ) internal returns (uint256 totalOutputTokenObtained) {
@@ -775,23 +737,8 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
 
       // transform wrapped token into unwrapped version (unless it's the same)
       if (_swapData[i].underlyingERC20 != _redeemComponents[i]) {
-        // snapshot unwrapped balance before to compute the actual redeemed amount of underlying token (due to unknown exchange rate)
-        uint256 unwrappedBalanceBefore = IERC20(_swapData[i].underlyingERC20).balanceOf(
-          address(this)
-        );
-
-        _unwrapComponent(
-          _unwrapData[i],
-          redeemedAmount,
-          _swapData[i].underlyingERC20,
-          _redeemComponents[i]
-        );
-
-        // recompute actual redeemed amount to the underlyingERC20 token amount obtained through unwrapping
-        uint256 unwrappedBalanceAfter = IERC20(_swapData[i].underlyingERC20).balanceOf(
-          address(this)
-        );
-        redeemedAmount = unwrappedBalanceAfter.sub(unwrappedBalanceBefore);
+        IERC4626 vault = IERC4626(_redeemComponents[i]);
+        redeemedAmount = vault.redeem(redeemedAmount, address(this), address(this));
       }
 
       // swap redeemed and unwrapped component to output token
@@ -867,85 +814,6 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
   }
 
   /**
-   * Wraps _wrapAmount of _underlyingToken to _wrappedComponent component
-   *
-   * @param _wrapData                   ComponentWrapData including integration name and optional wrap calldata bytes
-   * @param _wrapAmount                 amount of _underlyingToken to wrap
-   * @param _underlyingToken            underlying (unwrapped) token to wrap from (e.g. DAI)
-   * @param _wrappedToken               wrapped token to wrap to
-   */
-  // function _wrapComponent(
-  //   ComponentWrapData calldata _wrapData,
-  //   uint256 _wrapAmount,
-  //   address _underlyingToken,
-  //   address _wrappedToken
-  // ) internal {
-  //   // 1. get the wrap adapter directly from the integration registry
-
-  //   // Note we could get the address of the adapter directly in the params instead of the integration name 
-  //   // but that would allow integrators to use their own potentially somehow malicious WrapAdapter
-  //   // by directly fetching it from our IntegrationRegistry we can be sure that it behaves as expected
-  //   IWrapV2Adapter _wrapAdapter = IWrapV2Adapter(_getAndValidateAdapter(_wrapData.integrationName));
-
-  //   // 2. get wrap call info from adapter
-  //   (address _wrapCallTarget, uint256 _wrapCallValue, bytes memory _wrapCallData) = _wrapAdapter
-  //     .getWrapCallData(
-  //       _underlyingToken,
-  //       _wrappedToken,
-  //       _wrapAmount,
-  //       address(this),
-  //       _wrapData.wrapData
-  //     );
-
-  //   // 3. approve token transfer from this to _wrapCallTarget
-  //   DEXAdapter._safeApprove(
-  //     IERC20(_underlyingToken),
-  //     _wrapCallTarget,
-  //     _wrapAmount
-  //   );
-
-  //   // 4. invoke wrap function call. we can't check any response value because the implementation might be different 
-  //   // between wrapCallTargets... e.g. compoundV2 would return uint256 with value 0 if successful
-  //   _wrapCallTarget.functionCallWithValue(_wrapCallData, _wrapCallValue);
-  // }
-
-  /**
-   * Unwraps _unwrapAmount of _wrappedToken to _underlyingToken
-   *
-   * @param _unwrapData                 ComponentWrapData including integration name and optional wrap calldata bytes
-   * @param _unwrapAmount                 amount of _underlyingToken to wrap
-   * @param _underlyingToken            underlying (unwrapped) token to unwrap to (e.g. DAI)
-   * @param _wrappedToken               wrapped token to unwrap from
-   */
-  function _unwrapComponent(
-    ComponentWrapData calldata _unwrapData,
-    uint256 _unwrapAmount,
-    address _underlyingToken,
-    address _wrappedToken
-  ) internal {
-    // 1. get the wrap adapter directly from the integration registry
-
-    // Note we could get the address of the adapter directly in the params instead of the integration name 
-    // but that would allow integrators to use their own potentially somehow malicious WrapAdapter
-    // by directly fetching it from our IntegrationRegistry we can be sure that it behaves as expected
-    IWrapV2Adapter _wrapAdapter = IWrapV2Adapter(_getAndValidateAdapter(_unwrapData.integrationName));
-
-    // 2. get unwrap call info from adapter
-    (address _wrapCallTarget, uint256 _wrapCallValue, bytes memory _wrapCallData) = _wrapAdapter
-      .getUnwrapCallData(
-        _underlyingToken,
-        _wrappedToken,
-        _unwrapAmount,
-        address(this),
-        _unwrapData.wrapData
-      );
-
-    // 3. invoke unwrap function call. we can't check any response value because the implementation might be different 
-    // between wrapCallTargets... e.g. compoundV2 would return uint256 with value 0 if successful
-    _wrapCallTarget.functionCallWithValue(_wrapCallData, _wrapCallValue);
-  }
-
-  /**
    * Validates that not more than the requested max amount of the input token has been spent
    *
    * @param _inputToken                 Address of the input token to return
@@ -1014,29 +882,5 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
     } else {
       _outputToken.safeTransfer(msg.sender, _amount);
     }
-  }
-
-  /**
-   * Gets the integration for the passed in integration name listed on the wrapModule. Validates that the address is not empty
-   *
-   * @param _integrationName      Name of wrap adapter integration (mapping on integration registry)
-   *
-   * @return adapter              address of the wrap adapter
-   */
-  function _getAndValidateAdapter(string memory _integrationName)
-    internal
-    view
-    returns (address adapter)
-  {
-    // integration registry has resourceId 0, see library ResourceIdentifier
-    // @dev could also be accomplished with using ResourceIdentifier for IController but this results in less bloat in the repo
-    IIntegrationRegistry integrationRegistry = IIntegrationRegistry(setController.resourceId(0));
-
-    adapter = integrationRegistry.getIntegrationAdapterWithHash(
-      wrapModule,
-      keccak256(bytes(_integrationName))
-    );
-
-    require(adapter != address(0), "FlashMint: WRAP_ADAPTER_INVALID");
   }
 }

@@ -7,7 +7,7 @@ import { BigNumber, utils } from "ethers";
 import {
   IWETH,
   IUniswapV2Router,
-  FlashMintWrapped,
+  FlashMint4626,
   IERC20,
   IDebtIssuanceModule,
   SetToken,
@@ -166,7 +166,7 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
   });
 
   context("When flash mint wrapped is deployed", () => {
-    let flashMintContract: FlashMintWrapped;
+    let flashMintContract: FlashMint4626;
     //#region basic setup and constructor with addresses set correctly checks
     before(async () => {
       flashMintContract = await deployer.extensions.deployFlashMint4626(
@@ -179,7 +179,6 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
         addresses.dexes.curve.calculator,
         setV2Setup.controller.address,
         setV2Setup.debtIssuanceModule.address,
-        setV2Setup.wrapModule.address,
       );
     });
 
@@ -225,7 +224,6 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
 
     describe("When setToken is approved", () => {
       before(async () => {
-        console.log(setTokenAddr);
         await flashMintContract.approveSetToken(setTokenAddr);
       });
 
@@ -289,14 +287,12 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
                     issueSetAmount,
                     subjectMaxAmountIn,
                     componentSwapData,
-                    testHelper.getWrapData(),
                   );
                 } else {
                   return await flashMintContract.issueExactSetFromETH(
                     subjectSetToken,
                     issueSetAmount,
                     componentSwapData,
-                    testHelper.getWrapData(),
                     { value: subjectMaxAmountIn },
                   );
                 }
@@ -374,7 +370,6 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
                     subjectSetToken,
                     issueSetAmount,
                     componentSwapData,
-                    testHelper.getWrapData(),
                     { value: subjectMaxAmountIn },
                   );
                   const gasCost = gasFee.mul(result.gasPrice);

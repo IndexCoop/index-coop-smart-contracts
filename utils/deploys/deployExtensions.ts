@@ -48,8 +48,8 @@ import { FixedRebalanceExtension__factory } from "../../typechain/factories/Fixe
 import { StakeWiseReinvestmentExtension__factory } from "../../typechain/factories/StakeWiseReinvestmentExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 import { WrapExtension__factory } from "../../typechain/factories/WrapExtension__factory";
-import {FlashMint4626, FlashMint4626__factory} from "../../typechain";
-import {FlashMint4626LibraryAddresses} from "../../typechain/factories/FlashMint4626__factory"
+import { FlashMint4626, FlashMint4626__factory } from "../../typechain";
+import { FlashMint4626LibraryAddresses } from "../../typechain/factories/FlashMint4626__factory";
 
 export default class DeployExtensions {
   private _deployerSigner: Signer;
@@ -420,7 +420,6 @@ export default class DeployExtensions {
     curveAddressProviderAddress: Address,
     setControllerAddress: Address,
     issuanceModuleAddress: Address,
-    wrapModuleAddress: Address,
   ): Promise<FlashMint4626> {
     const dexAdapter = await this.deployDEXAdapter();
 
@@ -445,7 +444,6 @@ export default class DeployExtensions {
       },
       setControllerAddress,
       issuanceModuleAddress,
-      wrapModuleAddress,
     );
   }
 
