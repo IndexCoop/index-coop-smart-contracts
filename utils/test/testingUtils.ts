@@ -3,10 +3,11 @@ import { solidity } from "ethereum-waffle";
 chai.use(solidity);
 
 // Use HARDHAT version of providers
-import { ethers } from "hardhat";
-import { BigNumber, ContractTransaction } from "ethers";
+import { ethers, network } from "hardhat";
+import { BigNumber, ContractTransaction, Signer } from "ethers";
 import { JsonRpcProvider } from "@ethersproject/providers";
 import { Blockchain } from "../common";
+import { forkingConfig } from "../config";
 
 const provider = ethers.provider;
 // const blockchain = new Blockchain(provider);
@@ -105,3 +106,40 @@ export const expectThrowsAsync = async (method: Promise<any>, errorMessage: stri
     expect(error.message).to.include(errorMessage);
   }
 };
+
+export async function impersonateAccount(address: string): Promise<Signer> {
+  await network.provider.request({
+    method: "hardhat_impersonateAccount",
+    params: [address],
+  });
+  return await ethers.getSigner(address);
+}
+
+export function setBlockNumber(blockNumber: number) {
+  before(async () => {
+    await network.provider.request({
+      method: "hardhat_reset",
+      params: [
+        {
+          forking: {
+            jsonRpcUrl: forkingConfig.url,
+            blockNumber,
+          },
+        },
+      ],
+    });
+  });
+  after(async () => {
+    await network.provider.request({
+      method: "hardhat_reset",
+      params: [
+        {
+          forking: {
+            jsonRpcUrl: forkingConfig.url,
+            blockNumber: forkingConfig.blockNumber,
+          },
+        },
+      ],
+    });
+  });
+}

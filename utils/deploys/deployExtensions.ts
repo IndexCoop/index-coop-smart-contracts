@@ -29,6 +29,7 @@ import {
 import { convertLibraryNameToLinkId } from "../common";
 
 import { AaveLeverageStrategyExtension__factory } from "../../typechain/factories/AaveLeverageStrategyExtension__factory";
+import { AaveV3LeverageStrategyExtension, AaveV3LeverageStrategyExtension__factory } from "../../typechain";
 import { AirdropExtension__factory } from "../../typechain/factories/AirdropExtension__factory";
 import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__factory";
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
@@ -362,6 +363,27 @@ export default class DeployExtensions {
       exchangeSettings,
     );
   }
+
+  public async deployAaveV3LeverageStrategyExtension(
+    manager: Address,
+    contractSettings: AaveContractSettings,
+    methdologySettings: MethodologySettings,
+    executionSettings: ExecutionSettings,
+    incentiveSettings: IncentiveSettings,
+    exchangeNames: string[],
+    exchangeSettings: ExchangeSettings[],
+  ): Promise<AaveV3LeverageStrategyExtension> {
+    return await new AaveV3LeverageStrategyExtension__factory(this._deployerSigner).deploy(
+      manager,
+      contractSettings,
+      methdologySettings,
+      executionSettings,
+      incentiveSettings,
+      exchangeNames,
+      exchangeSettings,
+    );
+  }
+
 
   public async deployWrapExtension(manager: Address, wrapModule: Address): Promise<WrapExtension> {
     return await new WrapExtension__factory(this._deployerSigner).deploy(manager, wrapModule);

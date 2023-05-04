@@ -6,6 +6,7 @@ import { Account } from "@utils/types";
 import { ether, getAccounts, getWaffleExpect, setEthBalance } from "@utils/index";
 import DeployHelper from "@utils/deploys";
 import { EMPTY_BYTES, MAX_UINT_256, ZERO } from "@utils/constants";
+import { setBlockNumber } from "@utils/test/testingUtils";
 
 import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "./addresses";
 import { StakeWiseReinvestmentExtension } from "../../../typechain/StakeWiseReinvestmentExtension";
@@ -37,6 +38,9 @@ if (process.env.INTEGRATIONTEST) {
 
     let extension: StakeWiseReinvestmentExtension;
     let snapshotId: number;
+
+
+    setBlockNumber(16180859);
 
     beforeEach(async () => {
       snapshotId = await network.provider.send("evm_snapshot", []);

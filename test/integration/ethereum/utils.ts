@@ -66,7 +66,7 @@ export async function mintWrappedFCash(
     depositAmountExternal = underlyingTokenAmount;
   } else {
     const assetTokenBalanceBefore = await assetToken.balanceOf(signer.address);
-    if (assetToken.address != cEthAddress) {   
+    if (assetToken.address != cEthAddress) {
       assetToken = assetToken as ICErc20;
       await underlyingToken.connect(signer).approve(assetToken.address, underlyingTokenAmount);
       await assetToken.connect(signer).mint(underlyingTokenAmount);

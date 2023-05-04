@@ -2,6 +2,7 @@ import "module-alias/register";
 import { Account, Address } from "@utils/types";
 import DeployHelper from "@utils/deploys";
 import { getAccounts, getWaffleExpect, preciseMul } from "@utils/index";
+import { setBlockNumber } from "@utils/test/testingUtils";
 import { ethers } from "hardhat";
 import { BigNumber, utils } from "ethers";
 import { ExchangeIssuanceLeveraged } from "@utils/contracts/index";
@@ -43,6 +44,7 @@ if (process.env.INTEGRATIONTEST) {
     let weth: IWETH;
 
     // const collateralTokenAddress = addresses.tokens.stEth;
+  setBlockNumber(16180859);
 
     before(async () => {
       [owner] = await getAccounts();
