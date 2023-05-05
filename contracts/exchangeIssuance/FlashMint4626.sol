@@ -51,6 +51,16 @@ abstract contract IERC4626 is IERC20 {
     event Withdraw(address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
 }
 
+abstract contract  SupplyVault is IERC4626 {
+    function morpho() external view virtual returns (address);
+    function morphoToken() external view virtual returns (address);
+    function poolToken() external view virtual returns (address);
+}
+
+interface Morpho {
+    function updateIndexes(address _poolToken) external;
+}
+
 /**
  * @title FlashMint4626
  *
@@ -669,7 +679,14 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
       // snapshot balance of required component before swap and wrap operations
       uint256 componentBalanceBefore = IERC20(_requiredComponents[i]).balanceOf(address(this));
       // we now assume that the required component is a vault and the required amount are shares
-      IERC4626 vault = IERC4626(_requiredComponents[i]);
+      SupplyVault vault = SupplyVault(_requiredComponents[i]);
+      Morpho morpho;
+      try vault.morpho() returns (address _morpho){
+        morpho = Morpho(_morpho);
+        morpho.updateIndexes(vault.poolToken());
+      }catch {
+        morpho = Morpho(address(0));
+      }
 
       uint256 requiredUnderlying = vault.previewMint(requiredAmount);
       // swap input token to underlying token
@@ -735,7 +752,7 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
 
       // transform wrapped token into unwrapped version (unless it's the same)
       if (_swapData[i].underlyingERC20 != _redeemComponents[i]) {
-        IERC4626 vault = IERC4626(_redeemComponents[i]);
+        SupplyVault vault = SupplyVault(_redeemComponents[i]);
         redeemedAmount = vault.redeem(redeemedAmount, address(this), address(this));
       }
 
