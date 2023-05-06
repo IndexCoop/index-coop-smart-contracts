@@ -37,32 +37,27 @@ type SwapData = {
 };
 
 type ComponentSwapData = {
-  // unwrapped token version, e.g. DAI
-  underlyingERC20: Address;
-
   // // swap data for DEX operation: fees, path, etc. see DEXAdapter.SwapData
   dexData: SwapData;
-
-  // ONLY relevant for issue, not used for redeem:
-  // amount that has to be bought of the unwrapped token version (to cover required wrapped component amounts for issuance)
-  // this amount has to be computed beforehand through the exchange rate of wrapped Component <> unwrappedComponent
-  // i.e. getRequiredComponentIssuanceUnits() on the IssuanceModule and then convert units through exchange rate to unwrapped component units
-  // e.g. 300 cDAI needed for issuance of 1 Set token. exchange rate 1cDAI = 0.05 DAI. -> buyUnderlyingAmount = 0.05 DAI * 300 = 15 DAI
-  buyUnderlyingAmount: BigNumber;
 };
 
 
 const maUSDC = "0xA5269A8e31B93Ff27B887B56720A25F844db0529"; // maUSDC
+const maDAI = "0x36F8d0D0573ae92326827C4a82Fe4CE4C244cAb6"; // maDAI
+// const wfDAI = "0x278039398A5eb29b6c2FB43789a38A84C6085266" // wrapped DAI
+
 process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", async () => {
   let owner: Account;
   let deployer: DeployHelper;
   let setToken: SetToken;
   let USDC: IERC20;
+  let DAI: IERC20;
+
   let MaUSDC: IERC4626;
+  let MaDAI: IERC4626;
 
   let weth: IWETH;
   let setV2Setup: SetFixture;
-  let setTokenAddr: string;
 
   before(async () => {
     [owner] = await getAccounts();
@@ -76,21 +71,35 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
       addresses.tokens.USDC,
     )) as IERC20;
 
+
+    DAI = (await ethers.getContractAt(
+      "IERC20",
+      addresses.tokens.dai,
+    )) as IERC20;
+
+
     MaUSDC = (await ethers.getContractAt(
       "IERC4626",
       maUSDC,
     )) as IERC4626;
 
+    MaDAI = (await ethers.getContractAt(
+      "IERC4626",
+      maDAI,
+    )) as IERC4626;
+
+    const requiredMaUSDCShares = await MaUSDC.previewDeposit(usdc(50));
+    const requiredMaDAIShares = await MaDAI.previewDeposit(ether(50));
+
     // create set token with morpho-aave usdc component
     setToken = await setV2Setup.createSetToken(
-      [MaUSDC.address],
-      [await MaUSDC.convertToShares(usdc(100))],
+      [MaUSDC.address, MaDAI.address],
+      [requiredMaUSDCShares, requiredMaDAIShares],
       [
         setV2Setup.debtIssuanceModule.address,
         setV2Setup.streamingFeeModule.address,
       ],
     );
-    setTokenAddr = setToken.address;
 
     await setV2Setup.debtIssuanceModule.initialize(
       setToken.address,
@@ -118,7 +127,7 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
         setV2Setup.controller.address,
         setV2Setup.debtIssuanceModule.address,
       );
-      await flashMintContract.approveSetToken(setTokenAddr);
+      await flashMintContract.approveSetToken(setToken.address);
     });
 
     it("weth address is set correctly", async () => {
@@ -161,77 +170,86 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
     });
 
     describe(`When input/output token is USDC`, () => {
+      let inputToken: IERC20;
+
+      let subjectSetToken: Address;
+      let subjectMaxAmountIn: BigNumber;
+
+      let issueSetAmount: BigNumber;
+      let inputAmount: BigNumber;
+
+      let componentSwapData: ComponentSwapData[];
+
+      const setupTest = async () => {
+        inputToken = USDC;
+        inputAmount = usdc(100);
+        subjectSetToken = setToken.address;
+        issueSetAmount = ether(1);
+        subjectMaxAmountIn = inputAmount.mul(ether(1.01)).div(ether(1));
+
+        const uniV2Router = (await ethers.getContractAt(
+          "IUniswapV2Router",
+          addresses.dexes.uniV2.router,
+        )) as IUniswapV2Router;
+
+        await uniV2Router.swapETHForExactTokens(
+          subjectMaxAmountIn,
+          [weth.address, USDC.address],
+          owner.address,
+          BigNumber.from("1699894490"), // November 13, 2023 4:54:50 PM GMT
+          { value: ether(100) },
+        );
+
+        componentSwapData = [{
+          dexData: {
+            path: [inputToken.address, USDC.address],
+            fees: [100],
+            pool: ADDRESS_ZERO,
+            exchange: Exchange.UniV3,
+          },
+        },
+        {
+          dexData: {
+            path: [inputToken.address, DAI.address],
+            fees: [100],
+            pool: ADDRESS_ZERO,
+            exchange: Exchange.UniV3,
+          },
+        }];
+
+        await inputToken
+          .connect(owner.wallet)
+          .approve(flashMintContract.address, subjectMaxAmountIn);
+
+        const subject = () => {
+          return flashMintContract.issueExactSetFromERC20(
+            subjectSetToken,
+            inputToken.address,
+            issueSetAmount,
+            subjectMaxAmountIn,
+            componentSwapData,
+          );
+        };
+        const subjectQuote = () => {
+          return flashMintContract.callStatic.getIssueExactSet(
+            subjectSetToken,
+            inputToken.address,
+            issueSetAmount,
+            componentSwapData,
+          );
+        };
+        return { subject, subjectQuote };
+      };
       describe(
         "#issueExactSetFromERC20",
         () => {
-          let inputToken: IERC20;
-
-          let subjectSetToken: Address;
-          let subjectMaxAmountIn: BigNumber;
-
-          let issueSetAmount: BigNumber;
-          let inputAmount: BigNumber;
-
-          let componentSwapData: ComponentSwapData[];
-
+          let subject: Awaited<ReturnType<typeof setupTest>>["subject"];
+          let subjectQuote: Awaited<ReturnType<typeof setupTest>>["subjectQuote"];
           beforeEach(async () => {
-
-            inputToken = USDC;
-            inputAmount = usdc(201);
-            subjectSetToken = setTokenAddr;
-            issueSetAmount = ether(2);
-            subjectMaxAmountIn = inputAmount;
-
-            const uniV2Router = (await ethers.getContractAt(
-              "IUniswapV2Router",
-              addresses.dexes.uniV2.router,
-            )) as IUniswapV2Router;
-
-            const usdcbeforetest = await inputToken.balanceOf(owner.address);
-            await inputToken.transfer("0x00000000000000000000000000000000DeaDBeef", usdcbeforetest);
-            await uniV2Router.swapETHForExactTokens(
-              inputAmount,
-              [weth.address, USDC.address],
-              owner.address,
-              BigNumber.from("1699894490"), // November 13, 2023 4:54:50 PM GMT
-              { value: ether(100) },
-            );
-
-            componentSwapData = [{
-              underlyingERC20: addresses.tokens.USDC,
-              dexData: {
-                path: [inputToken.address, addresses.tokens.weth, addresses.tokens.USDC],
-                fees: [3000],
-                pool: ADDRESS_ZERO,
-                exchange: Exchange.UniV3,
-              },
-              buyUnderlyingAmount: usdc(200),
-            }];
-
-            await inputToken
-              .connect(owner.wallet)
-              .approve(flashMintContract.address, subjectMaxAmountIn);
-
+            const fixture = await setupTest();
+            subject = fixture.subject;
+            subjectQuote = fixture.subjectQuote;
           });
-
-          async function subject() {
-            return await flashMintContract.issueExactSetFromERC20(
-              subjectSetToken,
-              inputToken.address,
-              issueSetAmount,
-              subjectMaxAmountIn,
-              componentSwapData,
-            );
-          }
-
-          async function subjectQuote() {
-            return flashMintContract.callStatic.getIssueExactSet(
-              subjectSetToken,
-              inputToken.address,
-              issueSetAmount,
-              componentSwapData,
-            );
-          }
 
           it("should issue the correct amount of tokens", async () => {
             const setBalanceBefore = await setToken.balanceOf(owner.address);
@@ -285,6 +303,109 @@ process.env.INTEGRATIONTEST && describe("FlashMint4626 - Integration Test", asyn
           });
         },
       );
+      describe("#redeemExactSetForERC20", () => {
+        let subject: Awaited<ReturnType<typeof setupRedeemTest>>["subject"];
+        let subjectQuote: Awaited<ReturnType<typeof setupRedeemTest>>["subjectQuote"];
+        let issueQuote: Awaited<ReturnType<typeof setupRedeemTest>>["issueQuote"];
+
+        const setupRedeemTest = async () => {
+          const issueFixture = await setupTest();
+          const issue = issueFixture.subject;
+          const issueQuote = issueFixture.subjectQuote;
+
+          await issue();
+          await setToken
+          .connect(owner.wallet)
+          .approve(flashMintContract.address, issueSetAmount);
+
+          const outputToken = inputToken;
+
+
+          const componentRedeemData: ComponentSwapData[] = [{
+            dexData: {
+              path: [USDC.address, outputToken.address],
+              fees: [3000],
+              pool: ADDRESS_ZERO,
+              exchange: Exchange.UniV3,
+            },
+          },
+          {
+            dexData: {
+              path: [DAI.address, outputToken.address],
+              fees: [3000],
+              pool: ADDRESS_ZERO,
+              exchange: Exchange.UniV3,
+            },
+          }];
+
+          const subject = async () => {
+            return flashMintContract.redeemExactSetForERC20(
+              subjectSetToken,
+              inputToken.address,
+              issueSetAmount,
+              usdc(1),
+              componentRedeemData,
+            );
+          };
+          const subjectQuote = () => {
+            return flashMintContract.callStatic.getRedeemExactSet(
+              subjectSetToken,
+              inputToken.address,
+              issueSetAmount,
+              componentRedeemData,
+            );
+          };
+          return { subject, subjectQuote, issueQuote };
+        };
+        beforeEach(async () => {
+         const fixture = await setupRedeemTest();
+         subject = fixture.subject;
+          subjectQuote = fixture.subjectQuote;
+          issueQuote = fixture.issueQuote;
+        });
+        it("should redeem the set token", async () => {
+          const setBalanceBefore = await setToken.balanceOf(owner.address);
+          expect(setBalanceBefore).to.eq(ether(1));
+          await subject();
+          const setBalanceAfter = await setToken.balanceOf(owner.address);
+          expect(setBalanceAfter).to.eq(ether(0));
+        });
+        it.only("should return the USDC quoted", async () => {
+          const usdcBalanceBefore = await USDC.balanceOf(owner.address);
+          await subject();
+          const usdcBalanceAfter = await USDC.balanceOf(owner.address);
+          const obtained = usdcBalanceAfter.sub(usdcBalanceBefore);
+          expect(await subjectQuote()).to.eq(obtained);
+        });
+        it("should have no DAI/USDC", async () => {
+          const daiBalanceBefore = await DAI.balanceOf(flashMintContract.address);
+          const usdcBalanceBefore = await USDC.balanceOf(flashMintContract.address);
+          await subject();
+          const daiBalanceAfter = await DAI.balanceOf(flashMintContract.address);
+          const usdcBalanceAfter = await USDC.balanceOf(flashMintContract.address);
+          const daiObtained = daiBalanceAfter.sub(daiBalanceBefore);
+          const usdcObtained = usdcBalanceAfter.sub(usdcBalanceBefore);
+          expect(formatUnits(daiObtained, 18)).to.eq(formatUnits(0, 18));
+          expect(formatUnits(usdcObtained, 6)).to.eq(formatUnits(0, 6));
+        });
+        it("should have no leftover component shares/tokens", async () => {
+          const daiBalanceBefore = await MaDAI.balanceOf(flashMintContract.address);
+          const usdcBalanceBefore = await MaUSDC.balanceOf(flashMintContract.address);
+          await subject();
+          const daiBalanceAfter = await MaDAI.balanceOf(flashMintContract.address);
+          const usdcBalanceAfter = await MaUSDC.balanceOf(flashMintContract.address);
+          const daiObtained = daiBalanceAfter.sub(daiBalanceBefore);
+          const usdcObtained = usdcBalanceAfter.sub(usdcBalanceBefore);
+          expect(formatUnits(daiObtained, 18)).to.eq(formatUnits(0, 18));
+          expect(formatUnits(usdcObtained, 18)).to.eq(formatUnits(0, 18));
+        });
+        it("should quote something reasonable", async () => {
+          const quoted = await issueQuote();
+          const quotedRedeem = await subjectQuote();
+          const quotedSpread = quoted.sub(quotedRedeem);
+          expect(quotedSpread).to.lt(usdc(1));
+        });
+      });
     });
   });
 });
