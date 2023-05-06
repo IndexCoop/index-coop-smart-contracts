@@ -21,6 +21,7 @@ import { formatUnits } from "ethers/lib/utils";
 const expect = getWaffleExpect();
 const addresses = process.env.USE_STAGING_ADDRESSES ? STAGING_ADDRESSES : PRODUCTION_ADDRESSES;
 
+type Awaited<T> = T extends Promise<infer U> ? U : T;
 
 enum Exchange {
   None,
