@@ -90,16 +90,15 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
   /* ============ Structs ============ */
 
   struct ComponentSwapData {
-    // unwrapped token version, e.g. DAI
-    address underlyingERC20;
     // swap data for DEX operation: fees, path, etc. see DEXAdapter.SwapData
     DEXAdapter.SwapData dexData;
-    // ONLY relevant for issue, not used for redeem:
-    // amount that has to be bought of the unwrapped token version (to cover required wrapped component amounts for issuance)
-    // this amount has to be computed beforehand through the exchange rate of wrapped Component <> unwrappedComponent
-    // i.e. getRequiredComponentIssuanceUnits() on the IssuanceModule and then convert units through exchange rate to unwrapped component units
-    // e.g. 300 cDAI needed for issuance of 1 Set token. exchange rate 1cDAI = 0.05 DAI. -> buyUnderlyingAmount = 0.05 DAI * 300 = 15 DAI
-    uint256 buyUnderlyingAmount;
+  }
+
+  struct BalanceSnapshot{
+    uint256 balanceBefore;
+    uint256 balanceAfter;
+    uint256 balanceObtained;
+    uint256 balanceRequired;
   }
 
   /* ============ Constants ============= */
@@ -369,25 +368,35 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
       ComponentSwapData[] calldata _swapData
   )
       external
-      isSetToken(_setToken)
       returns(uint256 amountInputNeeded)
   {
-      require(_setAmount > 0, "FlashMint: INVALID_INPUTS");
-      require(_inputToken != address(0), "FlashMint: INVALID_INPUTS");
+      require(_setAmount > 0 || _inputToken != address(0), "FlashMint: INVALID_INPUTS");
 
-      for (uint256 i = 0; i < _swapData.length; ++i) {
+      (address[] memory requiredComponents, uint256[] memory requiredAmounts) = _validateIssueParams(_setToken, _setAmount, MAX_UINT256, _swapData);
+
+      for (uint256 i = 0; i < requiredComponents.length; ++i) {
+
+        SupplyVault vault = SupplyVault(requiredComponents[i]);
+        IERC20 underlyingAsset = IERC20(vault.asset());
+        Morpho morpho;
+        try vault.morpho() returns (address _morpho){
+          morpho = Morpho(_morpho);
+          morpho.updateIndexes(vault.poolToken());
+        }catch {
+         morpho = Morpho(address(0));
+      }
+
+        uint256 requiredUnderlyingAmount = vault.previewMint(requiredAmounts[i]);
         // if the input token is the swap target token, no swapping is needed
-
-        if (_inputToken == _swapData[i].underlyingERC20) {
-          amountInputNeeded = amountInputNeeded.add(_swapData[i].buyUnderlyingAmount);
+        if (_inputToken == address(underlyingAsset)) {
+          amountInputNeeded = amountInputNeeded.add(requiredUnderlyingAmount);
           continue;
         }
         
         // add required input amount to swap to desired buyUnderlyingAmount
-        uint256 amountInNeeded = dexAdapter.getAmountIn(_swapData[i].dexData, _swapData[i].buyUnderlyingAmount);
+        uint256 amountInNeeded = dexAdapter.getAmountIn(_swapData[i].dexData, requiredUnderlyingAmount);
         amountInputNeeded = amountInputNeeded.add(amountInNeeded);
       }
-
   }
 
   /**
@@ -411,22 +420,33 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
       ComponentSwapData[] calldata _swapData
   )
       external
-      isSetToken(_setToken)
       returns(uint256 amountOutputReceived)
-  {
-      require(_setAmount > 0, "FlashMint: INVALID_INPUTS");
-      require(_outputToken != address(0), "FlashMint: INVALID_INPUTS");
+{
+      require(_setAmount > 0 || _outputToken != address(0), "FlashMint: INVALID_INPUTS");
 
-      for (uint256 i = 0; i < _swapData.length; ++i) {
-        // if the output token is the swap target token, no swapping is needed
+      (address[] memory redeemedComponents, uint256[] memory redeemedAmounts) = _validateRedeemParams(_setToken,IERC20(_outputToken), _setAmount, _swapData);
 
-        if (_outputToken == _swapData[i].underlyingERC20) {
-          amountOutputReceived = amountOutputReceived.add(_swapData[i].buyUnderlyingAmount);
+      for (uint256 i = 0; i < redeemedComponents.length; ++i) {
+
+        SupplyVault vault = SupplyVault(redeemedComponents[i]);
+        IERC20 underlyingAsset = IERC20(vault.asset());
+        Morpho morpho;
+        try vault.morpho() returns (address _morpho){
+          morpho = Morpho(_morpho);
+          morpho.updateIndexes(vault.poolToken());
+        }catch {
+         morpho = Morpho(address(0));
+      }
+
+        uint256 redeemedUnderlyingAmount = vault.previewRedeem(redeemedAmounts[i]);
+        // if the input token is the swap target token, no swapping is needed
+        if (_outputToken == address(underlyingAsset)) {
+          amountOutputReceived = amountOutputReceived.add(redeemedUnderlyingAmount);
           continue;
         }
-
+        
         // add received output amount from swap
-        uint256 swapAmountOut = dexAdapter.getAmountOut(_swapData[i].dexData, _swapData[i].buyUnderlyingAmount);
+        uint256 swapAmountOut = dexAdapter.getAmountOut(_swapData[i].dexData, redeemedUnderlyingAmount);
         amountOutputReceived = amountOutputReceived.add(swapAmountOut);
       }
 
@@ -669,17 +689,20 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
     // 2. wrap from unwrapped component to wrapped component (unless unwrapped component == wrapped component)
     // 3. ensure amount in contract covers required amount for issuance
     for (uint256 i = 0; i < _requiredComponents.length; ++i) {
-      // if the required set component is the input token, no swapping or wrapping is needed
-      uint256 requiredAmount = _requiredAmounts[i];
+      BalanceSnapshot memory componentBalance; 
+      componentBalance.balanceRequired = _requiredAmounts[i];
+
       if (address(_inputToken) == _requiredComponents[i]) {
-        requiredLeftOverInputTokenAmount = requiredAmount;
+        requiredLeftOverInputTokenAmount = componentBalance.balanceRequired;
         continue;
       }
 
       // snapshot balance of required component before swap and wrap operations
-      uint256 componentBalanceBefore = IERC20(_requiredComponents[i]).balanceOf(address(this));
+      componentBalance.balanceBefore = IERC20(_requiredComponents[i]).balanceOf(address(this));
       // we now assume that the required component is a vault and the required amount are shares
       SupplyVault vault = SupplyVault(_requiredComponents[i]);
+      IERC20 underlyingAsset = IERC20(vault.asset());
+
       Morpho morpho;
       try vault.morpho() returns (address _morpho){
         morpho = Morpho(_morpho);
@@ -688,27 +711,25 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
         morpho = Morpho(address(0));
       }
 
-      uint256 requiredUnderlying = vault.previewMint(requiredAmount);
+      uint256 requiredUnderlying = vault.previewMint(componentBalance.balanceRequired);
       // swap input token to underlying token
       _swapToExact(
         _inputToken, // input
-        IERC20(_swapData[i].underlyingERC20), // output
+        underlyingAsset, // output
         requiredUnderlying, // buy amount
         _maxAmountInputToken, // maximum spend amount: _maxAmountInputToken as transferred by the flash mint caller
         _swapData[i].dexData // dex path fees data etc.
       );
 
       // transform underlying token into wrapped version (unless it's the same)
-      if (_swapData[i].underlyingERC20 != _requiredComponents[i]) {
-        DEXAdapter._safeApprove(IERC20(_swapData[i].underlyingERC20), address(vault), requiredUnderlying);
-        vault.mint(requiredAmount, address(this));
-      }
+      DEXAdapter._safeApprove(underlyingAsset, address(vault), requiredUnderlying);
+      vault.mint(componentBalance.balanceRequired, address(this));
 
       // ensure obtained component amount covers required component amount for issuance
       // this is not already covered through _swapToExact because it does not take wrapping into consideration
-      uint256 componentBalanceAfter = IERC20(_requiredComponents[i]).balanceOf(address(this));
-      uint256 componentAmountObtained = componentBalanceAfter.sub(componentBalanceBefore);
-      require(componentAmountObtained >= requiredAmount, "FlashMint: UNDERBOUGHT_COMPONENT");
+      componentBalance.balanceAfter = IERC20(_requiredComponents[i]).balanceOf(address(this));
+      componentBalance.balanceObtained = componentBalance.balanceAfter.sub(componentBalance.balanceBefore);
+      require(componentBalance.balanceObtained >= componentBalance.balanceRequired, "FlashMint: UNDERBOUGHT_COMPONENT");
     }
 
     // ensure left over input token amount covers issuance for component if input token is one of the Set components
@@ -750,19 +771,17 @@ contract FlashMint4626 is Ownable, ReentrancyGuard {
         continue;
       }
 
-      // transform wrapped token into unwrapped version (unless it's the same)
-      if (_swapData[i].underlyingERC20 != _redeemComponents[i]) {
-        SupplyVault vault = SupplyVault(_redeemComponents[i]);
-        redeemedAmount = vault.redeem(redeemedAmount, address(this), address(this));
-      }
+      SupplyVault vault = SupplyVault(_redeemComponents[i]);
+      IERC20 underlyingAsset = IERC20(vault.asset());
+      redeemedAmount = vault.redeem(redeemedAmount, address(this), address(this));
 
-      // swap redeemed and unwrapped component to output token
-      uint256 boughtOutputTokenAmount = _swapFromExact(
-        IERC20(_swapData[i].underlyingERC20), // input
+      // swap redeemed token to output token unless it's the same token
+      uint256 boughtOutputTokenAmount =  _outputToken != underlyingAsset ?_swapFromExact(
+        underlyingAsset, // input
         _outputToken, // output
         redeemedAmount, // sell amount of input token
         _swapData[i].dexData // dex path fees data etc.
-      );
+      ): redeemedAmount;
 
       totalOutputTokenObtained = totalOutputTokenObtained.add(boughtOutputTokenAmount);
     }
