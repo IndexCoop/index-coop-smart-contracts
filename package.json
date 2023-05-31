@@ -28,7 +28,7 @@
     "compile:npm": "SKIP_ABI_GAS_MODS=true npx hardhat compile",
     "coverage": "yarn clean && yarn build && yarn cov:command",
     "cov:command": "COVERAGE=true node --max-old-space-size=4096 ./node_modules/.bin/hardhat coverage",
-    "fix-typechain": "node scripts/fix-typechain.js && yarn rename-extensions",
+    "fix-typechain": "hardhat fix-typechain",
     "flatten": "npx waffle flatten",
     "lint": "yarn run lint-sol && yarn run lint-ts",
     "lint-sol": "solhint 'contracts/**/*.sol'",
