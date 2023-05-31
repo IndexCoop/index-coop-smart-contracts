@@ -1,4 +1,5 @@
 const replace = require("replace-in-file");
+const fs = require('fs');
 
 let changedFiles;
 
@@ -66,23 +67,31 @@ try {
 // See: https://forum.openzeppelin.com/t/duplicate-identifier-initializable-with-typechain/34349
 // NOTE: If a class is not longer duplicated it has to be removed from the list
 // TODO: Refactor so that it automatically detects duplicates
-const duplicateClasses = ["IERC20", "Ownable"];
-const options4 = duplicateClasses.flatMap((className) => {
-  return [
-    {
-      files: ["./typechain/index.ts"],
+//
+//
 
-      // Delete first occurance to remove duplciate definition
-      from: `export type { ${className} } from "./${className}";\n`,
-      to: "",
-    },
-    {
-      files: ["./typechain/index.ts"],
+function findDuplicateLines(filename) {
+    let data = fs.readFileSync(filename, 'utf8')
 
-      from: `export { ${className}__factory } from "./factories/${className}__factory";\n`,
+    data = data.toString().split('\n')
+    console.log("data", data)
+
+    // this will remove duplicates from the array
+    let duplicateLines = data.filter((item, pos) => data.indexOf(item) !== pos)
+    console.log('duplicateLines', duplicateLines)
+    // remove empty lines
+    duplicateLines = duplicateLines.filter((item) => item.trim() !== '')
+    return duplicateLines;
+}
+
+const duplicateLines = findDuplicateLines('./typechain/index.ts');
+const options4 = duplicateLines.map((line) => {
+  return {
+      files: ["./typechain/index.ts"],
+      // Delete first occurance to remove duplicate definition
+      from: line,
       to: "",
-    },
-  ];
+    }
 });
 
 for (const options of options4) {
