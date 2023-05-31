@@ -39,7 +39,7 @@ contract ZeroExTradeWrapper is Ownable {
      * @notice OWNER ONLY: Changes approval status of callTarget
      * @param _callTarget The address of the 0x contract
      */
-    function changeCallTargetApproval(address _callTarget, bool _newStatus) external onlyOwner {
+    function changeCallTargetApprovalStatus(address _callTarget, bool _newStatus) external onlyOwner {
         approvedCallTargets[_callTarget] = _newStatus;
     }
 

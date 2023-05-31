@@ -17,7 +17,7 @@
   "scripts": {
     "build": "yarn compile && yarn build:typechain",
     "build:npm": "yarn compile:npm && yarn build:typechain",
-    "build:typechain": "yarn patch-hardhat-typechain && yarn typechain && yarn fix-typechain && yarn transpile-dist",
+    "build:typechain": "yarn patch-hardhat-typechain && yarn typechain && yarn transpile-dist",
     "chain": "npx hardhat node --no-deploy",
     "chain:fork:ethereum": "FORK=true yarn run chain",
     "chain:fork:polygon": "FORK=true NETWORK=polygon yarn run chain",

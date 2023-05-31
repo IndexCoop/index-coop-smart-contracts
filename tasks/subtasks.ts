@@ -1,4 +1,5 @@
 import {
+  TASK_COMPILE,
   TASK_COMPILE_SOLIDITY_COMPILE,
   TASK_COMPILE_SOLIDITY_GET_ARTIFACT_FROM_COMPILATION_OUTPUT,
 } from "hardhat/builtin-tasks/task-names";
@@ -8,8 +9,8 @@ import { addGasToAbiMethods, fixTypechain, setupNativeSolc } from "../utils/task
 
 // Injects network block limit (minus 1 million) in the abi so
 // ethers uses it instead of running gas estimation.
-subtask(TASK_COMPILE_SOLIDITY_GET_ARTIFACT_FROM_COMPILATION_OUTPUT)
-  .setAction(async (_, { network }, runSuper) => {
+subtask(TASK_COMPILE_SOLIDITY_GET_ARTIFACT_FROM_COMPILATION_OUTPUT).setAction(
+  async (_, { network }, runSuper) => {
     const artifact = await runSuper();
 
     // These changes should be skipped when publishing to npm.
@@ -19,15 +20,19 @@ subtask(TASK_COMPILE_SOLIDITY_GET_ARTIFACT_FROM_COMPILATION_OUTPUT)
     }
 
     return artifact;
-  }
+  },
 );
 
 // Use native solc if available locally at config specified version
 internalTask(TASK_COMPILE_SOLIDITY_COMPILE).setAction(setupNativeSolc);
 
-task("fix-typechain", "Fixes typechain generated types")
-  .setAction(async () => {
-    fixTypechain()
-  })
+task("fix-typechain", "Fixes typechain generated types").setAction(async () => {
+  fixTypechain();
+});
+
+task(TASK_COMPILE).setAction(async (_, _1, runSuper) => {
+  await runSuper();
+  fixTypechain();
+});
 
 export {};
