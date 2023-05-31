@@ -66,7 +66,7 @@ try {
 // See: https://forum.openzeppelin.com/t/duplicate-identifier-initializable-with-typechain/34349
 // NOTE: If a class is not longer duplicated it has to be removed from the list
 // TODO: Refactor so that it automatically detects duplicates
-const duplicateClasses = ["Ownable"];
+const duplicateClasses = ["IERC20", "Ownable"];
 const options4 = duplicateClasses.flatMap((className) => {
   return [
     {
