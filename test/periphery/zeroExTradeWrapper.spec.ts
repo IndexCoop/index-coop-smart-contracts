@@ -26,7 +26,7 @@ describe("ZeroExTradeWrapper", function() {
     callTarget = await new MockZeroExCallTarget__factory(owner).deploy();
 
     // Deploy the wrapper contract
-    zeroExTradeWrapper = await new ZeroExTradeWrapper__factory(owner).deploy([callTarget.address]);
+    zeroExTradeWrapper = await new ZeroExTradeWrapper__factory(owner).deploy(callTarget.address);
 
     totalTokenSupply = utils.parseEther("1000000000");
     // Deploy the tokens
@@ -38,6 +38,7 @@ describe("ZeroExTradeWrapper", function() {
       18,
     );
     await tokenA.transfer(callTarget.address, totalTokenSupply.div(2));
+    await tokenA.transfer(await user.getAddress(), totalTokenSupply.div(2));
     tokenB = await new StandardTokenMock__factory(owner).deploy(
       await owner.getAddress(),
       totalTokenSupply,
@@ -46,57 +47,10 @@ describe("ZeroExTradeWrapper", function() {
       18,
     );
     await tokenB.transfer(callTarget.address, totalTokenSupply.div(2));
-  });
-
-  describe("#changeCallTargetApproval", function() {
-    let subjectCallTarget: string;
-    let subjectApprovalStatus: boolean;
-    let caller: Signer;
-
-    async function subject(): Promise<any> {
-      return zeroExTradeWrapper
-        .connect(caller)
-        .changeCallTargetApprovalStatus(subjectCallTarget, subjectApprovalStatus);
-    }
-    describe("when caller is owner", function() {
-      beforeEach(function() {
-        caller = owner;
-      });
-      describe("when approving new call target", function() {
-        beforeEach(function() {
-          subjectCallTarget = "0x1234567890123456789012345678901234567890";
-          subjectApprovalStatus = true;
-        });
-
-        it("should set the call target approval status", async function() {
-          await subject();
-          expect(await zeroExTradeWrapper.approvedCallTargets(subjectCallTarget)).to.be.true;
-        });
-      });
-
-      describe("when removing approval for call target", function() {
-        beforeEach(async function() {
-          subjectCallTarget = callTarget.address;
-          subjectApprovalStatus = false;
-        });
-        it("should set the call target approval status", async function() {
-          await subject();
-          expect(await zeroExTradeWrapper.approvedCallTargets(subjectCallTarget)).to.be.false;
-        });
-      });
-    });
-    describe("whenc caller is not the owner", function() {
-      beforeEach(function() {
-        caller = user;
-      });
-      it("should revert", async function() {
-        await expect(subject()).to.be.revertedWith("Ownable: caller is not the owner");
-      });
-    });
+    await tokenB.transfer(await user.getAddress(), totalTokenSupply.div(2));
   });
 
   describe("#executeTrade", function() {
-    let subjectCallTarget: string;
     let subjectCallData: string;
     let subjectTokenIn: StandardTokenMock;
     let subjectMaxAmountIn: BigNumber;
@@ -108,7 +62,6 @@ describe("ZeroExTradeWrapper", function() {
       return zeroExTradeWrapper
         .connect(subjectCaller)
         .executeTrade(
-          subjectCallTarget,
           subjectCallData,
           subjectTokenIn.address,
           subjectMaxAmountIn,
@@ -118,12 +71,11 @@ describe("ZeroExTradeWrapper", function() {
     }
 
     beforeEach(async function() {
-      subjectCaller = owner;
-      subjectCallTarget = callTarget.address;
+      subjectCaller = user;
       subjectTokenIn = tokenA;
       subjectMaxAmountIn = BigNumber.from(1000);
       subjectTokenOut = tokenB;
-      subjectMinAmountOut = (await subjectTokenOut.balanceOf(subjectCallTarget)).div(100);
+      subjectMinAmountOut = (await subjectTokenOut.balanceOf(callTarget.address)).div(100);
       subjectCallData = callTarget.interface.encodeFunctionData("trade", [
         subjectTokenIn.address,
         subjectTokenOut.address,
@@ -146,17 +98,6 @@ describe("ZeroExTradeWrapper", function() {
         await subjectTokenIn
           .connect(subjectCaller)
           .approve(zeroExTradeWrapper.address, subjectMaxAmountIn);
-      });
-
-      describe("when callTarget is not approved", function() {
-        beforeEach(async function() {
-          subjectCallTarget = await owner.getAddress();
-        });
-        it("should revert", async function() {
-          await expect(subject()).to.be.revertedWith(
-            "ZeroExTradeWrapper: Call target not approved",
-          );
-        });
       });
 
       describe("when input amount spent is less than max amount and output amount higher than min", function() {
