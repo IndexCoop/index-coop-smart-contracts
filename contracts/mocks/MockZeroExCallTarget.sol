@@ -7,13 +7,16 @@ contract MockZeroExCallTarget {
   uint256 overrideAmountIn;
   uint256 overrideAmountOut;
   bytes overrideReturnData;
+  bool toRevert;
+  string revertReason;
 
   function trade(
     address _tokenIn,
     address _tokenOut,
     uint256 _maxAmountIn,
     uint256 _minAmountOut
-  ) external returns (bool) {
+  ) external returns (bytes memory) {
+    require(!toRevert, revertReason);
     // Transfer tokens
     IERC20 tokenIn = IERC20(_tokenIn);
     IERC20 tokenOut = IERC20(_tokenOut);
@@ -35,7 +38,7 @@ contract MockZeroExCallTarget {
     tokenIn.transferFrom(msg.sender, address(this), amountIn);
     tokenOut.transfer(msg.sender, amountOut);
 
-    return true;
+    return overrideReturnData;
   }
 
   function setOverrideAmounts(uint256 _amountIn, uint256 _amountOut) external {
@@ -45,6 +48,14 @@ contract MockZeroExCallTarget {
 
   function setOverrideReturnData(bytes memory _returnData) external {
     overrideReturnData = _returnData;
+  }
+
+  function setToRevert(bool _toRevert) external {
+    toRevert = _toRevert;
+  }
+  function setRevertReason(string memory _revertReason) external {
+    toRevert = true;
+    revertReason = _revertReason;
   }
 }
 

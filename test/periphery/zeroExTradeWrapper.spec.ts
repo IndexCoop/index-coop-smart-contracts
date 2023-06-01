@@ -116,6 +116,7 @@ describe("ZeroExTradeWrapper", function() {
           subjectMinAmountOut,
         );
     }
+
     beforeEach(async function() {
       subjectCaller = owner;
       subjectCallTarget = callTarget.address;
@@ -131,19 +132,78 @@ describe("ZeroExTradeWrapper", function() {
       ]);
     });
 
-    describe("when token is not approved", function() {
+    describe("when wrapper contract IS NOT approved to spend input token", function() {
       it("should revert", async function() {
         await expect(subject()).to.be.reverted;
       });
     });
-    describe("when token is approved", function() {
+    describe("when wrapper contract IS approved to spend input token", function() {
+      let inputAmountSpent: BigNumber;
+      let outputAmountReceived: BigNumber;
       beforeEach(async function() {
+        inputAmountSpent = subjectMaxAmountIn;
+        outputAmountReceived = subjectMinAmountOut;
         await subjectTokenIn
           .connect(subjectCaller)
           .approve(zeroExTradeWrapper.address, subjectMaxAmountIn);
       });
-      it("should work", async function() {
-        await subject();
+
+      describe("when callTarget is not approved", function() {
+        beforeEach(async function() {
+          subjectCallTarget = await owner.getAddress();
+        });
+        it("should revert", async function() {
+          await expect(subject()).to.be.revertedWith(
+            "ZeroExTradeWrapper: Call target not approved",
+          );
+        });
+      });
+
+      describe("when input amount spent is less than max amount and output amount higher than min", function() {
+        beforeEach(async function() {
+          inputAmountSpent = subjectMaxAmountIn.div(2);
+          outputAmountReceived = subjectMinAmountOut.mul(2);
+          await callTarget.setOverrideAmounts(inputAmountSpent, outputAmountReceived);
+        });
+        it("should spend correct amount of input token", async function() {
+          const inputBalanceBefore = await subjectTokenIn.balanceOf(await subjectCaller.getAddress());
+          await subject();
+          expect(await subjectTokenIn.balanceOf(await subjectCaller.getAddress())).to.eq(
+            inputBalanceBefore.sub(inputAmountSpent),
+          );
+        });
+        it("should receive correct amout of output token", async function() {
+          const outputBalanceBefore = await subjectTokenOut.balanceOf(
+            await subjectCaller.getAddress(),
+          );
+          await subject();
+          expect(await subjectTokenOut.balanceOf(await subjectCaller.getAddress())).to.eq(
+            outputBalanceBefore.add(outputAmountReceived),
+          );
+        });
+
+        describe("when output amount is less than min amount", function() {
+          beforeEach(async function() {
+            outputAmountReceived = subjectMinAmountOut.div(2);
+            await callTarget.setOverrideAmounts(inputAmountSpent, outputAmountReceived);
+          });
+          it("should revert", async function() {
+            await expect(subject()).to.be.revertedWith(
+              "ZeroExTradeWrapper: Insufficient tokens received",
+            );
+          });
+        });
+        describe("when zeroEx contract fails with custom revert reason", function() {
+          let revertReason: string;
+          beforeEach(async function() {
+            revertReason = "Custom revert reason";
+            await callTarget.setRevertReason(revertReason);
+          });
+
+          it("should pass through the revertReason", async function() {
+            await expect(subject()).to.be.revertedWith(revertReason);
+          });
+        });
       });
     });
   });

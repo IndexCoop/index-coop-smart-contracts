@@ -28,6 +28,7 @@ import { IERC20 } from "openzeppelin-contracts-4.9/token/ERC20/IERC20.sol";
  */
 contract ZeroExTradeWrapper is Ownable {
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    // TODO: Check if we might not want to just have a single callTarget as immutable variable saving us gas. 
     mapping (address => bool) public approvedCallTargets;
 
     constructor(address[] memory _approvedCallTargets) {
@@ -75,17 +76,22 @@ contract ZeroExTradeWrapper is Ownable {
         (bool success, bytes memory returnData) = _callTarget.call{value: msg.value}(_callData);
         require(success, string(returnData));
 
+
+        // Instead of checking the spent amounts we just transfer out the full token balances
         if(tokenInIsERC20) {
             _tokenIn.transfer(msg.sender, _tokenIn.balanceOf(address(this)));
         }
         if(address(_tokenOut) != ETH_ADDRESS) {
-            _tokenOut.transfer(msg.sender, _tokenOut.balanceOf(address(this)));
+            uint256 tokenOutBalance = _tokenOut.balanceOf(address(this));
+            require(tokenOutBalance >= _minAmountOut, "ZeroExTradeWrapper: Insufficient tokens received");
+            _tokenOut.transfer(msg.sender, tokenOutBalance);
+        } else {
+            require(address(this).balance >= _minAmountOut, "ZeroExTradeWrapper: Insufficient ETH received");
         }
+
         if (address(this).balance > 0) {
             payable(msg.sender).transfer(address(this).balance);
         }
-
-        return returnData;
     }
 
 
