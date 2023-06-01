@@ -72,9 +72,9 @@ if (process.env.INTEGRATIONTEST) {
         addresses.setFork.tradeModule,
       )) as ITradeModule;
 
-      rETH2 = (await ethers.getContractAt("IERC20", addresses.tokens.rETH2)) as IERC20;
+      rETH2 = (await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", addresses.tokens.rETH2)) as IERC20;
 
-      sETH2 = (await ethers.getContractAt("IERC20", addresses.tokens.sETH2)) as IERC20;
+      sETH2 = (await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", addresses.tokens.sETH2)) as IERC20;
 
       await deployStakeWiseReinvestmentExtension();
 

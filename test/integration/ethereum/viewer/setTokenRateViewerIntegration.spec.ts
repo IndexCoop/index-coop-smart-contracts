@@ -40,7 +40,7 @@ if (process.env.INTEGRATIONTEST) {
     context("wsEth2", async () => {
       it("should get the amount of sETH2 per wsETH2 token", async () => {
         setToken = (await ethers.getContractAt("ISetToken", addresses.tokens.wsETH2)) as ISetToken;
-        component = (await ethers.getContractAt("IERC20", addresses.tokens.sETH2)) as IERC20;
+        component = (await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", addresses.tokens.sETH2)) as IERC20;
 
         await subject();
 
@@ -50,7 +50,7 @@ if (process.env.INTEGRATIONTEST) {
 
       it("should get the amount of rETH2 per wsETh2 token", async () => {
         setToken = (await ethers.getContractAt("ISetToken", addresses.tokens.wsETH2)) as ISetToken;
-        component = (await ethers.getContractAt("IERC20", addresses.tokens.rETH2)) as IERC20;
+        component = (await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", addresses.tokens.rETH2)) as IERC20;
 
         await subject();
 
@@ -63,7 +63,7 @@ if (process.env.INTEGRATIONTEST) {
       it("should revert on weth debt", async () => {
         setToken = (await ethers.getContractAt("ISetToken", addresses.tokens.icEth)) as ISetToken;
 
-        component = (await ethers.getContractAt("IERC20", addresses.tokens.weth)) as IERC20;
+        component = (await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", addresses.tokens.weth)) as IERC20;
 
         await subject();
 
@@ -73,7 +73,7 @@ if (process.env.INTEGRATIONTEST) {
       it("should get the amount of aSTETH per token", async () => {
         setToken = (await ethers.getContractAt("ISetToken", addresses.tokens.icEth)) as ISetToken;
 
-        component = (await ethers.getContractAt("IERC20", addresses.tokens.aSTETH)) as IERC20;
+        component = (await ethers.getContractAt("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20", addresses.tokens.aSTETH)) as IERC20;
 
         await subject();
 
