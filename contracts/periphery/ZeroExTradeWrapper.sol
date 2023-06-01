@@ -27,6 +27,7 @@ import { IERC20 } from "openzeppelin-contracts-4.9/token/ERC20/IERC20.sol";
  * Developed to fulfil calldata decoding requirments in the ledger integration
  */
 contract ZeroExTradeWrapper is Ownable {
+    address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     mapping (address => bool) public approvedCallTargets;
 
     constructor(address[] memory _approvedCallTargets) {
@@ -63,14 +64,27 @@ contract ZeroExTradeWrapper is Ownable {
     ) external payable returns (bytes memory){
         require(approvedCallTargets[_callTarget], "ZeroExTradeWrapper: Call target not approved");
 
-        uint256 outputBalanceBefore = _tokenOut.balanceOf(msg.sender);
-        uint256 inputBalanceBefore = _tokenOut.balanceOf(msg.sender);
+        bool tokenInIsERC20 = address(_tokenIn) != ETH_ADDRESS;
+        if(tokenInIsERC20) {
+            _tokenIn.transferFrom(msg.sender, address(this), _maxAmountIn);
+            if(_tokenIn.allowance(address(this), _callTarget) < _maxAmountIn) {
+                _tokenIn.approve(_callTarget, type(uint256).max);
+            }
+        }
 
-        (bool success, bytes memory returnData) = _callTarget.delegatecall(_callData);
+        (bool success, bytes memory returnData) = _callTarget.call{value: msg.value}(_callData);
         require(success, string(returnData));
 
-        require(_tokenOut.balanceOf(msg.sender) - outputBalanceBefore >= _minAmountOut, "ZeroExTradeWrapper: Underreceived");
-        require(inputBalanceBefore - _tokenIn.balanceOf(msg.sender) <= _maxAmountIn, "ZeroExTradeWrapper: Overpaid");
+        if(tokenInIsERC20) {
+            _tokenIn.transfer(msg.sender, _tokenIn.balanceOf(address(this)));
+        }
+        if(address(_tokenOut) != ETH_ADDRESS) {
+            _tokenOut.transfer(msg.sender, _tokenOut.balanceOf(address(this)));
+        }
+        if (address(this).balance > 0) {
+            payable(msg.sender).transfer(address(this).balance);
+        }
+
         return returnData;
     }
 
