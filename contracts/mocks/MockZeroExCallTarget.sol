@@ -16,6 +16,16 @@ contract MockZeroExCallTarget {
     uint256 _maxAmountIn,
     uint256 _minAmountOut
   ) external returns (bytes memory) {
+      return tradeWithUserAddress(msg.sender, _tokenIn, _tokenOut, _maxAmountIn, _minAmountOut);
+  }
+
+  function tradeWithUserAddress(
+    address _user,
+    address _tokenIn,
+    address _tokenOut,
+    uint256 _maxAmountIn,
+    uint256 _minAmountOut
+  ) public returns (bytes memory) {
     require(!toRevert, revertReason);
     // Transfer tokens
     IERC20 tokenIn = IERC20(_tokenIn);
@@ -35,12 +45,11 @@ contract MockZeroExCallTarget {
       amountIn = _maxAmountIn;
     }
 
-    tokenIn.transferFrom(msg.sender, address(this), amountIn);
-    tokenOut.transfer(msg.sender, amountOut);
+    tokenIn.transferFrom(_user, address(this), amountIn);
+    tokenOut.transfer(_user, amountOut);
 
     return overrideReturnData;
   }
-
   function setOverrideAmounts(uint256 _amountIn, uint256 _amountOut) external {
     overrideAmountIn = _amountIn;
     overrideAmountOut = _amountOut;

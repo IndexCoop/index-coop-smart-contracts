@@ -52,9 +52,11 @@ describe("ZeroExTradeWrapper", function() {
 
   describe("#executeTrade", function() {
     let subjectCallData: string;
-    let subjectTokenIn: StandardTokenMock;
+    let tokenIn: StandardTokenMock;
+    let subjectTokenIn: string;
     let subjectMaxAmountIn: BigNumber;
-    let subjectTokenOut: StandardTokenMock;
+    let tokenOut: StandardTokenMock;
+    let subjectTokenOut: string;
     let subjectMinAmountOut: BigNumber;
     let subjectCaller: Signer;
 
@@ -63,25 +65,60 @@ describe("ZeroExTradeWrapper", function() {
         .connect(subjectCaller)
         .executeTrade(
           subjectCallData,
-          subjectTokenIn.address,
+          subjectTokenIn,
           subjectMaxAmountIn,
-          subjectTokenOut.address,
+          subjectTokenOut,
           subjectMinAmountOut,
         );
     }
 
     beforeEach(async function() {
       subjectCaller = user;
-      subjectTokenIn = tokenA;
+      tokenIn = tokenA;
+      subjectTokenIn = tokenIn.address;
       subjectMaxAmountIn = BigNumber.from(1000);
-      subjectTokenOut = tokenB;
-      subjectMinAmountOut = (await subjectTokenOut.balanceOf(callTarget.address)).div(100);
+      tokenOut = tokenB;
+      subjectTokenOut = tokenOut.address;
+      subjectMinAmountOut = (await tokenOut.balanceOf(callTarget.address)).div(100);
       subjectCallData = callTarget.interface.encodeFunctionData("trade", [
-        subjectTokenIn.address,
-        subjectTokenOut.address,
+        subjectTokenIn,
+        subjectTokenOut,
         subjectMaxAmountIn,
         subjectMinAmountOut,
       ]);
+    });
+
+    describe("when tradeTarget sends / receives tokens directly from user", function() {
+      beforeEach(async function() {
+        subjectCaller = user;
+        subjectTokenIn = ethers.constants.AddressZero;
+        subjectMaxAmountIn = BigNumber.from(1000);
+        subjectTokenOut = ethers.constants.AddressZero;
+        subjectMinAmountOut = (await tokenOut.balanceOf(callTarget.address)).div(100);
+        subjectCallData = callTarget.interface.encodeFunctionData("tradeWithUserAddress", [
+          await subjectCaller.getAddress(),
+          tokenA.address,
+          tokenB.address,
+          subjectMaxAmountIn,
+          subjectMinAmountOut,
+        ]);
+
+        await tokenA.connect(subjectCaller).approve(callTarget.address, subjectMaxAmountIn);
+      });
+      it("should spend correct amount of input token", async function() {
+        const inputBalanceBefore = await tokenIn.balanceOf(await subjectCaller.getAddress());
+        await subject();
+        expect(await tokenIn.balanceOf(await subjectCaller.getAddress())).to.eq(
+          inputBalanceBefore.sub(subjectMaxAmountIn),
+        );
+      });
+      it("should receive correct amout of output token", async function() {
+        const outputBalanceBefore = await tokenOut.balanceOf(await subjectCaller.getAddress());
+        await subject();
+        expect(await tokenOut.balanceOf(await subjectCaller.getAddress())).to.eq(
+          outputBalanceBefore.add(subjectMinAmountOut),
+        );
+      });
     });
 
     describe("when wrapper contract IS NOT approved to spend input token", function() {
@@ -95,7 +132,7 @@ describe("ZeroExTradeWrapper", function() {
       beforeEach(async function() {
         inputAmountSpent = subjectMaxAmountIn;
         outputAmountReceived = subjectMinAmountOut;
-        await subjectTokenIn
+        await tokenIn
           .connect(subjectCaller)
           .approve(zeroExTradeWrapper.address, subjectMaxAmountIn);
       });
@@ -107,18 +144,16 @@ describe("ZeroExTradeWrapper", function() {
           await callTarget.setOverrideAmounts(inputAmountSpent, outputAmountReceived);
         });
         it("should spend correct amount of input token", async function() {
-          const inputBalanceBefore = await subjectTokenIn.balanceOf(await subjectCaller.getAddress());
+          const inputBalanceBefore = await tokenIn.balanceOf(await subjectCaller.getAddress());
           await subject();
-          expect(await subjectTokenIn.balanceOf(await subjectCaller.getAddress())).to.eq(
+          expect(await tokenIn.balanceOf(await subjectCaller.getAddress())).to.eq(
             inputBalanceBefore.sub(inputAmountSpent),
           );
         });
         it("should receive correct amout of output token", async function() {
-          const outputBalanceBefore = await subjectTokenOut.balanceOf(
-            await subjectCaller.getAddress(),
-          );
+          const outputBalanceBefore = await tokenOut.balanceOf(await subjectCaller.getAddress());
           await subject();
-          expect(await subjectTokenOut.balanceOf(await subjectCaller.getAddress())).to.eq(
+          expect(await tokenOut.balanceOf(await subjectCaller.getAddress())).to.eq(
             outputBalanceBefore.add(outputAmountReceived),
           );
         });
