@@ -23,7 +23,7 @@ import { IERC20 } from "openzeppelin-contracts-4.9/token/ERC20/IERC20.sol";
  * @author Index Coop
  *
  * Contract for wrapping ZeroEx trades
- * Developed to fulfil calldata decoding requirments in the ledger integration
+ * Developed to fulfil calldata decoding requirments in the ledger integration and enforce minOutput and maxInput amounts
  */
 contract ZeroExTradeWrapper {
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
@@ -36,9 +36,9 @@ contract ZeroExTradeWrapper {
     /**
      * @notice Executes a trade on behalf of the user with a delegatecall
      * @param _callData The calldata for the 0x contract
-     * @param _tokenIn The token to send
+     * @param _tokenIn The token to send / Set to zeroAddress to bypass inputToken handling
      * @param _maxAmountIn The maximum amount of tokens to send
-     * @param _tokenOut The token to receive
+     * @param _tokenOut The token to receive / Set to zeroAddress to bypass outputToken handling
      * @param _minAmountOut The minimum amount of tokens to receive
      */
     function executeTrade(
@@ -48,11 +48,15 @@ contract ZeroExTradeWrapper {
         IERC20 _tokenOut,
         uint256 _minAmountOut
     ) external payable returns (bytes memory){
-        bool tokenInIsERC20 = address(_tokenIn) != ETH_ADDRESS;
-        if(tokenInIsERC20) {
-            _tokenIn.transferFrom(msg.sender, address(this), _maxAmountIn);
-            if(_tokenIn.allowance(address(this), CALL_TARGET) < _maxAmountIn) {
-                _tokenIn.approve(CALL_TARGET, type(uint256).max);
+
+        bool tokenInIsERC20;
+        if(address(_tokenIn) != address(0)) {
+            tokenInIsERC20 = address(_tokenIn) != ETH_ADDRESS;
+            if(tokenInIsERC20) {
+                _tokenIn.transferFrom(msg.sender, address(this), _maxAmountIn);
+                if(_tokenIn.allowance(address(this), CALL_TARGET) < _maxAmountIn) {
+                    _tokenIn.approve(CALL_TARGET, type(uint256).max);
+                }
             }
         }
 
@@ -64,12 +68,15 @@ contract ZeroExTradeWrapper {
         if(tokenInIsERC20) {
             _tokenIn.transfer(msg.sender, _tokenIn.balanceOf(address(this)));
         }
-        if(address(_tokenOut) != ETH_ADDRESS) {
-            uint256 tokenOutBalance = _tokenOut.balanceOf(address(this));
-            require(tokenOutBalance >= _minAmountOut, "ZeroExTradeWrapper: Insufficient tokens received");
-            _tokenOut.transfer(msg.sender, tokenOutBalance);
-        } else {
-            require(address(this).balance >= _minAmountOut, "ZeroExTradeWrapper: Insufficient ETH received");
+
+        if(address(_tokenOut) != address(0)) {
+            if(address(_tokenOut) != ETH_ADDRESS) {
+                uint256 tokenOutBalance = _tokenOut.balanceOf(address(this));
+                require(tokenOutBalance >= _minAmountOut, "ZeroExTradeWrapper: Insufficient tokens received");
+                _tokenOut.transfer(msg.sender, tokenOutBalance);
+            } else {
+                require(address(this).balance >= _minAmountOut, "ZeroExTradeWrapper: Insufficient ETH received");
+            }
         }
 
         if (address(this).balance > 0) {

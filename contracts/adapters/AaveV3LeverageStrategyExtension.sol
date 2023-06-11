@@ -27,7 +27,7 @@ import {IBaseManager} from "../interfaces/IBaseManager.sol";
  * @title AaveV3LeverageStrategyExtension
  * @author Index Coop
  *
- * Extension of AaveLeverageStrategyExtension to add endpoint for setting the eMode categoryId
+ * Expanded version of the AaveLeverageStrategyExtension to add an endpoint for setting the eMode categoryId on AaveV3
  *
  */
 contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
