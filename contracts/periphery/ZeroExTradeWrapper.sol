@@ -23,7 +23,7 @@ import { IERC20 } from "openzeppelin-contracts-4.9/token/ERC20/IERC20.sol";
  * @author Index Coop
  *
  * Contract for wrapping ZeroEx trades
- * Developed to fulfil calldata decoding requirments in the ledger integration and enforce minOutput and maxInput amounts
+ * Developed to fulfill calldata decoding requirements in the ledger integration and enforce minOutput and maxInput amounts
  */
 contract ZeroExTradeWrapper {
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
