@@ -683,6 +683,21 @@ if (process.env.INTEGRATIONTEST) {
           .setEModeCategory(subjectEModeCategory);
       }
 
+      it("Setting emode for a user should change the ReserveConfigurationData", async () => {
+        const [, maxLtvBefore, liquidationThresholdBefore, , ] = await protocolDataProvider
+          .connect(owner.wallet)
+          .getReserveConfigurationData(weth.address);
+        const wethEModeCategory = await protocolDataProvider.getReserveEModeCategory(weth.address);
+        console.log("Setting UserEMode to: ", wethEModeCategory.toNumber());
+        await lendingPool.connect(owner.wallet).setUserEMode(wethEModeCategory);
+        console.log("Done");
+        const [, maxLtvAfter, liquidationThresholdAfter, , ] = await protocolDataProvider
+          .connect(owner.wallet)
+          .getReserveConfigurationData(weth.address);
+        expect(maxLtvAfter).to.gt(maxLtvBefore);
+        expect(liquidationThresholdAfter).to.gt(liquidationThresholdBefore);
+      });
+
       describe("When setting eModeCategory to ETH-Category from default", () => {
         beforeEach(() => {
           subjectEModeCategory = 1;
