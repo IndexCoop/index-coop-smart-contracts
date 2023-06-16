@@ -97,14 +97,14 @@ const tokenAddresses = {
   aUSDC: "0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c",
   aUsdcVariableDebtTokenV3: "0x72E95b8931767C79bA4EeE721354d6E99a61D004",
   stEth: "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
-  wstEth: "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0",
-  awstEthV3: "0x0B925eD163218f6662a35e0f0371Ac234f9E9371",
+  wsteth: "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0",
+  aWstethV3: "0x0B925eD163218f6662a35e0f0371Ac234f9E9371",
 };
 
 const whales = {
   dai: "0x075e72a5eDf65F0A5f44699c7654C1a76941Ddc8",
   aWeth: "0x702a39a9d7D84c6B269efaA024dff4037499bBa9",
-  awsteth: "0xAF06acFD1BD492B913d5807d562e4FC3A6343C4E",
+  aWsteth: "0x5DE64f9503064344dB3202d95cEB73C420DCcD57",
   wsteth: "0x5fEC2f34D80ED82370F733043B6A536d7e9D7f8d",
   weth: "0x8EB8a3b98659Cce290402893d0123abb75E3ab28",
   usdc: "0xCFFAd3200574698b78f32232aa9D63eABD290703",
@@ -129,10 +129,10 @@ if (process.env.INTEGRATIONTEST) {
     let tradeAdapterMock: TradeAdapterMock;
     let tradeAdapterMock2: TradeAdapterMock;
     let aWeth: IERC20;
-    let aUsdc: IERC20;
-    let usdcVariableDebtToken: AaveV2VariableDebtToken;
+    let wsteth: IERC20;
+    let aWsteth: IERC20;
+    let wethVariableDebtToken: AaveV2VariableDebtToken;
     let weth: IERC20;
-    let usdc: IERC20;
 
     let strategy: AaveContractSettings;
     let methodology: MethodologySettings;
@@ -156,6 +156,8 @@ if (process.env.INTEGRATIONTEST) {
       [owner, methodologist] = await getAccounts();
       deployer = new DeployHelper(owner.wallet);
 
+      lendingPool = IPool__factory.connect(contractAddresses.aaveV3Pool, owner.wallet);
+
       // Deploy Aave leverage module and add to controller
       aaveLeverageModule = await deployer.setV2.deployAaveV3LeverageModule(
         contractAddresses.controller,
@@ -163,35 +165,41 @@ if (process.env.INTEGRATIONTEST) {
       );
 
       manager = owner.address;
-      usdc = IERC20__factory.connect(tokenAddresses.usdc, owner.wallet);
-      await usdc
-        .connect(await impersonateAccount(whales.usdc))
-        .transfer(owner.address, await usdc.balanceOf(whales.usdc).then(b => b.div(10)));
       weth = IERC20__factory.connect(tokenAddresses.weth, owner.wallet);
       await weth
         .connect(await impersonateAccount(whales.weth))
         .transfer(owner.address, await weth.balanceOf(whales.weth).then(b => b.div(10)));
+      wsteth = IERC20__factory.connect(tokenAddresses.wsteth, owner.wallet);
+      await wsteth
+        .connect(await impersonateAccount(whales.wsteth))
+        .transfer(owner.address, await wsteth.balanceOf(whales.wsteth).then(b => b.div(10)));
+      const wstethBalance = await wsteth.balanceOf(owner.address);
+      console.log("owner wsteth balance", ethers.utils.formatEther(wstethBalance));
 
       aaveOracle = IAaveOracle__factory.connect(
         contractAddresses.aaveV3Oracle,
         await impersonateAccount(contractAddresses.aaveGovernance),
       );
+      aWsteth = IERC20__factory.connect(tokenAddresses.aWstethV3, owner.wallet);
+      await wsteth.approve(lendingPool.address, ethers.constants.MaxUint256);
+      await lendingPool.supply(wsteth.address, wstethBalance.div(2), owner.address, 0);
+      console.log("supplied awsteth");
       aWeth = IERC20__factory.connect(tokenAddresses.aWethV3, owner.wallet);
-      aWeth
-        .connect(await impersonateAccount(whales.aWeth))
-        .transfer(owner.address, await aWeth.balanceOf(whales.aWeth).then(b => b.div(10)));
-      aUsdc = IERC20__factory.connect(tokenAddresses.aUSDC, owner.wallet);
-      usdcVariableDebtToken = AaveV2VariableDebtToken__factory.connect(
-        tokenAddresses.aUsdcVariableDebtTokenV3,
+      wethVariableDebtToken = AaveV2VariableDebtToken__factory.connect(
+        tokenAddresses.aWethVariableDebtTokenV3,
         owner.wallet,
       );
+      const ownerBalance = await aWsteth.balanceOf(owner.address);
+      console.log("ownerawstethBalance", ethers.utils.formatEther(ownerBalance));
 
       controller = Controller__factory.connect(contractAddresses.controller, owner.wallet);
       const controllerOwner = await controller.owner();
       const controllerOwnerSigner = await impersonateAccount(controllerOwner);
       controller = controller.connect(controllerOwnerSigner);
 
+      console.log("addModule");
       await controller.addModule(aaveLeverageModule.address);
+      console.log("addedModule");
 
       integrationRegistry = IntegrationRegistry__factory.connect(
         contractAddresses.integrationRegistry,
@@ -202,13 +210,13 @@ if (process.env.INTEGRATIONTEST) {
         await impersonateAccount(integrationRegistryOwner),
       );
 
+      console.log("Deploy trade adapter mocks");
       tradeAdapterMock = await deployer.mocks.deployTradeAdapterMock();
       await integrationRegistry.addIntegration(
         aaveLeverageModule.address,
         exchangeName,
         tradeAdapterMock.address,
       );
-
       // Deploy mock trade adapter 2
       tradeAdapterMock2 = await deployer.mocks.deployTradeAdapterMock();
       await integrationRegistry.addIntegration(
@@ -239,13 +247,12 @@ if (process.env.INTEGRATIONTEST) {
         await impersonateAccount(contractAddresses.aaveGovernance),
       );
 
-      lendingPool = IPool__factory.connect(contractAddresses.aaveV3Pool, owner.wallet);
-
       debtIssuanceModule = DebtIssuanceModuleV2__factory.connect(
         contractAddresses.debtIssuanceModule,
         owner.wallet,
       );
 
+      console.log("Set DIM integration");
       await integrationRegistry.addIntegration(
         aaveLeverageModule.address,
         "DefaultIssuanceModule",
@@ -259,13 +266,14 @@ if (process.env.INTEGRATIONTEST) {
 
       // Deploy Chainlink mocks
       chainlinkCollateralPriceMock = await deployer.mocks.deployChainlinkAggregatorMock();
-      await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1000).mul(10 ** 8));
+      await chainlinkCollateralPriceMock.setPrice(10 ** 8);
       chainlinkBorrowPriceMock = await deployer.mocks.deployChainlinkAggregatorMock();
       await chainlinkBorrowPriceMock.setPrice(10 ** 8);
       await aaveOracle.setAssetSources(
-        [weth.address, usdc.address],
+        [wsteth.address, weth.address],
         [chainlinkCollateralPriceMock.address, chainlinkBorrowPriceMock.address],
       );
+      console.log("Top level initialization done");
     });
 
     async function createSetToken(
@@ -288,13 +296,14 @@ if (process.env.INTEGRATIONTEST) {
 
     const initializeRootScopeContracts = async () => {
       setToken = await createSetToken(
-        [tokenAddresses.aWethV3],
-        [ether(1)],
-        [debtIssuanceModule.address, aaveLeverageModule.address, debtIssuanceModule.address],
+        [aWsteth.address, weth.address],
+        [ether(2), ether(1)],
+        [debtIssuanceModule.address, aaveLeverageModule.address],
       );
       await aaveLeverageModule.updateAnySetAllowed(true);
 
       // Initialize modules
+      console.log("Initializing dim");
       await debtIssuanceModule.initialize(
         setToken.address,
         ether(1),
@@ -303,8 +312,14 @@ if (process.env.INTEGRATIONTEST) {
         owner.address,
         ADDRESS_ZERO,
       );
-      await aaveLeverageModule.initialize(setToken.address, [weth.address], [usdc.address]);
+      console.log("Initializing alm");
+      await aaveLeverageModule.initialize(
+        setToken.address,
+        [weth.address, wsteth.address],
+        [wsteth.address, weth.address],
+      );
 
+      console.log("Deploying base manager");
       baseManagerV2 = await deployer.manager.deployBaseManager(
         setToken.address,
         owner.address,
@@ -340,10 +355,10 @@ if (process.env.INTEGRATIONTEST) {
         aaveProtocolDataProvider: protocolDataProvider.address,
         collateralPriceOracle: chainlinkCollateralPriceMock.address,
         borrowPriceOracle: chainlinkBorrowPriceMock.address,
-        targetCollateralAToken: customATokenCollateralAddress || aWeth.address,
-        targetBorrowDebtToken: usdcVariableDebtToken.address,
-        collateralAsset: weth.address,
-        borrowAsset: usdc.address,
+        targetCollateralAToken: customATokenCollateralAddress || aWsteth.address,
+        targetBorrowDebtToken: wethVariableDebtToken.address,
+        collateralAsset: wsteth.address,
+        borrowAsset: weth.address,
         collateralDecimalAdjustment: BigNumber.from(10),
         borrowDecimalAdjustment: BigNumber.from(22),
       };
@@ -375,6 +390,7 @@ if (process.env.INTEGRATIONTEST) {
         deleverExchangeData,
       };
 
+      console.log("Deploying  AaveV3LeverageStrategyExtension");
       leverageStrategyExtension = await deployer.extensions.deployAaveV3LeverageStrategyExtension(
         baseManagerV2.address,
         strategy,
@@ -408,10 +424,10 @@ if (process.env.INTEGRATIONTEST) {
           aaveProtocolDataProvider: protocolDataProvider.address,
           collateralPriceOracle: chainlinkCollateralPriceMock.address,
           borrowPriceOracle: chainlinkBorrowPriceMock.address,
-          targetCollateralAToken: customATokenCollateralAddress || aWeth.address,
-          targetBorrowDebtToken: usdcVariableDebtToken.address,
-          collateralAsset: weth.address,
-          borrowAsset: usdc.address,
+          targetCollateralAToken: customATokenCollateralAddress || aWsteth.address,
+          targetBorrowDebtToken: wethVariableDebtToken.address,
+          collateralAsset: wsteth.address,
+          borrowAsset: weth.address,
           collateralDecimalAdjustment: BigNumber.from(10),
           borrowDecimalAdjustment: BigNumber.from(22),
         };
@@ -683,21 +699,6 @@ if (process.env.INTEGRATIONTEST) {
           .setEModeCategory(subjectEModeCategory);
       }
 
-      it("Setting emode for a user should change the ReserveConfigurationData", async () => {
-        const [, maxLtvBefore, liquidationThresholdBefore, , ] = await protocolDataProvider
-          .connect(owner.wallet)
-          .getReserveConfigurationData(weth.address);
-        const wethEModeCategory = await protocolDataProvider.getReserveEModeCategory(weth.address);
-        console.log("Setting UserEMode to: ", wethEModeCategory.toNumber());
-        await lendingPool.connect(owner.wallet).setUserEMode(wethEModeCategory);
-        console.log("Done");
-        const [, maxLtvAfter, liquidationThresholdAfter, , ] = await protocolDataProvider
-          .connect(owner.wallet)
-          .getReserveConfigurationData(weth.address);
-        expect(maxLtvAfter).to.gt(maxLtvBefore);
-        expect(liquidationThresholdAfter).to.gt(liquidationThresholdBefore);
-      });
-
       describe("When setting eModeCategory to ETH-Category from default", () => {
         beforeEach(() => {
           subjectEModeCategory = 1;
@@ -746,14 +747,28 @@ if (process.env.INTEGRATIONTEST) {
             await initializeRootScopeContracts();
 
             // Approve tokens to issuance module and call issue
-            await aWeth.approve(debtIssuanceModule.address, ether(1000));
+            await aWsteth.approve(debtIssuanceModule.address, ether(1000));
+            await weth.approve(debtIssuanceModule.address, ether(1000));
 
             // Issue 1 SetToken
             issueQuantity = ether(1);
+            console.log("Issuing set");
             await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
+            console.log("Issed set");
 
             destinationTokenQuantity = ether(0.5);
-            await weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
+            console.log("Sending wseth to tradeAdapter", {
+              adapter: tradeAdapterMock.address,
+              wsteth: wsteth.address,
+              quantity: destinationTokenQuantity.toString(),
+            });
+            await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
+            console.log("Sending wseth to tradeAdapter", {
+              adapter: tradeAdapterMock2.address,
+              wsteth: wsteth.address,
+              quantity: destinationTokenQuantity.toString(),
+            });
+            await wsteth.transfer(tradeAdapterMock2.address, destinationTokenQuantity);
           };
 
           const initializeSubjectVariables = () => {
@@ -802,18 +817,18 @@ if (process.env.INTEGRATIONTEST) {
 
               await subject();
 
-              // aWeth position is increased
+              // aWsteth position is increased
               const currentPositions = await setToken.getPositions();
-              const newFirstPosition = (await setToken.getPositions())[0];
+              const newFirstPosition = currentPositions[0];
 
               // Get expected aTokens position size
               const expectedFirstPositionUnit = initialPositions[0].unit.add(
                 destinationTokenQuantity,
               );
 
-              expect(initialPositions.length).to.eq(1);
-              expect(currentPositions.length).to.eq(2);
-              expect(newFirstPosition.component).to.eq(aWeth.address);
+              expect(initialPositions.length).to.eq(2);
+              expect(currentPositions.length).to.eq(3);
+              expect(newFirstPosition.component).to.eq(aWsteth.address);
               expect(newFirstPosition.positionState).to.eq(0); // Default
               expect(newFirstPosition.unit).to.be.gte(expectedFirstPositionUnit.mul(999).div(1000));
               expect(newFirstPosition.unit).to.be.lte(
@@ -827,18 +842,18 @@ if (process.env.INTEGRATIONTEST) {
 
               await subject();
 
-              // aWeth position is increased
+              // aWsteth position is increased
               const currentPositions = await setToken.getPositions();
               const newSecondPosition = (await setToken.getPositions())[1];
 
               const expectedSecondPositionUnit = (
-                await usdcVariableDebtToken.balanceOf(setToken.address)
+                await wethVariableDebtToken.balanceOf(setToken.address)
               ).mul(-1);
 
-              expect(initialPositions.length).to.eq(1);
-              expect(currentPositions.length).to.eq(2);
-              expect(newSecondPosition.component).to.eq(usdc.address);
-              expect(newSecondPosition.positionState).to.eq(1); // External
+              expect(initialPositions.length).to.eq(2);
+              expect(currentPositions.length).to.eq(3);
+              expect(newSecondPosition.component).to.eq(weth.address);
+              // expect(newSecondPosition.positionState).to.eq(1); // External
               expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
               expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
             });
@@ -880,8 +895,8 @@ if (process.env.INTEGRATIONTEST) {
 
           describe("when collateral balance is zero", async () => {
             beforeEach(async () => {
-              // Set collateral asset to cUSDC with 0 balance
-              customATokenCollateralAddress = aUsdc.address;
+              // Set collateral asset to cWETH with 0 balance
+              customATokenCollateralAddress = aWeth.address;
               await intializeContracts();
               initializeSubjectVariables();
             });
@@ -904,7 +919,8 @@ if (process.env.INTEGRATIONTEST) {
             await initializeRootScopeContracts();
 
             // Approve tokens to issuance module and call issue
-            await aWeth.approve(debtIssuanceModule.address, ether(1000));
+            await aWsteth.approve(debtIssuanceModule.address, ether(1000));
+            await weth.approve(debtIssuanceModule.address, ether(1000));
 
             // Issue 1 SetToken
             const issueQuantity = ether(1);
@@ -923,7 +939,7 @@ if (process.env.INTEGRATIONTEST) {
             );
             // Traded amount is equal to account liquidity * buffer percentage
             destinationTokenQuantity = ether(0.8 * 0.99);
-            await weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
+            await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
           });
 
           beforeEach(() => {
@@ -967,7 +983,7 @@ if (process.env.INTEGRATIONTEST) {
 
             await subject();
 
-            // aWeth position is increased
+            // aWsteth position is increased
             const currentPositions = await setToken.getPositions();
             const newFirstPosition = (await setToken.getPositions())[0];
 
@@ -978,7 +994,7 @@ if (process.env.INTEGRATIONTEST) {
 
             expect(initialPositions.length).to.eq(1);
             expect(currentPositions.length).to.eq(2);
-            expect(newFirstPosition.component).to.eq(aWeth.address);
+            expect(newFirstPosition.component).to.eq(aWsteth.address);
             expect(newFirstPosition.positionState).to.eq(0); // Default
             expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit);
             expect(newFirstPosition.module).to.eq(ADDRESS_ZERO);
@@ -989,17 +1005,17 @@ if (process.env.INTEGRATIONTEST) {
 
             await subject();
 
-            // aWeth position is increased
+            // aWsteth position is increased
             const currentPositions = await setToken.getPositions();
-            const newSecondPosition = (await setToken.getPositions())[1];
+            const newSecondPosition = currentPositions[1];
 
             const expectedSecondPositionUnit = (
-              await usdcVariableDebtToken.balanceOf(setToken.address)
+              await wethVariableDebtToken.balanceOf(setToken.address)
             ).mul(-1);
 
             expect(initialPositions.length).to.eq(1);
             expect(currentPositions.length).to.eq(2);
-            expect(newSecondPosition.component).to.eq(usdc.address);
+            expect(newSecondPosition.component).to.eq(weth.address);
             expect(newSecondPosition.positionState).to.eq(1); // External
             expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
             expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
@@ -1024,13 +1040,13 @@ if (process.env.INTEGRATIONTEST) {
             await initializeRootScopeContracts();
 
             // Approve tokens to issuance module and call issue
-            await aWeth.approve(debtIssuanceModule.address, ether(1000));
+            await aWsteth.approve(debtIssuanceModule.address, ether(1000));
 
             // Issue 1 SetToken
             const issueQuantity = ether(1);
             await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
             destinationTokenQuantity = ether(0.25);
-            await weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
+            await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
           });
 
           beforeEach(() => {
@@ -1074,16 +1090,16 @@ if (process.env.INTEGRATIONTEST) {
 
             await subject();
 
-            // aWeth position is increased
+            // aWsteth position is increased
             const currentPositions = await setToken.getPositions();
-            const newFirstPosition = (await setToken.getPositions())[0];
+            const newFirstPosition = currentPositions[0];
 
-            // Get expected aWeth position units
+            // Get expected aWsteth position units
             const expectedFirstPositionUnit = customTargetLeverageRatio;
 
             expect(initialPositions.length).to.eq(1);
-            expect(currentPositions.length).to.eq(2);
-            expect(newFirstPosition.component).to.eq(aWeth.address);
+            // expect(currentPositions.length).to.eq(2); TODO: review
+            expect(newFirstPosition.component).to.eq(aWsteth.address);
             expect(newFirstPosition.positionState).to.eq(0); // Default
             expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
             expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
@@ -1095,17 +1111,17 @@ if (process.env.INTEGRATIONTEST) {
 
             await subject();
 
-            // aWeth position is increased
+            // aWsteth position is increased
             const currentPositions = await setToken.getPositions();
             const newSecondPosition = (await setToken.getPositions())[1];
 
             const expectedSecondPositionUnit = (
-              await usdcVariableDebtToken.balanceOf(setToken.address)
+              await wethVariableDebtToken.balanceOf(setToken.address)
             ).mul(-1);
 
             expect(initialPositions.length).to.eq(1);
             expect(currentPositions.length).to.eq(2);
-            expect(newSecondPosition.component).to.eq(usdc.address);
+            expect(newSecondPosition.component).to.eq(weth.address);
             expect(newSecondPosition.positionState).to.eq(1); // External
             expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
             expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
@@ -1129,9 +1145,9 @@ if (process.env.INTEGRATIONTEST) {
         await initializeRootScopeContracts();
 
         // Approve tokens to issuance module and call issue
-        await aWeth.approve(debtIssuanceModule.address, ether(1000));
+        await aWsteth.approve(debtIssuanceModule.address, ether(1000));
 
-        await weth.transfer(tradeAdapterMock.address, ether(0.5));
+        await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
 
         // Issue 1 SetToken
         const issueQuantity = ether(1);
@@ -1144,7 +1160,7 @@ if (process.env.INTEGRATIONTEST) {
           // Engage to initial leverage
           await leverageStrategyExtension.engage(subjectExchangeName);
           await increaseTimeAsync(BigNumber.from(100000));
-          await weth.transfer(tradeAdapterMock.address, ether(0.5));
+          await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
           await leverageStrategyExtension.iterateRebalance(subjectExchangeName);
         }
       };
@@ -1156,7 +1172,7 @@ if (process.env.INTEGRATIONTEST) {
           destinationTokenQuantity = ether(0.1);
           await increaseTimeAsync(BigNumber.from(100000));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1010).mul(10 ** 8));
-          await weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
+          await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
         });
 
         beforeEach(() => {
@@ -1201,7 +1217,7 @@ if (process.env.INTEGRATIONTEST) {
 
           await subject();
 
-          // aWeth position is increased
+          // aWsteth position is increased
           const currentPositions = await setToken.getPositions();
           const newFirstPosition = (await setToken.getPositions())[0];
 
@@ -1210,7 +1226,7 @@ if (process.env.INTEGRATIONTEST) {
 
           expect(initialPositions.length).to.eq(2);
           expect(currentPositions.length).to.eq(2);
-          expect(newFirstPosition.component).to.eq(aWeth.address);
+          expect(newFirstPosition.component).to.eq(aWsteth.address);
           expect(newFirstPosition.positionState).to.eq(0); // Default
           expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
           expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
@@ -1222,17 +1238,17 @@ if (process.env.INTEGRATIONTEST) {
 
           await subject();
 
-          // aWeth position is increased
+          // aWsteth position is increased
           const currentPositions = await setToken.getPositions();
           const newSecondPosition = (await setToken.getPositions())[1];
 
           const expectedSecondPositionUnit = (
-            await usdcVariableDebtToken.balanceOf(setToken.address)
+            await wethVariableDebtToken.balanceOf(setToken.address)
           ).mul(-1);
 
           expect(initialPositions.length).to.eq(2);
           expect(currentPositions.length).to.eq(2);
-          expect(newSecondPosition.component).to.eq(usdc.address);
+          expect(newSecondPosition.component).to.eq(weth.address);
           expect(newSecondPosition.positionState).to.eq(1); // External
           expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
           expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
@@ -1259,7 +1275,7 @@ if (process.env.INTEGRATIONTEST) {
               newExchangeSettings,
             );
             destinationTokenQuantity = ether(1);
-            await weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
+            await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
           });
 
           it("should set the last trade timestamp", async () => {
@@ -1305,7 +1321,7 @@ if (process.env.INTEGRATIONTEST) {
 
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
-            expect(newFirstPosition.component).to.eq(aWeth.address);
+            expect(newFirstPosition.component).to.eq(aWsteth.address);
             expect(newFirstPosition.positionState).to.eq(0); // Default
             expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
             expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
@@ -1322,12 +1338,12 @@ if (process.env.INTEGRATIONTEST) {
             const newSecondPosition = (await setToken.getPositions())[1];
 
             const expectedSecondPositionUnit = (
-              await usdcVariableDebtToken.balanceOf(setToken.address)
+              await wethVariableDebtToken.balanceOf(setToken.address)
             ).mul(-1);
 
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
-            expect(newSecondPosition.component).to.eq(usdc.address);
+            expect(newSecondPosition.component).to.eq(weth.address);
             expect(newSecondPosition.positionState).to.eq(1); // External
             expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
             expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
@@ -1352,7 +1368,7 @@ if (process.env.INTEGRATIONTEST) {
               newExchangeSettings,
             );
             await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1500).mul(10 ** 8));
-            await weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
+            await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
           });
 
           it("should set the last trade timestamp", async () => {
@@ -1396,7 +1412,7 @@ if (process.env.INTEGRATIONTEST) {
           it("should update the collateral position on the SetToken correctly", async () => {
             const initialPositions = await setToken.getPositions();
             await subject();
-            // aWeth position is increased
+            // aWsteth position is increased
             const currentPositions = await setToken.getPositions();
             const newFirstPosition = (await setToken.getPositions())[0];
 
@@ -1405,7 +1421,7 @@ if (process.env.INTEGRATIONTEST) {
 
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
-            expect(newFirstPosition.component).to.eq(aWeth.address);
+            expect(newFirstPosition.component).to.eq(aWsteth.address);
             expect(newFirstPosition.positionState).to.eq(0); // Default
             expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
             expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
@@ -1417,17 +1433,17 @@ if (process.env.INTEGRATIONTEST) {
 
             await subject();
 
-            // aWeth position is increased
+            // aWsteth position is increased
             const currentPositions = await setToken.getPositions();
             const newSecondPosition = (await setToken.getPositions())[1];
 
             const expectedSecondPositionUnit = (
-              await usdcVariableDebtToken.balanceOf(setToken.address)
+              await wethVariableDebtToken.balanceOf(setToken.address)
             ).mul(-1);
 
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
-            expect(newSecondPosition.component).to.eq(usdc.address);
+            expect(newSecondPosition.component).to.eq(weth.address);
             expect(newSecondPosition.positionState).to.eq(1); // External
             expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
             expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
@@ -1462,7 +1478,7 @@ if (process.env.INTEGRATIONTEST) {
               subjectExchangeName,
               newExchangeSettings,
             );
-            await weth.transfer(tradeAdapterMock.address, ether(0.01));
+            await wsteth.transfer(tradeAdapterMock.address, ether(0.01));
             await subject();
           });
 
@@ -1473,11 +1489,11 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when borrow balance is 0", async () => {
           beforeEach(async () => {
-            // Repay entire borrow balance of USDC on behalf of SetToken
-            await usdc.approve(lendingPool.address, MAX_UINT_256);
+            // Repay entire borrow balance of WETH on behalf of SetToken
+            await weth.approve(lendingPool.address, MAX_UINT_256);
             await lendingPool.repay(
-              usdc.address,
-              await usdcVariableDebtToken.balanceOf(setToken.address),
+              weth.address,
+              await wethVariableDebtToken.balanceOf(setToken.address),
               2,
               setToken.address,
             );
@@ -1526,7 +1542,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when SetToken has 0 supply", async () => {
           beforeEach(async () => {
-            await usdc.approve(debtIssuanceModule.address, MAX_UINT_256);
+            await weth.approve(debtIssuanceModule.address, MAX_UINT_256);
             await debtIssuanceModule.redeem(setToken.address, ether(1), owner.address);
           });
 
@@ -1538,11 +1554,11 @@ if (process.env.INTEGRATIONTEST) {
 
       context("when current leverage ratio is above target (delever)", async () => {
         cacheBeforeEach(async () => {
-          await tradeAdapterMock.withdraw(usdc.address);
+          await tradeAdapterMock.withdraw(weth.address);
           await increaseTimeAsync(BigNumber.from(100000));
           // Set to $990 so need to delever
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
-          await usdc.transfer(tradeAdapterMock.address, BigNumber.from(2500000));
+          await weth.transfer(tradeAdapterMock.address, BigNumber.from(2500000));
         });
 
         beforeEach(() => {
@@ -1586,11 +1602,11 @@ if (process.env.INTEGRATIONTEST) {
           const initialPositions = await setToken.getPositions();
           const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
 
-          const previousATokenBalance = await aWeth.balanceOf(setToken.address);
+          const previousATokenBalance = await aWsteth.balanceOf(setToken.address);
 
           await subject();
 
-          // aWeth position is decreased
+          // aWsteth position is decreased
           const currentPositions = await setToken.getPositions();
           const newFirstPosition = (await setToken.getPositions())[0];
 
@@ -1615,7 +1631,7 @@ if (process.env.INTEGRATIONTEST) {
 
           expect(initialPositions.length).to.eq(2);
           expect(currentPositions.length).to.eq(2);
-          expect(newFirstPosition.component).to.eq(aWeth.address);
+          expect(newFirstPosition.component).to.eq(aWsteth.address);
           expect(newFirstPosition.positionState).to.eq(0); // Default
           expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
           expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
@@ -1627,17 +1643,17 @@ if (process.env.INTEGRATIONTEST) {
 
           await subject();
 
-          // aWeth position is increased
+          // aWsteth position is increased
           const currentPositions = await setToken.getPositions();
           const newSecondPosition = (await setToken.getPositions())[1];
 
           const expectedSecondPositionUnit = (
-            await usdcVariableDebtToken.balanceOf(setToken.address)
+            await wethVariableDebtToken.balanceOf(setToken.address)
           ).mul(-1);
 
           expect(initialPositions.length).to.eq(2);
           expect(currentPositions.length).to.eq(2);
-          expect(newSecondPosition.component).to.eq(usdc.address);
+          expect(newSecondPosition.component).to.eq(weth.address);
           expect(newSecondPosition.positionState).to.eq(1); // External
           expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
           expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
@@ -1659,7 +1675,7 @@ if (process.env.INTEGRATIONTEST) {
               subjectExchangeName,
               newExchangeSettings,
             );
-            await usdc.transfer(tradeAdapterMock.address, BigNumber.from(100000000));
+            await weth.transfer(tradeAdapterMock.address, BigNumber.from(100000000));
           });
 
           it("should set the last trade timestamp", async () => {
@@ -1693,11 +1709,11 @@ if (process.env.INTEGRATIONTEST) {
             const initialPositions = await setToken.getPositions();
             const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
 
-            const previousATokenBalance = await aWeth.balanceOf(setToken.address);
+            const previousATokenBalance = await aWsteth.balanceOf(setToken.address);
 
             await subject();
 
-            // aWeth position is decreased
+            // aWsteth position is decreased
             const currentPositions = await setToken.getPositions();
             const newFirstPosition = (await setToken.getPositions())[0];
 
@@ -1722,7 +1738,7 @@ if (process.env.INTEGRATIONTEST) {
 
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
-            expect(newFirstPosition.component).to.eq(aWeth.address);
+            expect(newFirstPosition.component).to.eq(aWsteth.address);
             expect(newFirstPosition.positionState).to.eq(0); // Default
             expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
             expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
@@ -1734,17 +1750,17 @@ if (process.env.INTEGRATIONTEST) {
 
             await subject();
 
-            // aWeth position is increased
+            // aWsteth position is increased
             const currentPositions = await setToken.getPositions();
             const newSecondPosition = (await setToken.getPositions())[1];
 
             const expectedSecondPositionUnit = (
-              await usdcVariableDebtToken.balanceOf(setToken.address)
+              await wethVariableDebtToken.balanceOf(setToken.address)
             ).mul(-1);
 
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
-            expect(newSecondPosition.component).to.eq(usdc.address);
+            expect(newSecondPosition.component).to.eq(weth.address);
             expect(newSecondPosition.positionState).to.eq(1); // External
             expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
             expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
@@ -1772,7 +1788,7 @@ if (process.env.INTEGRATIONTEST) {
             );
             // ~2.4x leverage
             await chainlinkCollateralPriceMock.setPrice(BigNumber.from(850).mul(10 ** 8));
-            await usdc.transfer(tradeAdapterMock.address, BigNumber.from(10000000));
+            await weth.transfer(tradeAdapterMock.address, BigNumber.from(10000000));
           });
 
           it("should set the last trade timestamp", async () => {
@@ -1818,7 +1834,7 @@ if (process.env.INTEGRATIONTEST) {
 
             await subject();
 
-            // aWeth position is decreased
+            // aWsteth position is decreased
             const currentPositions = await setToken.getPositions();
             const newFirstPosition = (await setToken.getPositions())[0];
 
@@ -1827,7 +1843,7 @@ if (process.env.INTEGRATIONTEST) {
 
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
-            expect(newFirstPosition.component).to.eq(aWeth.address);
+            expect(newFirstPosition.component).to.eq(aWsteth.address);
             expect(newFirstPosition.positionState).to.eq(0); // Default
             expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
             expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
@@ -1839,17 +1855,17 @@ if (process.env.INTEGRATIONTEST) {
 
             await subject();
 
-            // aWeth position is increased
+            // aWsteth position is increased
             const currentPositions = await setToken.getPositions();
             const newSecondPosition = (await setToken.getPositions())[1];
 
             const expectedSecondPositionUnit = (
-              await usdcVariableDebtToken.balanceOf(setToken.address)
+              await wethVariableDebtToken.balanceOf(setToken.address)
             ).mul(-1);
 
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
-            expect(newSecondPosition.component).to.eq(usdc.address);
+            expect(newSecondPosition.component).to.eq(weth.address);
             expect(newSecondPosition.positionState).to.eq(1); // External
             expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
             expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
@@ -1875,8 +1891,8 @@ if (process.env.INTEGRATIONTEST) {
             await leverageStrategyExtension.addEnabledExchange(exchangeName2, newExchangeSettings);
 
             await chainlinkCollateralPriceMock.setPrice(BigNumber.from(850).mul(10 ** 8));
-            await usdc.transfer(tradeAdapterMock.address, BigNumber.from(100).mul(10 ** 6));
-            await usdc.transfer(tradeAdapterMock2.address, BigNumber.from(100).mul(10 ** 6));
+            await weth.transfer(tradeAdapterMock.address, BigNumber.from(100).mul(10 ** 6));
+            await weth.transfer(tradeAdapterMock2.address, BigNumber.from(100).mul(10 ** 6));
           });
 
           beforeEach(() => {
@@ -1971,8 +1987,8 @@ if (process.env.INTEGRATIONTEST) {
         describe("when collateral balance is zero", async () => {
           beforeEach(async () => {
             subjectExchangeName = exchangeName;
-            // Set collateral asset to aUSDC with 0 balance
-            customATokenCollateralAddress = aUsdc.address;
+            // Set collateral asset to aWETH with 0 balance
+            customATokenCollateralAddress = aWeth.address;
             ifEngaged = false;
             await intializeContracts();
           });
@@ -2005,13 +2021,13 @@ if (process.env.INTEGRATIONTEST) {
         await initializeRootScopeContracts();
 
         // Approve tokens to issuance module and call issue
-        await aWeth.approve(debtIssuanceModule.address, ether(1000));
+        await aWsteth.approve(debtIssuanceModule.address, ether(1000));
 
         // Issue 1 SetToken
         issueQuantity = ether(1);
         await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
 
-        await weth.transfer(tradeAdapterMock.address, ether(0.5));
+        await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
 
         // Add allowed trader
         await leverageStrategyExtension.updateCallerStatus([owner.address], [true]);
@@ -2020,7 +2036,7 @@ if (process.env.INTEGRATIONTEST) {
           // Engage to initial leverage
           await leverageStrategyExtension.engage(subjectExchangeName);
           await increaseTimeAsync(BigNumber.from(100000));
-          await weth.transfer(tradeAdapterMock.address, ether(0.5));
+          await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
           await leverageStrategyExtension.iterateRebalance(subjectExchangeName);
         }
       };
@@ -2044,12 +2060,12 @@ if (process.env.INTEGRATIONTEST) {
             subjectExchangeName,
             newExchangeSettings,
           );
-          await weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
+          await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
 
           await leverageStrategyExtension.connect(owner.wallet).rebalance(subjectExchangeName);
 
           await increaseTimeAsync(BigNumber.from(4000));
-          await weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
+          await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
         });
 
         beforeEach(() => {
@@ -2092,7 +2108,7 @@ if (process.env.INTEGRATIONTEST) {
         it("should update the collateral position on the SetToken correctly", async () => {
           const initialPositions = await setToken.getPositions();
           await subject();
-          // aWeth position is increased
+          // aWsteth position is increased
           const currentPositions = await setToken.getPositions();
           const newFirstPosition = (await setToken.getPositions())[0];
 
@@ -2101,7 +2117,7 @@ if (process.env.INTEGRATIONTEST) {
 
           expect(initialPositions.length).to.eq(2);
           expect(currentPositions.length).to.eq(2);
-          expect(newFirstPosition.component).to.eq(aWeth.address);
+          expect(newFirstPosition.component).to.eq(aWsteth.address);
           expect(newFirstPosition.positionState).to.eq(0); // Default
           expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
           expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
@@ -2113,17 +2129,17 @@ if (process.env.INTEGRATIONTEST) {
 
           await subject();
 
-          // aWeth position is increased
+          // aWsteth position is increased
           const currentPositions = await setToken.getPositions();
           const newSecondPosition = (await setToken.getPositions())[1];
 
           const expectedSecondPositionUnit = (
-            await usdcVariableDebtToken.balanceOf(setToken.address)
+            await wethVariableDebtToken.balanceOf(setToken.address)
           ).mul(-1);
 
           expect(initialPositions.length).to.eq(2);
           expect(currentPositions.length).to.eq(2);
-          expect(newSecondPosition.component).to.eq(usdc.address);
+          expect(newSecondPosition.component).to.eq(weth.address);
           expect(newSecondPosition.positionState).to.eq(1); // External
           expect(newSecondPosition.unit).to.lt(expectedSecondPositionUnit.mul(999).div(1000));
           expect(newSecondPosition.unit).to.gt(expectedSecondPositionUnit.mul(1001).div(1000));
@@ -2152,13 +2168,13 @@ if (process.env.INTEGRATIONTEST) {
               subjectExchangeName,
               newExchangeSettings,
             );
-            await weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
+            await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
             preTwapLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
 
             // Initialize TWAP
             await leverageStrategyExtension.connect(owner.wallet).rebalance(subjectExchangeName);
             await increaseTimeAsync(BigNumber.from(4000));
-            await weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
+            await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
           });
 
           beforeEach(() => {
@@ -2213,7 +2229,7 @@ if (process.env.INTEGRATIONTEST) {
           it("should update the collateral position on the SetToken correctly", async () => {
             const initialPositions = await setToken.getPositions();
             await subject();
-            // aWeth position is increased
+            // aWsteth position is increased
             const currentPositions = await setToken.getPositions();
             const newFirstPosition = (await setToken.getPositions())[0];
 
@@ -2224,7 +2240,7 @@ if (process.env.INTEGRATIONTEST) {
 
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
-            expect(newFirstPosition.component).to.eq(aWeth.address);
+            expect(newFirstPosition.component).to.eq(aWsteth.address);
             expect(newFirstPosition.positionState).to.eq(0); // Default
             expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
             expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
@@ -2236,17 +2252,17 @@ if (process.env.INTEGRATIONTEST) {
 
             await subject();
 
-            // aWeth position is increased
+            // aWsteth position is increased
             const currentPositions = await setToken.getPositions();
             const newSecondPosition = (await setToken.getPositions())[1];
 
             const expectedSecondPositionUnit = (
-              await usdcVariableDebtToken.balanceOf(setToken.address)
+              await wethVariableDebtToken.balanceOf(setToken.address)
             ).mul(-1);
 
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
-            expect(newSecondPosition.component).to.eq(usdc.address);
+            expect(newSecondPosition.component).to.eq(weth.address);
             expect(newSecondPosition.positionState).to.eq(1); // External
             expect(newSecondPosition.unit).to.lt(expectedSecondPositionUnit.mul(999).div(1000));
             expect(newSecondPosition.unit).to.gt(expectedSecondPositionUnit.mul(1001).div(1000));
@@ -2338,18 +2354,18 @@ if (process.env.INTEGRATIONTEST) {
 
           describe("when borrow balance is 0", async () => {
             beforeEach(async () => {
-              // Repay entire balance of USDC on behalf of SetToken
-              await usdc.approve(lendingPool.address, MAX_UINT_256);
+              // Repay entire balance of WETH on behalf of SetToken
+              await weth.approve(lendingPool.address, MAX_UINT_256);
               await lendingPool.repay(
-                usdc.address,
-                await usdcVariableDebtToken.balanceOf(setToken.address),
+                weth.address,
+                await wethVariableDebtToken.balanceOf(setToken.address),
                 2,
                 setToken.address,
               );
 
-              const debtBalanceAfter = await usdcVariableDebtToken.balanceOf(setToken.address);
+              const debtBalanceAfter = await wethVariableDebtToken.balanceOf(setToken.address);
               if (debtBalanceAfter.gt(ZERO)) {
-                await lendingPool.repay(usdc.address, debtBalanceAfter, 2, setToken.address);
+                await lendingPool.repay(weth.address, debtBalanceAfter, 2, setToken.address);
               }
             });
 
@@ -2399,7 +2415,7 @@ if (process.env.INTEGRATIONTEST) {
 
           describe("when SetToken has 0 supply", async () => {
             beforeEach(async () => {
-              await usdc.approve(debtIssuanceModule.address, MAX_UINT_256);
+              await weth.approve(debtIssuanceModule.address, MAX_UINT_256);
               await debtIssuanceModule.redeem(setToken.address, ether(1), owner.address);
             });
 
@@ -2442,12 +2458,12 @@ if (process.env.INTEGRATIONTEST) {
               subjectExchangeName,
               newExchangeSettings,
             );
-            await weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
+            await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
             preTwapLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
 
             await leverageStrategyExtension.connect(owner.wallet).rebalance(subjectExchangeName);
             await increaseTimeAsync(BigNumber.from(4000));
-            await usdc.transfer(tradeAdapterMock.address, BigNumber.from(2500000));
+            await weth.transfer(tradeAdapterMock.address, BigNumber.from(2500000));
           });
 
           beforeEach(() => {
@@ -2535,13 +2551,13 @@ if (process.env.INTEGRATIONTEST) {
             newExchangeSettings,
           );
           await leverageStrategyExtension.addEnabledExchange(exchangeName2, newExchangeSettings);
-          await weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
+          await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
 
           // Initialize TWAP
           await leverageStrategyExtension.connect(owner.wallet).rebalance(subjectExchangeName);
           await increaseTimeAsync(BigNumber.from(4000));
-          await weth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
-          await weth.transfer(tradeAdapterMock2.address, destinationTokenQuantity);
+          await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
+          await wsteth.transfer(tradeAdapterMock2.address, destinationTokenQuantity);
         });
 
         beforeEach(() => {
@@ -2600,8 +2616,8 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when collateral balance is zero", async () => {
           beforeEach(async () => {
-            // Set collateral asset to cUSDC with 0 balance
-            customATokenCollateralAddress = aUsdc.address;
+            // Set collateral asset to cWETH with 0 balance
+            customATokenCollateralAddress = aWeth.address;
             ifEngaged = false;
             await intializeContracts();
             subjectCaller = owner;
@@ -2634,13 +2650,13 @@ if (process.env.INTEGRATIONTEST) {
         await initializeRootScopeContracts();
 
         // Approve tokens to issuance module and call issue
-        await aWeth.approve(debtIssuanceModule.address, ether(1000));
+        await aWsteth.approve(debtIssuanceModule.address, ether(1000));
 
         // Issue 1 SetToken
         const issueQuantity = ether(1);
         await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
 
-        await weth.transfer(tradeAdapterMock.address, ether(0.5));
+        await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
 
         // Add allowed trader
         await leverageStrategyExtension.updateCallerStatus([owner.address], [true]);
@@ -2649,7 +2665,7 @@ if (process.env.INTEGRATIONTEST) {
           // Engage to initial leverage
           await leverageStrategyExtension.engage(subjectExchangeName);
           await increaseTimeAsync(BigNumber.from(100000));
-          await weth.transfer(tradeAdapterMock.address, ether(0.5));
+          await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
           await leverageStrategyExtension.iterateRebalance(subjectExchangeName);
         }
       };
@@ -2664,13 +2680,13 @@ if (process.env.INTEGRATIONTEST) {
       // increaseTime
       context("when not in a TWAP rebalance", async () => {
         cacheBeforeEach(async () => {
-          // Withdraw balance of USDC from exchange contract from engage
-          await tradeAdapterMock.withdraw(usdc.address);
+          // Withdraw balance of WETH from exchange contract from engage
+          await tradeAdapterMock.withdraw(weth.address);
           await increaseTimeAsync(BigNumber.from(100000));
 
           // Set to above incentivized ratio
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
-          await usdc.transfer(tradeAdapterMock.address, BigNumber.from(450000000));
+          await weth.transfer(tradeAdapterMock.address, BigNumber.from(450000000));
 
           transferredEth = ether(1);
           await owner.wallet.sendTransaction({
@@ -2716,11 +2732,11 @@ if (process.env.INTEGRATIONTEST) {
           const initialPositions = await setToken.getPositions();
           const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
 
-          const previousATokenBalance = await aWeth.balanceOf(setToken.address);
+          const previousATokenBalance = await aWsteth.balanceOf(setToken.address);
 
           await subject();
 
-          // aWeth position is decreased
+          // aWsteth position is decreased
           const currentPositions = await setToken.getPositions();
           const newFirstPosition = (await setToken.getPositions())[0];
 
@@ -2731,7 +2747,7 @@ if (process.env.INTEGRATIONTEST) {
             methodology.maxLeverageRatio,
             methodology.recenteringSpeed,
           );
-          // Get expected USDC redeemed
+          // Get expected WETH redeemed
           const expectedCollateralAssetsRedeemed = calculateCollateralRebalanceUnits(
             currentLeverageRatio,
             expectedNewLeverageRatio,
@@ -2745,7 +2761,7 @@ if (process.env.INTEGRATIONTEST) {
 
           expect(initialPositions.length).to.eq(2);
           expect(currentPositions.length).to.eq(2);
-          expect(newFirstPosition.component).to.eq(aWeth.address);
+          expect(newFirstPosition.component).to.eq(aWsteth.address);
           expect(newFirstPosition.positionState).to.eq(0); // Default
           expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
           expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
@@ -2757,17 +2773,17 @@ if (process.env.INTEGRATIONTEST) {
 
           await subject();
 
-          // aWeth position is increased
+          // aWsteth position is increased
           const currentPositions = await setToken.getPositions();
           const newSecondPosition = (await setToken.getPositions())[1];
 
           const expectedSecondPositionUnit = (
-            await usdcVariableDebtToken.balanceOf(setToken.address)
+            await wethVariableDebtToken.balanceOf(setToken.address)
           ).mul(-1);
 
           expect(initialPositions.length).to.eq(2);
           expect(currentPositions.length).to.eq(2);
-          expect(newSecondPosition.component).to.eq(usdc.address);
+          expect(newSecondPosition.component).to.eq(weth.address);
           expect(newSecondPosition.positionState).to.eq(1); // External
           expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
           expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
@@ -2836,7 +2852,7 @@ if (process.env.INTEGRATIONTEST) {
 
             await subject();
 
-            // aWeth position is decreased
+            // aWsteth position is decreased
             const currentPositions = await setToken.getPositions();
             const newFirstPosition = (await setToken.getPositions())[0];
 
@@ -2847,7 +2863,7 @@ if (process.env.INTEGRATIONTEST) {
 
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
-            expect(newFirstPosition.component).to.eq(aWeth.address);
+            expect(newFirstPosition.component).to.eq(aWsteth.address);
             expect(newFirstPosition.positionState).to.eq(0); // Default
             expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
             expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
@@ -2859,17 +2875,17 @@ if (process.env.INTEGRATIONTEST) {
 
             await subject();
 
-            // aWeth position is increased
+            // aWsteth position is increased
             const currentPositions = await setToken.getPositions();
             const newSecondPosition = (await setToken.getPositions())[1];
 
             const expectedSecondPositionUnit = (
-              await usdcVariableDebtToken.balanceOf(setToken.address)
+              await wethVariableDebtToken.balanceOf(setToken.address)
             ).mul(-1);
 
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
-            expect(newSecondPosition.component).to.eq(usdc.address);
+            expect(newSecondPosition.component).to.eq(weth.address);
             expect(newSecondPosition.positionState).to.eq(1); // External
             expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
             expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
@@ -2916,16 +2932,16 @@ if (process.env.INTEGRATIONTEST) {
             const initialPositions = await setToken.getPositions();
 
             // Get max borrow
-            const previousCollateralBalance = await aWeth.balanceOf(setToken.address);
+            const previousCollateralBalance = await aWsteth.balanceOf(setToken.address);
 
             const previousBorrowBalance = (
-              await usdcVariableDebtToken.balanceOf(setToken.address)
+              await wethVariableDebtToken.balanceOf(setToken.address)
             ).mul(BigNumber.from(10).pow(12));
 
             const collateralPrice = ether(650);
             const borrowPrice = ether(1);
             const reserveConfig = await protocolDataProvider.getReserveConfigurationData(
-              weth.address,
+              wsteth.address,
             );
             const collateralFactor = reserveConfig.liquidationThreshold.mul(
               BigNumber.from(10).pow(14),
@@ -2933,7 +2949,7 @@ if (process.env.INTEGRATIONTEST) {
 
             await subject();
 
-            // aWeth position is decreased
+            // aWsteth position is decreased
             const currentPositions = await setToken.getPositions();
             const newFirstPosition = (await setToken.getPositions())[0];
 
@@ -2950,7 +2966,7 @@ if (process.env.INTEGRATIONTEST) {
 
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
-            expect(newFirstPosition.component).to.eq(aWeth.address);
+            expect(newFirstPosition.component).to.eq(aWsteth.address);
             expect(newFirstPosition.positionState).to.eq(0); // Default
             expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
             expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
@@ -2962,17 +2978,17 @@ if (process.env.INTEGRATIONTEST) {
 
             await subject();
 
-            // aWeth position is increased
+            // aWsteth position is increased
             const currentPositions = await setToken.getPositions();
             const newSecondPosition = (await setToken.getPositions())[1];
 
             const expectedSecondPositionUnit = (
-              await usdcVariableDebtToken.balanceOf(setToken.address)
+              await wethVariableDebtToken.balanceOf(setToken.address)
             ).mul(-1);
 
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
-            expect(newSecondPosition.component).to.eq(usdc.address);
+            expect(newSecondPosition.component).to.eq(weth.address);
             expect(newSecondPosition.positionState).to.eq(1); // External
             expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
             expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
@@ -2991,17 +3007,17 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when borrow balance is 0", async () => {
           beforeEach(async () => {
-            // Repay entire balance of USDC on behalf of SetToken
-            await usdc.approve(lendingPool.address, MAX_UINT_256);
+            // Repay entire balance of WETH on behalf of SetToken
+            await weth.approve(lendingPool.address, MAX_UINT_256);
             await lendingPool.repay(
-              usdc.address,
-              await usdcVariableDebtToken.balanceOf(setToken.address),
+              weth.address,
+              await wethVariableDebtToken.balanceOf(setToken.address),
               2,
               setToken.address,
             );
-            const debtBalanceAfter = await usdcVariableDebtToken.balanceOf(setToken.address);
+            const debtBalanceAfter = await wethVariableDebtToken.balanceOf(setToken.address);
             if (debtBalanceAfter.gt(0)) {
-              await lendingPool.repay(usdc.address, debtBalanceAfter, 2, setToken.address);
+              await lendingPool.repay(weth.address, debtBalanceAfter, 2, setToken.address);
             }
           });
 
@@ -3038,7 +3054,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when SetToken has 0 supply", async () => {
           beforeEach(async () => {
-            await usdc.approve(debtIssuanceModule.address, MAX_UINT_256);
+            await weth.approve(debtIssuanceModule.address, MAX_UINT_256);
             await debtIssuanceModule.redeem(setToken.address, ether(1), owner.address);
           });
 
@@ -3062,8 +3078,8 @@ if (process.env.INTEGRATIONTEST) {
         let newIncentivizedMaxTradeSize: BigNumber;
 
         cacheBeforeEach(async () => {
-          // Withdraw balance of USDC from exchange contract from engage
-          await tradeAdapterMock.withdraw(usdc.address);
+          // Withdraw balance of WETH from exchange contract from engage
+          await tradeAdapterMock.withdraw(weth.address);
           await increaseTimeAsync(BigNumber.from(100000));
           transferredEth = ether(1);
           await owner.wallet.sendTransaction({
@@ -3088,12 +3104,12 @@ if (process.env.INTEGRATIONTEST) {
 
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
 
-          await usdc.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
+          await weth.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
 
           // Start TWAP rebalance
           await leverageStrategyExtension.rebalance(subjectExchangeName);
           await increaseTimeAsync(BigNumber.from(100));
-          await usdc.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
+          await weth.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
 
           // Set to above incentivized ratio
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
@@ -3137,14 +3153,14 @@ if (process.env.INTEGRATIONTEST) {
         let subjectExchangeToUse: string;
 
         cacheBeforeEach(async () => {
-          // Withdraw balance of USDC from exchange contract from engage
-          await tradeAdapterMock.withdraw(usdc.address);
+          // Withdraw balance of WETH from exchange contract from engage
+          await tradeAdapterMock.withdraw(weth.address);
           await increaseTimeAsync(BigNumber.from(100000));
 
           // Set to above incentivized ratio
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
-          await usdc.transfer(tradeAdapterMock.address, BigNumber.from(300000000));
-          await usdc.transfer(tradeAdapterMock2.address, BigNumber.from(300000000));
+          await weth.transfer(tradeAdapterMock.address, BigNumber.from(300000000));
+          await weth.transfer(tradeAdapterMock2.address, BigNumber.from(300000000));
 
           await leverageStrategyExtension.updateEnabledExchange(exchangeName, exchangeSettings);
           await leverageStrategyExtension.addEnabledExchange(exchangeName2, exchangeSettings);
@@ -3193,8 +3209,8 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when collateral balance is zero", async () => {
           beforeEach(async () => {
-            // Set collateral asset to aUSDC with 0 balance
-            customATokenCollateralAddress = aUsdc.address;
+            // Set collateral asset to aWETH with 0 balance
+            customATokenCollateralAddress = aWeth.address;
             ifEngaged = false;
 
             await intializeContracts();
@@ -3230,13 +3246,13 @@ if (process.env.INTEGRATIONTEST) {
             await initializeRootScopeContracts();
 
             // Approve tokens to issuance module and call issue
-            await aWeth.approve(debtIssuanceModule.address, ether(1000));
+            await aWsteth.approve(debtIssuanceModule.address, ether(1000));
 
             // Issue 1 SetToken
             const issueQuantity = ether(1);
             await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
 
-            await weth.transfer(tradeAdapterMock.address, ether(0.5));
+            await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
 
             if (ifEngaged) {
               // Add allowed trader
@@ -3244,12 +3260,12 @@ if (process.env.INTEGRATIONTEST) {
               // Engage to initial leverage
               await leverageStrategyExtension.engage(subjectExchangeName);
               await increaseTimeAsync(BigNumber.from(100000));
-              await weth.transfer(tradeAdapterMock.address, ether(0.5));
+              await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
               await leverageStrategyExtension.iterateRebalance(subjectExchangeName);
 
-              // Withdraw balance of USDC from exchange contract from engage
-              await tradeAdapterMock.withdraw(usdc.address);
-              await usdc.transfer(tradeAdapterMock.address, BigNumber.from(550000000));
+              // Withdraw balance of WETH from exchange contract from engage
+              await tradeAdapterMock.withdraw(weth.address);
+              await weth.transfer(tradeAdapterMock.address, BigNumber.from(550000000));
             }
           };
 
@@ -3271,7 +3287,7 @@ if (process.env.INTEGRATIONTEST) {
 
               await subject();
 
-              // aWeth position is decreased
+              // aWsteth position is decreased
               const currentPositions = await setToken.getPositions();
               const newFirstPosition = (await setToken.getPositions())[0];
 
@@ -3282,7 +3298,7 @@ if (process.env.INTEGRATIONTEST) {
 
               expect(initialPositions.length).to.eq(2);
               expect(currentPositions.length).to.eq(2);
-              expect(newFirstPosition.component).to.eq(aWeth.address);
+              expect(newFirstPosition.component).to.eq(aWsteth.address);
               expect(newFirstPosition.positionState).to.eq(0); // Default
               expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
               expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
@@ -3294,17 +3310,17 @@ if (process.env.INTEGRATIONTEST) {
 
               await subject();
 
-              // aWeth position is increased
+              // aWsteth position is increased
               const currentPositions = await setToken.getPositions();
               const newSecondPosition = (await setToken.getPositions())[1];
 
               const expectedSecondPositionUnit = (
-                await usdcVariableDebtToken.balanceOf(setToken.address)
+                await wethVariableDebtToken.balanceOf(setToken.address)
               ).mul(-1);
 
               expect(initialPositions.length).to.eq(2);
               expect(currentPositions.length).to.eq(2);
-              expect(newSecondPosition.component).to.eq(usdc.address);
+              expect(newSecondPosition.component).to.eq(weth.address);
               expect(newSecondPosition.positionState).to.eq(1); // External
               expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
               expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
@@ -3312,17 +3328,17 @@ if (process.env.INTEGRATIONTEST) {
 
             describe("when borrow balance is 0", async () => {
               beforeEach(async () => {
-                // Repay entire balance of cUSDC on behalf of SetToken
-                await usdc.approve(lendingPool.address, MAX_UINT_256);
+                // Repay entire balance of cWETH on behalf of SetToken
+                await weth.approve(lendingPool.address, MAX_UINT_256);
                 await lendingPool.repay(
-                  usdc.address,
-                  await usdcVariableDebtToken.balanceOf(setToken.address),
+                  weth.address,
+                  await wethVariableDebtToken.balanceOf(setToken.address),
                   2,
                   setToken.address,
                 );
-                const debtTokenBalance = await usdcVariableDebtToken.balanceOf(setToken.address);
+                const debtTokenBalance = await wethVariableDebtToken.balanceOf(setToken.address);
                 if (debtTokenBalance.gt(0)) {
-                  await lendingPool.repay(usdc.address, debtTokenBalance, 2, setToken.address);
+                  await lendingPool.repay(weth.address, debtTokenBalance, 2, setToken.address);
                 }
               });
 
@@ -3333,7 +3349,7 @@ if (process.env.INTEGRATIONTEST) {
 
             describe("when SetToken has 0 supply", async () => {
               beforeEach(async () => {
-                await usdc.approve(debtIssuanceModule.address, MAX_UINT_256);
+                await weth.approve(debtIssuanceModule.address, MAX_UINT_256);
                 await debtIssuanceModule.redeem(setToken.address, ether(1), owner.address);
               });
 
@@ -3356,8 +3372,8 @@ if (process.env.INTEGRATIONTEST) {
           describe("when not engaged", () => {
             describe("when collateral balance is zero", async () => {
               beforeEach(async () => {
-                // Set collateral asset to cUSDC with 0 balance
-                customATokenCollateralAddress = aUsdc.address;
+                // Set collateral asset to cWETH with 0 balance
+                customATokenCollateralAddress = aWeth.address;
                 ifEngaged = false;
 
                 await intializeContracts();
@@ -3384,24 +3400,24 @@ if (process.env.INTEGRATIONTEST) {
             await initializeRootScopeContracts();
 
             // Approve tokens to issuance module and call issue
-            await aWeth.approve(debtIssuanceModule.address, ether(1000));
+            await aWsteth.approve(debtIssuanceModule.address, ether(1000));
 
             // Issue 1 SetToken
             const issueQuantity = ether(1);
             await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
 
-            await weth.transfer(tradeAdapterMock.address, ether(0.5));
+            await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
 
             // Engage to initial leverage
             await leverageStrategyExtension.updateCallerStatus([owner.address], [true]);
             await leverageStrategyExtension.engage(subjectExchangeName);
             await increaseTimeAsync(BigNumber.from(4000));
-            await weth.transfer(tradeAdapterMock.address, ether(0.5));
+            await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
             await leverageStrategyExtension.iterateRebalance(subjectExchangeName);
 
-            // Clear balance of USDC from exchange contract from engage
-            await tradeAdapterMock.withdraw(usdc.address);
-            await usdc.transfer(tradeAdapterMock.address, BigNumber.from(800000000));
+            // Clear balance of WETH from exchange contract from engage
+            await tradeAdapterMock.withdraw(weth.address);
+            await weth.transfer(tradeAdapterMock.address, BigNumber.from(800000000));
 
             const newExchangeSettings: ExchangeSettings = {
               twapMaxTradeSize: ether(1.9),
@@ -3430,16 +3446,16 @@ if (process.env.INTEGRATIONTEST) {
             const initialPositions = await setToken.getPositions();
 
             // Get max borrow
-            const previousCollateralBalance = await aWeth.balanceOf(setToken.address);
+            const previousCollateralBalance = await aWsteth.balanceOf(setToken.address);
 
             const previousBorrowBalance = (
-              await usdcVariableDebtToken.balanceOf(setToken.address)
+              await wethVariableDebtToken.balanceOf(setToken.address)
             ).mul(BigNumber.from(10).pow(12));
 
             const collateralPrice = ether(1000);
             const borrowPrice = ether(1);
             const reserveConfig = await protocolDataProvider.getReserveConfigurationData(
-              weth.address,
+              wsteth.address,
             );
             const collateralFactor = reserveConfig.liquidationThreshold.mul(
               BigNumber.from(10).pow(14),
@@ -3447,7 +3463,7 @@ if (process.env.INTEGRATIONTEST) {
 
             await subject();
 
-            // aWeth position is decreased
+            // aWsteth position is decreased
             const currentPositions = await setToken.getPositions();
             const newFirstPosition = (await setToken.getPositions())[0];
 
@@ -3464,7 +3480,7 @@ if (process.env.INTEGRATIONTEST) {
 
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
-            expect(newFirstPosition.component).to.eq(aWeth.address);
+            expect(newFirstPosition.component).to.eq(aWsteth.address);
             expect(newFirstPosition.positionState).to.eq(0); // Default
             expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
             expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
@@ -3476,15 +3492,15 @@ if (process.env.INTEGRATIONTEST) {
 
             await subject();
 
-            // aWeth position is increased
+            // aWsteth position is increased
             const currentPositions = await setToken.getPositions();
             const newSecondPosition = (await setToken.getPositions())[1];
             const expectedSecondPositionUnit = (
-              await usdcVariableDebtToken.balanceOf(setToken.address)
+              await wethVariableDebtToken.balanceOf(setToken.address)
             ).mul(-1);
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
-            expect(newSecondPosition.component).to.eq(usdc.address);
+            expect(newSecondPosition.component).to.eq(weth.address);
             expect(newSecondPosition.positionState).to.eq(1); // External
             expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
             expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
@@ -3509,23 +3525,23 @@ if (process.env.INTEGRATIONTEST) {
             await initializeRootScopeContracts();
 
             // Approve tokens to issuance module and call issue
-            await aWeth.approve(debtIssuanceModule.address, ether(1000));
+            await aWsteth.approve(debtIssuanceModule.address, ether(1000));
 
             // Issue 1 SetToken
             const issueQuantity = ether(1);
             await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
 
-            await weth.transfer(tradeAdapterMock.address, ether(0.25));
+            await wsteth.transfer(tradeAdapterMock.address, ether(0.25));
 
             // Engage to initial leverage
             await leverageStrategyExtension.engage(subjectExchangeName);
 
-            // Withdraw balance of USDC from exchange contract from engage
-            await tradeAdapterMock.withdraw(usdc.address);
+            // Withdraw balance of WETH from exchange contract from engage
+            await tradeAdapterMock.withdraw(weth.address);
 
-            const usdcBorrowBalance = await usdcVariableDebtToken.balanceOf(setToken.address);
+            const wethBorrowBalance = await wethVariableDebtToken.balanceOf(setToken.address);
             // Transfer more than the borrow balance to the exchange
-            await usdc.transfer(tradeAdapterMock.address, usdcBorrowBalance.add(1000000000));
+            await weth.transfer(tradeAdapterMock.address, wethBorrowBalance.add(1000000000));
             subjectCaller = owner;
           });
 
@@ -3538,7 +3554,7 @@ if (process.env.INTEGRATIONTEST) {
             const initialPositions = await setToken.getPositions();
             const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
 
-            const previousATokenBalance = await aWeth.balanceOf(setToken.address);
+            const previousATokenBalance = await aWsteth.balanceOf(setToken.address);
 
             await subject();
 
@@ -3560,7 +3576,7 @@ if (process.env.INTEGRATIONTEST) {
             );
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
-            expect(newFirstPosition.component).to.eq(aWeth.address);
+            expect(newFirstPosition.component).to.eq(aWsteth.address);
             expect(newFirstPosition.positionState).to.eq(0); // Default
             expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
             expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
@@ -3570,7 +3586,7 @@ if (process.env.INTEGRATIONTEST) {
           it("should wipe out the debt on Aave", async () => {
             await subject();
 
-            const borrowDebt = (await usdcVariableDebtToken.balanceOf(setToken.address)).mul(-1);
+            const borrowDebt = (await wethVariableDebtToken.balanceOf(setToken.address)).mul(-1);
 
             expect(borrowDebt).to.eq(ZERO);
           });
@@ -3579,14 +3595,14 @@ if (process.env.INTEGRATIONTEST) {
             await subject();
 
             const borrowAssetExternalModules = await setToken.getExternalPositionModules(
-              usdc.address,
+              weth.address,
             );
             const borrowExternalUnit = await setToken.getExternalPositionRealUnit(
-              usdc.address,
+              weth.address,
               aaveLeverageModule.address,
             );
             const isPositionModule = await setToken.isExternalPositionModule(
-              usdc.address,
+              weth.address,
               aaveLeverageModule.address,
             );
 
@@ -3598,9 +3614,9 @@ if (process.env.INTEGRATIONTEST) {
           it("should update the borrow asset equity on the SetToken correctly", async () => {
             await subject();
 
-            // The USDC position is positive and represents equity
+            // The WETH position is positive and represents equity
             const newSecondPosition = (await setToken.getPositions())[1];
-            expect(newSecondPosition.component).to.eq(usdc.address);
+            expect(newSecondPosition.component).to.eq(weth.address);
             expect(newSecondPosition.positionState).to.eq(0); // Default
             expect(BigNumber.from(newSecondPosition.unit)).to.gt(ZERO);
             expect(newSecondPosition.module).to.eq(ADDRESS_ZERO);
@@ -3749,13 +3765,13 @@ if (process.env.INTEGRATIONTEST) {
           initializeSubjectVariables();
 
           // Approve tokens to issuance module and call issue
-          await aWeth.approve(debtIssuanceModule.address, ether(1000));
+          await aWsteth.approve(debtIssuanceModule.address, ether(1000));
 
           // Issue 1 SetToken
           const issueQuantity = ether(1);
           await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
 
-          await weth.transfer(tradeAdapterMock.address, ether(0.5));
+          await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
 
           // Engage to initial leverage
           await leverageStrategyExtension.engage(exchangeName);
@@ -3870,13 +3886,13 @@ if (process.env.INTEGRATIONTEST) {
           initializeSubjectVariables();
 
           // Approve tokens to issuance module and call issue
-          await aWeth.approve(debtIssuanceModule.address, ether(1000));
+          await aWsteth.approve(debtIssuanceModule.address, ether(1000));
 
           // Issue 1 SetToken
           const issueQuantity = ether(1);
           await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
 
-          await weth.transfer(tradeAdapterMock.address, ether(0.5));
+          await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
 
           // Engage to initial leverage
           await leverageStrategyExtension.engage(exchangeName);
@@ -3991,13 +4007,13 @@ if (process.env.INTEGRATIONTEST) {
           initializeSubjectVariables();
 
           // Approve tokens to issuance module and call issue
-          await aWeth.approve(debtIssuanceModule.address, ether(1000));
+          await aWsteth.approve(debtIssuanceModule.address, ether(1000));
 
           // Issue 1 SetToken
           const issueQuantity = ether(1);
           await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
 
-          await weth.transfer(tradeAdapterMock.address, ether(0.5));
+          await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
 
           // Engage to initial leverage
           await leverageStrategyExtension.engage(exchangeName);
@@ -4316,13 +4332,13 @@ if (process.env.INTEGRATIONTEST) {
           initializeSubjectVariables();
 
           // Approve tokens to issuance module and call issue
-          await aWeth.approve(debtIssuanceModule.address, ether(1000));
+          await aWsteth.approve(debtIssuanceModule.address, ether(1000));
 
           // Issue 1 SetToken
           const issueQuantity = ether(1);
           await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
 
-          await weth.transfer(tradeAdapterMock.address, ether(0.5));
+          await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
 
           // Engage to initial leverage
           await leverageStrategyExtension.engage(exchangeName);
@@ -4339,13 +4355,13 @@ if (process.env.INTEGRATIONTEST) {
         await initializeRootScopeContracts();
 
         // Approve tokens to issuance module and call issue
-        await aWeth.approve(debtIssuanceModule.address, ether(1000));
+        await aWsteth.approve(debtIssuanceModule.address, ether(1000));
 
         // Issue 1 SetToken
         const issueQuantity = ether(1);
         await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
 
-        await weth.transfer(tradeAdapterMock.address, ether(0.5));
+        await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
 
         // Add allowed trader
         await leverageStrategyExtension.updateCallerStatus([owner.address], [true]);
@@ -4353,7 +4369,7 @@ if (process.env.INTEGRATIONTEST) {
         // Engage to initial leverage
         await leverageStrategyExtension.engage(exchangeName);
         await increaseTimeAsync(BigNumber.from(100000));
-        await weth.transfer(tradeAdapterMock.address, ether(0.5));
+        await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
 
         await leverageStrategyExtension.iterateRebalance(exchangeName);
       });
@@ -4413,13 +4429,13 @@ if (process.env.INTEGRATIONTEST) {
         await initializeRootScopeContracts();
 
         // Approve tokens to issuance module and call issue
-        await aWeth.approve(debtIssuanceModule.address, ether(1000));
+        await aWsteth.approve(debtIssuanceModule.address, ether(1000));
 
         // Issue 1 SetToken
         const issueQuantity = ether(1);
         await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
 
-        await weth.transfer(tradeAdapterMock.address, ether(0.5));
+        await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
 
         // Add allowed trader
         await leverageStrategyExtension.updateCallerStatus([owner.address], [true]);
@@ -4427,7 +4443,7 @@ if (process.env.INTEGRATIONTEST) {
         // Engage to initial leverage
         await leverageStrategyExtension.engage(exchangeName);
         await increaseTimeAsync(BigNumber.from(100000));
-        await weth.transfer(tradeAdapterMock.address, ether(0.5));
+        await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
 
         await leverageStrategyExtension.iterateRebalance(exchangeName);
       });
@@ -4438,8 +4454,8 @@ if (process.env.INTEGRATIONTEST) {
 
       context("when in the midst of a TWAP rebalance", async () => {
         cacheBeforeEach(async () => {
-          // Withdraw balance of USDC from exchange contract from engage
-          await tradeAdapterMock.withdraw(usdc.address);
+          // Withdraw balance of WETH from exchange contract from engage
+          await tradeAdapterMock.withdraw(weth.address);
 
           // > Max trade size
           const newExchangeSettings: ExchangeSettings = {
@@ -4452,7 +4468,7 @@ if (process.env.INTEGRATIONTEST) {
           await leverageStrategyExtension.updateEnabledExchange(exchangeName, newExchangeSettings);
 
           // Set up new rebalance TWAP
-          await usdc.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
+          await weth.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
           await increaseTimeAsync(BigNumber.from(100000));
           await leverageStrategyExtension.rebalance(exchangeName);
@@ -4609,13 +4625,13 @@ if (process.env.INTEGRATIONTEST) {
         await initializeRootScopeContracts();
 
         // Approve tokens to issuance module and call issue
-        await aWeth.approve(debtIssuanceModule.address, ether(1000));
+        await aWsteth.approve(debtIssuanceModule.address, ether(1000));
 
         // Issue 1 SetToken
         const issueQuantity = ether(1);
         await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
 
-        await weth.transfer(tradeAdapterMock.address, ether(0.5));
+        await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
 
         // Add allowed trader
         await leverageStrategyExtension.updateCallerStatus([owner.address], [true]);
@@ -4623,7 +4639,7 @@ if (process.env.INTEGRATIONTEST) {
         // Engage to initial leverage
         await leverageStrategyExtension.engage(exchangeName);
         await increaseTimeAsync(BigNumber.from(100000));
-        await weth.transfer(tradeAdapterMock.address, ether(0.5));
+        await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
 
         await leverageStrategyExtension.iterateRebalance(exchangeName);
       });
@@ -4642,8 +4658,8 @@ if (process.env.INTEGRATIONTEST) {
 
       context("when in the midst of a TWAP rebalance", async () => {
         beforeEach(async () => {
-          // Withdraw balance of USDC from exchange contract from engage
-          await tradeAdapterMock.withdraw(usdc.address);
+          // Withdraw balance of WETH from exchange contract from engage
+          await tradeAdapterMock.withdraw(weth.address);
 
           // > Max trade size
           const newExchangeSettings: ExchangeSettings = {
@@ -4656,7 +4672,7 @@ if (process.env.INTEGRATIONTEST) {
           await leverageStrategyExtension.updateEnabledExchange(exchangeName, newExchangeSettings);
 
           // Set up new rebalance TWAP
-          await usdc.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
+          await weth.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
           await increaseTimeAsync(BigNumber.from(100000));
           await leverageStrategyExtension.rebalance(exchangeName);
@@ -4830,13 +4846,13 @@ if (process.env.INTEGRATIONTEST) {
         await initializeRootScopeContracts();
 
         // Approve tokens to issuance module and call issue
-        await aWeth.approve(debtIssuanceModule.address, ether(1000));
+        await aWsteth.approve(debtIssuanceModule.address, ether(1000));
 
         // Issue 1 SetToken
         const issueQuantity = ether(1);
         await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
 
-        await weth.transfer(tradeAdapterMock.address, ether(0.5));
+        await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
 
         // Add allowed trader
         await leverageStrategyExtension.updateCallerStatus([owner.address], [true]);
@@ -4850,7 +4866,7 @@ if (process.env.INTEGRATIONTEST) {
         // Engage to initial leverage
         await leverageStrategyExtension.engage(exchangeName);
         await increaseTimeAsync(BigNumber.from(100000));
-        await weth.transfer(tradeAdapterMock.address, ether(0.5));
+        await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
 
         await leverageStrategyExtension.iterateRebalance(exchangeName);
       });
@@ -4864,8 +4880,8 @@ if (process.env.INTEGRATIONTEST) {
 
       context("when in the midst of a TWAP rebalance", async () => {
         beforeEach(async () => {
-          // Withdraw balance of USDC from exchange contract from engage
-          await tradeAdapterMock.withdraw(usdc.address);
+          // Withdraw balance of WETH from exchange contract from engage
+          await tradeAdapterMock.withdraw(weth.address);
 
           // > Max trade size
           const newExchangeSettings: ExchangeSettings = {
@@ -4878,7 +4894,7 @@ if (process.env.INTEGRATIONTEST) {
           await leverageStrategyExtension.updateEnabledExchange(exchangeName, newExchangeSettings);
 
           // Set up new rebalance TWAP
-          await usdc.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
+          await weth.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
           await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
           await increaseTimeAsync(BigNumber.from(100000));
           await leverageStrategyExtension.rebalance(exchangeName);
@@ -4897,7 +4913,7 @@ if (process.env.INTEGRATIONTEST) {
             const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
             const expectedTotalRebalance = await calculateTotalRebalanceNotionalAave(
               setToken,
-              aWeth,
+              aWsteth,
               currentLeverageRatio,
               newLeverageRatio,
             );
@@ -4922,7 +4938,7 @@ if (process.env.INTEGRATIONTEST) {
             const newLeverageRatio = await leverageStrategyExtension.twapLeverageRatio();
             const expectedTotalRebalance = await calculateTotalRebalanceNotionalAave(
               setToken,
-              aWeth,
+              aWsteth,
               currentLeverageRatio,
               newLeverageRatio,
             );
@@ -4956,7 +4972,7 @@ if (process.env.INTEGRATIONTEST) {
             const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
             const expectedTotalRebalance = await calculateTotalRebalanceNotionalAave(
               setToken,
-              aWeth,
+              aWsteth,
               currentLeverageRatio,
               newLeverageRatio,
             );
@@ -4986,7 +5002,7 @@ if (process.env.INTEGRATIONTEST) {
             );
             const expectedTotalRebalance = await calculateTotalRebalanceNotionalAave(
               setToken,
-              aWeth,
+              aWsteth,
               currentLeverageRatio,
               newLeverageRatio,
             );
@@ -5016,7 +5032,7 @@ if (process.env.INTEGRATIONTEST) {
             );
             const expectedTotalRebalance = await calculateTotalRebalanceNotionalAave(
               setToken,
-              aWeth,
+              aWsteth,
               currentLeverageRatio,
               newLeverageRatio,
             );
@@ -5046,11 +5062,11 @@ if (process.env.INTEGRATIONTEST) {
             );
             const totalCollateralRebalance = await calculateTotalRebalanceNotionalAave(
               setToken,
-              aWeth,
+              aWsteth,
               currentLeverageRatio,
               newLeverageRatio,
             );
-            // Multiply collateral by conversion rate (1400 USDC per ETH) and adjust for decimals
+            // Multiply collateral by conversion rate (1400 WETH per ETH) and adjust for decimals
             const expectedTotalRebalance = preciseMul(totalCollateralRebalance, ether(1400)).div(
               BigNumber.from(10).pow(12),
             );

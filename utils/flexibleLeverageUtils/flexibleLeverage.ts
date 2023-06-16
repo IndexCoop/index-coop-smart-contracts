@@ -2,6 +2,7 @@ import { BigNumber } from "@ethersproject/bignumber";
 import { AaveV2AToken } from "@typechain/AaveV2AToken";
 import { CEther } from "@typechain/CEther";
 import { SetToken } from "@typechain/SetToken";
+import  { IAToken } from "@typechain/IAToken";
 import { ether, preciseMul, preciseDiv } from "../common";
 import { IERC20 } from "@typechain/IERC20";
 
@@ -49,7 +50,7 @@ export async function calculateTotalRebalanceNotionalCompound(
 
 export async function calculateTotalRebalanceNotionalAave(
   setToken: SetToken,
-  aToken: AaveV2AToken | IERC20,
+  aToken: IAToken | AaveV2AToken | IERC20,
   currentLeverageRatio: BigNumber,
   newLeverageRatio: BigNumber
 ): Promise<BigNumber> {
