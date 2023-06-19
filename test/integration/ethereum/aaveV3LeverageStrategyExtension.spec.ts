@@ -52,6 +52,7 @@ import {
   getRandomAccount,
   getLastBlockTimestamp,
   increaseTimeAsync,
+  preciseDiv,
   preciseMul,
   calculateNewLeverageRatio,
   calculateCollateralRebalanceUnits,
@@ -134,6 +135,9 @@ if (process.env.INTEGRATIONTEST) {
     let wethVariableDebtToken: AaveV2VariableDebtToken;
     let weth: IERC20;
 
+    let initialCollateralPrice: BigNumber;
+    let initialBorrowPrice: BigNumber;
+
     let strategy: AaveContractSettings;
     let methodology: MethodologySettings;
     let execution: ExecutionSettings;
@@ -174,7 +178,6 @@ if (process.env.INTEGRATIONTEST) {
         .connect(await impersonateAccount(whales.wsteth))
         .transfer(owner.address, await wsteth.balanceOf(whales.wsteth).then(b => b.div(10)));
       const wstethBalance = await wsteth.balanceOf(owner.address);
-      console.log("owner wsteth balance", ethers.utils.formatEther(wstethBalance));
 
       aaveOracle = IAaveOracle__factory.connect(
         contractAddresses.aaveV3Oracle,
@@ -183,23 +186,18 @@ if (process.env.INTEGRATIONTEST) {
       aWsteth = IERC20__factory.connect(tokenAddresses.aWstethV3, owner.wallet);
       await wsteth.approve(lendingPool.address, ethers.constants.MaxUint256);
       await lendingPool.supply(wsteth.address, wstethBalance.div(2), owner.address, 0);
-      console.log("supplied awsteth");
       aWeth = IERC20__factory.connect(tokenAddresses.aWethV3, owner.wallet);
       wethVariableDebtToken = AaveV2VariableDebtToken__factory.connect(
         tokenAddresses.aWethVariableDebtTokenV3,
         owner.wallet,
       );
-      const ownerBalance = await aWsteth.balanceOf(owner.address);
-      console.log("ownerawstethBalance", ethers.utils.formatEther(ownerBalance));
 
       controller = Controller__factory.connect(contractAddresses.controller, owner.wallet);
       const controllerOwner = await controller.owner();
       const controllerOwnerSigner = await impersonateAccount(controllerOwner);
       controller = controller.connect(controllerOwnerSigner);
 
-      console.log("addModule");
       await controller.addModule(aaveLeverageModule.address);
-      console.log("addedModule");
 
       integrationRegistry = IntegrationRegistry__factory.connect(
         contractAddresses.integrationRegistry,
@@ -210,7 +208,6 @@ if (process.env.INTEGRATIONTEST) {
         await impersonateAccount(integrationRegistryOwner),
       );
 
-      console.log("Deploy trade adapter mocks");
       tradeAdapterMock = await deployer.mocks.deployTradeAdapterMock();
       await integrationRegistry.addIntegration(
         aaveLeverageModule.address,
@@ -252,7 +249,6 @@ if (process.env.INTEGRATIONTEST) {
         owner.wallet,
       );
 
-      console.log("Set DIM integration");
       await integrationRegistry.addIntegration(
         aaveLeverageModule.address,
         "DefaultIssuanceModule",
@@ -266,14 +262,15 @@ if (process.env.INTEGRATIONTEST) {
 
       // Deploy Chainlink mocks
       chainlinkCollateralPriceMock = await deployer.mocks.deployChainlinkAggregatorMock();
-      await chainlinkCollateralPriceMock.setPrice(10 ** 8);
+      initialCollateralPrice = BigNumber.from(2500 * 10 ** 8);
+      await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice);
       chainlinkBorrowPriceMock = await deployer.mocks.deployChainlinkAggregatorMock();
-      await chainlinkBorrowPriceMock.setPrice(10 ** 8);
+      initialBorrowPrice = BigNumber.from(2000 * 10 ** 8);
+      await chainlinkBorrowPriceMock.setPrice(initialBorrowPrice);
       await aaveOracle.setAssetSources(
         [wsteth.address, weth.address],
         [chainlinkCollateralPriceMock.address, chainlinkBorrowPriceMock.address],
       );
-      console.log("Top level initialization done");
     });
 
     async function createSetToken(
@@ -296,14 +293,13 @@ if (process.env.INTEGRATIONTEST) {
 
     const initializeRootScopeContracts = async () => {
       setToken = await createSetToken(
-        [aWsteth.address, weth.address],
-        [ether(2), ether(1)],
+        [aWsteth.address],
+        [ether(1)],
         [debtIssuanceModule.address, aaveLeverageModule.address],
       );
       await aaveLeverageModule.updateAnySetAllowed(true);
 
       // Initialize modules
-      console.log("Initializing dim");
       await debtIssuanceModule.initialize(
         setToken.address,
         ether(1),
@@ -312,14 +308,12 @@ if (process.env.INTEGRATIONTEST) {
         owner.address,
         ADDRESS_ZERO,
       );
-      console.log("Initializing alm");
       await aaveLeverageModule.initialize(
         setToken.address,
         [weth.address, wsteth.address],
         [wsteth.address, weth.address],
       );
 
-      console.log("Deploying base manager");
       baseManagerV2 = await deployer.manager.deployBaseManager(
         setToken.address,
         owner.address,
@@ -360,7 +354,7 @@ if (process.env.INTEGRATIONTEST) {
         collateralAsset: wsteth.address,
         borrowAsset: weth.address,
         collateralDecimalAdjustment: BigNumber.from(10),
-        borrowDecimalAdjustment: BigNumber.from(22),
+        borrowDecimalAdjustment: BigNumber.from(10),
       };
       methodology = {
         targetLeverageRatio: targetLeverageRatio,
@@ -390,7 +384,6 @@ if (process.env.INTEGRATIONTEST) {
         deleverExchangeData,
       };
 
-      console.log("Deploying  AaveV3LeverageStrategyExtension");
       leverageStrategyExtension = await deployer.extensions.deployAaveV3LeverageStrategyExtension(
         baseManagerV2.address,
         strategy,
@@ -752,22 +745,10 @@ if (process.env.INTEGRATIONTEST) {
 
             // Issue 1 SetToken
             issueQuantity = ether(1);
-            console.log("Issuing set");
             await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
-            console.log("Issed set");
 
             destinationTokenQuantity = ether(0.5);
-            console.log("Sending wseth to tradeAdapter", {
-              adapter: tradeAdapterMock.address,
-              wsteth: wsteth.address,
-              quantity: destinationTokenQuantity.toString(),
-            });
             await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
-            console.log("Sending wseth to tradeAdapter", {
-              adapter: tradeAdapterMock2.address,
-              wsteth: wsteth.address,
-              quantity: destinationTokenQuantity.toString(),
-            });
             await wsteth.transfer(tradeAdapterMock2.address, destinationTokenQuantity);
           };
 
@@ -826,8 +807,8 @@ if (process.env.INTEGRATIONTEST) {
                 destinationTokenQuantity,
               );
 
-              expect(initialPositions.length).to.eq(2);
-              expect(currentPositions.length).to.eq(3);
+              expect(initialPositions.length).to.eq(1);
+              expect(currentPositions.length).to.eq(2);
               expect(newFirstPosition.component).to.eq(aWsteth.address);
               expect(newFirstPosition.positionState).to.eq(0); // Default
               expect(newFirstPosition.unit).to.be.gte(expectedFirstPositionUnit.mul(999).div(1000));
@@ -850,10 +831,11 @@ if (process.env.INTEGRATIONTEST) {
                 await wethVariableDebtToken.balanceOf(setToken.address)
               ).mul(-1);
 
-              expect(initialPositions.length).to.eq(2);
-              expect(currentPositions.length).to.eq(3);
+
+              expect(initialPositions.length).to.eq(1);
+              expect(currentPositions.length).to.eq(2);
               expect(newSecondPosition.component).to.eq(weth.address);
-              // expect(newSecondPosition.positionState).to.eq(1); // External
+              expect(newSecondPosition.positionState).to.eq(1); // External
               expect(newSecondPosition.unit).to.eq(expectedSecondPositionUnit);
               expect(newSecondPosition.module).to.eq(aaveLeverageModule.address);
             });
@@ -1098,7 +1080,7 @@ if (process.env.INTEGRATIONTEST) {
             const expectedFirstPositionUnit = customTargetLeverageRatio;
 
             expect(initialPositions.length).to.eq(1);
-            // expect(currentPositions.length).to.eq(2); TODO: review
+            expect(currentPositions.length).to.eq(2);
             expect(newFirstPosition.component).to.eq(aWsteth.address);
             expect(newFirstPosition.positionState).to.eq(0); // Default
             expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
@@ -1118,6 +1100,7 @@ if (process.env.INTEGRATIONTEST) {
             const expectedSecondPositionUnit = (
               await wethVariableDebtToken.balanceOf(setToken.address)
             ).mul(-1);
+
 
             expect(initialPositions.length).to.eq(1);
             expect(currentPositions.length).to.eq(2);
@@ -1171,7 +1154,7 @@ if (process.env.INTEGRATIONTEST) {
         cacheBeforeEach(async () => {
           destinationTokenQuantity = ether(0.1);
           await increaseTimeAsync(BigNumber.from(100000));
-          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1010).mul(10 ** 8));
+          await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(11).div(10));
           await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
         });
 
@@ -1262,7 +1245,7 @@ if (process.env.INTEGRATIONTEST) {
           cacheBeforeEach(async () => {
             await subject();
             // ~1.6x leverage
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1300).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(6).div(5));
             const newExchangeSettings: ExchangeSettings = {
               twapMaxTradeSize: ether(1.9),
               incentivizedTwapMaxTradeSize: exchangeSettings.incentivizedTwapMaxTradeSize,
@@ -1367,7 +1350,7 @@ if (process.env.INTEGRATIONTEST) {
               subjectExchangeName,
               newExchangeSettings,
             );
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1500).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(6).div(5));
             await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
           });
 
@@ -1465,7 +1448,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("when in a TWAP rebalance", async () => {
           beforeEach(async () => {
             await increaseTimeAsync(BigNumber.from(100000));
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1200).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(6).div(5));
 
             const newExchangeSettings: ExchangeSettings = {
               twapMaxTradeSize: ether(0.01),
@@ -1553,12 +1536,14 @@ if (process.env.INTEGRATIONTEST) {
       });
 
       context("when current leverage ratio is above target (delever)", async () => {
+        let sendQuantity: BigNumber;
         cacheBeforeEach(async () => {
           await tradeAdapterMock.withdraw(weth.address);
           await increaseTimeAsync(BigNumber.from(100000));
-          // Set to $990 so need to delever
-          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
-          await weth.transfer(tradeAdapterMock.address, BigNumber.from(2500000));
+          // Reduce by 10% so need to delever
+          await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(10).div(11));
+          sendQuantity = ether(0.012);
+          await weth.transfer(tradeAdapterMock.address, sendQuantity);
         });
 
         beforeEach(() => {
@@ -1660,10 +1645,11 @@ if (process.env.INTEGRATIONTEST) {
         });
 
         describe("when rebalance interval has not elapsed above max leverage ratio and lower than max trade size", async () => {
+          let sendQuantity: BigNumber;
           cacheBeforeEach(async () => {
             await leverageStrategyExtension.connect(owner.wallet).rebalance(subjectExchangeName);
             // ~2.4x leverage
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(850).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(85).div(100));
             const newExchangeSettings: ExchangeSettings = {
               twapMaxTradeSize: ether(1.9),
               incentivizedTwapMaxTradeSize: exchangeSettings.incentivizedTwapMaxTradeSize,
@@ -1675,7 +1661,8 @@ if (process.env.INTEGRATIONTEST) {
               subjectExchangeName,
               newExchangeSettings,
             );
-            await weth.transfer(tradeAdapterMock.address, BigNumber.from(100000000));
+            sendQuantity = ether(0.1);
+            await weth.transfer(tradeAdapterMock.address, sendQuantity);
           });
 
           it("should set the last trade timestamp", async () => {
@@ -1769,6 +1756,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when rebalance interval has not elapsed above max leverage ratio and greater than max trade size", async () => {
           let newTWAPMaxTradeSize: BigNumber;
+          let sendQuantity: BigNumber;
 
           cacheBeforeEach(async () => {
             await leverageStrategyExtension.connect(owner.wallet).rebalance(subjectExchangeName);
@@ -1786,9 +1774,9 @@ if (process.env.INTEGRATIONTEST) {
               subjectExchangeName,
               newExchangeSettings,
             );
-            // ~2.4x leverage
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(850).mul(10 ** 8));
-            await weth.transfer(tradeAdapterMock.address, BigNumber.from(10000000));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(85).div(100));
+            sendQuantity = ether(0.1);
+            await weth.transfer(tradeAdapterMock.address, sendQuantity);
           });
 
           it("should set the last trade timestamp", async () => {
@@ -1874,6 +1862,7 @@ if (process.env.INTEGRATIONTEST) {
 
         context("when using two exchanges", async () => {
           let subjectExchangeToUse: string;
+          let sendQuantity: BigNumber;
 
           cacheBeforeEach(async () => {
             const newExchangeSettings: ExchangeSettings = {
@@ -1890,9 +1879,10 @@ if (process.env.INTEGRATIONTEST) {
             );
             await leverageStrategyExtension.addEnabledExchange(exchangeName2, newExchangeSettings);
 
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(850).mul(10 ** 8));
-            await weth.transfer(tradeAdapterMock.address, BigNumber.from(100).mul(10 ** 6));
-            await weth.transfer(tradeAdapterMock2.address, BigNumber.from(100).mul(10 ** 6));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(87).div(100));
+            sendQuantity = ether(0.1);
+            await weth.transfer(tradeAdapterMock.address, sendQuantity);
+            await weth.transfer(tradeAdapterMock2.address, sendQuantity);
           });
 
           beforeEach(() => {
@@ -1912,7 +1902,7 @@ if (process.env.INTEGRATIONTEST) {
               const timestamp1 = await getLastBlockTimestamp();
 
               subjectExchangeToUse = exchangeName2;
-              await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+              await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(82).div(100));
 
               await subject();
               const timestamp2 = await getLastBlockTimestamp();
@@ -1960,7 +1950,7 @@ if (process.env.INTEGRATIONTEST) {
           beforeEach(async () => {
             await subject();
 
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(650).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(65).div(100));
           });
 
           it("should revert", async () => {
@@ -2046,7 +2036,7 @@ if (process.env.INTEGRATIONTEST) {
       context("when currently in the last chunk of a TWAP rebalance", async () => {
         cacheBeforeEach(async () => {
           await increaseTimeAsync(BigNumber.from(100000));
-          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1200).mul(10 ** 8));
+          await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(12).div(10));
 
           destinationTokenQuantity = ether(0.01);
           const newExchangeSettings: ExchangeSettings = {
@@ -2154,7 +2144,7 @@ if (process.env.INTEGRATIONTEST) {
 
           cacheBeforeEach(async () => {
             await increaseTimeAsync(BigNumber.from(100000));
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1200).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(12).div(10));
 
             destinationTokenQuantity = ether(0.0001);
             const newExchangeSettings: ExchangeSettings = {
@@ -2275,7 +2265,7 @@ if (process.env.INTEGRATIONTEST) {
 
           describe("when price has moved advantageously towards target leverage ratio", async () => {
             beforeEach(async () => {
-              await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1000).mul(10 ** 8));
+              await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice);
             });
 
             it("should set the global last trade timestamp", async () => {
@@ -2330,7 +2320,7 @@ if (process.env.INTEGRATIONTEST) {
             beforeEach(async () => {
               await subject();
 
-              await chainlinkCollateralPriceMock.setPrice(BigNumber.from(650).mul(10 ** 8));
+              await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(65).div(100));
             });
 
             it("should revert", async () => {
@@ -2363,9 +2353,10 @@ if (process.env.INTEGRATIONTEST) {
                 setToken.address,
               );
 
-              const debtBalanceAfter = await wethVariableDebtToken.balanceOf(setToken.address);
-              if (debtBalanceAfter.gt(ZERO)) {
+              let debtBalanceAfter = await wethVariableDebtToken.balanceOf(setToken.address);
+              while (debtBalanceAfter.gt(ZERO)) {
                 await lendingPool.repay(weth.address, debtBalanceAfter, 2, setToken.address);
+                debtBalanceAfter = await wethVariableDebtToken.balanceOf(setToken.address);
               }
             });
 
@@ -2443,7 +2434,7 @@ if (process.env.INTEGRATIONTEST) {
 
           cacheBeforeEach(async () => {
             await increaseTimeAsync(BigNumber.from(10000000));
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(900).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(9).div(10));
 
             destinationTokenQuantity = ether(0.0001);
             const newExchangeSettings: ExchangeSettings = {
@@ -2478,7 +2469,7 @@ if (process.env.INTEGRATIONTEST) {
 
           describe("when price has moved advantageously towards target leverage ratio", async () => {
             beforeEach(async () => {
-              await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1000).mul(10 ** 8));
+              await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice);
             });
 
             it("should set the global last trade timestamp", async () => {
@@ -2536,7 +2527,7 @@ if (process.env.INTEGRATIONTEST) {
 
         cacheBeforeEach(async () => {
           await increaseTimeAsync(BigNumber.from(100000));
-          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1200).mul(10 ** 8));
+          await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(12).div(10));
 
           destinationTokenQuantity = ether(0.0001);
           const newExchangeSettings: ExchangeSettings = {
@@ -2679,14 +2670,16 @@ if (process.env.INTEGRATIONTEST) {
 
       // increaseTime
       context("when not in a TWAP rebalance", async () => {
+        let sendQuantity: BigNumber;
         cacheBeforeEach(async () => {
           // Withdraw balance of WETH from exchange contract from engage
           await tradeAdapterMock.withdraw(weth.address);
           await increaseTimeAsync(BigNumber.from(100000));
 
           // Set to above incentivized ratio
-          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
-          await weth.transfer(tradeAdapterMock.address, BigNumber.from(450000000));
+          await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(8).div(10));
+          sendQuantity = ether(0.27);
+          await weth.transfer(tradeAdapterMock.address, sendQuantity);
 
           transferredEth = ether(1);
           await owner.wallet.sendTransaction({
@@ -2894,7 +2887,7 @@ if (process.env.INTEGRATIONTEST) {
           describe("when incentivized cooldown period has not elapsed", async () => {
             beforeEach(async () => {
               await subject();
-              await chainlinkCollateralPriceMock.setPrice(BigNumber.from(400).mul(10 ** 8));
+              await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(4).div(10));
             });
 
             it("should revert", async () => {
@@ -2906,7 +2899,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("when greater than max borrow", async () => {
           beforeEach(async () => {
             // Set to above max borrow
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(650).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(65).div(100));
           });
 
           it("should set the global last trade timestamp", async () => {
@@ -2934,12 +2927,12 @@ if (process.env.INTEGRATIONTEST) {
             // Get max borrow
             const previousCollateralBalance = await aWsteth.balanceOf(setToken.address);
 
-            const previousBorrowBalance = (
-              await wethVariableDebtToken.balanceOf(setToken.address)
-            ).mul(BigNumber.from(10).pow(12));
+            const previousBorrowBalance = await wethVariableDebtToken.balanceOf(setToken.address);
 
-            const collateralPrice = ether(650);
-            const borrowPrice = ether(1);
+            const collateralPrice = (await chainlinkCollateralPriceMock.latestAnswer()).mul(
+              10 ** 10,
+            );
+            const borrowPrice = (await chainlinkBorrowPriceMock.latestAnswer()).mul(10 ** 10);
             const reserveConfig = await protocolDataProvider.getReserveConfigurationData(
               wsteth.address,
             );
@@ -2997,7 +2990,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when below incentivized leverage ratio threshold", async () => {
           beforeEach(async () => {
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(2000).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(2));
           });
 
           it("should revert", async () => {
@@ -3015,9 +3008,10 @@ if (process.env.INTEGRATIONTEST) {
               2,
               setToken.address,
             );
-            const debtBalanceAfter = await wethVariableDebtToken.balanceOf(setToken.address);
-            if (debtBalanceAfter.gt(0)) {
+            let debtBalanceAfter = await wethVariableDebtToken.balanceOf(setToken.address);
+            while (debtBalanceAfter.gt(0)) {
               await lendingPool.repay(weth.address, debtBalanceAfter, 2, setToken.address);
+              debtBalanceAfter = await wethVariableDebtToken.balanceOf(setToken.address);
             }
           });
 
@@ -3102,17 +3096,18 @@ if (process.env.INTEGRATIONTEST) {
             newExchangeSettings,
           );
 
-          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
+          await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(99).div(100));
 
-          await weth.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
+          const sendTokenQuantity = ether(0.0015);
+          await weth.transfer(tradeAdapterMock.address, sendTokenQuantity);
 
           // Start TWAP rebalance
           await leverageStrategyExtension.rebalance(subjectExchangeName);
           await increaseTimeAsync(BigNumber.from(100));
-          await weth.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
+          await weth.transfer(tradeAdapterMock.address, sendTokenQuantity);
 
           // Set to above incentivized ratio
-          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+          await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(80).div(100));
         });
 
         async function subject(): Promise<any> {
@@ -3158,7 +3153,7 @@ if (process.env.INTEGRATIONTEST) {
           await increaseTimeAsync(BigNumber.from(100000));
 
           // Set to above incentivized ratio
-          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+          await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(80).div(100));
           await weth.transfer(tradeAdapterMock.address, BigNumber.from(300000000));
           await weth.transfer(tradeAdapterMock2.address, BigNumber.from(300000000));
 
@@ -3265,7 +3260,8 @@ if (process.env.INTEGRATIONTEST) {
 
               // Withdraw balance of WETH from exchange contract from engage
               await tradeAdapterMock.withdraw(weth.address);
-              await weth.transfer(tradeAdapterMock.address, BigNumber.from(550000000));
+              const sendQuantity = ether(0.62);
+              await weth.transfer(tradeAdapterMock.address, sendQuantity);
             }
           };
 
@@ -3336,9 +3332,10 @@ if (process.env.INTEGRATIONTEST) {
                   2,
                   setToken.address,
                 );
-                const debtTokenBalance = await wethVariableDebtToken.balanceOf(setToken.address);
-                if (debtTokenBalance.gt(0)) {
+                let debtTokenBalance = await wethVariableDebtToken.balanceOf(setToken.address);
+                while (debtTokenBalance.gt(0)) {
                   await lendingPool.repay(weth.address, debtTokenBalance, 2, setToken.address);
+                  debtTokenBalance = await wethVariableDebtToken.balanceOf(setToken.address);
                 }
               });
 
@@ -3417,7 +3414,8 @@ if (process.env.INTEGRATIONTEST) {
 
             // Clear balance of WETH from exchange contract from engage
             await tradeAdapterMock.withdraw(weth.address);
-            await weth.transfer(tradeAdapterMock.address, BigNumber.from(800000000));
+            const sendQuantity = ether(0.91);
+            await weth.transfer(tradeAdapterMock.address, sendQuantity);
 
             const newExchangeSettings: ExchangeSettings = {
               twapMaxTradeSize: ether(1.9),
@@ -3432,7 +3430,7 @@ if (process.env.INTEGRATIONTEST) {
             );
 
             // Set price to reduce borrowing power
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1000).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice);
 
             subjectCaller = owner;
           });
@@ -3448,12 +3446,12 @@ if (process.env.INTEGRATIONTEST) {
             // Get max borrow
             const previousCollateralBalance = await aWsteth.balanceOf(setToken.address);
 
-            const previousBorrowBalance = (
-              await wethVariableDebtToken.balanceOf(setToken.address)
-            ).mul(BigNumber.from(10).pow(12));
+            const previousBorrowBalance = await wethVariableDebtToken.balanceOf(setToken.address);
 
-            const collateralPrice = ether(1000);
-            const borrowPrice = ether(1);
+            const collateralPrice = (await chainlinkCollateralPriceMock.latestAnswer()).mul(
+              10 ** 10,
+            );
+            const borrowPrice = (await chainlinkBorrowPriceMock.latestAnswer()).mul(10 ** 10);
             const reserveConfig = await protocolDataProvider.getReserveConfigurationData(
               wsteth.address,
             );
@@ -4384,7 +4382,7 @@ if (process.env.INTEGRATIONTEST) {
             to: leverageStrategyExtension.address,
             value: ether(1),
           });
-          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(650).mul(10 ** 8));
+          await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(65).div(100));
         });
 
         it("should return the correct value", async () => {
@@ -4468,8 +4466,9 @@ if (process.env.INTEGRATIONTEST) {
           await leverageStrategyExtension.updateEnabledExchange(exchangeName, newExchangeSettings);
 
           // Set up new rebalance TWAP
-          await weth.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
-          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
+          const sendQuantity = ether(0.0015);
+          await weth.transfer(tradeAdapterMock.address, sendQuantity);
+          await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(99).div(100));
           await increaseTimeAsync(BigNumber.from(100000));
           await leverageStrategyExtension.rebalance(exchangeName);
         });
@@ -4477,7 +4476,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("when above incentivized leverage ratio and incentivized TWAP cooldown has elapsed", async () => {
           beforeEach(async () => {
             // Set to above incentivized ratio
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(80).div(100));
             await increaseTimeAsync(BigNumber.from(100));
           });
 
@@ -4492,7 +4491,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("when below incentivized leverage ratio and regular TWAP cooldown has elapsed", async () => {
           beforeEach(async () => {
             // Set to below incentivized ratio
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(900).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(90).div(100));
             await increaseTimeAsync(BigNumber.from(4000));
           });
 
@@ -4507,7 +4506,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("when above incentivized leverage ratio and incentivized TWAP cooldown has NOT elapsed", async () => {
           beforeEach(async () => {
             // Set to above incentivized ratio
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(80).div(100));
           });
 
           it("should not rebalance", async () => {
@@ -4521,7 +4520,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("when below incentivized leverage ratio and regular TWAP cooldown has NOT elapsed", async () => {
           beforeEach(async () => {
             // Set to above incentivized ratio
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(900).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(90).div(100));
           });
 
           it("should not rebalance", async () => {
@@ -4537,7 +4536,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("when above incentivized leverage ratio and cooldown period has elapsed", async () => {
           beforeEach(async () => {
             // Set to above incentivized ratio
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(80).div(100));
             await increaseTimeAsync(BigNumber.from(100));
           });
 
@@ -4551,7 +4550,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when between max and min leverage ratio and rebalance interval has elapsed", async () => {
           beforeEach(async () => {
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(99).div(100));
             await increaseTimeAsync(BigNumber.from(100000));
           });
 
@@ -4565,7 +4564,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when above max leverage ratio but below incentivized leverage ratio", async () => {
           beforeEach(async () => {
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(850).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(85).div(100));
           });
 
           it("should return rebalance", async () => {
@@ -4578,7 +4577,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when below min leverage ratio", async () => {
           beforeEach(async () => {
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1400).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(140).div(100));
           });
 
           it("should return rebalance", async () => {
@@ -4591,7 +4590,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when above incentivized leverage ratio and incentivized TWAP cooldown has NOT elapsed", async () => {
           beforeEach(async () => {
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(80).div(100));
           });
 
           it("should not rebalance", async () => {
@@ -4604,7 +4603,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when between max and min leverage ratio and rebalance interval has NOT elapsed", async () => {
           beforeEach(async () => {
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(99).div(100));
           });
 
           it("should not rebalance", async () => {
@@ -4672,8 +4671,9 @@ if (process.env.INTEGRATIONTEST) {
           await leverageStrategyExtension.updateEnabledExchange(exchangeName, newExchangeSettings);
 
           // Set up new rebalance TWAP
-          await weth.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
-          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
+          const sendQuantity = ether(0.0015);
+          await weth.transfer(tradeAdapterMock.address, sendQuantity);
+          await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(99).div(100));
           await increaseTimeAsync(BigNumber.from(100000));
           await leverageStrategyExtension.rebalance(exchangeName);
         });
@@ -4681,7 +4681,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("when above incentivized leverage ratio and incentivized TWAP cooldown has elapsed", async () => {
           beforeEach(async () => {
             // Set to above incentivized ratio
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(80).div(100));
             await increaseTimeAsync(BigNumber.from(100));
           });
 
@@ -4696,7 +4696,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("when below incentivized leverage ratio and regular TWAP cooldown has elapsed", async () => {
           beforeEach(async () => {
             // Set to below incentivized ratio
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(900).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(90).div(100));
             await increaseTimeAsync(BigNumber.from(4000));
           });
 
@@ -4711,7 +4711,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("when above incentivized leverage ratio and incentivized TWAP cooldown has NOT elapsed", async () => {
           beforeEach(async () => {
             // Set to above incentivized ratio
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(80).div(100));
           });
 
           it("should not rebalance", async () => {
@@ -4725,7 +4725,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("when below incentivized leverage ratio and regular TWAP cooldown has NOT elapsed", async () => {
           beforeEach(async () => {
             // Set to above incentivized ratio
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(900).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(90).div(100));
           });
 
           it("should not rebalance", async () => {
@@ -4741,7 +4741,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("when above incentivized leverage ratio and cooldown period has elapsed", async () => {
           beforeEach(async () => {
             // Set to above incentivized ratio
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(80).div(100));
             await increaseTimeAsync(BigNumber.from(100));
           });
 
@@ -4755,7 +4755,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when between max and min leverage ratio and rebalance interval has elapsed", async () => {
           beforeEach(async () => {
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(99).div(100));
             await increaseTimeAsync(BigNumber.from(100000));
           });
 
@@ -4769,7 +4769,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when above max leverage ratio but below incentivized leverage ratio", async () => {
           beforeEach(async () => {
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(850).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(85).div(100));
           });
 
           it("should return rebalance", async () => {
@@ -4782,7 +4782,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when below min leverage ratio", async () => {
           beforeEach(async () => {
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1400).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(140).div(100));
           });
 
           it("should return rebalance", async () => {
@@ -4795,7 +4795,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when above incentivized leverage ratio and incentivized TWAP cooldown has NOT elapsed", async () => {
           beforeEach(async () => {
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(80).div(100));
           });
 
           it("should not rebalance", async () => {
@@ -4808,7 +4808,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when between max and min leverage ratio and rebalance interval has NOT elapsed", async () => {
           beforeEach(async () => {
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(99).div(100));
           });
 
           it("should not rebalance", async () => {
@@ -4894,8 +4894,9 @@ if (process.env.INTEGRATIONTEST) {
           await leverageStrategyExtension.updateEnabledExchange(exchangeName, newExchangeSettings);
 
           // Set up new rebalance TWAP
-          await weth.transfer(tradeAdapterMock.address, BigNumber.from(4000000));
-          await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
+          const sendQuantity = ether(0.0015);
+          await weth.transfer(tradeAdapterMock.address, sendQuantity);
+          await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(99).div(100));
           await increaseTimeAsync(BigNumber.from(100000));
           await leverageStrategyExtension.rebalance(exchangeName);
         });
@@ -4903,7 +4904,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("when above incentivized leverage ratio", async () => {
           beforeEach(async () => {
             // Set to above incentivized ratio
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(80).div(100));
           });
 
           it("should return correct total rebalance size and isLever boolean", async () => {
@@ -4928,7 +4929,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("when below incentivized leverage ratio", async () => {
           beforeEach(async () => {
             // Set to below incentivized ratio
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(900).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(90).div(100));
           });
 
           it("should return correct total rebalance size and isLever boolean", async () => {
@@ -4962,7 +4963,7 @@ if (process.env.INTEGRATIONTEST) {
         describe("when above incentivized leverage ratio", async () => {
           beforeEach(async () => {
             // Set to above incentivized ratio
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(800).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(80).div(100));
           });
 
           it("should return correct total rebalance size and isLever boolean", async () => {
@@ -4986,7 +4987,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when between max and min leverage ratio", async () => {
           beforeEach(async () => {
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(990).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(99).div(100));
           });
 
           it("should return correct total rebalance size and isLever boolean", async () => {
@@ -5016,7 +5017,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when above max leverage ratio but below incentivized leverage ratio", async () => {
           beforeEach(async () => {
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(850).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(85).div(100));
           });
 
           it("should return correct total rebalance size and isLever boolean", async () => {
@@ -5046,7 +5047,7 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when below min leverage ratio", async () => {
           beforeEach(async () => {
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(1400).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(140).div(100));
           });
 
           it("should return correct total rebalance size and isLever boolean", async () => {
@@ -5066,17 +5067,20 @@ if (process.env.INTEGRATIONTEST) {
               currentLeverageRatio,
               newLeverageRatio,
             );
-            // Multiply collateral by conversion rate (1400 WETH per ETH) and adjust for decimals
-            const expectedTotalRebalance = preciseMul(totalCollateralRebalance, ether(1400)).div(
-              BigNumber.from(10).pow(12),
+            // Multiply collateral by conversion rate
+            const currentCollateralPrice = (await chainlinkCollateralPriceMock.latestAnswer()).mul(
+              10 ** 10,
             );
+            const currentBorrowPrice = (await chainlinkBorrowPriceMock.latestAnswer()).mul(
+              10 ** 10,
+            );
+            const priceRatio = preciseDiv(currentCollateralPrice, currentBorrowPrice);
+            const expectedTotalRebalance = preciseMul(totalCollateralRebalance, priceRatio);
 
             expect(sellAsset).to.eq(strategy.borrowAsset);
             expect(buyAsset).to.eq(strategy.collateralAsset);
             expect(chunkRebalances[0]).to.eq(expectedTotalRebalance);
-            expect(chunkRebalances[1]).to.eq(
-              preciseMul(ether(0.001), ether(1400)).div(BigNumber.from(10).pow(12)),
-            );
+            expect(chunkRebalances[1]).to.eq(preciseMul(ether(0.001), priceRatio));
           });
         });
       });
