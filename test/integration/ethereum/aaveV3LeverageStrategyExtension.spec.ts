@@ -831,7 +831,6 @@ if (process.env.INTEGRATIONTEST) {
                 await wethVariableDebtToken.balanceOf(setToken.address)
               ).mul(-1);
 
-
               expect(initialPositions.length).to.eq(1);
               expect(currentPositions.length).to.eq(2);
               expect(newSecondPosition.component).to.eq(weth.address);
@@ -1101,7 +1100,6 @@ if (process.env.INTEGRATIONTEST) {
               await wethVariableDebtToken.balanceOf(setToken.address)
             ).mul(-1);
 
-
             expect(initialPositions.length).to.eq(1);
             expect(currentPositions.length).to.eq(2);
             expect(newSecondPosition.component).to.eq(weth.address);
@@ -1148,7 +1146,71 @@ if (process.env.INTEGRATIONTEST) {
         }
       };
 
+      async function subject(): Promise<any> {
+        return leverageStrategyExtension
+          .connect(subjectCaller.wallet)
+          .rebalance(subjectExchangeName);
+      }
       cacheBeforeEach(intializeContracts);
+
+      context("when methodology settings are increased beyond default maximum", () => {
+        let newMethodology: MethodologySettings;
+        let newIncentive: IncentiveSettings;
+        const leverageCutoff = ether(2.2); // Value of leverage that can only be exceeded with eMode activated
+        beforeEach(() => {
+          subjectCaller = owner;
+        });
+        cacheBeforeEach(async () => {
+          newIncentive = {
+            ...incentive,
+            incentivizedLeverageRatio: ether(9.1),
+          };
+          await leverageStrategyExtension.setIncentiveSettings(newIncentive);
+          newMethodology = {
+            targetLeverageRatio: ether(8),
+            minLeverageRatio: ether(7),
+            maxLeverageRatio: ether(9),
+            recenteringSpeed: methodology.recenteringSpeed,
+            rebalanceInterval: methodology.rebalanceInterval,
+          };
+          await leverageStrategyExtension.setMethodologySettings(newMethodology);
+          destinationTokenQuantity = ether(0.5);
+          await increaseTimeAsync(BigNumber.from(100000));
+          await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(11).div(10));
+          await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
+        });
+        context("when eMode is not activated", async () => {
+          const ethEmodeCategory = 0;
+          cacheBeforeEach(async () => {
+            await leverageStrategyExtension.setEModeCategory(ethEmodeCategory);
+          });
+          it("should not be able to exceed eMode leverage levels", async () => {
+            await subject();
+
+            const leverageRatioAfter = await leverageStrategyExtension.getCurrentLeverageRatio();
+            expect(leverageRatioAfter).to.lt(leverageCutoff);
+          });
+        });
+        context("when eMode is activated", async () => {
+          const ethEmodeCategory = 1;
+          cacheBeforeEach(async () => {
+            await leverageStrategyExtension.setEModeCategory(ethEmodeCategory);
+          });
+          it("should set the global last trade timestamp", async () => {
+            await subject();
+
+            const lastTradeTimestamp = await leverageStrategyExtension.globalLastTradeTimestamp();
+
+            expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
+          });
+
+          it("should be able to exceed eMode leverage levels", async () => {
+            await subject();
+            const leverageRatioAfter = await leverageStrategyExtension.getCurrentLeverageRatio();
+            expect(leverageRatioAfter).to.gt(leverageCutoff);
+          });
+        });
+      });
 
       context("when current leverage ratio is below target (lever)", async () => {
         cacheBeforeEach(async () => {
@@ -1161,12 +1223,6 @@ if (process.env.INTEGRATIONTEST) {
         beforeEach(() => {
           subjectCaller = owner;
         });
-
-        async function subject(): Promise<any> {
-          return leverageStrategyExtension
-            .connect(subjectCaller.wallet)
-            .rebalance(subjectExchangeName);
-        }
 
         it("should set the global last trade timestamp", async () => {
           await subject();
