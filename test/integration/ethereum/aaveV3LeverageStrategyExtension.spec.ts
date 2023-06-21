@@ -3154,8 +3154,9 @@ if (process.env.INTEGRATIONTEST) {
 
           // Set to above incentivized ratio
           await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(80).div(100));
-          await weth.transfer(tradeAdapterMock.address, BigNumber.from(300000000));
-          await weth.transfer(tradeAdapterMock2.address, BigNumber.from(300000000));
+          const sendTokenQuantity = ether(0.27);
+          await weth.transfer(tradeAdapterMock.address, sendTokenQuantity);
+          await weth.transfer(tradeAdapterMock2.address, sendTokenQuantity);
 
           await leverageStrategyExtension.updateEnabledExchange(exchangeName, exchangeSettings);
           await leverageStrategyExtension.addEnabledExchange(exchangeName2, exchangeSettings);
@@ -3179,7 +3180,7 @@ if (process.env.INTEGRATIONTEST) {
             const timestamp1 = await getLastBlockTimestamp();
 
             subjectExchangeToUse = exchangeName2;
-            await chainlinkCollateralPriceMock.setPrice(BigNumber.from(600).mul(10 ** 8));
+            await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(60).div(100));
 
             await subject();
             const timestamp2 = await getLastBlockTimestamp();
