@@ -22,6 +22,12 @@ pragma experimental ABIEncoderV2;
 import {AaveLeverageStrategyExtension} from "./AaveLeverageStrategyExtension.sol";
 
 import {IBaseManager} from "../interfaces/IBaseManager.sol";
+import {IPool} from "../interfaces/IPool.sol";
+import {IPoolAddressesProvider} from "../interfaces/IPoolAddressesProvider.sol";
+import { DataTypes } from "../interfaces/Datatypes.sol";
+
+
+import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 /**
  * @title AaveV3LeverageStrategyExtension
@@ -31,6 +37,8 @@ import {IBaseManager} from "../interfaces/IBaseManager.sol";
  *
  */
 contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
+    uint8 public currentEModeCategoryId;
+    IPoolAddressesProvider public lendingPoolAddressesProvider;
     constructor(
         IBaseManager _manager,
         ContractSettings memory _strategy,
@@ -38,7 +46,9 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
         ExecutionSettings memory _execution,
         IncentiveSettings memory _incentive,
         string[] memory _exchangeNames,
-        ExchangeSettings[] memory _exchangeSettings
+        ExchangeSettings[] memory _exchangeSettings,
+        IPoolAddressesProvider _lendingPoolAddressesProvider
+
     )
         public
         AaveLeverageStrategyExtension(
@@ -50,7 +60,9 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
             _exchangeNames,
             _exchangeSettings
         )
-    {}
+    {
+        lendingPoolAddressesProvider = _lendingPoolAddressesProvider;
+    }
 
     /**
      * OPERATOR ONLY: Set eMode categoryId to new value
@@ -58,6 +70,7 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
      * @param _categoryId    eMode categoryId as defined on aaveV3
      */
     function setEModeCategory(uint8 _categoryId) external onlyOperator {
+        currentEModeCategoryId = _categoryId;
         _setEModeCategory(_categoryId);
     }
 
@@ -65,5 +78,42 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
         bytes memory setEmodeCallData =
             abi.encodeWithSignature("setEModeCategory(address,uint8)", address(strategy.setToken), _categoryId);
         invokeManager(address(strategy.leverageModule), setEmodeCallData);
+    }
+
+    function _calculateMaxBorrowCollateral(ActionInfo memory _actionInfo, bool _isLever) internal override view returns(uint256) {
+        
+        (uint256 maxLtvRaw, uint256 liquidationThresholdRaw) = _getLtvAndLiquidationThreshold();
+
+        // Normalize LTV and liquidation threshold to precise units. LTV is measured in 4 decimals in Aave which is why we must multiply by 1e14
+        // for example ETH has an LTV value of 8000 which represents 80%
+        if (_isLever) {
+            uint256 netBorrowLimit = _actionInfo.collateralValue
+                .preciseMul(maxLtvRaw.mul(10 ** 14))
+                .preciseMul(PreciseUnitMath.preciseUnit().sub(execution.unutilizedLeveragePercentage));
+
+            return netBorrowLimit
+                .sub(_actionInfo.borrowValue)
+                .preciseDiv(_actionInfo.collateralPrice);
+        } else {
+            uint256 netRepayLimit = _actionInfo.collateralValue
+                .preciseMul(liquidationThresholdRaw.mul(10 ** 14))
+                .preciseMul(PreciseUnitMath.preciseUnit().sub(execution.unutilizedLeveragePercentage));
+
+            return _actionInfo.collateralBalance
+                .preciseMul(netRepayLimit.sub(_actionInfo.borrowValue))
+                .preciseDiv(netRepayLimit);
+        }
+    }
+
+    function _getLtvAndLiquidationThreshold() internal view returns(uint256, uint256) {
+        if(currentEModeCategoryId != 0 ) {
+            // Retrieve collateral factor and liquidation threshold for the collateral asset in precise units (1e16 = 1%)
+            DataTypes.EModeCategory memory emodeData = IPool(lendingPoolAddressesProvider.getPool()).getEModeCategoryData(currentEModeCategoryId);
+            return (emodeData.ltv, emodeData.liquidationThreshold);
+        } else {
+            ( , uint256 maxLtvRaw, uint256 liquidationThresholdRaw, , , , , , ,) = strategy.aaveProtocolDataProvider.getReserveConfigurationData(address(strategy.collateralAsset));
+            return (maxLtvRaw, liquidationThresholdRaw);
+        }
+
     }
 }

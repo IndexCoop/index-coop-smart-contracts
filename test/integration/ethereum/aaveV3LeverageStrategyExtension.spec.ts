@@ -392,6 +392,7 @@ if (process.env.INTEGRATIONTEST) {
         incentive,
         [exchangeName],
         [exchangeSettings],
+        contractAddresses.aaveV3AddressProvider,
       );
 
       // Add adapter
@@ -406,10 +407,12 @@ if (process.env.INTEGRATIONTEST) {
       let subjectIncentiveSettings: IncentiveSettings;
       let subjectExchangeName: string;
       let subjectExchangeSettings: ExchangeSettings;
+      let subjectAaveAddressesProvider: string;
 
       cacheBeforeEach(initializeRootScopeContracts);
 
       beforeEach(async () => {
+        subjectAaveAddressesProvider = contractAddresses.aaveV3AddressProvider;
         subjectManagerAddress = baseManagerV2.address;
         subjectContractSettings = {
           setToken: setToken.address,
@@ -463,6 +466,7 @@ if (process.env.INTEGRATIONTEST) {
           subjectIncentiveSettings,
           [subjectExchangeName],
           [subjectExchangeSettings],
+          subjectAaveAddressesProvider,
         );
       }
 

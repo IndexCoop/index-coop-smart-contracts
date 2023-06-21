@@ -1092,7 +1092,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
      *
      * return uint256          Max borrow notional denominated in collateral asset
      */
-    function _calculateMaxBorrowCollateral(ActionInfo memory _actionInfo, bool _isLever) internal view returns(uint256) {
+    function _calculateMaxBorrowCollateral(ActionInfo memory _actionInfo, bool _isLever) internal virtual view returns(uint256) {
         
         // Retrieve collateral factor and liquidation threshold for the collateral asset in precise units (1e16 = 1%)
         ( , uint256 maxLtvRaw, uint256 liquidationThresholdRaw, , , , , , ,) = strategy.aaveProtocolDataProvider.getReserveConfigurationData(address(strategy.collateralAsset));
