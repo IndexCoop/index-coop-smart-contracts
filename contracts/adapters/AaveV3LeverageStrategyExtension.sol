@@ -96,8 +96,7 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
                 .preciseDiv(_actionInfo.collateralPrice);
         } else {
             uint256 netRepayLimit = _actionInfo.collateralValue
-                .preciseMul(liquidationThresholdRaw.mul(10 ** 14))
-                .preciseMul(PreciseUnitMath.preciseUnit().sub(execution.unutilizedLeveragePercentage));
+                .preciseMul(liquidationThresholdRaw.mul(10 ** 14));
 
             return _actionInfo.collateralBalance
                 .preciseMul(netRepayLimit.sub(_actionInfo.borrowValue))
