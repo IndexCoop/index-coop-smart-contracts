@@ -80,6 +80,21 @@ export function calculateMaxBorrowForDelever(
   return preciseDiv(a, netBorrowLimit);
 }
 
+export function calculateMaxBorrowForDeleverV3(
+  collateralBalance: BigNumber,
+  collateralFactor: BigNumber,
+  collateralPrice: BigNumber,
+  borrowPrice: BigNumber,
+  borrowBalance: BigNumber,
+): BigNumber {
+  const collateralValue = preciseMul(collateralBalance, collateralPrice);
+  const borrowValue = preciseMul(borrowBalance, borrowPrice);
+  const netBorrowLimit = preciseMul(collateralValue, collateralFactor);
+  const a = preciseMul(collateralBalance, netBorrowLimit.sub(borrowValue));
+
+  return preciseDiv(a, netBorrowLimit);
+}
+
 export function calculateMaxRedeemForDeleverToZero(
   currentLeverageRatio: BigNumber,
   newLeverageRatio: BigNumber,

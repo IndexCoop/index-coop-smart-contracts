@@ -56,7 +56,7 @@ import {
   preciseMul,
   calculateNewLeverageRatio,
   calculateCollateralRebalanceUnits,
-  calculateMaxBorrowForDelever,
+  calculateMaxBorrowForDeleverV3,
   calculateMaxRedeemForDeleverToZero,
 } from "@utils/index";
 import { calculateTotalRebalanceNotionalAave } from "@utils/flexibleLeverageUtils/flexibleLeverage";
@@ -3045,10 +3045,9 @@ if (process.env.INTEGRATIONTEST) {
             const currentPositions = await setToken.getPositions();
             const newFirstPosition = (await setToken.getPositions())[0];
 
-            const maxRedeemCollateral = calculateMaxBorrowForDelever(
+            const maxRedeemCollateral = calculateMaxBorrowForDeleverV3(
               previousCollateralBalance,
               collateralFactor,
-              execution.unutilizedLeveragePercentage,
               collateralPrice,
               borrowPrice,
               previousBorrowBalance,
@@ -3514,7 +3513,7 @@ if (process.env.INTEGRATIONTEST) {
 
             // Clear balance of WETH from exchange contract from engage
             await tradeAdapterMock.withdraw(weth.address);
-            const sendQuantity = ether(0.91);
+            const sendQuantity = ether(0.92);
             await weth.transfer(tradeAdapterMock.address, sendQuantity);
 
             const newExchangeSettings: ExchangeSettings = {
@@ -3565,10 +3564,9 @@ if (process.env.INTEGRATIONTEST) {
             const currentPositions = await setToken.getPositions();
             const newFirstPosition = (await setToken.getPositions())[0];
 
-            const maxRedeemCollateral = calculateMaxBorrowForDelever(
+            const maxRedeemCollateral = calculateMaxBorrowForDeleverV3(
               previousCollateralBalance,
               collateralFactor,
-              execution.unutilizedLeveragePercentage,
               collateralPrice,
               borrowPrice,
               previousBorrowBalance,
