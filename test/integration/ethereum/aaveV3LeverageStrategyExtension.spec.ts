@@ -2754,6 +2754,45 @@ if (process.env.INTEGRATIONTEST) {
             .ripcord(subjectExchangeName);
         }
 
+        describe("When borrowValue > collateralValue * liquidationThreshold * (1 - unutilizedLeveragPercentage)", () => {
+          let borrowPriceThreshold: BigNumber;
+
+          beforeEach(async () => {
+            const strategy = await leverageStrategyExtension.getStrategy();
+            const collateralPriceRaw = await chainlinkCollateralPriceMock.latestAnswer();
+            const collateralPrice = collateralPriceRaw.mul(strategy.collateralDecimalAdjustment);
+            const collateralBalance = await aWsteth.balanceOf(setToken.address);
+            const borrowBalance = await wethVariableDebtToken.balanceOf(setToken.address);
+            const executionSettings = await leverageStrategyExtension.getExecution();
+            const unutilizedLeveragePercentage = executionSettings.unutilizedLeveragePercentage;
+            const [
+              ,
+              ,
+              liquidationThresholdRaw,
+            ] = await protocolDataProvider.getReserveConfigurationData(wsteth.address);
+            const liquidationThreshold = liquidationThresholdRaw.mul(10 ** 14);
+            const collateralValue = preciseMul(collateralPrice, collateralBalance);
+            const collateralFactor = preciseMul(
+              liquidationThreshold,
+              ether(1).sub(unutilizedLeveragePercentage),
+            );
+            const borrowValueThreshold = preciseMul(collateralValue, collateralFactor);
+
+            borrowPriceThreshold = preciseDiv(borrowValueThreshold, borrowBalance).div(
+              strategy.borrowDecimalAdjustment,
+            );
+            await chainlinkBorrowPriceMock.setPrice(borrowPriceThreshold.mul(1001).div(1000));
+          });
+
+          it("should set the global last trade timestamp", async () => {
+            await subject();
+
+            const lastTradeTimestamp = await leverageStrategyExtension.globalLastTradeTimestamp();
+
+            expect(lastTradeTimestamp).to.eq(await getLastBlockTimestamp());
+          });
+        });
+
         it("should set the global last trade timestamp", async () => {
           await subject();
 
