@@ -59,7 +59,7 @@ import {
   calculateMaxBorrowForDeleverV3,
   calculateMaxRedeemForDeleverToZero,
 } from "@utils/index";
-import { calculateTotalRebalanceNotionalAave } from "@utils/flexibleLeverageUtils/flexibleLeverage";
+import { calculateTotalRebalanceNotionalAaveV3 } from "@utils/flexibleLeverageUtils/flexibleLeverage";
 
 const expect = getWaffleExpect();
 const provider = ethers.provider;
@@ -5057,7 +5057,7 @@ if (process.env.INTEGRATIONTEST) {
 
             const newLeverageRatio = methodology.maxLeverageRatio;
             const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
-            const expectedTotalRebalance = await calculateTotalRebalanceNotionalAave(
+            const expectedTotalRebalance = await calculateTotalRebalanceNotionalAaveV3(
               setToken,
               aWsteth,
               currentLeverageRatio,
@@ -5082,7 +5082,7 @@ if (process.env.INTEGRATIONTEST) {
 
             const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
             const newLeverageRatio = await leverageStrategyExtension.twapLeverageRatio();
-            const expectedTotalRebalance = await calculateTotalRebalanceNotionalAave(
+            const expectedTotalRebalance = await calculateTotalRebalanceNotionalAaveV3(
               setToken,
               aWsteth,
               currentLeverageRatio,
@@ -5116,7 +5116,7 @@ if (process.env.INTEGRATIONTEST) {
 
             const newLeverageRatio = methodology.maxLeverageRatio;
             const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
-            const expectedTotalRebalance = await calculateTotalRebalanceNotionalAave(
+            const expectedTotalRebalance = await calculateTotalRebalanceNotionalAaveV3(
               setToken,
               aWsteth,
               currentLeverageRatio,
@@ -5146,7 +5146,7 @@ if (process.env.INTEGRATIONTEST) {
               methodology.maxLeverageRatio,
               methodology.recenteringSpeed,
             );
-            const expectedTotalRebalance = await calculateTotalRebalanceNotionalAave(
+            const expectedTotalRebalance = await calculateTotalRebalanceNotionalAaveV3(
               setToken,
               aWsteth,
               currentLeverageRatio,
@@ -5176,7 +5176,7 @@ if (process.env.INTEGRATIONTEST) {
               methodology.maxLeverageRatio,
               methodology.recenteringSpeed,
             );
-            const expectedTotalRebalance = await calculateTotalRebalanceNotionalAave(
+            const expectedTotalRebalance = await calculateTotalRebalanceNotionalAaveV3(
               setToken,
               aWsteth,
               currentLeverageRatio,
@@ -5206,7 +5206,7 @@ if (process.env.INTEGRATIONTEST) {
               methodology.maxLeverageRatio,
               methodology.recenteringSpeed,
             );
-            const totalCollateralRebalance = await calculateTotalRebalanceNotionalAave(
+            const totalCollateralRebalance = await calculateTotalRebalanceNotionalAaveV3(
               setToken,
               aWsteth,
               currentLeverageRatio,

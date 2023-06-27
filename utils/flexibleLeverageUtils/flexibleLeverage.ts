@@ -57,9 +57,23 @@ export async function calculateTotalRebalanceNotionalAave(
 
   const collateralBalance = await aToken.balanceOf(setToken.address);
   const a = currentLeverageRatio.gt(newLeverageRatio) ? currentLeverageRatio.sub(newLeverageRatio) : newLeverageRatio.sub(currentLeverageRatio);
+  const b = preciseDiv(a, currentLeverageRatio);
+  return preciseMul(b, collateralBalance);
+}
+
+export async function calculateTotalRebalanceNotionalAaveV3(
+  setToken: SetToken,
+  aToken: IAToken | AaveV2AToken | IERC20,
+  currentLeverageRatio: BigNumber,
+  newLeverageRatio: BigNumber
+): Promise<BigNumber> {
+
+  const collateralBalance = await aToken.balanceOf(setToken.address);
+  const a = currentLeverageRatio.gt(newLeverageRatio) ? currentLeverageRatio.sub(newLeverageRatio) : newLeverageRatio.sub(currentLeverageRatio);
   const b = preciseMul(a, collateralBalance);
   return preciseDiv(b, currentLeverageRatio);
 }
+
 
 export function calculateMaxBorrowForDelever(
   collateralBalance: BigNumber,
