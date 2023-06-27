@@ -37,8 +37,11 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  *
  */
 contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
+
     uint8 public currentEModeCategoryId;
     IPoolAddressesProvider public lendingPoolAddressesProvider;
+    uint256 public maxOraclePriceAge;
+
     constructor(
         IBaseManager _manager,
         ContractSettings memory _strategy,
@@ -47,8 +50,8 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
         IncentiveSettings memory _incentive,
         string[] memory _exchangeNames,
         ExchangeSettings[] memory _exchangeSettings,
-        IPoolAddressesProvider _lendingPoolAddressesProvider
-
+        IPoolAddressesProvider _lendingPoolAddressesProvider,
+        uint256 _maxOraclePriceAge
     )
         public
         AaveLeverageStrategyExtension(
@@ -62,6 +65,7 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
         )
     {
         lendingPoolAddressesProvider = _lendingPoolAddressesProvider;
+        maxOraclePriceAge = _maxOraclePriceAge;
     }
 
     /**
@@ -184,8 +188,10 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
     }
 
     function _getAssetPrice(IChainlinkAggregatorV3 _priceOracle, uint256 _decimalAdjustment) internal view returns (uint256) {
-        (,int256 rawPrice,,,) = _priceOracle.latestRoundData();
-        // TODO: Add check for stale price
+        (,int256 rawPrice,, uint256 updatedAt,) = _priceOracle.latestRoundData();
+        if(maxOraclePriceAge > 0) {
+            require(updatedAt > block.timestamp.sub(maxOraclePriceAge), "Price data is stale");
+        }
         return rawPrice.toUint256().mul(10 ** _decimalAdjustment);
     }
 
