@@ -23,6 +23,7 @@ import { Math } from "@openzeppelin/contracts/math/Math.sol";
 
 import {AaveLeverageStrategyExtension} from "./AaveLeverageStrategyExtension.sol";
 import {IBaseManager} from "../interfaces/IBaseManager.sol";
+import { IChainlinkAggregatorV3 } from "../interfaces/IChainlinkAggregatorV3.sol";
 import {IPool} from "../interfaces/IPool.sol";
 import {IPoolAddressesProvider} from "../interfaces/IPoolAddressesProvider.sol";
 import { DataTypes } from "../interfaces/Datatypes.sol";
@@ -158,4 +159,34 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
 
         return (chunkRebalanceNotional, totalRebalanceNotional);
     }
+
+        /**
+     * Create the action info struct to be used in internal functions
+     *
+     * return ActionInfo                Struct containing data used by internal lever and delever functions
+     */
+    function _createActionInfo() internal view override returns(ActionInfo memory) {
+        ActionInfo memory rebalanceInfo;
+
+        // Calculate prices from chainlink. Chainlink returns prices with 8 decimal places, but we need 36 - underlyingDecimals decimal places.
+        // This is so that when the underlying amount is multiplied by the received price, the collateral valuation is normalized to 36 decimals. 
+        // To perform this adjustment, we multiply by 10^(36 - 8 - underlyingDecimals)
+        rebalanceInfo.collateralPrice = _getAssetPrice(strategy.collateralPriceOracle, strategy.collateralDecimalAdjustment);
+        rebalanceInfo.borrowPrice = _getAssetPrice(strategy.borrowPriceOracle, strategy.borrowDecimalAdjustment);
+
+        rebalanceInfo.collateralBalance = strategy.targetCollateralAToken.balanceOf(address(strategy.setToken));
+        rebalanceInfo.borrowBalance = strategy.targetBorrowDebtToken.balanceOf(address(strategy.setToken));
+        rebalanceInfo.collateralValue = rebalanceInfo.collateralPrice.preciseMul(rebalanceInfo.collateralBalance);
+        rebalanceInfo.borrowValue = rebalanceInfo.borrowPrice.preciseMul(rebalanceInfo.borrowBalance);
+        rebalanceInfo.setTotalSupply = strategy.setToken.totalSupply();
+
+        return rebalanceInfo;
+    }
+
+    function _getAssetPrice(IChainlinkAggregatorV3 _priceOracle, uint256 _decimalAdjustment) internal view returns (uint256) {
+        (,int256 rawPrice,,,) = _priceOracle.latestRoundData();
+        // TODO: Add check for stale price
+        return rawPrice.toUint256().mul(10 ** _decimalAdjustment);
+    }
+
 }

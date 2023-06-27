@@ -886,7 +886,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
      *
      * return ActionInfo                Struct containing data used by internal lever and delever functions
      */
-    function _createActionInfo() internal view returns(ActionInfo memory) {
+    function _createActionInfo() internal view virtual returns(ActionInfo memory) {
         ActionInfo memory rebalanceInfo;
 
         // Calculate prices from chainlink. Chainlink returns prices with 8 decimal places, but we need 36 - underlyingDecimals decimal places.

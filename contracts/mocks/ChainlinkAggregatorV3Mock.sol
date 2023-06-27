@@ -17,4 +17,14 @@ contract ChainlinkAggregatorV3Mock {
     function latestAnswer() external view returns (int256) {
         return latestPrice;
     }
+
+    function latestRoundData() external view returns (
+        uint80 roundId,
+        int256 answer,
+        uint256 startedAt,
+        uint256 updatedAt,
+        uint80 answeredInRound
+    ) {
+        return (0, latestPrice, block.timestamp - 10, block.timestamp - 1, 0);
+    }
 }
