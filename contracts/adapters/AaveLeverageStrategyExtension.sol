@@ -915,6 +915,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
         IncentiveSettings memory _incentive
     )
         internal
+        virtual
         pure
     {
         require (

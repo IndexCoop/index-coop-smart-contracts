@@ -115,4 +115,17 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
         }
 
     }
+
+    function _validateNonExchangeSettings(
+        MethodologySettings memory _methodology,
+        ExecutionSettings memory _execution,
+        IncentiveSettings memory _incentive
+    )
+        internal
+        override
+        pure
+    {
+        super._validateNonExchangeSettings(_methodology, _execution, _incentive);
+        require(_methodology.targetLeverageRatio >= 1 ether, "Target leverage ratio must be >= 1e18");
+    }
 }

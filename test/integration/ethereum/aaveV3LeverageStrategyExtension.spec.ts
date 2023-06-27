@@ -3747,11 +3747,11 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when targetLeverageRatio < 1 ", () => {
           beforeEach(() => {
-            subjectMethodologySettings.targetLeverageRatio = ether(0.9);
+            subjectMethodologySettings.targetLeverageRatio = ether(0.99);
             subjectMethodologySettings.minLeverageRatio = ether(0.89);
           });
           it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("Target leverage ratio must be > 1");
+            await expect(subject()).to.be.revertedWith("Target leverage ratio must be >= 1e18");
           });
         });
         it("should set the correct methodology parameters", async () => {
