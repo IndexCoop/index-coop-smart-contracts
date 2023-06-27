@@ -1061,6 +1061,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
     )
         internal
         view
+        virtual
         returns (uint256, uint256)
     {
         // Calculate absolute value of difference between new and current leverage ratio

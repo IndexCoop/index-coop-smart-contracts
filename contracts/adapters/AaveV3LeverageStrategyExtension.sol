@@ -19,14 +19,13 @@
 pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
-import {AaveLeverageStrategyExtension} from "./AaveLeverageStrategyExtension.sol";
+import { Math } from "@openzeppelin/contracts/math/Math.sol";
 
+import {AaveLeverageStrategyExtension} from "./AaveLeverageStrategyExtension.sol";
 import {IBaseManager} from "../interfaces/IBaseManager.sol";
 import {IPool} from "../interfaces/IPool.sol";
 import {IPoolAddressesProvider} from "../interfaces/IPoolAddressesProvider.sol";
 import { DataTypes } from "../interfaces/Datatypes.sol";
-
-
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 /**
@@ -132,7 +131,31 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
     function _calculateMinRepayUnits(uint256 _collateralRebalanceUnits, uint256 _slippageTolerance, ActionInfo memory _actionInfo) internal override pure returns (uint256) {
         return _collateralRebalanceUnits
             .preciseMul(_actionInfo.collateralPrice)
-            .preciseMul(PreciseUnitMath.preciseUnit().sub(_slippageTolerance))
+            .preciseMul(PreciseUnitMath.preciseUnit().sub(_slippageTolerance)) // Changed order of mul / div here
             .preciseDiv(_actionInfo.borrowPrice);
+    }
+
+    function _calculateChunkRebalanceNotional(
+        LeverageInfo memory _leverageInfo,
+        uint256 _newLeverageRatio,
+        bool _isLever
+    )
+        internal
+        view
+        override
+        returns (uint256, uint256)
+    {
+        // Calculate absolute value of difference between new and current leverage ratio
+        uint256 leverageRatioDifference = _isLever ? _newLeverageRatio.sub(_leverageInfo.currentLeverageRatio) : _leverageInfo.currentLeverageRatio.sub(_newLeverageRatio);
+
+        uint256 totalRebalanceNotional = leverageRatioDifference
+            .preciseMul(_leverageInfo.action.collateralBalance) // Changed order of mul / div here
+            .preciseDiv(_leverageInfo.currentLeverageRatio);
+
+        uint256 maxBorrow = _calculateMaxBorrowCollateral(_leverageInfo.action, _isLever);
+
+        uint256 chunkRebalanceNotional = Math.min(Math.min(maxBorrow, totalRebalanceNotional), _leverageInfo.twapMaxTradeSize);
+
+        return (chunkRebalanceNotional, totalRebalanceNotional);
     }
 }

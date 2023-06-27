@@ -57,8 +57,8 @@ export async function calculateTotalRebalanceNotionalAave(
 
   const collateralBalance = await aToken.balanceOf(setToken.address);
   const a = currentLeverageRatio.gt(newLeverageRatio) ? currentLeverageRatio.sub(newLeverageRatio) : newLeverageRatio.sub(currentLeverageRatio);
-  const b = preciseDiv(a, currentLeverageRatio);
-  return preciseMul(b, collateralBalance);
+  const b = preciseMul(a, collateralBalance);
+  return preciseDiv(b, currentLeverageRatio);
 }
 
 export function calculateMaxBorrowForDelever(
