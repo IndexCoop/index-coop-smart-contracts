@@ -128,4 +128,11 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
         super._validateNonExchangeSettings(_methodology, _execution, _incentive);
         require(_methodology.targetLeverageRatio >= 1 ether, "Target leverage ratio must be >= 1e18");
     }
+
+    function _calculateMinRepayUnits(uint256 _collateralRebalanceUnits, uint256 _slippageTolerance, ActionInfo memory _actionInfo) internal override pure returns (uint256) {
+        return _collateralRebalanceUnits
+            .preciseMul(_actionInfo.collateralPrice)
+            .preciseMul(PreciseUnitMath.preciseUnit().sub(_slippageTolerance))
+            .preciseDiv(_actionInfo.borrowPrice);
+    }
 }

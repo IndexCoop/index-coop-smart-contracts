@@ -1145,7 +1145,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
      *
      * return uint256           Min position units to repay in borrow asset
      */
-    function _calculateMinRepayUnits(uint256 _collateralRebalanceUnits, uint256 _slippageTolerance, ActionInfo memory _actionInfo) internal pure returns (uint256) {
+    function _calculateMinRepayUnits(uint256 _collateralRebalanceUnits, uint256 _slippageTolerance, ActionInfo memory _actionInfo) internal virtual pure returns (uint256) {
         return _collateralRebalanceUnits
             .preciseMul(_actionInfo.collateralPrice)
             .preciseDiv(_actionInfo.borrowPrice)
