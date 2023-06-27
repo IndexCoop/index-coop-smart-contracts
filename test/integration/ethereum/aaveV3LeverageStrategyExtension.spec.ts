@@ -3745,6 +3745,15 @@ if (process.env.INTEGRATIONTEST) {
         cacheBeforeEach(initializeRootScopeContracts);
         beforeEach(initializeSubjectVariables);
 
+        describe("when targetLeverageRatio < 1 ", () => {
+          beforeEach(() => {
+            subjectMethodologySettings.targetLeverageRatio = ether(0.9);
+            subjectMethodologySettings.minLeverageRatio = ether(0.89);
+          });
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("Target leverage ratio must be > 1");
+          });
+        });
         it("should set the correct methodology parameters", async () => {
           await subject();
           const methodology = await leverageStrategyExtension.getMethodology();
