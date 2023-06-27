@@ -5,6 +5,7 @@ pragma solidity 0.6.10;
 contract ChainlinkAggregatorV3Mock {
 
     int256 private latestPrice;
+    uint256 private priceAge;
 
     constructor() public {
         latestPrice = 0;
@@ -18,6 +19,10 @@ contract ChainlinkAggregatorV3Mock {
         return latestPrice;
     }
 
+    function setPriceAge(uint256 _priceAge) external {
+        priceAge = _priceAge;
+    }
+
     function latestRoundData() external view returns (
         uint80 roundId,
         int256 answer,
@@ -25,6 +30,8 @@ contract ChainlinkAggregatorV3Mock {
         uint256 updatedAt,
         uint80 answeredInRound
     ) {
-        return (0, latestPrice, block.timestamp - 10, block.timestamp - 1, 0);
+        answer = latestPrice;
+        updatedAt = block.timestamp - priceAge;
+        startedAt = updatedAt - 1;
     }
 }

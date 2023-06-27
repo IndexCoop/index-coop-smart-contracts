@@ -472,7 +472,7 @@ if (process.env.INTEGRATIONTEST) {
           [subjectExchangeName],
           [subjectExchangeSettings],
           subjectAaveAddressesProvider,
-            subjectMaxOraclePriceAge,
+          subjectMaxOraclePriceAge,
         );
       }
 
@@ -1737,6 +1737,30 @@ if (process.env.INTEGRATIONTEST) {
             );
             sendQuantity = ether(0.1);
             await weth.transfer(tradeAdapterMock.address, sendQuantity);
+          });
+
+          describe("when collateralPrice is outdated", async () => {
+            beforeEach(async () => {
+              await chainlinkCollateralPriceMock.setPriceAge(
+                maxOraclePriceAge + 1,
+              );
+            });
+
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith("Price data is stale");
+            });
+          });
+
+          describe("when borrowPrice is outdated", async () => {
+            beforeEach(async () => {
+              await chainlinkBorrowPriceMock.setPriceAge(
+                maxOraclePriceAge + 1,
+              );
+            });
+
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith("Price data is stale");
+            });
           });
 
           it("should set the last trade timestamp", async () => {
