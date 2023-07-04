@@ -3768,10 +3768,13 @@ if (process.env.INTEGRATIONTEST) {
       let subjectOverrideNoRebalanceInProgress: boolean;
       let subjectCaller: Account;
 
-      beforeEach(() => {
+      const initializeSubjectVariables = () => {
         subjectOverrideNoRebalanceInProgress = true;
         subjectCaller = owner;
-      });
+      };
+
+      cacheBeforeEach(initializeRootScopeContracts);
+      beforeEach(initializeSubjectVariables);
 
       async function subject(): Promise<any> {
         leverageStrategyExtension = leverageStrategyExtension.connect(subjectCaller.wallet);
@@ -3786,12 +3789,12 @@ if (process.env.INTEGRATIONTEST) {
         expect(isOverride).to.eq(subjectOverrideNoRebalanceInProgress);
       });
 
-      describe("when caller is not the owner", () => {
+      describe("when caller is not the operator", () => {
         beforeEach(() => {
           subjectCaller = nonOwner;
         });
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Must be the owner");
+          await expect(subject()).to.be.revertedWith("Must be operator");
         });
       });
       describe("when disabling override", () => {
