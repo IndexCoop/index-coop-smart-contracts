@@ -189,7 +189,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
     /**
      * Throws if rebalance is currently in TWAP`
      */
-    modifier noRebalanceInProgress() {
+    modifier noRebalanceInProgress() virtual {
         require(twapLeverageRatio == 0, "Rebalance is currently in progress");
         _;
     }

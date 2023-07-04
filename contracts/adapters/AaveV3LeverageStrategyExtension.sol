@@ -41,6 +41,7 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
     uint8 public currentEModeCategoryId;
     IPoolAddressesProvider public lendingPoolAddressesProvider;
     uint256 public maxOraclePriceAge;
+    bool public overrideNoRebalanceInProgress;
 
     constructor(
         IBaseManager _manager,
@@ -66,6 +67,28 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
     {
         lendingPoolAddressesProvider = _lendingPoolAddressesProvider;
         maxOraclePriceAge = _maxOraclePriceAge;
+    }
+
+    /* ============ Modifiers ============ */
+
+    /**
+     * Throws if rebalance is currently in TWAP` can be overriden by the operator
+     */
+    modifier noRebalanceInProgress() override {
+        if(!overrideNoRebalanceInProgress) {
+            require(twapLeverageRatio == 0, "Rebalance is currently in progress");
+        }
+        _;
+    }
+
+
+    /**
+     * OPERATOR ONLY: Enable/Disable override of noRebalanceInProgress modifier
+     *
+     * @param _overrideNoRebalanceInProgress  Boolean indicating wether to enable / disable override
+     */
+    function setOverrideNoRebalanceInProgress(bool _overrideNoRebalanceInProgress) external onlyOperator {
+        overrideNoRebalanceInProgress = _overrideNoRebalanceInProgress;
     }
 
     /**

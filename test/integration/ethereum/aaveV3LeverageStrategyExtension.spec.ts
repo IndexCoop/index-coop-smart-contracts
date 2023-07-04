@@ -114,6 +114,7 @@ const whales = {
 if (process.env.INTEGRATIONTEST) {
   describe("AaveV3LeverageStrategyExtension", () => {
     let owner: Account;
+    let nonOwner: Account;
     let methodologist: Account;
 
     let deployer: DeployHelper;
@@ -158,7 +159,7 @@ if (process.env.INTEGRATIONTEST) {
     let chainlinkBorrowPriceMock: ChainlinkAggregatorV3Mock;
 
     cacheBeforeEach(async () => {
-      [owner, methodologist] = await getAccounts();
+      [owner, methodologist, nonOwner] = await getAccounts();
       deployer = new DeployHelper(owner.wallet);
 
       lendingPool = IPool__factory.connect(contractAddresses.aaveV3Pool, owner.wallet);
@@ -475,6 +476,14 @@ if (process.env.INTEGRATIONTEST) {
           subjectMaxOraclePriceAge,
         );
       }
+
+      it("should set overrideNoRebalanceInProgress flag", async () => {
+        const retrievedAdapter = await subject();
+
+        const overrideNoRebalanceInProgress = await retrievedAdapter.overrideNoRebalanceInProgress();
+
+        expect(overrideNoRebalanceInProgress).to.be.false;
+      });
 
       it("should set the maxOraclePriceAge", async () => {
         const retrievedAdapter = await subject();
@@ -1741,9 +1750,7 @@ if (process.env.INTEGRATIONTEST) {
 
           describe("when collateralPrice is outdated", async () => {
             beforeEach(async () => {
-              await chainlinkCollateralPriceMock.setPriceAge(
-                maxOraclePriceAge + 1,
-              );
+              await chainlinkCollateralPriceMock.setPriceAge(maxOraclePriceAge + 1);
             });
 
             it("should revert", async () => {
@@ -1753,9 +1760,7 @@ if (process.env.INTEGRATIONTEST) {
 
           describe("when borrowPrice is outdated", async () => {
             beforeEach(async () => {
-              await chainlinkBorrowPriceMock.setPriceAge(
-                maxOraclePriceAge + 1,
-              );
+              await chainlinkBorrowPriceMock.setPriceAge(maxOraclePriceAge + 1);
             });
 
             it("should revert", async () => {
@@ -3759,6 +3764,51 @@ if (process.env.INTEGRATIONTEST) {
       );
     });
 
+    describe("#setOverrideNoRebalanceInProgress", async () => {
+      let subjectOverrideNoRebalanceInProgress: boolean;
+      let subjectCaller: Account;
+
+      beforeEach(() => {
+        subjectOverrideNoRebalanceInProgress = true;
+        subjectCaller = owner;
+      });
+
+      async function subject(): Promise<any> {
+        leverageStrategyExtension = leverageStrategyExtension.connect(subjectCaller.wallet);
+        return leverageStrategyExtension.setOverrideNoRebalanceInProgress(
+          subjectOverrideNoRebalanceInProgress,
+        );
+      }
+
+      it("should set the flag correctly", async () => {
+        await subject();
+        const isOverride = await leverageStrategyExtension.overrideNoRebalanceInProgress();
+        expect(isOverride).to.eq(subjectOverrideNoRebalanceInProgress);
+      });
+
+      describe("when caller is not the owner", () => {
+        beforeEach(() => {
+          subjectCaller = nonOwner;
+        });
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Must be the owner");
+        });
+      });
+      describe("when disabling override", () => {
+        beforeEach(async () => {
+          subjectOverrideNoRebalanceInProgress = false;
+          await leverageStrategyExtension
+            .connect(owner.wallet)
+            .setOverrideNoRebalanceInProgress(true);
+        });
+        it("should set the flag correctly", async () => {
+          await subject();
+          const isOverride = await leverageStrategyExtension.overrideNoRebalanceInProgress();
+          expect(isOverride).to.eq(subjectOverrideNoRebalanceInProgress);
+        });
+      });
+    });
+
     describe("#setMethodologySettings", async () => {
       let subjectMethodologySettings: MethodologySettings;
       let subjectCaller: Account;
@@ -3923,6 +3973,26 @@ if (process.env.INTEGRATIONTEST) {
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("Rebalance is currently in progress");
         });
+
+        describe("when OverrideNoRebalanceInProgress is set to true", () => {
+          beforeEach(async () => {
+            await leverageStrategyExtension.setOverrideNoRebalanceInProgress(true);
+          });
+          it("should set the correct methodology parameters", async () => {
+            await subject();
+            const methodology = await leverageStrategyExtension.getMethodology();
+
+            expect(methodology.targetLeverageRatio).to.eq(
+              subjectMethodologySettings.targetLeverageRatio,
+            );
+            expect(methodology.minLeverageRatio).to.eq(subjectMethodologySettings.minLeverageRatio);
+            expect(methodology.maxLeverageRatio).to.eq(subjectMethodologySettings.maxLeverageRatio);
+            expect(methodology.recenteringSpeed).to.eq(subjectMethodologySettings.recenteringSpeed);
+            expect(methodology.rebalanceInterval).to.eq(
+              subjectMethodologySettings.rebalanceInterval,
+            );
+          });
+        });
       });
     });
 
@@ -4044,6 +4114,22 @@ if (process.env.INTEGRATIONTEST) {
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("Rebalance is currently in progress");
         });
+
+        describe("when OverrideNoRebalanceInProgress is set to true", () => {
+          beforeEach(async () => {
+            await leverageStrategyExtension.setOverrideNoRebalanceInProgress(true);
+          });
+          it("should set the correct execution parameters", async () => {
+            await subject();
+            const execution = await leverageStrategyExtension.getExecution();
+
+            expect(execution.unutilizedLeveragePercentage).to.eq(
+              subjectExecutionSettings.unutilizedLeveragePercentage,
+            );
+            expect(execution.twapCooldownPeriod).to.eq(subjectExecutionSettings.twapCooldownPeriod);
+            expect(execution.slippageTolerance).to.eq(subjectExecutionSettings.slippageTolerance);
+          });
+        });
       });
     });
 
@@ -4164,6 +4250,26 @@ if (process.env.INTEGRATIONTEST) {
 
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("Rebalance is currently in progress");
+        });
+        describe("when OverrideNoRebalanceInProgress is set to true", () => {
+          beforeEach(async () => {
+            await leverageStrategyExtension.setOverrideNoRebalanceInProgress(true);
+          });
+          it("should set the correct incentive parameters", async () => {
+            await subject();
+            const incentive = await leverageStrategyExtension.getIncentive();
+
+            expect(incentive.incentivizedTwapCooldownPeriod).to.eq(
+              subjectIncentiveSettings.incentivizedTwapCooldownPeriod,
+            );
+            expect(incentive.incentivizedSlippageTolerance).to.eq(
+              subjectIncentiveSettings.incentivizedSlippageTolerance,
+            );
+            expect(incentive.etherReward).to.eq(subjectIncentiveSettings.etherReward);
+            expect(incentive.incentivizedLeverageRatio).to.eq(
+              subjectIncentiveSettings.incentivizedLeverageRatio,
+            );
+          });
         });
       });
     });
