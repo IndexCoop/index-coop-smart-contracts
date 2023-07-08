@@ -35,6 +35,7 @@ import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__facto
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { ExchangeIssuanceLeveraged__factory } from "../../typechain/factories/ExchangeIssuanceLeveraged__factory";
+import { FlashMintLeveraged__factory } from "../../typechain/factories/FlashMintLeveraged__factory";
 import { FlashMintNotional__factory } from "../../typechain/factories/FlashMintNotional__factory";
 import { FlashMintLeveragedForCompound__factory } from "../../typechain/factories/FlashMintLeveragedForCompound__factory";
 import { FlashMintWrapped } from "../../typechain/FlashMintWrapped";
@@ -211,6 +212,50 @@ export default class DeployExtensions {
       curveAddressProviderAddress,
     );
   }
+
+  public async deployFlashMintLeveraged(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+    aaveLeveragedModuleAddress: Address,
+    aaveAddressProviderAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+    BalancerV2VaultAddress: Address,
+  ) {
+    const dexAdapter = await this.deployDEXAdapter();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
+    );
+
+    return await new FlashMintLeveraged__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      wethAddress,
+      quickRouterAddress,
+      sushiRouterAddress,
+      uniV3RouterAddress,
+      uniswapV3QuoterAddress,
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      aaveLeveragedModuleAddress,
+      aaveAddressProviderAddress,
+      curveCalculatorAddress,
+      curveAddressProviderAddress,
+      BalancerV2VaultAddress
+    );
+  }
+
 
   public async deployExchangeIssuanceLeveragedForCompound(
     wethAddress: Address,

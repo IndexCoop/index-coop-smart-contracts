@@ -32,6 +32,7 @@ export const PRODUCTION_ADDRESSES = {
       ethAddress: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
       pools: {
         stEthEth: "0xDC24316b9AE028F1497c275EB9192a3Ea0f67022",
+        rEthEth: "0x0f3159811670c117c372428D4E69AC32325e4D0F",
       },
     },
     sushiswap: {
@@ -43,6 +44,9 @@ export const PRODUCTION_ADDRESSES = {
     uniV3: {
       router: "0xE592427A0AEce92De3Edee1F18E0157C05861564",
       quoter: "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6",
+    },
+    balancerv2: {
+      vault: "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
     },
   },
   set: {
