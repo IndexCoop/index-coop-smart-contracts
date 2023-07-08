@@ -249,6 +249,69 @@ contract FlashMintLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
     }
 
     /**
+     * Gets the input cost of issuing a given amount of a set token. This
+     * function is not marked view, but should be static called from frontends.
+     * This constraint is due to the need to interact with the Uniswap V3 quoter
+     * contract and call sync on AaveLeverageModule. Note: If the two SwapData
+     * paths contain the same tokens, there will be a slight error introduced
+     * in the result.
+     *
+     * @param _setToken                     the set token to issue
+     * @param _setAmount                    amount of set tokens
+     * @param _swapDataDebtForCollateral    swap data for the debt to collateral swap
+     * @param _swapDataInputForCollateral   swap data for the input token to collateral swap
+     *
+     * @return                              the amount of input tokens required to perfrom the issuance
+     */
+    function getIssueExactSetBalancerV2(
+        ISetToken _setToken,
+        uint256 _setAmount,
+        IVault.BatchSwapStep[] memory _swapDataDebtForCollateral,
+        address[] memory _debtSwapAssets,
+        IVault.BatchSwapStep[] memory _swapDataInputForCollateral,
+        address[] memory _inputSwapAssets
+    )
+        external
+        returns (uint256)
+    {
+        aaveLeverageModule.sync(_setToken);
+        LeveragedTokenData memory issueInfo = _getLeveragedTokenData(_setToken, _setAmount, true);        
+        uint256 collateralOwed = issueInfo.collateralAmount.preciseMul(1.0009 ether);
+
+        IVault.FundManagement memory fundManagement = IVault.FundManagement({
+            sender: address(this),
+            fromInternalBalance: false,
+            recipient: address(this),
+            toInternalBalance: false
+        });
+
+        _swapDataDebtForCollateral[0].amount = issueInfo.debtAmount;
+
+        int256[] memory assetDeltas = balancerV2Vault.queryBatchSwap(
+            IVault.SwapKind.GIVEN_IN,
+            _swapDataDebtForCollateral,
+            _debtSwapAssets,
+            fundManagement
+                );
+        uint256 borrowSaleProceeds = abs(assetDeltas[_swapDataDebtForCollateral[_swapDataDebtForCollateral.length -1 ].assetOutIndex]);
+        
+        collateralOwed = collateralOwed.sub(borrowSaleProceeds);
+        if(_inputSwapAssets.length == 0) return collateralOwed;
+
+        _swapDataInputForCollateral[_swapDataInputForCollateral.length -1 ].amount = collateralOwed;
+    
+
+        assetDeltas = balancerV2Vault.queryBatchSwap(
+            IVault.SwapKind.GIVEN_OUT,
+            _swapDataInputForCollateral,
+            _inputSwapAssets,
+            fundManagement
+                );
+
+        return abs(assetDeltas[_swapDataInputForCollateral[0].assetInIndex]);
+    }
+
+    /**
      * Gets the proceeds of a redemption of a given amount of a set token. This
      * function is not marked view, but should be static called from frontends.
      * This constraint is due to the need to interact with the Uniswap V3 quoter
@@ -1271,4 +1334,10 @@ contract FlashMintLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         debtIssuanceModule.redeem(_setToken, _amount, address(this));
     }
 
+    /**  Returns the absolute value of x
+    * @param x The number to take the absolute value of
+    */
+    function abs(int256 x) internal pure returns (uint256) {
+        return x >= 0 ? uint256(x) : uint256(-x);
+    }
 }
