@@ -15,7 +15,6 @@ import {
 import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "./addresses";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { ether } from "@utils/index";
-import { formatEther } from "ethers/lib/utils";
 
 const expect = getWaffleExpect();
 
@@ -27,6 +26,11 @@ enum Exchange {
   Curve,
 }
 
+enum SwapKind {
+  DEXAdapter,
+  BalancerV2,
+}
+
 type SwapData = {
   path: Address[];
   fees: number[];
@@ -34,8 +38,62 @@ type SwapData = {
   exchange: Exchange;
 };
 
+type DexSwapData = {
+  collateralAndDebtSwapData: SwapData;
+  paymentTokenSwapData: SwapData;
+};
+
 type SwapSteps = Parameters<FlashMintLeveraged["getIssueExactSetBalancerV2"]>[2];
 type SwapAssets = Address[];
+
+type BalancerV2SwapData = {
+  collateralAndDebtSwapData: SwapSteps;
+  debtSwapAssets: SwapAssets;
+  paymentTokenSwapData: SwapSteps;
+  paymentSwapAssets: SwapAssets;
+};
+const swapDataType = [
+  { name: "path", type: "address[]" },
+  { name: "fees", type: "uint24[]" },
+  { name: "pool", type: "address" },
+  { name: "exchange", type: "uint8" },
+];
+
+const batchSwapStepType = [
+  { name: "poolId", type: "bytes32" },
+  { name: "assetInIndex", type: "uint256" },
+  { name: "assetOutIndex", type: "uint256" },
+  { name: "amount", type: "uint256" },
+  { name: "userData", type: "bytes" },
+];
+
+
+const dexAdapterSwapType =  ethers.utils.ParamType.from({
+  name: "DexAdapterSwap",
+  type: "tuple",
+  components: [
+      { name: "collateralAndDebtSwapData", type: "tuple", components: swapDataType },
+      { name: "paymentTokenSwapData", type: "tuple", components: swapDataType },
+  ],
+});
+
+const balancerSwapType = ethers.utils.ParamType.from({
+  name: "BalancerSwap",
+  type: "tuple",
+  components: [
+    { name: "collateralAndDebtSwapData", type: "tuple[]", components: batchSwapStepType },
+    { name: "debtSwapAssets", type: "address[]" },
+    { name: "paymentTokenSwapData", type: "tuple[]", components: batchSwapStepType },
+    { name: "paymentSwapAssets", type: "address[]" },
+  ],
+});
+
+
+const encodeSwapData = (swapData: BalancerV2SwapData | DexSwapData) => {
+  const swapType = "debtSwapAssets" in swapData ? balancerSwapType : dexAdapterSwapType;
+  return ethers.utils.defaultAbiCoder.encode([swapType], [swapData]);
+};
+
 
 if (process.env.INTEGRATIONTEST) {
   describe.only("FlashMintLeveraged - Integration Test", async () => {
@@ -207,7 +265,7 @@ if (process.env.INTEGRATIONTEST) {
                   swapDataDebtToCollateral = {
                     path: [addresses.dexes.curve.ethAddress, collateralTokenAddress],
                     fees: [],
-                    pool: addresses.dexes.curve.pools.rEthEth,
+                    pool: addresses.dexes.curve.pools.stEthEth,
                     exchange: Exchange.Curve,
                   };
 
@@ -283,8 +341,8 @@ if (process.env.INTEGRATIONTEST) {
                     return flashMintLeveraged.issueExactSetFromETH(
                       subjectSetToken,
                       subjectSetAmount,
-                      swapDataDebtToCollateral,
-                      swapDataInputToken,
+                      SwapKind.DEXAdapter,
+                      encodeSwapData({collateralAndDebtSwapData: swapDataDebtToCollateral, paymentTokenSwapData: swapDataInputToken}),
                       { value: subjectMaxAmountIn },
                     );
                   }
@@ -293,18 +351,18 @@ if (process.env.INTEGRATIONTEST) {
                     subjectSetAmount,
                     subjectInputToken,
                     subjectMaxAmountIn,
-                    swapDataDebtToCollateral,
-                    swapDataInputToken,
-                  );
+                    SwapKind.DEXAdapter,
+                    encodeSwapData({collateralAndDebtSwapData: swapDataDebtToCollateral, paymentTokenSwapData: swapDataInputToken}),
+                    );
                 }
 
                 async function subjectQuote() {
                   return flashMintLeveraged.callStatic.getIssueExactSet(
                     subjectSetToken,
                     subjectSetAmount,
-                    swapDataDebtToCollateral,
-                    swapDataInputToken
-                  );
+                    SwapKind.DEXAdapter,
+                    encodeSwapData({collateralAndDebtSwapData: swapDataDebtToCollateral, paymentTokenSwapData: swapDataInputToken}),
+                    );
                 }
 
                 async function subjectQuoteBalancer() {
@@ -317,7 +375,6 @@ if (process.env.INTEGRATIONTEST) {
                     inputToCollateralAssets
                   );
                 }
-
 
                 it("should issue the correct amount of tokens", async () => {
                   const setBalancebefore = await setToken.balanceOf(owner.address);
@@ -360,7 +417,7 @@ if (process.env.INTEGRATIONTEST) {
                   expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.01)));
                 });
 
-                it.only("should quote the correct input amount", async () => {
+                it("should quote the correct input amount", async () => {
                   // const inputBalanceBefore =
                   //   inputTokenName == "ETH"
                   //     ? await owner.wallet.getBalance()
@@ -376,12 +433,13 @@ if (process.env.INTEGRATIONTEST) {
                   const quotedInputAmountBalancer = await subjectQuoteBalancer();
 
 
-                  expect(formatEther(quotedInputAmount)).to.eq(formatEther(quotedInputAmountBalancer));
+                  expect(quotedInputAmount).to.eq(quotedInputAmountBalancer);
                   // expect(false).to.be.true;
 
                   // expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.99)));
                   // expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.01)));
                 });
+
               },
             );
 
@@ -403,8 +461,8 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSetToken,
                       subjectSetAmount,
                       subjectMinAmountOut,
-                      swapDataCollateralToDebt,
-                      swapDataOutputToken,
+                      SwapKind.DEXAdapter,
+                      encodeSwapData({collateralAndDebtSwapData: swapDataCollateralToDebt, paymentTokenSwapData: swapDataOutputToken}),
                     );
                   }
                   return flashMintLeveraged.redeemExactSetForERC20(
@@ -412,9 +470,9 @@ if (process.env.INTEGRATIONTEST) {
                     subjectSetAmount,
                     subjectOutputToken,
                     subjectMinAmountOut,
-                    swapDataCollateralToDebt,
-                    swapDataOutputToken,
-                  );
+                    SwapKind.DEXAdapter,
+                    encodeSwapData({collateralAndDebtSwapData: swapDataCollateralToDebt, paymentTokenSwapData: swapDataOutputToken}),
+                    );
                 }
 
                 async function subjectQuote(): Promise<BigNumber> {
