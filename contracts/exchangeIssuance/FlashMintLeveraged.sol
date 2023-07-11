@@ -33,7 +33,8 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { UniSushiV2Library } from "../../external/contracts/UniSushiV2Library.sol";
 import { FlashLoanReceiverBaseV2 } from "../../external/contracts/aaveV2/FlashLoanReceiverBaseV2.sol";
 import { DEXAdapter } from "./DEXAdapter.sol";
-import {IVault} from "../interfaces/external/balancer-v2/IVault.sol";
+import {IVault, IFlashLoanRecipient} from "../interfaces/external/balancer-v2/IVault.sol";
+import {IPool} from "../interfaces/IPool.sol";
 
 /**
  * @title ExchangeIssuance
@@ -44,7 +45,7 @@ import {IVault} from "../interfaces/external/balancer-v2/IVault.sol";
  * Both the collateral as well as the debt token have to be available for flashloand and be 
  * tradeable against each other on Sushi / Quickswap
  */
-contract FlashMintLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
+contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
 
     using DEXAdapter for DEXAdapter.Addresses;
     using Address for address payable;
@@ -105,6 +106,7 @@ contract FlashMintLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
     IAaveLeverageModule public immutable aaveLeverageModule;
     IVault public immutable balancerV2Vault;
     DEXAdapter.Addresses public addresses;
+    IPool public immutable LENDING_POOL;
 
     /* ============ Events ============ */
 
@@ -125,9 +127,9 @@ contract FlashMintLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
     );
 
     /* ============ Modifiers ============ */
-
-    modifier onlyLendingPool() {
-         require(msg.sender == address(LENDING_POOL), "ExchangeIssuance: LENDING POOL ONLY");
+ 
+     modifier onlyBalancerV2Vault() {
+         require(msg.sender == address(balancerV2Vault), "ExchangeIssuance: BalancerV2 Vault ONLY");
          _;
     }
 
@@ -165,7 +167,7 @@ contract FlashMintLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
     * @param _setController         SetToken controller used to verify a given token is a set
     * @param _debtIssuanceModule    DebtIssuanceModule used to issue and redeem tokens
     * @param _aaveLeverageModule    AaveLeverageModule to sync before every issuance / redemption
-    * @param _aaveAddressProvider   Address of address provider for aaves addresses
+    * @param _aaveV3Pool   Address of address provider for aaves addresses
     * @param _curveAddressProvider  Contract to get current implementation address of curve registry
     * @param _curveCalculator       Contract to calculate required input to receive given output in curve (for exact output swaps)
     */
@@ -178,13 +180,12 @@ contract FlashMintLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         IController _setController,
         IDebtIssuanceModule _debtIssuanceModule,
         IAaveLeverageModule _aaveLeverageModule,
-        address _aaveAddressProvider,
+        address _aaveV3Pool,
         address _curveAddressProvider,
         address _curveCalculator,
         address _vault
     )
         public
-        FlashLoanReceiverBaseV2(_aaveAddressProvider)
     {
         setController = _setController;
         debtIssuanceModule = _debtIssuanceModule;
@@ -197,6 +198,7 @@ contract FlashMintLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         addresses.uniV3Quoter = _uniV3Quoter;
         addresses.curveAddressProvider = _curveAddressProvider;
         addresses.curveCalculator = _curveCalculator;
+        LENDING_POOL = IPool(_aaveV3Pool);
         balancerV2Vault = IVault(_vault);
     }
 
@@ -519,46 +521,41 @@ contract FlashMintLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         );
     }
 
-    /**
+     /**
      * This is the callback function that will be called by the AaveLending Pool after flashloaned tokens have been sent
      * to this contract.
      * After exiting this function the Lending Pool will attempt to transfer back the loaned tokens + interest. If it fails to do so
      * the whole transaction gets reverted
      *
-     * @param assets     Addresses of all assets that were borrowed
+     * @param tokens     Addresses of all assets that were borrowed
      * @param amounts    Amounts that were borrowed
-     * @param premiums   Interest to be paid on top of borrowed amount
-     * @param initiator  Address that initiated the flashloan
-     * @param params     Encoded bytestring of other parameters from the original contract call to be used downstream
+     * @param feeAmounts   Interest to be paid on top of borrowed amount
+     * @param userData     Encoded bytestring of other parameters from the original contract call to be used downstream
      * 
-     * @return Boolean indicating success of the operation (fixed to true otherwise the whole transaction would be reverted by lending pool)
      */
-    function executeOperation(
-        address[] memory assets,
+    function receiveFlashLoan(
+        IERC20[] memory tokens,
         uint256[] memory amounts,
-        uint256[] memory premiums,
-        address initiator, 
-        bytes memory params
+        uint256[] memory feeAmounts,
+        bytes memory userData
     )
         external
-        override 
-        onlyLendingPool
-        returns (bool)
+        override
+        onlyBalancerV2Vault
     {
-        require(initiator == address(this), "ExchangeIssuance: INVALID FLASHLOAN INITIATOR");
-        require(assets.length == 1, "ExchangeIssuance: TOO MANY ASSETS");
-        require(amounts.length == 1, "ExchangeIssuance: TOO MANY AMOUNTS");
-        require(premiums.length == 1, "ExchangeIssuance: TOO MANY PREMIUMS");
 
-        DecodedParams memory decodedParams = abi.decode(params, (DecodedParams));
+        DecodedParams memory decodedParams = abi.decode(userData, (DecodedParams));
 
         if(decodedParams.isIssuance){
-            _performIssuance(assets[0], amounts[0], premiums[0], decodedParams);
+            _performIssuance(address(tokens[0]), amounts[0], feeAmounts[0], decodedParams);
         } else {
-            _performRedemption(assets[0], amounts[0], premiums[0], decodedParams);
+            _performRedemption(address(tokens[0]), amounts[0], feeAmounts[0], decodedParams);
         }
 
-        return true;
+         for(uint256 i = 0; i < tokens.length; i++) {
+                tokens[i].safeTransfer(address(balancerV2Vault), amounts[i]+ feeAmounts[i]);
+        }
+
     }
 
     /**
@@ -765,8 +762,8 @@ contract FlashMintLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         aaveLeverageModule.sync(_setToken);
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, true);
 
-        address[] memory assets = new address[](1);
-        assets[0] = leveragedTokenData.collateralToken;
+        IERC20[] memory assets = new IERC20[](1);
+        assets[0] = IERC20(leveragedTokenData.collateralToken);
         uint[] memory amounts =  new uint[](1);
         amounts[0] = leveragedTokenData.collateralAmount;
 
@@ -811,8 +808,8 @@ contract FlashMintLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
         aaveLeverageModule.sync(_setToken);
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, false);
 
-        address[] memory assets = new address[](1);
-        assets[0] = leveragedTokenData.debtToken;
+        IERC20[] memory assets = new IERC20[](1);
+        assets[0] = IERC20(leveragedTokenData.debtToken);
         uint[] memory amounts =  new uint[](1);
         amounts[0] = leveragedTokenData.debtAmount;
 
@@ -1355,38 +1352,20 @@ contract FlashMintLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
     }
 
     /**
-     * Triggers the flashloan from the Lending Pool
+     * Triggers the flashloan from the BalancerV2 Vault
      *
      * @param assets         Addresses of tokens to loan 
      * @param amounts        Amounts to loan
      * @param params         Encoded memory to forward to the executeOperation method
      */
     function _flashloan(
-        address[] memory assets,
+        IERC20[] memory assets,
         uint256[] memory amounts,
         bytes memory params
     )
     internal
     {
-        address receiverAddress = address(this);
-        address onBehalfOf = address(this);
-        uint16 referralCode = 0;
-        uint256[] memory modes = new uint256[](assets.length);
-
-        // 0 = no debt (flash), 1 = stable, 2 = variable
-        for (uint256 i = 0; i < assets.length; i++) {
-            modes[i] = 0;
-        }
-
-        LENDING_POOL.flashLoan(
-            receiverAddress,
-            assets,
-            amounts,
-            modes,
-            onBehalfOf,
-            params,
-            referralCode
-        );
+        balancerV2Vault.flashLoan(this, assets, amounts, params);
     }
 
     /**
@@ -1406,4 +1385,5 @@ contract FlashMintLeveraged is ReentrancyGuard, FlashLoanReceiverBaseV2{
     function abs(int256 x) internal pure returns (uint256) {
         return x >= 0 ? uint256(x) : uint256(-x);
     }
+      receive() external payable {}
 }
