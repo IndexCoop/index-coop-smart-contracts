@@ -316,26 +316,64 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
      *
      * @param _setToken                     the set token to issue
      * @param _setAmount                    amount of set tokens
-     * @param _swapDataCollateralForDebt    swap data for the collateral to debt swap
-     * @param _swapDataOutputToken          swap data for the collateral token to the output token
+     * @param _kind                         swap data for the collateral to debt swap
+     * @param _swapDATA                     swap data for the collateral token to the output token
      *
      * @return                              amount of _outputToken that would be obtained from the redemption
      */
     function getRedeemExactSet(
         ISetToken _setToken,
         uint256 _setAmount,
-        DEXAdapter.SwapData memory _swapDataCollateralForDebt,
-        DEXAdapter.SwapData memory _swapDataOutputToken
+        SwapKind _kind,
+        bytes memory _swapDATA
     )
         external
         returns (uint256)
     {
         aaveLeverageModule.sync(_setToken);
         LeveragedTokenData memory redeemInfo = _getLeveragedTokenData(_setToken, _setAmount, false);
-        uint256 debtOwed = redeemInfo.debtAmount.preciseMul(1.0009 ether);
-        uint256 debtPurchaseCost = DEXAdapter.getAmountIn(addresses, _swapDataCollateralForDebt, debtOwed);
+                uint256 debtOwed = redeemInfo.debtAmount.preciseMul(1.0009 ether);
+
+                if(_kind == SwapKind.DEXAdapter){
+            DexAdapterSwap memory swapData = abi.decode(_swapDATA, (DexAdapterSwap));
+
+        uint256 debtPurchaseCost = DEXAdapter.getAmountIn(addresses, swapData.collateralAndDebtSwapData, debtOwed);
         uint256 extraCollateral = redeemInfo.collateralAmount.sub(debtPurchaseCost);
-        return DEXAdapter.getAmountOut(addresses, _swapDataOutputToken, extraCollateral);
+        return DEXAdapter.getAmountOut(addresses, swapData.paymentTokenSwapData, extraCollateral);
+                }
+                else if (_kind == SwapKind.BalancerV2){
+        BalancerSwap memory data = abi.decode(_swapDATA, (BalancerSwap));
+                IVault.FundManagement memory fundManagement = IVault.FundManagement({
+            sender: address(this),
+            fromInternalBalance: false,
+            recipient: address(this),
+            toInternalBalance: false
+        });
+
+        data.collateralAndDebtSwapData[0].amount = debtOwed;
+
+                int256[] memory assetDeltas = balancerV2Vault.queryBatchSwap(
+            IVault.SwapKind.GIVEN_OUT,
+            data.collateralAndDebtSwapData,
+            data.debtSwapAssets,
+            fundManagement
+                );
+        uint256 debtPurchaseCost = abs(assetDeltas[data.collateralAndDebtSwapData[data.collateralAndDebtSwapData.length -1 ].assetInIndex]);
+        uint256 extraCollateral = redeemInfo.collateralAmount.sub(debtPurchaseCost);
+        if(data.paymentSwapAssets.length == 0) return extraCollateral;
+
+         data.paymentTokenSwapData[data.paymentTokenSwapData.length -1 ].amount = extraCollateral;
+         assetDeltas = balancerV2Vault.queryBatchSwap(
+            IVault.SwapKind.GIVEN_IN,
+            data.paymentTokenSwapData,
+            data.paymentSwapAssets,
+            fundManagement
+                );
+            return abs(assetDeltas[data.paymentTokenSwapData[0].assetInIndex]);
+
+
+        }
+
     }
 
     /**
