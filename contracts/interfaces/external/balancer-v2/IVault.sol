@@ -260,7 +260,7 @@ interface IVault {
      */
     function flashLoan(
         IFlashLoanRecipient recipient,
-        IERC20[] memory tokens,
+        address[] memory tokens,
         uint256[] memory amounts,
         bytes memory userData
     ) external;

@@ -37,12 +37,12 @@ import {IVault, IFlashLoanRecipient} from "../interfaces/external/balancer-v2/IV
 import {IPool} from "../interfaces/IPool.sol";
 
 /**
- * @title ExchangeIssuance
+ * @title FlashMintLeveraged
  * @author Index Coop
  *
  * Contract for issuing and redeeming a leveraged Set Token
  * Supports all tokens with one collateral Position in the form of an AToken and one debt position
- * Both the collateral as well as the debt token have to be available for flashloand and be 
+ * Both the collateral as well as the debt token have to be available for flashloan from balancer and be 
  * tradeable against each other on Sushi / Quickswap
  */
 contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
@@ -64,23 +64,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         uint256 debtAmount;
     }
 
-    enum SwapKind {
-        DEXAdapter,
-        BalancerV2
-    }
 
-    struct DexAdapterSwap{
-        DEXAdapter.SwapData collateralAndDebtSwapData;
-        DEXAdapter.SwapData paymentTokenSwapData;
-    }
-
-    struct BalancerSwap{
-        IVault.BatchSwapStep[] collateralAndDebtSwapData;
-        address[]  debtSwapAssets;
-        IVault.BatchSwapStep[]  paymentTokenSwapData;
-        address[]  paymentSwapAssets;
-
-    }
 
     struct DecodedParams {
         ISetToken setToken;
@@ -90,8 +74,8 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         address paymentToken;
         uint256 limitAmount;
         LeveragedTokenData leveragedTokenData;
-        SwapKind swapKind;
-        bytes swapData;
+        DEXAdapter.SwapData collateralAndDebtSwapData;
+        DEXAdapter.SwapData paymentTokenSwapData;    
     }
 
     /* ============ Constants ============= */
@@ -104,8 +88,8 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
     IController public immutable setController;
     IDebtIssuanceModule public immutable debtIssuanceModule;
     IAaveLeverageModule public immutable aaveLeverageModule;
-    IVault public immutable balancerV2Vault;
     DEXAdapter.Addresses public addresses;
+    IVault public immutable balancerV2Vault;
     IPool public immutable LENDING_POOL;
 
     /* ============ Events ============ */
@@ -246,15 +230,16 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
      *
      * @param _setToken                     the set token to issue
      * @param _setAmount                    amount of set tokens
-     * @param _swapDATA    swap data for the debt to collateral swap
+     * @param _swapDataDebtForCollateral    swap data for the debt to collateral swap
+     * @param _swapDataInputToken           swap data for the input token to collateral swap
      *
      * @return                              the amount of input tokens required to perfrom the issuance
      */
     function getIssueExactSet(
         ISetToken _setToken,
         uint256 _setAmount,
-        SwapKind _kind,
-        bytes memory _swapDATA
+        DEXAdapter.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapter.SwapData memory _swapDataInputToken
     )
         external
         returns (uint256)
@@ -262,48 +247,9 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         aaveLeverageModule.sync(_setToken);
         LeveragedTokenData memory issueInfo = _getLeveragedTokenData(_setToken, _setAmount, true);        
         uint256 collateralOwed = issueInfo.collateralAmount.preciseMul(1.0009 ether);
-
-        if(_kind == SwapKind.DEXAdapter){
-            DexAdapterSwap memory swapData = abi.decode(_swapDATA, (DexAdapterSwap));
-            uint256 borrowSaleProceeds = DEXAdapter.getAmountOut(addresses, swapData.collateralAndDebtSwapData, issueInfo.debtAmount);
-            collateralOwed = collateralOwed.sub(borrowSaleProceeds);
-            return DEXAdapter.getAmountIn(addresses, swapData.paymentTokenSwapData, collateralOwed);
-        }
-        else if (_kind == SwapKind.BalancerV2){
-        BalancerSwap memory data = abi.decode(_swapDATA, (BalancerSwap));
-                IVault.FundManagement memory fundManagement = IVault.FundManagement({
-            sender: address(this),
-            fromInternalBalance: false,
-            recipient: address(this),
-            toInternalBalance: false
-        });
-
-        data.collateralAndDebtSwapData[0].amount = issueInfo.debtAmount;
-
-        int256[] memory assetDeltas = balancerV2Vault.queryBatchSwap(
-            IVault.SwapKind.GIVEN_IN,
-            data.collateralAndDebtSwapData,
-            data.debtSwapAssets,
-            fundManagement
-                );
-        uint256 borrowSaleProceeds = abs(assetDeltas[data.collateralAndDebtSwapData[data.collateralAndDebtSwapData.length -1 ].assetOutIndex]);
-        
+        uint256 borrowSaleProceeds = DEXAdapter.getAmountOut(addresses, _swapDataDebtForCollateral, issueInfo.debtAmount);
         collateralOwed = collateralOwed.sub(borrowSaleProceeds);
-        if(data.paymentSwapAssets.length == 0) return collateralOwed;
-
-         data.paymentTokenSwapData[data.paymentTokenSwapData.length -1 ].amount = collateralOwed;
-    
-
-        assetDeltas = balancerV2Vault.queryBatchSwap(
-            IVault.SwapKind.GIVEN_OUT,
-            data.paymentTokenSwapData,
-            data.paymentSwapAssets,
-            fundManagement
-                );
-
-        return abs(assetDeltas[data.paymentTokenSwapData[0].assetInIndex]);
-
-        }
+        return DEXAdapter.getAmountIn(addresses, _swapDataInputToken, collateralOwed);
     }
 
     /**
@@ -316,64 +262,26 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
      *
      * @param _setToken                     the set token to issue
      * @param _setAmount                    amount of set tokens
-     * @param _kind                         swap data for the collateral to debt swap
-     * @param _swapDATA                     swap data for the collateral token to the output token
+     * @param _swapDataCollateralForDebt    swap data for the collateral to debt swap
+     * @param _swapDataOutputToken          swap data for the collateral token to the output token
      *
      * @return                              amount of _outputToken that would be obtained from the redemption
      */
     function getRedeemExactSet(
         ISetToken _setToken,
         uint256 _setAmount,
-        SwapKind _kind,
-        bytes memory _swapDATA
+        DEXAdapter.SwapData memory _swapDataCollateralForDebt,
+        DEXAdapter.SwapData memory _swapDataOutputToken
     )
         external
         returns (uint256)
     {
         aaveLeverageModule.sync(_setToken);
         LeveragedTokenData memory redeemInfo = _getLeveragedTokenData(_setToken, _setAmount, false);
-                uint256 debtOwed = redeemInfo.debtAmount.preciseMul(1.0009 ether);
-
-                if(_kind == SwapKind.DEXAdapter){
-            DexAdapterSwap memory swapData = abi.decode(_swapDATA, (DexAdapterSwap));
-
-        uint256 debtPurchaseCost = DEXAdapter.getAmountIn(addresses, swapData.collateralAndDebtSwapData, debtOwed);
+        uint256 debtOwed = redeemInfo.debtAmount.preciseMul(1.0009 ether);
+        uint256 debtPurchaseCost = DEXAdapter.getAmountIn(addresses, _swapDataCollateralForDebt, debtOwed);
         uint256 extraCollateral = redeemInfo.collateralAmount.sub(debtPurchaseCost);
-        return DEXAdapter.getAmountOut(addresses, swapData.paymentTokenSwapData, extraCollateral);
-                }
-                else if (_kind == SwapKind.BalancerV2){
-        BalancerSwap memory data = abi.decode(_swapDATA, (BalancerSwap));
-                IVault.FundManagement memory fundManagement = IVault.FundManagement({
-            sender: address(this),
-            fromInternalBalance: false,
-            recipient: address(this),
-            toInternalBalance: false
-        });
-
-        data.collateralAndDebtSwapData[0].amount = debtOwed;
-
-                int256[] memory assetDeltas = balancerV2Vault.queryBatchSwap(
-            IVault.SwapKind.GIVEN_OUT,
-            data.collateralAndDebtSwapData,
-            data.debtSwapAssets,
-            fundManagement
-                );
-        uint256 debtPurchaseCost = abs(assetDeltas[data.collateralAndDebtSwapData[data.collateralAndDebtSwapData.length -1 ].assetInIndex]);
-        uint256 extraCollateral = redeemInfo.collateralAmount.sub(debtPurchaseCost);
-        if(data.paymentSwapAssets.length == 0) return extraCollateral;
-
-         data.paymentTokenSwapData[data.paymentTokenSwapData.length -1 ].amount = extraCollateral;
-         assetDeltas = balancerV2Vault.queryBatchSwap(
-            IVault.SwapKind.GIVEN_IN,
-            data.paymentTokenSwapData,
-            data.paymentSwapAssets,
-            fundManagement
-                );
-            return abs(assetDeltas[data.paymentTokenSwapData[0].assetInIndex]);
-
-
-        }
-
+        return DEXAdapter.getAmountOut(addresses, _swapDataOutputToken, extraCollateral);
     }
 
     /**
@@ -382,15 +290,15 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
      * @param _setToken                   Set token to redeem
      * @param _setAmount                  Amount to redeem
      * @param _minAmountOutputToken       Minimum amount of ETH to send to the user
-     * @param _swapKind  Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
-     * @param _swapData        Data (token path and fee levels) describing the swap from Collateral Token to Eth
+     * @param _swapDataCollateralForDebt  Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
+     * @param _swapDataOutputToken        Data (token path and fee levels) describing the swap from Collateral Token to Eth
      */
     function redeemExactSetForETH(
         ISetToken _setToken,
         uint256 _setAmount,
         uint256 _minAmountOutputToken,
-        SwapKind _swapKind,
-        bytes memory _swapData
+        DEXAdapter.SwapData memory _swapDataCollateralForDebt,
+        DEXAdapter.SwapData memory _swapDataOutputToken
     )
         external
         nonReentrant
@@ -400,8 +308,8 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
             _setAmount,
             DEXAdapter.ETH_ADDRESS,
             _minAmountOutputToken,
-            _swapKind,
-            _swapData
+            _swapDataCollateralForDebt,
+            _swapDataOutputToken
         );
     }
 
@@ -412,16 +320,16 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
      * @param _setAmount                  Amount to redeem
      * @param _outputToken                Address of the ERC20 token to send to the user
      * @param _minAmountOutputToken       Minimum amount of output token to send to the user
-     * @param _swapKind  Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
-     * @param _swapData        Data (token path and fee levels) describing the swap from Collateral Token to Output token
+     * @param _swapDataCollateralForDebt  Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
+     * @param _swapDataOutputToken        Data (token path and fee levels) describing the swap from Collateral Token to Output token
      */
     function redeemExactSetForERC20(
         ISetToken _setToken,
         uint256 _setAmount,
         address _outputToken,
         uint256 _minAmountOutputToken,
-        SwapKind _swapKind,
-        bytes memory _swapData
+        DEXAdapter.SwapData memory _swapDataCollateralForDebt,
+        DEXAdapter.SwapData memory _swapDataOutputToken
     )
         external
         nonReentrant
@@ -431,8 +339,8 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
             _setAmount,
             _outputToken,
             _minAmountOutputToken,
-            _swapKind,
-            _swapData
+            _swapDataCollateralForDebt,
+            _swapDataOutputToken
         );
     }
 
@@ -443,16 +351,16 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
      * @param _setAmount                    Amount to issue
      * @param _inputToken                   Input token to pay with
      * @param _maxAmountInputToken          Maximum amount of input token to spend
-     * @param _swapKind    Data (token addresses and fee levels) to describe the swap path from Debt to collateral token
-     * @param _swapData           Data (token addresses and fee levels) to describe the swap path from input to collateral token
+     * @param _swapDataDebtForCollateral    Data (token addresses and fee levels) to describe the swap path from Debt to collateral token
+     * @param _swapDataInputToken           Data (token addresses and fee levels) to describe the swap path from input to collateral token
      */
     function issueExactSetFromERC20(
         ISetToken _setToken,
         uint256 _setAmount,
         address _inputToken,
         uint256 _maxAmountInputToken,
-        SwapKind _swapKind,
-        bytes memory _swapData
+        DEXAdapter.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapter.SwapData memory _swapDataInputToken
 
     )
         external
@@ -463,8 +371,8 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
             _setAmount,
             _inputToken,
             _maxAmountInputToken,
-            _swapKind,
-            _swapData
+            _swapDataDebtForCollateral,
+            _swapDataInputToken
         );
     }
 
@@ -473,14 +381,14 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
      *
      * @param _setToken                     Set token to issue
      * @param _setAmount                    Amount to issue
-     * @param _swapKind    Data (token addresses and fee levels) to describe the swap path from Debt to collateral token
-     * @param _swapData           Data (token addresses and fee levels) to describe the swap path from eth to collateral token
+     * @param _swapDataDebtForCollateral    Data (token addresses and fee levels) to describe the swap path from Debt to collateral token
+     * @param _swapDataInputToken           Data (token addresses and fee levels) to describe the swap path from eth to collateral token
      */
     function issueExactSetFromETH(
         ISetToken _setToken,
         uint256 _setAmount,
-        SwapKind _swapKind,
-        bytes memory _swapData
+        DEXAdapter.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapter.SwapData memory _swapDataInputToken
     )
         external
         payable
@@ -491,8 +399,8 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
             _setAmount,
             DEXAdapter.ETH_ADDRESS,
             msg.value,
-            _swapKind,
-            _swapData
+            _swapDataDebtForCollateral,
+            _swapDataInputToken
         );
     }
 
@@ -620,33 +528,27 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
             _decodedParams.leveragedTokenData.collateralToken,
             _decodedParams.leveragedTokenData.collateralAmount - ROUNDING_ERROR_MARGIN
         );
-        if(_decodedParams.swapKind == SwapKind.DEXAdapter){
-            DexAdapterSwap memory swapData = abi.decode(_decodedParams.swapData, (DexAdapterSwap));
-                // Obtain debt tokens required to repay flashloan by swapping the underlying collateral tokens obtained in withdraw step
-
-            uint256 collateralTokenSpent = _swapCollateralForDebtToken(
-                _debtTokenAmountNet + _premium,
-                _debtToken,
-                _decodedParams.leveragedTokenData.collateralAmount,
-                _decodedParams.leveragedTokenData.collateralToken,
-                swapData.collateralAndDebtSwapData
-            );
-            // Liquidate remaining collateral tokens for the payment token specified by user
-            uint256 amountOutputToken = _liquidateCollateralTokens(
-                collateralTokenSpent,
-                _decodedParams.setToken,
-                _decodedParams.setAmount,
-                _decodedParams.originalSender,
-                _decodedParams.paymentToken,
-                _decodedParams.limitAmount,
-                _decodedParams.leveragedTokenData.collateralToken,
-                _decodedParams.leveragedTokenData.collateralAmount  - 2*ROUNDING_ERROR_MARGIN,
-                swapData.paymentTokenSwapData
-            );
-                    require(amountOutputToken >= _decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
-
-
-        }
+        // Obtain debt tokens required to repay flashloan by swapping the underlying collateral tokens obtained in withdraw step
+        uint256 collateralTokenSpent = _swapCollateralForDebtToken(
+            _debtTokenAmountNet + _premium,
+            _debtToken,
+            _decodedParams.leveragedTokenData.collateralAmount,
+            _decodedParams.leveragedTokenData.collateralToken,
+            _decodedParams.collateralAndDebtSwapData
+        );
+        // Liquidate remaining collateral tokens for the payment token specified by user
+        uint256 amountOutputToken = _liquidateCollateralTokens(
+            collateralTokenSpent,
+            _decodedParams.setToken,
+            _decodedParams.setAmount,
+            _decodedParams.originalSender,
+            _decodedParams.paymentToken,
+            _decodedParams.limitAmount,
+            _decodedParams.leveragedTokenData.collateralToken,
+            _decodedParams.leveragedTokenData.collateralAmount  - 2*ROUNDING_ERROR_MARGIN,
+            _decodedParams.paymentTokenSwapData
+        );
+        require(amountOutputToken >= _decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
     }
 
 
@@ -721,24 +623,24 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
      * @param _setAmount                    Amount of the SetToken being initialized
      * @param _inputToken                   Address of the input token to pay with
      * @param _maxAmountInputToken          Maximum amount of input token to pay
-     * @param _swapKind    Data (token addresses and fee levels) to describe the swap path from Debt to collateral token
-     * @param _swapData           Data (token addresses and fee levels) to describe the swap path from input to collateral token
+     * @param _swapDataDebtForCollateral    Data (token addresses and fee levels) to describe the swap path from Debt to collateral token
+     * @param _swapDataInputToken           Data (token addresses and fee levels) to describe the swap path from input to collateral token
      */
     function _initiateIssuance(
         ISetToken _setToken,
         uint256 _setAmount,
         address _inputToken,
         uint256 _maxAmountInputToken,
-        SwapKind _swapKind,
-        bytes memory _swapData
+        DEXAdapter.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapter.SwapData memory _swapDataInputToken
     )
         internal
     {
         aaveLeverageModule.sync(_setToken);
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, true);
 
-        IERC20[] memory assets = new IERC20[](1);
-        assets[0] = IERC20(leveragedTokenData.collateralToken);
+        address[] memory assets = new address[](1);
+        assets[0] = leveragedTokenData.collateralToken;
         uint[] memory amounts =  new uint[](1);
         amounts[0] = leveragedTokenData.collateralAmount;
 
@@ -751,9 +653,9 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
                 _inputToken,
                 _maxAmountInputToken,
                 leveragedTokenData,
-                _swapKind,
-                _swapData
-                )
+                _swapDataDebtForCollateral,
+                _swapDataInputToken
+           )
         );
 
         _flashloan(assets, amounts, params);
@@ -767,24 +669,24 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
      * @param _setAmount                  Amount of the SetToken to redeem
      * @param _outputToken                Address of token to return to the user
      * @param _minAmountOutputToken       Minimum amount of output token to receive
-     * @param _swapKind  Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
-     * @param _swapData        Data (token path and fee levels) describing the swap from Collateral Token to Output token
+     * @param _swapDataCollateralForDebt  Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
+     * @param _swapDataOutputToken        Data (token path and fee levels) describing the swap from Collateral Token to Output token
      */
     function _initiateRedemption(
         ISetToken _setToken,
         uint256 _setAmount,
         address  _outputToken,
         uint256 _minAmountOutputToken,
-        SwapKind _swapKind,
-        bytes memory _swapData
+        DEXAdapter.SwapData memory _swapDataCollateralForDebt,
+        DEXAdapter.SwapData memory _swapDataOutputToken
     )
         internal
     {
         aaveLeverageModule.sync(_setToken);
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, false);
 
-        IERC20[] memory assets = new IERC20[](1);
-        assets[0] = IERC20(leveragedTokenData.debtToken);
+        address[] memory assets = new address[](1);
+        assets[0] = leveragedTokenData.debtToken;
         uint[] memory amounts =  new uint[](1);
         amounts[0] = leveragedTokenData.debtAmount;
 
@@ -797,8 +699,8 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
                 _outputToken,
                 _minAmountOutputToken,
                 leveragedTokenData,
-                _swapKind ,
-                _swapData
+                _swapDataCollateralForDebt,
+                _swapDataOutputToken
             )
         );
 
@@ -970,14 +872,12 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         internal
         returns (uint256)
     {
-     if (_decodedParams.swapKind == SwapKind.DEXAdapter){
-        DexAdapterSwap memory swapData = abi.decode(_decodedParams.swapData, (DexAdapterSwap));
-                uint collateralTokenObtained =  _swapDebtForCollateralToken(
-                        _collateralToken,
-                        _decodedParams.leveragedTokenData.debtToken,
-                        _decodedParams.leveragedTokenData.debtAmount,
-                        swapData.collateralAndDebtSwapData
-                    );
+        uint collateralTokenObtained =  _swapDebtForCollateralToken(
+            _collateralToken,
+            _decodedParams.leveragedTokenData.debtToken,
+            _decodedParams.leveragedTokenData.debtAmount,
+            _decodedParams.collateralAndDebtSwapData
+        );
 
         uint collateralTokenShortfall = _amountRequired.sub(collateralTokenObtained) + ROUNDING_ERROR_MARGIN;
         uint amountInputToken;
@@ -988,7 +888,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
                 collateralTokenShortfall,
                 _decodedParams.originalSender,
                 _decodedParams.limitAmount,
-                swapData.paymentTokenSwapData
+                _decodedParams.paymentTokenSwapData
             );
         } else {
             amountInputToken = _makeUpShortfallWithERC20(
@@ -997,8 +897,8 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
                 _decodedParams.originalSender,
                 IERC20(_decodedParams.paymentToken),
                 _decodedParams.limitAmount,
-                swapData.paymentTokenSwapData
-            );   
+                _decodedParams.paymentTokenSwapData
+            );
         }
         emit ExchangeIssue(
             _decodedParams.originalSender,
@@ -1008,7 +908,6 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
             _decodedParams.setAmount
         );
         return amountInputToken;
-     }
     }
 
     /**
@@ -1334,7 +1233,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
      * @param params         Encoded memory to forward to the executeOperation method
      */
     function _flashloan(
-        IERC20[] memory assets,
+        address[] memory assets,
         uint256[] memory amounts,
         bytes memory params
     )
