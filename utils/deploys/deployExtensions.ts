@@ -241,17 +241,19 @@ export default class DeployExtensions {
       // @ts-ignore
       this._deployerSigner,
     ).deploy(
-      wethAddress,
-      quickRouterAddress,
-      sushiRouterAddress,
-      uniV3RouterAddress,
-      uniswapV3QuoterAddress,
+      {
+        quickRouter: quickRouterAddress,
+        sushiRouter: sushiRouterAddress,
+        uniV3Router: uniV3RouterAddress,
+        uniV3Quoter: uniswapV3QuoterAddress,
+        curveAddressProvider: curveAddressProviderAddress,
+        curveCalculator: curveCalculatorAddress,
+        weth: wethAddress,
+      },
       setControllerAddress,
       basicIssuanceModuleAddress,
       aaveLeveragedModuleAddress,
       aaveAddressProviderAddress,
-      curveCalculatorAddress,
-      curveAddressProviderAddress,
       BalancerV2VaultAddress
     );
   }

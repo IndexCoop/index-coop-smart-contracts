@@ -143,32 +143,20 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
 
     /**
     * Sets various contract addresses 
-    * 
-    * @param _weth                  Address of wrapped native token
-    * @param _quickRouter           Address of quickswap router
-    * @param _sushiRouter           Address of sushiswap router
-    * @param _uniV3Router           Address of uniswap v3 router
-    * @param _uniV3Quoter           Address of uniswap v3 quoter
+    *
+    * @param _addresses             dex adapter addreses
     * @param _setController         SetToken controller used to verify a given token is a set
     * @param _debtIssuanceModule    DebtIssuanceModule used to issue and redeem tokens
     * @param _aaveLeverageModule    AaveLeverageModule to sync before every issuance / redemption
     * @param _aaveV3Pool   Address of address provider for aaves addresses
-    * @param _curveAddressProvider  Contract to get current implementation address of curve registry
-    * @param _curveCalculator       Contract to calculate required input to receive given output in curve (for exact output swaps)
     * @param _vault                 Balancer Vault to flashloan from
     */
     constructor(
-        address _weth,
-        address _quickRouter,
-        address _sushiRouter,
-        address _uniV3Router,
-        address _uniV3Quoter,
+        DEXAdapter.Addresses memory _addresses,
         IController _setController,
         IDebtIssuanceModule _debtIssuanceModule,
         IAaveLeverageModule _aaveLeverageModule,
         address _aaveV3Pool,
-        address _curveAddressProvider,
-        address _curveCalculator,
         address _vault
     )
         public
@@ -176,14 +164,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         setController = _setController;
         debtIssuanceModule = _debtIssuanceModule;
         aaveLeverageModule = _aaveLeverageModule;
-
-        addresses.weth = _weth;
-        addresses.quickRouter = _quickRouter;
-        addresses.sushiRouter = _sushiRouter;
-        addresses.uniV3Router = _uniV3Router;
-        addresses.uniV3Quoter = _uniV3Quoter;
-        addresses.curveAddressProvider = _curveAddressProvider;
-        addresses.curveCalculator = _curveCalculator;
+        addresses = _addresses;
         LENDING_POOL = IPool(_aaveV3Pool);
         balancerV2Vault = IVault(_vault);
     }
