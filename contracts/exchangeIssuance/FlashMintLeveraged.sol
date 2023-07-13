@@ -40,7 +40,7 @@ import {IPool} from "../interfaces/IPool.sol";
  * @title FlashMintLeveraged
  * @author Index Coop
  *
- * Contract for issuing and redeeming a leveraged Index Token
+ * Contract for issuing and redeeming a leveraged Set Token
  * Supports all tokens with one collateral Position in the form of an AToken and one debt position
  * Both the collateral as well as the debt token have to be available for flashloan from balancer and be 
  * tradeable against each other on Sushi / Quickswap
@@ -155,6 +155,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
     * @param _aaveV3Pool   Address of address provider for aaves addresses
     * @param _curveAddressProvider  Contract to get current implementation address of curve registry
     * @param _curveCalculator       Contract to calculate required input to receive given output in curve (for exact output swaps)
+    * @param _vault                 Balancer Vault to flashloan from
     */
     constructor(
         address _weth,
