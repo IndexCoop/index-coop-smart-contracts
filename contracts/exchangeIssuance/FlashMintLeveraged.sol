@@ -40,7 +40,7 @@ import {IPool} from "../interfaces/IPool.sol";
  * @title FlashMintLeveraged
  * @author Index Coop
  *
- * Contract for issuing and redeeming a leveraged Set Token
+ * Contract for issuing and redeeming a leveraged Index Token
  * Supports all tokens with one collateral Position in the form of an AToken and one debt position
  * Both the collateral as well as the debt token have to be available for flashloan from balancer and be 
  * tradeable against each other on Sushi / Quickswap
@@ -91,10 +91,11 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
     DEXAdapter.Addresses public addresses;
     IVault public immutable balancerV2Vault;
     IPool public immutable LENDING_POOL;
+    address private flashLoanBenefactor;
 
     /* ============ Events ============ */
 
-    event ExchangeIssue(
+    event FlashMint(
         address indexed _recipient,     // The recipient address of the issued SetTokens
         ISetToken indexed _setToken,    // The issued SetToken
         address indexed _inputToken,    // The address of the input asset(ERC20/ETH) used to issue the SetTokens
@@ -102,7 +103,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         uint256 _amountSetIssued        // The amount of SetTokens received by the recipient
     );
 
-    event ExchangeRedeem(
+    event FlashRedeem(
         address indexed _recipient,     // The recipient address which redeemed the SetTokens
         ISetToken indexed _setToken,    // The redeemed SetToken
         address indexed _outputToken,   // The address of output asset(ERC20/ETH) received by the recipient
@@ -428,6 +429,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
     {
 
         DecodedParams memory decodedParams = abi.decode(userData, (DecodedParams));
+        require(flashLoanBenefactor == decodedParams.originalSender, "Flashloan not initiated by this contract");
 
         if(decodedParams.isIssuance){
             _performIssuance(address(tokens[0]), amounts[0], feeAmounts[0], decodedParams);
@@ -759,7 +761,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
                 _swapData
             );
         }
-        emit ExchangeRedeem(_originalSender, _setToken, _outputToken, _setAmount, outputAmount);
+        emit FlashMint(_originalSender, _setToken, _outputToken, _setAmount, outputAmount);
         return outputAmount;
     }
 
@@ -900,7 +902,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
                 _decodedParams.paymentTokenSwapData
             );
         }
-        emit ExchangeIssue(
+        emit FlashRedeem(
             _decodedParams.originalSender,
             _decodedParams.setToken,
             _decodedParams.paymentToken,
@@ -1239,7 +1241,10 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
     )
     internal
     {
+        require(flashLoanBenefactor == address(0), "Flashloan already taken");
+        flashLoanBenefactor = msg.sender;
         balancerV2Vault.flashLoan(this, assets, amounts, params);
+        flashLoanBenefactor = address(0);
     }
 
     /**
