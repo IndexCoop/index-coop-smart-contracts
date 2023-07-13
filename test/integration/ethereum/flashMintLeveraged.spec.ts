@@ -17,7 +17,6 @@ import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "./addresses";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { ether } from "@utils/index";
 import { impersonateAccount } from "./utils";
-import type { Bytes } from "@ethersproject/bytes";
 
 const expect = getWaffleExpect();
 
@@ -29,83 +28,12 @@ enum Exchange {
   Curve,
 }
 
-enum SwapKind {
-  DEXAdapter,
-  BalancerV2,
-}
-
 type SwapData = {
   path: Address[];
   fees: number[];
   pool: Address;
   exchange: Exchange;
 };
-
-type DexSwapData = {
-  collateralAndDebtSwapData: SwapData;
-  paymentTokenSwapData: SwapData;
-};
-
-type BigNumberish = BigNumber | Bytes | string | number;
-
-type SwapSteps = {
-  poolId: utils.BytesLike;
-  assetInIndex: BigNumberish;
-  assetOutIndex: BigNumberish;
-  amount: BigNumberish;
-  userData: utils.BytesLike;
-}[];
-
-type SwapAssets = Address[];
-
-type BalancerV2SwapData = {
-  collateralAndDebtSwapData: SwapSteps;
-  debtSwapAssets: SwapAssets;
-  paymentTokenSwapData: SwapSteps;
-  paymentSwapAssets: SwapAssets;
-};
-const swapDataType = [
-  { name: "path", type: "address[]" },
-  { name: "fees", type: "uint24[]" },
-  { name: "pool", type: "address" },
-  { name: "exchange", type: "uint8" },
-];
-
-const batchSwapStepType = [
-  { name: "poolId", type: "bytes32" },
-  { name: "assetInIndex", type: "uint256" },
-  { name: "assetOutIndex", type: "uint256" },
-  { name: "amount", type: "uint256" },
-  { name: "userData", type: "bytes" },
-];
-
-
-const dexAdapterSwapType = ethers.utils.ParamType.from({
-  name: "DexAdapterSwap",
-  type: "tuple",
-  components: [
-    { name: "collateralAndDebtSwapData", type: "tuple", components: swapDataType },
-    { name: "paymentTokenSwapData", type: "tuple", components: swapDataType },
-  ],
-});
-
-const balancerSwapType = ethers.utils.ParamType.from({
-  name: "BalancerSwap",
-  type: "tuple",
-  components: [
-    { name: "collateralAndDebtSwapData", type: "tuple[]", components: batchSwapStepType },
-    { name: "debtSwapAssets", type: "address[]" },
-    { name: "paymentTokenSwapData", type: "tuple[]", components: batchSwapStepType },
-    { name: "paymentSwapAssets", type: "address[]" },
-  ],
-});
-
-
-const encodeSwapData = (swapData: BalancerV2SwapData | DexSwapData) => {
-  const swapType = "debtSwapAssets" in swapData ? balancerSwapType : dexAdapterSwapType;
-  return ethers.utils.defaultAbiCoder.encode([swapType], [swapData]);
-};
-
 
 if (process.env.INTEGRATIONTEST) {
   describe.only("FlashMintLeveraged - Integration Test", async () => {
@@ -294,10 +222,6 @@ if (process.env.INTEGRATIONTEST) {
               () => {
                 let swapDataDebtToCollateral: SwapData;
                 let swapDataInputToken: SwapData;
-                let swapDataDebtToCollateralBalancer: SwapSteps;
-                let swapDataInputToCollateralBalancer: SwapSteps;
-                let debtToCollateralAssets: SwapAssets;
-                let inputToCollateralAssets: SwapAssets;
 
 
                 let inputToken: StandardTokenMock | IWETH;
@@ -322,21 +246,7 @@ if (process.env.INTEGRATIONTEST) {
                     exchange: Exchange.None,
                   };
 
-                  swapDataDebtToCollateralBalancer = [{
-                    poolId: "0x1e19cf2d73a72ef1332c882f20534b6519be0276000200000000000000000112",
-                    assetInIndex: 0,
-                    assetOutIndex: 1,
-                    amount: 0,
-                    userData: "0x",
-                  }];
 
-                  debtToCollateralAssets = [
-                    "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
-                    "0xae78736cd615f374d3085123a210448e74fc6393",
-                  ];
-
-                  swapDataInputToCollateralBalancer = [];
-                  inputToCollateralAssets = [];
 
                   if (inputTokenName == "collateralToken") {
                     inputToken = rEth;
@@ -366,8 +276,8 @@ if (process.env.INTEGRATIONTEST) {
                     return flashMintLeveraged.issueExactSetFromETH(
                       subjectSetToken,
                       subjectSetAmount,
-                      SwapKind.DEXAdapter,
-                      encodeSwapData({ collateralAndDebtSwapData: swapDataDebtToCollateral, paymentTokenSwapData: swapDataInputToken }),
+                      swapDataDebtToCollateral,
+                      swapDataInputToken ,
                       { value: subjectMaxAmountIn },
                     );
                   }
@@ -376,18 +286,18 @@ if (process.env.INTEGRATIONTEST) {
                     subjectSetAmount,
                     subjectInputToken,
                     subjectMaxAmountIn,
-                    SwapKind.DEXAdapter,
-                    encodeSwapData({ collateralAndDebtSwapData: swapDataDebtToCollateral, paymentTokenSwapData: swapDataInputToken }),
-                  );
+                    swapDataDebtToCollateral,
+                    swapDataInputToken ,
+                );
                 }
 
                 async function subjectQuote() {
                   return flashMintLeveraged.callStatic.getIssueExactSet(
                     subjectSetToken,
                     subjectSetAmount,
-                    SwapKind.DEXAdapter,
-                    encodeSwapData({ collateralAndDebtSwapData: swapDataDebtToCollateral, paymentTokenSwapData: swapDataInputToken }),
-                  );
+                    swapDataDebtToCollateral,
+                    swapDataInputToken ,
+                );
                 }
 
 
@@ -431,28 +341,6 @@ if (process.env.INTEGRATIONTEST) {
                   expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.99)));
                   expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.01)));
                 });
-
-                it("should quote Balancer as better than Uniswap within 25% margin", async () => {
-                  const uniSwapQuote = await subjectQuote();
-                  const balancerQuote = await flashMintLeveraged.callStatic.getRedeemExactSet(
-                    setToken.address,
-                    subjectSetAmount,
-                    SwapKind.BalancerV2,
-                    encodeSwapData({
-                      collateralAndDebtSwapData: swapDataDebtToCollateralBalancer,
-                      debtSwapAssets: debtToCollateralAssets,
-                      paymentTokenSwapData: swapDataInputToCollateralBalancer,
-                      paymentSwapAssets: inputToCollateralAssets,
-                    })
-                  );
-                  const uniSwapQuoteAmount = parseFloat(ethers.utils.formatEther(uniSwapQuote));
-                  const balancerQuoteAmount = parseFloat(ethers.utils.formatEther(balancerQuote));
-
-                  const difference = Math.abs(uniSwapQuoteAmount - balancerQuoteAmount);
-                  const maxDifference = balancerQuoteAmount * 25 / 100;
-                  expect(difference).to.lte(maxDifference);
-                });
-
               },
             );
 
@@ -467,10 +355,6 @@ if (process.env.INTEGRATIONTEST) {
                 let subjectSetToken: Address;
                 let subjectMinAmountOut: BigNumber;
                 let subjectOutputToken: Address;
-                let swapDataCollateralToDebtBalancer: SwapSteps;
-                let collateralToDebtAssets: SwapAssets;
-                let swapDataOutputTokenBalancer: SwapSteps;
-                let outputTokenAssets: SwapAssets;
 
                 async function subject() {
                   if (inputTokenName == "ETH") {
@@ -478,8 +362,8 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSetToken,
                       subjectSetAmount,
                       subjectMinAmountOut,
-                      SwapKind.DEXAdapter,
-                      encodeSwapData({ collateralAndDebtSwapData: swapDataCollateralToDebt, paymentTokenSwapData: swapDataOutputToken }),
+                      swapDataCollateralToDebt,
+                      swapDataOutputToken
                     );
                   }
                   return flashMintLeveraged.redeemExactSetForERC20(
@@ -487,17 +371,16 @@ if (process.env.INTEGRATIONTEST) {
                     subjectSetAmount,
                     subjectOutputToken,
                     subjectMinAmountOut,
-                    SwapKind.DEXAdapter,
-                    encodeSwapData({ collateralAndDebtSwapData: swapDataCollateralToDebt, paymentTokenSwapData: swapDataOutputToken }),
-                  );
+                    swapDataCollateralToDebt,
+                    swapDataOutputToken
+                );
                 }
 
                 async function subjectQuote(): Promise<BigNumber> {
                   return flashMintLeveraged.callStatic.getRedeemExactSet(
                     subjectSetToken,
                     subjectSetAmount,
-                    SwapKind.DEXAdapter,
-                    encodeSwapData({ collateralAndDebtSwapData: swapDataCollateralToDebt, paymentTokenSwapData: swapDataOutputToken })
+                    swapDataCollateralToDebt, swapDataOutputToken
                   );
                 }
 
@@ -508,22 +391,6 @@ if (process.env.INTEGRATIONTEST) {
                     pool: ADDRESS_ZERO,
                     exchange: Exchange.UniV3,
                   };
-
-                  swapDataCollateralToDebtBalancer = [{
-                    poolId: "0x1e19cf2d73a72ef1332c882f20534b6519be0276000200000000000000000112",
-                    assetInIndex: 1,
-                    assetOutIndex: 0,
-                    amount: 0,
-                    userData: "0x",
-                  }];
-
-                  collateralToDebtAssets = [
-                    "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
-                    "0xae78736cd615f374d3085123a210448e74fc6393",
-                  ];
-
-                  swapDataOutputTokenBalancer = [];
-                  outputTokenAssets = [];
 
                   if (inputTokenName == "collateralToken") {
                     outputToken = rEth;
@@ -588,27 +455,6 @@ if (process.env.INTEGRATIONTEST) {
                   const outputAmountQuote = await subjectQuote();
                   expect(outputAmountQuote).to.gt(preciseMul(outputObtained, ether(0.99)));
                   expect(outputAmountQuote).to.lt(preciseMul(outputObtained, ether(1.01)));
-                });
-
-                it("should quote Balancer as better than Uniswap within 10% margin", async () => {
-                  const uniSwapQuote = await subjectQuote();
-                  const balancerQuote = await flashMintLeveraged.callStatic.getRedeemExactSet(
-                    setToken.address,
-                    subjectSetAmount,
-                    SwapKind.BalancerV2,
-                    encodeSwapData({
-                      collateralAndDebtSwapData: swapDataCollateralToDebtBalancer,
-                      debtSwapAssets: collateralToDebtAssets,
-                      paymentTokenSwapData: swapDataOutputTokenBalancer,
-                      paymentSwapAssets: outputTokenAssets,
-                    })
-                  );
-                  const uniSwapQuoteAmount = parseFloat(ethers.utils.formatEther(uniSwapQuote));
-                  const balancerQuoteAmount = parseFloat(ethers.utils.formatEther(balancerQuote));
-
-                  const difference = Math.abs(balancerQuoteAmount - uniSwapQuoteAmount);
-                  const maxDifference = balancerQuoteAmount * 10 / 100;
-                  expect(difference).to.lte(maxDifference);
                 });
               },
             );
