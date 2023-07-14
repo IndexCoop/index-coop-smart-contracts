@@ -344,7 +344,6 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         uint256 _maxAmountInputToken,
         DEXAdapter.SwapData memory _swapDataDebtForCollateral,
         DEXAdapter.SwapData memory _swapDataInputToken
-
     )
         external
         nonReentrant
@@ -388,9 +387,9 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
     }
 
      /**
-     * This is the callback function that will be called by the AaveLending Pool after flashloaned tokens have been sent
+     * This is the callback function that will be called by the Balancerv2 Pool after flashloaned tokens have been sent
      * to this contract.
-     * After exiting this function the Lending Pool will attempt to transfer back the loaned tokens + interest. If it fails to do so
+     * After exiting this function the Vault enforces that we transfer back the loaned tokens + interest. If that check fails
      * the whole transaction gets reverted
      *
      * @param tokens     Addresses of all assets that were borrowed
