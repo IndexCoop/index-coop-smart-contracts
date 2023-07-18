@@ -7,6 +7,9 @@ export const PRODUCTION_ADDRESSES = {
     dai: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
     weth: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
     icEth: "0x7C07F7aBe10CE8e33DC6C5aD68FE033085256A84",
+    icReth: "0xe8888Cdbc0A5958C29e7D91DAE44897c7e64F9BC",
+    rETH: "0xae78736Cd615f374D3085123A210448E74Fc6393",
+    aEthrETH : "0xCc9EE9483f662091a1de4795249E24aC0aC2630f",
     aSTETH: "0x1982b2F5814301d4e9a8b0201555376e62F82428",
     ETH2xFli: "0xAa6E8127831c9DE45ae56bB1b0d4D4Da6e5665BD",
     cEther: "0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5",
@@ -32,6 +35,7 @@ export const PRODUCTION_ADDRESSES = {
       ethAddress: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
       pools: {
         stEthEth: "0xDC24316b9AE028F1497c275EB9192a3Ea0f67022",
+        rEthEth: "0x0f3159811670c117c372428D4E69AC32325e4D0F",
       },
     },
     sushiswap: {
@@ -43,6 +47,9 @@ export const PRODUCTION_ADDRESSES = {
     uniV3: {
       router: "0xE592427A0AEce92De3Edee1F18E0157C05861564",
       quoter: "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6",
+    },
+    balancerv2: {
+      vault: "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
     },
   },
   set: {
@@ -58,11 +65,17 @@ export const PRODUCTION_ADDRESSES = {
     notionalTradeModule: "0x600d9950c6ecAef98Cc42fa207E92397A6c43416",
     tradeModule: "0xFaAB3F8f3678f68AA0d307B66e71b636F82C28BF",
     airdropModule: "0x09b9e7c7e2daf40fCb286fE6b863e517d5d5c40F",
+    aaveV3LeverageStrategyExtension: "0x7d3f7EDD04916F3Cb2bC6740224c636B9AE43200",
+    aaveV3LeverageModule: "0x71E932715F5987077ADC5A7aA245f38841E0DcBe",
   },
   lending: {
     aave: {
       addressProvider: "0xB53C1a33016B2DC2fF3653530bfF1848a515c8c5",
       lendingPool: "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
+    },
+    aaveV3: {
+      addressProvider: "0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e",
+      lendingPool: "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
     },
     notional: {
       wrappedfCashFactory: "0x5D051DeB5db151C2172dCdCCD42e6A2953E27261",
