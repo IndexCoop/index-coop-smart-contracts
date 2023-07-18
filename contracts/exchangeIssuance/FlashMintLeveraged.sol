@@ -1238,12 +1238,5 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         _setToken.safeTransferFrom(msg.sender, address(this), _amount);
         debtIssuanceModule.redeem(_setToken, _amount, address(this));
     }
-
-    /**  Returns the absolute value of x
-    * @param x The number to take the absolute value of
-    */
-    function abs(int256 x) internal pure returns (uint256) {
-        return x >= 0 ? uint256(x) : uint256(-x);
-    }
-      receive() external payable {}
+    receive() external payable {}
 }
