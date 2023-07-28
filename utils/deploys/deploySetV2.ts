@@ -6,10 +6,12 @@ import {
   AaveLeverageModule,
   AaveV2,
   AirdropModule,
+  AuctionRebalanceModuleV1,
   BasicIssuanceModule,
   Compound,
   CompoundLeverageModule,
   Controller,
+  ConstantPriceAdapter,
   ComptrollerMock,
   ContractCallerMock,
   DebtIssuanceModule,
@@ -35,8 +37,10 @@ import { ether } from "../common";
 import { AaveLeverageModule__factory } from "../../typechain/factories/AaveLeverageModule__factory";
 import { AaveV2__factory } from "../../typechain/factories/AaveV2__factory";
 import { AirdropModule__factory } from "../../typechain/factories/AirdropModule__factory";
+import { AuctionRebalanceModuleV1__factory } from "../../typechain/factories/AuctionRebalanceModuleV1__factory";
 import { BasicIssuanceModule__factory } from "../../typechain/factories/BasicIssuanceModule__factory";
 import { Controller__factory } from "../../typechain/factories/Controller__factory";
+import { ConstantPriceAdapter__factory } from "../../typechain/factories/ConstantPriceAdapter__factory";
 import { Compound__factory } from "../../typechain/factories/Compound__factory";
 import { CompoundLeverageModule__factory } from "../../typechain/factories/CompoundLeverageModule__factory";
 import { ComptrollerMock__factory } from "../../typechain/factories/ComptrollerMock__factory";
@@ -258,6 +262,10 @@ export default class DeploySetV2 {
     return await new AirdropModule__factory(this._deployerSigner).deploy(controller);
   }
 
+  public async deployAuctionRebalanceModuleV1(controller: Address): Promise<AuctionRebalanceModuleV1> {
+    return await new AuctionRebalanceModuleV1__factory(this._deployerSigner).deploy(controller);
+  }
+
   public async deployWrapModule(controller: Address, weth: Address): Promise<WrapModule> {
     return await new WrapModule__factory(this._deployerSigner).deploy(controller, weth);
   }
@@ -274,5 +282,9 @@ export default class DeploySetV2 {
       },
       this._deployerSigner,
     ).deploy();
+  }
+
+  public async deployConstantPriceAdapter(): Promise<ConstantPriceAdapter> {
+    return await new ConstantPriceAdapter__factory(this._deployerSigner).deploy();
   }
 }

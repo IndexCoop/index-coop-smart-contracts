@@ -4,6 +4,7 @@ import { BigNumber } from "@ethersproject/bignumber";
 
 import {
   AirdropModule,
+  AuctionRebalanceModuleV1,
   BasicIssuanceModule,
   CompoundLeverageModule,
   Controller,
@@ -44,6 +45,7 @@ export class SetFixture {
   public factory: SetTokenCreator;
   public integrationRegistry: IntegrationRegistry;
 
+  public auctionModule: AuctionRebalanceModuleV1;
   public issuanceModule: BasicIssuanceModule;
   public debtIssuanceModule: DebtIssuanceModule;
   public streamingFeeModule: StreamingFeeModule;
@@ -75,6 +77,7 @@ export class SetFixture {
     this.integrationRegistry = await this._deployer.setV2.deployIntegrationRegistry(this.controller.address);
     this.factory = await this._deployer.setV2.deploySetTokenCreator(this.controller.address);
 
+    this.auctionModule = await this._deployer.setV2.deployAuctionRebalanceModuleV1(this.controller.address);
     this.issuanceModule = await this._deployer.setV2.deployBasicIssuanceModule(this.controller.address);
     this.streamingFeeModule = await this._deployer.setV2.deployStreamingFeeModule(this.controller.address);
     this.debtIssuanceModule = await this._deployer.setV2.deployDebtIssuanceModule(this.controller.address);
@@ -95,6 +98,7 @@ export class SetFixture {
     );
 
     const modules = [
+      this.auctionModule.address,
       this.issuanceModule.address,
       this.streamingFeeModule.address,
       this.debtIssuanceModule.address,

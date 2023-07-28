@@ -2,10 +2,12 @@
 export { AaveLeverageModule } from "../../typechain/AaveLeverageModule";
 export { AaveV2 } from "../../typechain/AaveV2";
 export { AirdropModule } from "../../typechain/AirdropModule";
+export { AuctionRebalanceModuleV1 } from "../../typechain/AuctionRebalanceModuleV1";
 export { BasicIssuanceModule } from "../../typechain/BasicIssuanceModule";
 export { Compound } from "../../typechain/Compound";
 export { Controller } from "../../typechain/Controller";
 export { ContractCallerMock } from "../../typechain/ContractCallerMock";
+export { ConstantPriceAdapter } from "../../typechain/ConstantPriceAdapter";
 export { ComptrollerMock } from "../../typechain/ComptrollerMock";
 export { CompoundLeverageModule } from "../../typechain/CompoundLeverageModule";
 export { DebtIssuanceModule } from "../../typechain/DebtIssuanceModule";

@@ -1,10 +1,12 @@
 export { AaveLeverageStrategyExtension } from "../../typechain/AaveLeverageStrategyExtension";
 export { AirdropExtension } from "../../typechain/AirdropExtension";
+export { AuctionRebalanceExtension } from "../../typechain/AuctionRebalanceExtension";
 export { AirdropIssuanceHook } from "../../typechain/AirdropIssuanceHook";
 export { BaseExtensionMock } from "../../typechain/BaseExtensionMock";
 export { BaseManager } from "../../typechain/BaseManager";
 export { BaseManagerV2 } from "../../typechain/BaseManagerV2";
 export { ChainlinkAggregatorV3Mock } from "../../typechain/ChainlinkAggregatorV3Mock";
+export { ConstantPriceAdapter } from "../../typechain/ConstantPriceAdapter";
 export { DebtIssuanceModule } from "../../typechain/DebtIssuanceModule";
 export { BasicIssuanceModule } from "../../typechain/BasicIssuanceModule";
 export { DEXAdapter } from "../../typechain/DEXAdapter";
