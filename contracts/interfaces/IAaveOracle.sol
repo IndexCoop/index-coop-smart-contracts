@@ -1,4 +1,4 @@
-pragma solidity ^0.8.10;
+pragma solidity 0.6.10;
 
 interface IAaveOracle {
     event AssetSourceUpdated(address indexed asset, address indexed source);

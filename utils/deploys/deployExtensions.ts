@@ -369,6 +369,7 @@ export default class DeployExtensions {
 
   public async deployAaveV3LeverageStrategyExtension(
     manager: Address,
+    aaveOracle: Address,
     contractSettings: AaveContractSettings,
     methdologySettings: MethodologySettings,
     executionSettings: ExecutionSettings,
@@ -380,6 +381,7 @@ export default class DeployExtensions {
   ): Promise<AaveV3LeverageStrategyExtension> {
     return await new AaveV3LeverageStrategyExtension__factory(this._deployerSigner).deploy(
       manager,
+      aaveOracle,
       contractSettings,
       methdologySettings,
       executionSettings,

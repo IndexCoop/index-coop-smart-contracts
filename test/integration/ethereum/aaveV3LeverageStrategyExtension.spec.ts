@@ -389,6 +389,7 @@ if (process.env.INTEGRATIONTEST) {
       maxOraclePriceAge = 600;
       leverageStrategyExtension = await deployer.extensions.deployAaveV3LeverageStrategyExtension(
         baseManagerV2.address,
+        aaveOracle.address,
         strategy,
         methodology,
         execution,
@@ -405,6 +406,7 @@ if (process.env.INTEGRATIONTEST) {
 
     describe("#constructor", async () => {
       let subjectManagerAddress: Address;
+      let subjectAaveOracleAddress: Address;
       let subjectContractSettings: AaveContractSettings;
       let subjectMethodologySettings: MethodologySettings;
       let subjectExecutionSettings: ExecutionSettings;
@@ -418,6 +420,7 @@ if (process.env.INTEGRATIONTEST) {
 
       beforeEach(async () => {
         subjectAaveAddressesProvider = contractAddresses.aaveV3AddressProvider;
+        subjectAaveOracleAddress = aaveOracle.address;
         subjectManagerAddress = baseManagerV2.address;
         subjectMaxOraclePriceAge = maxOraclePriceAge;
         subjectContractSettings = {
@@ -466,6 +469,7 @@ if (process.env.INTEGRATIONTEST) {
       async function subject(): Promise<AaveV3LeverageStrategyExtension> {
         return await deployer.extensions.deployAaveV3LeverageStrategyExtension(
           subjectManagerAddress,
+          subjectAaveOracleAddress,
           subjectContractSettings,
           subjectMethodologySettings,
           subjectExecutionSettings,
@@ -1746,26 +1750,6 @@ if (process.env.INTEGRATIONTEST) {
             );
             sendQuantity = ether(0.1);
             await weth.transfer(tradeAdapterMock.address, sendQuantity);
-          });
-
-          describe("when collateralPrice is outdated", async () => {
-            beforeEach(async () => {
-              await chainlinkCollateralPriceMock.setPriceAge(maxOraclePriceAge + 1);
-            });
-
-            it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Price data is stale");
-            });
-          });
-
-          describe("when borrowPrice is outdated", async () => {
-            beforeEach(async () => {
-              await chainlinkBorrowPriceMock.setPriceAge(maxOraclePriceAge + 1);
-            });
-
-            it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Price data is stale");
-            });
           });
 
           it("should set the last trade timestamp", async () => {

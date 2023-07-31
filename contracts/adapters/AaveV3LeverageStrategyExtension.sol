@@ -23,7 +23,7 @@ import { Math } from "@openzeppelin/contracts/math/Math.sol";
 
 import {AaveLeverageStrategyExtension} from "./AaveLeverageStrategyExtension.sol";
 import {IBaseManager} from "../interfaces/IBaseManager.sol";
-import { IChainlinkAggregatorV3 } from "../interfaces/IChainlinkAggregatorV3.sol";
+import { IAaveOracle } from "../interfaces/IAaveOracle.sol";
 import {IPool} from "../interfaces/IPool.sol";
 import {IPoolAddressesProvider} from "../interfaces/IPoolAddressesProvider.sol";
 import { DataTypes } from "../interfaces/Datatypes.sol";
@@ -42,9 +42,11 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
     IPoolAddressesProvider public lendingPoolAddressesProvider;
     uint256 public maxOraclePriceAge;
     bool public overrideNoRebalanceInProgress;
+    IAaveOracle public aaveOracle;
 
     constructor(
         IBaseManager _manager,
+        IAaveOracle _aaveOracle,
         ContractSettings memory _strategy,
         MethodologySettings memory _methodology,
         ExecutionSettings memory _execution,
@@ -67,6 +69,7 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
     {
         lendingPoolAddressesProvider = _lendingPoolAddressesProvider;
         maxOraclePriceAge = _maxOraclePriceAge;
+        aaveOracle = _aaveOracle;
     }
 
     /* ============ Modifiers ============ */
@@ -195,11 +198,11 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
     function _createActionInfo() internal view override returns(ActionInfo memory) {
         ActionInfo memory rebalanceInfo;
 
-        // Calculate prices from chainlink. Chainlink returns prices with 8 decimal places, but we need 36 - underlyingDecimals decimal places.
+        // Calculate prices from chainlink. AaveOracle returns prices with 8 decimal places, but we need 36 - underlyingDecimals decimal places.
         // This is so that when the underlying amount is multiplied by the received price, the collateral valuation is normalized to 36 decimals. 
         // To perform this adjustment, we multiply by 10^(36 - 8 - underlyingDecimals)
-        rebalanceInfo.collateralPrice = _getAssetPrice(strategy.collateralPriceOracle, strategy.collateralDecimalAdjustment);
-        rebalanceInfo.borrowPrice = _getAssetPrice(strategy.borrowPriceOracle, strategy.borrowDecimalAdjustment);
+        rebalanceInfo.collateralPrice = _getAssetPrice(strategy.collateralAsset, strategy.collateralDecimalAdjustment);
+        rebalanceInfo.borrowPrice = _getAssetPrice(strategy.borrowAsset, strategy.borrowDecimalAdjustment);
 
         rebalanceInfo.collateralBalance = strategy.targetCollateralAToken.balanceOf(address(strategy.setToken));
         rebalanceInfo.borrowBalance = strategy.targetBorrowDebtToken.balanceOf(address(strategy.setToken));
@@ -210,12 +213,9 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
         return rebalanceInfo;
     }
 
-    function _getAssetPrice(IChainlinkAggregatorV3 _priceOracle, uint256 _decimalAdjustment) internal view returns (uint256) {
-        (,int256 rawPrice,, uint256 updatedAt,) = _priceOracle.latestRoundData();
-        if(maxOraclePriceAge > 0) {
-            require(updatedAt > block.timestamp.sub(maxOraclePriceAge), "Price data is stale");
-        }
-        return rawPrice.toUint256().mul(10 ** _decimalAdjustment);
+    function _getAssetPrice(address _asset, uint256 _decimalAdjustment) internal view returns (uint256) {
+        uint256 rawPrice = aaveOracle.getAssetPrice(_asset);
+        return rawPrice.mul(10 ** _decimalAdjustment);
     }
 
 }
