@@ -112,7 +112,7 @@ export async function impersonateAccount(address: string): Promise<Signer> {
     method: "hardhat_impersonateAccount",
     params: [address],
   });
-  return await ethers.getSigner(address);
+  return await ethers.provider.getSigner(address);
 }
 
 export function setBlockNumber(blockNumber: number) {
