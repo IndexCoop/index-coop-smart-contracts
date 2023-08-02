@@ -42,7 +42,6 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
     IPoolAddressesProvider public lendingPoolAddressesProvider;
     uint256 public maxOraclePriceAge;
     bool public overrideNoRebalanceInProgress;
-    IAaveOracle public aaveOracle;
 
     constructor(
         IBaseManager _manager,
@@ -68,7 +67,6 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
     {
         lendingPoolAddressesProvider = _lendingPoolAddressesProvider;
         maxOraclePriceAge = _maxOraclePriceAge;
-        aaveOracle = IAaveOracle(IPoolAddressesProvider(lendingPoolAddressesProvider).getPriceOracle());
     }
 
     /* ============ Modifiers ============ */
@@ -213,6 +211,7 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
     }
 
     function _getAssetPrice(address _asset, uint256 _decimalAdjustment) internal view returns (uint256) {
+        IAaveOracle aaveOracle = IAaveOracle(IPoolAddressesProvider(lendingPoolAddressesProvider).getPriceOracle());
         uint256 rawPrice = aaveOracle.getAssetPrice(_asset);
         return rawPrice.mul(10 ** _decimalAdjustment);
     }
