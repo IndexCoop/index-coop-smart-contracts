@@ -139,7 +139,6 @@ if (process.env.INTEGRATIONTEST) {
     let initialCollateralPrice: BigNumber;
     let initialBorrowPrice: BigNumber;
 
-    let maxOraclePriceAge: number;
     let strategy: AaveContractSettings;
     let methodology: MethodologySettings;
     let execution: ExecutionSettings;
@@ -386,7 +385,6 @@ if (process.env.INTEGRATIONTEST) {
         deleverExchangeData,
       };
 
-      maxOraclePriceAge = 600;
       leverageStrategyExtension = await deployer.extensions.deployAaveV3LeverageStrategyExtension(
         baseManagerV2.address,
         strategy,
@@ -396,7 +394,6 @@ if (process.env.INTEGRATIONTEST) {
         [exchangeName],
         [exchangeSettings],
         contractAddresses.aaveV3AddressProvider,
-        maxOraclePriceAge,
       );
 
       // Add adapter
@@ -412,14 +409,12 @@ if (process.env.INTEGRATIONTEST) {
       let subjectExchangeName: string;
       let subjectExchangeSettings: ExchangeSettings;
       let subjectAaveAddressesProvider: string;
-      let subjectMaxOraclePriceAge: number;
 
       cacheBeforeEach(initializeRootScopeContracts);
 
       beforeEach(async () => {
         subjectAaveAddressesProvider = contractAddresses.aaveV3AddressProvider;
         subjectManagerAddress = baseManagerV2.address;
-        subjectMaxOraclePriceAge = maxOraclePriceAge;
         subjectContractSettings = {
           setToken: setToken.address,
           leverageModule: aaveLeverageModule.address,
@@ -473,7 +468,6 @@ if (process.env.INTEGRATIONTEST) {
           [subjectExchangeName],
           [subjectExchangeSettings],
           subjectAaveAddressesProvider,
-          subjectMaxOraclePriceAge,
         );
       }
 
@@ -483,14 +477,6 @@ if (process.env.INTEGRATIONTEST) {
         const overrideNoRebalanceInProgress = await retrievedAdapter.overrideNoRebalanceInProgress();
 
         expect(overrideNoRebalanceInProgress).to.be.false;
-      });
-
-      it("should set the maxOraclePriceAge", async () => {
-        const retrievedAdapter = await subject();
-
-        const maxPriceAge = await retrievedAdapter.maxOraclePriceAge();
-
-        expect(maxPriceAge).to.eq(subjectMaxOraclePriceAge);
       });
 
       it("should set the manager address", async () => {

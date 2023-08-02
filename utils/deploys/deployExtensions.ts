@@ -423,7 +423,6 @@ export default class DeployExtensions {
     exchangeNames: string[],
     exchangeSettings: ExchangeSettings[],
     lendingPoolAddressesProvider: Address,
-    maxOraclePriceAge: BigNumberish,
   ): Promise<AaveV3LeverageStrategyExtension> {
     return await new AaveV3LeverageStrategyExtension__factory(this._deployerSigner).deploy(
       manager,
@@ -434,7 +433,6 @@ export default class DeployExtensions {
       exchangeNames,
       exchangeSettings,
       lendingPoolAddressesProvider,
-      maxOraclePriceAge,
     );
   }
 
