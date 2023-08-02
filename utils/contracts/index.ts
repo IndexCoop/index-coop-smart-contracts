@@ -11,6 +11,7 @@ export { DEXAdapter } from "../../typechain/DEXAdapter";
 export { ExchangeIssuance } from "../../typechain/ExchangeIssuance";
 export { ExchangeIssuanceV2 } from "../../typechain/ExchangeIssuanceV2";
 export { ExchangeIssuanceLeveraged } from "../../typechain/ExchangeIssuanceLeveraged";
+export { FlashMintLeveraged } from "../../typechain/FlashMintLeveraged";
 export { FlashMintLeveragedForCompound } from "../../typechain/FlashMintLeveragedForCompound";
 export { ExchangeIssuanceZeroEx } from "../../typechain/ExchangeIssuanceZeroEx";
 export { FlashMintNotional } from "../../typechain/FlashMintNotional";
