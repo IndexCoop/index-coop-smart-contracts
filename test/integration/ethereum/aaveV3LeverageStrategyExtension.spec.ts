@@ -389,7 +389,6 @@ if (process.env.INTEGRATIONTEST) {
       maxOraclePriceAge = 600;
       leverageStrategyExtension = await deployer.extensions.deployAaveV3LeverageStrategyExtension(
         baseManagerV2.address,
-        aaveOracle.address,
         strategy,
         methodology,
         execution,
@@ -406,7 +405,6 @@ if (process.env.INTEGRATIONTEST) {
 
     describe("#constructor", async () => {
       let subjectManagerAddress: Address;
-      let subjectAaveOracleAddress: Address;
       let subjectContractSettings: AaveContractSettings;
       let subjectMethodologySettings: MethodologySettings;
       let subjectExecutionSettings: ExecutionSettings;
@@ -420,7 +418,6 @@ if (process.env.INTEGRATIONTEST) {
 
       beforeEach(async () => {
         subjectAaveAddressesProvider = contractAddresses.aaveV3AddressProvider;
-        subjectAaveOracleAddress = aaveOracle.address;
         subjectManagerAddress = baseManagerV2.address;
         subjectMaxOraclePriceAge = maxOraclePriceAge;
         subjectContractSettings = {
@@ -469,7 +466,6 @@ if (process.env.INTEGRATIONTEST) {
       async function subject(): Promise<AaveV3LeverageStrategyExtension> {
         return await deployer.extensions.deployAaveV3LeverageStrategyExtension(
           subjectManagerAddress,
-          subjectAaveOracleAddress,
           subjectContractSettings,
           subjectMethodologySettings,
           subjectExecutionSettings,

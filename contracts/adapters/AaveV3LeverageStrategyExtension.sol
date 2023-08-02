@@ -46,7 +46,6 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
 
     constructor(
         IBaseManager _manager,
-        IAaveOracle _aaveOracle,
         ContractSettings memory _strategy,
         MethodologySettings memory _methodology,
         ExecutionSettings memory _execution,
@@ -69,7 +68,7 @@ contract AaveV3LeverageStrategyExtension is AaveLeverageStrategyExtension {
     {
         lendingPoolAddressesProvider = _lendingPoolAddressesProvider;
         maxOraclePriceAge = _maxOraclePriceAge;
-        aaveOracle = _aaveOracle;
+        aaveOracle = IAaveOracle(IPoolAddressesProvider(lendingPoolAddressesProvider).getPriceOracle());
     }
 
     /* ============ Modifiers ============ */
