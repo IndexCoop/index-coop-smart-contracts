@@ -20,8 +20,6 @@ import {
   AaveV3LeverageModule,
   AaveV3LeverageStrategyExtension,
   ContractCallerMock,
-  Controller,
-  Controller__factory,
   IAaveOracle,
   IAaveOracle__factory,
   IPoolConfigurator,
@@ -41,6 +39,7 @@ import {
   IPool,
   IPool__factory,
   TradeAdapterMock,
+  AaveV3LeverageModule__factory,
 } from "../../../typechain";
 import DeployHelper from "@utils/deploys";
 import {
@@ -84,6 +83,7 @@ const contractAddresses = {
   interestRateStrategy: "0x76884cAFeCf1f7d4146DA6C4053B18B76bf6ED14",
   aaveTreasury: "0x464C71f6c2F760DdA6093dCB91C24c39e5d6e18c",
   aaveIncentivesController: "0x8164Cc65827dcFe994AB23944CBC90e0aa80bFcb",
+  aaveV3LeverageModule: "0x9d08CCeD85A68Bf8A19374ED4B5753aE3Be9F74f",
 };
 
 const tokenAddresses = {
@@ -112,14 +112,13 @@ const whales = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe("AaveV3LeverageStrategyExtension", () => {
+  describe.only("AaveV3LeverageStrategyExtension", () => {
     let owner: Account;
     let nonOwner: Account;
     let methodologist: Account;
 
     let deployer: DeployHelper;
     let setToken: SetToken;
-    let controller: Controller;
     let aaveLeverageModule: AaveV3LeverageModule;
     let lendingPoolConfigurator: IPoolConfigurator;
     let lendingPool: IPool;
@@ -163,11 +162,7 @@ if (process.env.INTEGRATIONTEST) {
 
       lendingPool = IPool__factory.connect(contractAddresses.aaveV3Pool, owner.wallet);
 
-      // Deploy Aave leverage module and add to controller
-      aaveLeverageModule = await deployer.setV2.deployAaveV3LeverageModule(
-        contractAddresses.controller,
-        contractAddresses.aaveV3AddressProvider,
-      );
+      aaveLeverageModule = AaveV3LeverageModule__factory.connect(contractAddresses.aaveV3LeverageModule, owner.wallet);
 
       manager = owner.address;
       weth = IERC20__factory.connect(tokenAddresses.weth, owner.wallet);
@@ -175,6 +170,11 @@ if (process.env.INTEGRATIONTEST) {
         .connect(await impersonateAccount(whales.weth))
         .transfer(owner.address, await weth.balanceOf(whales.weth).then(b => b.div(10)));
       wsteth = IERC20__factory.connect(tokenAddresses.wsteth, owner.wallet);
+      // whale needs eth for the transfer.
+      await network.provider.send("hardhat_setBalance", [
+        whales.wsteth,
+        ether(10).toHexString(),
+      ]);
       await wsteth
         .connect(await impersonateAccount(whales.wsteth))
         .transfer(owner.address, await wsteth.balanceOf(whales.wsteth).then(b => b.div(10)));
@@ -193,13 +193,6 @@ if (process.env.INTEGRATIONTEST) {
         owner.wallet,
       );
 
-      controller = Controller__factory.connect(contractAddresses.controller, owner.wallet);
-      const controllerOwner = await controller.owner();
-      const controllerOwnerSigner = await impersonateAccount(controllerOwner);
-      controller = controller.connect(controllerOwnerSigner);
-
-      await controller.addModule(aaveLeverageModule.address);
-
       integrationRegistry = IntegrationRegistry__factory.connect(
         contractAddresses.integrationRegistry,
         owner.wallet,
@@ -209,19 +202,22 @@ if (process.env.INTEGRATIONTEST) {
         await impersonateAccount(integrationRegistryOwner),
       );
 
+      const replaceRegistry = async (integrationModuleAddress: string, name: string, adapterAddress: string) => {
+        const currentAdapterAddress = await integrationRegistry.getIntegrationAdapter(integrationModuleAddress, name);
+        if (!ethers.utils.isAddress(adapterAddress)) {
+          throw new Error("Invalid address: " + adapterAddress + " for " + name + " adapter");
+        }
+        if (ethers.utils.isAddress(currentAdapterAddress) && currentAdapterAddress != ADDRESS_ZERO) {
+          await integrationRegistry.editIntegration(integrationModuleAddress, name, adapterAddress);
+        } else {
+          await integrationRegistry.addIntegration(integrationModuleAddress, name, adapterAddress);
+        }
+      };
       tradeAdapterMock = await deployer.mocks.deployTradeAdapterMock();
-      await integrationRegistry.addIntegration(
-        aaveLeverageModule.address,
-        exchangeName,
-        tradeAdapterMock.address,
-      );
+      replaceRegistry(aaveLeverageModule.address, exchangeName, tradeAdapterMock.address);
       // Deploy mock trade adapter 2
       tradeAdapterMock2 = await deployer.mocks.deployTradeAdapterMock();
-      await integrationRegistry.addIntegration(
-        aaveLeverageModule.address,
-        exchangeName2,
-        tradeAdapterMock2.address,
-      );
+      replaceRegistry(aaveLeverageModule.address, exchangeName2, tradeAdapterMock2.address);
 
       setTokenCreator = SetTokenCreator__factory.connect(
         contractAddresses.setTokenCreator,
@@ -250,16 +246,8 @@ if (process.env.INTEGRATIONTEST) {
         owner.wallet,
       );
 
-      await integrationRegistry.addIntegration(
-        aaveLeverageModule.address,
-        "DefaultIssuanceModule",
-        debtIssuanceModule.address,
-      );
-      await integrationRegistry.addIntegration(
-        debtIssuanceModule.address,
-        "AaveLeverageModuleV3",
-        aaveLeverageModule.address,
-      );
+      replaceRegistry(aaveLeverageModule.address, "DefaultIssuanceModule", debtIssuanceModule.address);
+      replaceRegistry(debtIssuanceModule.address, "AaveLeverageModuleV3", aaveLeverageModule.address);
 
       // Deploy Chainlink mocks
       chainlinkCollateralPriceMock = await deployer.mocks.deployChainlinkAggregatorMock();
@@ -298,8 +286,13 @@ if (process.env.INTEGRATIONTEST) {
         [ether(1)],
         [debtIssuanceModule.address, aaveLeverageModule.address],
       );
-      await aaveLeverageModule.updateAnySetAllowed(true);
-
+      const ownerofLeveverageModule = await aaveLeverageModule.owner();
+      if (ownerofLeveverageModule != owner.address) {
+        await aaveLeverageModule.connect(await impersonateAccount(ownerofLeveverageModule)).updateAnySetAllowed(true);
+      }
+      else {
+        await aaveLeverageModule.updateAnySetAllowed(true);
+      }
       // Initialize modules
       await debtIssuanceModule.initialize(
         setToken.address,
