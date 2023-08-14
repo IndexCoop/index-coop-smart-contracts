@@ -112,7 +112,7 @@ const whales = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe.only("AaveV3LeverageStrategyExtension", () => {
+  describe("AaveV3LeverageStrategyExtension", () => {
     let owner: Account;
     let nonOwner: Account;
     let methodologist: Account;
