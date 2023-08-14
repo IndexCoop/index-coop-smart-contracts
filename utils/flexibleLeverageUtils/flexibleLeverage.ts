@@ -2,6 +2,7 @@ import { BigNumber } from "@ethersproject/bignumber";
 import { AaveV2AToken } from "@typechain/AaveV2AToken";
 import { CEther } from "@typechain/CEther";
 import { SetToken } from "@typechain/SetToken";
+import  { IAToken } from "@typechain/IAToken";
 import { ether, preciseMul, preciseDiv } from "../common";
 import { IERC20 } from "@typechain/IERC20";
 
@@ -49,7 +50,7 @@ export async function calculateTotalRebalanceNotionalCompound(
 
 export async function calculateTotalRebalanceNotionalAave(
   setToken: SetToken,
-  aToken: AaveV2AToken | IERC20,
+  aToken: IAToken | AaveV2AToken | IERC20,
   currentLeverageRatio: BigNumber,
   newLeverageRatio: BigNumber
 ): Promise<BigNumber> {
@@ -59,6 +60,20 @@ export async function calculateTotalRebalanceNotionalAave(
   const b = preciseDiv(a, currentLeverageRatio);
   return preciseMul(b, collateralBalance);
 }
+
+export async function calculateTotalRebalanceNotionalAaveV3(
+  setToken: SetToken,
+  aToken: IAToken | AaveV2AToken | IERC20,
+  currentLeverageRatio: BigNumber,
+  newLeverageRatio: BigNumber
+): Promise<BigNumber> {
+
+  const collateralBalance = await aToken.balanceOf(setToken.address);
+  const a = currentLeverageRatio.gt(newLeverageRatio) ? currentLeverageRatio.sub(newLeverageRatio) : newLeverageRatio.sub(currentLeverageRatio);
+  const b = preciseMul(a, collateralBalance);
+  return preciseDiv(b, currentLeverageRatio);
+}
+
 
 export function calculateMaxBorrowForDelever(
   collateralBalance: BigNumber,
@@ -74,6 +89,21 @@ export function calculateMaxBorrowForDelever(
     preciseMul(collateralValue, collateralFactor),
     ether(1).sub(unutilizedLeveragePercentage)
   );
+  const a = preciseMul(collateralBalance, netBorrowLimit.sub(borrowValue));
+
+  return preciseDiv(a, netBorrowLimit);
+}
+
+export function calculateMaxBorrowForDeleverV3(
+  collateralBalance: BigNumber,
+  collateralFactor: BigNumber,
+  collateralPrice: BigNumber,
+  borrowPrice: BigNumber,
+  borrowBalance: BigNumber,
+): BigNumber {
+  const collateralValue = preciseMul(collateralBalance, collateralPrice);
+  const borrowValue = preciseMul(borrowBalance, borrowPrice);
+  const netBorrowLimit = preciseMul(collateralValue, collateralFactor);
   const a = preciseMul(collateralBalance, netBorrowLimit.sub(borrowValue));
 
   return preciseDiv(a, netBorrowLimit);

@@ -63,6 +63,11 @@ type ComponentWrapData = {
 
 //#endregion
 
+const getDeadline = async () => {
+  const block = await ethers.provider.getBlock("latest");
+  // add 7 days
+  return BigNumber.from(block.timestamp).add(60 * 60 * 24 * 7);
+};
 class TestHelper {
   async getIssuanceComponentSwapData(
     inputToken: Address,
@@ -243,7 +248,7 @@ class TestHelper {
       amountIn,
       [addresses.tokens.weth, inputToken.address],
       owner.address,
-      BigNumber.from("1688894490"),
+      await getDeadline(),
       { value: ether(1000) },
     );
 
@@ -423,7 +428,7 @@ if (process.env.INTEGRATIONTEST) {
                       inputAmount,
                       [weth.address, USDC.address],
                       owner.address,
-                      BigNumber.from("1688894490"),
+                      await getDeadline(),
                       { value: ether(100) },
                     );
                   }
