@@ -1162,7 +1162,7 @@ if (process.env.INTEGRATIONTEST) {
       context("when methodology settings are increased beyond default maximum", () => {
         let newMethodology: MethodologySettings;
         let newIncentive: IncentiveSettings;
-        const leverageCutoff = ether(2.2); // Value of leverage that can only be exceeded with eMode activated
+        const leverageCutoff = ether(2.21); // Value of leverage that can only be exceeded with eMode activated
         beforeEach(() => {
           subjectCaller = owner;
         });
@@ -3534,6 +3534,14 @@ if (process.env.INTEGRATIONTEST) {
             await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice);
 
             subjectCaller = owner;
+
+            const oldExecution = await leverageStrategyExtension.getExecution();
+            const newExecution: ExecutionSettings = {
+              unutilizedLeveragePercentage: oldExecution.unutilizedLeveragePercentage,
+              twapCooldownPeriod: oldExecution.twapCooldownPeriod,
+              slippageTolerance: ether(0.05),
+            };
+            await leverageStrategyExtension.setExecutionSettings(newExecution);
           });
 
           async function subject(): Promise<any> {
