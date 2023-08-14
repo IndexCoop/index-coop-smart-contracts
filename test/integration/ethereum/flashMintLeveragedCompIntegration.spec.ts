@@ -27,6 +27,11 @@ type SwapData = {
   exchange: Exchange;
 };
 
+const getDeadline = async () => {
+  const block = await ethers.provider.getBlock("latest");
+  // add 7 days
+  return BigNumber.from(block.timestamp).add(60 * 60 * 24 * 7);
+};
 if (process.env.INTEGRATIONTEST) {
   describe("ExchangeIssuanceLeveragedForCompound - Integration Test", async () => {
     const addresses = process.env.USE_STAGING_ADDRESSES ? STAGING_ADDRESSES : PRODUCTION_ADDRESSES;
@@ -210,7 +215,7 @@ if (process.env.INTEGRATIONTEST) {
                       amountIn,
                       [weth.address, uSDC.address],
                       owner.address,
-                      BigNumber.from("1688894490"),
+                      await getDeadline(),
                       { value: ether(1) },
                     );
                     await inputToken.approve(exchangeIssuance.address, MAX_UINT_256);
