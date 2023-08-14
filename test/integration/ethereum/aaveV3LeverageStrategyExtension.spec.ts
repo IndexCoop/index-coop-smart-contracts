@@ -1958,7 +1958,7 @@ if (process.env.INTEGRATIONTEST) {
               .rebalance(subjectExchangeToUse);
           }
 
-          describe("when leverage ratio is above max and it drops further between rebalances", async () => {
+          describe("when leverage ratio is above max and rises further between rebalances", async () => {
             it("should set the global and exchange timestamps correctly", async () => {
               await subject();
               const timestamp1 = await getLastBlockTimestamp();
