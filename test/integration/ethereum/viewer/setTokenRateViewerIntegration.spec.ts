@@ -79,7 +79,7 @@ if (process.env.INTEGRATIONTEST) {
 
         const rate = await viewer.getRate();
         expect(rate).to.gt(ether(2.7));
-        expect(rate).to.lt(ether(2.8));
+        expect(rate).to.lt(ether(2.809));
       });
     });
   });

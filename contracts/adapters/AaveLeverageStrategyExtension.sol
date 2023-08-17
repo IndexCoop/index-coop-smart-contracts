@@ -189,7 +189,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
     /**
      * Throws if rebalance is currently in TWAP`
      */
-    modifier noRebalanceInProgress() {
+    modifier noRebalanceInProgress() virtual {
         require(twapLeverageRatio == 0, "Rebalance is currently in progress");
         _;
     }
@@ -886,7 +886,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
      *
      * return ActionInfo                Struct containing data used by internal lever and delever functions
      */
-    function _createActionInfo() internal view returns(ActionInfo memory) {
+    function _createActionInfo() internal view virtual returns(ActionInfo memory) {
         ActionInfo memory rebalanceInfo;
 
         // Calculate prices from chainlink. Chainlink returns prices with 8 decimal places, but we need 36 - underlyingDecimals decimal places.
@@ -915,6 +915,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
         IncentiveSettings memory _incentive
     )
         internal
+        virtual
         pure
     {
         require (
@@ -1060,6 +1061,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
     )
         internal
         view
+        virtual
         returns (uint256, uint256)
     {
         // Calculate absolute value of difference between new and current leverage ratio
@@ -1092,7 +1094,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
      *
      * return uint256          Max borrow notional denominated in collateral asset
      */
-    function _calculateMaxBorrowCollateral(ActionInfo memory _actionInfo, bool _isLever) internal view returns(uint256) {
+    function _calculateMaxBorrowCollateral(ActionInfo memory _actionInfo, bool _isLever) internal virtual view returns(uint256) {
         
         // Retrieve collateral factor and liquidation threshold for the collateral asset in precise units (1e16 = 1%)
         ( , uint256 maxLtvRaw, uint256 liquidationThresholdRaw, , , , , , ,) = strategy.aaveProtocolDataProvider.getReserveConfigurationData(address(strategy.collateralAsset));
@@ -1144,7 +1146,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
      *
      * return uint256           Min position units to repay in borrow asset
      */
-    function _calculateMinRepayUnits(uint256 _collateralRebalanceUnits, uint256 _slippageTolerance, ActionInfo memory _actionInfo) internal pure returns (uint256) {
+    function _calculateMinRepayUnits(uint256 _collateralRebalanceUnits, uint256 _slippageTolerance, ActionInfo memory _actionInfo) internal virtual pure returns (uint256) {
         return _collateralRebalanceUnits
             .preciseMul(_actionInfo.collateralPrice)
             .preciseDiv(_actionInfo.borrowPrice)

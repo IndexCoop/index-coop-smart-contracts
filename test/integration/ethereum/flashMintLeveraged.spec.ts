@@ -36,7 +36,7 @@ type SwapData = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe.only("FlashMintLeveraged - Integration Test", async () => {
+  describe("FlashMintLeveraged - Integration Test", async () => {
     const addresses = process.env.USE_STAGING_ADDRESSES ? STAGING_ADDRESSES : PRODUCTION_ADDRESSES;
     let owner: Account;
     let deployer: DeployHelper;
