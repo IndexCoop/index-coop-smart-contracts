@@ -11,6 +11,7 @@ import {
 import {
   AaveLeverageStrategyExtension,
   AirdropExtension,
+  AuctionRebalanceExtension,
   DEXAdapter,
   ExchangeIssuance,
   ExchangeIssuanceV2,
@@ -34,6 +35,7 @@ import {
   AaveV3LeverageStrategyExtension__factory,
 } from "../../typechain";
 import { AirdropExtension__factory } from "../../typechain/factories/AirdropExtension__factory";
+import { AuctionRebalanceExtension__factory } from "../../typechain/factories/AuctionRebalanceExtension__factory";
 import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__factory";
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
@@ -378,6 +380,16 @@ export default class DeployExtensions {
     airdropModule: Address,
   ): Promise<AirdropExtension> {
     return await new AirdropExtension__factory(this._deployerSigner).deploy(manager, airdropModule);
+  }
+
+  public async deployAuctionRebalanceExtension(
+    manager: Address,
+    auctionModule: Address,
+  ): Promise<AuctionRebalanceExtension> {
+    return await new AuctionRebalanceExtension__factory(this._deployerSigner).deploy(
+      manager,
+      auctionModule,
+    );
   }
 
   public async deployStakeWiseReinvestmentExtension(
