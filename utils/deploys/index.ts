@@ -1,6 +1,9 @@
 import { Signer } from "ethers";
 
 import DeployManager from "./deployManager";
+import DeployManagerCore from "./deployManagerCore";
+import DeployGlobalExtensions from "./deployGlobalExtensions";
+import DeployFactories from "./deployFactories";
 import DeployMocks from "./deployMocks";
 import DeployToken from "./deployToken";
 import DeploySetV2 from "./deploySetV2";
@@ -15,6 +18,9 @@ export default class DeployHelper {
   public token: DeployToken;
   public setV2: DeploySetV2;
   public manager: DeployManager;
+  public managerCore: DeployManagerCore;
+  public globalExtensions: DeployGlobalExtensions;
+  public factories: DeployFactories;
   public mocks: DeployMocks;
   public extensions: DeployExtensions;
   public external: DeployExternalContracts;
@@ -34,5 +40,8 @@ export default class DeployHelper {
     this.staking = new DeployStaking(deployerSigner);
     this.viewers = new DeployViewers(deployerSigner);
     this.keepers = new DeployKeepers(deployerSigner);
+    this.managerCore = new DeployManagerCore(deployerSigner);
+    this.globalExtensions = new DeployGlobalExtensions(deployerSigner);
+    this.factories = new DeployFactories(deployerSigner);
   }
 }

@@ -15,10 +15,14 @@ import {
   WrappedfCashFactoryMock,
   ZeroExExchangeProxyMock,
   DEXAdapter,
+  ModuleMock,
+  BaseGlobalExtensionMock,
 } from "../contracts/index";
 
 import { BaseExtensionMock__factory } from "../../typechain/factories/BaseExtensionMock__factory";
 import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__factory";
+import { ModuleMock__factory } from "../../typechain/factories/ModuleMock__factory";
+import { BaseGlobalExtensionMock__factory } from "../../typechain/factories/BaseGlobalExtensionMock__factory";
 import { convertLibraryNameToLinkId } from "../common";
 import { ChainlinkAggregatorV3Mock__factory } from "../../typechain/factories/ChainlinkAggregatorV3Mock__factory";
 import { FLIStrategyExtensionMock__factory } from "../../typechain/factories/FLIStrategyExtensionMock__factory";
@@ -48,6 +52,10 @@ export default class DeployMocks {
 
   public async deployBaseExtensionMock(manager: Address): Promise<BaseExtensionMock> {
     return await new BaseExtensionMock__factory(this._deployerSigner).deploy(manager);
+  }
+
+  public async deployBaseGlobalExtensionMock(managerCore: Address, module: Address): Promise<BaseGlobalExtensionMock> {
+    return await new BaseGlobalExtensionMock__factory(this._deployerSigner).deploy(managerCore, module);
   }
 
   public async deployTradeAdapterMock(): Promise<TradeAdapterMock> {
@@ -147,6 +155,10 @@ export default class DeployMocks {
 
   public async deployDEXAdapter(): Promise<DEXAdapter> {
     return await new DEXAdapter__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployModuleMock(controller: Address): Promise<ModuleMock> {
+    return await new ModuleMock__factory(this._deployerSigner).deploy(controller);
   }
 
   public async deployFlashMintLeveragedCompMock(

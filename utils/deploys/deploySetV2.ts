@@ -79,6 +79,10 @@ export default class DeploySetV2 {
     return await new Compound__factory(this._deployerSigner).deploy();
   }
 
+  public async getSetToken(setTokenAddress: Address): Promise<SetToken> {
+    return await new SetToken__factory(this._deployerSigner).attach(setTokenAddress);
+  }
+
   public async deploySetToken(
     _components: Address[],
     _units: BigNumberish[],
