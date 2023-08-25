@@ -1,5 +1,5 @@
 /*
-    Copyright 2021 Index Coop.
+    Copyright 2022 Set Labs Inc.
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -16,11 +16,14 @@
     SPDX-License-Identifier: Apache License, Version 2.0
 */
 
-import { ISetToken } from "./ISetToken.sol";
-
 pragma solidity 0.6.10;
+pragma experimental "ABIEncoderV2";
+
+import { ISetToken } from "./ISetToken.sol";
+import { IWETH } from "./IWETH.sol";
 
 interface IWrapModuleV2 {
+    function weth() external view returns(IWETH);
 
     function initialize(ISetToken _setToken) external;
 
