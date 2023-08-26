@@ -17,11 +17,13 @@ import {
   DEXAdapter,
   ModuleMock,
   BaseGlobalExtensionMock,
+  MutualUpgradeV2Mock,
 } from "../contracts/index";
 
 import { BaseExtensionMock__factory } from "../../typechain/factories/BaseExtensionMock__factory";
 import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__factory";
 import { ModuleMock__factory } from "../../typechain/factories/ModuleMock__factory";
+import { MutualUpgradeV2Mock__factory } from "../../typechain/factories/MutualUpgradeV2Mock__factory";
 import { BaseGlobalExtensionMock__factory } from "../../typechain/factories/BaseGlobalExtensionMock__factory";
 import { convertLibraryNameToLinkId } from "../common";
 import { ChainlinkAggregatorV3Mock__factory } from "../../typechain/factories/ChainlinkAggregatorV3Mock__factory";
@@ -159,6 +161,10 @@ export default class DeployMocks {
 
   public async deployModuleMock(controller: Address): Promise<ModuleMock> {
     return await new ModuleMock__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployMutualUpgradeV2Mock(owner: Address, methodologist: string): Promise<MutualUpgradeV2Mock> {
+    return await new MutualUpgradeV2Mock__factory(this._deployerSigner).deploy(owner, methodologist);
   }
 
   public async deployFlashMintLeveragedCompMock(
