@@ -120,3 +120,10 @@ export interface BatchTradeResult {
   tradeInfo: TradeInfo;
   revertReason?: string | undefined;
 }
+
+export interface AirdropSettings {
+  airdrops: Address[];
+  feeRecipient: Address;
+  airdropFee: BigNumber;
+  anyoneAbsorb: boolean;
+}

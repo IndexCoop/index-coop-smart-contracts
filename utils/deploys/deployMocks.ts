@@ -9,6 +9,7 @@ import {
   NotionalTradeModuleMock,
   StandardTokenMock,
   StringArrayUtilsMock,
+  ManagerMock,
   TradeAdapterMock,
   WrapAdapterMock,
   WrappedfCashMock,
@@ -23,6 +24,7 @@ import {
 import { BaseExtensionMock__factory } from "../../typechain/factories/BaseExtensionMock__factory";
 import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__factory";
 import { ModuleMock__factory } from "../../typechain/factories/ModuleMock__factory";
+import { ManagerMock__factory } from "../../typechain/factories/ManagerMock__factory";
 import { MutualUpgradeV2Mock__factory } from "../../typechain/factories/MutualUpgradeV2Mock__factory";
 import { BaseGlobalExtensionMock__factory } from "../../typechain/factories/BaseGlobalExtensionMock__factory";
 import { convertLibraryNameToLinkId } from "../common";
@@ -210,5 +212,9 @@ export default class DeployMocks {
       aaveAddressProviderAddress,
       cEtherAddress,
     );
+  }
+
+  public async deployManagerMock(setToken: Address): Promise<ManagerMock> {
+    return await new ManagerMock__factory(this._deployerSigner).deploy(setToken);
   }
 }

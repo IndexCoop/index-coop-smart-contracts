@@ -14,6 +14,8 @@ import {
   ConstantPriceAdapter,
   ComptrollerMock,
   ContractCallerMock,
+  ClaimAdapterMock,
+  ClaimModule,
   DebtIssuanceModule,
   GeneralIndexModule,
   GovernanceModule,
@@ -45,6 +47,8 @@ import { Compound__factory } from "../../typechain/factories/Compound__factory";
 import { CompoundLeverageModule__factory } from "../../typechain/factories/CompoundLeverageModule__factory";
 import { ComptrollerMock__factory } from "../../typechain/factories/ComptrollerMock__factory";
 import { ContractCallerMock__factory } from "../../typechain/factories/ContractCallerMock__factory";
+import { ClaimAdapterMock__factory } from "../../typechain/factories/ClaimAdapterMock__factory";
+import { ClaimModule__factory } from "../../typechain/factories/ClaimModule__factory";
 import { DebtIssuanceModule__factory } from "../../typechain/factories/DebtIssuanceModule__factory";
 import { GeneralIndexModule__factory } from "../../typechain/factories/GeneralIndexModule__factory";
 import { GovernanceModule__factory } from "../../typechain/factories/GovernanceModule__factory";
@@ -290,5 +294,13 @@ export default class DeploySetV2 {
 
   public async deployConstantPriceAdapter(): Promise<ConstantPriceAdapter> {
     return await new ConstantPriceAdapter__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployClaimAdapterMock(): Promise<ClaimAdapterMock> {
+    return await new ClaimAdapterMock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployClaimModule(controller: Address): Promise<ClaimModule> {
+    return await new ClaimModule__factory(this._deployerSigner).deploy(controller);
   }
 }
