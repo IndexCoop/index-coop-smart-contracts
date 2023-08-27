@@ -11,6 +11,7 @@ export { ConstantPriceAdapter } from "../../typechain/ConstantPriceAdapter";
 export { ComptrollerMock } from "../../typechain/ComptrollerMock";
 export { CompoundLeverageModule } from "../../typechain/CompoundLeverageModule";
 export { DebtIssuanceModule } from "../../typechain/DebtIssuanceModule";
+export { DebtIssuanceModuleV2 } from "../../typechain/DebtIssuanceModuleV2";
 export { GeneralIndexModule } from "../../typechain/GeneralIndexModule";
 export { SlippageIssuanceModule } from "../../typechain/SlippageIssuanceModule";
 export { GovernanceModule } from "../../typechain/GovernanceModule";

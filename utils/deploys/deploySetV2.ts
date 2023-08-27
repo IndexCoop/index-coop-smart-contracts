@@ -17,6 +17,7 @@ import {
   ClaimAdapterMock,
   ClaimModule,
   DebtIssuanceModule,
+  DebtIssuanceModuleV2,
   GeneralIndexModule,
   GovernanceModule,
   IntegrationRegistry,
@@ -52,6 +53,7 @@ import { ContractCallerMock__factory } from "../../typechain/factories/ContractC
 import { ClaimAdapterMock__factory } from "../../typechain/factories/ClaimAdapterMock__factory";
 import { ClaimModule__factory } from "../../typechain/factories/ClaimModule__factory";
 import { DebtIssuanceModule__factory } from "../../typechain/factories/DebtIssuanceModule__factory";
+import { DebtIssuanceModuleV2__factory } from "../../typechain/factories/DebtIssuanceModuleV2__factory";
 import { GeneralIndexModule__factory } from "../../typechain/factories/GeneralIndexModule__factory";
 import { GovernanceModule__factory } from "../../typechain/factories/GovernanceModule__factory";
 import { IntegrationRegistry__factory } from "../../typechain/factories/IntegrationRegistry__factory";
@@ -131,6 +133,10 @@ export default class DeploySetV2 {
 
   public async deployDebtIssuanceModule(controller: Address): Promise<DebtIssuanceModule> {
     return await new DebtIssuanceModule__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployDebtIssuanceModuleV2(controller: Address): Promise<DebtIssuanceModuleV2> {
+    return await new DebtIssuanceModuleV2__factory(this._deployerSigner).deploy(controller);
   }
 
   public async deployStreamingFeeModule(controller: Address): Promise<StreamingFeeModule> {
