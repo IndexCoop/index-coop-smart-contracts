@@ -22,6 +22,7 @@ import {
   IntegrationRegistry,
   StreamingFeeModule,
   SetToken,
+  TradeModule,
   SetTokenCreator,
   SingleIndexModule,
   UniswapV2ExchangeAdapter,
@@ -41,6 +42,7 @@ import { AaveV2__factory } from "../../typechain/factories/AaveV2__factory";
 import { AirdropModule__factory } from "../../typechain/factories/AirdropModule__factory";
 import { AuctionRebalanceModuleV1__factory } from "../../typechain/factories/AuctionRebalanceModuleV1__factory";
 import { BasicIssuanceModule__factory } from "../../typechain/factories/BasicIssuanceModule__factory";
+import { TradeModule__factory } from "../../typechain/factories/TradeModule__factory";
 import { Controller__factory } from "../../typechain/factories/Controller__factory";
 import { ConstantPriceAdapter__factory } from "../../typechain/factories/ConstantPriceAdapter__factory";
 import { Compound__factory } from "../../typechain/factories/Compound__factory";
@@ -302,5 +304,9 @@ export default class DeploySetV2 {
 
   public async deployClaimModule(controller: Address): Promise<ClaimModule> {
     return await new ClaimModule__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployTradeModule(controller: Address): Promise<TradeModule> {
+    return await new TradeModule__factory(this._deployerSigner).deploy(controller);
   }
 }

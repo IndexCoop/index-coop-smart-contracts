@@ -23,3 +23,4 @@ export { UniswapV2ExchangeAdapter } from "../../typechain/UniswapV2ExchangeAdapt
 export { WrapModule } from "../../typechain/WrapModule";
 export { ClaimModule } from "../../typechain/ClaimModule";
 export { ClaimAdapterMock } from "../../typechain/ClaimAdapterMock";
+export { TradeModule } from "../../typechain/TradeModule";

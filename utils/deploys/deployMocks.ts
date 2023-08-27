@@ -10,6 +10,7 @@ import {
   StandardTokenMock,
   StringArrayUtilsMock,
   ManagerMock,
+  BatchTradeAdapterMock,
   TradeAdapterMock,
   WrapAdapterMock,
   WrappedfCashMock,
@@ -35,6 +36,7 @@ import { GovernanceAdapterMock__factory } from "../../typechain/factories/Govern
 import { MasterChefMock__factory } from "../../typechain/factories/MasterChefMock__factory";
 import { MutualUpgradeMock__factory } from "../../typechain/factories/MutualUpgradeMock__factory";
 import { NotionalTradeModuleMock__factory } from "../../typechain/factories/NotionalTradeModuleMock__factory";
+import { BatchTradeAdapterMock__factory } from "../../typechain/factories/BatchTradeAdapterMock__factory";
 import { TradeAdapterMock__factory } from "../../typechain/factories/TradeAdapterMock__factory";
 import { StandardTokenMock__factory } from "../../typechain/factories/StandardTokenMock__factory";
 import { StringArrayUtilsMock__factory } from "../../typechain/factories/StringArrayUtilsMock__factory";
@@ -64,6 +66,10 @@ export default class DeployMocks {
 
   public async deployTradeAdapterMock(): Promise<TradeAdapterMock> {
     return await new TradeAdapterMock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployBatchTradeAdapterMock(): Promise<BatchTradeAdapterMock> {
+    return await new BatchTradeAdapterMock__factory(this._deployerSigner).deploy();
   }
 
   public async deployGovernanceAdapterMock(

@@ -41,6 +41,7 @@ export { StringArrayUtilsMock } from "../../typechain/StringArrayUtilsMock";
 export { SupplyCapAllowedCallerIssuanceHook } from "../../typechain/SupplyCapAllowedCallerIssuanceHook";
 export { SupplyCapIssuanceHook } from "../../typechain/SupplyCapIssuanceHook";
 export { TradeAdapterMock } from "../../typechain/TradeAdapterMock";
+export { BatchTradeAdapterMock } from "../../typechain/BatchTradeAdapterMock";
 export { Vesting } from "../../typechain/Vesting";
 export { WETH9 } from "../../typechain/WETH9";
 export { WrapAdapterMock } from "../../typechain/WrapAdapterMock";
