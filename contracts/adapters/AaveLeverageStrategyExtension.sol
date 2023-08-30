@@ -235,7 +235,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
         execution = _execution;
         incentive = _incentive;
 
-        for (uint256 i = 0; i < _exchangeNames.length; i++) {
+        for (uint256 i; i < _exchangeNames.length; i++) {
             _validateExchangeSettings(_exchangeSettings[i]);
             exchangeSettings[_exchangeNames[i]] = _exchangeSettings[i];
             enabledExchanges.push(_exchangeNames[i]);
@@ -247,7 +247,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
     /* ============ External Functions ============ */
 
     /**
-     * OPERATOR ONLY: Engage to target leverage ratio for the first time. SetToken will borrow debt position from Aave and trade for collateral asset. If target
+     * OPERATOR ONLY: Engage to target leverage ratio for the first time. SetToken will borrow debt position from Aave and trade for collateral assets. If target
      * leverage ratio is above max borrow or max trade size, then TWAP is kicked off. To complete engage if TWAP, any valid caller must call iterateRebalance until target
      * is met.
      *
@@ -496,7 +496,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
 
     /**
      * OPERATOR ONLY: Add a new enabled exchange for trading during rebalances. New exchanges will have their exchangeLastTradeTimestamp set to 0. Adding
-     * exchanges during rebalances is allowed, as it is not possible to enter an unexpected state while doing so.
+     * exchanges during rebalances are allowed, as it is not possible to enter an unexpected state while doing so.
      *
      * @param _exchangeName         Name of the exchange
      * @param _exchangeSettings     Struct containing exchange parameters
@@ -590,7 +590,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
 
     /**
      * Get current leverage ratio. Current leverage ratio is defined as the USD value of the collateral divided by the USD value of the SetToken. Prices for collateral
-     * and borrow asset are retrieved from the Chainlink Price Oracle.
+     * and borrow assets are retrieved from the Chainlink Price Oracle.
      *
      * return currentLeverageRatio         Current leverage ratio in precise units (10e18)
      */
@@ -640,7 +640,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
 
         sizes = new uint256[](_exchangeNames.length);
 
-        for (uint256 i = 0; i < _exchangeNames.length; i++) {
+        for (uint256 i; i < _exchangeNames.length; i++) {
     
             LeverageInfo memory leverageInfo = LeverageInfo({
                 action: actionInfo,
@@ -1242,7 +1242,7 @@ contract AaveLeverageStrategyExtension is BaseExtension {
 
         ShouldRebalance[] memory shouldRebalanceEnums = new ShouldRebalance[](enabledExchanges.length);
 
-        for (uint256 i = 0; i < enabledExchanges.length; i++) {
+        for (uint256 i; i < enabledExchanges.length; i++) {
             // If none of the below conditions are satisfied, then should not rebalance
             shouldRebalanceEnums[i] = ShouldRebalance.NONE;
 
