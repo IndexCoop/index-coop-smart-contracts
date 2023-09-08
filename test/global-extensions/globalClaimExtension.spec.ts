@@ -32,7 +32,7 @@ import { SetFixture } from "@utils/fixtures";
 
 const expect = getWaffleExpect();
 
-describe("ClaimExtension", () => {
+describe("GlobalClaimExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;

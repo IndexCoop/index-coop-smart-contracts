@@ -27,7 +27,7 @@ import { SetFixture } from "@utils/fixtures";
 
 const expect = getWaffleExpect();
 
-describe("IssuanceExtension", () => {
+describe("GlobalIssuanceExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;

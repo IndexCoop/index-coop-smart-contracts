@@ -28,7 +28,7 @@ import { SetFixture } from "@utils/fixtures";
 
 const expect = getWaffleExpect();
 
-describe("BatchTradeExtension", () => {
+describe("GlobalBatchTradeExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
