@@ -28,6 +28,8 @@ import {
   SingleIndexModule,
   UniswapV2ExchangeAdapter,
   WrapModule,
+  WrapModuleV2,
+  WrapV2AdapterMock,
   SlippageIssuanceModule,
 } from "../contracts/setV2";
 import {
@@ -65,6 +67,8 @@ import { StandardTokenMock__factory } from "../../typechain/factories/StandardTo
 import { UniswapV2ExchangeAdapter__factory } from "../../typechain/factories/UniswapV2ExchangeAdapter__factory";
 import { WETH9__factory } from "../../typechain/factories/WETH9__factory";
 import { WrapModule__factory } from "../../typechain/factories/WrapModule__factory";
+import { WrapModuleV2__factory } from "../../typechain/factories/WrapModuleV2__factory";
+import { WrapV2AdapterMock__factory } from "../../typechain/factories/WrapV2AdapterMock__factory";
 import { SlippageIssuanceModule__factory } from "../../typechain/factories/SlippageIssuanceModule__factory";
 import { CompoundWrapV2Adapter__factory } from "@typechain/factories/CompoundWrapV2Adapter__factory";
 
@@ -286,6 +290,10 @@ export default class DeploySetV2 {
     return await new WrapModule__factory(this._deployerSigner).deploy(controller, weth);
   }
 
+  public async deployWrapModuleV2(controller: Address, weth: Address): Promise<WrapModuleV2> {
+    return await new WrapModuleV2__factory(this._deployerSigner).deploy(controller, weth);
+  }
+
   public async deploySlippageIssuanceModule(controller: Address): Promise<SlippageIssuanceModule> {
     return await new SlippageIssuanceModule__factory(this._deployerSigner).deploy(controller);
   }
@@ -306,6 +314,10 @@ export default class DeploySetV2 {
 
   public async deployClaimAdapterMock(): Promise<ClaimAdapterMock> {
     return await new ClaimAdapterMock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployWrapV2AdapterMock(): Promise<WrapV2AdapterMock> {
+    return await new WrapV2AdapterMock__factory(this._deployerSigner).deploy();
   }
 
   public async deployClaimModule(controller: Address): Promise<ClaimModule> {

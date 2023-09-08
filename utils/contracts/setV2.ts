@@ -22,6 +22,8 @@ export { SingleIndexModule } from "../../typechain/SingleIndexModule";
 export { StreamingFeeModule } from "../../typechain/StreamingFeeModule";
 export { UniswapV2ExchangeAdapter } from "../../typechain/UniswapV2ExchangeAdapter";
 export { WrapModule } from "../../typechain/WrapModule";
+export { WrapModuleV2 } from "../../typechain/WrapModuleV2";
+export { WrapV2AdapterMock } from "../../typechain/WrapV2AdapterMock";
 export { ClaimModule } from "../../typechain/ClaimModule";
 export { ClaimAdapterMock } from "../../typechain/ClaimAdapterMock";
 export { TradeModule } from "../../typechain/TradeModule";
