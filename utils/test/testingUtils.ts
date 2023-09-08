@@ -143,3 +143,7 @@ export function setBlockNumber(blockNumber: number) {
     });
   });
 }
+
+export async function getLastBlockTransaction(): Promise<any> {
+  return (await provider.getBlockWithTransactions("latest")).transactions[0];
+}

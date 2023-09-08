@@ -14,16 +14,22 @@ import {
   ConstantPriceAdapter,
   ComptrollerMock,
   ContractCallerMock,
+  ClaimAdapterMock,
+  ClaimModule,
   DebtIssuanceModule,
+  DebtIssuanceModuleV2,
   GeneralIndexModule,
   GovernanceModule,
   IntegrationRegistry,
   StreamingFeeModule,
   SetToken,
+  TradeModule,
   SetTokenCreator,
   SingleIndexModule,
   UniswapV2ExchangeAdapter,
   WrapModule,
+  WrapModuleV2,
+  WrapV2AdapterMock,
   SlippageIssuanceModule,
 } from "../contracts/setV2";
 import {
@@ -39,13 +45,17 @@ import { AaveV2__factory } from "../../typechain/factories/AaveV2__factory";
 import { AirdropModule__factory } from "../../typechain/factories/AirdropModule__factory";
 import { AuctionRebalanceModuleV1__factory } from "../../typechain/factories/AuctionRebalanceModuleV1__factory";
 import { BasicIssuanceModule__factory } from "../../typechain/factories/BasicIssuanceModule__factory";
+import { TradeModule__factory } from "../../typechain/factories/TradeModule__factory";
 import { Controller__factory } from "../../typechain/factories/Controller__factory";
 import { ConstantPriceAdapter__factory } from "../../typechain/factories/ConstantPriceAdapter__factory";
 import { Compound__factory } from "../../typechain/factories/Compound__factory";
 import { CompoundLeverageModule__factory } from "../../typechain/factories/CompoundLeverageModule__factory";
 import { ComptrollerMock__factory } from "../../typechain/factories/ComptrollerMock__factory";
 import { ContractCallerMock__factory } from "../../typechain/factories/ContractCallerMock__factory";
+import { ClaimAdapterMock__factory } from "../../typechain/factories/ClaimAdapterMock__factory";
+import { ClaimModule__factory } from "../../typechain/factories/ClaimModule__factory";
 import { DebtIssuanceModule__factory } from "../../typechain/factories/DebtIssuanceModule__factory";
+import { DebtIssuanceModuleV2__factory } from "../../typechain/factories/DebtIssuanceModuleV2__factory";
 import { GeneralIndexModule__factory } from "../../typechain/factories/GeneralIndexModule__factory";
 import { GovernanceModule__factory } from "../../typechain/factories/GovernanceModule__factory";
 import { IntegrationRegistry__factory } from "../../typechain/factories/IntegrationRegistry__factory";
@@ -57,6 +67,8 @@ import { StandardTokenMock__factory } from "../../typechain/factories/StandardTo
 import { UniswapV2ExchangeAdapter__factory } from "../../typechain/factories/UniswapV2ExchangeAdapter__factory";
 import { WETH9__factory } from "../../typechain/factories/WETH9__factory";
 import { WrapModule__factory } from "../../typechain/factories/WrapModule__factory";
+import { WrapModuleV2__factory } from "../../typechain/factories/WrapModuleV2__factory";
+import { WrapV2AdapterMock__factory } from "../../typechain/factories/WrapV2AdapterMock__factory";
 import { SlippageIssuanceModule__factory } from "../../typechain/factories/SlippageIssuanceModule__factory";
 import { CompoundWrapV2Adapter__factory } from "@typechain/factories/CompoundWrapV2Adapter__factory";
 
@@ -77,6 +89,10 @@ export default class DeploySetV2 {
 
   public async deployCompoundLib(): Promise<Compound> {
     return await new Compound__factory(this._deployerSigner).deploy();
+  }
+
+  public async getSetToken(setTokenAddress: Address): Promise<SetToken> {
+    return await new SetToken__factory(this._deployerSigner).attach(setTokenAddress);
   }
 
   public async deploySetToken(
@@ -121,6 +137,10 @@ export default class DeploySetV2 {
 
   public async deployDebtIssuanceModule(controller: Address): Promise<DebtIssuanceModule> {
     return await new DebtIssuanceModule__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployDebtIssuanceModuleV2(controller: Address): Promise<DebtIssuanceModuleV2> {
+    return await new DebtIssuanceModuleV2__factory(this._deployerSigner).deploy(controller);
   }
 
   public async deployStreamingFeeModule(controller: Address): Promise<StreamingFeeModule> {
@@ -270,6 +290,10 @@ export default class DeploySetV2 {
     return await new WrapModule__factory(this._deployerSigner).deploy(controller, weth);
   }
 
+  public async deployWrapModuleV2(controller: Address, weth: Address): Promise<WrapModuleV2> {
+    return await new WrapModuleV2__factory(this._deployerSigner).deploy(controller, weth);
+  }
+
   public async deploySlippageIssuanceModule(controller: Address): Promise<SlippageIssuanceModule> {
     return await new SlippageIssuanceModule__factory(this._deployerSigner).deploy(controller);
   }
@@ -286,5 +310,21 @@ export default class DeploySetV2 {
 
   public async deployConstantPriceAdapter(): Promise<ConstantPriceAdapter> {
     return await new ConstantPriceAdapter__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployClaimAdapterMock(): Promise<ClaimAdapterMock> {
+    return await new ClaimAdapterMock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployWrapV2AdapterMock(): Promise<WrapV2AdapterMock> {
+    return await new WrapV2AdapterMock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployClaimModule(controller: Address): Promise<ClaimModule> {
+    return await new ClaimModule__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployTradeModule(controller: Address): Promise<TradeModule> {
+    return await new TradeModule__factory(this._deployerSigner).deploy(controller);
   }
 }

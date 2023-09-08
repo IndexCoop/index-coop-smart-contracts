@@ -3,6 +3,18 @@ import { BigNumber } from "@ethersproject/bignumber";
 
 const { AddressZero, MaxUint256, One, Two, Zero } = constants;
 
+export const MODULE_STATE = {
+  "NONE": 0,
+  "PENDING": 1,
+  "INITIALIZED": 2,
+};
+
+export const EXTENSION_STATE = {
+  "NONE": 0,
+  "PENDING": 1,
+  "INITIALIZED": 2,
+};
+
 export const ADDRESS_ZERO = AddressZero;
 export const ETH_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 export const EMPTY_BYTES = "0x";

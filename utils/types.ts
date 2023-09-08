@@ -98,3 +98,32 @@ export interface AirdropSettings {
   airdropFee: BigNumber;
   anyoneAbsorb: boolean;
 }
+
+export interface StreamingFeeState {
+  feeRecipient: Address;
+  streamingFeePercentage: BigNumber;
+  maxStreamingFeePercentage: BigNumber;
+  lastStreamingFeeTimestamp: BigNumber;
+}
+
+export interface TradeInfo {
+  exchangeName: string;
+  sendToken: Address;
+  sendQuantity: BigNumber;
+  receiveToken: Address;
+  receiveQuantity: BigNumber;
+  data: Bytes;
+}
+
+export interface BatchTradeResult {
+  success: boolean;
+  tradeInfo: TradeInfo;
+  revertReason?: string | undefined;
+}
+
+export interface AirdropSettings {
+  airdrops: Address[];
+  feeRecipient: Address;
+  airdropFee: BigNumber;
+  anyoneAbsorb: boolean;
+}

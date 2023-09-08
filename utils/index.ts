@@ -1,5 +1,5 @@
 import { ethers } from "hardhat";
-import { Blockchain } from "./common";
+import { Blockchain, ProtocolUtils } from "./common";
 import { Address } from "./types";
 
 const provider = ethers.provider;
@@ -13,6 +13,7 @@ import {
   UniswapV3Fixture
 } from "./fixtures";
 
+export const getProtocolUtils = () => new ProtocolUtils(provider);
 export const getSetFixture = (ownerAddress: Address) => new SetFixture(provider, ownerAddress);
 export const getAaveV2Fixture = (ownerAddress: Address) => new AaveV2Fixture(provider, ownerAddress);
 export const getCompoundFixture = (ownerAddress: Address) => new CompoundFixture(provider, ownerAddress);

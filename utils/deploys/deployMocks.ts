@@ -9,16 +9,25 @@ import {
   NotionalTradeModuleMock,
   StandardTokenMock,
   StringArrayUtilsMock,
+  ManagerMock,
+  BatchTradeAdapterMock,
   TradeAdapterMock,
   WrapAdapterMock,
   WrappedfCashMock,
   WrappedfCashFactoryMock,
   ZeroExExchangeProxyMock,
   DEXAdapter,
+  ModuleMock,
+  BaseGlobalExtensionMock,
+  MutualUpgradeV2Mock,
 } from "../contracts/index";
 
 import { BaseExtensionMock__factory } from "../../typechain/factories/BaseExtensionMock__factory";
 import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__factory";
+import { ModuleMock__factory } from "../../typechain/factories/ModuleMock__factory";
+import { ManagerMock__factory } from "../../typechain/factories/ManagerMock__factory";
+import { MutualUpgradeV2Mock__factory } from "../../typechain/factories/MutualUpgradeV2Mock__factory";
+import { BaseGlobalExtensionMock__factory } from "../../typechain/factories/BaseGlobalExtensionMock__factory";
 import { convertLibraryNameToLinkId } from "../common";
 import { ChainlinkAggregatorV3Mock__factory } from "../../typechain/factories/ChainlinkAggregatorV3Mock__factory";
 import { FLIStrategyExtensionMock__factory } from "../../typechain/factories/FLIStrategyExtensionMock__factory";
@@ -27,6 +36,7 @@ import { GovernanceAdapterMock__factory } from "../../typechain/factories/Govern
 import { MasterChefMock__factory } from "../../typechain/factories/MasterChefMock__factory";
 import { MutualUpgradeMock__factory } from "../../typechain/factories/MutualUpgradeMock__factory";
 import { NotionalTradeModuleMock__factory } from "../../typechain/factories/NotionalTradeModuleMock__factory";
+import { BatchTradeAdapterMock__factory } from "../../typechain/factories/BatchTradeAdapterMock__factory";
 import { TradeAdapterMock__factory } from "../../typechain/factories/TradeAdapterMock__factory";
 import { StandardTokenMock__factory } from "../../typechain/factories/StandardTokenMock__factory";
 import { StringArrayUtilsMock__factory } from "../../typechain/factories/StringArrayUtilsMock__factory";
@@ -50,8 +60,16 @@ export default class DeployMocks {
     return await new BaseExtensionMock__factory(this._deployerSigner).deploy(manager);
   }
 
+  public async deployBaseGlobalExtensionMock(managerCore: Address, module: Address): Promise<BaseGlobalExtensionMock> {
+    return await new BaseGlobalExtensionMock__factory(this._deployerSigner).deploy(managerCore, module);
+  }
+
   public async deployTradeAdapterMock(): Promise<TradeAdapterMock> {
     return await new TradeAdapterMock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployBatchTradeAdapterMock(): Promise<BatchTradeAdapterMock> {
+    return await new BatchTradeAdapterMock__factory(this._deployerSigner).deploy();
   }
 
   public async deployGovernanceAdapterMock(
@@ -149,6 +167,14 @@ export default class DeployMocks {
     return await new DEXAdapter__factory(this._deployerSigner).deploy();
   }
 
+  public async deployModuleMock(controller: Address): Promise<ModuleMock> {
+    return await new ModuleMock__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployMutualUpgradeV2Mock(owner: Address, methodologist: string): Promise<MutualUpgradeV2Mock> {
+    return await new MutualUpgradeV2Mock__factory(this._deployerSigner).deploy(owner, methodologist);
+  }
+
   public async deployFlashMintLeveragedCompMock(
     wethAddress: Address,
     quickRouterAddress: Address,
@@ -192,5 +218,9 @@ export default class DeployMocks {
       aaveAddressProviderAddress,
       cEtherAddress,
     );
+  }
+
+  public async deployManagerMock(setToken: Address): Promise<ManagerMock> {
+    return await new ManagerMock__factory(this._deployerSigner).deploy(setToken);
   }
 }
