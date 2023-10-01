@@ -227,8 +227,8 @@ export default class DeployExternalContracts {
       return await new SwapRouter__factory(this._deployerSigner).deploy(factory, weth);
     }
 
-    public async deploySwapRouter02(factory: Address, positionManager: Address, weth: Address): Promise<SwapRouter02> {
-      return await new SwapRouter02__factory(this._deployerSigner).deploy(factory, factory, positionManager, weth);
+    public async deploySwapRouter02(factoryV2: Address, factoryV3: Address, positionManager: Address, weth: Address): Promise<SwapRouter02> {
+      return await new SwapRouter02__factory(this._deployerSigner).deploy(factoryV2, factoryV3, positionManager, weth);
     }
 
     public async deployNftPositionManager(factory: Address, weth: Address, nftDesc: Address): Promise<NonfungiblePositionManager> {

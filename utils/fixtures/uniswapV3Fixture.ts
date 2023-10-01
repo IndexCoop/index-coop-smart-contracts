@@ -5,12 +5,11 @@ import { BigNumber, BigNumberish, Signer } from "ethers";
 import { Account, Address } from "../types";
 
 import {
-  UniswapV3Factory,
-  SwapRouter,
+  NFTDescriptor,
   NonfungiblePositionManager,
-  UniswapV3Pool,
   Quoter,
-  NFTDescriptor
+  UniswapV3Factory,
+  UniswapV3Pool,
 } from "../contracts/uniswapV3";
 
 import { UniswapV3Pool__factory } from "../../typechain/factories/UniswapV3Pool__factory";
@@ -19,17 +18,17 @@ import { StandardTokenMock } from "../../typechain/StandardTokenMock";
 import { WETH9 } from "../../typechain/WETH9";
 import { parseEther } from "ethers/lib/utils";
 import { SwapRouter02 } from "@typechain/SwapRouter02";
+import { UniswapV2Factory } from "@typechain/UniswapV2Factory";
 
 type Token = StandardTokenMock | WETH9;
 
 export class UniswapV3Fixture {
-
   private _deployer: DeployHelper;
   private _ownerSigner: Signer;
 
-  public factory: UniswapV3Factory;
-  public swapRouter: SwapRouter;
-  public swapRouter02: SwapRouter02;
+  public factoryV2: UniswapV2Factory;
+  public factoryV3: UniswapV3Factory;
+  public swapRouter: SwapRouter02;
   public nftPositionManager: NonfungiblePositionManager;
   public nftDescriptor: NFTDescriptor;
   public quoter: Quoter;
@@ -56,13 +55,29 @@ export class UniswapV3Fixture {
    * @param _wbtc   wbtc address
    * @param _dai    dai address
    */
-  public async initialize(_owner: Account, _weth: Token, _wethPrice: number, _wbtc: Token, _wbtcPrice: number, _dai: Token): Promise<void> {
-    this.factory = await this._deployer.external.deployUniswapV3Factory();
-    this.swapRouter = await this._deployer.external.deploySwapRouter(this.factory.address, _weth.address);
+  public async initialize(
+    _owner: Account,
+    _weth: Token,
+    _wethPrice: number,
+    _wbtc: Token,
+    _wbtcPrice: number,
+    _dai: Token,
+  ): Promise<void> {
+    this.factoryV2 = await this._deployer.external.deployUniswapV2Factory(_owner.address);
+    this.factoryV3 = await this._deployer.external.deployUniswapV3Factory();
     this.nftDescriptor = await this._deployer.external.deployNFTDescriptor();
-    this.nftPositionManager = await this._deployer.external.deployNftPositionManager(this.factory.address, _weth.address, this.nftDescriptor.address);
-    this.swapRouter02 = await this._deployer.external.deploySwapRouter02(this.factory.address, this.nftPositionManager.address, _weth.address);
-    this.quoter = await this._deployer.external.deployQuoter(this.factory.address, _weth.address);
+    this.nftPositionManager = await this._deployer.external.deployNftPositionManager(
+      this.factoryV3.address,
+      _weth.address,
+      this.nftDescriptor.address,
+    );
+    this.swapRouter = await this._deployer.external.deploySwapRouter02(
+      this.factoryV2.address,
+      this.factoryV3.address,
+      this.nftPositionManager.address,
+      _weth.address,
+    );
+    this.quoter = await this._deployer.external.deployQuoter(this.factoryV3.address, _weth.address);
 
     this.wethDaiPool = await this.createNewPair(_weth, _dai, 3000, _wethPrice);
     this.wethWbtcPool = await this.createNewPair(_weth, _wbtc, 3000, _wethPrice / _wbtcPrice);
@@ -83,19 +98,22 @@ export class UniswapV3Fixture {
     _fee: BigNumberish,
     _ratio: number,
   ): Promise<UniswapV3Pool> {
-
-
-    let ratio = _ratio * (10 ** (await _token1.decimals() - await _token0.decimals()));
+    let ratio = _ratio * 10 ** ((await _token1.decimals()) - (await _token0.decimals()));
 
     if (_token0.address.toLowerCase() > _token1.address.toLowerCase()) {
       ratio = 1 / ratio;
     }
 
-    const [ token0Ordered, token1Ordered ] = this.getTokenOrder(_token0, _token1);
+    const [token0Ordered, token1Ordered] = this.getTokenOrder(_token0, _token1);
 
     const sqrtPrice = this._getSqrtPriceX96(ratio);
 
-    await this.nftPositionManager.createAndInitializePoolIfNecessary(token0Ordered.address, token1Ordered.address, _fee, sqrtPrice);
+    await this.nftPositionManager.createAndInitializePoolIfNecessary(
+      token0Ordered.address,
+      token1Ordered.address,
+      _fee,
+      sqrtPrice,
+    );
 
     return this.getPool(_token0, _token1, _fee);
   }
@@ -116,22 +134,20 @@ export class UniswapV3Fixture {
     _fee: number,
     _amount0: BigNumber,
     _amount1: BigNumber,
-    _recipient: Address
+    _recipient: Address,
   ): Promise<void> {
-
-
-    let [ amount0Ordered, amount1Ordered ] = [ _amount0, _amount1 ];
-    let [ token0Ordered, token1Ordered ] = [ _token0, _token1 ];
+    let [amount0Ordered, amount1Ordered] = [_amount0, _amount1];
+    let [token0Ordered, token1Ordered] = [_token0, _token1];
 
     if (_token0.address.toLowerCase() > _token1.address.toLowerCase()) {
-      [ amount0Ordered, amount1Ordered ] = [ _amount1, _amount0 ];
-      [ token0Ordered, token1Ordered ] = [ _token1, _token0 ];
+      [amount0Ordered, amount1Ordered] = [_amount1, _amount0];
+      [token0Ordered, token1Ordered] = [_token1, _token0];
     }
 
-    const tickSpacing = _fee / 50;  // ticks can only be initialized if they are a multiple of fee / 50
-    const maxTick = 887272;   // the maximum tick index that Uniswap V3 allows
-    const maxValidTick = Math.floor(maxTick / tickSpacing) * tickSpacing;   // valid ticks must be a multiple of tickSpacing
-    const minValidTick = Math.ceil(-maxTick / tickSpacing) * tickSpacing;   // valid ticks must be a multiple of tickSpacing
+    const tickSpacing = _fee / 50; // ticks can only be initialized if they are a multiple of fee / 50
+    const maxTick = 887272; // the maximum tick index that Uniswap V3 allows
+    const maxValidTick = Math.floor(maxTick / tickSpacing) * tickSpacing; // valid ticks must be a multiple of tickSpacing
+    const minValidTick = Math.ceil(-maxTick / tickSpacing) * tickSpacing; // valid ticks must be a multiple of tickSpacing
 
     await this.nftPositionManager.connect(this._ownerSigner).mint({
       fee: _fee,
@@ -157,8 +173,12 @@ export class UniswapV3Fixture {
    * @returns         the UniswapV3Pool
    */
   public async getPool(_token0: Token, _token1: Token, _fee: BigNumberish): Promise<UniswapV3Pool> {
-    const [ token0Ordered, token1Ordered ] = this.getTokenOrder(_token0, _token1);
-    const poolAddress = await this.factory.getPool(token0Ordered.address, token1Ordered.address, _fee);
+    const [token0Ordered, token1Ordered] = this.getTokenOrder(_token0, _token1);
+    const poolAddress = await this.factoryV3.getPool(
+      token0Ordered.address,
+      token1Ordered.address,
+      _fee,
+    );
     return UniswapV3Pool__factory.connect(poolAddress, this._ownerSigner);
   }
 
@@ -171,10 +191,18 @@ export class UniswapV3Fixture {
    * @returns         [ first, second ]
    */
   public getTokenOrder(_token0: Token, _token1: Token): [Token, Token] {
-    return _token0.address.toLowerCase() < _token1.address.toLowerCase() ? [_token0, _token1] : [_token1, _token0];
+    return _token0.address.toLowerCase() < _token1.address.toLowerCase()
+      ? [_token0, _token1]
+      : [_token1, _token0];
   }
 
   _getSqrtPriceX96(_ratio: number): BigNumber {
-    return parseEther(Math.sqrt(_ratio).toFixed(18).toString()).mul(BigNumber.from(2).pow(96)).div(ether(1));
+    return parseEther(
+      Math.sqrt(_ratio)
+        .toFixed(18)
+        .toString(),
+    )
+      .mul(BigNumber.from(2).pow(96))
+      .div(ether(1));
   }
 }
