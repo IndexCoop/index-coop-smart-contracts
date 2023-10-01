@@ -1,8 +1,10 @@
-import DeployHelper from "../deploys";
-import { MAX_UINT_256 } from "../constants";
 import { JsonRpcProvider, Web3Provider } from "@ethersproject/providers";
 import { BigNumber, BigNumberish, Signer } from "ethers";
+import { parseEther } from "ethers/lib/utils";
+
+import DeployHelper from "../deploys";
 import { Account, Address } from "../types";
+import { MAX_UINT_256 } from "../constants";
 
 import {
   NFTDescriptor,
@@ -16,9 +18,9 @@ import { UniswapV3Pool__factory } from "../../typechain/factories/UniswapV3Pool_
 import { ether } from "../index";
 import { StandardTokenMock } from "../../typechain/StandardTokenMock";
 import { WETH9 } from "../../typechain/WETH9";
-import { parseEther } from "ethers/lib/utils";
-import { SwapRouter02 } from "@typechain/SwapRouter02";
-import { UniswapV2Factory } from "@typechain/UniswapV2Factory";
+import { SwapRouter02 } from "../../typechain/SwapRouter02";
+import { UniswapV2Factory } from "../../typechain/UniswapV2Factory";
+
 
 type Token = StandardTokenMock | WETH9;
 

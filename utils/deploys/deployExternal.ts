@@ -1,4 +1,5 @@
 import { Signer } from "ethers";
+import { ether } from "@utils/common";
 import { BigNumberish, BigNumber } from "@ethersproject/bignumber";
 
 import {
@@ -95,9 +96,8 @@ import { SwapRouter__factory } from "../../typechain/factories/SwapRouter__facto
 import { NonfungiblePositionManager__factory } from "../../typechain/factories/NonfungiblePositionManager__factory";
 import { Quoter__factory } from "../../typechain/factories/Quoter__factory";
 import { NFTDescriptor__factory } from "../../typechain/factories/NFTDescriptor__factory";
-import { ether } from "@utils/common";
-import { SwapRouter02 } from "@typechain/SwapRouter02";
-import { SwapRouter02__factory } from "@typechain/factories/SwapRouter02__factory";
+import { SwapRouter02 } from "../../typechain/SwapRouter02";
+import { SwapRouter02__factory } from "../../typechain/factories/SwapRouter02__factory";
 
 
 export default class DeployExternalContracts {
