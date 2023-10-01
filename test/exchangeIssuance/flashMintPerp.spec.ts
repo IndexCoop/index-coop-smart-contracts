@@ -17,7 +17,6 @@ import { UnitsUtils } from "@utils/common/unitsUtils";
 import { SetFixture } from "@utils/fixtures";
 import { BigNumber, ContractTransaction } from "ethers";
 import { FlashMintPerp } from "@typechain/FlashMintPerp";
-import { SwapRouter } from "@typechain/SwapRouter";
 import { Quoter } from "@typechain/Quoter";
 import { SlippageIssuanceModule } from "@typechain/SlippageIssuanceModule";
 import {
@@ -26,6 +25,7 @@ import {
   getUsdcAmountInForExactSet,
   getUsdcAmountOutForExactSet,
 } from "@utils/common/exchangeIssuanceUtils";
+import { SwapRouter02 } from "@typechain/SwapRouter02";
 
 const expect = getWaffleExpect();
 
@@ -87,7 +87,7 @@ describe("FlashMintPerp", async () => {
   });
 
   describe("#constructor", async () => {
-    let uniV3Router: SwapRouter;
+    let uniV3Router: SwapRouter02;
     let uniV3Quoter: Quoter;
     let slippageIssuanceModule: SlippageIssuanceModule;
     let usdc: StandardTokenMock;
@@ -151,7 +151,7 @@ describe("FlashMintPerp", async () => {
   });
 
   context("when exchange issuance is deployed", async () => {
-    let uniV3Router: SwapRouter;
+    let uniV3Router: SwapRouter02;
     let uniV3Quoter: Quoter;
     let slippageIssuanceModule: SlippageIssuanceModule;
 
