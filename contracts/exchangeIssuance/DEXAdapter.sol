@@ -170,7 +170,7 @@ library DEXAdapter {
                 _swapData.fees,
                 _amountOut,
                 _maxAmountIn,
-                ISwapRouter0202(_addresses.uniV3Router)
+                ISwapRouter02(_addresses.uniV3Router)
             );
         } else {
             return _swapTokensForExactTokensUniV2(
