@@ -25,7 +25,7 @@ if (process.env.INTEGRATIONTEST) {
     const usdcAddress: Address = "0x7F5c764cBc14f9669B88837ca1490cCa17c31607";
     const usdcWhaleAddress: Address = "0xEBb8EA128BbdFf9a1780A4902A9380022371d466";
     const wethAddress: Address = "0x4200000000000000000000000000000000000006";
-    const uniV3SwapRouterAddress: Address = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
+    const uniV3SwapRouterAddress: Address = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
     const uniV3QuoterAddress: Address = "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6";
 
     let owner: Account;

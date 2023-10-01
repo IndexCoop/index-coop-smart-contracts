@@ -39,7 +39,7 @@ if (process.env.INTEGRATIONTEST) {
 
     const quickswapRouterAddress: Address = "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff";
     const sushiswapRouterAddress: Address = "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506";
-    const uniV3RouterAddress: Address = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
+    const uniV3RouterAddress: Address = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
     const uniV3QuoterAddress: Address = "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6";
     const daiAddress: Address = "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063";
     const wmaticAddress: Address = "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270";
