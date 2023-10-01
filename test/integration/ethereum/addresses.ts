@@ -45,8 +45,9 @@ export const PRODUCTION_ADDRESSES = {
       router: "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
     },
     uniV3: {
-      router: "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+      router: "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
       quoter: "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6",
+      router02: "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45",
     },
     balancerv2: {
       vault: "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
