@@ -18,6 +18,7 @@ import { ether } from "../index";
 import { StandardTokenMock } from "../../typechain/StandardTokenMock";
 import { WETH9 } from "../../typechain/WETH9";
 import { parseEther } from "ethers/lib/utils";
+import { SwapRouter02 } from "@typechain/SwapRouter02";
 
 type Token = StandardTokenMock | WETH9;
 
@@ -28,6 +29,7 @@ export class UniswapV3Fixture {
 
   public factory: UniswapV3Factory;
   public swapRouter: SwapRouter;
+  public swapRouter02: SwapRouter02;
   public nftPositionManager: NonfungiblePositionManager;
   public nftDescriptor: NFTDescriptor;
   public quoter: Quoter;
@@ -59,6 +61,7 @@ export class UniswapV3Fixture {
     this.swapRouter = await this._deployer.external.deploySwapRouter(this.factory.address, _weth.address);
     this.nftDescriptor = await this._deployer.external.deployNFTDescriptor();
     this.nftPositionManager = await this._deployer.external.deployNftPositionManager(this.factory.address, _weth.address, this.nftDescriptor.address);
+    this.swapRouter02 = await this._deployer.external.deploySwapRouter02(this.factory.address, this.nftPositionManager.address, _weth.address);
     this.quoter = await this._deployer.external.deployQuoter(this.factory.address, _weth.address);
 
     this.wethDaiPool = await this.createNewPair(_weth, _dai, 3000, _wethPrice);

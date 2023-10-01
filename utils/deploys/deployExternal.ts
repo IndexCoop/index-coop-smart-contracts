@@ -96,6 +96,8 @@ import { NonfungiblePositionManager__factory } from "../../typechain/factories/N
 import { Quoter__factory } from "../../typechain/factories/Quoter__factory";
 import { NFTDescriptor__factory } from "../../typechain/factories/NFTDescriptor__factory";
 import { ether } from "@utils/common";
+import { SwapRouter02 } from "@typechain/SwapRouter02";
+import { SwapRouter02__factory } from "@typechain/factories/SwapRouter02__factory";
 
 
 export default class DeployExternalContracts {
@@ -223,6 +225,10 @@ export default class DeployExternalContracts {
 
     public async deploySwapRouter(factory: Address, weth: Address): Promise<SwapRouter> {
       return await new SwapRouter__factory(this._deployerSigner).deploy(factory, weth);
+    }
+
+    public async deploySwapRouter02(factory: Address, positionManager: Address, weth: Address): Promise<SwapRouter02> {
+      return await new SwapRouter02__factory(this._deployerSigner).deploy(factory, factory, positionManager, weth);
     }
 
     public async deployNftPositionManager(factory: Address, weth: Address, nftDesc: Address): Promise<NonfungiblePositionManager> {
