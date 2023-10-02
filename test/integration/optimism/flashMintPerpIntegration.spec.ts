@@ -6,7 +6,7 @@ import { cacheBeforeEach, ether, getAccounts, getWaffleExpect } from "@utils/ind
 import { SetToken, SlippageIssuanceModule } from "@utils/contracts/setV2";
 import { BigNumber, ContractTransaction } from "ethers";
 import { FlashMintPerp, StandardTokenMock, WETH9 } from "@utils/contracts/index";
-import { Quoter, SwapRouter } from "../../../typechain";
+import { Quoter, SwapRouter02 } from "../../../typechain";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import {
   encodePath,
@@ -25,7 +25,7 @@ if (process.env.INTEGRATIONTEST) {
     const usdcAddress: Address = "0x7F5c764cBc14f9669B88837ca1490cCa17c31607";
     const usdcWhaleAddress: Address = "0xEBb8EA128BbdFf9a1780A4902A9380022371d466";
     const wethAddress: Address = "0x4200000000000000000000000000000000000006";
-    const uniV3SwapRouterAddress: Address = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
+    const uniV3SwapRouterAddress: Address = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45";
     const uniV3QuoterAddress: Address = "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6";
 
     let owner: Account;
@@ -37,7 +37,7 @@ if (process.env.INTEGRATIONTEST) {
     let exchangeIssuance: FlashMintPerp;
     let slippageIssuanceModule: SlippageIssuanceModule;
 
-    let uniV3Router: SwapRouter;
+    let uniV3Router: SwapRouter02;
     let uniV3Quoter: Quoter;
     let usdc: StandardTokenMock;
     let weth: WETH9;
@@ -53,7 +53,7 @@ if (process.env.INTEGRATIONTEST) {
       );
       usdc = <StandardTokenMock>await ethers.getContractAt("StandardTokenMock", usdcAddress);
       weth = <WETH9>await ethers.getContractAt("IWETH", wethAddress);
-      uniV3Router = <SwapRouter>await ethers.getContractAt("ISwapRouter", uniV3SwapRouterAddress);
+      uniV3Router = <SwapRouter02>await ethers.getContractAt("ISwapRouter02", uniV3SwapRouterAddress);
       uniV3Quoter = <Quoter>await ethers.getContractAt("IQuoter", uniV3QuoterAddress);
 
       exchangeIssuance = await deployer.extensions.deployFlashMintPerp(

@@ -19,7 +19,7 @@ pragma experimental ABIEncoderV2;
 
 import { IQuoter } from "../interfaces/IQuoter.sol";
 import { IUniswapV3SwapCallback } from "../interfaces/IUniswapV3SwapCallback.sol";
-import { ISwapRouter} from "../interfaces/external/ISwapRouter.sol";
+import { ISwapRouter02 } from "../interfaces/external/ISwapRouter02.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { Context } from "@openzeppelin/contracts/GSN/Context.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
@@ -51,7 +51,7 @@ contract FlashMintPerp is Withdrawable {
     ////////////// State //////////////
 
     ISlippageIssuanceModule public immutable slippageIssuanceModule;
-    ISwapRouter public immutable uniV3Router;
+    ISwapRouter02 public immutable uniV3Router;
     IQuoter public immutable uniV3Quoter;
     IERC20 public immutable usdc;
     mapping (ISetToken => SetPoolInfo) public setPoolInfo;
@@ -67,7 +67,7 @@ contract FlashMintPerp is Withdrawable {
     ////////////// Constructor //////////////
 
     constructor(
-        ISwapRouter _uniV3Router,
+        ISwapRouter02 _uniV3Router,
         IQuoter _uniV3Quoter,
         ISlippageIssuanceModule _slippageIssuanceModule,
         IERC20 _usdc
@@ -255,10 +255,9 @@ contract FlashMintPerp is Withdrawable {
         uint256 spotAssetQuantity = _spotAssetQuantity(_setToken, _amount);
 
         // Trade USDC for exact spot token
-        ISwapRouter.ExactOutputParams memory spotTokenParams = ISwapRouter.ExactOutputParams(
+        ISwapRouter02.ExactOutputParams memory spotTokenParams = ISwapRouter02.ExactOutputParams(
             setPoolInfo[_setToken].spotToUsdcRoute,
             address(this),
-            block.timestamp,
             spotAssetQuantity.add(1), // Add 1 wei
             PreciseUnitMath.maxUint256() // No need for slippage check
         );
@@ -316,10 +315,9 @@ contract FlashMintPerp is Withdrawable {
             spotAssetQuantity = spotTokenBalance;
         }
 
-        ISwapRouter.ExactInputParams memory spotTokenParams = ISwapRouter.ExactInputParams(
+        ISwapRouter02.ExactInputParams memory spotTokenParams = ISwapRouter02.ExactInputParams(
             setPoolInfo[_setToken].spotToUsdcRoute,
             address(this),
-            block.timestamp,
             spotAssetQuantity.sub(1), // Leave 1 wei
             0 // No need for slippage check
         );

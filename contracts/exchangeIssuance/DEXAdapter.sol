@@ -25,7 +25,7 @@ import { ICurveCalculator } from "../interfaces/external/ICurveCalculator.sol";
 import { ICurveAddressProvider } from "../interfaces/external/ICurveAddressProvider.sol";
 import { ICurvePoolRegistry } from "../interfaces/external/ICurvePoolRegistry.sol";
 import { ICurvePool } from "../interfaces/external/ICurvePool.sol";
-import { ISwapRouter} from "../interfaces/external/ISwapRouter.sol";
+import { ISwapRouter02 } from "../interfaces/external/ISwapRouter02.sol";
 import { IQuoter } from "../interfaces/IQuoter.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
@@ -119,7 +119,7 @@ library DEXAdapter {
                 _swapData.fees,
                 _amountIn,
                 _minAmountOut,
-                ISwapRouter(_addresses.uniV3Router)
+                ISwapRouter02(_addresses.uniV3Router)
             );
         } else {
             return _swapExactTokensForTokensUniV2(
@@ -170,7 +170,7 @@ library DEXAdapter {
                 _swapData.fees,
                 _amountOut,
                 _maxAmountIn,
-                ISwapRouter(_addresses.uniV3Router)
+                ISwapRouter02(_addresses.uniV3Router)
             );
         } else {
             return _swapTokensForExactTokensUniV2(
@@ -326,7 +326,7 @@ library DEXAdapter {
         uint24[] memory _fees,
         uint256 _amountOut,
         uint256 _maxAmountIn,
-        ISwapRouter _uniV3Router
+        ISwapRouter02 _uniV3Router
     )
         private
         returns(uint256)
@@ -335,13 +335,12 @@ library DEXAdapter {
         require(_path.length == _fees.length + 1, "ExchangeIssuance: PATHS_FEES_MISMATCH");
         _safeApprove(IERC20(_path[0]), address(_uniV3Router), _maxAmountIn);
         if(_path.length == 2){
-            ISwapRouter.ExactOutputSingleParams memory params =
-                ISwapRouter.ExactOutputSingleParams({
+            ISwapRouter02.ExactOutputSingleParams memory params =
+                ISwapRouter02.ExactOutputSingleParams({
                     tokenIn: _path[0],
                     tokenOut: _path[1],
                     fee: _fees[0],
                     recipient: address(this),
-                    deadline: block.timestamp,
                     amountOut: _amountOut,
                     amountInMaximum: _maxAmountIn,
                     sqrtPriceLimitX96: 0
@@ -349,11 +348,10 @@ library DEXAdapter {
             return _uniV3Router.exactOutputSingle(params);
         } else {
             bytes memory pathV3 = _encodePathV3(_path, _fees, true);
-            ISwapRouter.ExactOutputParams memory params =
-                ISwapRouter.ExactOutputParams({
+            ISwapRouter02.ExactOutputParams memory params =
+                ISwapRouter02.ExactOutputParams({
                     path: pathV3,
                     recipient: address(this),
-                    deadline: block.timestamp,
                     amountOut: _amountOut,
                     amountInMaximum: _maxAmountIn
                 });
@@ -627,7 +625,7 @@ library DEXAdapter {
         uint24[] memory _fees,
         uint256 _amountIn,
         uint256 _minAmountOut,
-        ISwapRouter _uniV3Router
+        ISwapRouter02 _uniV3Router
     )
         private
         returns (uint256)
@@ -635,13 +633,12 @@ library DEXAdapter {
         require(_path.length == _fees.length + 1, "ExchangeIssuance: PATHS_FEES_MISMATCH");
         _safeApprove(IERC20(_path[0]), address(_uniV3Router), _amountIn);
         if(_path.length == 2){
-            ISwapRouter.ExactInputSingleParams memory params =
-                ISwapRouter.ExactInputSingleParams({
+            ISwapRouter02.ExactInputSingleParams memory params =
+                ISwapRouter02.ExactInputSingleParams({
                     tokenIn: _path[0],
                     tokenOut: _path[1],
                     fee: _fees[0],
                     recipient: address(this),
-                    deadline: block.timestamp,
                     amountIn: _amountIn,
                     amountOutMinimum: _minAmountOut,
                     sqrtPriceLimitX96: 0
@@ -649,11 +646,10 @@ library DEXAdapter {
             return _uniV3Router.exactInputSingle(params);
         } else {
             bytes memory pathV3 = _encodePathV3(_path, _fees, false);
-            ISwapRouter.ExactInputParams memory params =
-                ISwapRouter.ExactInputParams({
+            ISwapRouter02.ExactInputParams memory params =
+                ISwapRouter02.ExactInputParams({
                     path: pathV3,
                     recipient: address(this),
-                    deadline: block.timestamp,
                     amountIn: _amountIn,
                     amountOutMinimum: _minAmountOut
                 });
