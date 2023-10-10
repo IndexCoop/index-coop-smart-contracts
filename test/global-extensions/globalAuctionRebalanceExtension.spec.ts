@@ -108,10 +108,12 @@ describe("AuctionRebalanceExtension", () => {
     });
 
     async function subject(): Promise<GlobalAuctionRebalanceExtension> {
-      return await deployer.globalExtensions.deployGlobalAuctionRebalanceExtension(
+      const extension =  await deployer.globalExtensions.deployGlobalAuctionRebalanceExtension(
         subjectManagerCore,
         subjectAuctionRebalanceModule
       );
+      await delegatedManager.addExtensions([extension.address]);
+      return extension;
     }
 
     it("should set the correct manager core", async () => {
@@ -127,6 +129,10 @@ describe("AuctionRebalanceExtension", () => {
       const actualAuctionRebalanceModule = await auctionExtension.auctionModule();
       expect(actualAuctionRebalanceModule).to.eq(subjectAuctionRebalanceModule);
     });
+    it("should be able to initialize extension and module at the same time", async () => {
+      const auctionExtension = await subject();
+      await expect(auctionExtension.connect(owner.wallet).initializeModuleAndExtension(delegatedManager.address)).to.not.be.reverted;
+    });
   });
 
   context("when auction rebalance extension is deployed and module needs to be initialized", () => {
@@ -134,10 +140,9 @@ describe("AuctionRebalanceExtension", () => {
     let subjectDelegatedManager: Address;
 
     beforeEach(async () => {
-      await auctionRebalanceExtension.connect(owner.wallet).initializeExtension(delegatedManager.address);
       subjectCaller = owner;
       subjectDelegatedManager = delegatedManager.address;
-
+      await auctionRebalanceExtension.connect(subjectCaller.wallet).initializeExtension(delegatedManager.address);
     });
 
     describe("#initializeModule", () => {
@@ -566,6 +571,19 @@ describe("AuctionRebalanceExtension", () => {
           });
         });
       });
-    });
+
+      describe("#removeExtension", () => {
+        async function subject() {
+          return await delegatedManager.connect(owner.wallet).removeExtensions([auctionRebalanceExtension.address]);
+        }
+        it("should remove the extension", async () => {
+          const setManagerBeforeRemove = auctionRebalanceExtension.setManagers(setToken.address);
+          await subject();
+          const setManagerAfterRemove = auctionRebalanceExtension.setManagers(setToken.address);
+
+          expect(setManagerBeforeRemove).to.not.eq(setManagerAfterRemove);
+        });
+      })
+ ;   });
   });
 });
