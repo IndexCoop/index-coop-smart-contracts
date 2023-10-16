@@ -22,7 +22,7 @@ import { BigNumber, ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
 
-describe("AuctionRebalanceExtension", () => {
+describe("GlobalAuctionRebalanceExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
@@ -133,6 +133,31 @@ describe("AuctionRebalanceExtension", () => {
       const auctionExtension = await subject();
       await expect(auctionExtension.connect(owner.wallet).initializeModuleAndExtension(delegatedManager.address)).to.not.be.reverted;
     });
+
+    it("should revert if module is initialized and extension is not", async () => {
+      const extension =  await deployer.globalExtensions.deployGlobalAuctionRebalanceExtension(
+        subjectManagerCore,
+        subjectAuctionRebalanceModule
+      );
+      await expect(extension.connect(owner.wallet).initializeModule(delegatedManager.address)).to.be.revertedWith("Extension must be initialized");
+    });
+
+    it("should revert if module is initialized without being added", async () => {
+      const extension =  await deployer.globalExtensions.deployGlobalAuctionRebalanceExtension(
+        subjectManagerCore,
+        subjectAuctionRebalanceModule
+      );
+      await expect(extension.connect(owner.wallet).initializeModuleAndExtension(delegatedManager.address)).to.be.revertedWith("Extension must be pending");
+    });
+
+    it("should revert if extension is initialized without being added", async () => {
+      const extension =  await deployer.globalExtensions.deployGlobalAuctionRebalanceExtension(
+        subjectManagerCore,
+        subjectAuctionRebalanceModule
+      );
+      await expect(extension.connect(owner.wallet).initializeExtension(delegatedManager.address)).to.be.revertedWith("Extension must be pending");
+    });
+
   });
 
   context("when auction rebalance extension is deployed and module needs to be initialized", () => {

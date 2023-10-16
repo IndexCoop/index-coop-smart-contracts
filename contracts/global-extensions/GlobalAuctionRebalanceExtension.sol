@@ -41,7 +41,7 @@ contract GlobalAuctionRebalanceExtension is BaseGlobalExtension {
     using AddressArrayUtils for address[];
     using SafeMath for uint256;
 
-        /* ============ Events ============ */
+    /* ============ Events ============ */
 
     event AuctionRebalanceExtensionInitialized(
         address indexed _setToken,
@@ -57,6 +57,8 @@ contract GlobalAuctionRebalanceExtension is BaseGlobalExtension {
         bytes priceAdapterConfigData;            // Encoded data for configuring the chosen price adapter.
     }
 
+    /* ============ State Variables ============ */
+    
     IAuctionRebalanceModuleV1 public immutable auctionModule;  // AuctionRebalanceModuleV1
 
 
@@ -75,6 +77,7 @@ contract GlobalAuctionRebalanceExtension is BaseGlobalExtension {
      * @param _delegatedManager     Instance of the DelegatedManager to initialize the AuctionRebalanceModuleV1 for
      */
     function initializeModule(IDelegatedManager _delegatedManager) external onlyOwnerAndValidManager(_delegatedManager) {
+        require(_delegatedManager.isInitializedExtension(address(this)), "Extension must be initialized");
         _initializeModule(_delegatedManager.setToken(), _delegatedManager);
     }
 
@@ -84,6 +87,7 @@ contract GlobalAuctionRebalanceExtension is BaseGlobalExtension {
      * @param _delegatedManager     Instance of the DelegatedManager to initialize
      */
     function initializeExtension(IDelegatedManager _delegatedManager) external onlyOwnerAndValidManager(_delegatedManager) {
+        require(_delegatedManager.isPendingExtension(address(this)), "Extension must be pending");
         ISetToken setToken = _delegatedManager.setToken();
 
         _initializeExtension(setToken, _delegatedManager);
@@ -97,6 +101,7 @@ contract GlobalAuctionRebalanceExtension is BaseGlobalExtension {
      * @param _delegatedManager     Instance of the DelegatedManager to initialize
      */
     function initializeModuleAndExtension(IDelegatedManager _delegatedManager) external onlyOwnerAndValidManager(_delegatedManager){
+        require(_delegatedManager.isPendingExtension(address(this)), "Extension must be pending");
         ISetToken setToken = _delegatedManager.setToken();
 
         _initializeExtension(setToken, _delegatedManager);
@@ -189,7 +194,7 @@ contract GlobalAuctionRebalanceExtension is BaseGlobalExtension {
      * @dev OPERATOR ONLY: Sets the target raise percentage for all components on AuctionRebalanceModuleV1. 
      * Refer to AuctionRebalanceModuleV1 for function specific restrictions.
      *
-     * @param _setToken                Address of the SetToken to rebalance.
+     * @param _setToken                Address of the SetToken to update unit targets of.
      * @param _raiseTargetPercentage   Amount to raise all component's unit targets by (in precise units)
      */
     function setRaiseTargetPercentage(ISetToken _setToken, uint256 _raiseTargetPercentage) external onlyOperator(_setToken) {
@@ -206,6 +211,7 @@ contract GlobalAuctionRebalanceExtension is BaseGlobalExtension {
      * @dev OPERATOR ONLY: Updates the bidding permission status for a list of addresses on AuctionRebalanceModuleV1. 
      * Refer to AuctionRebalanceModuleV1 for function specific restrictions.
      *
+     * @param _setToken                Address of the SetToken to rebalance bidder status of. 
      * @param _bidders    An array of addresses whose bidding permission status is to be toggled.
      * @param _statuses   An array of booleans indicating the new bidding permission status for each corresponding address in `_bidders`.
      */
@@ -231,7 +237,8 @@ contract GlobalAuctionRebalanceExtension is BaseGlobalExtension {
      * @dev OPERATOR ONLY: Sets whether anyone can bid on the AuctionRebalanceModuleV1. 
      * Refer to AuctionRebalanceModuleV1 for function specific restrictions.
      *
-     * @param _status   A boolean indicating if anyone can bid.
+     * @param _setToken     Address of the SetToken to update anyone bid status of. 
+     * @param _status       A boolean indicating if anyone can bid.
      */
     function setAnyoneBid( ISetToken _setToken, bool _status) external onlyOperator(_setToken) {
         bytes memory callData = abi.encodeWithSelector(
