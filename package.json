@@ -71,6 +71,7 @@
     "@types/lodash": "^4.14.86",
     "@types/mocha": "^7.0.2",
     "@types/node": "^14.0.5",
+    "@uma/core": "^2.56.1",
     "chai": "^4.2.0",
     "coveralls": "^3.0.1",
     "dotenv": "^8.2.0",
