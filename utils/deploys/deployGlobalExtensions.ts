@@ -6,7 +6,8 @@ import {
   GlobalIssuanceExtension,
   GlobalStreamingFeeSplitExtension,
   GlobalTradeExtension,
-  GlobalWrapExtension
+  GlobalWrapExtension,
+  GlobalAuctionRebalanceExtension
 } from "../contracts/index";
 
 import { GlobalBatchTradeExtension__factory } from "../../typechain/factories/GlobalBatchTradeExtension__factory";
@@ -15,6 +16,7 @@ import { GlobalIssuanceExtension__factory } from "../../typechain/factories/Glob
 import { GlobalStreamingFeeSplitExtension__factory } from "../../typechain/factories/GlobalStreamingFeeSplitExtension__factory";
 import { GlobalTradeExtension__factory } from "../../typechain/factories/GlobalTradeExtension__factory";
 import { GlobalWrapExtension__factory } from "../../typechain/factories/GlobalWrapExtension__factory";
+import { GlobalAuctionRebalanceExtension__factory } from "../../typechain/factories/GlobalAuctionRebalanceExtension__factory";
 
 export default class DeployGlobalExtensions {
   private _deployerSigner: Signer;
@@ -86,6 +88,16 @@ export default class DeployGlobalExtensions {
     return await new GlobalWrapExtension__factory(this._deployerSigner).deploy(
       managerCore,
       wrapModule,
+    );
+  }
+
+  public async deployGlobalAuctionRebalanceExtension(
+    managerCore: Address,
+    auctionModule: Address
+  ): Promise<GlobalAuctionRebalanceExtension> {
+    return await new GlobalAuctionRebalanceExtension__factory(this._deployerSigner).deploy(
+      managerCore,
+      auctionModule,
     );
   }
 }

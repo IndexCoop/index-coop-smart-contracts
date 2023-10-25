@@ -63,3 +63,4 @@ export { GlobalStreamingFeeSplitExtension } from "../../typechain/GlobalStreamin
 export { GlobalBatchTradeExtension } from "../../typechain/GlobalBatchTradeExtension";
 export { GlobalWrapExtension } from "../../typechain/GlobalWrapExtension";
 export { GlobalClaimExtension } from "../../typechain/GlobalClaimExtension";
+export { GlobalAuctionRebalanceExtension } from "../../typechain/GlobalAuctionRebalanceExtension";
