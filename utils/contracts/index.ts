@@ -64,3 +64,4 @@ export { GlobalBatchTradeExtension } from "../../typechain/GlobalBatchTradeExten
 export { GlobalWrapExtension } from "../../typechain/GlobalWrapExtension";
 export { GlobalClaimExtension } from "../../typechain/GlobalClaimExtension";
 export { GlobalAuctionRebalanceExtension } from "../../typechain/GlobalAuctionRebalanceExtension";
+export { GlobalOptimisticAuctionRebalanceExtension } from "../../typechain/GlobalOptimisticAuctionRebalanceExtension";
