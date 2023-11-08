@@ -102,7 +102,7 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
 
     /* ============ Constructor ============ */
 
-    constructor(AuctionExtensionParams memory _auctionParams, OptimisticRebalanceParams memory _optimisticParams) public GlobalAuctionRebalanceExtension(_auctionParams.managerCore, _auctionParams.auctionModule) {
+    constructor(AuctionExtensionParams memory _auctionParams) public GlobalAuctionRebalanceExtension(_auctionParams.managerCore, _auctionParams.auctionModule) {
     
     }
 
