@@ -2,7 +2,8 @@ import "module-alias/register";
 
 import { Address, Account } from "@utils/types";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
-import { GlobalAuctionRebalanceExtension, DelegatedManager, ManagerCore, ConstantPriceAdapter } from "@utils/contracts/index";
+import { GlobalOptimisticAuctionRebalanceExtension, DelegatedManager, ManagerCore,
+  ConstantPriceAdapter, OptimisticOracleV3Mock, StandardTokenMock } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -14,15 +15,33 @@ import {
   bitcoin,
   usdc,
   getTransactionTimestamp,
-  increaseTimeAsync,
   getRandomAccount,
 } from "@utils/index";
 import { SetFixture } from "@utils/fixtures";
-import { BigNumber, ContractTransaction } from "ethers";
+import { BigNumber, ContractTransaction, utils } from "ethers";
+import base58 from "bs58";
 
 const expect = getWaffleExpect();
 
-describe("GlobalOptimisticAuctionRebalanceExtension", () => {
+function bufferToHex(buffer: Uint8Array) {
+    let hexStr = "";
+
+    for (let i = 0; i < buffer.length; i++) {
+        const hex = (buffer[i] & 0xff).toString(16);
+        hexStr += (hex.length === 1) ? "0" + hex : hex;
+    }
+
+    return hexStr;
+}
+
+// Base58 decoding function (make sure you have a proper Base58 decoding function)
+function base58ToHexString(base58String: string) {
+    const bytes = base58.decode(base58String); // Decode base58 to a buffer
+    const hexString = bufferToHex(bytes.slice(2)); // Convert buffer to hex, excluding the first 2 bytes
+    return "0x" + hexString;
+}
+
+describe.only("GlobalOptimisticAuctionRebalanceExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
@@ -36,9 +55,13 @@ describe("GlobalOptimisticAuctionRebalanceExtension", () => {
   let managerCore: ManagerCore;
   let delegatedManager: DelegatedManager;
 
-  let auctionRebalanceExtension: GlobalAuctionRebalanceExtension;
+  let auctionRebalanceExtension: GlobalOptimisticAuctionRebalanceExtension;
 
   let priceAdapter: ConstantPriceAdapter;
+
+  let optimisticOracleV3Mock: OptimisticOracleV3Mock;
+
+  let collateralAsset: StandardTokenMock;
 
   before(async () => {
     [
@@ -54,6 +77,8 @@ describe("GlobalOptimisticAuctionRebalanceExtension", () => {
     await setV2Setup.initialize();
 
     priceAdapter = await deployer.setV2.deployConstantPriceAdapter();
+    optimisticOracleV3Mock = await deployer.mocks.deployOptimisticOracleV3Mock();
+    collateralAsset = await deployer.mocks.deployStandardTokenMock(owner.address, 18);
 
     await setV2Setup.integrationRegistry.addIntegration(
       setV2Setup.auctionModule.address,
@@ -62,7 +87,7 @@ describe("GlobalOptimisticAuctionRebalanceExtension", () => {
     );
 
     managerCore = await deployer.managerCore.deployManagerCore();
-    auctionRebalanceExtension = await deployer.globalExtensions.deployGlobalAuctionRebalanceExtension(
+    auctionRebalanceExtension = await deployer.globalExtensions.deployGlobalOptimisticAuctionRebalanceExtension(
       managerCore.address,
       setV2Setup.auctionModule.address
     );
@@ -107,8 +132,8 @@ describe("GlobalOptimisticAuctionRebalanceExtension", () => {
       subjectAuctionRebalanceModule = setV2Setup.auctionModule.address;
     });
 
-    async function subject(): Promise<GlobalAuctionRebalanceExtension> {
-      const extension =  await deployer.globalExtensions.deployGlobalAuctionRebalanceExtension(
+    async function subject(): Promise<GlobalOptimisticAuctionRebalanceExtension> {
+      const extension =  await deployer.globalExtensions.deployGlobalOptimisticAuctionRebalanceExtension(
         subjectManagerCore,
         subjectAuctionRebalanceModule
       );
@@ -135,7 +160,7 @@ describe("GlobalOptimisticAuctionRebalanceExtension", () => {
     });
 
     it("should revert if module is initialized and extension is not", async () => {
-      const extension =  await deployer.globalExtensions.deployGlobalAuctionRebalanceExtension(
+      const extension =  await deployer.globalExtensions.deployGlobalOptimisticAuctionRebalanceExtension(
         subjectManagerCore,
         subjectAuctionRebalanceModule
       );
@@ -143,7 +168,7 @@ describe("GlobalOptimisticAuctionRebalanceExtension", () => {
     });
 
     it("should revert if module is initialized without being added", async () => {
-      const extension =  await deployer.globalExtensions.deployGlobalAuctionRebalanceExtension(
+      const extension =  await deployer.globalExtensions.deployGlobalOptimisticAuctionRebalanceExtension(
         subjectManagerCore,
         subjectAuctionRebalanceModule
       );
@@ -151,7 +176,7 @@ describe("GlobalOptimisticAuctionRebalanceExtension", () => {
     });
 
     it("should revert if extension is initialized without being added", async () => {
-      const extension =  await deployer.globalExtensions.deployGlobalAuctionRebalanceExtension(
+      const extension =  await deployer.globalExtensions.deployGlobalOptimisticAuctionRebalanceExtension(
         subjectManagerCore,
         subjectAuctionRebalanceModule
       );
@@ -199,416 +224,377 @@ describe("GlobalOptimisticAuctionRebalanceExtension", () => {
       });
     });
 
-    context("when auction rebalance extension is deployed and system fully set up", () => {
+    context("when auction rebalance extension is deployed and initialized.", () => {
       beforeEach(async () => {
         await auctionRebalanceExtension.connect(owner.wallet).initializeModule(delegatedManager.address);
       });
 
-      describe("#startRebalance", () => {
-        let subjectQuoteAsset: Address;
-        let subjectOldComponents: Address[];
-        let subjectNewComponents: Address[];
-        let subjectNewComponentsAuctionParams: any[];
-        let subjectOldComponentsAuctionParams: any[];
-        let subjectShouldLockSetToken: boolean;
-        let subjectRebalanceDuration: BigNumber;
-        let subjectPositionMultiplier: BigNumber;
-        let subjectCaller: Account;
-        let subjectSetToken: Address;
+      context("when the product settings have been set", () => {
+        beforeEach(async() => {
+            await auctionRebalanceExtension.connect(operator.wallet).setProductSettings(setToken.address, {
+                finder: ADDRESS_ZERO,
+                collateral: collateralAsset.address,
+                liveness: BigNumber.from(0),
+                bondAmount: BigNumber.from(0),
+                identifier: utils.formatBytes32String(""),
+                optimisticOracleV3: optimisticOracleV3Mock.address,
+            }, utils.arrayify(base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z")));
 
-        beforeEach(async () => {
-          subjectQuoteAsset = setV2Setup.weth.address;
-
-          subjectOldComponents = [setV2Setup.dai.address, setV2Setup.wbtc.address, setV2Setup.weth.address];
-          subjectNewComponents = [setV2Setup.usdc.address];
-
-          subjectNewComponentsAuctionParams = [
-            {
-              targetUnit: usdc(100),
-              priceAdapterName: "ConstantPriceAdapter",
-              priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
-            },
-          ];
-
-          subjectOldComponentsAuctionParams = [
-            {
-              targetUnit: ether(50),
-              priceAdapterName: "ConstantPriceAdapter",
-              priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
-            },
-            {
-              targetUnit: bitcoin(.01),
-              priceAdapterName: "ConstantPriceAdapter",
-              priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
-            },
-            {
-              targetUnit: ether(.1),
-              priceAdapterName: "ConstantPriceAdapter",
-              priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
-            },
-          ];
-
-          subjectShouldLockSetToken = true;
-          subjectRebalanceDuration = BigNumber.from(86400);
-          subjectPositionMultiplier = ether(.999);
-          subjectCaller = operator;
-          subjectSetToken = setToken.address;
         });
 
-        async function subject(): Promise<ContractTransaction> {
-          return await auctionRebalanceExtension.connect(subjectCaller.wallet).startRebalance(
-            subjectSetToken,
-            subjectQuoteAsset,
-            subjectOldComponents,
-            subjectNewComponents,
-            subjectNewComponentsAuctionParams,
-            subjectOldComponentsAuctionParams,
-            subjectShouldLockSetToken,
-            subjectRebalanceDuration,
-            subjectPositionMultiplier
-          );
-        }
+        context("when a rebalance has been proposed", () => {
+            let subjectQuoteAsset: Address;
+            let subjectOldComponents: Address[];
+            let subjectNewComponents: Address[];
+            let subjectNewComponentsAuctionParams: any[];
+            let subjectOldComponentsAuctionParams: any[];
+            let subjectShouldLockSetToken: boolean;
+            let subjectRebalanceDuration: BigNumber;
+            let subjectPositionMultiplier: BigNumber;
+            let subjectCaller: Account;
+            let subjectSetToken: Address;
+            beforeEach(async () => {
+                subjectQuoteAsset = setV2Setup.weth.address;
 
-        it("should set the auction execution params correctly", async () => {
-          await subject();
-          expect(1).to.eq(1);
+                subjectOldComponents = [setV2Setup.dai.address, setV2Setup.wbtc.address, setV2Setup.weth.address];
+                subjectNewComponents = [setV2Setup.usdc.address];
 
-          const aggregateComponents = [...subjectOldComponents, ...subjectNewComponents];
-          const aggregateAuctionParams = [...subjectOldComponentsAuctionParams, ...subjectNewComponentsAuctionParams];
+                subjectNewComponentsAuctionParams = [
+                  {
+                    targetUnit: usdc(100),
+                    priceAdapterName: "ConstantPriceAdapter",
+                    priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
+                  },
+                ];
 
-          for (let i = 0; i < aggregateAuctionParams.length; i++) {
-            const executionInfo = await setV2Setup.auctionModule.executionInfo(setToken.address, aggregateComponents[i]);
-            expect(executionInfo.targetUnit).to.eq(aggregateAuctionParams[i].targetUnit);
-            expect(executionInfo.priceAdapterName).to.eq(aggregateAuctionParams[i].priceAdapterName);
-            expect(executionInfo.priceAdapterConfigData).to.eq(aggregateAuctionParams[i].priceAdapterConfigData);
-          }
+                subjectOldComponentsAuctionParams = [
+                  {
+                    targetUnit: ether(50),
+                    priceAdapterName: "ConstantPriceAdapter",
+                    priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
+                  },
+                  {
+                    targetUnit: bitcoin(.01),
+                    priceAdapterName: "ConstantPriceAdapter",
+                    priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
+                  },
+                  {
+                    targetUnit: ether(.1),
+                    priceAdapterName: "ConstantPriceAdapter",
+                    priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
+                  },
+                ];
+
+                subjectShouldLockSetToken = true;
+                subjectRebalanceDuration = BigNumber.from(86400);
+                subjectPositionMultiplier = ether(.999);
+                subjectCaller = operator;
+                subjectSetToken = setToken.address;
+              });
+              describe("#startRebalance", () => {
+
+
+                async function subject(): Promise<ContractTransaction> {
+                 await auctionRebalanceExtension.connect(subjectCaller.wallet).proposeRebalance(
+                    subjectSetToken,
+                    subjectQuoteAsset,
+                    subjectOldComponents,
+                    subjectNewComponents,
+                    subjectNewComponentsAuctionParams,
+                    subjectOldComponentsAuctionParams,
+                    subjectShouldLockSetToken,
+                    subjectRebalanceDuration,
+                    subjectPositionMultiplier
+                  );
+                  return auctionRebalanceExtension.connect(subjectCaller.wallet).startRebalance(
+                    subjectSetToken,
+                    subjectQuoteAsset,
+                    subjectOldComponents,
+                    subjectNewComponents,
+                    subjectNewComponentsAuctionParams,
+                    subjectOldComponentsAuctionParams,
+                    subjectShouldLockSetToken,
+                    subjectRebalanceDuration,
+                    subjectPositionMultiplier
+                  );
+                }
+
+                it("should set the auction execution params correctly", async () => {
+                  await subject();
+                  expect(1).to.eq(1);
+
+                  const aggregateComponents = [...subjectOldComponents, ...subjectNewComponents];
+                  const aggregateAuctionParams = [...subjectOldComponentsAuctionParams, ...subjectNewComponentsAuctionParams];
+
+                  for (let i = 0; i < aggregateAuctionParams.length; i++) {
+                    const executionInfo = await setV2Setup.auctionModule.executionInfo(setToken.address, aggregateComponents[i]);
+                    expect(executionInfo.targetUnit).to.eq(aggregateAuctionParams[i].targetUnit);
+                    expect(executionInfo.priceAdapterName).to.eq(aggregateAuctionParams[i].priceAdapterName);
+                    expect(executionInfo.priceAdapterConfigData).to.eq(aggregateAuctionParams[i].priceAdapterConfigData);
+                  }
+                });
+
+                it("should set the rebalance info correctly", async () => {
+                  const txnTimestamp = await getTransactionTimestamp(subject());
+
+                  const rebalanceInfo = await setV2Setup.auctionModule.rebalanceInfo(setToken.address);
+
+                  expect(rebalanceInfo.quoteAsset).to.eq(subjectQuoteAsset);
+                  expect(rebalanceInfo.rebalanceStartTime).to.eq(txnTimestamp);
+                  expect(rebalanceInfo.rebalanceDuration).to.eq(subjectRebalanceDuration);
+                  expect(rebalanceInfo.positionMultiplier).to.eq(subjectPositionMultiplier);
+                  expect(rebalanceInfo.raiseTargetPercentage).to.eq(ZERO);
+
+                  const rebalanceComponents = await setV2Setup.auctionModule.getRebalanceComponents(setToken.address);
+                  const aggregateComponents = [...subjectOldComponents, ...subjectNewComponents];
+
+                  for (let i = 0; i < rebalanceComponents.length; i++) {
+                    expect(rebalanceComponents[i]).to.eq(aggregateComponents[i]);
+                  }
+                });
+
+                describe("when there are no new components", () => {
+                  beforeEach(async () => {
+                    subjectNewComponents = [];
+                    subjectNewComponentsAuctionParams = [];
+                  });
+
+                  it("should set the auction execution params correctly", async () => {
+                    await subject();
+
+                    for (let i = 0; i < subjectOldComponents.length; i++) {
+                      const executionInfo = await setV2Setup.auctionModule.executionInfo(setToken.address, subjectOldComponents[i]);
+                      expect(executionInfo.targetUnit).to.eq(subjectOldComponentsAuctionParams[i].targetUnit);
+                      expect(executionInfo.priceAdapterName).to.eq(subjectOldComponentsAuctionParams[i].priceAdapterName);
+                      expect(executionInfo.priceAdapterConfigData).to.eq(subjectOldComponentsAuctionParams[i].priceAdapterConfigData);
+                    }
+                  });
+
+                  it("should set the rebalance info correctly", async () => {
+                    const txnTimestamp = await getTransactionTimestamp(subject());
+
+                    const rebalanceInfo = await setV2Setup.auctionModule.rebalanceInfo(setToken.address);
+
+                    expect(rebalanceInfo.quoteAsset).to.eq(subjectQuoteAsset);
+                    expect(rebalanceInfo.rebalanceStartTime).to.eq(txnTimestamp);
+                    expect(rebalanceInfo.rebalanceDuration).to.eq(subjectRebalanceDuration);
+                    expect(rebalanceInfo.positionMultiplier).to.eq(subjectPositionMultiplier);
+                    expect(rebalanceInfo.raiseTargetPercentage).to.eq(ZERO);
+
+                    const rebalanceComponents = await setV2Setup.auctionModule.getRebalanceComponents(setToken.address);
+                    for (let i = 0; i < rebalanceComponents.length; i++) {
+                      expect(rebalanceComponents[i]).to.eq(subjectOldComponents[i]);
+                    }
+                  });
+                });
+
+                describe("when old components are passed in different order", () => {
+                  beforeEach(async () => {
+                    subjectOldComponents = [setV2Setup.dai.address, setV2Setup.weth.address, setV2Setup.wbtc.address];
+                  });
+
+                  it("should revert", async () => {
+                    await expect(subject()).to.be.revertedWith("Mismatch: old and current components");
+                  });
+                });
+
+                describe("when old components array is shorter than current components array", () => {
+                  beforeEach(async () => {
+                    subjectOldComponents = [setV2Setup.dai.address, setV2Setup.wbtc.address];
+                    subjectOldComponentsAuctionParams = [
+                      {
+                        targetUnit: ether(50),
+                        priceAdapterName: "ConstantPriceAdapter",
+                        priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
+                      },
+                      {
+                        targetUnit: bitcoin(.01),
+                        priceAdapterName: "ConstantPriceAdapter",
+                        priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
+                      },
+                    ];
+                  });
+
+                  it("should revert", async () => {
+                    await expect(subject()).to.be.revertedWith("Mismatch: old and current components length");
+                  });
+                });
+
+                describe("when old components array is longer than current components array", () => {
+                  beforeEach(async () => {
+                    const price = await priceAdapter.getEncodedData(ether(1));
+                    subjectOldComponents = [setV2Setup.dai.address, setV2Setup.wbtc.address, setV2Setup.weth.address, setV2Setup.usdc.address];
+                    subjectOldComponentsAuctionParams = [
+                      {
+                        targetUnit: ether(50),
+                        priceAdapterName: "ConstantPriceAdapter",
+                        priceAdapterConfigData: price,
+                      },
+                      {
+                        targetUnit: bitcoin(.01),
+                        priceAdapterName: "ConstantPriceAdapter",
+                        priceAdapterConfigData: price,
+                      },
+                      {
+                        targetUnit: ether(.1),
+                        priceAdapterName: "ConstantPriceAdapter",
+                        priceAdapterConfigData: price,
+                      },
+                      {
+                        targetUnit: usdc(100),
+                        priceAdapterName: "ConstantPriceAdapter",
+                        priceAdapterConfigData: price,
+                      },
+                    ];
+                  });
+
+                  it("should revert", async () => {
+                    await expect(subject()).to.be.revertedWith("Mismatch: old and current components length");
+                  });
+                });
+
+                describe("when not all old components have an entry", () => {
+                  beforeEach(async () => {
+                    subjectOldComponents = [setV2Setup.dai.address, setV2Setup.wbtc.address, setV2Setup.usdc.address];
+                  });
+
+                  it("should revert", async () => {
+                    await expect(subject()).to.be.revertedWith("Mismatch: old and current components");
+                  });
+                });
+
+                describe("when the caller is not the operator", () => {
+                  beforeEach(async () => {
+                    subjectCaller = await getRandomAccount();
+                  });
+
+                  it("should not revert", async () => {
+                    await expect(subject()).not.to.be.reverted;
+                  });
+                });
+              });
         });
+        describe("#setRaiseTargetPercentage", () => {
+            let subjectRaiseTargetPercentage: BigNumber;
+            let subjectCaller: Account;
 
-        it("should set the rebalance info correctly", async () => {
-          const txnTimestamp = await getTransactionTimestamp(subject());
+            beforeEach(async () => {
+              subjectRaiseTargetPercentage = ether(.001);
+              subjectCaller = operator;
+            });
 
-          const rebalanceInfo = await setV2Setup.auctionModule.rebalanceInfo(setToken.address);
-
-          expect(rebalanceInfo.quoteAsset).to.eq(subjectQuoteAsset);
-          expect(rebalanceInfo.rebalanceStartTime).to.eq(txnTimestamp);
-          expect(rebalanceInfo.rebalanceDuration).to.eq(subjectRebalanceDuration);
-          expect(rebalanceInfo.positionMultiplier).to.eq(subjectPositionMultiplier);
-          expect(rebalanceInfo.raiseTargetPercentage).to.eq(ZERO);
-
-          const rebalanceComponents = await setV2Setup.auctionModule.getRebalanceComponents(setToken.address);
-          const aggregateComponents = [...subjectOldComponents, ...subjectNewComponents];
-
-          for (let i = 0; i < rebalanceComponents.length; i++) {
-            expect(rebalanceComponents[i]).to.eq(aggregateComponents[i]);
-          }
-        });
-
-        describe("when there are no new components", () => {
-          beforeEach(async () => {
-            subjectNewComponents = [];
-            subjectNewComponentsAuctionParams = [];
-          });
-
-          it("should set the auction execution params correctly", async () => {
-            await subject();
-
-            for (let i = 0; i < subjectOldComponents.length; i++) {
-              const executionInfo = await setV2Setup.auctionModule.executionInfo(setToken.address, subjectOldComponents[i]);
-              expect(executionInfo.targetUnit).to.eq(subjectOldComponentsAuctionParams[i].targetUnit);
-              expect(executionInfo.priceAdapterName).to.eq(subjectOldComponentsAuctionParams[i].priceAdapterName);
-              expect(executionInfo.priceAdapterConfigData).to.eq(subjectOldComponentsAuctionParams[i].priceAdapterConfigData);
+            async function subject(): Promise<ContractTransaction> {
+              return await auctionRebalanceExtension.connect(subjectCaller.wallet).setRaiseTargetPercentage(
+                setToken.address,
+                subjectRaiseTargetPercentage,
+              );
             }
+
+            it("should correctly set the raiseTargetPercentage", async () => {
+              await subject();
+
+              const actualRaiseTargetPercentage = (await setV2Setup.auctionModule.rebalanceInfo(setToken.address)).raiseTargetPercentage;
+
+              expect(actualRaiseTargetPercentage).to.eq(subjectRaiseTargetPercentage);
+            });
+
+            describe("when the caller is not the operator", async () => {
+              beforeEach(async () => {
+                subjectCaller = await getRandomAccount();
+              });
+
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith("Must be approved operator");
+              });
+            });
           });
 
-          it("should set the rebalance info correctly", async () => {
-            const txnTimestamp = await getTransactionTimestamp(subject());
+          describe("#setBidderStatus", () => {
+            let subjectBidders: Address[];
+            let subjectStatuses: boolean[];
+            let subjectCaller: Account;
 
-            const rebalanceInfo = await setV2Setup.auctionModule.rebalanceInfo(setToken.address);
+            beforeEach(async () => {
+              subjectBidders = [methodologist.address];
+              subjectStatuses = [true];
+              subjectCaller = operator;
+            });
 
-            expect(rebalanceInfo.quoteAsset).to.eq(subjectQuoteAsset);
-            expect(rebalanceInfo.rebalanceStartTime).to.eq(txnTimestamp);
-            expect(rebalanceInfo.rebalanceDuration).to.eq(subjectRebalanceDuration);
-            expect(rebalanceInfo.positionMultiplier).to.eq(subjectPositionMultiplier);
-            expect(rebalanceInfo.raiseTargetPercentage).to.eq(ZERO);
-
-            const rebalanceComponents = await setV2Setup.auctionModule.getRebalanceComponents(setToken.address);
-            for (let i = 0; i < rebalanceComponents.length; i++) {
-              expect(rebalanceComponents[i]).to.eq(subjectOldComponents[i]);
+            async function subject(): Promise<ContractTransaction> {
+              return await auctionRebalanceExtension.connect(subjectCaller.wallet).setBidderStatus(
+                setToken.address,
+                subjectBidders,
+                subjectStatuses
+              );
             }
-          });
-        });
 
-        describe("when old components are passed in different order", () => {
-          beforeEach(async () => {
-            subjectOldComponents = [setV2Setup.dai.address, setV2Setup.weth.address, setV2Setup.wbtc.address];
-          });
+            it("should correctly set the bidder status", async () => {
+              await subject();
 
-          it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("Mismatch: old and current components");
-          });
-        });
+              const isCaller = await setV2Setup.auctionModule.isAllowedBidder(setToken.address, subjectBidders[0]);
 
-        describe("when old components array is shorter than current components array", () => {
-          beforeEach(async () => {
-            subjectOldComponents = [setV2Setup.dai.address, setV2Setup.wbtc.address];
-            subjectOldComponentsAuctionParams = [
-              {
-                targetUnit: ether(50),
-                priceAdapterName: "ConstantPriceAdapter",
-                priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
-              },
-              {
-                targetUnit: bitcoin(.01),
-                priceAdapterName: "ConstantPriceAdapter",
-                priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
-              },
-            ];
+              expect(isCaller).to.be.true;
+            });
+
+            describe("when the caller is not the operator", () => {
+              beforeEach(async () => {
+                subjectCaller = await getRandomAccount();
+              });
+
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith("Must be approved operator");
+              });
+            });
           });
 
-          it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("Mismatch: old and current components length");
-          });
-        });
+          describe("#setAnyoneBid", () => {
+            let subjectStatus: boolean;
+            let subjectCaller: Account;
 
-        describe("when old components array is longer than current components array", () => {
-          beforeEach(async () => {
-            const price = await priceAdapter.getEncodedData(ether(1));
-            subjectOldComponents = [setV2Setup.dai.address, setV2Setup.wbtc.address, setV2Setup.weth.address, setV2Setup.usdc.address];
-            subjectOldComponentsAuctionParams = [
-              {
-                targetUnit: ether(50),
-                priceAdapterName: "ConstantPriceAdapter",
-                priceAdapterConfigData: price,
-              },
-              {
-                targetUnit: bitcoin(.01),
-                priceAdapterName: "ConstantPriceAdapter",
-                priceAdapterConfigData: price,
-              },
-              {
-                targetUnit: ether(.1),
-                priceAdapterName: "ConstantPriceAdapter",
-                priceAdapterConfigData: price,
-              },
-              {
-                targetUnit: usdc(100),
-                priceAdapterName: "ConstantPriceAdapter",
-                priceAdapterConfigData: price,
-              },
-            ];
-          });
+            beforeEach(async () => {
+              subjectStatus = true;
+              subjectCaller = operator;
+            });
 
-          it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("Mismatch: old and current components length");
-          });
-        });
+            async function subject(): Promise<ContractTransaction> {
+              return await auctionRebalanceExtension.connect(subjectCaller.wallet).setAnyoneBid(
+                setToken.address,
+                subjectStatus
+              );
+            }
 
-        describe("when not all old components have an entry", () => {
-          beforeEach(async () => {
-            subjectOldComponents = [setV2Setup.dai.address, setV2Setup.wbtc.address, setV2Setup.usdc.address];
+            it("should correctly set anyone bid", async () => {
+              await subject();
+
+              const anyoneBid = await setV2Setup.auctionModule.permissionInfo(setToken.address);
+
+              expect(anyoneBid).to.be.true;
+            });
+
+            describe("when the caller is not the operator", () => {
+              beforeEach(async () => {
+                subjectCaller = await getRandomAccount();
+              });
+
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith("Must be approved operator");
+              });
+            });
           });
 
-          it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("Mismatch: old and current components");
+          describe("#removeExtension", () => {
+            async function subject() {
+              return await delegatedManager.connect(owner.wallet).removeExtensions([auctionRebalanceExtension.address]);
+            }
+            it("should remove the extension", async () => {
+              const setManagerBeforeRemove = auctionRebalanceExtension.setManagers(setToken.address);
+              await subject();
+              const setManagerAfterRemove = auctionRebalanceExtension.setManagers(setToken.address);
+
+              expect(setManagerBeforeRemove).to.not.eq(setManagerAfterRemove);
+            });
           });
-        });
-
-        describe("when the caller is not the operator", () => {
-          beforeEach(async () => {
-            subjectCaller = await getRandomAccount();
-          });
-
-          it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("Must be approved operator");
-          });
-        });
-      });
-
-      describe("#unlock", () => {
-        let subjectCaller: Account;
-
-        beforeEach(async () => {
-          const oldComponents = [setV2Setup.dai.address, setV2Setup.wbtc.address, setV2Setup.weth.address];
-
-          const oldComponentsAuctionParams = [
-            {
-              targetUnit: ether(100),
-              priceAdapterName: "ConstantPriceAdapter",
-              priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
-            },
-            {
-              targetUnit: bitcoin(.01),
-              priceAdapterName: "ConstantPriceAdapter",
-              priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
-            },
-            {
-              targetUnit: ether(.1),
-              priceAdapterName: "ConstantPriceAdapter",
-              priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
-            },
-          ];
-
-          await auctionRebalanceExtension.connect(operator.wallet).startRebalance(
-            setToken.address,
-            setV2Setup.weth.address,
-            oldComponents,
-            [],
-            [],
-            oldComponentsAuctionParams,
-            true,
-            BigNumber.from(5),
-            ether(.999)
-          );
-
-          subjectCaller = operator;
-        });
-
-        async function subject(): Promise<ContractTransaction> {
-          await increaseTimeAsync(BigNumber.from(6));
-          return await auctionRebalanceExtension.connect(subjectCaller.wallet).unlock(setToken.address);
-        }
-
-        it("should unlock the SetToken", async () => {
-          const isLockedBefore = await setToken.isLocked();
-          expect(isLockedBefore).to.be.true;
-
-          await subject();
-
-          const isLockedAfter = await setToken.isLocked();
-          expect(isLockedAfter).to.be.false;
-        });
-
-        describe("when the caller is not the operator", () => {
-          beforeEach(async () => {
-            subjectCaller = await getRandomAccount();
-          });
-
-          it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("Must be approved operator");
-          });
-        });
-      });
-
-      describe("#setRaiseTargetPercentage", () => {
-        let subjectRaiseTargetPercentage: BigNumber;
-        let subjectCaller: Account;
-
-        beforeEach(async () => {
-          subjectRaiseTargetPercentage = ether(.001);
-          subjectCaller = operator;
-        });
-
-        async function subject(): Promise<ContractTransaction> {
-          return await auctionRebalanceExtension.connect(subjectCaller.wallet).setRaiseTargetPercentage(
-            setToken.address,
-            subjectRaiseTargetPercentage,
-          );
-        }
-
-        it("should correctly set the raiseTargetPercentage", async () => {
-          await subject();
-
-          const actualRaiseTargetPercentage = (await setV2Setup.auctionModule.rebalanceInfo(setToken.address)).raiseTargetPercentage;
-
-          expect(actualRaiseTargetPercentage).to.eq(subjectRaiseTargetPercentage);
-        });
-
-        describe("when the caller is not the operator", async () => {
-          beforeEach(async () => {
-            subjectCaller = await getRandomAccount();
-          });
-
-          it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("Must be approved operator");
-          });
-        });
-      });
-
-      describe("#setBidderStatus", () => {
-        let subjectBidders: Address[];
-        let subjectStatuses: boolean[];
-        let subjectCaller: Account;
-
-        beforeEach(async () => {
-          subjectBidders = [methodologist.address];
-          subjectStatuses = [true];
-          subjectCaller = operator;
-        });
-
-        async function subject(): Promise<ContractTransaction> {
-          return await auctionRebalanceExtension.connect(subjectCaller.wallet).setBidderStatus(
-            setToken.address,
-            subjectBidders,
-            subjectStatuses
-          );
-        }
-
-        it("should correctly set the bidder status", async () => {
-          await subject();
-
-          const isCaller = await setV2Setup.auctionModule.isAllowedBidder(setToken.address, subjectBidders[0]);
-
-          expect(isCaller).to.be.true;
-        });
-
-        describe("when the caller is not the operator", () => {
-          beforeEach(async () => {
-            subjectCaller = await getRandomAccount();
-          });
-
-          it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("Must be approved operator");
-          });
-        });
-      });
-
-      describe("#setAnyoneBid", () => {
-        let subjectStatus: boolean;
-        let subjectCaller: Account;
-
-        beforeEach(async () => {
-          subjectStatus = true;
-          subjectCaller = operator;
-        });
-
-        async function subject(): Promise<ContractTransaction> {
-          return await auctionRebalanceExtension.connect(subjectCaller.wallet).setAnyoneBid(
-            setToken.address,
-            subjectStatus
-          );
-        }
-
-        it("should correctly set anyone bid", async () => {
-          await subject();
-
-          const anyoneBid = await setV2Setup.auctionModule.permissionInfo(setToken.address);
-
-          expect(anyoneBid).to.be.true;
-        });
-
-        describe("when the caller is not the operator", () => {
-          beforeEach(async () => {
-            subjectCaller = await getRandomAccount();
-          });
-
-          it("should revert", async () => {
-            await expect(subject()).to.be.revertedWith("Must be approved operator");
-          });
-        });
-      });
-
-      describe("#removeExtension", () => {
-        async function subject() {
-          return await delegatedManager.connect(owner.wallet).removeExtensions([auctionRebalanceExtension.address]);
-        }
-        it("should remove the extension", async () => {
-          const setManagerBeforeRemove = auctionRebalanceExtension.setManagers(setToken.address);
-          await subject();
-          const setManagerAfterRemove = auctionRebalanceExtension.setManagers(setToken.address);
-
-          expect(setManagerBeforeRemove).to.not.eq(setManagerAfterRemove);
-        });
-      })
- ;   });
+    });
+   });
   });
 });
