@@ -50,6 +50,33 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
     //     address indexed _setToken,
     //     address indexed _delegatedManager
     // );
+    event ProductSettingsUpdated(
+        IERC20 indexed setToken,
+        address indexed delegatedManager,
+        OptimisticRebalanceParams optimisticParams,
+        bytes32 indexed rulesHash
+    );
+    event RebalanceProposed(
+        ISetToken indexed setToken,
+        IERC20 indexed quoteAsset,
+        address[] oldComponents,
+        address[] newComponents,
+        AuctionExecutionParams[] newComponentsAuctionParams,
+        AuctionExecutionParams[] oldComponentsAuctionParams,
+        bool shouldLockSetToken,
+        uint256 rebalanceDuration,
+        uint256 positionMultiplier
+    );
+
+    event AssertedClaim(
+        IERC20 indexed _setToken,
+        address indexed _assertedBy,
+        bytes32 indexed rulesHash,
+        bytes32 _assertionId,
+        bytes _claimData
+    );
+
+
 
 
     /* ============ Structs ============ */
@@ -60,25 +87,11 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
         }
 
         struct OptimisticRebalanceParams{
-            address finder;            // Contract that finds UMA contracts on-chain.
             IERC20 collateral;        // Collateral currency used to assert proposed transactions.
             uint64  liveness;           // The amount of time to dispute proposed transactions before they can be executed.
             uint256 bondAmount;        // Configured amount of collateral currency to make assertions for proposed transactions.
             bytes32 identifier;        // Identifier used to request price from the DVM.
             OptimisticOracleV3Interface optimisticOracleV3; // Optimistic Oracle V3 contract used to assert proposed transactions.
-        }
-
-        struct RebalanceProposal{
-            uint256 proposeTime;    // Timestamp of when the proposal was proposed.
-            address _setToken;      // Address of the SetToken being rebalanced.
-            address _quoteAsset;    // Address of the quote asset used in the rebalance.
-            address[] _oldComponents; // Addresses of existing components in the SetToken.
-            address[] _newComponents; // Addresses of new components to be added.
-            AuctionExecutionParams[]  _newComponentsAuctionParams; // AuctionExecutionParams for new components, indexed corresponding to _newComponents.
-            AuctionExecutionParams[]  _oldComponentsAuctionParams; // AuctionExecutionParams for existing components, indexed corresponding to the current component positions. Set to 0 for components being removed.
-            bool _shouldLockSetToken; // Indicates if the rebalance should lock the SetToken.
-            uint256 _rebalanceDuration; // Duration of the rebalance in seconds.
-            uint256 _positionMultiplier; // Position multiplier at the time target units were calculated.
         }
 
         struct ProductSettings{
@@ -88,9 +101,7 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
 
     /* ============ State Variables ============ */
     
-    // IAuctionRebalanceModuleV1 public immutable auctionModule;  // AuctionRebalanceModuleV1
-
-    mapping (ISetToken=>ProductSettings) public productSettings; // Mapping of quote asset to ProductSettings
+    mapping (ISetToken=>ProductSettings) public productSettings; // Mapping of set token to ProductSettings
     mapping(bytes32 => bytes32) public assertionIds; // Maps proposal hashes to assertionIds.
     mapping(bytes32 => bytes32) public proposalHashes; // Maps assertionIds to proposal hashes.
     mapping (bytes32=>ISetToken) public assertedProducts; // Maps assertionIds to ISetToken
@@ -109,7 +120,7 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
     /* ============ External Functions ============ */
 
     /**
-    * @dev OPERATOR ONLY: sets product settings for a given quote asset
+    * @dev OPERATOR ONLY: sets product settings for a given set token
     * @param _product Address of the SetToken to set rules and settings for.
     * @param _optimisticParams OptimisticRebalanceParams struct containing optimistic rebalance parameters.
     * @param _rulesHash bytes32 containing the ipfs hash rules for the product.
@@ -126,10 +137,10 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
             optimisticParams: _optimisticParams,
             rulesHash: _rulesHash
         });
+     emit ProductSettingsUpdated(_product, _product.manager(), _optimisticParams, _rulesHash);
     }
 
      /**
-    * @dev OPERATOR ONLY: sets product settings for a given quote asset
      * @param _quoteAsset                   ERC20 token used as the quote asset in auctions.
      * @param _oldComponents                Addresses of existing components in the SetToken.
      * @param _newComponents                Addresses of new components to be added.
@@ -173,8 +184,6 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
 
         bytes memory claim = _constructClaim(proposalHash, settings.rulesHash);
 
-  
-
         
         uint256 minimumBond = settings.optimisticParams.optimisticOracleV3.getMinimumBond(address(settings.optimisticParams.collateral));
         uint256 totalBond =  minimumBond > settings.optimisticParams.bondAmount ? minimumBond : settings.optimisticParams.bondAmount;
@@ -189,14 +198,17 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
             address(0),
             settings.optimisticParams.liveness,
             settings.optimisticParams.collateral,
-            settings.optimisticParams.bondAmount,
+            totalBond,
             settings.optimisticParams.identifier,
             bytes32(0)
         );
+        // emit RebalanceProposed( _setToken, _quoteAsset, _oldComponents, _newComponents, _newComponentsAuctionParams, _oldComponentsAuctionParams, _shouldLockSetToken, _rebalanceDuration, _positionMultiplier);
+        // emit AssertedClaim(_setToken, msg.sender, settings.rulesHash, assertionId, claim);
+        // emit AssertedClaim(_set, address(_setToken), msg.sender, assertionId, claim);
 
         assertionIds[proposalHash] = assertionId;
         proposalHashes[assertionId] = proposalHash;
-
+        assertedProducts[assertionId] = _setToken;
     }
    
     /**
@@ -246,6 +258,7 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
 
         delete assertionIds[proposalHash];
         delete proposalHashes[assertionId];
+        delete assertedProducts[assertionId];
 
         ProductSettings memory settings = productSettings[_setToken];
         settings.optimisticParams.optimisticOracleV3.settleAndGetAssertionResult(assertionId);
@@ -312,6 +325,7 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
             // Delete the disputed proposal and associated assertionId.
             delete assertionIds[proposalHash];
             delete proposalHashes[assertionId];
+            delete assertedProducts[assertionId];
 
         } else {
             // If the sender is not the expected Optimistic Oracle V3, check if the expected Oracle has the assertion and if not delete.
