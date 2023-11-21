@@ -46,10 +46,6 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
 
     /* ============ Events ============ */
 
-    // event AuctionRebalanceExtensionInitialized(
-    //     address indexed _setToken,
-    //     address indexed _delegatedManager
-    // );
     event ProductSettingsUpdated(
         IERC20 indexed setToken,
         address indexed delegatedManager,
@@ -76,9 +72,7 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
         bytes _claimData
     );
 
-
-
-
+    event ProposalDeleted(bytes32 assertionID, Proposal indexed proposal);
     /* ============ Structs ============ */
 
         struct AuctionExtensionParams {
@@ -99,12 +93,16 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
             bytes32 rulesHash;
         }
 
+        struct Proposal{
+            bytes32 proposalHash;
+            ISetToken product;
+        }
+
     /* ============ State Variables ============ */
     
     mapping (ISetToken=>ProductSettings) public productSettings; // Mapping of set token to ProductSettings
     mapping(bytes32 => bytes32) public assertionIds; // Maps proposal hashes to assertionIds.
-    mapping(bytes32 => bytes32) public proposalHashes; // Maps assertionIds to proposal hashes.
-    mapping (bytes32=>ISetToken) public assertedProducts; // Maps assertionIds to ISetToken
+    mapping(bytes32 => Proposal) public proposedProduct; // Maps assertionIds to a Proposal.
 
     // Keys for assertion claim data.
     bytes public constant PROPOSAL_HASH_KEY = "proposalHash";
@@ -183,13 +181,7 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
 
 
         bytes memory claim = _constructClaim(proposalHash, settings.rulesHash);
-
-        
-        uint256 minimumBond = settings.optimisticParams.optimisticOracleV3.getMinimumBond(address(settings.optimisticParams.collateral));
-        uint256 totalBond =  minimumBond > settings.optimisticParams.bondAmount ? minimumBond : settings.optimisticParams.bondAmount;
-
-        settings.optimisticParams.collateral.safeTransferFrom(msg.sender, address(this), totalBond);
-        settings.optimisticParams.collateral.safeIncreaseAllowance(address(settings.optimisticParams.optimisticOracleV3), totalBond);
+        uint256 totalBond = _pullBond(settings.optimisticParams);
 
         bytes32 assertionId = settings.optimisticParams.optimisticOracleV3.assertTruth(
             claim,
@@ -202,13 +194,14 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
             settings.optimisticParams.identifier,
             bytes32(0)
         );
-        // emit RebalanceProposed( _setToken, _quoteAsset, _oldComponents, _newComponents, _newComponentsAuctionParams, _oldComponentsAuctionParams, _shouldLockSetToken, _rebalanceDuration, _positionMultiplier);
-        // emit AssertedClaim(_setToken, msg.sender, settings.rulesHash, assertionId, claim);
-        // emit AssertedClaim(_set, address(_setToken), msg.sender, assertionId, claim);
+        emit RebalanceProposed( _setToken, _quoteAsset, _oldComponents, _newComponents, _newComponentsAuctionParams, _oldComponentsAuctionParams, _shouldLockSetToken, _rebalanceDuration, _positionMultiplier);
+        emit AssertedClaim(_setToken, msg.sender, settings.rulesHash, assertionId, claim);
 
         assertionIds[proposalHash] = assertionId;
-        proposalHashes[assertionId] = proposalHash;
-        assertedProducts[assertionId] = _setToken;
+        proposedProduct[assertionId] = Proposal({
+            proposalHash: proposalHash,
+            product: _setToken
+        });
     }
    
     /**
@@ -256,13 +249,11 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
         bytes32 assertionId = assertionIds[proposalHash];
         require(assertionId != bytes32(0), "Proposal hash does not exist");
 
-        delete assertionIds[proposalHash];
-        delete proposalHashes[assertionId];
-        delete assertedProducts[assertionId];
-
         ProductSettings memory settings = productSettings[_setToken];
         settings.optimisticParams.optimisticOracleV3.settleAndGetAssertionResult(assertionId);
-        
+
+        _deleteProposal(assertionId);
+
         address[] memory currentComponents = _setToken.getComponents();
         
         require(currentComponents.length == _oldComponents.length, "Mismatch: old and current components length");
@@ -312,31 +303,45 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
      * @param _assertionId the identifier of the disputed assertion.
      */
     function assertionDisputedCallback(bytes32 _assertionId) external {
-        bytes32 proposalHash = proposalHashes[_assertionId];
-        bytes32 assertionId = assertionIds[proposalHash];
-
-        ProductSettings memory settings = productSettings[assertedProducts[assertionId]];
+        Proposal memory proposal = proposedProduct[_assertionId];
+        ProductSettings memory settings = productSettings[proposal.product];
 
         require(address(settings.optimisticParams.optimisticOracleV3) != address(0), "Invalid oracle address");
-
 
         // If the sender is the Optimistic Oracle V3, delete the proposal and associated assertionId.
         if (msg.sender == address(settings.optimisticParams.optimisticOracleV3)) {
             // Delete the disputed proposal and associated assertionId.
-            delete assertionIds[proposalHash];
-            delete proposalHashes[assertionId];
-            delete assertedProducts[assertionId];
+            _deleteProposal(_assertionId);
 
         } else {
             // If the sender is not the expected Optimistic Oracle V3, check if the expected Oracle has the assertion and if not delete.
-            require(proposalHash != bytes32(0), "Invalid proposal hash");
-            require(assertionId != bytes32(0), "Proposal hash does not exist");
-
+            require(proposal.proposalHash != bytes32(0), "Invalid proposal hash");
             require(settings.optimisticParams.optimisticOracleV3.getAssertion(_assertionId).asserter == address(0), "Oracle has assertion");
-            delete assertionIds[proposalHash];
-            delete proposalHashes[assertionId];
-            delete assertedProducts[assertionId];
+            _deleteProposal(_assertionId);
         }
+        emit ProposalDeleted(_assertionId, proposal);
     }
 
+    /// @notice Pulls the higher of the minimum bond or configured bond amount from the sender.
+    /// @dev Internal function to pull the user's bond before asserting a claim.
+    /// @param optimisticRebalanceParams optimistic rebalance parameters for the product.
+    /// @return Bond amount pulled from the sender.
+    function _pullBond(OptimisticRebalanceParams memory optimisticRebalanceParams) internal returns (uint256) {
+        uint256 minimumBond = optimisticRebalanceParams.optimisticOracleV3.getMinimumBond(address(optimisticRebalanceParams.collateral));
+        uint256 totalBond =  minimumBond > optimisticRebalanceParams.bondAmount ? minimumBond : optimisticRebalanceParams.bondAmount;
+
+        optimisticRebalanceParams.collateral.safeTransferFrom(msg.sender, address(this), totalBond);
+        optimisticRebalanceParams.collateral.safeIncreaseAllowance(address(optimisticRebalanceParams.optimisticOracleV3), totalBond);
+
+        return totalBond;
+    }
+
+    /// @notice Delete an existing proposal and associated assertionId.
+    /// @dev Internal function that deletes a proposal and associated assertionId.
+    /// @param assertionId assertionId of the proposal to delete.
+    function _deleteProposal(bytes32 assertionId) internal {
+        Proposal memory proposal = proposedProduct[assertionId];
+        delete assertionIds[proposal.proposalHash];
+        delete proposedProduct[assertionId];
+    }
 }

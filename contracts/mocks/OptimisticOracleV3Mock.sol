@@ -6,6 +6,12 @@ import {OptimisticOracleV3Interface} from "../interfaces/OptimisticOracleV3Inter
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 
+interface callbackInterface {
+    function assertionDisputedCallback(bytes32 assertionId) external;
+    function assertionResolvedCallback(bytes32 assertionId, bool assertedTruthfully) external;
+}
+
+
 /**
  * @title Optimistic Oracle V3.
  * @notice The OOv3 is used to assert truths about the world which are verified using an optimistic escalation game.
@@ -77,6 +83,16 @@ contract OptimisticOracleV3Mock is OptimisticOracleV3Interface {
     // Mock implementation of getMinimumBond
     function getMinimumBond(address ) public view override returns (uint256) {
         return (uint256(0));
+    }
+
+    // Mock calling a target contract's assertionDisputedCallback
+    function mockAssertionDisputedCallback(address target, bytes32 assertionId) public {
+       callbackInterface(target).assertionDisputedCallback(assertionId);
+    }
+
+    // Mock calling a target contract's assertionResolvedCallback
+    function mockAssertionResolvedCallback(address target, bytes32 assertionId, bool truthfully) public {
+        callbackInterface(target).assertionResolvedCallback(assertionId, truthfully);
     }
 
 }
