@@ -37,8 +37,8 @@ import {OptimisticOracleV3Interface} from "../interfaces/OptimisticOracleV3Inter
  * @title GlobalOptimisticAuctionRebalanceExtension
  * @author Index Coop
  *
- * @dev Extension contract for interacting with the AuctionRebalanceModuleV1. This contract acts as a pass-through and functions 
- * are only callable by operator. 
+ * @dev The contract extends `GlobalAuctionRebalanceExtension` by adding an optimistic oracle mechanism for validating rules on the proposing and executing of rebalances. 
+ * It allows setting product-specific parameters for optimistic rebalancing and includes callback functions for resolved or disputed assertions.
  */
 contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExtension {
     using AddressArrayUtils for address[];
