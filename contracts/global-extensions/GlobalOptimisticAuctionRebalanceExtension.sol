@@ -72,7 +72,10 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
         bytes _claimData
     );
 
-    event ProposalDeleted(bytes32 assertionID, Proposal indexed proposal);
+    event ProposalDeleted(
+        bytes32 assertionID, 
+        Proposal indexed proposal
+        );
     /* ============ Structs ============ */
 
         struct AuctionExtensionParams {
@@ -81,21 +84,21 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
         }
 
         struct OptimisticRebalanceParams{
-            IERC20 collateral;        // Collateral currency used to assert proposed transactions.
-            uint64  liveness;           // The amount of time to dispute proposed transactions before they can be executed.
-            uint256 bondAmount;        // Configured amount of collateral currency to make assertions for proposed transactions.
-            bytes32 identifier;        // Identifier used to request price from the DVM.
-            OptimisticOracleV3Interface optimisticOracleV3; // Optimistic Oracle V3 contract used to assert proposed transactions.
+            IERC20 collateral;      // Collateral currency used to assert proposed transactions.
+            uint64  liveness;       // The amount of time to dispute proposed transactions before they can be executed.
+            uint256 bondAmount;     // Configured amount of collateral currency to make assertions for proposed transactions.
+            bytes32 identifier;     // Identifier used to request price from the DVM.
+            OptimisticOracleV3Interface optimisticOracleV3;     // Optimistic Oracle V3 contract used to assert proposed transactions.
         }
 
         struct ProductSettings{
-            OptimisticRebalanceParams optimisticParams;
-            bytes32 rulesHash;
+            OptimisticRebalanceParams optimisticParams;     // OptimisticRebalanceParams struct containing optimistic rebalance parameters.
+            bytes32 rulesHash;      // IPFS hash of the rules for the product.
         }
 
         struct Proposal{
-            bytes32 proposalHash;
-            ISetToken product;
+            bytes32 proposalHash;   // Hash of the proposal.
+            ISetToken product;    // Address of the SetToken to set rules and settings for.
         }
 
     /* ============ State Variables ============ */
@@ -110,8 +113,12 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
 
 
     /* ============ Constructor ============ */
-
-    constructor(AuctionExtensionParams memory _auctionParams) public GlobalAuctionRebalanceExtension(_auctionParams.managerCore, _auctionParams.auctionModule) {
+    /*
+      * @dev Initializes the GlobalOptimisticAuctionRebalanceExtension with the passed parameters.
+      * 
+      * @param _auctionParams AuctionExtensionParams struct containing the managerCore and auctionModule addresses.
+    */ 
+        constructor(AuctionExtensionParams memory _auctionParams) public GlobalAuctionRebalanceExtension(_auctionParams.managerCore, _auctionParams.auctionModule) {
     
     }
 
@@ -135,7 +142,7 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
             optimisticParams: _optimisticParams,
             rulesHash: _rulesHash
         });
-     emit ProductSettingsUpdated(_product, _product.manager(), _optimisticParams, _rulesHash);
+        emit ProductSettingsUpdated(_product, _product.manager(), _optimisticParams, _rulesHash);
     }
 
      /**
@@ -194,14 +201,16 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
             settings.optimisticParams.identifier,
             bytes32(0)
         );
-        emit RebalanceProposed( _setToken, _quoteAsset, _oldComponents, _newComponents, _newComponentsAuctionParams, _oldComponentsAuctionParams, _shouldLockSetToken, _rebalanceDuration, _positionMultiplier);
-        emit AssertedClaim(_setToken, msg.sender, settings.rulesHash, assertionId, claim);
 
         assertionIds[proposalHash] = assertionId;
         proposedProduct[assertionId] = Proposal({
             proposalHash: proposalHash,
             product: _setToken
         });
+
+        emit RebalanceProposed( _setToken, _quoteAsset, _oldComponents, _newComponents, _newComponentsAuctionParams, _oldComponentsAuctionParams, _shouldLockSetToken, _rebalanceDuration, _positionMultiplier);
+        emit AssertedClaim(_setToken, msg.sender, settings.rulesHash, assertionId, claim);
+
     }
    
     /**
@@ -247,12 +256,16 @@ contract GlobalOptimisticAuctionRebalanceExtension is  GlobalAuctionRebalanceExt
         ));
 
         bytes32 assertionId = assertionIds[proposalHash];
+        // Disputed assertions are expected to revert here. Assumption past this point is that there was a valid assertion.
         require(assertionId != bytes32(0), "Proposal hash does not exist");
 
         ProductSettings memory settings = productSettings[_setToken];
-        settings.optimisticParams.optimisticOracleV3.settleAndGetAssertionResult(assertionId);
-
         _deleteProposal(assertionId);
+        
+        // There is no need to check the assertion result as this point can be reached only for non-disputed assertions.
+        // It is expected that future versions of the Optimistic Oracle will always revert here, 
+        // if the assertionId has not been settled and can not currently be settled.
+        settings.optimisticParams.optimisticOracleV3.settleAndGetAssertionResult(assertionId);
 
         address[] memory currentComponents = _setToken.getComponents();
         

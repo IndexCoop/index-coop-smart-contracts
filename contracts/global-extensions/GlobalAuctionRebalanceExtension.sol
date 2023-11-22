@@ -63,11 +63,11 @@ contract GlobalAuctionRebalanceExtension is BaseGlobalExtension {
 
 
     /* ============ Constructor ============ */
-    /*
-      * Instantiate with ManagerCore address and WrapModuleV2 address. 
-      * 
-      * @param _managerCore              Address of ManagerCore contract 
-      * @param _auctionModule            Address of AuctionRebalanceModuleV1 contract 
+    /**
+     * @dev Instantiate with ManagerCore address and WrapModuleV2 address. 
+     * 
+     * @param _managerCore              Address of ManagerCore contract 
+     * @param _auctionModule            Address of AuctionRebalanceModuleV1 contract 
     */ 
     constructor(IManagerCore _managerCore, IAuctionRebalanceModuleV1 _auctionModule) public BaseGlobalExtension(_managerCore) {
         auctionModule = _auctionModule;
