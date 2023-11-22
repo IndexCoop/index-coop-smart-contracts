@@ -8,8 +8,6 @@ import {
   GlobalTradeExtension,
   GlobalWrapExtension,
   GlobalAuctionRebalanceExtension
-  GlobalWrapExtension,
-  GlobalAuctionRebalanceExtension
 } from "../contracts/index";
 
 import { GlobalBatchTradeExtension__factory } from "../../typechain/factories/GlobalBatchTradeExtension__factory";

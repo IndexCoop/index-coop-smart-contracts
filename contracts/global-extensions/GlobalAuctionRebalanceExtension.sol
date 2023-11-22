@@ -155,6 +155,7 @@ contract GlobalAuctionRebalanceExtension is BaseGlobalExtension {
         uint256 _positionMultiplier
     )
         external
+        virtual
         onlyOperator(_setToken)
     {
         address[] memory currentComponents = _setToken.getComponents();
