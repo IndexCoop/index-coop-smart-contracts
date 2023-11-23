@@ -17,6 +17,7 @@ import { GlobalStreamingFeeSplitExtension__factory } from "../../typechain/facto
 import { GlobalTradeExtension__factory } from "../../typechain/factories/GlobalTradeExtension__factory";
 import { GlobalWrapExtension__factory } from "../../typechain/factories/GlobalWrapExtension__factory";
 import { GlobalAuctionRebalanceExtension__factory } from "../../typechain/factories/GlobalAuctionRebalanceExtension__factory";
+import { GlobalOptimisticAuctionRebalanceExtension__factory } from "../../typechain/factories/GlobalOptimisticAuctionRebalanceExtension__factory";
 
 export default class DeployGlobalExtensions {
   private _deployerSigner: Signer;
@@ -100,4 +101,14 @@ export default class DeployGlobalExtensions {
       auctionModule,
     );
   }
+
+  public async deployGlobalOptimisticAuctionRebalanceExtension(
+    managerCore: Address,
+    auctionModule: Address
+  ) {
+    return await new GlobalOptimisticAuctionRebalanceExtension__factory(this._deployerSigner).deploy(
+      { managerCore: managerCore, auctionModule: auctionModule }
+    );
+  }
+
 }
