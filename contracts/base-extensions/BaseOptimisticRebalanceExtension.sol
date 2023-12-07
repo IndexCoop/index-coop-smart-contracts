@@ -30,6 +30,7 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IDelegatedManager } from "../interfaces/IDelegatedManager.sol";
 import {BaseAuctionRebalanceExtension} from "./BaseAuctionRebalanceExtension.sol";
 import {AncillaryData } from "../lib/AncillaryData.sol";
+import { AssetAllowList } from "../lib/AssetAllowList.sol";
 import {OptimisticOracleV3Interface} from "../interfaces/OptimisticOracleV3Interface.sol";
 
 /**
@@ -39,7 +40,7 @@ import {OptimisticOracleV3Interface} from "../interfaces/OptimisticOracleV3Inter
  * @dev The contract extends `BaseAuctionRebalanceExtension` by adding an optimistic oracle mechanism for validating rules on the proposing and executing of rebalances. 
  * It allows setting product-specific parameters for optimistic rebalancing and includes callback functions for resolved or disputed assertions.
  */
-contract BaseOptimisticAuctionRebalanceExtension is  BaseAuctionRebalanceExtension {
+contract BaseOptimisticAuctionRebalanceExtension is  BaseAuctionRebalanceExtension, AssetAllowList {
     using AddressArrayUtils for address[];
     using SafeERC20 for IERC20;
 
@@ -75,11 +76,14 @@ contract BaseOptimisticAuctionRebalanceExtension is  BaseAuctionRebalanceExtensi
         bytes32 assertionID, 
         Proposal indexed proposal
         );
+
     /* ============ Structs ============ */
 
         struct AuctionExtensionParams {
             IBaseManager baseManager;     // Manager Contract of the set token for which to deploy this extension
             IAuctionRebalanceModuleV1 auctionModule; // Contract that rebalances index sets via single-asset auctions
+            bool useAssetAllowlist;     // Bool indicating whether to use asset allow list
+            address[] allowedAssets;    // Array of allowed assets
         }
 
         struct OptimisticRebalanceParams{
@@ -117,11 +121,41 @@ contract BaseOptimisticAuctionRebalanceExtension is  BaseAuctionRebalanceExtensi
       * 
       * @param _auctionParams AuctionExtensionParams struct containing the baseManager and auctionModule addresses.
     */ 
-        constructor(AuctionExtensionParams memory _auctionParams) public BaseAuctionRebalanceExtension(_auctionParams.baseManager, _auctionParams.auctionModule) {
+        constructor(AuctionExtensionParams memory _auctionParams) public BaseAuctionRebalanceExtension(_auctionParams.baseManager, _auctionParams.auctionModule) AssetAllowList(_auctionParams.allowedAssets, _auctionParams.useAssetAllowlist) {
     
     }
 
     /* ============ External Functions ============ */
+
+    /**
+     * ONLY OPERATOR: Add new asset(s) that can be traded to, wrapped to, or claimed
+     *
+     * @param _assets           New asset(s) to add
+     */
+    function addAllowedAssets(address[] memory _assets) external onlyOperator {
+        _addAllowedAssets(_assets);
+    }
+
+    /**
+     * ONLY OPERATOR: Remove asset(s) so that it/they can't be traded to, wrapped to, or claimed
+     *
+     * @param _assets           Asset(s) to remove
+     */
+    function removeAllowedAssets(address[] memory _assets) external onlyOperator {
+        _removeAllowedAssets(_assets);
+    }
+
+    /**
+     * ONLY OPERATOR: Toggle useAssetAllowlist on and off. When false asset allowlist is ignored
+     * when true it is enforced.
+     *
+     * @param _useAssetAllowlist           Bool indicating whether to use asset allow list
+     */
+    function updateUseAssetAllowlist(bool _useAssetAllowlist) external onlyOperator {
+        _updateUseAssetAllowlist(_useAssetAllowlist);
+    }
+
+
 
     /**
     * @dev OPERATOR ONLY: sets product settings for a given set token
@@ -352,4 +386,5 @@ contract BaseOptimisticAuctionRebalanceExtension is  BaseAuctionRebalanceExtensi
         delete assertionIds[proposal.proposalHash];
         delete proposedProduct[assertionId];
     }
+
 }
