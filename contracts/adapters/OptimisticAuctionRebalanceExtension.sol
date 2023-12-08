@@ -28,7 +28,7 @@ import { IAuctionRebalanceModuleV1 } from "../interfaces/IAuctionRebalanceModule
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IDelegatedManager } from "../interfaces/IDelegatedManager.sol";
-import {BaseAuctionRebalanceExtension} from "./BaseAuctionRebalanceExtension.sol";
+import {AuctionRebalanceExtension} from "./AuctionRebalanceExtension.sol";
 import {AncillaryData } from "../lib/AncillaryData.sol";
 import { AssetAllowList } from "../lib/AssetAllowList.sol";
 import {OptimisticOracleV3Interface} from "../interfaces/OptimisticOracleV3Interface.sol";
@@ -40,7 +40,7 @@ import {OptimisticOracleV3Interface} from "../interfaces/OptimisticOracleV3Inter
  * @dev The contract extends `BaseAuctionRebalanceExtension` by adding an optimistic oracle mechanism for validating rules on the proposing and executing of rebalances. 
  * It allows setting product-specific parameters for optimistic rebalancing and includes callback functions for resolved or disputed assertions.
  */
-contract BaseOptimisticAuctionRebalanceExtension is  BaseAuctionRebalanceExtension, AssetAllowList {
+contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, AssetAllowList {
     using AddressArrayUtils for address[];
     using SafeERC20 for IERC20;
 
@@ -121,7 +121,7 @@ contract BaseOptimisticAuctionRebalanceExtension is  BaseAuctionRebalanceExtensi
       * 
       * @param _auctionParams AuctionExtensionParams struct containing the baseManager and auctionModule addresses.
     */ 
-        constructor(AuctionExtensionParams memory _auctionParams) public BaseAuctionRebalanceExtension(_auctionParams.baseManager, _auctionParams.auctionModule) AssetAllowList(_auctionParams.allowedAssets, _auctionParams.useAssetAllowlist) {
+        constructor(AuctionExtensionParams memory _auctionParams) public AuctionRebalanceExtension(_auctionParams.baseManager, _auctionParams.auctionModule) AssetAllowList(_auctionParams.allowedAssets, _auctionParams.useAssetAllowlist) {
     
     }
 
