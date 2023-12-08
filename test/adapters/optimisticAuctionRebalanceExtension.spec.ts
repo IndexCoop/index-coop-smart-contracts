@@ -71,7 +71,7 @@ describe.only("OptimisticAuctionRebalanceExtension", () => {
   let allowedAssets: Address[];
 
   before(async () => {
-    [owner, methodologist, operator, factory] = await getAccounts();
+    [owner, methodologist, operator] = await getAccounts();
 
     deployer = new DeployHelper(owner.wallet);
 
