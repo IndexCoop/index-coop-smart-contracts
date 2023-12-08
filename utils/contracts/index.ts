@@ -65,4 +65,5 @@ export { GlobalWrapExtension } from "../../typechain/GlobalWrapExtension";
 export { GlobalClaimExtension } from "../../typechain/GlobalClaimExtension";
 export { GlobalAuctionRebalanceExtension } from "../../typechain/GlobalAuctionRebalanceExtension";
 export { GlobalOptimisticAuctionRebalanceExtension } from "../../typechain/GlobalOptimisticAuctionRebalanceExtension";
+export { OptimisticAuctionRebalanceExtension } from "../../typechain/OptimisticAuctionRebalanceExtension";
 export { OptimisticOracleV3Mock } from "../../typechain/OptimisticOracleV3Mock";

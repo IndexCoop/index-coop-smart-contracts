@@ -24,6 +24,7 @@ import {
   FeeSplitExtension,
   GIMExtension,
   GovernanceExtension,
+    OptimisticAuctionRebalanceExtension,
   StreamingFeeSplitExtension,
   WrapExtension,
 } from "../contracts/index";
@@ -52,6 +53,7 @@ import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/fact
 import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
 import { GovernanceExtension__factory } from "../../typechain/factories/GovernanceExtension__factory";
 import { FixedRebalanceExtension__factory } from "../../typechain/factories/FixedRebalanceExtension__factory";
+import { OptimisticAuctionRebalanceExtension__factory } from "../../typechain/factories/OptimisticAuctionRebalanceExtension__factory";
 import { StakeWiseReinvestmentExtension__factory } from "../../typechain/factories/StakeWiseReinvestmentExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 import { WrapExtension__factory } from "../../typechain/factories/WrapExtension__factory";
@@ -259,10 +261,9 @@ export default class DeployExtensions {
       basicIssuanceModuleAddress,
       aaveLeveragedModuleAddress,
       aaveAddressProviderAddress,
-      BalancerV2VaultAddress
+      BalancerV2VaultAddress,
     );
   }
-
 
   public async deployExchangeIssuanceLeveragedForCompound(
     wethAddress: Address,
@@ -517,5 +518,19 @@ export default class DeployExtensions {
       allocations,
       minPositions,
     );
+  }
+
+  public async deployOptimisticAuctionRebalanceExtension(
+    baseManager: Address,
+    auctionModule: Address,
+    useAssetAllowlist: boolean,
+    allowedAssets: Address[],
+  ): Promise<OptimisticAuctionRebalanceExtension> {
+    return await new OptimisticAuctionRebalanceExtension__factory(this._deployerSigner).deploy({
+      baseManager,
+      auctionModule,
+      useAssetAllowlist,
+      allowedAssets,
+    });
   }
 }

@@ -27,7 +27,6 @@ import { AddressArrayUtils } from "../lib/AddressArrayUtils.sol";
 import { IAuctionRebalanceModuleV1 } from "../interfaces/IAuctionRebalanceModuleV1.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
-import { IDelegatedManager } from "../interfaces/IDelegatedManager.sol";
 import {AuctionRebalanceExtension} from "./AuctionRebalanceExtension.sol";
 import {AncillaryData } from "../lib/AncillaryData.sol";
 import { AssetAllowList } from "../lib/AssetAllowList.sol";
@@ -48,7 +47,7 @@ contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, Asse
 
     event ProductSettingsUpdated(
         IERC20 indexed setToken,
-        address indexed delegatedManager,
+        address indexed manager,
         OptimisticRebalanceParams optimisticParams,
         bytes32 indexed rulesHash
     );
