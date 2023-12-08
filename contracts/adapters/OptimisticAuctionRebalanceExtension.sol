@@ -198,6 +198,7 @@ contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, Asse
         uint256 _positionMultiplier
     )
         external
+        onlyAllowedAssets(_newComponents)
     {
         bytes32 proposalHash = keccak256(abi.encode(
             setToken,
