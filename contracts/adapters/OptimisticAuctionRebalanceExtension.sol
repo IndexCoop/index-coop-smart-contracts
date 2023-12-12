@@ -78,34 +78,34 @@ contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, Asse
 
     /* ============ Structs ============ */
 
-        struct AuctionExtensionParams {
-            IBaseManager baseManager;     // Manager Contract of the set token for which to deploy this extension
-            IAuctionRebalanceModuleV1 auctionModule; // Contract that rebalances index sets via single-asset auctions
-            bool useAssetAllowlist;     // Bool indicating whether to use asset allow list
-            address[] allowedAssets;    // Array of allowed assets
-        }
+    struct AuctionExtensionParams {
+        IBaseManager baseManager;     // Manager Contract of the set token for which to deploy this extension
+        IAuctionRebalanceModuleV1 auctionModule; // Contract that rebalances index sets via single-asset auctions
+        bool useAssetAllowlist;     // Bool indicating whether to use asset allow list
+        address[] allowedAssets;    // Array of allowed assets
+    }
 
-        struct OptimisticRebalanceParams{
-            IERC20 collateral;      // Collateral currency used to assert proposed transactions.
-            uint64  liveness;       // The amount of time to dispute proposed transactions before they can be executed.
-            uint256 bondAmount;     // Configured amount of collateral currency to make assertions for proposed transactions.
-            bytes32 identifier;     // Identifier used to request price from the DVM.
-            OptimisticOracleV3Interface optimisticOracleV3;     // Optimistic Oracle V3 contract used to assert proposed transactions.
-        }
+    struct OptimisticRebalanceParams{
+        IERC20 collateral;      // Collateral currency used to assert proposed transactions.
+        uint64  liveness;       // The amount of time to dispute proposed transactions before they can be executed.
+        uint256 bondAmount;     // Configured amount of collateral currency to make assertions for proposed transactions.
+        bytes32 identifier;     // Identifier used to request price from the DVM.
+        OptimisticOracleV3Interface optimisticOracleV3;     // Optimistic Oracle V3 contract used to assert proposed transactions.
+    }
 
-        struct ProductSettings{
-            OptimisticRebalanceParams optimisticParams;     // OptimisticRebalanceParams struct containing optimistic rebalance parameters.
-            bytes32 rulesHash;      // IPFS hash of the rules for the product.
-        }
+    struct ProductSettings{
+        OptimisticRebalanceParams optimisticParams;     // OptimisticRebalanceParams struct containing optimistic rebalance parameters.
+        bytes32 rulesHash;      // IPFS hash of the rules for the product.
+    }
 
-        struct Proposal{
-            bytes32 proposalHash;   // Hash of the proposal.
-            ISetToken product;    // Address of the SetToken to set rules and settings for.
-        }
+    struct Proposal{
+        bytes32 proposalHash;   // Hash of the proposal.
+        ISetToken product;    // Address of the SetToken to set rules and settings for.
+    }
 
     /* ============ State Variables ============ */
     
-    mapping (ISetToken=>ProductSettings) public productSettings; // Mapping of set token to ProductSettings
+    ProductSettings public productSettings; // Mapping of set token to ProductSettings
     mapping(bytes32 => bytes32) public assertionIds; // Maps proposal hashes to assertionIds.
     mapping(bytes32 => Proposal) public proposedProduct; // Maps assertionIds to a Proposal.
 
@@ -168,7 +168,7 @@ contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, Asse
         external
         onlyOperator
     {
-        productSettings[setToken] = ProductSettings({
+        productSettings = ProductSettings({
             optimisticParams: _optimisticParams,
             rulesHash: _rulesHash
         });
@@ -210,25 +210,23 @@ contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, Asse
             _rebalanceDuration,
             _positionMultiplier
         ));
-        ProductSettings memory settings = productSettings[setToken];
-
         require(assertionIds[proposalHash] == bytes32(0), "Proposal already exists");
-        require(settings.rulesHash != bytes32(""), "Rules not set");
-        require(address(settings.optimisticParams.optimisticOracleV3) != address(0), "Oracle not set");
+        require(productSettings.rulesHash != bytes32(""), "Rules not set");
+        require(address(productSettings.optimisticParams.optimisticOracleV3) != address(0), "Oracle not set");
 
 
-        bytes memory claim = _constructClaim(proposalHash, settings.rulesHash);
-        uint256 totalBond = _pullBond(settings.optimisticParams);
+        bytes memory claim = _constructClaim(proposalHash, productSettings.rulesHash);
+        uint256 totalBond = _pullBond(productSettings.optimisticParams);
 
-        bytes32 assertionId = settings.optimisticParams.optimisticOracleV3.assertTruth(
+        bytes32 assertionId = productSettings.optimisticParams.optimisticOracleV3.assertTruth(
             claim,
             msg.sender,
             address(this),
             address(0),
-            settings.optimisticParams.liveness,
-            settings.optimisticParams.collateral,
+            productSettings.optimisticParams.liveness,
+            productSettings.optimisticParams.collateral,
             totalBond,
-            settings.optimisticParams.identifier,
+            productSettings.optimisticParams.identifier,
             bytes32(0)
         );
 
@@ -239,7 +237,7 @@ contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, Asse
         });
 
         emit RebalanceProposed( setToken, _quoteAsset, _oldComponents, _newComponents, _newComponentsAuctionParams, _oldComponentsAuctionParams, _shouldLockSetToken, _rebalanceDuration, _positionMultiplier);
-        emit AssertedClaim(setToken, msg.sender, settings.rulesHash, assertionId, claim);
+        emit AssertedClaim(setToken, msg.sender, productSettings.rulesHash, assertionId, claim);
 
     }
    
@@ -288,13 +286,12 @@ contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, Asse
         // Disputed assertions are expected to revert here. Assumption past this point is that there was a valid assertion.
         require(assertionId != bytes32(0), "Proposal hash does not exist");
 
-        ProductSettings memory settings = productSettings[setToken];
         _deleteProposal(assertionId);
         
         // There is no need to check the assertion result as this point can be reached only for non-disputed assertions.
         // It is expected that future versions of the Optimistic Oracle will always revert here, 
         // if the assertionId has not been settled and can not currently be settled.
-        settings.optimisticParams.optimisticOracleV3.settleAndGetAssertionResult(assertionId);
+        productSettings.optimisticParams.optimisticOracleV3.settleAndGetAssertionResult(assertionId);
 
         address[] memory currentComponents = setToken.getComponents();
         
@@ -346,19 +343,19 @@ contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, Asse
      */
     function assertionDisputedCallback(bytes32 _assertionId) external {
         Proposal memory proposal = proposedProduct[_assertionId];
-        ProductSettings memory settings = productSettings[proposal.product];
+        require(proposal.product == setToken, "Invalid proposal product");
 
-        require(address(settings.optimisticParams.optimisticOracleV3) != address(0), "Invalid oracle address");
+        require(address(productSettings.optimisticParams.optimisticOracleV3) != address(0), "Invalid oracle address");
 
         // If the sender is the Optimistic Oracle V3, delete the proposal and associated assertionId.
-        if (msg.sender == address(settings.optimisticParams.optimisticOracleV3)) {
+        if (msg.sender == address(productSettings.optimisticParams.optimisticOracleV3)) {
             // Delete the disputed proposal and associated assertionId.
             _deleteProposal(_assertionId);
 
         } else {
             // If the sender is not the expected Optimistic Oracle V3, check if the expected Oracle has the assertion and if not delete.
             require(proposal.proposalHash != bytes32(0), "Invalid proposal hash");
-            require(settings.optimisticParams.optimisticOracleV3.getAssertion(_assertionId).asserter == address(0), "Oracle has assertion");
+            require(productSettings.optimisticParams.optimisticOracleV3.getAssertion(_assertionId).asserter == address(0), "Oracle has assertion");
             _deleteProposal(_assertionId);
         }
         emit ProposalDeleted(_assertionId, proposal);
