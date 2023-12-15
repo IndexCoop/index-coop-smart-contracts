@@ -80,6 +80,10 @@ contract OptimisticOracleV3Mock is OptimisticOracleV3Interface {
         return (false);
     }
 
+    function disputeAssertion(bytes32 assertionId, address disputer) external override {
+        revert("Not implemented");
+    }
+
     // Mock implementation of getMinimumBond
     function getMinimumBond(address ) public view override returns (uint256) {
         return (uint256(0));

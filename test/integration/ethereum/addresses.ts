@@ -66,7 +66,7 @@ export const PRODUCTION_ADDRESSES = {
     debtIssuanceModuleV2: "0xa0a98EB7Af028BE00d04e46e1316808A62a8fd59",
     notionalTradeModule: "0x600d9950c6ecAef98Cc42fa207E92397A6c43416",
     integrationRegistry: "0xb9083dee5e8273E54B9DB4c31bA9d4aB7C6B28d3",
-      auctionModuleV1: "0x59D55D53a715b3B4581c52098BCb4075C2941DBa",
+    auctionModuleV1: "0x59D55D53a715b3B4581c52098BCb4075C2941DBa",
     tradeModule: "0xFaAB3F8f3678f68AA0d307B66e71b636F82C28BF",
     airdropModule: "0x09b9e7c7e2daf40fCb286fE6b863e517d5d5c40F",
     aaveV3LeverageStrategyExtension: "0x7d3f7EDD04916F3Cb2bC6740224c636B9AE43200",
@@ -86,6 +86,11 @@ export const PRODUCTION_ADDRESSES = {
       wrappedfCashFactory: "0x5D051DeB5db151C2172dCdCCD42e6A2953E27261",
       notionalV2: "0x1344a36a1b56144c3bc62e7757377d288fde0369",
       nUpgreadableBeacon: "0xFAaF0C5B81E802C231A5249221cfe0B6ae639118",
+    },
+  },
+  oracles: {
+    uma: {
+      optimisticOracleV3: "0xfb55F43fB9F48F63f9269DB7Dde3BbBe1ebDC0dE",
     },
   },
 };
