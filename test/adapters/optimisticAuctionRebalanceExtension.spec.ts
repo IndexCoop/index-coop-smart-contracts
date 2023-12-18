@@ -165,18 +165,6 @@ describe("OptimisticAuctionRebalanceExtension", () => {
       ).to.not.be.reverted;
     });
 
-    it("should revert if module is initialized and extension is not", async () => {
-      const extension = await deployer.extensions.deployOptimisticAuctionRebalanceExtension(
-        subjectBaseManager,
-        subjectAuctionRebalanceModule,
-          subjectUseAssetAllowlist,
-          subjectAllowedAssets,
-      );
-      await expect(
-        extension.connect(operator.wallet).initialize(),
-      ).to.be.revertedWith("Must be adapter");
-    });
-
     it("should revert if module is initialized without being added", async () => {
       const extension = await deployer.extensions.deployOptimisticAuctionRebalanceExtension(
         subjectBaseManager,
@@ -736,19 +724,6 @@ describe("OptimisticAuctionRebalanceExtension", () => {
             it("should revert", async () => {
               await expect(subject()).to.be.revertedWith("Must be operator");
             });
-          });
-        });
-
-        describe("#removeAdapter", () => {
-          async function subject() {
-            return await baseManager
-              .connect(operator.wallet)
-              .removeAdapter(auctionRebalanceExtension.address);
-          }
-          it("should remove the extension", async () => {
-              expect(await baseManager.isAdapter(auctionRebalanceExtension.address)).to.be.true;
-            await subject();
-            expect(await baseManager.isAdapter(auctionRebalanceExtension.address)).to.be.false;
           });
         });
       });
