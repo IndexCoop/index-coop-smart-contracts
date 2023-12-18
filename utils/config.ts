@@ -10,7 +10,7 @@ export const optimismForkingConfig = {
 
 export const mainnetForkingConfig = {
   url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
-  blockNumber: process.env.LATESTBLOCK ? undefined : 18789000,
+  blockNumber: process.env.LATESTBLOCK ? undefined : 17895372,
 };
 
 export const forkingConfig =

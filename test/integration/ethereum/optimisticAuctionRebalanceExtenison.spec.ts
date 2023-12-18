@@ -2,6 +2,7 @@ import "module-alias/register";
 
 import { Address, Account } from "@utils/types";
 import { increaseTimeAsync } from "@utils/test";
+import { setBlockNumber } from "@utils/test/testingUtils";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
 import { OptimisticAuctionRebalanceExtension } from "@utils/contracts/index";
 import {
@@ -88,6 +89,9 @@ if (process.env.INTEGRATIONTEST) {
 
     let weth: IWETH;
     let minimumBond: BigNumber;
+
+    setBlockNumber(18789000);
+
 
     before(async () => {
       [owner, methodologist] = await getAccounts();
@@ -225,7 +229,6 @@ if (process.env.INTEGRATIONTEST) {
               .parseEther("1000")
               .add(effectiveBond)
               .toHexString();
-            console.log("quantity", quantity);
             // set operator balance to effective bond
             await ethers.provider.send("hardhat_setBalance", [
               await subjectCaller.getAddress(),
@@ -469,7 +472,6 @@ if (process.env.INTEGRATIONTEST) {
               const proposalAfter = await auctionRebalanceExtension
                 .connect(subjectCaller)
                 .proposedProduct(utils.formatBytes32String("win"));
-              console.log("proposalAfter", proposalAfter);
               expect(proposalAfter.product).to.eq(ADDRESS_ZERO);
             });
             it("should delete the proposal on a disputed callback from currently set oracle", async () => {
