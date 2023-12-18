@@ -91,6 +91,7 @@ export const PRODUCTION_ADDRESSES = {
   oracles: {
     uma: {
       optimisticOracleV3: "0xfb55F43fB9F48F63f9269DB7Dde3BbBe1ebDC0dE",
+      identifierWhitelist: "0xcF649d9Da4D1362C4DAEa67573430Bd6f945e570",
     },
   },
 };

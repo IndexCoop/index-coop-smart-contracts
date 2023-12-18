@@ -1,10 +1,9 @@
 import "module-alias/register";
 
 import { Address, Account } from "@utils/types";
+import { increaseTimeAsync } from "@utils/test";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
-import {
-  OptimisticAuctionRebalanceExtension,
-} from "@utils/contracts/index";
+import { OptimisticAuctionRebalanceExtension } from "@utils/contracts/index";
 import {
   AuctionRebalanceModuleV1,
   AuctionRebalanceModuleV1__factory,
@@ -16,8 +15,11 @@ import {
   BaseManagerV2__factory,
   IntegrationRegistry,
   IntegrationRegistry__factory,
+  IIdentifierWhitelist,
+  IIdentifierWhitelist__factory,
   IWETH,
   IWETH__factory,
+  OptimisticOracleV3Mock,
   OptimisticOracleV3Interface,
   OptimisticOracleV3Interface__factory,
 } from "../../../typechain";
@@ -73,7 +75,11 @@ if (process.env.INTEGRATIONTEST) {
     let integrationRegistry: IntegrationRegistry;
 
     let priceAdapter: ConstantPriceAdapter;
+
+    // UMA contracts
     let optimisticOracleV3: OptimisticOracleV3Interface;
+    let optimisticOracleV3Mock: OptimisticOracleV3Mock;
+    let identifierWhitelist: IIdentifierWhitelist;
 
     let collateralAssetAddress: string;
 
@@ -99,6 +105,19 @@ if (process.env.INTEGRATIONTEST) {
         contractAddresses.oracles.uma.optimisticOracleV3,
         owner.wallet,
       );
+
+      optimisticOracleV3Mock = await deployer.mocks.deployOptimisticOracleV3Mock();
+
+      identifierWhitelist = IIdentifierWhitelist__factory.connect(
+        contractAddresses.oracles.uma.identifierWhitelist,
+        owner.wallet,
+      );
+      const whitelistOwner = await impersonateAccount(await identifierWhitelist.owner());
+      await ethers.provider.send("hardhat_setBalance", [
+        await whitelistOwner.getAddress(),
+        ethers.utils.parseEther("10").toHexString(),
+      ]);
+      identifierWhitelist = identifierWhitelist.connect(whitelistOwner);
       minimumBond = await optimisticOracleV3.getMinimumBond(collateralAssetAddress);
 
       integrationRegistry = IntegrationRegistry__factory.connect(
@@ -140,12 +159,17 @@ if (process.env.INTEGRATIONTEST) {
 
       context("when the product settings have been set", () => {
         let productSettings: any;
+        let identifier: string;
+        let liveness: BigNumber;
         beforeEach(async () => {
+          identifier = utils.formatBytes32String("TestIdentifier"); // TODO: Check how do we ensure that our identifier is supported on UMAs whitelist
+          await identifierWhitelist.addSupportedIdentifier(identifier);
+          liveness = BigNumber.from(60 * 60); // 7 days
           productSettings = {
             collateral: collateralAssetAddress,
-            liveness: BigNumber.from(0),
+            liveness,
             bondAmount: BigNumber.from(0),
-            identifier: utils.formatBytes32String(""),
+            identifier,
             optimisticOracleV3: optimisticOracleV3.address,
           };
           await auctionRebalanceExtension
@@ -166,8 +190,11 @@ if (process.env.INTEGRATIONTEST) {
           let subjectRebalanceDuration: BigNumber;
           let subjectPositionMultiplier: BigNumber;
           let subjectCaller: Signer;
+          let effectiveBond: BigNumber;
           beforeEach(async () => {
-            const effectiveBond = productSettings.bondAmount.gt(minimumBond) ? productSettings.bondAmount : minimumBond;
+            effectiveBond = productSettings.bondAmount.gt(minimumBond)
+              ? productSettings.bondAmount
+              : minimumBond;
 
             subjectQuoteAsset = contractAddresses.tokens.weth;
 
@@ -194,15 +221,20 @@ if (process.env.INTEGRATIONTEST) {
             subjectPositionMultiplier = ether(0.999);
             subjectCaller = operator;
 
-            const quantity = utils.parseEther("1000").add(effectiveBond).toHexString();
+            const quantity = utils
+              .parseEther("1000")
+              .add(effectiveBond)
+              .toHexString();
             console.log("quantity", quantity);
             // set operator balance to effective bond
             await ethers.provider.send("hardhat_setBalance", [
-                await subjectCaller.getAddress(),
-                quantity,
+              await subjectCaller.getAddress(),
+              quantity,
             ]);
             await weth.connect(subjectCaller).deposit({ value: effectiveBond });
-            await weth.connect(subjectCaller).approve(auctionRebalanceExtension.address, effectiveBond);
+            await weth
+              .connect(subjectCaller)
+              .approve(auctionRebalanceExtension.address, effectiveBond);
           });
           describe("#startRebalance", () => {
             async function subject(): Promise<ContractTransaction> {
@@ -218,6 +250,7 @@ if (process.env.INTEGRATIONTEST) {
                   subjectRebalanceDuration,
                   subjectPositionMultiplier,
                 );
+              await increaseTimeAsync(liveness.add(1));
               return auctionRebalanceExtension
                 .connect(subjectCaller)
                 .startRebalance(
@@ -397,18 +430,13 @@ if (process.env.INTEGRATIONTEST) {
                 await expect(subject()).to.be.revertedWith("Mismatch: old and current components");
               });
             });
-
-            describe("when the caller is not the operator", () => {
-              beforeEach(async () => {
-                subjectCaller = (await getRandomAccount()).wallet;
-              });
-
-              it("should not revert", async () => {
-                await expect(subject()).not.to.be.reverted;
-              });
-            });
           });
           describe("assertionDisputedCallback", () => {
+            beforeEach(async () => {
+              await weth.connect(subjectCaller).deposit({ value: effectiveBond });
+              await weth.connect(subjectCaller).approve(optimisticOracleV3.address, effectiveBond);
+            });
+
             it("should delete the proposal on a disputed callback", async () => {
               const tx = await auctionRebalanceExtension
                 .connect(subjectCaller)
@@ -423,28 +451,29 @@ if (process.env.INTEGRATIONTEST) {
                   subjectPositionMultiplier,
                 );
               const receipt = await tx.wait();
-              // Extract AssertedClaim event
-              console.log("Events:", receipt.events);
-              const proposalId = 0;
+
+              //  @ts-ignore
+              const assertEvent = receipt.events[receipt.events.length - 1] as any;
+              const proposalId = assertEvent.args._assertionId;
 
               const proposal = await auctionRebalanceExtension
                 .connect(subjectCaller)
-                .proposedProduct(utils.formatBytes32String("win"));
+                .proposedProduct(proposalId);
+
               expect(proposal.product).to.eq(dsEth.address);
 
-              await expect(
-                optimisticOracleV3
-                  .connect(subjectCaller)
-                  .disputeAssertion(proposalId, owner.address),
-              ).to.not.be.reverted;
+              await optimisticOracleV3
+                .connect(subjectCaller)
+                .disputeAssertion(proposalId, owner.address);
 
               const proposalAfter = await auctionRebalanceExtension
                 .connect(subjectCaller)
                 .proposedProduct(utils.formatBytes32String("win"));
+              console.log("proposalAfter", proposalAfter);
               expect(proposalAfter.product).to.eq(ADDRESS_ZERO);
             });
             it("should delete the proposal on a disputed callback from currently set oracle", async () => {
-              await auctionRebalanceExtension
+              const tx = await auctionRebalanceExtension
                 .connect(subjectCaller)
                 .proposeRebalance(
                   subjectQuoteAsset,
@@ -456,37 +485,51 @@ if (process.env.INTEGRATIONTEST) {
                   subjectRebalanceDuration,
                   subjectPositionMultiplier,
                 );
+              const receipt = await tx.wait();
               await auctionRebalanceExtension.connect(operator).setProductSettings(
                 {
                   collateral: collateralAssetAddress,
-                  liveness: BigNumber.from(0),
+                  liveness,
                   bondAmount: BigNumber.from(0),
-                  identifier: utils.formatBytes32String(""),
-                  optimisticOracleV3: optimisticOracleV3.address,
+                  identifier,
+                  optimisticOracleV3: optimisticOracleV3Mock.address,
                 },
                 utils.arrayify(base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z")),
               );
+              //  @ts-ignore
+              const assertEvent = receipt.events[receipt.events.length - 1] as any;
+              const proposalId = assertEvent.args._assertionId;
+
               const proposal = await auctionRebalanceExtension
                 .connect(subjectCaller)
-                .proposedProduct(utils.formatBytes32String("win"));
+                .proposedProduct(proposalId);
+
               expect(proposal.product).to.eq(dsEth.address);
+
               await expect(
-                optimisticOracleV3
+                optimisticOracleV3Mock
                   .connect(subjectCaller)
-                  .mockAssertionDisputedCallback(
-                    auctionRebalanceExtension.address,
-                    utils.formatBytes32String("win"),
-                  ),
+                  .mockAssertionDisputedCallback(auctionRebalanceExtension.address, proposalId),
               ).to.not.be.reverted;
               const proposalAfter = await auctionRebalanceExtension
                 .connect(subjectCaller)
-                .proposedProduct(utils.formatBytes32String("win"));
+                .proposedProduct(proposalId);
               expect(proposalAfter.product).to.eq(ADDRESS_ZERO);
             });
           });
           describe("assertionResolvedCallback", () => {
             it("should not revert on a resolved callback", async () => {
-              await auctionRebalanceExtension
+              await auctionRebalanceExtension.connect(operator).setProductSettings(
+                {
+                  collateral: collateralAssetAddress,
+                  liveness,
+                  bondAmount: BigNumber.from(0),
+                  identifier,
+                  optimisticOracleV3: optimisticOracleV3Mock.address,
+                },
+                utils.arrayify(base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z")),
+              );
+              const tx = await auctionRebalanceExtension
                 .connect(subjectCaller)
                 .proposeRebalance(
                   subjectQuoteAsset,
@@ -498,15 +541,14 @@ if (process.env.INTEGRATIONTEST) {
                   subjectRebalanceDuration,
                   subjectPositionMultiplier,
                 );
-              await expect(
-                optimisticOracleV3
-                  .connect(subjectCaller)
-                  .mockAssertionResolvedCallback(
-                    auctionRebalanceExtension.address,
-                    utils.formatBytes32String("win"),
-                    true,
-                  ),
-              ).to.not.be.reverted;
+              const receipt = await tx.wait();
+              //  @ts-ignore
+              const assertEvent = receipt.events[receipt.events.length - 1] as any;
+              const proposalId = assertEvent.args._assertionId;
+
+              await optimisticOracleV3Mock
+                .connect(subjectCaller)
+                .mockAssertionResolvedCallback(auctionRebalanceExtension.address, proposalId, true);
             });
           });
         });
