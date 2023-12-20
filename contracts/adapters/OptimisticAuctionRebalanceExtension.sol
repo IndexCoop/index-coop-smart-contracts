@@ -108,6 +108,7 @@ contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, Asse
     ProductSettings public productSettings; // Mapping of set token to ProductSettings
     mapping(bytes32 => bytes32) public assertionIds; // Maps proposal hashes to assertionIds.
     mapping(bytes32 => Proposal) public proposedProduct; // Maps assertionIds to a Proposal.
+    bool public isOpen; // Bool indicating whether the extension is open for proposing rebalances.
 
     // Keys for assertion claim data.
     bytes public constant PROPOSAL_HASH_KEY = "proposalHash";
@@ -122,6 +123,13 @@ contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, Asse
     */ 
         constructor(AuctionExtensionParams memory _auctionParams) public AuctionRebalanceExtension(_auctionParams.baseManager, _auctionParams.auctionModule) AssetAllowList(_auctionParams.allowedAssets, _auctionParams.useAssetAllowlist) {
     
+    }
+
+    /* ============ Modifier ============ */
+
+    modifier onlyIfOpen() {
+        require(isOpen, "Must be open for rebalancing");
+        _;
     }
 
     /* ============ External Functions ============ */
@@ -152,6 +160,16 @@ contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, Asse
      */
     function updateUseAssetAllowlist(bool _useAssetAllowlist) external onlyOperator {
         _updateUseAssetAllowlist(_useAssetAllowlist);
+    }
+
+    /**
+    * ONLY OPERATOR: Toggle isOpen on and off. When false the extension is closed for proposing rebalances.
+    * when true it is open.
+    *
+    * @param _isOpen           Bool indicating whether the extension is open for proposing rebalances.
+    */
+   function updateIsOpen(bool _isOpen) external onlyOperator {
+       isOpen = _isOpen;
     }
 
 
@@ -198,6 +216,7 @@ contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, Asse
     )
         external
         onlyAllowedAssets(_newComponents)
+        onlyIfOpen()
     {
         bytes32 proposalHash = keccak256(abi.encode(
             setToken,

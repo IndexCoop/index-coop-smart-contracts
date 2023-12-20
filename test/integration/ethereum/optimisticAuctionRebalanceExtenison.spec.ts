@@ -92,7 +92,6 @@ if (process.env.INTEGRATIONTEST) {
 
     setBlockNumber(18789000);
 
-
     before(async () => {
       [owner, methodologist] = await getAccounts();
 
@@ -184,160 +183,118 @@ if (process.env.INTEGRATIONTEST) {
             );
         });
 
-        context("when a rebalance has been proposed", () => {
-          let subjectQuoteAsset: Address;
-          let subjectOldComponents: Address[];
-          let subjectNewComponents: Address[];
-          let subjectNewComponentsAuctionParams: any[];
-          let subjectOldComponentsAuctionParams: any[];
-          let subjectShouldLockSetToken: boolean;
-          let subjectRebalanceDuration: BigNumber;
-          let subjectPositionMultiplier: BigNumber;
-          let subjectCaller: Signer;
-          let effectiveBond: BigNumber;
+        context("when the extension is open to rebalances", () => {
           beforeEach(async () => {
-            effectiveBond = productSettings.bondAmount.gt(minimumBond)
-              ? productSettings.bondAmount
-              : minimumBond;
-
-            subjectQuoteAsset = contractAddresses.tokens.weth;
-
-            subjectOldComponents = await dsEth.getComponents();
-            subjectNewComponents = [contractAddresses.tokens.USDC];
-
-            subjectNewComponentsAuctionParams = [
-              {
-                targetUnit: usdc(100),
-                priceAdapterName: "ConstantPriceAdapter",
-                priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
-              },
-            ];
-
-            const sellAllAuctionParam = {
-              targetUnit: ether(0),
-              priceAdapterName: "ConstantPriceAdapter",
-              priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
-            };
-            subjectOldComponentsAuctionParams = subjectOldComponents.map(() => sellAllAuctionParam);
-
-            subjectShouldLockSetToken = true;
-            subjectRebalanceDuration = BigNumber.from(86400);
-            subjectPositionMultiplier = ether(0.999);
-            subjectCaller = operator;
-
-            const quantity = utils
-              .parseEther("1000")
-              .add(effectiveBond)
-              .toHexString();
-            // set operator balance to effective bond
-            await ethers.provider.send("hardhat_setBalance", [
-              await subjectCaller.getAddress(),
-              quantity,
-            ]);
-            await weth.connect(subjectCaller).deposit({ value: effectiveBond });
-            await weth
-              .connect(subjectCaller)
-              .approve(auctionRebalanceExtension.address, effectiveBond);
+            await auctionRebalanceExtension.updateIsOpen(true);
           });
-          describe("#startRebalance", () => {
-            async function subject(): Promise<ContractTransaction> {
-              await auctionRebalanceExtension
-                .connect(subjectCaller)
-                .proposeRebalance(
-                  subjectQuoteAsset,
-                  subjectOldComponents,
-                  subjectNewComponents,
-                  subjectNewComponentsAuctionParams,
-                  subjectOldComponentsAuctionParams,
-                  subjectShouldLockSetToken,
-                  subjectRebalanceDuration,
-                  subjectPositionMultiplier,
-                );
-              await increaseTimeAsync(liveness.add(1));
-              return auctionRebalanceExtension
-                .connect(subjectCaller)
-                .startRebalance(
-                  subjectQuoteAsset,
-                  subjectOldComponents,
-                  subjectNewComponents,
-                  subjectNewComponentsAuctionParams,
-                  subjectOldComponentsAuctionParams,
-                  subjectShouldLockSetToken,
-                  subjectRebalanceDuration,
-                  subjectPositionMultiplier,
-                );
-            }
 
-            it("should set the auction execution params correctly", async () => {
-              await subject();
-              expect(1).to.eq(1);
+          context("when a rebalance has been proposed", () => {
+            let subjectQuoteAsset: Address;
+            let subjectOldComponents: Address[];
+            let subjectNewComponents: Address[];
+            let subjectNewComponentsAuctionParams: any[];
+            let subjectOldComponentsAuctionParams: any[];
+            let subjectShouldLockSetToken: boolean;
+            let subjectRebalanceDuration: BigNumber;
+            let subjectPositionMultiplier: BigNumber;
+            let subjectCaller: Signer;
+            let effectiveBond: BigNumber;
+            beforeEach(async () => {
+              effectiveBond = productSettings.bondAmount.gt(minimumBond)
+                ? productSettings.bondAmount
+                : minimumBond;
 
-              const aggregateComponents = [...subjectOldComponents, ...subjectNewComponents];
-              const aggregateAuctionParams = [
-                ...subjectOldComponentsAuctionParams,
-                ...subjectNewComponentsAuctionParams,
+              subjectQuoteAsset = contractAddresses.tokens.weth;
+
+              subjectOldComponents = await dsEth.getComponents();
+              subjectNewComponents = [contractAddresses.tokens.USDC];
+
+              subjectNewComponentsAuctionParams = [
+                {
+                  targetUnit: usdc(100),
+                  priceAdapterName: "ConstantPriceAdapter",
+                  priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
+                },
               ];
 
-              for (let i = 0; i < aggregateAuctionParams.length; i++) {
-                const executionInfo = await auctionModule.executionInfo(
-                  dsEth.address,
-                  aggregateComponents[i],
-                );
-                expect(executionInfo.targetUnit).to.eq(aggregateAuctionParams[i].targetUnit);
-                expect(executionInfo.priceAdapterName).to.eq(
-                  aggregateAuctionParams[i].priceAdapterName,
-                );
-                expect(executionInfo.priceAdapterConfigData).to.eq(
-                  aggregateAuctionParams[i].priceAdapterConfigData,
-                );
-              }
-            });
-
-            it("should set the rebalance info correctly", async () => {
-              const txnTimestamp = await getTransactionTimestamp(subject());
-
-              const rebalanceInfo = await auctionModule.rebalanceInfo(dsEth.address);
-
-              expect(utils.getAddress(rebalanceInfo.quoteAsset)).to.eq(
-                utils.getAddress(subjectQuoteAsset),
+              const sellAllAuctionParam = {
+                targetUnit: ether(0),
+                priceAdapterName: "ConstantPriceAdapter",
+                priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.005)),
+              };
+              subjectOldComponentsAuctionParams = subjectOldComponents.map(
+                () => sellAllAuctionParam,
               );
-              expect(rebalanceInfo.rebalanceStartTime).to.eq(txnTimestamp);
-              expect(rebalanceInfo.rebalanceDuration).to.eq(subjectRebalanceDuration);
-              expect(rebalanceInfo.positionMultiplier).to.eq(subjectPositionMultiplier);
-              expect(rebalanceInfo.raiseTargetPercentage).to.eq(ZERO);
 
-              const rebalanceComponents = await auctionModule.getRebalanceComponents(dsEth.address);
-              const aggregateComponents = [...subjectOldComponents, ...subjectNewComponents];
+              subjectShouldLockSetToken = true;
+              subjectRebalanceDuration = BigNumber.from(86400);
+              subjectPositionMultiplier = ether(0.999);
+              subjectCaller = operator;
 
-              for (let i = 0; i < rebalanceComponents.length; i++) {
-                expect(utils.getAddress(rebalanceComponents[i])).to.eq(
-                  utils.getAddress(aggregateComponents[i]),
-                );
-              }
+              const quantity = utils
+                .parseEther("1000")
+                .add(effectiveBond)
+                .toHexString();
+              // set operator balance to effective bond
+              await ethers.provider.send("hardhat_setBalance", [
+                await subjectCaller.getAddress(),
+                quantity,
+              ]);
+              await weth.connect(subjectCaller).deposit({ value: effectiveBond });
+              await weth
+                .connect(subjectCaller)
+                .approve(auctionRebalanceExtension.address, effectiveBond);
             });
-
-            describe("when there are no new components", () => {
-              beforeEach(async () => {
-                subjectNewComponents = [];
-                subjectNewComponentsAuctionParams = [];
-              });
+            describe("#startRebalance", () => {
+              async function subject(): Promise<ContractTransaction> {
+                await auctionRebalanceExtension
+                  .connect(subjectCaller)
+                  .proposeRebalance(
+                    subjectQuoteAsset,
+                    subjectOldComponents,
+                    subjectNewComponents,
+                    subjectNewComponentsAuctionParams,
+                    subjectOldComponentsAuctionParams,
+                    subjectShouldLockSetToken,
+                    subjectRebalanceDuration,
+                    subjectPositionMultiplier,
+                  );
+                await increaseTimeAsync(liveness.add(1));
+                return auctionRebalanceExtension
+                  .connect(subjectCaller)
+                  .startRebalance(
+                    subjectQuoteAsset,
+                    subjectOldComponents,
+                    subjectNewComponents,
+                    subjectNewComponentsAuctionParams,
+                    subjectOldComponentsAuctionParams,
+                    subjectShouldLockSetToken,
+                    subjectRebalanceDuration,
+                    subjectPositionMultiplier,
+                  );
+              }
 
               it("should set the auction execution params correctly", async () => {
                 await subject();
+                expect(1).to.eq(1);
 
-                for (let i = 0; i < subjectOldComponents.length; i++) {
+                const aggregateComponents = [...subjectOldComponents, ...subjectNewComponents];
+                const aggregateAuctionParams = [
+                  ...subjectOldComponentsAuctionParams,
+                  ...subjectNewComponentsAuctionParams,
+                ];
+
+                for (let i = 0; i < aggregateAuctionParams.length; i++) {
                   const executionInfo = await auctionModule.executionInfo(
                     dsEth.address,
-                    subjectOldComponents[i],
+                    aggregateComponents[i],
                   );
-                  expect(executionInfo.targetUnit).to.eq(
-                    subjectOldComponentsAuctionParams[i].targetUnit,
-                  );
+                  expect(executionInfo.targetUnit).to.eq(aggregateAuctionParams[i].targetUnit);
                   expect(executionInfo.priceAdapterName).to.eq(
-                    subjectOldComponentsAuctionParams[i].priceAdapterName,
+                    aggregateAuctionParams[i].priceAdapterName,
                   );
                   expect(executionInfo.priceAdapterConfigData).to.eq(
-                    subjectOldComponentsAuctionParams[i].priceAdapterConfigData,
+                    aggregateAuctionParams[i].priceAdapterConfigData,
                   );
                 }
               });
@@ -358,199 +315,265 @@ if (process.env.INTEGRATIONTEST) {
                 const rebalanceComponents = await auctionModule.getRebalanceComponents(
                   dsEth.address,
                 );
+                const aggregateComponents = [...subjectOldComponents, ...subjectNewComponents];
+
                 for (let i = 0; i < rebalanceComponents.length; i++) {
-                  expect(rebalanceComponents[i]).to.eq(subjectOldComponents[i]);
+                  expect(utils.getAddress(rebalanceComponents[i])).to.eq(
+                    utils.getAddress(aggregateComponents[i]),
+                  );
                 }
               });
-            });
 
-            describe("when old components are passed in different order", () => {
-              beforeEach(async () => {
-                subjectOldComponents = [
-                  contractAddresses.tokens.dai,
-                  contractAddresses.tokens.weth,
-                  contractAddresses.tokens.wbtc,
-                ];
-              });
+              describe("when there are no new components", () => {
+                beforeEach(async () => {
+                  subjectNewComponents = [];
+                  subjectNewComponentsAuctionParams = [];
+                });
 
-              it("should revert", async () => {
-                await expect(subject()).to.be.revertedWith("Mismatch: old and current components");
-              });
-            });
+                it("should set the auction execution params correctly", async () => {
+                  await subject();
 
-            describe("when old components array is shorter than current components array", () => {
-              beforeEach(async () => {
-                const setComponents = await dsEth.getComponents();
-                subjectOldComponents = setComponents.slice(0, setComponents.length - 1);
-                const priceAdapterConfigData = await priceAdapter.getEncodedData(ether(0.005));
-                subjectOldComponentsAuctionParams = subjectOldComponents.map(() => {
-                  return {
-                    targetUnit: ether(50),
-                    priceAdapterName: "ConstantPriceAdapter",
-                    priceAdapterConfigData,
-                  };
+                  for (let i = 0; i < subjectOldComponents.length; i++) {
+                    const executionInfo = await auctionModule.executionInfo(
+                      dsEth.address,
+                      subjectOldComponents[i],
+                    );
+                    expect(executionInfo.targetUnit).to.eq(
+                      subjectOldComponentsAuctionParams[i].targetUnit,
+                    );
+                    expect(executionInfo.priceAdapterName).to.eq(
+                      subjectOldComponentsAuctionParams[i].priceAdapterName,
+                    );
+                    expect(executionInfo.priceAdapterConfigData).to.eq(
+                      subjectOldComponentsAuctionParams[i].priceAdapterConfigData,
+                    );
+                  }
+                });
+
+                it("should set the rebalance info correctly", async () => {
+                  const txnTimestamp = await getTransactionTimestamp(subject());
+
+                  const rebalanceInfo = await auctionModule.rebalanceInfo(dsEth.address);
+
+                  expect(utils.getAddress(rebalanceInfo.quoteAsset)).to.eq(
+                    utils.getAddress(subjectQuoteAsset),
+                  );
+                  expect(rebalanceInfo.rebalanceStartTime).to.eq(txnTimestamp);
+                  expect(rebalanceInfo.rebalanceDuration).to.eq(subjectRebalanceDuration);
+                  expect(rebalanceInfo.positionMultiplier).to.eq(subjectPositionMultiplier);
+                  expect(rebalanceInfo.raiseTargetPercentage).to.eq(ZERO);
+
+                  const rebalanceComponents = await auctionModule.getRebalanceComponents(
+                    dsEth.address,
+                  );
+                  for (let i = 0; i < rebalanceComponents.length; i++) {
+                    expect(rebalanceComponents[i]).to.eq(subjectOldComponents[i]);
+                  }
                 });
               });
 
-              it("should revert", async () => {
-                await expect(subject()).to.be.revertedWith(
-                  "Mismatch: old and current components length",
-                );
-              });
-            });
+              describe("when old components are passed in different order", () => {
+                beforeEach(async () => {
+                  subjectOldComponents = [
+                    contractAddresses.tokens.dai,
+                    contractAddresses.tokens.weth,
+                    contractAddresses.tokens.wbtc,
+                  ];
+                });
 
-            describe("when old components array is longer than current components array", () => {
-              beforeEach(async () => {
-                const price = await priceAdapter.getEncodedData(ether(1));
-                const setComponents = await dsEth.getComponents();
-                subjectOldComponents = [...setComponents, contractAddresses.tokens.dai];
-                subjectOldComponentsAuctionParams = subjectOldComponents.map(() => {
-                  return {
-                    targetUnit: ether(50),
-                    priceAdapterName: "ConstantPriceAdapter",
-                    priceAdapterConfigData: price,
-                  };
+                it("should revert", async () => {
+                  await expect(subject()).to.be.revertedWith(
+                    "Mismatch: old and current components",
+                  );
                 });
               });
 
-              it("should revert", async () => {
-                await expect(subject()).to.be.revertedWith(
-                  "Mismatch: old and current components length",
-                );
+              describe("when old components array is shorter than current components array", () => {
+                beforeEach(async () => {
+                  const setComponents = await dsEth.getComponents();
+                  subjectOldComponents = setComponents.slice(0, setComponents.length - 1);
+                  const priceAdapterConfigData = await priceAdapter.getEncodedData(ether(0.005));
+                  subjectOldComponentsAuctionParams = subjectOldComponents.map(() => {
+                    return {
+                      targetUnit: ether(50),
+                      priceAdapterName: "ConstantPriceAdapter",
+                      priceAdapterConfigData,
+                    };
+                  });
+                });
+
+                it("should revert", async () => {
+                  await expect(subject()).to.be.revertedWith(
+                    "Mismatch: old and current components length",
+                  );
+                });
+              });
+
+              describe("when old components array is longer than current components array", () => {
+                beforeEach(async () => {
+                  const price = await priceAdapter.getEncodedData(ether(1));
+                  const setComponents = await dsEth.getComponents();
+                  subjectOldComponents = [...setComponents, contractAddresses.tokens.dai];
+                  subjectOldComponentsAuctionParams = subjectOldComponents.map(() => {
+                    return {
+                      targetUnit: ether(50),
+                      priceAdapterName: "ConstantPriceAdapter",
+                      priceAdapterConfigData: price,
+                    };
+                  });
+                });
+
+                it("should revert", async () => {
+                  await expect(subject()).to.be.revertedWith(
+                    "Mismatch: old and current components length",
+                  );
+                });
+              });
+
+              describe("when not all old components have an entry", () => {
+                beforeEach(async () => {
+                  subjectOldComponents = [
+                    contractAddresses.tokens.dai,
+                    contractAddresses.tokens.wbtc,
+                    contractAddresses.tokens.USDC,
+                  ];
+                });
+
+                it("should revert", async () => {
+                  await expect(subject()).to.be.revertedWith(
+                    "Mismatch: old and current components",
+                  );
+                });
               });
             });
-
-            describe("when not all old components have an entry", () => {
+            describe("assertionDisputedCallback", () => {
               beforeEach(async () => {
-                subjectOldComponents = [
-                  contractAddresses.tokens.dai,
-                  contractAddresses.tokens.wbtc,
-                  contractAddresses.tokens.USDC,
-                ];
-              });
-
-              it("should revert", async () => {
-                await expect(subject()).to.be.revertedWith("Mismatch: old and current components");
-              });
-            });
-          });
-          describe("assertionDisputedCallback", () => {
-            beforeEach(async () => {
-              await weth.connect(subjectCaller).deposit({ value: effectiveBond });
-              await weth.connect(subjectCaller).approve(optimisticOracleV3.address, effectiveBond);
-            });
-
-            it("should delete the proposal on a disputed callback", async () => {
-              const tx = await auctionRebalanceExtension
-                .connect(subjectCaller)
-                .proposeRebalance(
-                  subjectQuoteAsset,
-                  subjectOldComponents,
-                  subjectNewComponents,
-                  subjectNewComponentsAuctionParams,
-                  subjectOldComponentsAuctionParams,
-                  subjectShouldLockSetToken,
-                  subjectRebalanceDuration,
-                  subjectPositionMultiplier,
-                );
-              const receipt = await tx.wait();
-
-              //  @ts-ignore
-              const assertEvent = receipt.events[receipt.events.length - 1] as any;
-              const proposalId = assertEvent.args._assertionId;
-
-              const proposal = await auctionRebalanceExtension
-                .connect(subjectCaller)
-                .proposedProduct(proposalId);
-
-              expect(proposal.product).to.eq(dsEth.address);
-
-              await optimisticOracleV3
-                .connect(subjectCaller)
-                .disputeAssertion(proposalId, owner.address);
-
-              const proposalAfter = await auctionRebalanceExtension
-                .connect(subjectCaller)
-                .proposedProduct(utils.formatBytes32String("win"));
-              expect(proposalAfter.product).to.eq(ADDRESS_ZERO);
-            });
-            it("should delete the proposal on a disputed callback from currently set oracle", async () => {
-              const tx = await auctionRebalanceExtension
-                .connect(subjectCaller)
-                .proposeRebalance(
-                  subjectQuoteAsset,
-                  subjectOldComponents,
-                  subjectNewComponents,
-                  subjectNewComponentsAuctionParams,
-                  subjectOldComponentsAuctionParams,
-                  subjectShouldLockSetToken,
-                  subjectRebalanceDuration,
-                  subjectPositionMultiplier,
-                );
-              const receipt = await tx.wait();
-              await auctionRebalanceExtension.connect(operator).setProductSettings(
-                {
-                  collateral: collateralAssetAddress,
-                  liveness,
-                  bondAmount: BigNumber.from(0),
-                  identifier,
-                  optimisticOracleV3: optimisticOracleV3Mock.address,
-                },
-                utils.arrayify(base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z")),
-              );
-              //  @ts-ignore
-              const assertEvent = receipt.events[receipt.events.length - 1] as any;
-              const proposalId = assertEvent.args._assertionId;
-
-              const proposal = await auctionRebalanceExtension
-                .connect(subjectCaller)
-                .proposedProduct(proposalId);
-
-              expect(proposal.product).to.eq(dsEth.address);
-
-              await expect(
-                optimisticOracleV3Mock
+                await weth.connect(subjectCaller).deposit({ value: effectiveBond });
+                await weth
                   .connect(subjectCaller)
-                  .mockAssertionDisputedCallback(auctionRebalanceExtension.address, proposalId),
-              ).to.not.be.reverted;
-              const proposalAfter = await auctionRebalanceExtension
-                .connect(subjectCaller)
-                .proposedProduct(proposalId);
-              expect(proposalAfter.product).to.eq(ADDRESS_ZERO);
-            });
-          });
-          describe("assertionResolvedCallback", () => {
-            it("should not revert on a resolved callback", async () => {
-              await auctionRebalanceExtension.connect(operator).setProductSettings(
-                {
-                  collateral: collateralAssetAddress,
-                  liveness,
-                  bondAmount: BigNumber.from(0),
-                  identifier,
-                  optimisticOracleV3: optimisticOracleV3Mock.address,
-                },
-                utils.arrayify(base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z")),
-              );
-              const tx = await auctionRebalanceExtension
-                .connect(subjectCaller)
-                .proposeRebalance(
-                  subjectQuoteAsset,
-                  subjectOldComponents,
-                  subjectNewComponents,
-                  subjectNewComponentsAuctionParams,
-                  subjectOldComponentsAuctionParams,
-                  subjectShouldLockSetToken,
-                  subjectRebalanceDuration,
-                  subjectPositionMultiplier,
-                );
-              const receipt = await tx.wait();
-              //  @ts-ignore
-              const assertEvent = receipt.events[receipt.events.length - 1] as any;
-              const proposalId = assertEvent.args._assertionId;
+                  .approve(optimisticOracleV3.address, effectiveBond);
+              });
 
-              await optimisticOracleV3Mock
-                .connect(subjectCaller)
-                .mockAssertionResolvedCallback(auctionRebalanceExtension.address, proposalId, true);
+              it("should delete the proposal on a disputed callback", async () => {
+                const tx = await auctionRebalanceExtension
+                  .connect(subjectCaller)
+                  .proposeRebalance(
+                    subjectQuoteAsset,
+                    subjectOldComponents,
+                    subjectNewComponents,
+                    subjectNewComponentsAuctionParams,
+                    subjectOldComponentsAuctionParams,
+                    subjectShouldLockSetToken,
+                    subjectRebalanceDuration,
+                    subjectPositionMultiplier,
+                  );
+                const receipt = await tx.wait();
+
+                //  @ts-ignore
+                const assertEvent = receipt.events[receipt.events.length - 1] as any;
+                const proposalId = assertEvent.args._assertionId;
+
+                const proposal = await auctionRebalanceExtension
+                  .connect(subjectCaller)
+                  .proposedProduct(proposalId);
+
+                expect(proposal.product).to.eq(dsEth.address);
+
+                await optimisticOracleV3
+                  .connect(subjectCaller)
+                  .disputeAssertion(proposalId, owner.address);
+
+                const proposalAfter = await auctionRebalanceExtension
+                  .connect(subjectCaller)
+                  .proposedProduct(utils.formatBytes32String("win"));
+                expect(proposalAfter.product).to.eq(ADDRESS_ZERO);
+              });
+              it("should delete the proposal on a disputed callback from currently set oracle", async () => {
+                const tx = await auctionRebalanceExtension
+                  .connect(subjectCaller)
+                  .proposeRebalance(
+                    subjectQuoteAsset,
+                    subjectOldComponents,
+                    subjectNewComponents,
+                    subjectNewComponentsAuctionParams,
+                    subjectOldComponentsAuctionParams,
+                    subjectShouldLockSetToken,
+                    subjectRebalanceDuration,
+                    subjectPositionMultiplier,
+                  );
+                const receipt = await tx.wait();
+                await auctionRebalanceExtension.connect(operator).setProductSettings(
+                  {
+                    collateral: collateralAssetAddress,
+                    liveness,
+                    bondAmount: BigNumber.from(0),
+                    identifier,
+                    optimisticOracleV3: optimisticOracleV3Mock.address,
+                  },
+                  utils.arrayify(
+                    base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z"),
+                  ),
+                );
+                //  @ts-ignore
+                const assertEvent = receipt.events[receipt.events.length - 1] as any;
+                const proposalId = assertEvent.args._assertionId;
+
+                const proposal = await auctionRebalanceExtension
+                  .connect(subjectCaller)
+                  .proposedProduct(proposalId);
+
+                expect(proposal.product).to.eq(dsEth.address);
+
+                await expect(
+                  optimisticOracleV3Mock
+                    .connect(subjectCaller)
+                    .mockAssertionDisputedCallback(auctionRebalanceExtension.address, proposalId),
+                ).to.not.be.reverted;
+                const proposalAfter = await auctionRebalanceExtension
+                  .connect(subjectCaller)
+                  .proposedProduct(proposalId);
+                expect(proposalAfter.product).to.eq(ADDRESS_ZERO);
+              });
+            });
+            describe("assertionResolvedCallback", () => {
+              it("should not revert on a resolved callback", async () => {
+                await auctionRebalanceExtension.connect(operator).setProductSettings(
+                  {
+                    collateral: collateralAssetAddress,
+                    liveness,
+                    bondAmount: BigNumber.from(0),
+                    identifier,
+                    optimisticOracleV3: optimisticOracleV3Mock.address,
+                  },
+                  utils.arrayify(
+                    base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z"),
+                  ),
+                );
+                const tx = await auctionRebalanceExtension
+                  .connect(subjectCaller)
+                  .proposeRebalance(
+                    subjectQuoteAsset,
+                    subjectOldComponents,
+                    subjectNewComponents,
+                    subjectNewComponentsAuctionParams,
+                    subjectOldComponentsAuctionParams,
+                    subjectShouldLockSetToken,
+                    subjectRebalanceDuration,
+                    subjectPositionMultiplier,
+                  );
+                const receipt = await tx.wait();
+                //  @ts-ignore
+                const assertEvent = receipt.events[receipt.events.length - 1] as any;
+                const proposalId = assertEvent.args._assertionId;
+
+                await optimisticOracleV3Mock
+                  .connect(subjectCaller)
+                  .mockAssertionResolvedCallback(
+                    auctionRebalanceExtension.address,
+                    proposalId,
+                    true,
+                  );
+              });
             });
           });
         });
