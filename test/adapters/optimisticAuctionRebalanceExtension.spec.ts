@@ -435,6 +435,11 @@ describe("OptimisticAuctionRebalanceExtension", () => {
                 beforeEach(async () => {
                   await proposeRebalance();
                 });
+                it("should set isOpen to false", async () => {
+                    await subject();
+                    const isOpen = await auctionRebalanceExtension.isOpen();
+                    expect(isOpen).to.be.false;
+                });
 
                 it("should set the auction execution params correctly", async () => {
                   await subject();

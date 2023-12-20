@@ -333,6 +333,7 @@ contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, Asse
         );
 
         invokeManager(address(auctionModule), callData);
+        isOpen = false;
     }
 
      // Constructs the claim that will be asserted at the Optimistic Oracle V3.
