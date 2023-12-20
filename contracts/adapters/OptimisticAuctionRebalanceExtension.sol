@@ -288,6 +288,7 @@ contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, Asse
     )
         external
         override
+        onlyIfOpen()
     {
         bytes32 proposalHash = keccak256(abi.encode(
             setToken,
