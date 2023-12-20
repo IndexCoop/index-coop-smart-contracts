@@ -200,7 +200,7 @@ contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, Asse
      * @param _newComponentsAuctionParams   AuctionExecutionParams for new components, indexed corresponding to _newComponents.
      * @param _oldComponentsAuctionParams   AuctionExecutionParams for existing components, indexed corresponding to
      *                                      the current component positions. Set to 0 for components being removed.
-     * @param _shouldLockSetToken           Indicates if the rebalance should lock the SetToken.
+     * @param _shouldLockSetToken           Indicates if the rebalance should lock the SetToken. Must be false in this version.
      * @param _rebalanceDuration            Duration of the rebalance in seconds.
      * @param _positionMultiplier           Position multiplier at the time target units were calculated.
     */
@@ -218,6 +218,7 @@ contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, Asse
         onlyAllowedAssets(_newComponents)
         onlyIfOpen()
     {
+        require(_shouldLockSetToken == false, "_shouldLockSetToken must be false");
         bytes32 proposalHash = keccak256(abi.encode(
             setToken,
             _quoteAsset,
