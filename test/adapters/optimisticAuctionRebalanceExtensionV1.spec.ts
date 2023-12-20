@@ -5,7 +5,7 @@ import { ADDRESS_ZERO, ZERO } from "@utils/constants";
 import {
   BaseManager,
   ConstantPriceAdapter,
-  OptimisticAuctionRebalanceExtension,
+  OptimisticAuctionRebalanceExtensionV1,
   OptimisticOracleV3Mock,
   StandardTokenMock,
 } from "@utils/contracts/index";
@@ -46,7 +46,7 @@ function base58ToHexString(base58String: string) {
   return "0x" + hexString;
 }
 
-describe("OptimisticAuctionRebalanceExtension", () => {
+describe("OptimisticAuctionRebalanceExtensionV1", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
@@ -57,7 +57,7 @@ describe("OptimisticAuctionRebalanceExtension", () => {
   let setToken: SetToken;
   let baseManager: BaseManager;
 
-  let auctionRebalanceExtension: OptimisticAuctionRebalanceExtension;
+  let auctionRebalanceExtension: OptimisticAuctionRebalanceExtensionV1;
 
   let priceAdapter: ConstantPriceAdapter;
 
@@ -108,7 +108,7 @@ describe("OptimisticAuctionRebalanceExtension", () => {
     baseManager = baseManager.connect(operator.wallet);
     await setToken.setManager(baseManager.address);
 
-    auctionRebalanceExtension = await deployer.extensions.deployOptimisticAuctionRebalanceExtension(
+    auctionRebalanceExtension = await deployer.extensions.deployOptimisticAuctionRebalanceExtensionV1(
       baseManager.address,
       setV2Setup.auctionModule.address,
       useAssetAllowlist,
@@ -132,8 +132,8 @@ describe("OptimisticAuctionRebalanceExtension", () => {
       subjectAllowedAssets = [];
     });
 
-    function subject(): Promise<OptimisticAuctionRebalanceExtension> {
-      return deployer.extensions.deployOptimisticAuctionRebalanceExtension(
+    function subject(): Promise<OptimisticAuctionRebalanceExtensionV1> {
+      return deployer.extensions.deployOptimisticAuctionRebalanceExtensionV1(
         subjectBaseManager,
         subjectAuctionRebalanceModule,
         subjectUseAssetAllowlist,

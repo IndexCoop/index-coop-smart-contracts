@@ -38,8 +38,9 @@ import {OptimisticOracleV3Interface} from "../interfaces/OptimisticOracleV3Inter
  *
  * @dev The contract extends `BaseAuctionRebalanceExtension` by adding an optimistic oracle mechanism for validating rules on the proposing and executing of rebalances. 
  * It allows setting product-specific parameters for optimistic rebalancing and includes callback functions for resolved or disputed assertions.
+ * @dev Version 1 is characterised by: Optional Asset Whitelist, Disabled Set Token locking, control over rebalance timing via "isOpen" flag
  */
-contract OptimisticAuctionRebalanceExtension is  AuctionRebalanceExtension, AssetAllowList {
+contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, AssetAllowList {
     using AddressArrayUtils for address[];
     using SafeERC20 for IERC20;
 

@@ -4,7 +4,7 @@ import { Address, Account } from "@utils/types";
 import { increaseTimeAsync } from "@utils/test";
 import { setBlockNumber } from "@utils/test/testingUtils";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
-import { OptimisticAuctionRebalanceExtension } from "@utils/contracts/index";
+import { OptimisticAuctionRebalanceExtensionV1 } from "@utils/contracts/index";
 import {
   AuctionRebalanceModuleV1,
   AuctionRebalanceModuleV1__factory,
@@ -61,7 +61,7 @@ function base58ToHexString(base58String: string) {
 }
 
 if (process.env.INTEGRATIONTEST) {
-  describe("OptimisticAuctionRebalanceExtension - Integration Test dsEth", () => {
+  describe("OptimisticAuctionRebalanceExtensionV1 - Integration Test dsEth", () => {
     const contractAddresses = PRODUCTION_ADDRESSES;
     let owner: Account;
     let methodologist: Account;
@@ -72,7 +72,7 @@ if (process.env.INTEGRATIONTEST) {
     let baseManager: BaseManagerV2;
 
     let auctionModule: AuctionRebalanceModuleV1;
-    let auctionRebalanceExtension: OptimisticAuctionRebalanceExtension;
+    let auctionRebalanceExtension: OptimisticAuctionRebalanceExtensionV1;
     let integrationRegistry: IntegrationRegistry;
 
     let priceAdapter: ConstantPriceAdapter;
@@ -144,7 +144,7 @@ if (process.env.INTEGRATIONTEST) {
       operator = await impersonateAccount(await baseManager.operator());
       baseManager = baseManager.connect(operator);
 
-      auctionRebalanceExtension = await deployer.extensions.deployOptimisticAuctionRebalanceExtension(
+      auctionRebalanceExtension = await deployer.extensions.deployOptimisticAuctionRebalanceExtensionV1(
         baseManager.address,
         auctionModule.address,
         useAssetAllowlist,
