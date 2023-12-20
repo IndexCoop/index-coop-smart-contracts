@@ -255,7 +255,7 @@ describe("OptimisticAuctionRebalanceExtension", () => {
                 },
               ];
 
-              subjectShouldLockSetToken = true;
+              subjectShouldLockSetToken = false;
               subjectRebalanceDuration = BigNumber.from(86400);
               subjectPositionMultiplier = ether(0.999);
               subjectCaller = operator;
@@ -306,6 +306,15 @@ describe("OptimisticAuctionRebalanceExtension", () => {
                     .connect(subjectCaller.wallet)
                     .proposedProduct(utils.formatBytes32String("win"));
                   expect(proposal.product).to.eq(setToken.address);
+                });
+
+                context("when trying to lock set token", () => {
+                  beforeEach(() => {
+                    subjectShouldLockSetToken = true;
+                  });
+                  it("should revert", async () => {
+                    await expect(subject()).to.be.revertedWith("_shouldLockSetToken must be false");
+                  });
                 });
               });
               context("when the extension is not open for rebalance", () => {
@@ -436,9 +445,9 @@ describe("OptimisticAuctionRebalanceExtension", () => {
                   await proposeRebalance();
                 });
                 it("should set isOpen to false", async () => {
-                    await subject();
-                    const isOpen = await auctionRebalanceExtension.isOpen();
-                    expect(isOpen).to.be.false;
+                  await subject();
+                  const isOpen = await auctionRebalanceExtension.isOpen();
+                  expect(isOpen).to.be.false;
                 });
 
                 it("should set the auction execution params correctly", async () => {
