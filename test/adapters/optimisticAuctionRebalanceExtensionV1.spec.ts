@@ -271,7 +271,6 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                   subjectNewComponents,
                   subjectNewComponentsAuctionParams,
                   subjectOldComponentsAuctionParams,
-                  subjectShouldLockSetToken,
                   subjectRebalanceDuration,
                   subjectPositionMultiplier,
                 );
@@ -287,7 +286,6 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                     subjectNewComponents,
                     subjectNewComponentsAuctionParams,
                     subjectOldComponentsAuctionParams,
-                    subjectShouldLockSetToken,
                     subjectRebalanceDuration,
                     subjectPositionMultiplier,
                   );
@@ -306,15 +304,6 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                     .connect(subjectCaller.wallet)
                     .proposedProduct(utils.formatBytes32String("win"));
                   expect(proposal.product).to.eq(setToken.address);
-                });
-
-                context("when trying to lock set token", () => {
-                  beforeEach(() => {
-                    subjectShouldLockSetToken = true;
-                  });
-                  it("should revert", async () => {
-                    await expect(subject()).to.be.revertedWith("_shouldLockSetToken must be false");
-                  });
                 });
               });
               context("when the extension is not open for rebalance", () => {

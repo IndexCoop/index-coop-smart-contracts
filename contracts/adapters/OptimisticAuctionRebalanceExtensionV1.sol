@@ -38,7 +38,7 @@ import {OptimisticOracleV3Interface} from "../interfaces/OptimisticOracleV3Inter
  *
  * @dev The contract extends `BaseAuctionRebalanceExtension` by adding an optimistic oracle mechanism for validating rules on the proposing and executing of rebalances. 
  * It allows setting product-specific parameters for optimistic rebalancing and includes callback functions for resolved or disputed assertions.
- * @dev Version 1 is characterised by: Optional Asset Whitelist, Disabled Set Token locking, control over rebalance timing via "isOpen" flag
+ * @dev Version 1 is characterised by: Optional Asset Whitelist, No Set Token locking, control over rebalance timing via "isOpen" flag
  */
 contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, AssetAllowList {
     using AddressArrayUtils for address[];
@@ -59,7 +59,6 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         address[] newComponents,
         AuctionExecutionParams[] newComponentsAuctionParams,
         AuctionExecutionParams[] oldComponentsAuctionParams,
-        bool shouldLockSetToken,
         uint256 rebalanceDuration,
         uint256 positionMultiplier
     );
@@ -201,7 +200,6 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
      * @param _newComponentsAuctionParams   AuctionExecutionParams for new components, indexed corresponding to _newComponents.
      * @param _oldComponentsAuctionParams   AuctionExecutionParams for existing components, indexed corresponding to
      *                                      the current component positions. Set to 0 for components being removed.
-     * @param _shouldLockSetToken           Indicates if the rebalance should lock the SetToken. Must be false in this version.
      * @param _rebalanceDuration            Duration of the rebalance in seconds.
      * @param _positionMultiplier           Position multiplier at the time target units were calculated.
     */
@@ -211,7 +209,6 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         address[] memory _newComponents,
         AuctionExecutionParams[] memory _newComponentsAuctionParams,
         AuctionExecutionParams[] memory _oldComponentsAuctionParams,
-        bool _shouldLockSetToken,
         uint256 _rebalanceDuration,
         uint256 _positionMultiplier
     )
@@ -219,7 +216,6 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         onlyAllowedAssets(_newComponents)
         onlyIfOpen()
     {
-        require(_shouldLockSetToken == false, "_shouldLockSetToken must be false");
         bytes32 proposalHash = keccak256(abi.encode(
             setToken,
             _quoteAsset,
@@ -227,7 +223,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
             _newComponents,
             _newComponentsAuctionParams,
             _oldComponentsAuctionParams,
-            _shouldLockSetToken,
+            false, // We don't allow locking the set token in this version
             _rebalanceDuration,
             _positionMultiplier
         ));
@@ -257,7 +253,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
             product: setToken
         });
 
-        emit RebalanceProposed( setToken, _quoteAsset, _oldComponents, _newComponents, _newComponentsAuctionParams, _oldComponentsAuctionParams, _shouldLockSetToken, _rebalanceDuration, _positionMultiplier);
+        emit RebalanceProposed( setToken, _quoteAsset, _oldComponents, _newComponents, _newComponentsAuctionParams, _oldComponentsAuctionParams,  _rebalanceDuration, _positionMultiplier);
         emit AssertedClaim(setToken, msg.sender, productSettings.rulesHash, assertionId, claim);
 
     }
@@ -274,7 +270,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
      * @param _newComponentsAuctionParams   AuctionExecutionParams for new components, indexed corresponding to _newComponents.
      * @param _oldComponentsAuctionParams   AuctionExecutionParams for existing components, indexed corresponding to
      *                                      the current component positions. Set to 0 for components being removed.
-     * @param _shouldLockSetToken           Indicates if the rebalance should lock the SetToken.
+     * @param _shouldLockSetToken           Indicates if the rebalance should lock the SetToken. Has to be false in this version
      * @param _rebalanceDuration            Duration of the rebalance in seconds.
      * @param _positionMultiplier           Position multiplier at the time target units were calculated.
      */

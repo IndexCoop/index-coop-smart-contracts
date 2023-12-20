@@ -226,7 +226,7 @@ if (process.env.INTEGRATIONTEST) {
                 () => sellAllAuctionParam,
               );
 
-              subjectShouldLockSetToken = true;
+              subjectShouldLockSetToken = false;
               subjectRebalanceDuration = BigNumber.from(86400);
               subjectPositionMultiplier = ether(0.999);
               subjectCaller = operator;
@@ -272,7 +272,6 @@ if (process.env.INTEGRATIONTEST) {
                       subjectNewComponents,
                       subjectNewComponentsAuctionParams,
                       subjectOldComponentsAuctionParams,
-                      subjectShouldLockSetToken,
                       subjectRebalanceDuration,
                       subjectPositionMultiplier,
                     );
@@ -321,7 +320,6 @@ if (process.env.INTEGRATIONTEST) {
                             subjectNewComponents,
                             subjectNewComponentsAuctionParams,
                             subjectOldComponentsAuctionParams,
-                            subjectShouldLockSetToken,
                             subjectRebalanceDuration,
                             subjectPositionMultiplier,
                           );
@@ -458,7 +456,6 @@ if (process.env.INTEGRATIONTEST) {
                       subjectNewComponents,
                       subjectNewComponentsAuctionParams,
                       subjectOldComponentsAuctionParams,
-                      subjectShouldLockSetToken,
                       subjectRebalanceDuration,
                       subjectPositionMultiplier,
                     );
