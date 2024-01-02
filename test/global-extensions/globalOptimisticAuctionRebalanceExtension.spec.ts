@@ -43,7 +43,7 @@ function base58ToHexString(base58String: string) {
   return "0x" + hexString;
 }
 
-describe.only("GlobalOptimisticAuctionRebalanceExtension", () => {
+describe("GlobalOptimisticAuctionRebalanceExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
