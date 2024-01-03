@@ -121,8 +121,10 @@ if (process.env.INTEGRATIONTEST) {
         ethers.utils.parseEther("10").toHexString(),
       ]);
       identifierWhitelist = identifierWhitelist.connect(whitelistOwner);
-      minimumBond = await optimisticOracleV3.getMinimumBond(collateralAssetAddress);
-      console.log("minimumBond", minimumBond.toString());
+
+      // minimumBond = await optimisticOracleV3.getMinimumBond(collateralAssetAddress);
+      // console.log("minimumBond", minimumBond.toString());
+      minimumBond = ether(140);
 
       integrationRegistry = IntegrationRegistry__factory.connect(
         contractAddresses.setFork.integrationRegistry,
@@ -178,7 +180,7 @@ if (process.env.INTEGRATIONTEST) {
           productSettings = {
             collateral: collateralAssetAddress,
             liveness,
-            bondAmount: BigNumber.from(1000),
+            bondAmount: ether(140),
             identifier,
             optimisticOracleV3: optimisticOracleV3.address,
           };
@@ -412,7 +414,7 @@ if (process.env.INTEGRATIONTEST) {
                       {
                         collateral: collateralAssetAddress,
                         liveness,
-                        bondAmount: BigNumber.from(0),
+                        bondAmount: ether(140),
                         identifier,
                         optimisticOracleV3: optimisticOracleV3Mock.address,
                       },
@@ -447,7 +449,7 @@ if (process.env.INTEGRATIONTEST) {
                     {
                       collateral: collateralAssetAddress,
                       liveness,
-                      bondAmount: BigNumber.from(0),
+                      bondAmount: ether(140),
                       identifier,
                       optimisticOracleV3: optimisticOracleV3Mock.address,
                     },
