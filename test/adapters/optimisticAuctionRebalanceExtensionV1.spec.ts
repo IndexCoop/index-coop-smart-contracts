@@ -310,25 +310,37 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
               });
 
               it("should emit RebalanceProposed event", async () => {
-                  await expect(subject())
-                      .to.emit(auctionRebalanceExtension, "RebalanceProposed");
-                      // TODO: This fails with a weird comparison error on the nested object arrays
-                      // probably an issue in the decoding of these arguments
-                      // .withArgs(
-                      //     setToken.address,
-                      //     subjectQuoteAsset,
-                      //     subjectOldComponents,
-                      //     subjectNewComponents,
-                      //     subjectNewComponentsAuctionParams,
-                      //     subjectOldComponentsAuctionParams,
-                      //     subjectRebalanceDuration,
-                      //     subjectPositionMultiplier,
-                      // );
+                  const receipt = await subject().then(tx => tx.wait()) as any;
+                  const proposeEvent = receipt.events.find((event: any) => event.event === "RebalanceProposed");
+                  expect(proposeEvent.args.setToken).to.eq(setToken.address);
+                  expect(proposeEvent.args.quoteAsset).to.eq(subjectQuoteAsset);
+                  expect(proposeEvent.args.oldComponents).to.deep.eq(subjectOldComponents);
+                  expect(proposeEvent.args.newComponents).to.deep.eq(subjectNewComponents);
+                  expect(proposeEvent.args.rebalanceDuration).to.eq(subjectRebalanceDuration);
+                  expect(proposeEvent.args.positionMultiplier).to.eq(subjectPositionMultiplier);
+
+                  const newComponentsAuctionParams = proposeEvent.args.newComponentsAuctionParams.map((entry: any) => {
+                      return {
+                          priceAdapterConfigData: entry.priceAdapterConfigData,
+                          priceAdapterName: entry.priceAdapterName,
+                          targetUnit: entry.targetUnit,
+                      };
+                  });
+                  expect(newComponentsAuctionParams).to.deep.eq(subjectNewComponentsAuctionParams);
+
+                  const oldComponentsAuctionParams = proposeEvent.args.oldComponentsAuctionParams.map((entry: any) => {
+                      return {
+                          priceAdapterConfigData: entry.priceAdapterConfigData,
+                          priceAdapterName: entry.priceAdapterName,
+                          targetUnit: entry.targetUnit,
+                      };
+                  });
+                  expect(oldComponentsAuctionParams).to.deep.eq(subjectOldComponentsAuctionParams);
               });
 
               it("should emit AssertedClaim event", async () => {
                   const receipt = await subject().then(tx => tx.wait()) as any;
-                  const assertEvent = receipt.events[receipt.events.length - 1] as any;
+                  const assertEvent = receipt.events.find((event: any) => event.event === "AssertedClaim");
                   const emittedSetToken = assertEvent.args.setToken;
                   expect(emittedSetToken).to.eq(setToken.address);
                   const assertedBy = assertEvent.args._assertedBy;
