@@ -23,7 +23,7 @@ import {
   getRandomAccount,
 } from "@utils/index";
 import { SetFixture } from "@utils/fixtures";
-import { BigNumber, ContractTransaction, utils } from "ethers";
+import { BigNumber, ContractTransaction, utils, constants } from "ethers";
 import base58 from "bs58";
 
 const expect = getWaffleExpect();
@@ -306,6 +306,46 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                   .proposedProduct(utils.formatBytes32String("win"));
                 expect(proposal.product).to.eq(setToken.address);
               });
+
+              context("when the same rebalance has been proposed already", () => {
+                  beforeEach(async () => {
+                      await subject();
+                  });
+
+                  it("should revert", async () => {
+                      await expect(subject()).to.be.revertedWith("Proposal already exists");
+                  });
+              });
+
+              context("when the rule hash is empty", () => {
+                  beforeEach(async () => {
+                      const currentSettings = await auctionRebalanceExtension.productSettings();
+                      await auctionRebalanceExtension.setProductSettings(
+                          currentSettings.optimisticParams,
+                          constants.HashZero
+                      );
+                  });
+
+                  it("should revert", async () => {
+                      await expect(subject()).to.be.revertedWith("Rules not set");
+                  });
+              });
+
+              context("when the oracle address is zero", () => {
+                  beforeEach(async () => {
+                      const [currentOptimisticParams, ruleHash] = await auctionRebalanceExtension.productSettings();
+                      const optimisticParams = {...currentOptimisticParams, optimisticOracleV3: constants.AddressZero};
+                      await auctionRebalanceExtension.setProductSettings(
+                          optimisticParams,
+                          ruleHash,
+                      );
+                  });
+
+                  it("should revert", async () => {
+                      await expect(subject()).to.be.revertedWith("Oracle not set");
+                  });
+              });
+
             });
 
             context("when the extension is not open for rebalance", () => {
