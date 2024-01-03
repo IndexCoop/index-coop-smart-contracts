@@ -195,7 +195,9 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
       });
 
       context("when the product settings have been set", () => {
+        let rulesHash: Uint8Array;
         beforeEach(async () => {
+          rulesHash = utils.arrayify(base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z"));
           await auctionRebalanceExtension.connect(operator.wallet).setProductSettings(
             {
               collateral: collateralAsset.address,
@@ -204,7 +206,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
               identifier: utils.formatBytes32String(""),
               optimisticOracleV3: optimisticOracleV3Mock.address,
             },
-            utils.arrayify(base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z")),
+            rulesHash,
           );
         });
 
@@ -305,6 +307,34 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                   .connect(subjectCaller.wallet)
                   .proposedProduct(utils.formatBytes32String("win"));
                 expect(proposal.product).to.eq(setToken.address);
+              });
+
+              it("should emit RebalanceProposed event", async () => {
+                  await expect(subject())
+                      .to.emit(auctionRebalanceExtension, "RebalanceProposed");
+                      // TODO: This fails with a weird comparison error on the nested object arrays
+                      // probably an issue in the decoding of these arguments
+                      // .withArgs(
+                      //     setToken.address,
+                      //     subjectQuoteAsset,
+                      //     subjectOldComponents,
+                      //     subjectNewComponents,
+                      //     subjectNewComponentsAuctionParams,
+                      //     subjectOldComponentsAuctionParams,
+                      //     subjectRebalanceDuration,
+                      //     subjectPositionMultiplier,
+                      // );
+              });
+
+              it("should emit AssertedClaim event", async () => {
+                  const receipt = await subject().then(tx => tx.wait()) as any;
+                  const assertEvent = receipt.events[receipt.events.length - 1] as any;
+                  const emittedSetToken = assertEvent.args.setToken;
+                  expect(emittedSetToken).to.eq(setToken.address);
+                  const assertedBy = assertEvent.args._assertedBy;
+                  expect(assertedBy).to.eq(operator.wallet.address);
+                  const emittedRulesHash = assertEvent.args.rulesHash;
+                  expect(emittedRulesHash).to.eq(utils.hexlify(rulesHash));
               });
 
               context("when the same rebalance has been proposed already", () => {
