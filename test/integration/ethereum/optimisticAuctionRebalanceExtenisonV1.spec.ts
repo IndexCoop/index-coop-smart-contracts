@@ -18,8 +18,8 @@ import {
   IntegrationRegistry__factory,
   IIdentifierWhitelist,
   IIdentifierWhitelist__factory,
-  IWETH,
-  IWETH__factory,
+  IERC20,
+  IERC20__factory,
   OptimisticOracleV3Mock,
   OptimisticOracleV3Interface,
   OptimisticOracleV3Interface__factory,
@@ -87,10 +87,10 @@ if (process.env.INTEGRATIONTEST) {
     let useAssetAllowlist: boolean;
     let allowedAssets: Address[];
 
-    let weth: IWETH;
+    let indexToken: IERC20;
     let minimumBond: BigNumber;
 
-    setBlockNumber(18789000);
+    setBlockNumber(18924016);
 
     before(async () => {
       [owner, methodologist] = await getAccounts();
@@ -101,8 +101,8 @@ if (process.env.INTEGRATIONTEST) {
         contractAddresses.setFork.constantPriceAdapter,
         owner.wallet,
       );
-      weth = IWETH__factory.connect(contractAddresses.tokens.weth, owner.wallet);
-      collateralAssetAddress = weth.address;
+      indexToken = IERC20__factory.connect(contractAddresses.tokens.index, owner.wallet);
+      collateralAssetAddress = indexToken.address;
 
       optimisticOracleV3 = OptimisticOracleV3Interface__factory.connect(
         contractAddresses.oracles.uma.optimisticOracleV3,
@@ -122,6 +122,7 @@ if (process.env.INTEGRATIONTEST) {
       ]);
       identifierWhitelist = identifierWhitelist.connect(whitelistOwner);
       minimumBond = await optimisticOracleV3.getMinimumBond(collateralAssetAddress);
+      console.log("minimumBond", minimumBond.toString());
 
       integrationRegistry = IntegrationRegistry__factory.connect(
         contractAddresses.setFork.integrationRegistry,
@@ -153,6 +154,12 @@ if (process.env.INTEGRATIONTEST) {
       auctionRebalanceExtension = auctionRebalanceExtension.connect(operator);
     });
 
+    async function getIndexTokens(receiver: string, amount: BigNumber): Promise<void> {
+      const INDEX_TOKEN_WHALE = "0x9467cfADC9DE245010dF95Ec6a585A506A8ad5FC";
+      const indexWhaleSinger = await impersonateAccount(INDEX_TOKEN_WHALE);
+      await indexToken.connect(indexWhaleSinger).transfer(receiver, amount);
+    }
+
     addSnapshotBeforeRestoreAfterEach();
 
     context("when auction rebalance extension is added as extension", () => {
@@ -171,7 +178,7 @@ if (process.env.INTEGRATIONTEST) {
           productSettings = {
             collateral: collateralAssetAddress,
             liveness,
-            bondAmount: BigNumber.from(0),
+            bondAmount: BigNumber.from(1000),
             identifier,
             optimisticOracleV3: optimisticOracleV3.address,
           };
@@ -204,7 +211,7 @@ if (process.env.INTEGRATIONTEST) {
                 ? productSettings.bondAmount
                 : minimumBond;
 
-              subjectQuoteAsset = contractAddresses.tokens.weth;
+              subjectQuoteAsset = contractAddresses.tokens.index;
 
               subjectOldComponents = await dsEth.getComponents();
               subjectNewComponents = [contractAddresses.tokens.USDC];
@@ -240,8 +247,8 @@ if (process.env.INTEGRATIONTEST) {
                 await subjectCaller.getAddress(),
                 quantity,
               ]);
-              await weth.connect(subjectCaller).deposit({ value: effectiveBond });
-              await weth
+            await getIndexTokens(await subjectCaller.getAddress(), effectiveBond);
+              await indexToken
                 .connect(subjectCaller)
                 .approve(auctionRebalanceExtension.address, effectiveBond);
             });
@@ -308,8 +315,8 @@ if (process.env.INTEGRATIONTEST) {
                     context("when identical rebalanced again but liveness has not passed", () => {
                       beforeEach(async () => {
                         // set operator balance to effective bond
-                        await weth.connect(subjectCaller).deposit({ value: effectiveBond });
-                        await weth
+                        await getIndexTokens(await subjectCaller.getAddress(), effectiveBond);
+                        await indexToken
                           .connect(subjectCaller)
                           .approve(auctionRebalanceExtension.address, effectiveBond);
                         await auctionRebalanceExtension
@@ -389,8 +396,8 @@ if (process.env.INTEGRATIONTEST) {
 
                     expect(proposal.product).to.eq(dsEth.address);
 
-                    await weth.connect(subjectCaller).deposit({ value: effectiveBond });
-                    await weth.connect(subjectCaller).approve(optimisticOracleV3.address, effectiveBond);
+                    await getIndexTokens(await subjectCaller.getAddress(), effectiveBond);
+                    await indexToken.connect(subjectCaller).approve(optimisticOracleV3.address, effectiveBond);
                     await optimisticOracleV3
                       .connect(subjectCaller)
                       .disputeAssertion(proposalId, owner.address);

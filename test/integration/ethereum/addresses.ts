@@ -2,6 +2,7 @@ import structuredClone from "@ungap/structured-clone";
 
 export const PRODUCTION_ADDRESSES = {
   tokens: {
+    index: "0x0954906da0Bf32d5479e25f46056d22f08464cab",
     stEthAm: "0x28424507fefb6f7f8E9D3860F56504E4e5f5f390",
     stEth: "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
     dai: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
