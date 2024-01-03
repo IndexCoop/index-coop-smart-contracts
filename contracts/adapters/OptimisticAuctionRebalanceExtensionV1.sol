@@ -74,7 +74,11 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
     event ProposalDeleted(
         bytes32 assertionID, 
         Proposal indexed proposal
-        );
+    );
+
+    event IsOpenUpdated(
+        bool indexed isOpen
+    );
 
     /* ============ Structs ============ */
 
@@ -169,10 +173,8 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
     * @param _isOpen           Bool indicating whether the extension is open for proposing rebalances.
     */
    function updateIsOpen(bool _isOpen) external onlyOperator {
-       isOpen = _isOpen;
+       _updateIsOpen(_isOpen);
     }
-
-
 
     /**
     * @dev OPERATOR ONLY: sets product settings for a given set token
@@ -332,7 +334,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         );
 
         invokeManager(address(auctionModule), callData);
-        isOpen = false;
+        _updateIsOpen(false);
     }
 
      // Constructs the claim that will be asserted at the Optimistic Oracle V3.
@@ -401,6 +403,11 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         Proposal memory proposal = proposedProduct[assertionId];
         delete assertionIds[proposal.proposalHash];
         delete proposedProduct[assertionId];
+    }
+
+    function _updateIsOpen(bool _isOpen) internal {
+        isOpen = _isOpen;
+        emit IsOpenUpdated(_isOpen);
     }
 
 }
