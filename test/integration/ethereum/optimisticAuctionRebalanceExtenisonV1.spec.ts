@@ -61,7 +61,7 @@ function base58ToHexString(base58String: string) {
 }
 
 if (process.env.INTEGRATIONTEST) {
-  describe("OptimisticAuctionRebalanceExtensionV1 - Integration Test dsEth", () => {
+  describe.only("OptimisticAuctionRebalanceExtensionV1 - Integration Test dsEth", () => {
     const contractAddresses = PRODUCTION_ADDRESSES;
     let owner: Account;
     let methodologist: Account;
