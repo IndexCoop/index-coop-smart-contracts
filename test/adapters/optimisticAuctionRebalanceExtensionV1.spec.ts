@@ -81,7 +81,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
     priceAdapter = await deployer.setV2.deployConstantPriceAdapter();
     optimisticOracleV3Mock = await deployer.mocks.deployOptimisticOracleV3Mock();
     optimisticOracleV3MockUpgraded = await deployer.mocks.deployOptimisticOracleV3Mock();
-    collateralAsset = await deployer.mocks.deployStandardTokenMock(owner.address, 18);
+    collateralAsset = await deployer.mocks.deployStandardTokenMock(operator.address, 18);
 
     await setV2Setup.integrationRegistry.addIntegration(
       setV2Setup.auctionModule.address,
@@ -115,6 +115,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
       allowedAssets,
     );
     auctionRebalanceExtension = auctionRebalanceExtension.connect(operator.wallet);
+    await collateralAsset.connect(operator.wallet).approve(auctionRebalanceExtension.address, ether(1000));
   });
 
   addSnapshotBeforeRestoreAfterEach();
