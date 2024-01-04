@@ -73,7 +73,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
 
     event ProposalDeleted(
         bytes32 assertionID, 
-        Proposal indexed proposal
+        bytes32 indexed proposalHash
     );
 
     event IsOpenUpdated(
@@ -102,16 +102,11 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         bytes32 rulesHash;      // IPFS hash of the rules for the product.
     }
 
-    struct Proposal{
-        bytes32 proposalHash;   // Hash of the proposal.
-        ISetToken product;    // Address of the SetToken to set rules and settings for.
-    }
-
     /* ============ State Variables ============ */
     
     ProductSettings public productSettings; // Mapping of set token to ProductSettings
     mapping(bytes32 => bytes32) public assertionIds; // Maps proposal hashes to assertionIds.
-    mapping(bytes32 => Proposal) public proposedProduct; // Maps assertionIds to a Proposal.
+    mapping(bytes32 => bytes32) public assertionIdToProposalHash; // Maps assertionIds to a proposal hash.
     bool public isOpen; // Bool indicating whether the extension is open for proposing rebalances.
 
     // Keys for assertion claim data.
@@ -256,10 +251,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         );
 
         assertionIds[proposalHash] = assertionId;
-        proposedProduct[assertionId] = Proposal({
-            proposalHash: proposalHash,
-            product: setToken
-        });
+        assertionIdToProposalHash[assertionId] = proposalHash;
 
         emit RebalanceProposed( setToken, _quoteAsset, _oldComponents, _newComponents, _newComponentsAuctionParams, _oldComponentsAuctionParams,  _rebalanceDuration, _positionMultiplier);
         emit AssertedClaim(setToken, msg.sender, productSettings.rulesHash, assertionId, claim);
@@ -355,8 +347,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
      * @param _assertionId the identifier of the disputed assertion.
      */
     function assertionDisputedCallback(bytes32 _assertionId) external {
-        Proposal memory proposal = proposedProduct[_assertionId];
-        require(proposal.product == setToken, "Invalid proposal product");
+        bytes32 proposalHash = assertionIdToProposalHash[_assertionId];
 
         require(address(productSettings.optimisticParams.optimisticOracleV3) != address(0), "Invalid oracle address");
 
@@ -367,11 +358,11 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
 
         } else {
             // If the sender is not the expected Optimistic Oracle V3, check if the expected Oracle has the assertion and if not delete.
-            require(proposal.proposalHash != bytes32(0), "Invalid proposal hash");
+            require(proposalHash != bytes32(0), "Invalid proposal hash");
             require(productSettings.optimisticParams.optimisticOracleV3.getAssertion(_assertionId).asserter == address(0), "Oracle has assertion");
             _deleteProposal(_assertionId);
         }
-        emit ProposalDeleted(_assertionId, proposal);
+        emit ProposalDeleted(_assertionId, proposalHash);
     }
 
     /* ============ Internal Functions ============ */
@@ -394,9 +385,9 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
     /// @dev Internal function that deletes a proposal and associated assertionId.
     /// @param assertionId assertionId of the proposal to delete.
     function _deleteProposal(bytes32 assertionId) internal {
-        Proposal memory proposal = proposedProduct[assertionId];
-        delete assertionIds[proposal.proposalHash];
-        delete proposedProduct[assertionId];
+        bytes32 proposalHash = assertionIdToProposalHash[assertionId];
+        delete assertionIds[proposalHash];
+        delete assertionIdToProposalHash[assertionId];
     }
 
     /// @notice Pulls the higher of the minimum bond or configured bond amount from the sender.

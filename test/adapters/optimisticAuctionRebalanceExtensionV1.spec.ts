@@ -459,12 +459,18 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                   await subject();
                 });
 
-                it("should update proposed products correctly", async () => {
-                  await subject();
-                  const proposal = await auctionRebalanceExtension
+                it("should update proposal hash correctly", async () => {
+                  const proposalHashBefore = await auctionRebalanceExtension
                     .connect(subjectCaller.wallet)
-                    .proposedProduct(utils.formatBytes32String("win"));
-                  expect(proposal.product).to.eq(setToken.address);
+                    .assertionIdToProposalHash(utils.formatBytes32String("win"));
+                  expect(proposalHashBefore).to.eq(constants.HashZero);
+
+                  await subject();
+
+                  const proposalHashAfter = await auctionRebalanceExtension
+                    .connect(subjectCaller.wallet)
+                    .assertionIdToProposalHash(utils.formatBytes32String("win"));
+                  expect(proposalHashAfter).to.not.eq(constants.HashZero);
                 });
 
                 it("should pull bond", async () => {
@@ -788,12 +794,12 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                   }
                 });
 
-                describe("assertionDisputedCallback", () => {
+                describe("#assertionDisputedCallback", () => {
                   it("should delete the proposal on a disputed callback", async () => {
-                    const proposal = await auctionRebalanceExtension
+                    const proposalHash = await auctionRebalanceExtension
                       .connect(subjectCaller.wallet)
-                      .proposedProduct(utils.formatBytes32String("win"));
-                    expect(proposal.product).to.eq(setToken.address);
+                      .assertionIdToProposalHash(utils.formatBytes32String("win"));
+                    expect(proposalHash).to.not.eq(constants.HashZero);
 
                     await expect(
                       optimisticOracleV3Mock
@@ -804,10 +810,10 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                         ),
                     ).to.not.be.reverted;
 
-                    const proposalAfter = await auctionRebalanceExtension
+                    const proposalHashAfter = await auctionRebalanceExtension
                       .connect(subjectCaller.wallet)
-                      .proposedProduct(utils.formatBytes32String("win"));
-                    expect(proposalAfter.product).to.eq(ADDRESS_ZERO);
+                      .assertionIdToProposalHash(utils.formatBytes32String("win"));
+                    expect(proposalHashAfter).to.eq(constants.HashZero);
                   });
 
                   it("should delete the proposal on a disputed callback from currently set oracle", async () => {
@@ -824,10 +830,10 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                       ),
                     );
 
-                    const proposal = await auctionRebalanceExtension
+                    const proposalHash = await auctionRebalanceExtension
                       .connect(subjectCaller.wallet)
-                      .proposedProduct(utils.formatBytes32String("win"));
-                    expect(proposal.product).to.eq(setToken.address);
+                      .assertionIdToProposalHash(utils.formatBytes32String("win"));
+                    expect(proposalHash).to.not.eq(constants.HashZero);
                     await expect(
                       optimisticOracleV3Mock
                         .connect(subjectCaller.wallet)
@@ -837,10 +843,10 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                         ),
                     ).to.not.be.reverted;
 
-                    const proposalAfter = await auctionRebalanceExtension
+                    const proposalHashAfter = await auctionRebalanceExtension
                       .connect(subjectCaller.wallet)
-                      .proposedProduct(utils.formatBytes32String("win"));
-                    expect(proposalAfter.product).to.eq(ADDRESS_ZERO);
+                      .assertionIdToProposalHash(utils.formatBytes32String("win"));
+                    expect(proposalHashAfter).to.eq(constants.HashZero);
                   });
                 });
 
