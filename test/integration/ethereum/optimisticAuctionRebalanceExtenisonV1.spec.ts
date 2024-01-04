@@ -4,7 +4,7 @@ import { Address, Account } from "@utils/types";
 import { increaseTimeAsync } from "@utils/test";
 import { setBlockNumber } from "@utils/test/testingUtils";
 import { base58ToHexString } from "@utils/common";
-import { ADDRESS_ZERO, ONE_HOUR_IN_SECONDS, ZERO } from "@utils/constants";
+import { ONE_HOUR_IN_SECONDS, ZERO } from "@utils/constants";
 import { OptimisticAuctionRebalanceExtensionV1 } from "@utils/contracts/index";
 import {
   AuctionRebalanceModuleV1,
@@ -444,11 +444,11 @@ if (process.env.INTEGRATIONTEST) {
 
                 describe("assertionDisputedCallback", () => {
                   it("should delete the proposal on a disputed callback", async () => {
-                    const proposal = await auctionRebalanceExtension
+                    const proposalHash = await auctionRebalanceExtension
                       .connect(subjectCaller)
-                      .proposedProduct(proposalId);
+                      .assertionIdToProposalHash(proposalId);
 
-                    expect(proposal.product).to.eq(dsEth.address);
+                    expect(proposalHash).to.not.eq(ethers.constants.HashZero);
 
                     await getIndexTokens(await subjectCaller.getAddress(), effectiveBond);
                     await indexToken.connect(subjectCaller).approve(optimisticOracleV3.address, effectiveBond);
@@ -456,10 +456,11 @@ if (process.env.INTEGRATIONTEST) {
                       .connect(subjectCaller)
                       .disputeAssertion(proposalId, owner.address);
 
-                    const proposalAfter = await auctionRebalanceExtension
+                    const proposalHashAfter = await auctionRebalanceExtension
                       .connect(subjectCaller)
-                      .proposedProduct(utils.formatBytes32String("win"));
-                    expect(proposalAfter.product).to.eq(ADDRESS_ZERO);
+                      .assertionIdToProposalHash(proposalId);
+
+                    expect(proposalHashAfter).to.eq(ethers.constants.HashZero);
                   });
 
                   it("should delete the proposal on a disputed callback from currently set oracle", async () => {
@@ -476,11 +477,10 @@ if (process.env.INTEGRATIONTEST) {
                       ),
                     );
 
-                    const proposal = await auctionRebalanceExtension
+                    const proposalHash = await auctionRebalanceExtension
                       .connect(subjectCaller)
-                      .proposedProduct(proposalId);
-
-                    expect(proposal.product).to.eq(dsEth.address);
+                      .assertionIdToProposalHash(proposalId);
+                    expect(proposalHash).to.not.eq(ethers.constants.HashZero);
 
                     await expect(
                       optimisticOracleV3Mock
@@ -490,10 +490,10 @@ if (process.env.INTEGRATIONTEST) {
                           proposalId,
                         ),
                     ).to.not.be.reverted;
-                    const proposalAfter = await auctionRebalanceExtension
+                    const proposalHashAfter = await auctionRebalanceExtension
                       .connect(subjectCaller)
-                      .proposedProduct(proposalId);
-                    expect(proposalAfter.product).to.eq(ADDRESS_ZERO);
+                      .assertionIdToProposalHash(proposalId);
+                    expect(proposalHashAfter).to.eq(ethers.constants.HashZero);
                   });
                 });
               });
