@@ -118,8 +118,8 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
     bytes public constant PROPOSAL_HASH_KEY = "proposalHash";
     bytes public constant RULES_KEY = "rulesIPFSHash";
 
-
     /* ============ Constructor ============ */
+
     /*
       * @dev Initializes the OptimisticAuctionRebalanceExtension with the passed parameters.
       * 
@@ -131,9 +131,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         public
         AuctionRebalanceExtension(_auctionParams.baseManager, _auctionParams.auctionModule)
         AssetAllowList(_auctionParams.allowedAssets, _auctionParams.useAssetAllowlist)
-    {
-
-    }
+    { }
 
     /* ============ Modifier ============ */
 
@@ -173,20 +171,20 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
     }
 
     /**
-    * ONLY OPERATOR: Toggle isOpen on and off. When false the extension is closed for proposing rebalances.
-    * when true it is open.
-    *
-    * @param _isOpen           Bool indicating whether the extension is open for proposing rebalances.
-    */
+     * ONLY OPERATOR: Toggle isOpen on and off. When false the extension is closed for proposing rebalances.
+     * when true it is open.
+     *
+     * @param _isOpen           Bool indicating whether the extension is open for proposing rebalances.
+     */
    function updateIsOpen(bool _isOpen) external onlyOperator {
        _updateIsOpen(_isOpen);
     }
 
     /**
-    * @dev OPERATOR ONLY: sets product settings for a given set token
-    * @param _optimisticParams OptimisticRebalanceParams struct containing optimistic rebalance parameters.
-    * @param _rulesHash bytes32 containing the ipfs hash rules for the product.
-    */
+     * @dev OPERATOR ONLY: sets product settings for a given set token
+     * @param _optimisticParams OptimisticRebalanceParams struct containing optimistic rebalance parameters.
+     * @param _rulesHash bytes32 containing the ipfs hash rules for the product.
+     */
     function setProductSettings(
         OptimisticRebalanceParams memory _optimisticParams,
         bytes32 _rulesHash
@@ -213,7 +211,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
      *                                      the current component positions. Set to 0 for components being removed.
      * @param _rebalanceDuration            Duration of the rebalance in seconds.
      * @param _positionMultiplier           Position multiplier at the time target units were calculated.
-    */
+     */
     function proposeRebalance(
         IERC20 _quoteAsset,
         address[] memory _oldComponents,
@@ -418,5 +416,4 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         isOpen = _isOpen;
         emit IsOpenUpdated(_isOpen);
     }
-
 }

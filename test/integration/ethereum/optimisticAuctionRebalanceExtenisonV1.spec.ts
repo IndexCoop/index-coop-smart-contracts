@@ -3,6 +3,7 @@ import "module-alias/register";
 import { Address, Account } from "@utils/types";
 import { increaseTimeAsync } from "@utils/test";
 import { setBlockNumber } from "@utils/test/testingUtils";
+import { base58ToHexString } from "@utils/common";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
 import { OptimisticAuctionRebalanceExtensionV1 } from "@utils/contracts/index";
 import {
@@ -38,27 +39,8 @@ import {
 } from "@utils/index";
 import { BigNumber, ContractTransaction, utils, Signer } from "ethers";
 import { ethers } from "hardhat";
-import base58 from "bs58";
 
 const expect = getWaffleExpect();
-
-function bufferToHex(buffer: Uint8Array) {
-  let hexStr = "";
-
-  for (let i = 0; i < buffer.length; i++) {
-    const hex = (buffer[i] & 0xff).toString(16);
-    hexStr += hex.length === 1 ? "0" + hex : hex;
-  }
-
-  return hexStr;
-}
-
-// Base58 decoding function (make sure you have a proper Base58 decoding function)
-function base58ToHexString(base58String: string) {
-  const bytes = base58.decode(base58String); // Decode base58 to a buffer
-  const hexString = bufferToHex(bytes.slice(2)); // Convert buffer to hex, excluding the first 2 bytes
-  return "0x" + hexString;
-}
 
 if (process.env.INTEGRATIONTEST) {
   describe.only("OptimisticAuctionRebalanceExtensionV1 - Integration Test dsEth", () => {
@@ -122,9 +104,7 @@ if (process.env.INTEGRATIONTEST) {
       ]);
       identifierWhitelist = identifierWhitelist.connect(whitelistOwner);
 
-      // minimumBond = await optimisticOracleV3.getMinimumBond(collateralAssetAddress);
-      // console.log("minimumBond", minimumBond.toString());
-      minimumBond = ether(140);
+      minimumBond = ether(140); // 140 INDEX Minimum Bond
 
       integrationRegistry = IntegrationRegistry__factory.connect(
         contractAddresses.setFork.integrationRegistry,
@@ -180,7 +160,7 @@ if (process.env.INTEGRATIONTEST) {
           productSettings = {
             collateral: collateralAssetAddress,
             liveness,
-            bondAmount: ether(140),
+            bondAmount: minimumBond,
             identifier,
             optimisticOracleV3: optimisticOracleV3.address,
           };
@@ -414,7 +394,7 @@ if (process.env.INTEGRATIONTEST) {
                       {
                         collateral: collateralAssetAddress,
                         liveness,
-                        bondAmount: ether(140),
+                        bondAmount: minimumBond,
                         identifier,
                         optimisticOracleV3: optimisticOracleV3Mock.address,
                       },
@@ -449,7 +429,7 @@ if (process.env.INTEGRATIONTEST) {
                     {
                       collateral: collateralAssetAddress,
                       liveness,
-                      bondAmount: ether(140),
+                      bondAmount: minimumBond,
                       identifier,
                       optimisticOracleV3: optimisticOracleV3Mock.address,
                     },

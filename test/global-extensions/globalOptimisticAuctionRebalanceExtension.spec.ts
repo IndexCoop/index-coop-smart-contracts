@@ -1,6 +1,7 @@
 import "module-alias/register";
 
 import { Address, Account } from "@utils/types";
+import { base58ToHexString } from "@utils/common";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
 import {
   GlobalOptimisticAuctionRebalanceExtension, DelegatedManager, ManagerCore,
@@ -21,27 +22,8 @@ import {
 } from "@utils/index";
 import { SetFixture } from "@utils/fixtures";
 import { BigNumber, ContractTransaction, utils } from "ethers";
-import base58 from "bs58";
 
 const expect = getWaffleExpect();
-
-function bufferToHex(buffer: Uint8Array) {
-  let hexStr = "";
-
-  for (let i = 0; i < buffer.length; i++) {
-    const hex = (buffer[i] & 0xff).toString(16);
-    hexStr += (hex.length === 1) ? "0" + hex : hex;
-  }
-
-  return hexStr;
-}
-
-// Base58 decoding function (make sure you have a proper Base58 decoding function)
-function base58ToHexString(base58String: string) {
-  const bytes = base58.decode(base58String); // Decode base58 to a buffer
-  const hexString = bufferToHex(bytes.slice(2)); // Convert buffer to hex, excluding the first 2 bytes
-  return "0x" + hexString;
-}
 
 describe("GlobalOptimisticAuctionRebalanceExtension", () => {
   let owner: Account;

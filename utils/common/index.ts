@@ -21,5 +21,7 @@ export {
   convertLibraryNameToLinkId
 } from "./libraryUtils";
 export {
-  bigNumberToData
+  bigNumberToData,
+  bufferToHex,
+  base58ToHexString,
 } from "./conversionUtils";
