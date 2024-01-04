@@ -648,9 +648,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                 });
 
                 it("should revert", async () => {
-                  await expect(subject()).to.be.revertedWith(
-                    "Proposal hash does not exist",
-                  );
+                  await expect(subject()).to.be.revertedWith("Proposal hash does not exist");
                 });
               });
 
@@ -795,20 +793,88 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                 });
 
                 describe("#assertionDisputedCallback", () => {
+                  let subjectAssertionId: string;
+                  function subject(): Promise<any> {
+                    return optimisticOracleV3Mock
+                      .connect(subjectCaller.wallet)
+                      .mockAssertionDisputedCallback(
+                        auctionRebalanceExtension.address,
+                        subjectAssertionId,
+                      );
+                  }
+                  beforeEach(() => {
+                    subjectAssertionId = utils.formatBytes32String("win");
+                  });
+
+                  context("when the caller is not the oracle", () => {
+                    function subject(): Promise<any> {
+                      return auctionRebalanceExtension
+                        .connect(subjectCaller.wallet)
+                        .assertionDisputedCallback(subjectAssertionId);
+                    }
+                    context("when the assertionId is wrong", () => {
+                      beforeEach(async () => {
+                        subjectAssertionId = utils.formatBytes32String("wrongid");
+                      });
+
+                      it("should revert", async () => {
+                        await expect(subject()).to.be.revertedWith("Invalid proposal hash");
+                      });
+                    });
+                    context("when the oracle does not have the assertion", () => {
+                      it("should delete the proposal", async () => {
+                        const proposalHash = await auctionRebalanceExtension
+                          .connect(subjectCaller.wallet)
+                          .assertionIdToProposalHash(utils.formatBytes32String("win"));
+                        expect(proposalHash).to.not.eq(constants.HashZero);
+
+                        await subject();
+
+                        const proposalHashAfter = await auctionRebalanceExtension
+                          .connect(subjectCaller.wallet)
+                          .assertionIdToProposalHash(utils.formatBytes32String("win"));
+                        expect(proposalHashAfter).to.eq(constants.HashZero);
+                      });
+                    });
+
+                    context("when the oracle has the assertion", () => {
+                      beforeEach(async () => {
+                        await optimisticOracleV3Mock.setAsserter(subjectCaller.wallet.address);
+                      });
+                      it("should revert", async () => {
+                        await expect(subject()).to.be.revertedWith("Oracle has assertion");
+                      });
+                    });
+                  });
+
+                  context("when the oracle address is zero", () => {
+                    beforeEach(async () => {
+                      const [
+                        currentOptimisticParams,
+                        ruleHash,
+                      ] = await auctionRebalanceExtension.productSettings();
+                      const optimisticParams = {
+                        ...currentOptimisticParams,
+                        optimisticOracleV3: constants.AddressZero,
+                      };
+                      await auctionRebalanceExtension.setProductSettings(
+                        optimisticParams,
+                        ruleHash,
+                      );
+                    });
+
+                    it("should revert", async () => {
+                      await expect(subject()).to.be.revertedWith("Invalid oracle address");
+                    });
+                  });
+
                   it("should delete the proposal on a disputed callback", async () => {
                     const proposalHash = await auctionRebalanceExtension
                       .connect(subjectCaller.wallet)
                       .assertionIdToProposalHash(utils.formatBytes32String("win"));
                     expect(proposalHash).to.not.eq(constants.HashZero);
 
-                    await expect(
-                      optimisticOracleV3Mock
-                        .connect(subjectCaller.wallet)
-                        .mockAssertionDisputedCallback(
-                          auctionRebalanceExtension.address,
-                          utils.formatBytes32String("win"),
-                        ),
-                    ).to.not.be.reverted;
+                    await subject();
 
                     const proposalHashAfter = await auctionRebalanceExtension
                       .connect(subjectCaller.wallet)
@@ -834,14 +900,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                       .connect(subjectCaller.wallet)
                       .assertionIdToProposalHash(utils.formatBytes32String("win"));
                     expect(proposalHash).to.not.eq(constants.HashZero);
-                    await expect(
-                      optimisticOracleV3Mock
-                        .connect(subjectCaller.wallet)
-                        .mockAssertionDisputedCallback(
-                          auctionRebalanceExtension.address,
-                          utils.formatBytes32String("win"),
-                        ),
-                    ).to.not.be.reverted;
+                    await subject();
 
                     const proposalHashAfter = await auctionRebalanceExtension
                       .connect(subjectCaller.wallet)
