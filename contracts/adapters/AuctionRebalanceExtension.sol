@@ -49,8 +49,8 @@ contract AuctionRebalanceExtension is BaseExtension {
 
     /* ============ State Variables ============ */
 
-    ISetToken public setToken;
-    IAuctionRebalanceModuleV1 public auctionModule;  // AuctionRebalanceModuleV1
+    ISetToken public immutable setToken;
+    IAuctionRebalanceModuleV1 public immutable auctionModule;  // AuctionRebalanceModuleV1
 
     /* ============ Constructor ============ */
 
