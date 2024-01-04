@@ -377,6 +377,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
     /* ============ Internal Functions ============ */
 
     // Constructs the claim that will be asserted at the Optimistic Oracle V3.
+    // @dev Inspired by the equivalent function in the OptimisticGovernor: https://github.com/UMAprotocol/protocol/blob/96cf5be32a3f57ac761f004890dd3466c63e1fa5/packages/core/contracts/optimistic-governor/implementation/OptimisticGovernor.sol#L437
     function _constructClaim(bytes32 proposalHash, bytes32 rulesHash) internal pure returns (bytes memory) {
         return
             abi.encodePacked(
