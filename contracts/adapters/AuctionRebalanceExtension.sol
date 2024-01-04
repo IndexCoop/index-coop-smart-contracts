@@ -73,7 +73,7 @@ contract AuctionRebalanceExtension is BaseExtension {
      * @param _newComponentsAuctionParams   AuctionExecutionParams for new components, indexed corresponding to _newComponents.
      * @param _oldComponentsAuctionParams   AuctionExecutionParams for existing components, indexed corresponding to
      *                                      the current component positions. Set to 0 for components being removed.
-     * @param _shouldLockSetToken           Indicates if the rebalance should lock the SetToken. Has to be false in this version
+     * @param _shouldLockSetToken           Indicates if the rebalance should lock the SetToken.
      * @param _rebalanceDuration            Duration of the rebalance in seconds.
      * @param _positionMultiplier           Position multiplier at the time target units were calculated.
      */
