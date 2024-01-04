@@ -4,6 +4,7 @@ export { AaveV2 } from "../../typechain/AaveV2";
 export { AirdropModule } from "../../typechain/AirdropModule";
 export { AuctionRebalanceModuleV1 } from "../../typechain/AuctionRebalanceModuleV1";
 export { BasicIssuanceModule } from "../../typechain/BasicIssuanceModule";
+export { BoundedStepwiseLinearPriceAdapter } from "../../typechain/BoundedStepwiseLinearPriceAdapter";
 export { Compound } from "../../typechain/Compound";
 export { Controller } from "../../typechain/Controller";
 export { ContractCallerMock } from "../../typechain/ContractCallerMock";
