@@ -1,5 +1,5 @@
 /*
-    Copyright 2020 Set Labs Inc.
+    Copyright 2023 Index Coop
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -20,17 +20,14 @@ pragma solidity 0.6.10;
 import { AddressArrayUtils } from "./AddressArrayUtils.sol";
 
 /**
- * @title ModuleBase
- * @author Set Protocol
+ * @title AssetAllowList
+ * @author Index Coop
  *
- * Abstract class that houses common Module-related state and functions.
- *
- * CHANGELOG:
- * - 4/21/21: Delegated modifier logic to internal helpers to reduce contract size
- *
+ * Abstract contract that allows inheriting contracts to restrict the assets that can be traded to, wrapped to, or claimed
  */
 abstract contract AssetAllowList {
     using AddressArrayUtils for address[];
+
     /* ============ Events ============ */
 
     event AllowedAssetAdded(
@@ -61,7 +58,7 @@ abstract contract AssetAllowList {
     modifier onlyAllowedAssets(address[] memory _assets) {
         require(
             _areAllowedAssets(_assets),
-            "BaseOptimisticAuctionRebalanceExtension.onlyAllowedAssets: Invalid asset"
+            "Invalid asset"
         );
         _;
     }
@@ -148,4 +145,3 @@ abstract contract AssetAllowList {
         return true;
     }
 }
-

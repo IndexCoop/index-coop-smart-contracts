@@ -1,6 +1,7 @@
 import "module-alias/register";
 
 import { Address, Account } from "@utils/types";
+import { base58ToHexString } from "@utils/common";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
 import {
   BaseManager,
@@ -23,28 +24,9 @@ import {
   getRandomAccount,
 } from "@utils/index";
 import { SetFixture } from "@utils/fixtures";
-import { BigNumber, ContractTransaction, utils } from "ethers";
-import base58 from "bs58";
+import { BigNumber, ContractTransaction, utils, constants } from "ethers";
 
 const expect = getWaffleExpect();
-
-function bufferToHex(buffer: Uint8Array) {
-  let hexStr = "";
-
-  for (let i = 0; i < buffer.length; i++) {
-    const hex = (buffer[i] & 0xff).toString(16);
-    hexStr += hex.length === 1 ? "0" + hex : hex;
-  }
-
-  return hexStr;
-}
-
-// Base58 decoding function (make sure you have a proper Base58 decoding function)
-function base58ToHexString(base58String: string) {
-  const bytes = base58.decode(base58String); // Decode base58 to a buffer
-  const hexString = bufferToHex(bytes.slice(2)); // Convert buffer to hex, excluding the first 2 bytes
-  return "0x" + hexString;
-}
 
 describe("OptimisticAuctionRebalanceExtensionV1", () => {
   let owner: Account;
@@ -81,7 +63,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
     priceAdapter = await deployer.setV2.deployConstantPriceAdapter();
     optimisticOracleV3Mock = await deployer.mocks.deployOptimisticOracleV3Mock();
     optimisticOracleV3MockUpgraded = await deployer.mocks.deployOptimisticOracleV3Mock();
-    collateralAsset = await deployer.mocks.deployStandardTokenMock(owner.address, 18);
+    collateralAsset = await deployer.mocks.deployStandardTokenMock(operator.address, 18);
 
     await setV2Setup.integrationRegistry.addIntegration(
       setV2Setup.auctionModule.address,
@@ -115,6 +97,9 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
       allowedAssets,
     );
     auctionRebalanceExtension = auctionRebalanceExtension.connect(operator.wallet);
+    await collateralAsset
+      .connect(operator.wallet)
+      .approve(auctionRebalanceExtension.address, ether(1000));
   });
 
   addSnapshotBeforeRestoreAfterEach();
@@ -141,7 +126,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
       );
     }
 
-    it("should set the correct manager core", async () => {
+    it("should set the correct base manager", async () => {
       const auctionExtension = await subject();
 
       const actualBaseManager = await auctionExtension.manager();
@@ -179,7 +164,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
           expect(isInitialized).to.be.true;
         });
 
-        describe("when the initializer is not the owner", () => {
+        describe("when the initializer is not the operator", () => {
           beforeEach(async () => {
             subjectCaller = await getRandomAccount();
           });
@@ -196,16 +181,22 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
         });
 
         context("when the product settings have been set", () => {
+          let rulesHash: Uint8Array;
+          let bondAmount: BigNumber;
           beforeEach(async () => {
+            rulesHash = utils.arrayify(
+              base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z"),
+            );
+            bondAmount = ether(140); // 140 INDEX minimum bond
             await auctionRebalanceExtension.connect(operator.wallet).setProductSettings(
               {
                 collateral: collateralAsset.address,
-                liveness: BigNumber.from(0),
-                bondAmount: BigNumber.from(0),
+                liveness: BigNumber.from(60 * 60), // 7 days
+                bondAmount,
                 identifier: utils.formatBytes32String(""),
                 optimisticOracleV3: optimisticOracleV3Mock.address,
               },
-              utils.arrayify(base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z")),
+              rulesHash,
             );
           });
 
@@ -291,13 +282,59 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                   );
               }
 
+              function constructClaim(): string {
+                const abi = utils.defaultAbiCoder;
+                const proposalHash = utils.keccak256(
+                  abi.encode(
+                    [
+                      "address",
+                      "address",
+                      "address[]",
+                      "address[]",
+                      "(uint256,string,bytes)[]",
+                      "(uint256,string,bytes)[]",
+                      "bool",
+                      "uint256",
+                      "uint256",
+                    ],
+                    [
+                      setToken.address,
+                      subjectQuoteAsset,
+                      subjectOldComponents,
+                      subjectNewComponents,
+                      subjectNewComponentsAuctionParams.map(component => [
+                        component.targetUnit,
+                        component.priceAdapterName,
+                        component.priceAdapterConfigData,
+                      ]),
+                      subjectOldComponentsAuctionParams.map(component => [
+                        component.targetUnit,
+                        component.priceAdapterName,
+                        component.priceAdapterConfigData,
+                      ]),
+                      false, // We don't allow locking the set token in this version
+                      subjectRebalanceDuration,
+                      subjectPositionMultiplier,
+                    ],
+                  ),
+                );
+                const firstPart = utils.toUtf8Bytes(
+                  "proposalHash:" + proposalHash.slice(2) + ',rulesIPFSHash:"',
+                );
+                const lastPart = utils.toUtf8Bytes('"');
+
+                return utils.hexlify(utils.concat([firstPart, rulesHash, lastPart]));
+              }
+
               context("when the extension is open for rebalance", () => {
                 beforeEach(async () => {
                   await auctionRebalanceExtension.updateIsOpen(true);
                 });
+
                 it("should not revert", async () => {
                   await subject();
                 });
+
                 it("should update proposed products correctly", async () => {
                   await subject();
                   const proposal = await auctionRebalanceExtension
@@ -305,16 +342,122 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                     .proposedProduct(utils.formatBytes32String("win"));
                   expect(proposal.product).to.eq(setToken.address);
                 });
+
+                it("should pull bond", async () => {
+                  const collateralBalanceBefore = await collateralAsset.balanceOf(
+                    subjectCaller.address,
+                  );
+                  await subject();
+                  const collateralBalanceAfter = await collateralAsset.balanceOf(
+                    subjectCaller.address,
+                  );
+                  expect(collateralBalanceAfter).to.eq(collateralBalanceBefore.sub(bondAmount));
+                });
+
+                it("should emit RebalanceProposed event", async () => {
+                  const receipt = (await subject().then(tx => tx.wait())) as any;
+                  const proposeEvent = receipt.events.find(
+                    (event: any) => event.event === "RebalanceProposed",
+                  );
+                  expect(proposeEvent.args.setToken).to.eq(setToken.address);
+                  expect(proposeEvent.args.quoteAsset).to.eq(subjectQuoteAsset);
+                  expect(proposeEvent.args.oldComponents).to.deep.eq(subjectOldComponents);
+                  expect(proposeEvent.args.newComponents).to.deep.eq(subjectNewComponents);
+                  expect(proposeEvent.args.rebalanceDuration).to.eq(subjectRebalanceDuration);
+                  expect(proposeEvent.args.positionMultiplier).to.eq(subjectPositionMultiplier);
+
+                  const newComponentsAuctionParams = proposeEvent.args.newComponentsAuctionParams.map(
+                    (entry: any) => {
+                      return {
+                        priceAdapterConfigData: entry.priceAdapterConfigData,
+                        priceAdapterName: entry.priceAdapterName,
+                        targetUnit: entry.targetUnit,
+                      };
+                    },
+                  );
+                  expect(newComponentsAuctionParams).to.deep.eq(subjectNewComponentsAuctionParams);
+
+                  const oldComponentsAuctionParams = proposeEvent.args.oldComponentsAuctionParams.map(
+                    (entry: any) => {
+                      return {
+                        priceAdapterConfigData: entry.priceAdapterConfigData,
+                        priceAdapterName: entry.priceAdapterName,
+                        targetUnit: entry.targetUnit,
+                      };
+                    },
+                  );
+                  expect(oldComponentsAuctionParams).to.deep.eq(subjectOldComponentsAuctionParams);
+                });
+
+                it("should emit AssertedClaim event", async () => {
+                  const receipt = (await subject().then( tx => tx.wait())) as any;
+                  const assertEvent = receipt.events.find(
+                    (event: any) => event.event === "AssertedClaim",
+                  );
+                  const emittedSetToken = assertEvent.args.setToken;
+                  expect(emittedSetToken).to.eq(setToken.address);
+                  const assertedBy = assertEvent.args._assertedBy;
+                  expect(assertedBy).to.eq(operator.wallet.address);
+                  const emittedRulesHash = assertEvent.args.rulesHash;
+                  expect(emittedRulesHash).to.eq(utils.hexlify(rulesHash));
+                  const claim = assertEvent.args._claimData;
+                  expect(claim).to.eq(constructClaim());
+                });
+
+                context("when the same rebalance has been proposed already", () => {
+                  beforeEach(async () => {
+                    await subject();
+                  });
+
+                  it("should revert", async () => {
+                    await expect(subject()).to.be.revertedWith("Proposal already exists");
+                  });
+                });
+
+                context("when the rule hash is empty", () => {
+                  beforeEach(async () => {
+                    const currentSettings = await auctionRebalanceExtension.productSettings();
+                    await auctionRebalanceExtension.setProductSettings(
+                      currentSettings.optimisticParams,
+                      constants.HashZero,
+                    );
+                  });
+
+                  it("should revert", async () => {
+                    await expect(subject()).to.be.revertedWith("Rules not set");
+                  });
+                });
+
+                context("when the oracle address is zero", () => {
+                  beforeEach(async () => {
+                    const [
+                      currentOptimisticParams,
+                      ruleHash,
+                    ] = await auctionRebalanceExtension.productSettings();
+                    const optimisticParams = {
+                      ...currentOptimisticParams,
+                      optimisticOracleV3: constants.AddressZero,
+                    };
+                    await auctionRebalanceExtension.setProductSettings(optimisticParams, ruleHash);
+                  });
+
+                  it("should revert", async () => {
+                    await expect(subject()).to.be.revertedWith("Oracle not set");
+                  });
+                });
               });
+
               context("when the extension is not open for rebalance", () => {
                 beforeEach(async () => {
                   await auctionRebalanceExtension.updateIsOpen(false);
                 });
+
                 it("should revert", async () => {
                   expect(subject()).to.be.revertedWith("Must be open for rebalancing");
                 });
               });
             });
+
             describe("#startRebalance", () => {
               async function subject(): Promise<ContractTransaction> {
                 return auctionRebalanceExtension
@@ -508,6 +651,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                       .proposedProduct(utils.formatBytes32String("win"));
                     expect(proposalAfter.product).to.eq(ADDRESS_ZERO);
                   });
+
                   it("should delete the proposal on a disputed callback from currently set oracle", async () => {
                     await auctionRebalanceExtension.connect(operator.wallet).setProductSettings(
                       {
@@ -521,6 +665,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                         base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z"),
                       ),
                     );
+
                     const proposal = await auctionRebalanceExtension
                       .connect(subjectCaller.wallet)
                       .proposedProduct(utils.formatBytes32String("win"));
@@ -533,12 +678,14 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                           utils.formatBytes32String("win"),
                         ),
                     ).to.not.be.reverted;
+
                     const proposalAfter = await auctionRebalanceExtension
                       .connect(subjectCaller.wallet)
                       .proposedProduct(utils.formatBytes32String("win"));
                     expect(proposalAfter.product).to.eq(ADDRESS_ZERO);
                   });
                 });
+
                 describe("assertionResolvedCallback", () => {
                   it("should not revert on a resolved callback", async () => {
                     await expect(
@@ -614,6 +761,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
               });
             });
           });
+
           describe("#setRaiseTargetPercentage", () => {
             let subjectRaiseTargetPercentage: BigNumber;
             let subjectCaller: Account;

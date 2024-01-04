@@ -20,23 +20,22 @@ pragma solidity 0.6.10;
 pragma experimental "ABIEncoderV2";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from  "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import { SafeERC20 } from  "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import { AddressArrayUtils } from "../lib/AddressArrayUtils.sol";
-
+import { AncillaryData } from "../lib/AncillaryData.sol";
+import { AssetAllowList } from "../lib/AssetAllowList.sol";
+import { AuctionRebalanceExtension } from "./AuctionRebalanceExtension.sol";
 import { IAuctionRebalanceModuleV1 } from "../interfaces/IAuctionRebalanceModuleV1.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
-import {AuctionRebalanceExtension} from "./AuctionRebalanceExtension.sol";
-import {AncillaryData } from "../lib/AncillaryData.sol";
-import { AssetAllowList } from "../lib/AssetAllowList.sol";
-import {OptimisticOracleV3Interface} from "../interfaces/OptimisticOracleV3Interface.sol";
+import { OptimisticOracleV3Interface } from "../interfaces/OptimisticOracleV3Interface.sol";
 
 /**
- * @title BaseOptimisticAuctionRebalanceExtension
+ * @title OptimisticAuctionRebalanceExtension
  * @author Index Coop
  *
- * @dev The contract extends `BaseAuctionRebalanceExtension` by adding an optimistic oracle mechanism for validating rules on the proposing and executing of rebalances. 
+ * @dev The contract extends `AuctionRebalanceExtension` by adding an optimistic oracle mechanism for validating rules on the proposing and executing of rebalances. 
  * It allows setting product-specific parameters for optimistic rebalancing and includes callback functions for resolved or disputed assertions.
  * @dev Version 1 is characterised by: Optional Asset Whitelist, No Set Token locking, control over rebalance timing via "isOpen" flag
  */
@@ -52,6 +51,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         OptimisticRebalanceParams optimisticParams,
         bytes32 indexed rulesHash
     );
+
     event RebalanceProposed(
         ISetToken indexed setToken,
         IERC20 indexed quoteAsset,
@@ -74,7 +74,11 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
     event ProposalDeleted(
         bytes32 assertionID, 
         Proposal indexed proposal
-        );
+    );
+
+    event IsOpenUpdated(
+        bool indexed isOpen
+    );
 
     /* ============ Structs ============ */
 
@@ -114,16 +118,20 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
     bytes public constant PROPOSAL_HASH_KEY = "proposalHash";
     bytes public constant RULES_KEY = "rulesIPFSHash";
 
-
     /* ============ Constructor ============ */
+
     /*
-      * @dev Initializes the BaseOptimisticAuctionRebalanceExtension with the passed parameters.
+      * @dev Initializes the OptimisticAuctionRebalanceExtension with the passed parameters.
       * 
       * @param _auctionParams AuctionExtensionParams struct containing the baseManager and auctionModule addresses.
     */ 
-        constructor(AuctionExtensionParams memory _auctionParams) public AuctionRebalanceExtension(_auctionParams.baseManager, _auctionParams.auctionModule) AssetAllowList(_auctionParams.allowedAssets, _auctionParams.useAssetAllowlist) {
-    
-    }
+    constructor(
+        AuctionExtensionParams memory _auctionParams
+    )
+        public
+        AuctionRebalanceExtension(_auctionParams.baseManager, _auctionParams.auctionModule)
+        AssetAllowList(_auctionParams.allowedAssets, _auctionParams.useAssetAllowlist)
+    { }
 
     /* ============ Modifier ============ */
 
@@ -135,7 +143,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
     /* ============ External Functions ============ */
 
     /**
-     * ONLY OPERATOR: Add new asset(s) that can be traded to, wrapped to, or claimed
+     * ONLY OPERATOR: Add new asset(s) that can be included as new components in rebalances
      *
      * @param _assets           New asset(s) to add
      */
@@ -144,7 +152,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
     }
 
     /**
-     * ONLY OPERATOR: Remove asset(s) so that it/they can't be traded to, wrapped to, or claimed
+     * ONLY OPERATOR: Remove asset(s) so that it/they can't be included as new components in rebalances
      *
      * @param _assets           Asset(s) to remove
      */
@@ -163,22 +171,20 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
     }
 
     /**
-    * ONLY OPERATOR: Toggle isOpen on and off. When false the extension is closed for proposing rebalances.
-    * when true it is open.
-    *
-    * @param _isOpen           Bool indicating whether the extension is open for proposing rebalances.
-    */
+     * ONLY OPERATOR: Toggle isOpen on and off. When false the extension is closed for proposing rebalances.
+     * when true it is open.
+     *
+     * @param _isOpen           Bool indicating whether the extension is open for proposing rebalances.
+     */
    function updateIsOpen(bool _isOpen) external onlyOperator {
-       isOpen = _isOpen;
+       _updateIsOpen(_isOpen);
     }
 
-
-
     /**
-    * @dev OPERATOR ONLY: sets product settings for a given set token
-    * @param _optimisticParams OptimisticRebalanceParams struct containing optimistic rebalance parameters.
-    * @param _rulesHash bytes32 containing the ipfs hash rules for the product.
-    */
+     * @dev OPERATOR ONLY: sets product settings for a given set token
+     * @param _optimisticParams OptimisticRebalanceParams struct containing optimistic rebalance parameters.
+     * @param _rulesHash bytes32 containing the ipfs hash rules for the product.
+     */
     function setProductSettings(
         OptimisticRebalanceParams memory _optimisticParams,
         bytes32 _rulesHash
@@ -190,10 +196,13 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
             optimisticParams: _optimisticParams,
             rulesHash: _rulesHash
         });
+
         emit ProductSettingsUpdated(setToken, setToken.manager(), _optimisticParams, _rulesHash);
     }
 
-     /**
+    /**
+     * @dev IF OPEN ONLY: Proposes a rebalance for the SetToken using the Optimistic Oracle V3.
+     * 
      * @param _quoteAsset                   ERC20 token used as the quote asset in auctions.
      * @param _oldComponents                Addresses of existing components in the SetToken.
      * @param _newComponents                Addresses of new components to be added.
@@ -202,7 +211,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
      *                                      the current component positions. Set to 0 for components being removed.
      * @param _rebalanceDuration            Duration of the rebalance in seconds.
      * @param _positionMultiplier           Position multiplier at the time target units were calculated.
-    */
+     */
     function proposeRebalance(
         IERC20 _quoteAsset,
         address[] memory _oldComponents,
@@ -231,7 +240,6 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         require(productSettings.rulesHash != bytes32(""), "Rules not set");
         require(address(productSettings.optimisticParams.optimisticOracleV3) != address(0), "Oracle not set");
 
-
         bytes memory claim = _constructClaim(proposalHash, productSettings.rulesHash);
         uint256 totalBond = _pullBond(productSettings.optimisticParams);
 
@@ -255,7 +263,6 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
 
         emit RebalanceProposed( setToken, _quoteAsset, _oldComponents, _newComponents, _newComponentsAuctionParams, _oldComponentsAuctionParams,  _rebalanceDuration, _positionMultiplier);
         emit AssertedClaim(setToken, msg.sender, productSettings.rulesHash, assertionId, claim);
-
     }
    
     /**
@@ -332,20 +339,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         );
 
         invokeManager(address(auctionModule), callData);
-        isOpen = false;
-    }
-
-     // Constructs the claim that will be asserted at the Optimistic Oracle V3.
-    function _constructClaim(bytes32 proposalHash, bytes32 rulesHash) internal pure returns (bytes memory) {
-        return
-            abi.encodePacked(
-                AncillaryData.appendKeyValueBytes32("", PROPOSAL_HASH_KEY, proposalHash),
-                ",",
-                RULES_KEY,
-                ":\"",
-                rulesHash,
-                "\""
-            );
+        _updateIsOpen(false);
     }
 
     /**
@@ -380,6 +374,30 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         emit ProposalDeleted(_assertionId, proposal);
     }
 
+    /* ============ Internal Functions ============ */
+
+    // Constructs the claim that will be asserted at the Optimistic Oracle V3.
+    function _constructClaim(bytes32 proposalHash, bytes32 rulesHash) internal pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                AncillaryData.appendKeyValueBytes32("", PROPOSAL_HASH_KEY, proposalHash),
+                ",",
+                RULES_KEY,
+                ":\"",
+                rulesHash,
+                "\""
+            );
+    }
+
+    /// @notice Delete an existing proposal and associated assertionId.
+    /// @dev Internal function that deletes a proposal and associated assertionId.
+    /// @param assertionId assertionId of the proposal to delete.
+    function _deleteProposal(bytes32 assertionId) internal {
+        Proposal memory proposal = proposedProduct[assertionId];
+        delete assertionIds[proposal.proposalHash];
+        delete proposedProduct[assertionId];
+    }
+
     /// @notice Pulls the higher of the minimum bond or configured bond amount from the sender.
     /// @dev Internal function to pull the user's bond before asserting a claim.
     /// @param optimisticRebalanceParams optimistic rebalance parameters for the product.
@@ -394,13 +412,8 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         return totalBond;
     }
 
-    /// @notice Delete an existing proposal and associated assertionId.
-    /// @dev Internal function that deletes a proposal and associated assertionId.
-    /// @param assertionId assertionId of the proposal to delete.
-    function _deleteProposal(bytes32 assertionId) internal {
-        Proposal memory proposal = proposedProduct[assertionId];
-        delete assertionIds[proposal.proposalHash];
-        delete proposedProduct[assertionId];
+    function _updateIsOpen(bool _isOpen) internal {
+        isOpen = _isOpen;
+        emit IsOpenUpdated(_isOpen);
     }
-
 }
