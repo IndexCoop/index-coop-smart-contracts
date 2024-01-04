@@ -205,9 +205,9 @@ if (process.env.INTEGRATIONTEST) {
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
                     ether(1.043),
-                    ether(0.001),
+                    ether(0.0005),
                     ONE_HOUR_IN_SECONDS,
-                    true,
+                    false,
                     ether(1.05),
                     ether(1.043),
                   ),
@@ -217,9 +217,9 @@ if (process.env.INTEGRATIONTEST) {
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
                     ether(1.014),
-                    ether(0.001),
+                    ether(0.0005),
                     ONE_HOUR_IN_SECONDS,
-                    true,
+                    false,
                     ether(1.02),
                     ether(1.014),
                   ),
