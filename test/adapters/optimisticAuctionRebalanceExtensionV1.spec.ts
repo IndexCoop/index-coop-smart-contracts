@@ -635,6 +635,19 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                 });
               });
 
+              describe("when any parameter is different from the proposedRebalance", () => {
+                beforeEach(async () => {
+                  await proposeRebalance();
+                  subjectPositionMultiplier = subjectPositionMultiplier.add(1);
+                });
+
+                it("should revert", async () => {
+                  await expect(subject()).to.be.revertedWith(
+                    "Proposal hash does not exist",
+                  );
+                });
+              });
+
               describe("when old components array is shorter than current components array", () => {
                 beforeEach(async () => {
                   subjectOldComponents = [setV2Setup.dai.address, setV2Setup.wbtc.address];
