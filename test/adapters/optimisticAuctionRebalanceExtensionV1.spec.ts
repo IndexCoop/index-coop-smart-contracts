@@ -141,6 +141,130 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
     });
   });
 
+  describe("#updateUseAssetAllowlist", () => {
+    let subjectCaller: Account;
+    let subjectNewValue: boolean;
+    function subject() {
+      return auctionRebalanceExtension
+        .connect(subjectCaller.wallet)
+        .updateUseAssetAllowlist(subjectNewValue);
+    }
+    beforeEach(async () => {
+      subjectCaller = operator;
+    });
+    [true, false].forEach((useAssetAllowlist: boolean) => {
+      describe(`when setting value to ${useAssetAllowlist}`, () => {
+        beforeEach(async () => {
+          subjectNewValue = useAssetAllowlist;
+          await auctionRebalanceExtension
+            .connect(operator.wallet)
+            .updateUseAssetAllowlist(!subjectNewValue);
+        });
+
+        it("should update the useAssetAllowlist correctly", async () => {
+          await subject();
+          const actualUseAssetAllowlist = await auctionRebalanceExtension.useAssetAllowlist();
+          expect(actualUseAssetAllowlist).to.eq(subjectNewValue);
+        });
+      });
+    });
+    context("when the caller is not the operator", async () => {
+      beforeEach(async () => {
+        subjectCaller = methodologist;
+        subjectNewValue = true;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be operator");
+      });
+    });
+  });
+
+  describe("#removeAllowedAssets", () => {
+    let subjectCaller: Account;
+    let subjectRemovedAssets: Address[];
+    async function subject() {
+      return await auctionRebalanceExtension
+        .connect(subjectCaller.wallet)
+        .removeAllowedAssets(subjectRemovedAssets);
+    }
+    beforeEach(async () => {
+      subjectRemovedAssets = [collateralAsset.address];
+      subjectCaller = operator;
+      await auctionRebalanceExtension
+        .connect(operator.wallet)
+        .addAllowedAssets(subjectRemovedAssets);
+    });
+
+    it("should add the new assets to the allowed assets", async () => {
+      await subject();
+      for (let i = 0; i < subjectRemovedAssets.length; i++) {
+        const isAllowed = await auctionRebalanceExtension.assetAllowlist(subjectRemovedAssets[i]);
+        expect(isAllowed).to.be.false;
+      }
+    });
+
+    it("should emit AllowedAssetAdded event", async () => {
+      const promise = subject();
+      for (let i = 0; i < subjectRemovedAssets.length; i++) {
+        await expect(promise)
+          .to.emit(auctionRebalanceExtension, "AllowedAssetRemoved")
+          .withArgs(subjectRemovedAssets[i]);
+      }
+    });
+
+    context("If the caller is not the operator", async () => {
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be operator");
+      });
+    });
+  });
+
+  describe("#addAllowedAssets", () => {
+    let subjectCaller: Account;
+    let subjectNewAssets: Address[];
+    async function subject() {
+      return await auctionRebalanceExtension
+        .connect(subjectCaller.wallet)
+        .addAllowedAssets(subjectNewAssets);
+    }
+    beforeEach(async () => {
+      subjectCaller = operator;
+      subjectNewAssets = [collateralAsset.address];
+    });
+
+    it("should add the new assets to the allowed assets", async () => {
+      await subject();
+      for (let i = 0; i < subjectNewAssets.length; i++) {
+        const isAllowed = await auctionRebalanceExtension.assetAllowlist(subjectNewAssets[i]);
+        expect(isAllowed).to.be.true;
+      }
+    });
+
+    it("should emit AllowedAssetAdded event", async () => {
+      const promise = subject();
+      for (let i = 0; i < subjectNewAssets.length; i++) {
+        await expect(promise)
+          .to.emit(auctionRebalanceExtension, "AllowedAssetAdded")
+          .withArgs(subjectNewAssets[i]);
+      }
+    });
+
+    context("If the caller is not the operator", async () => {
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be operator");
+      });
+    });
+  });
+
   context(
     "when auction rebalance extension is added as adapter and needs to be initialized",
     () => {
@@ -390,7 +514,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                 });
 
                 it("should emit AssertedClaim event", async () => {
-                  const receipt = (await subject().then( tx => tx.wait())) as any;
+                  const receipt = (await subject().then(tx => tx.wait())) as any;
                   const assertEvent = receipt.events.find(
                     (event: any) => event.event === "AssertedClaim",
                   );
@@ -414,6 +538,27 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                   });
                 });
 
+                context("when asset allow list is activated", () => {
+                  beforeEach(async () => {
+                    await auctionRebalanceExtension.updateUseAssetAllowlist(true);
+                  });
+
+                  context("when new assets are not on the allow list", () => {
+                    it("should revert", async () => {
+                      await expect(subject()).to.be.revertedWith("Invalid asset");
+                    });
+                  });
+
+                  context("when new assets are on the allow list", () => {
+                    beforeEach(async () => {
+                      await auctionRebalanceExtension.addAllowedAssets(subjectNewComponents);
+                    });
+
+                    it("should not revert", async () => {
+                      await subject();
+                    });
+                  });
+                });
                 context("when the rule hash is empty", () => {
                   beforeEach(async () => {
                     const currentSettings = await auctionRebalanceExtension.productSettings();
