@@ -154,8 +154,7 @@ if (process.env.INTEGRATIONTEST) {
         let identifier: string;
 
         beforeEach(async () => {
-          identifier = utils.formatBytes32String("TestIdentifier"); // TODO: Check how do we ensure that our identifier is supported on UMAs whitelist
-          await identifierWhitelist.addSupportedIdentifier(identifier);
+          identifier = "0x4153534552545f54525554480000000000000000000000000000000000000000"; // ASSERT_TRUTH identifier
 
           productSettings = {
             collateral: collateralAssetAddress,
@@ -202,7 +201,7 @@ if (process.env.INTEGRATIONTEST) {
               subjectNewComponents = [contractAddresses.tokens.swETH, contractAddresses.tokens.ETHx];
               subjectNewComponentsAuctionParams = [
                 { // swETH: https://etherscan.io/address/0xf951E335afb289353dc249e82926178EaC7DEd78#readProxyContract#F6
-                  targetUnit: ether(0.166), // To do: Check target units
+                  targetUnit: "155716754710815260",
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
                     ether(1.043),
@@ -214,7 +213,7 @@ if (process.env.INTEGRATIONTEST) {
                   ),
                 },
                 { // ETHx: https://etherscan.io/address/0xcf5ea1b38380f6af39068375516daf40ed70d299#readProxyContract#F5
-                  targetUnit: ether(0.166), // To do: Check target units
+                  targetUnit: "162815732702576500",
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
                     ether(1.014),
@@ -229,7 +228,7 @@ if (process.env.INTEGRATIONTEST) {
 
               subjectOldComponentsAuctionParams = [
                 { // wstETH: https://etherscan.io/address/0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0#readContract#F10
-                  targetUnit: ether(0.166), // To do: Check target units
+                  targetUnit: "148503139447300450",
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
                     ether(1.155),
@@ -241,7 +240,7 @@ if (process.env.INTEGRATIONTEST) {
                   ),
                 },
                 { // rETH: https://etherscan.io/address/0xae78736Cd615f374D3085123A210448E74Fc6393#readContract#F6
-                  targetUnit: ether(0.166), // To do: Check target units
+                  targetUnit: "233170302540761920",
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
                     ether(1.097),
@@ -253,7 +252,7 @@ if (process.env.INTEGRATIONTEST) {
                   ),
                 },
                 { // sfrxETH: https://etherscan.io/address/0xac3E018457B222d93114458476f3E3416Abbe38F#readContract#F20
-                  targetUnit: ether(0.166), // To do: Check target units
+                  targetUnit: "123631627061020350",
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
                     ether(1.073),
@@ -264,8 +263,8 @@ if (process.env.INTEGRATIONTEST) {
                     ether(1.067),
                   ),
                 },
-                { // osETH: Add conversion rate source
-                  targetUnit: ether(0.166), // To do: Check target units
+                { // osETH: https://etherscan.io/address/0x8023518b2192fb5384dadc596765b3dd1cdfe471#readContract#F3
+                  targetUnit: "153017509830141340",
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
                     ether(1.005),
