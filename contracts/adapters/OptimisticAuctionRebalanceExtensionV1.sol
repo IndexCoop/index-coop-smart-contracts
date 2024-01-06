@@ -104,7 +104,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
 
     /* ============ State Variables ============ */
     
-    ProductSettings public productSettings; // Mapping of set token to ProductSettings
+    ProductSettings public productSettings;
     mapping(bytes32 => bytes32) public assertionIds; // Maps proposal hashes to assertionIds.
     mapping(bytes32 => bytes32) public assertionIdToProposalHash; // Maps assertionIds to a proposal hash.
     bool public isOpen; // Bool indicating whether the extension is open for proposing rebalances.
