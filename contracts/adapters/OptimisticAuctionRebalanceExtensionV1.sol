@@ -126,7 +126,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         public
         AuctionRebalanceExtension(_auctionParams.baseManager, _auctionParams.auctionModule)
         AssetAllowList(_auctionParams.allowedAssets, _auctionParams.useAssetAllowlist)
-    { }
+    {}
 
     /* ============ Modifier ============ */
 

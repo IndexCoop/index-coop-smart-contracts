@@ -42,7 +42,7 @@ import { ethers } from "hardhat";
 const expect = getWaffleExpect();
 
 if (process.env.INTEGRATIONTEST) {
-  describe.only("OptimisticAuctionRebalanceExtensionV1 - Integration Test dsEth", () => {
+  describe("OptimisticAuctionRebalanceExtensionV1 - Integration Test dsEth", () => {
     const contractAddresses = PRODUCTION_ADDRESSES;
 
     const liveness = BigNumber.from(60 * 60 * 24 * 2); // 2 days
