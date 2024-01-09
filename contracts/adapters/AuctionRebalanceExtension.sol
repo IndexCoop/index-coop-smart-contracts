@@ -49,8 +49,8 @@ contract AuctionRebalanceExtension is BaseExtension {
 
     /* ============ State Variables ============ */
 
-    ISetToken public setToken;
-    IAuctionRebalanceModuleV1 public auctionModule;  // AuctionRebalanceModuleV1
+    ISetToken public immutable setToken;
+    IAuctionRebalanceModuleV1 public immutable auctionModule;  // AuctionRebalanceModuleV1
 
     /* ============ Constructor ============ */
 
@@ -88,6 +88,7 @@ contract AuctionRebalanceExtension is BaseExtension {
         uint256 _positionMultiplier
     )
         external
+        virtual
         onlyOperator
     {
         address[] memory currentComponents = setToken.getComponents();

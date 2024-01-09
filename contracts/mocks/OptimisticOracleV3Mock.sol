@@ -21,9 +21,14 @@ interface callbackInterface {
  * tradeoffs, enabling the notion of "sovereign security".
  */
 contract OptimisticOracleV3Mock is OptimisticOracleV3Interface {
+    address public asserter;
     // Mock implementation of defaultIdentifier
     function defaultIdentifier() public view override returns (bytes32) {
         return (bytes32("helloWorld"));
+    }
+
+    function setAsserter(address _asserter) public {
+        asserter = _asserter;
     }
 
     // Mock implementation of getAssertion
@@ -36,7 +41,7 @@ contract OptimisticOracleV3Mock is OptimisticOracleV3Interface {
                 assertingCaller: address(0),
                 escalationManager: address(0)
             }),
-            asserter: address(0),
+            asserter: asserter,
             assertionTime: uint64(0),
             settled: false,
             currency: IERC20(address(0)),
@@ -78,6 +83,10 @@ contract OptimisticOracleV3Mock is OptimisticOracleV3Interface {
     // Mock implementation of getAssertionResult
     function getAssertionResult(bytes32 ) public view override returns (bool) {
         return (false);
+    }
+
+    function disputeAssertion(bytes32 assertionId, address disputer) external override {
+        revert("Not implemented");
     }
 
     // Mock implementation of getMinimumBond

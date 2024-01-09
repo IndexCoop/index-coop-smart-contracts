@@ -371,8 +371,8 @@ describe("BaseManagerV2", () => {
     });
 
     describe("when the extension is authorized for a protected module", () => {
-      beforeEach(() => {
-        baseManager.connect(operator.wallet).protectModule(subjectModule, [subjectExtension]);
+      beforeEach(async () => {
+        await baseManager.connect(operator.wallet).protectModule(subjectModule, [subjectExtension]);
       });
 
       it("should revert", async() => {
