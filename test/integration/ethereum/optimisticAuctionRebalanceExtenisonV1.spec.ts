@@ -152,9 +152,11 @@ if (process.env.INTEGRATIONTEST) {
       context("when the product settings have been set", () => {
         let productSettings: any;
         let identifier: string;
+        let rulesHash: any;
 
         beforeEach(async () => {
           identifier = "0x4153534552545f54525554480000000000000000000000000000000000000000"; // ASSERT_TRUTH identifier
+          rulesHash = utils.arrayify(base58ToHexString("QmdHftq7GK552HHVoLdU41DTzxSyFhhPnPoEEuySKM7nWK"));
 
           productSettings = {
             collateral: collateralAssetAddress,
@@ -168,7 +170,7 @@ if (process.env.INTEGRATIONTEST) {
             .connect(operator)
             .setProductSettings(
               productSettings,
-              utils.arrayify(base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z")),
+              rulesHash,
             );
         });
 
@@ -475,9 +477,7 @@ if (process.env.INTEGRATIONTEST) {
                         identifier,
                         optimisticOracleV3: optimisticOracleV3Mock.address,
                       },
-                      utils.arrayify(
-                        base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z"),
-                      ),
+                      rulesHash,
                     );
 
                     const proposalHash = await auctionRebalanceExtension
@@ -510,9 +510,7 @@ if (process.env.INTEGRATIONTEST) {
                       identifier,
                       optimisticOracleV3: optimisticOracleV3Mock.address,
                     },
-                    utils.arrayify(
-                      base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z"),
-                    ),
+                    rulesHash,
                   );
                   const tx = await auctionRebalanceExtension
                     .connect(subjectCaller)
