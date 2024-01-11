@@ -1,7 +1,6 @@
 import "module-alias/register";
 
 import { Address, Account } from "@utils/types";
-import { base58ToHexString } from "@utils/common";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
 import {
   BaseManager,
@@ -51,6 +50,8 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
 
   let useAssetAllowlist: boolean;
   let allowedAssets: Address[];
+
+  const ipfsHash = "Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z";
 
   before(async () => {
     [owner, methodologist, operator] = await getAccounts();
@@ -305,12 +306,10 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
         });
 
         context("when the product settings have been set", () => {
-          let rulesHash: Uint8Array;
+          let rules: string;
           let bondAmount: BigNumber;
           beforeEach(async () => {
-            rulesHash = utils.arrayify(
-              base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z"),
-            );
+            rules = ipfsHash;
             bondAmount = ether(140); // 140 INDEX minimum bond
             await auctionRebalanceExtension.connect(operator.wallet).setProductSettings(
               {
@@ -320,7 +319,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                 identifier: utils.formatBytes32String(""),
                 optimisticOracleV3: optimisticOracleV3Mock.address,
               },
-              rulesHash,
+              rules,
             );
           });
 
@@ -442,12 +441,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                     ],
                   ),
                 );
-                const firstPart = utils.toUtf8Bytes(
-                  "proposalHash:" + proposalHash.slice(2) + ',rulesIPFSHash:"',
-                );
-                const lastPart = utils.toUtf8Bytes('"');
-
-                return utils.hexlify(utils.concat([firstPart, rulesHash, lastPart]));
+                return `proposalHash:${proposalHash.slice(2)},rules:"${rules}"`;
               }
 
               context("when the extension is open for rebalance", () => {
@@ -528,10 +522,10 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                   expect(emittedSetToken).to.eq(setToken.address);
                   const assertedBy = assertEvent.args._assertedBy;
                   expect(assertedBy).to.eq(operator.wallet.address);
-                  const emittedRulesHash = assertEvent.args.rulesHash;
-                  expect(emittedRulesHash).to.eq(utils.hexlify(rulesHash));
+                  const emittedRules = assertEvent.args.rules;
+                  expect(emittedRules).to.eq(rules);
                   const claim = assertEvent.args._claimData;
-                  expect(claim).to.eq(constructClaim());
+                  expect(utils.toUtf8String(claim)).to.eq(constructClaim());
                 });
 
                 context("when the same rebalance has been proposed already", () => {
@@ -570,7 +564,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                     const currentSettings = await auctionRebalanceExtension.productSettings();
                     await auctionRebalanceExtension.setProductSettings(
                       currentSettings.optimisticParams,
-                      constants.HashZero,
+                      "",
                     );
                   });
 
@@ -891,9 +885,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                         identifier: utils.formatBytes32String(""),
                         optimisticOracleV3: optimisticOracleV3MockUpgraded.address,
                       },
-                      utils.arrayify(
-                        base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z"),
-                      ),
+                      ipfsHash,
                     );
 
                     const proposalHash = await auctionRebalanceExtension
