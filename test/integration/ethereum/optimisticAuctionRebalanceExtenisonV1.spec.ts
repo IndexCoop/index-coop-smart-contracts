@@ -118,7 +118,7 @@ if (process.env.INTEGRATIONTEST) {
         owner.wallet,
       );
 
-      useAssetAllowlist = te;
+      useAssetAllowlist = true;
       allowedAssets = [contractAddresses.tokens.swETH, contractAddresses.tokens.ETHx]; // New dsETH components
 
       dsEth = SetToken__factory.connect(contractAddresses.tokens.dsEth, owner.wallet);
@@ -171,7 +171,7 @@ if (process.env.INTEGRATIONTEST) {
 
         context("when the extension is open to rebalances", () => {
           beforeEach(async () => {
-            await auctionRebalanceExtension.updateIsOpen(te);
+            await auctionRebalanceExtension.updateIsOpen(true);
           });
 
           context("when a rebalance has been proposed", () => {
@@ -229,54 +229,50 @@ if (process.env.INTEGRATIONTEST) {
               ];
 
               subjectOldComponentsAuctionParams = [
-                {
-                  // wstETH: https://etherscan.io/address/0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0#readContract#F10
+                { // wstETH: https://etherscan.io/address/0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0#readContract#F10
                   targetUnit: "148503139447300450",
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
                     ether(1.155),
                     ether(0.001),
                     ONE_HOUR_IN_SECONDS,
-                    te,
+                    true,
                     ether(1.155),
                     ether(1.149),
                   ),
                 },
-                {
-                  // rETH: https://etherscan.io/address/0xae78736Cd615f374D3085123A210448E74Fc6393#readContract#F6
+                { // rETH: https://etherscan.io/address/0xae78736Cd615f374D3085123A210448E74Fc6393#readContract#F6
                   targetUnit: "233170302540761920",
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
                     ether(1.097),
                     ether(0.001),
                     ONE_HOUR_IN_SECONDS,
-                    te,
+                    true,
                     ether(1.097),
                     ether(1.091),
                   ),
                 },
-                {
-                  // sfrxETH: https://etherscan.io/address/0xac3E018457B222d93114458476f3E3416Abbe38F#readContract#F20
+                { // sfrxETH: https://etherscan.io/address/0xac3E018457B222d93114458476f3E3416Abbe38F#readContract#F20
                   targetUnit: "123631627061020350",
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
                     ether(1.073),
                     ether(0.001),
                     ONE_HOUR_IN_SECONDS,
-                    te,
+                    true,
                     ether(1.073),
                     ether(1.067),
                   ),
                 },
-                {
-                  // osETH: https://etherscan.io/address/0x8023518b2192fb5384dadc596765b3dd1cdfe471#readContract#F3
+                { // osETH: https://etherscan.io/address/0x8023518b2192fb5384dadc596765b3dd1cdfe471#readContract#F3
                   targetUnit: "153017509830141340",
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
                     ether(1.005),
                     ether(0.001),
                     ONE_HOUR_IN_SECONDS,
-                    te,
+                    true,
                     ether(1.005),
                     ether(1.004),
                   ),
@@ -362,7 +358,7 @@ if (process.env.INTEGRATIONTEST) {
                           subjectRebalanceDuration,
                           subjectPositionMultiplier,
                         );
-                      await auctionRebalanceExtension.updateIsOpen(te);
+                      await auctionRebalanceExtension.updateIsOpen(true);
                     });
 
                     it("should revert", async () => {
@@ -535,7 +531,7 @@ if (process.env.INTEGRATIONTEST) {
                     .mockAssertionResolvedCallback(
                       auctionRebalanceExtension.address,
                       proposalId,
-                      te,
+                      true,
                     );
                 });
               });
@@ -584,7 +580,7 @@ if (process.env.INTEGRATIONTEST) {
 
           beforeEach(async () => {
             subjectBidders = [methodologist.address];
-            subjectStatuses = [te];
+            subjectStatuses = [true];
             subjectCaller = operator;
           });
 
@@ -599,7 +595,7 @@ if (process.env.INTEGRATIONTEST) {
 
             const isCaller = await auctionModule.isAllowedBidder(dsEth.address, subjectBidders[0]);
 
-            expect(isCaller).to.be.te;
+            expect(isCaller).to.be.true;
           });
 
           describe("when the caller is not the operator", () => {
@@ -618,7 +614,7 @@ if (process.env.INTEGRATIONTEST) {
           let subjectCaller: Signer;
 
           beforeEach(async () => {
-            subjectStatus = te;
+            subjectStatus = true;
             subjectCaller = operator;
           });
 
@@ -633,7 +629,7 @@ if (process.env.INTEGRATIONTEST) {
 
             const anyoneBid = await auctionModule.permissionInfo(dsEth.address);
 
-            expect(anyoneBid).to.be.te;
+            expect(anyoneBid).to.be.true;
           });
 
           describe("when the caller is not the operator", () => {
@@ -655,7 +651,7 @@ if (process.env.INTEGRATIONTEST) {
           }
 
           it("should remove the extension", async () => {
-            expect(await baseManager.isExtension(auctionRebalanceExtension.address)).to.be.te;
+            expect(await baseManager.isExtension(auctionRebalanceExtension.address)).to.be.true;
             await subject();
             expect(await baseManager.isExtension(auctionRebalanceExtension.address)).to.be.false;
           });
