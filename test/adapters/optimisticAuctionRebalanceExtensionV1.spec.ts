@@ -1,5 +1,6 @@
 import "module-alias/register";
 
+import base58 from "bs58";
 import { Address, Account } from "@utils/types";
 import { base58ToHexString } from "@utils/common";
 import { ADDRESS_ZERO, ZERO } from "@utils/constants";
@@ -28,6 +29,22 @@ import { BigNumber, ContractTransaction, utils, constants } from "ethers";
 
 const expect = getWaffleExpect();
 
+const decodeClaim = (claim: string) => {
+  const claimBytes = utils.arrayify(claim);
+
+  const firstPart = claimBytes.slice(0, 93);
+  const secondPart = claimBytes.slice(93, 93 + 32);
+  const thirdPart = claimBytes.slice(93 + 32);
+
+  // IPFS hash decoding, see: https://ethereum.stackexchange.com/questions/17094/how-to-store-ipfs-hash-using-bytes32
+  const sha2SelectorByte = 18;
+  const hashLengthByte = 32;
+  const encodedIPFSHash = utils.concat([[sha2SelectorByte, hashLengthByte], secondPart]);
+  const decodedIPFSHash = base58.encode(encodedIPFSHash);
+
+  return utils.toUtf8String(firstPart) + decodedIPFSHash + utils.toUtf8String(thirdPart);
+};
+
 describe("OptimisticAuctionRebalanceExtensionV1", () => {
   let owner: Account;
   let methodologist: Account;
@@ -51,6 +68,8 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
 
   let useAssetAllowlist: boolean;
   let allowedAssets: Address[];
+
+  const ipfsHash = "Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z";
 
   before(async () => {
     [owner, methodologist, operator] = await getAccounts();
@@ -308,9 +327,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
           let rulesHash: Uint8Array;
           let bondAmount: BigNumber;
           beforeEach(async () => {
-            rulesHash = utils.arrayify(
-              base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z"),
-            );
+            rulesHash = utils.arrayify(base58ToHexString(ipfsHash));
             bondAmount = ether(140); // 140 INDEX minimum bond
             await auctionRebalanceExtension.connect(operator.wallet).setProductSettings(
               {
@@ -532,6 +549,20 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                   expect(emittedRulesHash).to.eq(utils.hexlify(rulesHash));
                   const claim = assertEvent.args._claimData;
                   expect(claim).to.eq(constructClaim());
+                });
+
+                it("can decode the claim", async () => {
+                  const receipt = (await subject().then(tx => tx.wait())) as any;
+                  const assertEvent = receipt.events.find(
+                    (event: any) => event.event === "AssertedClaim",
+                  );
+                  const claim = assertEvent.args._claimData;
+                  const decodedClaim = decodeClaim(claim);
+                  const proposalHash = await auctionRebalanceExtension
+                    .connect(subjectCaller.wallet)
+                    .assertionIdToProposalHash(utils.formatBytes32String("win"));
+                  const expectedClaim = `proposalHash:${proposalHash.slice(2)},rulesIPFSHash:"${ipfsHash}"`;
+                  expect(decodedClaim).to.eq(expectedClaim);
                 });
 
                 context("when the same rebalance has been proposed already", () => {
@@ -891,9 +922,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                         identifier: utils.formatBytes32String(""),
                         optimisticOracleV3: optimisticOracleV3MockUpgraded.address,
                       },
-                      utils.arrayify(
-                        base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z"),
-                      ),
+                      utils.arrayify(base58ToHexString(ipfsHash)),
                     );
 
                     const proposalHash = await auctionRebalanceExtension
