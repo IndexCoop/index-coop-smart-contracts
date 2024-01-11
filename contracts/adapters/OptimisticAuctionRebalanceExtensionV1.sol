@@ -99,7 +99,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
 
     struct ProductSettings{
         OptimisticRebalanceParams optimisticParams;     // OptimisticRebalanceParams struct containing optimistic rebalance parameters.
-        string rules;      // IPFS hash of the rules for the product.
+        string rules;      // Definition of rules for the product. (including ipfs hash pointing to full rules)
     }
 
     /* ============ State Variables ============ */
