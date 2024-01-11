@@ -3,7 +3,6 @@ import "module-alias/register";
 import { Address, Account } from "@utils/types";
 import { increaseTimeAsync } from "@utils/test";
 import { setBlockNumber } from "@utils/test/testingUtils";
-import { base58ToHexString } from "@utils/common";
 import { ONE_HOUR_IN_SECONDS, ZERO } from "@utils/constants";
 import { OptimisticAuctionRebalanceExtensionV1 } from "@utils/contracts/index";
 import {
@@ -168,7 +167,7 @@ if (process.env.INTEGRATIONTEST) {
             .connect(operator)
             .setProductSettings(
               productSettings,
-              utils.arrayify(base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z")),
+              "Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z",
             );
         });
 

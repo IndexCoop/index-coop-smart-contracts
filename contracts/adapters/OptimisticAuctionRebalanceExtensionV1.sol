@@ -49,7 +49,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         IERC20 indexed setToken,
         address indexed manager,
         OptimisticRebalanceParams optimisticParams,
-        bytes32 indexed rulesHash
+        string rulesHash
     );
 
     event RebalanceProposed(
@@ -66,7 +66,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
     event AssertedClaim(
         IERC20 indexed setToken,
         address indexed _assertedBy,
-        bytes32 indexed rulesHash,
+        string rulesHash,
         bytes32 _assertionId,
         bytes _claimData
     );
@@ -99,7 +99,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
 
     struct ProductSettings{
         OptimisticRebalanceParams optimisticParams;     // OptimisticRebalanceParams struct containing optimistic rebalance parameters.
-        bytes32 rulesHash;      // IPFS hash of the rules for the product.
+        string rulesHash;      // IPFS hash of the rules for the product.
     }
 
     /* ============ State Variables ============ */
@@ -182,7 +182,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
      */
     function setProductSettings(
         OptimisticRebalanceParams memory _optimisticParams,
-        bytes32 _rulesHash
+        string memory _rulesHash
     )
         external
         onlyOperator
@@ -232,7 +232,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
             _positionMultiplier
         ));
         require(assertionIds[proposalHash] == bytes32(0), "Proposal already exists");
-        require(productSettings.rulesHash != bytes32(""), "Rules not set");
+        require(bytes(productSettings.rulesHash).length > 0, "Rules not set");
         require(address(productSettings.optimisticParams.optimisticOracleV3) != address(0), "Oracle not set");
 
         bytes memory claim = _constructClaim(proposalHash, productSettings.rulesHash);
@@ -369,7 +369,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
 
     // Constructs the claim that will be asserted at the Optimistic Oracle V3.
     // @dev Inspired by the equivalent function in the OptimisticGovernor: https://github.com/UMAprotocol/protocol/blob/96cf5be32a3f57ac761f004890dd3466c63e1fa5/packages/core/contracts/optimistic-governor/implementation/OptimisticGovernor.sol#L437
-    function _constructClaim(bytes32 proposalHash, bytes32 rulesHash) internal pure returns (bytes memory) {
+    function _constructClaim(bytes32 proposalHash, string memory rulesHash) internal pure returns (bytes memory) {
         return
             abi.encodePacked(
                 AncillaryData.appendKeyValueBytes32("", PROPOSAL_HASH_KEY, proposalHash),
