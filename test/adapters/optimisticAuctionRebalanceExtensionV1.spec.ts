@@ -441,7 +441,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                     ],
                   ),
                 );
-                return `proposalHash:${proposalHash.slice(2)},rulesIPFSHash:"${rules}"`;
+                return `proposalHash:${proposalHash.slice(2)},rules:"${rules}"`;
               }
 
               context("when the extension is open for rebalance", () => {
