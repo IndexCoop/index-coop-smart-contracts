@@ -42,7 +42,7 @@ import { ethers } from "hardhat";
 const expect = getWaffleExpect();
 
 if (process.env.INTEGRATIONTEST) {
-  describe("OptimisticAuctionRebalanceExtensionV1 - Integration Test dsEth", () => {
+  describe.only("OptimisticAuctionRebalanceExtensionV1 - Integration Test dsEth", () => {
     const contractAddresses = PRODUCTION_ADDRESSES;
 
     const liveness = BigNumber.from(60 * 60 * 24 * 2); // 2 days
@@ -335,6 +335,10 @@ if (process.env.INTEGRATIONTEST) {
                   //  @ts-ignore
                   const assertEvent = receipt.events[receipt.events.length - 1] as any;
                   proposalId = assertEvent.args._assertionId;
+
+                  console.log("_rulesHash", assertEvent.args._rulesHash);
+                  console.log("_claimData", assertEvent.args._claimData);
+                  console.log("_claimData", utils.toUtf8Bytes(assertEvent.args._claimData));
                 });
 
                 context("when the liveness period has passed", () => {
