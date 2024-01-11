@@ -306,10 +306,10 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
         });
 
         context("when the product settings have been set", () => {
-          let rulesHash: string;
+          let rules: string;
           let bondAmount: BigNumber;
           beforeEach(async () => {
-            rulesHash = ipfsHash;
+            rules = ipfsHash;
             bondAmount = ether(140); // 140 INDEX minimum bond
             await auctionRebalanceExtension.connect(operator.wallet).setProductSettings(
               {
@@ -319,7 +319,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                 identifier: utils.formatBytes32String(""),
                 optimisticOracleV3: optimisticOracleV3Mock.address,
               },
-              rulesHash,
+              rules,
             );
           });
 
@@ -441,7 +441,7 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                     ],
                   ),
                 );
-                return `proposalHash:${proposalHash.slice(2)},rulesIPFSHash:"${rulesHash}"`;
+                return `proposalHash:${proposalHash.slice(2)},rulesIPFSHash:"${rules}"`;
               }
 
               context("when the extension is open for rebalance", () => {
@@ -522,8 +522,8 @@ describe("OptimisticAuctionRebalanceExtensionV1", () => {
                   expect(emittedSetToken).to.eq(setToken.address);
                   const assertedBy = assertEvent.args._assertedBy;
                   expect(assertedBy).to.eq(operator.wallet.address);
-                  const emittedRulesHash = assertEvent.args.rulesHash;
-                  expect(emittedRulesHash).to.eq(rulesHash);
+                  const emittedRules = assertEvent.args.rules;
+                  expect(emittedRules).to.eq(rules);
                   const claim = assertEvent.args._claimData;
                   expect(utils.toUtf8String(claim)).to.eq(constructClaim());
                 });

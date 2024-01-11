@@ -49,7 +49,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         IERC20 indexed setToken,
         address indexed manager,
         OptimisticRebalanceParams optimisticParams,
-        string rulesHash
+        string rules
     );
 
     event RebalanceProposed(
@@ -66,7 +66,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
     event AssertedClaim(
         IERC20 indexed setToken,
         address indexed _assertedBy,
-        string rulesHash,
+        string rules,
         bytes32 _assertionId,
         bytes _claimData
     );
@@ -99,7 +99,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
 
     struct ProductSettings{
         OptimisticRebalanceParams optimisticParams;     // OptimisticRebalanceParams struct containing optimistic rebalance parameters.
-        string rulesHash;      // IPFS hash of the rules for the product.
+        string rules;      // IPFS hash of the rules for the product.
     }
 
     /* ============ State Variables ============ */
@@ -111,7 +111,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
 
     // Keys for assertion claim data.
     bytes public constant PROPOSAL_HASH_KEY = "proposalHash";
-    bytes public constant RULES_KEY = "rulesIPFSHash";
+    bytes public constant RULES_KEY = "rules";
 
     /* ============ Constructor ============ */
 
@@ -178,21 +178,21 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
     /**
      * @dev OPERATOR ONLY: sets product settings for a given set token
      * @param _optimisticParams OptimisticRebalanceParams struct containing optimistic rebalance parameters.
-     * @param _rulesHash bytes32 containing the ipfs hash rules for the product.
+     * @param _rules string describing the rules of the rebalance (including IPFS hash pointing to full rules)
      */
     function setProductSettings(
         OptimisticRebalanceParams memory _optimisticParams,
-        string memory _rulesHash
+        string memory _rules
     )
         external
         onlyOperator
     {
         productSettings = ProductSettings({
             optimisticParams: _optimisticParams,
-            rulesHash: _rulesHash
+            rules: _rules
         });
 
-        emit ProductSettingsUpdated(setToken, setToken.manager(), _optimisticParams, _rulesHash);
+        emit ProductSettingsUpdated(setToken, setToken.manager(), _optimisticParams, _rules);
     }
 
     /**
@@ -232,10 +232,10 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
             _positionMultiplier
         ));
         require(assertionIds[proposalHash] == bytes32(0), "Proposal already exists");
-        require(bytes(productSettings.rulesHash).length > 0, "Rules not set");
+        require(bytes(productSettings.rules).length > 0, "Rules not set");
         require(address(productSettings.optimisticParams.optimisticOracleV3) != address(0), "Oracle not set");
 
-        bytes memory claim = _constructClaim(proposalHash, productSettings.rulesHash);
+        bytes memory claim = _constructClaim(proposalHash, productSettings.rules);
         uint256 totalBond = _pullBond(productSettings.optimisticParams);
 
         bytes32 assertionId = productSettings.optimisticParams.optimisticOracleV3.assertTruth(
@@ -254,7 +254,7 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
         assertionIdToProposalHash[assertionId] = proposalHash;
 
         emit RebalanceProposed( setToken, _quoteAsset, _oldComponents, _newComponents, _newComponentsAuctionParams, _oldComponentsAuctionParams,  _rebalanceDuration, _positionMultiplier);
-        emit AssertedClaim(setToken, msg.sender, productSettings.rulesHash, assertionId, claim);
+        emit AssertedClaim(setToken, msg.sender, productSettings.rules, assertionId, claim);
     }
    
     /**
@@ -369,14 +369,14 @@ contract OptimisticAuctionRebalanceExtensionV1 is  AuctionRebalanceExtension, As
 
     // Constructs the claim that will be asserted at the Optimistic Oracle V3.
     // @dev Inspired by the equivalent function in the OptimisticGovernor: https://github.com/UMAprotocol/protocol/blob/96cf5be32a3f57ac761f004890dd3466c63e1fa5/packages/core/contracts/optimistic-governor/implementation/OptimisticGovernor.sol#L437
-    function _constructClaim(bytes32 proposalHash, string memory rulesHash) internal pure returns (bytes memory) {
+    function _constructClaim(bytes32 proposalHash, string memory rules) internal pure returns (bytes memory) {
         return
             abi.encodePacked(
                 AncillaryData.appendKeyValueBytes32("", PROPOSAL_HASH_KEY, proposalHash),
                 ",",
                 RULES_KEY,
                 ":\"",
-                rulesHash,
+                rules,
                 "\""
             );
     }

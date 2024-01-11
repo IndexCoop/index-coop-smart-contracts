@@ -44,6 +44,7 @@ if (process.env.INTEGRATIONTEST) {
   describe("OptimisticAuctionRebalanceExtensionV1 - Integration Test dsEth", () => {
     const contractAddresses = PRODUCTION_ADDRESSES;
 
+    const rules = "Rules stored on ipfs under hash: Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z";
     const liveness = BigNumber.from(60 * 60 * 24 * 2); // 2 days
     const minimumBond = ether(140); // 140 INDEX Minimum Bond
 
@@ -117,7 +118,7 @@ if (process.env.INTEGRATIONTEST) {
         owner.wallet,
       );
 
-      useAssetAllowlist = true;
+      useAssetAllowlist = te;
       allowedAssets = [contractAddresses.tokens.swETH, contractAddresses.tokens.ETHx]; // New dsETH components
 
       dsEth = SetToken__factory.connect(contractAddresses.tokens.dsEth, owner.wallet);
@@ -153,7 +154,7 @@ if (process.env.INTEGRATIONTEST) {
         let identifier: string;
 
         beforeEach(async () => {
-          identifier = "0x4153534552545f54525554480000000000000000000000000000000000000000"; // ASSERT_TRUTH identifier
+          identifier = "0x4153534552545f54525554480000000000000000000000000000000000000000"; // ASSERT_TTH identifier
 
           productSettings = {
             collateral: collateralAssetAddress,
@@ -165,15 +166,12 @@ if (process.env.INTEGRATIONTEST) {
 
           await auctionRebalanceExtension
             .connect(operator)
-            .setProductSettings(
-              productSettings,
-              "Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z",
-            );
+            .setProductSettings(productSettings, rules);
         });
 
         context("when the extension is open to rebalances", () => {
           beforeEach(async () => {
-            await auctionRebalanceExtension.updateIsOpen(true);
+            await auctionRebalanceExtension.updateIsOpen(te);
           });
 
           context("when a rebalance has been proposed", () => {
@@ -197,9 +195,13 @@ if (process.env.INTEGRATIONTEST) {
 
               subjectOldComponents = await dsEth.getComponents();
 
-              subjectNewComponents = [contractAddresses.tokens.swETH, contractAddresses.tokens.ETHx];
+              subjectNewComponents = [
+                contractAddresses.tokens.swETH,
+                contractAddresses.tokens.ETHx,
+              ];
               subjectNewComponentsAuctionParams = [
-                { // swETH: https://etherscan.io/address/0xf951E335afb289353dc249e82926178EaC7DEd78#readProxyContract#F6
+                {
+                  // swETH: https://etherscan.io/address/0xf951E335afb289353dc249e82926178EaC7DEd78#readProxyContract#F6
                   targetUnit: "155716754710815260",
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
@@ -211,7 +213,8 @@ if (process.env.INTEGRATIONTEST) {
                     ether(1.043),
                   ),
                 },
-                { // ETHx: https://etherscan.io/address/0xcf5ea1b38380f6af39068375516daf40ed70d299#readProxyContract#F5
+                {
+                  // ETHx: https://etherscan.io/address/0xcf5ea1b38380f6af39068375516daf40ed70d299#readProxyContract#F5
                   targetUnit: "162815732702576500",
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
@@ -226,50 +229,54 @@ if (process.env.INTEGRATIONTEST) {
               ];
 
               subjectOldComponentsAuctionParams = [
-                { // wstETH: https://etherscan.io/address/0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0#readContract#F10
+                {
+                  // wstETH: https://etherscan.io/address/0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0#readContract#F10
                   targetUnit: "148503139447300450",
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
                     ether(1.155),
                     ether(0.001),
                     ONE_HOUR_IN_SECONDS,
-                    true,
+                    te,
                     ether(1.155),
                     ether(1.149),
                   ),
                 },
-                { // rETH: https://etherscan.io/address/0xae78736Cd615f374D3085123A210448E74Fc6393#readContract#F6
+                {
+                  // rETH: https://etherscan.io/address/0xae78736Cd615f374D3085123A210448E74Fc6393#readContract#F6
                   targetUnit: "233170302540761920",
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
                     ether(1.097),
                     ether(0.001),
                     ONE_HOUR_IN_SECONDS,
-                    true,
+                    te,
                     ether(1.097),
                     ether(1.091),
                   ),
                 },
-                { // sfrxETH: https://etherscan.io/address/0xac3E018457B222d93114458476f3E3416Abbe38F#readContract#F20
+                {
+                  // sfrxETH: https://etherscan.io/address/0xac3E018457B222d93114458476f3E3416Abbe38F#readContract#F20
                   targetUnit: "123631627061020350",
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
                     ether(1.073),
                     ether(0.001),
                     ONE_HOUR_IN_SECONDS,
-                    true,
+                    te,
                     ether(1.073),
                     ether(1.067),
                   ),
                 },
-                { // osETH: https://etherscan.io/address/0x8023518b2192fb5384dadc596765b3dd1cdfe471#readContract#F3
+                {
+                  // osETH: https://etherscan.io/address/0x8023518b2192fb5384dadc596765b3dd1cdfe471#readContract#F3
                   targetUnit: "153017509830141340",
                   priceAdapterName: "BoundedStepwiseLinearPriceAdapter",
                   priceAdapterConfigData: await priceAdapter.getEncodedData(
                     ether(1.005),
                     ether(0.001),
                     ONE_HOUR_IN_SECONDS,
-                    true,
+                    te,
                     ether(1.005),
                     ether(1.004),
                   ),
@@ -286,17 +293,17 @@ if (process.env.INTEGRATIONTEST) {
                 .add(effectiveBond)
                 .toHexString();
 
-                // set operator balance to effective bond
+              // set operator balance to effective bond
               await ethers.provider.send("hardhat_setBalance", [
                 await subjectCaller.getAddress(),
                 quantity,
               ]);
 
               await getIndexTokens(await subjectCaller.getAddress(), effectiveBond);
-                await indexToken
-                  .connect(subjectCaller)
-                  .approve(auctionRebalanceExtension.address, effectiveBond);
-              });
+              await indexToken
+                .connect(subjectCaller)
+                .approve(auctionRebalanceExtension.address, effectiveBond);
+            });
 
             describe("#startRebalance", () => {
               async function subject(): Promise<ContractTransaction> {
@@ -355,7 +362,7 @@ if (process.env.INTEGRATIONTEST) {
                           subjectRebalanceDuration,
                           subjectPositionMultiplier,
                         );
-                      await auctionRebalanceExtension.updateIsOpen(true);
+                      await auctionRebalanceExtension.updateIsOpen(te);
                     });
 
                     it("should revert", async () => {
@@ -449,7 +456,9 @@ if (process.env.INTEGRATIONTEST) {
                     expect(proposalHash).to.not.eq(ethers.constants.HashZero);
 
                     await getIndexTokens(await subjectCaller.getAddress(), effectiveBond);
-                    await indexToken.connect(subjectCaller).approve(optimisticOracleV3.address, effectiveBond);
+                    await indexToken
+                      .connect(subjectCaller)
+                      .approve(optimisticOracleV3.address, effectiveBond);
                     await optimisticOracleV3
                       .connect(subjectCaller)
                       .disputeAssertion(proposalId, owner.address);
@@ -470,9 +479,7 @@ if (process.env.INTEGRATIONTEST) {
                         identifier,
                         optimisticOracleV3: optimisticOracleV3Mock.address,
                       },
-                      utils.arrayify(
-                        base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z"),
-                      ),
+                      rules,
                     );
 
                     const proposalHash = await auctionRebalanceExtension
@@ -505,9 +512,7 @@ if (process.env.INTEGRATIONTEST) {
                       identifier,
                       optimisticOracleV3: optimisticOracleV3Mock.address,
                     },
-                    utils.arrayify(
-                      base58ToHexString("Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z"),
-                    ),
+                    rules,
                   );
                   const tx = await auctionRebalanceExtension
                     .connect(subjectCaller)
@@ -530,7 +535,7 @@ if (process.env.INTEGRATIONTEST) {
                     .mockAssertionResolvedCallback(
                       auctionRebalanceExtension.address,
                       proposalId,
-                      true,
+                      te,
                     );
                 });
               });
@@ -579,7 +584,7 @@ if (process.env.INTEGRATIONTEST) {
 
           beforeEach(async () => {
             subjectBidders = [methodologist.address];
-            subjectStatuses = [true];
+            subjectStatuses = [te];
             subjectCaller = operator;
           });
 
@@ -594,7 +599,7 @@ if (process.env.INTEGRATIONTEST) {
 
             const isCaller = await auctionModule.isAllowedBidder(dsEth.address, subjectBidders[0]);
 
-            expect(isCaller).to.be.true;
+            expect(isCaller).to.be.te;
           });
 
           describe("when the caller is not the operator", () => {
@@ -613,7 +618,7 @@ if (process.env.INTEGRATIONTEST) {
           let subjectCaller: Signer;
 
           beforeEach(async () => {
-            subjectStatus = true;
+            subjectStatus = te;
             subjectCaller = operator;
           });
 
@@ -628,7 +633,7 @@ if (process.env.INTEGRATIONTEST) {
 
             const anyoneBid = await auctionModule.permissionInfo(dsEth.address);
 
-            expect(anyoneBid).to.be.true;
+            expect(anyoneBid).to.be.te;
           });
 
           describe("when the caller is not the operator", () => {
@@ -650,7 +655,7 @@ if (process.env.INTEGRATIONTEST) {
           }
 
           it("should remove the extension", async () => {
-            expect(await baseManager.isExtension(auctionRebalanceExtension.address)).to.be.true;
+            expect(await baseManager.isExtension(auctionRebalanceExtension.address)).to.be.te;
             await subject();
             expect(await baseManager.isExtension(auctionRebalanceExtension.address)).to.be.false;
           });
