@@ -44,21 +44,27 @@ if (process.env.INTEGRATIONTEST) {
     before(async () => {
       [owner] = await getAccounts();
 
+      // Constant Price Adapter
+      // https://etherscan.io/address/0x13c33656570092555Bf27Bdf53Ce24482B85D992#code
       priceAdapter = ConstantPriceAdapter__factory.connect(
         "0x13c33656570092555Bf27Bdf53Ce24482B85D992",
         owner.wallet,
       );
 
+      // Auction Rebalance Module V1
+      // https://etherscan.io/address/0x59D55D53a715b3B4581c52098BCb4075C2941DBa#code
       auctionModule = AuctionRebalanceModuleV1__factory.connect(
         "0x59D55D53a715b3B4581c52098BCb4075C2941DBa",
         owner.wallet,
       );
 
+        // ic21 Contract
       ic21 = SetToken__factory.connect(
         "0x1B5E16C5b20Fb5EE87C61fE9Afe735Cca3B21A65",
         owner.wallet
       );
 
+      // ic21 Manager Contract
       baseManager = BaseManagerV2__factory.connect(
         "0x402d19089b797D60c366Bc38a8Cff0712D2F4947",
         owner.wallet
@@ -66,6 +72,7 @@ if (process.env.INTEGRATIONTEST) {
       operator = await impersonateAccount("0x6904110f17feD2162a11B5FA66B188d801443Ea4");
       baseManager = baseManager.connect(operator);
 
+      // Auction Rebalance Extension
       auctionRebalanceExtension = AuctionRebalanceExtension__factory.connect(
         "0x94cAEa398acC5931B1d32c548959A160Ac37Ff4a",
         operator,
@@ -112,7 +119,7 @@ if (process.env.INTEGRATIONTEST) {
 
           // Must match order of subjectNewComponents
           subjectNewComponentsAuctionParams = [
-            { // link, 18 decimals
+            { // LINK, 18 decimals
                 targetUnit: "100000000000000000",
                 priceAdapterName: "ConstantPriceAdapter",
                 priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.007468)),
@@ -136,38 +143,38 @@ if (process.env.INTEGRATIONTEST) {
                 priceAdapterName: "ConstantPriceAdapter",
                 priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.13).mul(ether(1).div(1e8))),
               },
-              { // xrp, 6 decimals
+              { // 21XRP, 6 decimals
                 targetUnit: "10000000",
                 priceAdapterName: "ConstantPriceAdapter",
                 priceAdapterConfigData: await priceAdapter.getEncodedData(ether(1).mul(ether(0.00022).div(1e6))),
               },
-              { // ada, 6 decimals
+              { // 21ADA, 6 decimals
                 targetUnit: "10639431",
                 priceAdapterName: "ConstantPriceAdapter",
                 priceAdapterConfigData: await priceAdapter.getEncodedData(ether(1).mul(ether(0.0002).div(1e6))),
               },
-              { // sol, 9 decimals
+              { // 21SOL, 9 decimals
                 targetUnit: "111427278",
                 priceAdapterName: "ConstantPriceAdapter",
                 priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.04).mul(ether(1).div(1e9))),
               },
-              { // ltc, 8 decimals
-                targetUnit: ZERO, // remove from the set
+              { // 21LTC, 8 decimals
+                targetUnit: ZERO, // Remove from the set
                 priceAdapterName: "ConstantPriceAdapter",
                 priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.03).mul(ether(1).div(1e8))),
               },
-              { // dot, 10 decimals
+              { // 21DOT, 10 decimals
                 targetUnit: "5134697410",
                 priceAdapterName: "ConstantPriceAdapter",
                 priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.0029).mul(ether(1).div(1e10))),
               },
-              { // matic, 18 decimals
+              { // MATIC, 18 decimals
                 targetUnit: "5000000000000000000",
                 priceAdapterName: "ConstantPriceAdapter",
                 priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.0003457)),
               },
-              { // bch, 8 decimals
-                targetUnit: ZERO, // remove from the set
+              { // 21BCH, 8 decimals
+                targetUnit: ZERO, // Remove from the set
                 priceAdapterName: "ConstantPriceAdapter",
                 priceAdapterConfigData: await priceAdapter.getEncodedData(ether(0.1).mul(ether(1).div(1e8))),
               },
@@ -193,7 +200,7 @@ if (process.env.INTEGRATIONTEST) {
         }
 
         it("should kick off the rebalance", async () => {
-            const isElapsedBefore = await auctionModule.isRebalanceDurationElapsed(ic21.address);
+          const isElapsedBefore = await auctionModule.isRebalanceDurationElapsed(ic21.address);
           expect(isElapsedBefore).to.be.true;
 
           await subject();
