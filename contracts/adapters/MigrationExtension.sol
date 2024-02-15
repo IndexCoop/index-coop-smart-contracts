@@ -365,7 +365,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     /// @param _wrappedSetTokenSupplyLiquidityAmount The amount of wrapped SetToken to be supplied to the pool
     function _issueRequiredWrappedSetToken(uint256 _wrappedSetTokenSupplyLiquidityAmount) internal {
         uint256 wrappedSetTokenBalance = wrappedSetToken.balanceOf(address(this));
-        if (_wrappedSetTokenSupplyLiquidityAmount < wrappedSetTokenBalance) {
+        if (_wrappedSetTokenSupplyLiquidityAmount > wrappedSetTokenBalance) {
             uint256 wrappedSetTokenIssueAmount = _wrappedSetTokenSupplyLiquidityAmount.sub(wrappedSetTokenBalance);
             (address[] memory underlyingAssets ,uint256[] memory underlyingUnits,) = issuanceModule.getRequiredComponentIssuanceUnits(
                 wrappedSetToken,
