@@ -82,6 +82,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     INonfungiblePositionManager public immutable nonfungiblePositionManager;
 
     uint256[] public tokenIds;
+    mapping(uint256 => uint128) public tokenIdToLiquidity;
 
     /* ============ Modifiers ============ */
  
@@ -204,6 +205,48 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         (uint256 tokenId, uint128 liquidity,,) = nonfungiblePositionManager.mint(mintParams);
         require(liquidity > 0, "MigrationExtension: No liquidity minted");
         tokenIds.push(tokenId);
+        tokenIdToLiquidity[tokenId] = liquidity;
+    }
+
+    /**
+     * OPERATOR ONLY: Increases liquidity position in the Uniswap V3 pool.
+     */
+    function increaseLiquidityPosition(
+        uint256 _underlyingSupplyLiquidityAmount,
+        uint256 _wrappedSetTokenSupplyLiquidityAmount,
+        uint256 _tokenId
+    )
+        external
+        onlyOperator
+        returns (uint128 liquidity)
+    {
+        liquidity = _increaseLiquidityPosition(
+            _underlyingSupplyLiquidityAmount,
+            _wrappedSetTokenSupplyLiquidityAmount,
+            _tokenId
+        );
+        tokenIdToLiquidity[_tokenId] += liquidity;
+    }
+
+    /**
+     * OPERATOR ONLY: Decreases liquidity position in the Uniswap V3 pool.
+     */
+    function decreaseLiquidityPosition(
+        uint256 _tokenId,
+        uint128 _liquidity,
+        uint256 _underlyingRedeemLiquidityMinAmount,
+        uint256 _wrappedSetTokenRedeemLiquidityMinAmount
+    )
+        external
+        onlyOperator
+    {
+        _decreaseLiquidityPosition(
+            _tokenId,
+            _liquidity,
+            _underlyingRedeemLiquidityMinAmount,
+            _wrappedSetTokenRedeemLiquidityMinAmount
+        );
+        tokenIdToLiquidity[_tokenId] -= _liquidity;
     }
 
     /**
@@ -305,7 +348,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     function _migrate(DecodedParams memory decodedParams) internal {
         _issueRequiredWrappedSetToken(decodedParams.wrappedSetTokenSupplyLiquidityAmount);
 
-        uint128 liquidity = _increaseUniV3Liquidity(
+        uint128 liquidity = _increaseLiquidityPosition(
             decodedParams.underlyingSupplyLiquidityAmount,
             decodedParams.wrappedSetTokenSupplyLiquidityAmount,
             decodedParams.tokenId
@@ -320,7 +363,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
             decodedParams.exchangeData
         );
 
-        _decreaseUniV3Liquidity(
+        _decreaseLiquidityPosition(
             decodedParams.tokenId,
             liquidity,
             decodedParams.underlyingRedeemLiquidityMinAmount,
@@ -391,7 +434,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     /// @param _underlyingSupplyLiquidityAmount The amount of underlying to be supplied to the pool
     /// @param _wrappedSetTokenSupplyLiquidityAmount The amount of wrapped SetToken to be supplied to the pool
     /// @param _tokenId The ID of the token for which liquidity is being increased
-    function _increaseUniV3Liquidity(
+    function _increaseLiquidityPosition(
         uint256 _underlyingSupplyLiquidityAmount,
         uint256 _wrappedSetTokenSupplyLiquidityAmount,
         uint256 _tokenId
@@ -418,21 +461,32 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         (liquidity,,) = nonfungiblePositionManager.increaseLiquidity(increaseParams);
     }
 
-    /// @param tokenId The ID of the token for which liquidity is being decreased
-    /// @param liquidity The amount by which liquidity will be decreased
-    /// @param underlyingRedeemLiquidityMinAmount The minimum amount of token0 that should be accounted for the burned liquidity
-    /// @param wrappedSetTokenRedeemLiquidityMinAmount The minimum amount of token1 that should be accounted for the burned liquidity
-    function _decreaseUniV3Liquidity(
-        uint256 tokenId,
-        uint128 liquidity,
-        uint256 underlyingRedeemLiquidityMinAmount,
-        uint256 wrappedSetTokenRedeemLiquidityMinAmount
+    /// @param _tokenId The ID of the token for which liquidity is being decreased
+    /// @param _liquidity The amount by which liquidity will be decreased
+    /// @param _underlyingRedeemLiquidityMinAmount The minimum amount of token0 that should be accounted for the burned liquidity
+    /// @param _wrappedSetTokenRedeemLiquidityMinAmount The minimum amount of token1 that should be accounted for the burned liquidity
+    function _decreaseLiquidityPosition(
+        uint256 _tokenId,
+        uint128 _liquidity,
+        uint256 _underlyingRedeemLiquidityMinAmount,
+        uint256 _wrappedSetTokenRedeemLiquidityMinAmount
     ) internal {
+        // Collect fees
+        INonfungiblePositionManager.CollectParams memory params =
+            INonfungiblePositionManager.CollectParams({
+                tokenId: _tokenId,
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            });
+        nonfungiblePositionManager.collect(params);
+
+        // Decrease liquidity
         INonfungiblePositionManager.DecreaseLiquidityParams memory decreaseParams = INonfungiblePositionManager.DecreaseLiquidityParams({
-            tokenId: tokenId,
-            liquidity: liquidity,
-            amount0Min: wrappedSetTokenRedeemLiquidityMinAmount,
-            amount1Min: underlyingRedeemLiquidityMinAmount,
+            tokenId: _tokenId,
+            liquidity: _liquidity,
+            amount0Min: _wrappedSetTokenRedeemLiquidityMinAmount,
+            amount1Min: _underlyingRedeemLiquidityMinAmount,
             deadline: block.timestamp
         });
         nonfungiblePositionManager.decreaseLiquidity(decreaseParams);

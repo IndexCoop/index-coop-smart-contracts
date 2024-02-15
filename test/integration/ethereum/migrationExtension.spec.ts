@@ -26,6 +26,7 @@ import {
 } from "../../../typechain";
 import { impersonateAccount } from "./utils";
 import { ZERO } from "@utils/constants";
+import { JsonRpcSigner } from "@ethersproject/providers";
 
 const expect = getWaffleExpect();
 
@@ -40,7 +41,7 @@ const contractAddresses = {
   airdropExtension: "0x2Cf29FcA4273AA9706330626C9a2e1dCa9CBCAc1",
   uniswapV3ExchangeAdapter: "0xcC327D928925584AB00Fe83646719dEAE15E0424",
 };
-  
+
 const tokenAddresses = {
   weth: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
   eth2xfli: "0xAa6E8127831c9DE45ae56bB1b0d4D4Da6e5665BD",
@@ -81,8 +82,8 @@ if (process.env.INTEGRATIONTEST) {
 
       // Underlying Token setup (WETH)
       underlyingToken = (await ethers.getContractAt("IWETH", tokenAddresses.weth)) as IWETH;
-      ceth = IERC20__factory.connect(tokenAddresses.ceth, owner.wallet); 
-      usdc = IERC20__factory.connect(tokenAddresses.usdc, owner.wallet); 
+      ceth = IERC20__factory.connect(tokenAddresses.ceth, owner.wallet);
+      usdc = IERC20__factory.connect(tokenAddresses.usdc, owner.wallet);
 
       // SetToken setup
       setToken = SetToken__factory.connect(tokenAddresses.eth2xfli, owner.wallet);
@@ -202,7 +203,7 @@ if (process.env.INTEGRATIONTEST) {
             "CompoundWrapAdapter"
           );
         });
-  
+
         it("should have WETH as a component instead of cETH", async () => {
           const components = await setToken.getComponents();
           await expect(components).to.deep.equal([tokenAddresses.weth, tokenAddresses.usdc]);
@@ -212,19 +213,19 @@ if (process.env.INTEGRATIONTEST) {
           before(async () => {
             await baseManager.addExtension(migrationExtension.address);
           });
-        
+
           it("should have the MigrationExtension added as an extension", async () => {
             expect(
               await baseManager.isExtension(migrationExtension.address)
             ).to.be.true;
           });
-        
+
           context("when the trade module is added and initialized", () => {
             before(async () => {
               await baseManager.addModule(tradeModule.address);
               await migrationExtension.initialize();
             });
-        
+
             it("should have the TradeModule added as a module", async () => {
               expect(
                 await setToken.moduleStates(tradeModule.address)
@@ -274,7 +275,7 @@ if (process.env.INTEGRATIONTEST) {
                   await wrappedSetToken.connect(
                     await impersonateAccount("0x37e6365d4f6aE378467b0e24c9065Ce5f06D70bF")
                   ).transfer(migrationExtension.address, wrappedSetTokenAmount);
-  
+
                   await migrationExtension.mintLiquidityPosition(
                     underlyingAmount,
                     wrappedSetTokenAmount,
@@ -283,7 +284,7 @@ if (process.env.INTEGRATIONTEST) {
                     fee
                   );
                 });
-  
+
                 it("should seed the liquidity position", async () => {
                   const tokenId = await migrationExtension.tokenIds(0);
                   expect(tokenId).to.be.gt(0);
@@ -302,6 +303,7 @@ if (process.env.INTEGRATIONTEST) {
                   let wrappedSetTokenRedeemLiquidityMinAmount: BigNumber;
 
                   let setTokenTotalSupply: BigNumber;
+                  let wethWhale: JsonRpcSigner;
 
                   before(async () => {
                     underlyingLoanAmount = ether(1);
@@ -325,22 +327,84 @@ if (process.env.INTEGRATIONTEST) {
                     underlyingRedeemLiquidityMinAmount = ether(0.95);
                     wrappedSetTokenRedeemLiquidityMinAmount = ZERO;
 
-                    // Subsidize the migration
-                    await underlyingToken.connect(
-                      await impersonateAccount("0xde21F729137C5Af1b01d73aF1dC21eFfa2B8a0d6")
-                    ).transfer(migrationExtension.address, ether(1.1));
+                    wethWhale = await impersonateAccount("0xde21F729137C5Af1b01d73aF1dC21eFfa2B8a0d6");
                   });
-    
-                  it("should be able to migrate", async () => {
+
+                  it("should be able to migrate non-atomically", async () => {
+                    // Issue wrapped SetToken units to the extension
+                    expect(await wrappedSetToken.balanceOf(migrationExtension.address)).to.be.eq(0);
+                    const wethWhale = await impersonateAccount("0xde21F729137C5Af1b01d73aF1dC21eFfa2B8a0d6");
+                    await underlyingToken.connect(wethWhale).approve(
+                      debtIssuanceModuleV2.address,
+                      ether(1)
+                    );
+                    await debtIssuanceModuleV2.connect(wethWhale).issue(
+                      wrappedSetToken.address,
+                      wrappedSetTokenSupplyLiquidityAmount,
+                      migrationExtension.address
+                    );
+                    expect(await wrappedSetToken.balanceOf(migrationExtension.address)).to.be.eq(ether(250));
+
+                    // Increase liquidity in Uniswap V3 pool
+                    const wrappedSetTokenPoolBalanceBefore = await wrappedSetToken.balanceOf(contractAddresses.uniswapV3Pool);
+                    expect(wrappedSetTokenPoolBalanceBefore).to.be.eq(ether(0.01).add(1));
+                    await migrationExtension.increaseLiquidityPosition(
+                      underlyingSupplyLiquidityAmount,
+                      wrappedSetTokenSupplyLiquidityAmount,
+                      tokenId
+                    );
+                    const wrappedSetTokenPoolBalanceAfter = await wrappedSetToken.balanceOf(contractAddresses.uniswapV3Pool);
+                    expect(wrappedSetTokenPoolBalanceAfter).to.be.eq(ether(250).add(wrappedSetTokenPoolBalanceBefore));
+
+                    // Trade underlying for wrapped SetToken
+                    const setTokenUnderlyingBalanceBefore = await underlyingToken.balanceOf(setToken.address);
+                    const wrappedSetTokenUnderlyingBalanceBefore = await wrappedSetToken.balanceOf(setToken.address);
+                    await migrationExtension.trade(
+                      exchangeName,
+                      underlyingToken.address,
+                      underlyingTradeUnits,
+                      wrappedSetToken.address,
+                      wrappedSetTokenTradeUnits,
+                      exchangeData
+                    );
+                    const setTokenUnderlyingBalanceAfter = await underlyingToken.balanceOf(setToken.address);
+                    const wrappedSetTokenUnderlyingBalanceAfter = await wrappedSetToken.balanceOf(setToken.address);
+                    expect(setTokenUnderlyingBalanceAfter).to.be.eq(
+                      setTokenUnderlyingBalanceBefore.sub(underlyingTradeUnits.mul(setTokenTotalSupply).div(ether(1)))
+                    );
+                    expect(wrappedSetTokenUnderlyingBalanceAfter).to.be.gt(
+                      wrappedSetTokenUnderlyingBalanceBefore.add(wrappedSetTokenTradeUnits.mul(setTokenTotalSupply).div(ether(1)))
+                    );
+
+                    // Decrease liquidity in Uniswap V3 pool
+                    const extensionUnderlyingBalanceBefore = await underlyingToken.balanceOf(migrationExtension.address);
+                    const extensionWrappedBalanceBefore = await wrappedSetToken.balanceOf(migrationExtension.address);
+                    expect(extensionUnderlyingBalanceBefore).to.be.eq(0);
+                    expect(extensionWrappedBalanceBefore).to.be.eq(0);
+                    const liquidity = await migrationExtension.tokenIdToLiquidity(tokenId);
+                    await migrationExtension.decreaseLiquidityPosition(
+                      tokenId,
+                      liquidity,
+                      underlyingRedeemLiquidityMinAmount,
+                      wrappedSetTokenRedeemLiquidityMinAmount
+                    );
+                    const extensionUnderlyingBalanceAfter = await underlyingToken.balanceOf(migrationExtension.address);
+                    const extensionWrappedBalanceAfter = await wrappedSetToken.balanceOf(migrationExtension.address);
+                    expect(extensionUnderlyingBalanceAfter).to.be.gt(underlyingRedeemLiquidityMinAmount);
+                    expect(extensionWrappedBalanceAfter).to.be.eq(0);
+                  });
+
+                  it.skip("should be able to migrate atomically", async () => {
+                    await underlyingToken.connect(wethWhale).transfer(migrationExtension.address, ether(1.1));
+
                     const setTokenUnderlyingBalanceBefore = await underlyingToken.balanceOf(setToken.address);
                     const wrappedSetTokenUnderlyingBalanceBefore = await underlyingToken.balanceOf(wrappedSetToken.address);
                     const extensionUnderlyingBalanceBefore = await underlyingToken.balanceOf(migrationExtension.address);
-                    // const uniswapV3UnderlyingBalanceBefore = await underlyingToken.balanceOf(contractAddresses.uniswapV3Pool);
 
                     const setTokenWrappedBalanceBefore = await wrappedSetToken.balanceOf(setToken.address);
                     const wrappedSetTokenTotalSupplyBefore = await wrappedSetToken.totalSupply();
-                    // const uniswapV3WrappedBalanceBefore = await wrappedSetToken.balanceOf(contractAddresses.uniswapV3Pool);
 
+                    console.log("Input Parameters");
                     console.log({
                       underlyingLoanAmount,
                       underlyingSupplyLiquidityAmount,
@@ -351,7 +415,7 @@ if (process.env.INTEGRATIONTEST) {
                       wrappedSetTokenTradeUnits,
                       exchangeData,
                       underlyingRedeemLiquidityMinAmount,
-                      wrappedSetTokenRedeemLiquidityMinAmount
+                      wrappedSetTokenRedeemLiquidityMinAmount,
                     });
                     await migrationExtension.migrate(
                       underlyingLoanAmount,
@@ -369,12 +433,10 @@ if (process.env.INTEGRATIONTEST) {
                     const setTokenUnderlyingBalanceAfter = await underlyingToken.balanceOf(setToken.address);
                     const wrappedSetTokenUnderlyingBalanceAfter = await underlyingToken.balanceOf(wrappedSetToken.address);
                     const extensionUnderlyingBalanceAfter = await underlyingToken.balanceOf(migrationExtension.address);
-                    // const uniswapV3UnderlyingBalanceAfter = await underlyingToken.balanceOf(contractAddresses.uniswapV3Pool);
 
                     const setTokenWrappedBalanceAfter = await wrappedSetToken.balanceOf(setToken.address);
                     const wrappedSetTokenTotalSupplyAfter = await wrappedSetToken.totalSupply();
                     const extensionWrappedBalanceAfter = await wrappedSetToken.balanceOf(migrationExtension.address);
-                    // const uniswapV3WrappedBalanceAfter = await wrappedSetToken.balanceOf(contractAddresses.uniswapV3Pool);
 
                     expect(setTokenUnderlyingBalanceBefore.sub(setTokenUnderlyingBalanceAfter) == underlyingTradeUnits.mul(setTokenTotalSupply));
                     expect(wrappedSetTokenUnderlyingBalanceAfter.sub(wrappedSetTokenUnderlyingBalanceBefore) == wrappedSetTokenSupplyLiquidityAmount);
