@@ -323,8 +323,8 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         _decreaseUniV3Liquidity(
             decodedParams.tokenId,
             liquidity,
-            decodedParams.wrappedSetTokenRedeemLiquidityMinAmount,
-            decodedParams.underlyingRedeemLiquidityMinAmount
+            decodedParams.underlyingRedeemLiquidityMinAmount,
+            decodedParams.wrappedSetTokenRedeemLiquidityMinAmount
         );
 
         _redeemExcessWrappedSetToken();
