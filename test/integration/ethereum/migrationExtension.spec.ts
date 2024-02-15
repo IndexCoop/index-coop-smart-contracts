@@ -314,8 +314,8 @@ if (process.env.INTEGRATIONTEST) {
                     exchangeName = "UniswapV3ExchangeAdapter";
 
                     setTokenTotalSupply = await setToken.totalSupply();
-                    underlyingTradeUnits = ether(1).div(setTokenTotalSupply);
-                    wrappedSetTokenTradeUnits = ether(249.9).div(setTokenTotalSupply);
+                    underlyingTradeUnits = ether(1).mul(ether(1)).div(setTokenTotalSupply);
+                    wrappedSetTokenTradeUnits = ether(249.9).mul(ether(1)).div(setTokenTotalSupply);
 
                     exchangeData = await uniswapV3ExchangeAdapter.generateDataParam(
                       [tokenAddresses.weth, tokenAddresses.wrappedSetToken],
