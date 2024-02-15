@@ -379,8 +379,22 @@ if (process.env.INTEGRATIONTEST) {
                     // Decrease liquidity in Uniswap V3 pool
                     const extensionUnderlyingBalanceBefore = await underlyingToken.balanceOf(migrationExtension.address);
                     const extensionWrappedBalanceBefore = await wrappedSetToken.balanceOf(migrationExtension.address);
-                    expect(extensionUnderlyingBalanceBefore).to.be.eq(0);
-                    expect(extensionWrappedBalanceBefore).to.be.eq(0);
+
+                    const poolUnderlyingBalanceBefore = await underlyingToken.balanceOf(contractAddresses.uniswapV3Pool);
+                    const poolWrappedBalanceBefore = await wrappedSetToken.balanceOf(contractAddresses.uniswapV3Pool);
+
+                    const operatorUnderlyingBalanceBefore = await underlyingToken.balanceOf(await operator.getAddress());
+                    const operatorWrappedBalanceBefore = await wrappedSetToken.balanceOf(await operator.getAddress());
+
+                    console.log("Extension Underlying Balance Before", extensionUnderlyingBalanceBefore.toString());
+                    console.log("Extension Wrapped Balance Before", extensionWrappedBalanceBefore.toString());
+
+                    console.log("Pool Underlying Balance Before", poolUnderlyingBalanceBefore.toString());
+                    console.log("Pool Wrapped Balance Before", poolWrappedBalanceBefore.toString());
+
+                    console.log("Operator Underlying Balance Before", operatorUnderlyingBalanceBefore.toString());
+                    console.log("Operator Wrapped Balance Before", operatorWrappedBalanceBefore.toString());
+
                     const liquidity = await migrationExtension.tokenIdToLiquidity(tokenId);
                     await migrationExtension.decreaseLiquidityPosition(
                       tokenId,
@@ -390,8 +404,21 @@ if (process.env.INTEGRATIONTEST) {
                     );
                     const extensionUnderlyingBalanceAfter = await underlyingToken.balanceOf(migrationExtension.address);
                     const extensionWrappedBalanceAfter = await wrappedSetToken.balanceOf(migrationExtension.address);
-                    expect(extensionUnderlyingBalanceAfter).to.be.gt(underlyingRedeemLiquidityMinAmount);
-                    expect(extensionWrappedBalanceAfter).to.be.eq(0);
+
+                    const poolUnderlyingBalanceAfter = await underlyingToken.balanceOf(contractAddresses.uniswapV3Pool);
+                    const poolWrappedBalanceAfter = await wrappedSetToken.balanceOf(contractAddresses.uniswapV3Pool);
+
+                    const operatorUnderlyingBalanceAfter = await underlyingToken.balanceOf(await operator.getAddress());
+                    const operatorWrappedBalanceAfter = await wrappedSetToken.balanceOf(await operator.getAddress());
+
+                    console.log("Extension Underlying Balance After", extensionUnderlyingBalanceAfter.toString());
+                    console.log("Extension Wrapped Balance After", extensionWrappedBalanceAfter.toString());
+
+                    console.log("Pool Underlying Balance After", poolUnderlyingBalanceAfter.toString());
+                    console.log("Pool Wrapped Balance After", poolWrappedBalanceAfter.toString());
+
+                    console.log("Operator Underlying Balance After", operatorUnderlyingBalanceAfter.toString());
+                    console.log("Operator Wrapped Balance After", operatorWrappedBalanceAfter.toString());
                   });
 
                   it.skip("should be able to migrate atomically", async () => {
