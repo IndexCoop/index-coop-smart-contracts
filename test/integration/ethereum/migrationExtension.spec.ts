@@ -341,6 +341,18 @@ if (process.env.INTEGRATIONTEST) {
                     const wrappedSetTokenTotalSupplyBefore = await wrappedSetToken.totalSupply();
                     // const uniswapV3WrappedBalanceBefore = await wrappedSetToken.balanceOf(contractAddresses.uniswapV3Pool);
 
+                    console.log({
+                      underlyingLoanAmount,
+                      underlyingSupplyLiquidityAmount,
+                      wrappedSetTokenSupplyLiquidityAmount,
+                      tokenId,
+                      exchangeName,
+                      underlyingTradeUnits,
+                      wrappedSetTokenTradeUnits,
+                      exchangeData,
+                      underlyingRedeemLiquidityMinAmount,
+                      wrappedSetTokenRedeemLiquidityMinAmount
+                    });
                     await migrationExtension.migrate(
                       underlyingLoanAmount,
                       underlyingSupplyLiquidityAmount,
