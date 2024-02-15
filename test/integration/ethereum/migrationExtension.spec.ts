@@ -328,7 +328,7 @@ if (process.env.INTEGRATIONTEST) {
                     // Subsidize the migration
                     await underlyingToken.connect(
                       await impersonateAccount("0xde21F729137C5Af1b01d73aF1dC21eFfa2B8a0d6")
-                    ).transfer(migrationExtension.address, ether(0.1));
+                    ).transfer(migrationExtension.address, ether(1.1));
                   });
     
                   it("should be able to migrate", async () => {
