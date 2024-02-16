@@ -477,16 +477,6 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         uint256 _underlyingRedeemLiquidityMinAmount,
         uint256 _wrappedSetTokenRedeemLiquidityMinAmount
     ) internal {
-        // Collect fees
-        INonfungiblePositionManager.CollectParams memory params =
-            INonfungiblePositionManager.CollectParams({
-                tokenId: _tokenId,
-                recipient: address(this),
-                amount0Max: type(uint128).max,
-                amount1Max: type(uint128).max
-            });
-        nonfungiblePositionManager.collect(params);
-
         // Decrease liquidity
         INonfungiblePositionManager.DecreaseLiquidityParams memory decreaseParams = INonfungiblePositionManager.DecreaseLiquidityParams({
             tokenId: _tokenId,
@@ -496,5 +486,16 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
             deadline: block.timestamp
         });
         nonfungiblePositionManager.decreaseLiquidity(decreaseParams);
+
+        // Collect fees / and liquidity
+        INonfungiblePositionManager.CollectParams memory params =
+            INonfungiblePositionManager.CollectParams({
+                tokenId: _tokenId,
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            });
+        nonfungiblePositionManager.collect(params);
+
     }
 }
