@@ -415,7 +415,9 @@ if (process.env.INTEGRATIONTEST) {
                   });
 
                   it("should be able to migrate atomically", async () => {
-                    await underlyingToken.connect(wethWhale).transfer(migrationExtension.address, ether(1.1));
+                    await underlyingToken.connect(wethWhale).transfer(migrationExtension.address, ether(0.0005));
+                    const underlyingTokenBalanceBefore = await underlyingToken.balanceOf(migrationExtension.address);
+                      console.log("Underlying Token Balance Before", utils.formatEther(underlyingTokenBalanceBefore));
 
                     const setTokenUnderlyingBalanceBefore = await underlyingToken.balanceOf(setToken.address);
                     const wrappedSetTokenUnderlyingBalanceBefore = await underlyingToken.balanceOf(wrappedSetToken.address);
@@ -465,6 +467,9 @@ if (process.env.INTEGRATIONTEST) {
                     expect(setTokenWrappedBalanceAfter.sub(setTokenWrappedBalanceBefore) == wrappedSetTokenTradeUnits.mul(setTokenTotalSupply));
                     expect(wrappedSetTokenTotalSupplyAfter == wrappedSetTokenTotalSupplyBefore.add(wrappedSetTokenSupplyLiquidityAmount));
                     expect(extensionWrappedBalanceAfter == ZERO);
+
+                    const underlyingTokenBalanceAfter = await underlyingToken.balanceOf(migrationExtension.address);
+                    console.log("Underlying Token Balance After", utils.formatEther(underlyingTokenBalanceAfter));
                   });
                 });
               });
