@@ -38,6 +38,8 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { ITradeModule } from "../interfaces/ITradeModule.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
+import "hardhat/console.sol";
+
 /**
  * @title MigrationExtension
  * @author Index Coop
@@ -363,12 +365,16 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
             decodedParams.exchangeData
         );
 
+        console.log("Underlying token balance before", underlyingToken.balanceOf(address(this)));
+        console.log("Wrapped token balance before", wrappedSetToken.balanceOf(address(this)));
         _decreaseLiquidityPosition(
             decodedParams.tokenId,
             liquidity,
             decodedParams.underlyingRedeemLiquidityMinAmount,
             decodedParams.wrappedSetTokenRedeemLiquidityMinAmount
         );
+        console.log("Underlying token balance after", underlyingToken.balanceOf(address(this)));
+        console.log("Wrapped token balance after", wrappedSetToken.balanceOf(address(this)));
 
         _redeemExcessWrappedSetToken();
     }
