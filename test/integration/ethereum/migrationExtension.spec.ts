@@ -4,7 +4,7 @@ import DeployHelper from "@utils/deploys";
 import { ether, getAccounts, getWaffleExpect } from "@utils/index";
 import { addSnapshotBeforeRestoreAfterEach, increaseTimeAsync, setBlockNumber } from "@utils/test/testingUtils";
 import { ethers } from "hardhat";
-import { BigNumber, Signer } from "ethers";
+import { BigNumber, Signer, utils } from "ethers";
 import { MigrationExtension } from "@utils/contracts/index";
 import {
   IWETH,
@@ -383,19 +383,16 @@ if (process.env.INTEGRATIONTEST) {
                     const poolUnderlyingBalanceBefore = await underlyingToken.balanceOf(contractAddresses.uniswapV3Pool);
                     const poolWrappedBalanceBefore = await wrappedSetToken.balanceOf(contractAddresses.uniswapV3Pool);
 
-                    const operatorUnderlyingBalanceBefore = await underlyingToken.balanceOf(await operator.getAddress());
-                    const operatorWrappedBalanceBefore = await wrappedSetToken.balanceOf(await operator.getAddress());
+                    console.log("Extension Underlying Balance Before", utils.formatEther(extensionUnderlyingBalanceBefore));
+                    console.log("Extension Wrapped Balance Before", utils.formatEther(extensionWrappedBalanceBefore));
 
-                    console.log("Extension Underlying Balance Before", extensionUnderlyingBalanceBefore.toString());
-                    console.log("Extension Wrapped Balance Before", extensionWrappedBalanceBefore.toString());
-
-                    console.log("Pool Underlying Balance Before", poolUnderlyingBalanceBefore.toString());
-                    console.log("Pool Wrapped Balance Before", poolWrappedBalanceBefore.toString());
-
-                    console.log("Operator Underlying Balance Before", operatorUnderlyingBalanceBefore.toString());
-                    console.log("Operator Wrapped Balance Before", operatorWrappedBalanceBefore.toString());
+                    console.log("Pool Underlying Balance Before", utils.formatEther(poolUnderlyingBalanceBefore));
+                    console.log("Pool Wrapped Balance Before", utils.formatEther(poolWrappedBalanceBefore));
 
                     const liquidity = await migrationExtension.tokenIdToLiquidity(tokenId);
+                    console.log("Liquidity", utils.formatEther(liquidity));
+                    console.log("underlyingRedeemLiquidityMinAmount", utils.formatEther(underlyingRedeemLiquidityMinAmount));
+                    console.log("wrappedSetTokenRedeemLiquidityMinAmount", utils.formatEther(wrappedSetTokenRedeemLiquidityMinAmount));
                     await migrationExtension.decreaseLiquidityPosition(
                       tokenId,
                       liquidity,
@@ -408,20 +405,16 @@ if (process.env.INTEGRATIONTEST) {
                     const poolUnderlyingBalanceAfter = await underlyingToken.balanceOf(contractAddresses.uniswapV3Pool);
                     const poolWrappedBalanceAfter = await wrappedSetToken.balanceOf(contractAddresses.uniswapV3Pool);
 
-                    const operatorUnderlyingBalanceAfter = await underlyingToken.balanceOf(await operator.getAddress());
-                    const operatorWrappedBalanceAfter = await wrappedSetToken.balanceOf(await operator.getAddress());
 
-                    console.log("Extension Underlying Balance After", extensionUnderlyingBalanceAfter.toString());
-                    console.log("Extension Wrapped Balance After", extensionWrappedBalanceAfter.toString());
+                    console.log("Extension Underlying Balance After", utils.formatEther(extensionUnderlyingBalanceAfter));
+                    console.log("Extension Wrapped Balance After", utils.formatEther(extensionWrappedBalanceAfter));
 
-                    console.log("Pool Underlying Balance After", poolUnderlyingBalanceAfter.toString());
-                    console.log("Pool Wrapped Balance After", poolWrappedBalanceAfter.toString());
+                    console.log("Pool Underlying Balance After", utils.formatEther(poolUnderlyingBalanceAfter));
+                    console.log("Pool Wrapped Balance After", utils.formatEther(poolWrappedBalanceAfter));
 
-                    console.log("Operator Underlying Balance After", operatorUnderlyingBalanceAfter.toString());
-                    console.log("Operator Wrapped Balance After", operatorWrappedBalanceAfter.toString());
                   });
 
-                  it.skip("should be able to migrate atomically", async () => {
+                  it("should be able to migrate atomically", async () => {
                     await underlyingToken.connect(wethWhale).transfer(migrationExtension.address, ether(1.1));
 
                     const setTokenUnderlyingBalanceBefore = await underlyingToken.balanceOf(setToken.address);
