@@ -1,7 +1,7 @@
 import "module-alias/register";
 import { Account } from "@utils/types";
 import DeployHelper from "@utils/deploys";
-import { ether, getAccounts, getWaffleExpect } from "@utils/index";
+import { ether, getAccounts, getWaffleExpect, preciseDiv, preciseMul } from "@utils/index";
 import { addSnapshotBeforeRestoreAfterEach, increaseTimeAsync, setBlockNumber } from "@utils/test/testingUtils";
 import { ethers } from "hardhat";
 import { BigNumber, Signer, utils } from "ethers";
@@ -306,127 +306,60 @@ if (process.env.INTEGRATIONTEST) {
                   let wethWhale: JsonRpcSigner;
 
                   before(async () => {
-                    underlyingLoanAmount = ether(1);
+                    setTokenTotalSupply = await setToken.totalSupply();
+                    const wrappedPositionUnits = await wrappedSetToken.getDefaultPositionRealUnit(underlyingToken.address);
+
+                    underlyingTradeUnits = await setToken.getDefaultPositionRealUnit(underlyingToken.address);
+                    wrappedSetTokenTradeUnits = preciseMul(
+                      preciseMul(preciseDiv(ether(1), wrappedPositionUnits), ether(0.9985)),
+                      underlyingTradeUnits
+                    );
+
+                    underlyingLoanAmount = preciseMul(
+                      underlyingTradeUnits,
+                      setTokenTotalSupply
+                    );
 
                     underlyingSupplyLiquidityAmount = ZERO;
-                    wrappedSetTokenSupplyLiquidityAmount = ether(250);
+
+                    wrappedSetTokenSupplyLiquidityAmount = preciseMul(
+                      preciseDiv(ether(1), wrappedPositionUnits),
+                      underlyingLoanAmount
+                    );
 
                     tokenId = await migrationExtension.tokenIds(0);
 
                     exchangeName = "UniswapV3ExchangeAdapter";
-
-                    setTokenTotalSupply = await setToken.totalSupply();
-                    underlyingTradeUnits = ether(1).mul(ether(1)).div(setTokenTotalSupply);
-                    wrappedSetTokenTradeUnits = ether(249.9).mul(ether(1)).div(setTokenTotalSupply);
 
                     exchangeData = await uniswapV3ExchangeAdapter.generateDataParam(
                       [tokenAddresses.weth, tokenAddresses.wrappedSetToken],
                       [BigNumber.from(100)],
                     );
 
-                    underlyingRedeemLiquidityMinAmount = ether(0.95);
+                    underlyingRedeemLiquidityMinAmount = ZERO;
                     wrappedSetTokenRedeemLiquidityMinAmount = ZERO;
 
                     wethWhale = await impersonateAccount("0xde21F729137C5Af1b01d73aF1dC21eFfa2B8a0d6");
                   });
 
-                  it("should be able to migrate non-atomically", async () => {
-                    // Issue wrapped SetToken units to the extension
-                    expect(await wrappedSetToken.balanceOf(migrationExtension.address)).to.be.eq(0);
-                    const wethWhale = await impersonateAccount("0xde21F729137C5Af1b01d73aF1dC21eFfa2B8a0d6");
-                    await underlyingToken.connect(wethWhale).approve(
-                      debtIssuanceModuleV2.address,
-                      ether(1)
-                    );
-                    await debtIssuanceModuleV2.connect(wethWhale).issue(
-                      wrappedSetToken.address,
-                      wrappedSetTokenSupplyLiquidityAmount,
-                      migrationExtension.address
-                    );
-                    expect(await wrappedSetToken.balanceOf(migrationExtension.address)).to.be.eq(ether(250));
-
-                    // Increase liquidity in Uniswap V3 pool
-                    const wrappedSetTokenPoolBalanceBefore = await wrappedSetToken.balanceOf(contractAddresses.uniswapV3Pool);
-                    expect(wrappedSetTokenPoolBalanceBefore).to.be.eq(ether(0.01).add(1));
-                    await migrationExtension.increaseLiquidityPosition(
-                      underlyingSupplyLiquidityAmount,
-                      wrappedSetTokenSupplyLiquidityAmount,
-                      tokenId
-                    );
-                    const wrappedSetTokenPoolBalanceAfter = await wrappedSetToken.balanceOf(contractAddresses.uniswapV3Pool);
-                    expect(wrappedSetTokenPoolBalanceAfter).to.be.eq(ether(250).add(wrappedSetTokenPoolBalanceBefore));
-
-                    // Trade underlying for wrapped SetToken
-                    const setTokenUnderlyingBalanceBefore = await underlyingToken.balanceOf(setToken.address);
-                    const wrappedSetTokenUnderlyingBalanceBefore = await wrappedSetToken.balanceOf(setToken.address);
-                    await migrationExtension.trade(
-                      exchangeName,
-                      underlyingToken.address,
-                      underlyingTradeUnits,
-                      wrappedSetToken.address,
-                      wrappedSetTokenTradeUnits,
-                      exchangeData
-                    );
-                    const setTokenUnderlyingBalanceAfter = await underlyingToken.balanceOf(setToken.address);
-                    const wrappedSetTokenUnderlyingBalanceAfter = await wrappedSetToken.balanceOf(setToken.address);
-                    expect(setTokenUnderlyingBalanceAfter).to.be.eq(
-                      setTokenUnderlyingBalanceBefore.sub(underlyingTradeUnits.mul(setTokenTotalSupply).div(ether(1)))
-                    );
-                    expect(wrappedSetTokenUnderlyingBalanceAfter).to.be.gt(
-                      wrappedSetTokenUnderlyingBalanceBefore.add(wrappedSetTokenTradeUnits.mul(setTokenTotalSupply).div(ether(1)))
-                    );
-
-                    // Decrease liquidity in Uniswap V3 pool
-                    const extensionUnderlyingBalanceBefore = await underlyingToken.balanceOf(migrationExtension.address);
-                    const extensionWrappedBalanceBefore = await wrappedSetToken.balanceOf(migrationExtension.address);
-
-                    const poolUnderlyingBalanceBefore = await underlyingToken.balanceOf(contractAddresses.uniswapV3Pool);
-                    const poolWrappedBalanceBefore = await wrappedSetToken.balanceOf(contractAddresses.uniswapV3Pool);
-
-                    console.log("Extension Underlying Balance Before", utils.formatEther(extensionUnderlyingBalanceBefore));
-                    console.log("Extension Wrapped Balance Before", utils.formatEther(extensionWrappedBalanceBefore));
-
-                    console.log("Pool Underlying Balance Before", utils.formatEther(poolUnderlyingBalanceBefore));
-                    console.log("Pool Wrapped Balance Before", utils.formatEther(poolWrappedBalanceBefore));
-
-                    const liquidity = await migrationExtension.tokenIdToLiquidity(tokenId);
-                    console.log("Liquidity", utils.formatEther(liquidity));
-                    console.log("underlyingRedeemLiquidityMinAmount", utils.formatEther(underlyingRedeemLiquidityMinAmount));
-                    console.log("wrappedSetTokenRedeemLiquidityMinAmount", utils.formatEther(wrappedSetTokenRedeemLiquidityMinAmount));
-                    await migrationExtension.decreaseLiquidityPosition(
-                      tokenId,
-                      liquidity,
-                      underlyingRedeemLiquidityMinAmount,
-                      wrappedSetTokenRedeemLiquidityMinAmount
-                    );
-                    const extensionUnderlyingBalanceAfter = await underlyingToken.balanceOf(migrationExtension.address);
-                    const extensionWrappedBalanceAfter = await wrappedSetToken.balanceOf(migrationExtension.address);
-
-                    const poolUnderlyingBalanceAfter = await underlyingToken.balanceOf(contractAddresses.uniswapV3Pool);
-                    const poolWrappedBalanceAfter = await wrappedSetToken.balanceOf(contractAddresses.uniswapV3Pool);
-
-
-                    console.log("Extension Underlying Balance After", utils.formatEther(extensionUnderlyingBalanceAfter));
-                    console.log("Extension Wrapped Balance After", utils.formatEther(extensionWrappedBalanceAfter));
-
-                    console.log("Pool Underlying Balance After", utils.formatEther(poolUnderlyingBalanceAfter));
-                    console.log("Pool Wrapped Balance After", utils.formatEther(poolWrappedBalanceAfter));
-
-                  });
-
                   it("should be able to migrate atomically", async () => {
-                    await underlyingToken.connect(wethWhale).transfer(migrationExtension.address, ether(0.0005));
-                    const underlyingTokenBalanceBefore = await underlyingToken.balanceOf(migrationExtension.address);
-                      console.log("Underlying Token Balance Before", utils.formatEther(underlyingTokenBalanceBefore));
+                    // Subsidize 1.05 WETH to the migration extension
+                    await underlyingToken.connect(wethWhale).transfer(migrationExtension.address, ether(1.05));
 
-                    const setTokenUnderlyingBalanceBefore = await underlyingToken.balanceOf(setToken.address);
-                    const wrappedSetTokenUnderlyingBalanceBefore = await underlyingToken.balanceOf(wrappedSetToken.address);
+                    const startingComponents = await setToken.getComponents();
+                    console.log("Starting Components", startingComponents);
+                    expect(startingComponents).to.deep.equal([tokenAddresses.weth]);
+
                     const extensionUnderlyingBalanceBefore = await underlyingToken.balanceOf(migrationExtension.address);
+                    const poolUnderlyingBalanceBefore = await underlyingToken.balanceOf(contractAddresses.uniswapV3Pool);
+                    const setTokenUnderlyingBalanceBefore = await underlyingToken.balanceOf(setToken.address);
+                    const wrappedUnderlyingBalanceBefore = await underlyingToken.balanceOf(wrappedSetToken.address);
+                    console.log("Extension Underlying Balance Before", utils.formatEther(extensionUnderlyingBalanceBefore));
+                    console.log("Pool Underlying Balance Before", utils.formatEther(poolUnderlyingBalanceBefore));
+                    console.log("SetToken Underlying Balance Before", utils.formatEther(setTokenUnderlyingBalanceBefore));
+                    console.log("Wrapped Underlying Balance Before", utils.formatEther(wrappedUnderlyingBalanceBefore));
 
-                    const setTokenWrappedBalanceBefore = await wrappedSetToken.balanceOf(setToken.address);
-                    const wrappedSetTokenTotalSupplyBefore = await wrappedSetToken.totalSupply();
-
-                    console.log("Input Parameters");
+                    console.log("\n Input Parameters");
                     console.log({
                       underlyingLoanAmount,
                       underlyingSupplyLiquidityAmount,
@@ -452,24 +385,18 @@ if (process.env.INTEGRATIONTEST) {
                       wrappedSetTokenRedeemLiquidityMinAmount
                     );
 
-                    const setTokenUnderlyingBalanceAfter = await underlyingToken.balanceOf(setToken.address);
-                    const wrappedSetTokenUnderlyingBalanceAfter = await underlyingToken.balanceOf(wrappedSetToken.address);
                     const extensionUnderlyingBalanceAfter = await underlyingToken.balanceOf(migrationExtension.address);
+                    const poolUnderlyingBalanceAfter = await underlyingToken.balanceOf(contractAddresses.uniswapV3Pool);
+                    const setTokenUnderlyingBalanceAfter = await underlyingToken.balanceOf(setToken.address);
+                    const wrappedUnderlyingBalanceAfter = await underlyingToken.balanceOf(wrappedSetToken.address);
+                    console.log("Extension Underlying Balance After", utils.formatEther(extensionUnderlyingBalanceAfter));
+                    console.log("Pool Underlying Balance After", utils.formatEther(poolUnderlyingBalanceAfter));
+                    console.log("SetToken Underlying Balance After", utils.formatEther(setTokenUnderlyingBalanceAfter));
+                    console.log("Wrapped Underlying Balance After", utils.formatEther(wrappedUnderlyingBalanceAfter));
 
-                    const setTokenWrappedBalanceAfter = await wrappedSetToken.balanceOf(setToken.address);
-                    const wrappedSetTokenTotalSupplyAfter = await wrappedSetToken.totalSupply();
-                    const extensionWrappedBalanceAfter = await wrappedSetToken.balanceOf(migrationExtension.address);
-
-                    expect(setTokenUnderlyingBalanceBefore.sub(setTokenUnderlyingBalanceAfter) == underlyingTradeUnits.mul(setTokenTotalSupply));
-                    expect(wrappedSetTokenUnderlyingBalanceAfter.sub(wrappedSetTokenUnderlyingBalanceBefore) == wrappedSetTokenSupplyLiquidityAmount);
-                    expect(extensionUnderlyingBalanceAfter).to.be.lt(extensionUnderlyingBalanceBefore);
-
-                    expect(setTokenWrappedBalanceAfter.sub(setTokenWrappedBalanceBefore) == wrappedSetTokenTradeUnits.mul(setTokenTotalSupply));
-                    expect(wrappedSetTokenTotalSupplyAfter == wrappedSetTokenTotalSupplyBefore.add(wrappedSetTokenSupplyLiquidityAmount));
-                    expect(extensionWrappedBalanceAfter == ZERO);
-
-                    const underlyingTokenBalanceAfter = await underlyingToken.balanceOf(migrationExtension.address);
-                    console.log("Underlying Token Balance After", utils.formatEther(underlyingTokenBalanceAfter));
+                    const endingComponents = await setToken.getComponents();
+                    expect(endingComponents).to.deep.equal([tokenAddresses.wrappedSetToken]);
+                    console.log("Ending Components", endingComponents);
                   });
                 });
               });
