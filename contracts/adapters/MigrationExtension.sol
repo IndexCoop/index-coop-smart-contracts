@@ -319,6 +319,8 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         _migrate(decodedParams);
 
         // Approve flashloan repayment
+        console.log("Flashloan Amount", amount);
+        console.log("Flashloan Premium", premium);
         uint256 totalAmount = amount + premium;
         underlyingToken.approve(address(POOL), totalAmount);
         return true;
@@ -348,7 +350,10 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
      * Execute the token migraiton after the flash loan amount has been received
      */
     function _migrate(DecodedParams memory decodedParams) internal {
+        console.log("Extension Underlying token balance to start", underlyingToken.balanceOf(address(this)));
+        console.log("Extension Wrapped token balance to start", wrappedSetToken.balanceOf(address(this)));
         _issueRequiredWrappedSetToken(decodedParams.wrappedSetTokenSupplyLiquidityAmount);
+        console.log("Wrapped Underlying token balance before trade", underlyingToken.balanceOf(address(wrappedSetToken)));
 
         uint128 liquidity = _increaseLiquidityPosition(
             decodedParams.underlyingSupplyLiquidityAmount,
@@ -356,6 +361,8 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
             decodedParams.tokenId
         );
 
+        console.log("Set Underlying token balance before trade", underlyingToken.balanceOf(address(setToken)));
+        console.log("Set Wrapped token balance before trade", wrappedSetToken.balanceOf(address(setToken)));
         _trade(
             decodedParams.exchangeName,
             address(underlyingToken),
@@ -364,19 +371,24 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
             decodedParams.wrappedSetTokenTradeUnits,
             decodedParams.exchangeData
         );
+        console.log("Set Underlying token balance after trade", underlyingToken.balanceOf(address(setToken)));
+        console.log("Wrapped Underlying token balance before trade", underlyingToken.balanceOf(address(wrappedSetToken)));
+        console.log("Set Wrapped token balance after trade", wrappedSetToken.balanceOf(address(setToken)));
 
-        console.log("Underlying token balance before", underlyingToken.balanceOf(address(this)));
-        console.log("Wrapped token balance before", wrappedSetToken.balanceOf(address(this)));
+        console.log("Extension Underlying token balance before decreaseLiquidity", underlyingToken.balanceOf(address(this)));
+        console.log("Extension Wrapped token balance before decreaseLiquidity", wrappedSetToken.balanceOf(address(this)));
         _decreaseLiquidityPosition(
             decodedParams.tokenId,
             liquidity,
             decodedParams.underlyingRedeemLiquidityMinAmount,
             decodedParams.wrappedSetTokenRedeemLiquidityMinAmount
         );
-        console.log("Underlying token balance after", underlyingToken.balanceOf(address(this)));
-        console.log("Wrapped token balance after", wrappedSetToken.balanceOf(address(this)));
 
+        console.log("Extension Underlying token balance after decreaseLiquidity", underlyingToken.balanceOf(address(this)));
+        console.log("Extension Wrapped token balance after decreaseLiquidity", wrappedSetToken.balanceOf(address(this)));
         _redeemExcessWrappedSetToken();
+        console.log("Extension Underlying token balance after Redeem", underlyingToken.balanceOf(address(this)));
+        console.log("Extension Wrapped token balance after Redeem", wrappedSetToken.balanceOf(address(this)));
     }
 
     /// @dev Although the SetToken units are passed in for the send and receive quantities, the total quantity

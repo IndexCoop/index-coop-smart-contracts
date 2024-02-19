@@ -350,6 +350,7 @@ if (process.env.INTEGRATIONTEST) {
                     console.log("Starting Components", startingComponents);
                     expect(startingComponents).to.deep.equal([tokenAddresses.weth]);
 
+                      const wrappedTotalSupply = await wrappedSetToken.totalSupply();
                     const extensionUnderlyingBalanceBefore = await underlyingToken.balanceOf(migrationExtension.address);
                     const poolUnderlyingBalanceBefore = await underlyingToken.balanceOf(contractAddresses.uniswapV3Pool);
                     const setTokenUnderlyingBalanceBefore = await underlyingToken.balanceOf(setToken.address);
@@ -358,6 +359,8 @@ if (process.env.INTEGRATIONTEST) {
                     console.log("Pool Underlying Balance Before", utils.formatEther(poolUnderlyingBalanceBefore));
                     console.log("SetToken Underlying Balance Before", utils.formatEther(setTokenUnderlyingBalanceBefore));
                     console.log("Wrapped Underlying Balance Before", utils.formatEther(wrappedUnderlyingBalanceBefore));
+                    console.log("Wrapped Total Supply Before", utils.formatEther(wrappedTotalSupply));
+                    console.log("Wrapped Nav Before", utils.formatEther(wrappedUnderlyingBalanceBefore.mul(ether(1)).div(wrappedTotalSupply)));
 
                     console.log("\n Input Parameters");
                     console.log({
@@ -393,6 +396,7 @@ if (process.env.INTEGRATIONTEST) {
                     console.log("Pool Underlying Balance After", utils.formatEther(poolUnderlyingBalanceAfter));
                     console.log("SetToken Underlying Balance After", utils.formatEther(setTokenUnderlyingBalanceAfter));
                     console.log("Wrapped Underlying Balance After", utils.formatEther(wrappedUnderlyingBalanceAfter));
+                    console.log("Wrapped Nav After", utils.formatEther(wrappedUnderlyingBalanceBefore.mul(ether(1)).div(wrappedTotalSupply)));
 
                     const endingComponents = await setToken.getComponents();
                     expect(endingComponents).to.deep.equal([tokenAddresses.wrappedSetToken]);
