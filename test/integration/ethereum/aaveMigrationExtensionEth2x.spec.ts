@@ -6,7 +6,11 @@ import { Account } from "@utils/types";
 import DeployHelper from "@utils/deploys";
 import { ether, getAccounts, getWaffleExpect, preciseDiv, preciseMul } from "@utils/index";
 import { ZERO } from "@utils/constants";
-import { addSnapshotBeforeRestoreAfterEach, increaseTimeAsync, setBlockNumber } from "@utils/test/testingUtils";
+import {
+  addSnapshotBeforeRestoreAfterEach,
+  increaseTimeAsync,
+  setBlockNumber,
+} from "@utils/test/testingUtils";
 import { impersonateAccount } from "./utils";
 import {
   AaveMigrationExtension,
@@ -98,7 +102,10 @@ if (process.env.INTEGRATIONTEST) {
 
       // Setup ETH2x contracts
       eth2x = SetToken__factory.connect(tokenAddresses.eth2x, owner.wallet);
-      debtIssuanceModuleV2 = DebtIssuanceModuleV2__factory.connect(contractAddresses.debtIssuanceModuleV2, owner.wallet);
+      debtIssuanceModuleV2 = DebtIssuanceModuleV2__factory.connect(
+        contractAddresses.debtIssuanceModuleV2,
+        owner.wallet,
+      );
 
       // Deploy Migration Extension
       migrationExtension = await deployer.extensions.deployAaveMigrationExtension(
@@ -122,7 +129,7 @@ if (process.env.INTEGRATIONTEST) {
       before(async () => {
         flexibleLeverageStrategyExtension = FlexibleLeverageStrategyExtension__factory.connect(
           contractAddresses.flexibleLeverageStrategyExtension,
-          operator
+          operator,
         );
 
         // Adjust slippage tolerance for the test environment
@@ -150,25 +157,33 @@ if (process.env.INTEGRATIONTEST) {
         expect(startingLeverage.gt(ether(1.75)) && startingLeverage.lt(ether(2.25)));
 
         // Perform first rebalance, should lower leverage ratio
-        await flexibleLeverageStrategyExtension.connect(keeper).rebalance("UniswapV3ExchangeAdapter");
+        await flexibleLeverageStrategyExtension
+          .connect(keeper)
+          .rebalance("UniswapV3ExchangeAdapter");
         const firstRebalanceLeverage = await flexibleLeverageStrategyExtension.getCurrentLeverageRatio();
         expect(firstRebalanceLeverage.lt(startingLeverage));
         increaseTimeAsync(oldExecution.twapCooldownPeriod);
 
         // Iterate rebalance, should lower leverage ratio
-        await flexibleLeverageStrategyExtension.connect(keeper).iterateRebalance("UniswapV3ExchangeAdapter");
+        await flexibleLeverageStrategyExtension
+          .connect(keeper)
+          .iterateRebalance("UniswapV3ExchangeAdapter");
         const secondRebalanceLeverage = await flexibleLeverageStrategyExtension.getCurrentLeverageRatio();
         expect(secondRebalanceLeverage.lt(firstRebalanceLeverage));
         increaseTimeAsync(oldExecution.twapCooldownPeriod);
 
         // Iterate rebalance, should lower leverage ratio
-        await flexibleLeverageStrategyExtension.connect(keeper).iterateRebalance("UniswapV3ExchangeAdapter");
+        await flexibleLeverageStrategyExtension
+          .connect(keeper)
+          .iterateRebalance("UniswapV3ExchangeAdapter");
         const thirdRebalanceLeverage = await flexibleLeverageStrategyExtension.getCurrentLeverageRatio();
         expect(thirdRebalanceLeverage.lt(secondRebalanceLeverage));
         increaseTimeAsync(oldExecution.twapCooldownPeriod);
 
         // Disengage from the strategy, should have 1 leverage ratio
-        await flexibleLeverageStrategyExtension.connect(operator).disengage("UniswapV3ExchangeAdapter");
+        await flexibleLeverageStrategyExtension
+          .connect(operator)
+          .disengage("UniswapV3ExchangeAdapter");
       });
 
       it("should have leverage ratio of 1", async () => {
@@ -188,7 +203,7 @@ if (process.env.INTEGRATIONTEST) {
           // Deploy Wrap Extension
           wrapExtension = await deployer.extensions.deployWrapExtension(
             baseManager.address,
-            contractAddresses.wrapModule
+            contractAddresses.wrapModule,
           );
 
           // Add Wrap Module
@@ -201,11 +216,13 @@ if (process.env.INTEGRATIONTEST) {
           await wrapExtension.connect(operator).initialize();
 
           // Unwrap cETH
-          await wrapExtension.connect(operator).unwrapWithEther(
-            ceth.address,
-            await eth2xfli.getTotalComponentRealUnits(ceth.address),
-            "CompoundWrapAdapter"
-          );
+          await wrapExtension
+            .connect(operator)
+            .unwrapWithEther(
+              ceth.address,
+              await eth2xfli.getTotalComponentRealUnits(ceth.address),
+              "CompoundWrapAdapter",
+            );
         });
 
         it("should have WETH as a component instead of cETH", async () => {
@@ -220,9 +237,7 @@ if (process.env.INTEGRATIONTEST) {
           });
 
           it("should have the MigrationExtension added as an extension", async () => {
-            expect(
-              await baseManager.isExtension(migrationExtension.address)
-            ).to.be.true;
+            expect(await baseManager.isExtension(migrationExtension.address)).to.be.true;
           });
 
           context("when the trade module is added and initialized", () => {
@@ -235,9 +250,7 @@ if (process.env.INTEGRATIONTEST) {
             });
 
             it("should have the TradeModule added as a module", async () => {
-              expect(
-                await eth2xfli.moduleStates(tradeModule.address)
-              ).to.equal(2);
+              expect(await eth2xfli.moduleStates(tradeModule.address)).to.equal(2);
             });
 
             context("when the USDC equity is traded away", () => {
@@ -246,7 +259,7 @@ if (process.env.INTEGRATIONTEST) {
               before(async () => {
                 uniswapV3ExchangeAdapter = UniswapV3ExchangeAdapter__factory.connect(
                   contractAddresses.uniswapV3ExchangeAdapter,
-                  operator
+                  operator,
                 );
 
                 const exchangeName = "UniswapV3ExchangeAdapter";
@@ -263,7 +276,7 @@ if (process.env.INTEGRATIONTEST) {
                   usdcUnit,
                   weth.address,
                   0,
-                  exchangeData
+                  exchangeData,
                 );
               });
 
@@ -281,9 +294,9 @@ if (process.env.INTEGRATIONTEST) {
                   const underlyingAmount = 0;
                   const wrappedSetTokenAmount = ether(0.01);
 
-                  await eth2x.connect(
-                    await impersonateAccount(keeperAddresses.eth2xDeployer)
-                  ).transfer(migrationExtension.address, wrappedSetTokenAmount);
+                  await eth2x
+                    .connect(await impersonateAccount(keeperAddresses.eth2xDeployer))
+                    .transfer(migrationExtension.address, wrappedSetTokenAmount);
 
                   // Mint liquidity position via Migration Extension
                   await migrationExtension.mintLiquidityPosition(
@@ -291,7 +304,7 @@ if (process.env.INTEGRATIONTEST) {
                     wrappedSetTokenAmount,
                     tickLower,
                     tickUpper,
-                    fee
+                    fee,
                   );
                 });
 
@@ -309,6 +322,7 @@ if (process.env.INTEGRATIONTEST) {
                   let underlyingTradeUnits: BigNumber;
                   let wrappedSetTokenTradeUnits: BigNumber;
                   let exchangeData: string;
+                  let maxSubsidy: BigNumber;
                   let underlyingRedeemLiquidityMinAmount: BigNumber;
                   let wrappedSetTokenRedeemLiquidityMinAmount: BigNumber;
 
@@ -316,14 +330,17 @@ if (process.env.INTEGRATIONTEST) {
 
                   before(async () => {
                     const setTokenTotalSupply = await eth2xfli.totalSupply();
-                    const wrappedPositionUnits = await eth2x.getDefaultPositionRealUnit(aEthWeth.address);
+                    const wrappedPositionUnits = await eth2x.getDefaultPositionRealUnit(
+                      aEthWeth.address,
+                    );
                     const wrappedExchangeRate = preciseDiv(ether(1), wrappedPositionUnits);
+                    maxSubsidy = ether(3.205);
 
                     // ETH2x-FLI trade parameters
                     underlyingTradeUnits = await eth2xfli.getDefaultPositionRealUnit(weth.address);
                     wrappedSetTokenTradeUnits = preciseMul(
                       preciseMul(wrappedExchangeRate, ether(0.999)),
-                      underlyingTradeUnits
+                      underlyingTradeUnits,
                     );
                     exchangeName = "UniswapV3ExchangeAdapter";
                     exchangeData = await uniswapV3ExchangeAdapter.generateDataParam(
@@ -332,41 +349,40 @@ if (process.env.INTEGRATIONTEST) {
                     );
 
                     // Flash loan parameters
-                    underlyingLoanAmount = preciseMul(
-                      underlyingTradeUnits,
-                      setTokenTotalSupply
-                    );
+                    underlyingLoanAmount = preciseMul(underlyingTradeUnits, setTokenTotalSupply);
 
                     // Uniswap V3 liquidity parameters
                     underlyingSupplyLiquidityAmount = ZERO;
                     wrappedSetTokenSupplyLiquidityAmount = preciseMul(
                       preciseDiv(ether(1), wrappedPositionUnits),
-                      underlyingLoanAmount
+                      underlyingLoanAmount,
                     );
                     tokenId = await migrationExtension.tokenIds(0);
-                    exchangeName = "UniswapV3ExchangeAdapter";
-                    exchangeData = await uniswapV3ExchangeAdapter.generateDataParam(
-                      [tokenAddresses.weth, tokenAddresses.eth2x],
-                      [BigNumber.from(100)],
-                    );
                     underlyingRedeemLiquidityMinAmount = ZERO;
                     wrappedSetTokenRedeemLiquidityMinAmount = ZERO;
 
                     // Subsidize 3.205 WETH to the migration extension
-                    wethWhale = await impersonateAccount("0xde21F729137C5Af1b01d73aF1dC21eFfa2B8a0d6");
-                    await weth.connect(wethWhale).transfer(migrationExtension.address, ether(3.205));
+                    wethWhale = await impersonateAccount(
+                      "0xde21F729137C5Af1b01d73aF1dC21eFfa2B8a0d6",
+                    );
+                    await weth.connect(wethWhale).transfer(await operator.getAddress(), maxSubsidy);
+                    await weth.connect(operator).approve(migrationExtension.address, maxSubsidy);
                   });
 
                   it("should be able to migrate atomically", async () => {
+                    const operatorAddress = await operator.getAddress();
+                    const operatorWethBalanceBefore = await weth.balanceOf(operatorAddress);
+
                     // Verify starting components and units
                     const startingComponents = await eth2xfli.getComponents();
-                    const startingUnit = await eth2xfli.getDefaultPositionRealUnit(tokenAddresses.weth);
+                    const startingUnit = await eth2xfli.getDefaultPositionRealUnit(
+                      tokenAddresses.weth,
+                    );
                     expect(startingComponents).to.deep.equal([tokenAddresses.weth]);
                     expect(startingUnit).to.eq(underlyingTradeUnits);
 
-                    // Migrate atomically via Migration Extension
-                    await migrationExtension.migrate(
-                      underlyingLoanAmount,
+                    // Get the expected subsidy
+                    const decodedParams = {
                       underlyingSupplyLiquidityAmount,
                       wrappedSetTokenSupplyLiquidityAmount,
                       tokenId,
@@ -375,52 +391,33 @@ if (process.env.INTEGRATIONTEST) {
                       wrappedSetTokenTradeUnits,
                       exchangeData,
                       underlyingRedeemLiquidityMinAmount,
-                      wrappedSetTokenRedeemLiquidityMinAmount
+                      wrappedSetTokenRedeemLiquidityMinAmount,
+                    };
+                    const expectedOutput = await migrationExtension.callStatic.migrate(
+                      decodedParams,
+                      underlyingLoanAmount,
+                      maxSubsidy
                     );
+                    expect(expectedOutput).to.lt(maxSubsidy);
+
+                    // Migrate atomically via Migration Extension
+                    await migrationExtension.migrate(
+                      decodedParams,
+                      underlyingLoanAmount,
+                      maxSubsidy
+                    );
+
+                    // Verify operator WETH balance change
+                    const operatorWethBalanceAfter = await weth.balanceOf(operatorAddress);
+                    expect(operatorWethBalanceBefore.sub(operatorWethBalanceAfter)).to.be.gte(maxSubsidy.sub(expectedOutput));
 
                     // Verify ending components and units
                     const endingComponents = await eth2xfli.getComponents();
-                    const endingUnit = await eth2xfli.getDefaultPositionRealUnit(tokenAddresses.eth2x);
+                    const endingUnit = await eth2xfli.getDefaultPositionRealUnit(
+                      tokenAddresses.eth2x,
+                    );
                     expect(endingComponents).to.deep.equal([tokenAddresses.eth2x]);
                     expect(endingUnit).to.be.gt(wrappedSetTokenTradeUnits);
-                  });
-
-                  context("when the migration is completed", () => {
-                    it("can sweep any remaining tokens", async () => {
-                      const operatorAddress = await baseManager.operator();
-
-                      // Store initial units for the operator
-                      const initialWeth = await weth.balanceOf(operatorAddress);
-                      const initialAethWeth = await aEthWeth.balanceOf(operatorAddress);
-                      const initialEth2x = await eth2x.balanceOf(operatorAddress);
-
-                      // Verify remaining units on the migration extension
-                      const remainingWeth = await weth.balanceOf(migrationExtension.address);
-                      const remainingAethWeth = await aEthWeth.balanceOf(migrationExtension.address);
-                      const remainingEth2x = await eth2x.balanceOf(migrationExtension.address);
-                      expect(remainingWeth).to.gt(ZERO);
-                      expect(remainingAethWeth).to.eq(ZERO);
-                      expect(remainingEth2x).to.eq(ZERO);
-
-                      // Sweep remaining tokens to the operator
-                      await migrationExtension.sweepTokens();
-
-                      // Verify ending units for the operator
-                      const endingWeth = await weth.balanceOf(operatorAddress);
-                      const endingAethWeth = await aEthWeth.balanceOf(operatorAddress);
-                      const endingEth2x = await eth2x.balanceOf(operatorAddress);
-                      expect(endingWeth).to.eq(initialWeth.add(remainingWeth));
-                      expect(endingAethWeth).to.eq(initialAethWeth.add(remainingAethWeth));
-                      expect(endingEth2x).to.eq(initialEth2x.add(remainingEth2x));
-
-                      // Verify tokens are zeroed out on the migration extension
-                      const finalWeth = await weth.balanceOf(migrationExtension.address);
-                      const finalAethWeth = await aEthWeth.balanceOf(migrationExtension.address);
-                      const finalEth2x = await eth2x.balanceOf(migrationExtension.address);
-                      expect(finalWeth).to.eq(ZERO);
-                      expect(finalAethWeth).to.eq(ZERO);
-                      expect(finalEth2x).to.eq(ZERO);
-                    });
                   });
                 });
               });
