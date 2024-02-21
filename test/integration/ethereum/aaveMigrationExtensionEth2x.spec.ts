@@ -60,7 +60,7 @@ const keeperAddresses = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe.only("AaveMigrationExtension - ETH2x-FLI Integration Test", async () => {
+  describe("AaveMigrationExtension - ETH2x-FLI Integration Test", async () => {
     let owner: Account;
     let operator: Signer;
     let keeper: Signer;
@@ -320,16 +320,19 @@ if (process.env.INTEGRATIONTEST) {
 
                 context("when the migration is ready", () => {
                   let underlyingLoanAmount: BigNumber;
-                  let underlyingSupplyLiquidityAmount: BigNumber;
-                  let wrappedSetTokenSupplyLiquidityAmount: BigNumber;
+                  let supplyLiquidityAmount0Desired: BigNumber;
+                  let supplyLiquidityAmount1Desired: BigNumber;
+                  let supplyLiquidityAmount0Min: BigNumber;
+                  let supplyLiquidityAmount1Min: BigNumber;
                   let tokenId: BigNumber;
                   let exchangeName: string;
                   let underlyingTradeUnits: BigNumber;
                   let wrappedSetTokenTradeUnits: BigNumber;
                   let exchangeData: string;
                   let maxSubsidy: BigNumber;
-                  let underlyingRedeemLiquidityMinAmount: BigNumber;
-                  let wrappedSetTokenRedeemLiquidityMinAmount: BigNumber;
+                  let redeemLiquidityAmount0Min: BigNumber;
+                  let redeemLiquidityAmount1Min: BigNumber;
+                  let isUnderlyingToken0: boolean;
 
                   let wethWhale: JsonRpcSigner;
 
@@ -357,14 +360,20 @@ if (process.env.INTEGRATIONTEST) {
                     underlyingLoanAmount = preciseMul(underlyingTradeUnits, setTokenTotalSupply);
 
                     // Uniswap V3 liquidity parameters
-                    underlyingSupplyLiquidityAmount = ZERO;
-                    wrappedSetTokenSupplyLiquidityAmount = preciseMul(
+                    supplyLiquidityAmount1Desired = ZERO;
+                    supplyLiquidityAmount1Min = ZERO;
+                    supplyLiquidityAmount0Desired = preciseMul(
                       preciseDiv(ether(1), wrappedPositionUnits),
                       underlyingLoanAmount,
                     );
+                    supplyLiquidityAmount0Min = preciseMul(
+                      supplyLiquidityAmount0Desired,
+                      ether(0.99),
+                    );
                     tokenId = await migrationExtension.tokenIds(0);
-                    underlyingRedeemLiquidityMinAmount = ZERO;
-                    wrappedSetTokenRedeemLiquidityMinAmount = ZERO;
+                    redeemLiquidityAmount0Min = ZERO;
+                    redeemLiquidityAmount1Min = ZERO;
+                    isUnderlyingToken0 = false;
 
                     // Subsidize 3.205 WETH to the migration extension
                     wethWhale = await impersonateAccount(
@@ -388,15 +397,18 @@ if (process.env.INTEGRATIONTEST) {
 
                     // Get the expected subsidy
                     const decodedParams = {
-                      underlyingSupplyLiquidityAmount,
-                      wrappedSetTokenSupplyLiquidityAmount,
+                      supplyLiquidityAmount0Desired,
+                      supplyLiquidityAmount1Desired,
+                      supplyLiquidityAmount0Min,
+                      supplyLiquidityAmount1Min,
                       tokenId,
                       exchangeName,
                       underlyingTradeUnits,
                       wrappedSetTokenTradeUnits,
                       exchangeData,
-                      underlyingRedeemLiquidityMinAmount,
-                      wrappedSetTokenRedeemLiquidityMinAmount,
+                      redeemLiquidityAmount0Min,
+                      redeemLiquidityAmount1Min,
+                      isUnderlyingToken0,
                     };
                     const expectedOutput = await migrationExtension.callStatic.migrate(
                       decodedParams,

@@ -58,7 +58,7 @@ const keeperAddresses = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe.only("AaveMigrationExtension - BTC2x-FLI Integration Test", async () => {
+  describe("AaveMigrationExtension - BTC2x-FLI Integration Test", async () => {
     let owner: Account;
     let operator: Signer;
     let keeper: Signer;
@@ -309,18 +309,21 @@ if (process.env.INTEGRATIONTEST) {
                   expect(tokenId).to.be.gt(0);
                 });
 
-                context.skip("when the migration is ready", () => {
+                context("when the migration is ready", () => {
                   let underlyingLoanAmount: BigNumber;
-                  let underlyingSupplyLiquidityAmount: BigNumber;
-                  let wrappedSetTokenSupplyLiquidityAmount: BigNumber;
+                  let supplyLiquidityAmount0Desired: BigNumber;
+                  let supplyLiquidityAmount1Desired: BigNumber;
+                  let supplyLiquidityAmount0Min: BigNumber;
+                  let supplyLiquidityAmount1Min: BigNumber;
                   let tokenId: BigNumber;
                   let exchangeName: string;
                   let underlyingTradeUnits: BigNumber;
                   let wrappedSetTokenTradeUnits: BigNumber;
                   let exchangeData: string;
                   let maxSubsidy: BigNumber;
-                  let underlyingRedeemLiquidityMinAmount: BigNumber;
-                  let wrappedSetTokenRedeemLiquidityMinAmount: BigNumber;
+                  let redeemLiquidityAmount0Min: BigNumber;
+                  let redeemLiquidityAmount1Min: BigNumber;
+                  let isUnderlyingToken0: boolean;
 
                   let wbtcWhale: JsonRpcSigner;
 
@@ -334,32 +337,35 @@ if (process.env.INTEGRATIONTEST) {
                     // BTC2x-FLI trade parameters
                     underlyingTradeUnits = await btc2xfli.getDefaultPositionRealUnit(wbtc.address);
                     wrappedSetTokenTradeUnits = preciseMul(
-                      preciseMul(wrappedExchangeRate, ether(0.999)),
+                      preciseMul(wrappedExchangeRate, ether(0.995)),
                       underlyingTradeUnits,
                     );
                     exchangeName = "UniswapV3ExchangeAdapter";
                     exchangeData = await uniswapV3ExchangeAdapter.generateDataParam(
                       [tokenAddresses.wbtc, tokenAddresses.btc2x],
-                      [BigNumber.from(100)],
+                      [BigNumber.from(500)],
                     );
 
                     // Flash loan parameters
                     underlyingLoanAmount = preciseMul(underlyingTradeUnits, setTokenTotalSupply);
 
                     // Uniswap V3 liquidity parameters
-                    underlyingSupplyLiquidityAmount = ZERO;
-                    wrappedSetTokenSupplyLiquidityAmount = preciseMul(
+                    supplyLiquidityAmount1Desired = preciseMul(
                       preciseDiv(ether(1), wrappedPositionUnits),
                       underlyingLoanAmount,
                     );
+                    supplyLiquidityAmount1Min = ZERO;
+                    supplyLiquidityAmount0Min = ZERO;
+                    supplyLiquidityAmount0Desired = ZERO;
                     tokenId = await migrationExtension.tokenIds(0);
-                    underlyingRedeemLiquidityMinAmount = ZERO;
-                    wrappedSetTokenRedeemLiquidityMinAmount = ZERO;
+                    redeemLiquidityAmount0Min = ZERO;
+                    redeemLiquidityAmount1Min = ZERO;
+                    isUnderlyingToken0 = true;
 
-                    // Subsidize 1 WBTC to the migration extension
-                    maxSubsidy = bitcoin(1);
+                    // Subsidize 0.01 WBTC to the migration extension
+                    maxSubsidy = bitcoin(0.01);
                     wbtcWhale = await impersonateAccount(
-                      "0xde21F729137C5Af1b01d73aF1dC21eFfa2B8a0d6",
+                      "0xe74b28c2eAe8679e3cCc3a94d5d0dE83CCB84705",
                     );
                     await wbtc.connect(wbtcWhale).transfer(await operator.getAddress(), maxSubsidy);
                     await wbtc.connect(operator).approve(migrationExtension.address, maxSubsidy);
@@ -367,7 +373,7 @@ if (process.env.INTEGRATIONTEST) {
 
                   it("should be able to migrate atomically", async () => {
                     const operatorAddress = await operator.getAddress();
-                    const operatorWethBalanceBefore = await wbtc.balanceOf(operatorAddress);
+                    const operatorWbtcBalanceBefore = await wbtc.balanceOf(operatorAddress);
 
                     // Verify starting components and units
                     const startingComponents = await btc2xfli.getComponents();
@@ -379,22 +385,25 @@ if (process.env.INTEGRATIONTEST) {
 
                     // Get the expected subsidy
                     const decodedParams = {
-                      underlyingSupplyLiquidityAmount,
-                      wrappedSetTokenSupplyLiquidityAmount,
+                      supplyLiquidityAmount0Desired,
+                      supplyLiquidityAmount1Desired,
+                      supplyLiquidityAmount0Min,
+                      supplyLiquidityAmount1Min,
                       tokenId,
                       exchangeName,
                       underlyingTradeUnits,
                       wrappedSetTokenTradeUnits,
                       exchangeData,
-                      underlyingRedeemLiquidityMinAmount,
-                      wrappedSetTokenRedeemLiquidityMinAmount,
+                      redeemLiquidityAmount0Min,
+                      redeemLiquidityAmount1Min,
+                      isUnderlyingToken0,
                     };
                     const expectedOutput = await migrationExtension.callStatic.migrate(
                       decodedParams,
                       underlyingLoanAmount,
                       maxSubsidy
                     );
-                    expect(expectedOutput).to.lt(maxSubsidy);
+                    expect(expectedOutput).to.be.gt(0);
 
                     // Migrate atomically via Migration Extension
                     await migrationExtension.migrate(
@@ -404,8 +413,8 @@ if (process.env.INTEGRATIONTEST) {
                     );
 
                     // Verify operator WBTC balance change
-                    const operatorWethBalanceAfter = await wbtc.balanceOf(operatorAddress);
-                    expect(operatorWethBalanceBefore.sub(operatorWethBalanceAfter)).to.be.gte(maxSubsidy.sub(expectedOutput).sub(ONE));
+                    const operatorWbtcBalanceAfter = await wbtc.balanceOf(operatorAddress);
+                    expect(operatorWbtcBalanceBefore.sub(operatorWbtcBalanceAfter)).to.be.gte(maxSubsidy.sub(expectedOutput).sub(ONE));
 
                     // Verify ending components and units
                     const endingComponents = await btc2xfli.getComponents();
