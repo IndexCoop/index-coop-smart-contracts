@@ -1,4 +1,5 @@
 export { AaveLeverageStrategyExtension } from "../../typechain/AaveLeverageStrategyExtension";
+export { AaveMigrationExtension } from "../../typechain/AaveMigrationExtension";
 export { AirdropExtension } from "../../typechain/AirdropExtension";
 export { AuctionRebalanceExtension } from "../../typechain/AuctionRebalanceExtension";
 export { AirdropIssuanceHook } from "../../typechain/AirdropIssuanceHook";
@@ -30,7 +31,6 @@ export { ICManager } from "../../typechain/ICManager";
 export { IndexToken } from "../../typechain/IndexToken";
 export { MasterChefMock } from "../../typechain/MasterChefMock";
 export { MerkleDistributor } from "../../typechain/MerkleDistributor";
-export { MigrationExtension } from "../../typechain/MigrationExtension";
 export { MutualUpgradeMock } from "../../typechain/MutualUpgradeMock";
 export { NotionalTradeModuleMock } from "../../typechain/NotionalTradeModuleMock";
 export { RewardsDistributionRecipient } from "../../typechain/RewardsDistributionRecipient";

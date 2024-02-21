@@ -38,27 +38,22 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { ITradeModule } from "../interfaces/ITradeModule.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
-import "hardhat/console.sol";
-
 /**
- * @title MigrationExtension
+ * @title AaveMigrationExtension
  * @author Index Coop
- * @notice Manager extension for migrating a SetToken position from a collateral asset
- * to a SetToken composed only of that collateral asset.
- * Facilitates the migration by
- * 1) Taking a flash loan of the collateral asset
- * 2) Issuing any required units of the wrapped SetToken
- * 3) Adding liquidity to the Uniswap V3 pool
- * 4) Trading the collateral asset for the wrapped SetToken
- * 5) Removing liquidity from the Uniswap V3 pool
- * 6) Redeeming any excess wrapped SetToken
- * 7) Repaying the flash loan
+ * @notice This extension facilitates the migration of a SetToken's position from an unwrapped collateral
+ * asset to another SetToken that consists solely of Aave's wrapped collateral asset. The migration is
+ * executed through several steps: obtaining a flash loan of the unwrapped collateral, minting the required
+ * quantity of the wrapped SetToken, adding liquidity to the Uniswap V3 pool, swapping the unwrapped
+ * collateral for the wrapped SetToken, removing liquidity from the Uniswap V3 pool, and finally,
+ * redeeming any excess wrapped SetToken. This process is specifically designed to efficiently migrate
+ * the SetToken's collateral using only the TradeModule on the SetToken.
  */
-contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC721Receiver {
+contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC721Receiver {
+    using PreciseUnitMath for uint256;
     using SafeCast for int256;
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
-    using PreciseUnitMath for uint256;
 
     /* ============ Structs ============ */
 
@@ -78,37 +73,31 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
 
     ISetToken public immutable setToken; 
     IERC20 public immutable underlyingToken;
+    IERC20 public immutable aaveToken;
     ISetToken public immutable wrappedSetToken;
     ITradeModule public immutable tradeModule;
     IDebtIssuanceModule public immutable issuanceModule;
     INonfungiblePositionManager public immutable nonfungiblePositionManager;
 
     uint256[] public tokenIds;
-    mapping(uint256 => uint128) public tokenIdToLiquidity;
-
-    /* ============ Modifiers ============ */
- 
-    modifier onlyPool() {
-        require(msg.sender == address(POOL), "MigrationExtension: Aave Pool only");
-        _;
-    }
 
     /* ============ Constructor ============ */
 
     /**
-     * Sets immutable migration variables
-     *
-     * @param _manager                       BaseManager contract
-     * @param _underlyingToken               Address of underlying token
-     * @param _wrappedSetToken               Set Token which is a wrapper of underlying token
-     * @param _tradeModule                   TradeModule for the SetToken
-     * @param _issuanceModule                IssuanceModule for the Wrapped SetToken
-     * @param _nonfungiblePositionManager    Uniswap V3 NonFungiblePositionManager
-     * @param _addressProvider               Aave V3 Pool Address Provider
+     * @notice Initializes the AaveMigrationExtension with immutable migration variables.
+     * @param _manager BaseManager contract for managing the SetToken's operations and permissions.
+     * @param _underlyingToken Address of the underlying token to be migrated.
+     * @param _aaveToken Address of Aave's wrapped collateral asset.
+     * @param _wrappedSetToken SetToken that consists solely of Aave's wrapped collateral asset.
+     * @param _tradeModule TradeModule address for executing trades on behalf of the SetToken.
+     * @param _issuanceModule IssuanceModule address for managing issuance and redemption of the Wrapped SetToken.
+     * @param _nonfungiblePositionManager Uniswap V3's NonFungiblePositionManager for managing liquidity positions.
+     * @param _addressProvider Aave V3's Pool Address Provider, used for accessing the Aave lending pool.
      */
     constructor(
         IBaseManager _manager, 
         IERC20 _underlyingToken,
+        IERC20 _aaveToken,
         ISetToken _wrappedSetToken,
         ITradeModule _tradeModule,
         IDebtIssuanceModule _issuanceModule,
@@ -122,6 +111,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         manager = _manager;
         setToken = manager.setToken();
         underlyingToken = _underlyingToken;
+        aaveToken = _aaveToken;
         wrappedSetToken = _wrappedSetToken;
         tradeModule = _tradeModule;
         issuanceModule = _issuanceModule;
@@ -131,24 +121,23 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     /* ========== External Functions ========== */
 
     /**
-     * OPERATOR ONLY: Initializes the Set Token on the Trade Module.
+     * @notice OPERATOR ONLY: Initializes the Set Token on the Trade Module.
      */
     function initialize() external onlyOperator {
         bytes memory data = abi.encodeWithSelector(tradeModule.initialize.selector, setToken);
         invokeManager(address(tradeModule), data);
     }
-
+    
     /**
-     * ONLY OPERATOR: Executes a trade on a supported DEX.
+     * @notice OPERATOR ONLY: Executes a trade on a supported DEX.
      * @dev Although the SetToken units are passed in for the send and receive quantities, the total quantity
      * sent and received is the quantity of SetToken units multiplied by the SetToken totalSupply.
-     *
-     * @param _exchangeName         Human readable name of the exchange in the integrations registry
-     * @param _sendToken            Address of the token to be sent to the exchange
-     * @param _sendQuantity         Units of token in SetToken sent to the exchange
-     * @param _receiveToken         Address of the token that will be received from the exchange
-     * @param _minReceiveQuantity   Min units of token in SetToken to be received from the exchange
-     * @param _data                 Arbitrary bytes to be used to construct trade call data
+     * @param _exchangeName The human-readable name of the exchange in the integrations registry.
+     * @param _sendToken The address of the token being sent to the exchange.
+     * @param _sendQuantity The amount of the token (in SetToken units) being sent to the exchange.
+     * @param _receiveToken The address of the token being received from the exchange.
+     * @param _minReceiveQuantity The minimum amount of the receive token (in SetToken units) expected from the exchange.
+     * @param _data Arbitrary data used to construct the trade call data.
      */
     function trade(
         string memory _exchangeName,
@@ -172,8 +161,12 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     }
 
     /**
-     * OPERATOR ONLY: Mints a new liquidity position in the Uniswap V3 pool.
-     * @dev Used to seed the position used in the migration.
+     * @notice OPERATOR ONLY: Mints a new liquidity position in the Uniswap V3 pool.
+     * @param _underlyingSupplyLiquidityAmount The amount of the underlying token to add as liquidity.
+     * @param _wrappedSetTokenSupplyLiquidityAmount The amount of the wrapped SetToken to add as liquidity.
+     * @param _tickLower The lower end of the desired tick range for the position.
+     * @param _tickUpper The upper end of the desired tick range for the position.
+     * @param _fee The fee tier of the Uniswap V3 pool in which to add liquidity.
      */
     function mintLiquidityPosition(
         uint256 _underlyingSupplyLiquidityAmount,
@@ -185,12 +178,15 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         external
         onlyOperator
     {
+        // Approve tokens
         if (_underlyingSupplyLiquidityAmount > 0) {
             underlyingToken.approve(address(nonfungiblePositionManager), _underlyingSupplyLiquidityAmount);
         }
         if (_wrappedSetTokenSupplyLiquidityAmount > 0) {
             wrappedSetToken.approve(address(nonfungiblePositionManager), _wrappedSetTokenSupplyLiquidityAmount);
         }
+
+        // Mint liquidity position
         INonfungiblePositionManager.MintParams memory mintParams = INonfungiblePositionManager.MintParams({
             token0: address(wrappedSetToken),
             token1: address(underlyingToken),
@@ -204,14 +200,16 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
             recipient: address(this),
             deadline: block.timestamp
         });
-        (uint256 tokenId, uint128 liquidity,,) = nonfungiblePositionManager.mint(mintParams);
-        require(liquidity > 0, "MigrationExtension: No liquidity minted");
+        (uint256 tokenId,,,) = nonfungiblePositionManager.mint(mintParams);
         tokenIds.push(tokenId);
-        tokenIdToLiquidity[tokenId] = liquidity;
     }
 
     /**
-     * OPERATOR ONLY: Increases liquidity position in the Uniswap V3 pool.
+     * @notice OPERATOR ONLY: Increases liquidity position in the Uniswap V3 pool.
+     * @param _underlyingSupplyLiquidityAmount The amount of the underlying token to add as liquidity.
+     * @param _wrappedSetTokenSupplyLiquidityAmount The amount of the wrapped SetToken to add as liquidity.
+     * @param _tokenId The ID of the token for which liquidity is being increased.
+     * @return liquidity The new liquidity amount as a result of the increase.
      */
     function increaseLiquidityPosition(
         uint256 _underlyingSupplyLiquidityAmount,
@@ -227,11 +225,14 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
             _wrappedSetTokenSupplyLiquidityAmount,
             _tokenId
         );
-        tokenIdToLiquidity[_tokenId] += liquidity;
     }
 
     /**
-     * OPERATOR ONLY: Decreases liquidity position in the Uniswap V3 pool.
+     * @notice OPERATOR ONLY: Decreases and collects from a liquidity position in the Uniswap V3 pool.
+     * @param _tokenId The ID of the token for which liquidity is being decreased.
+     * @param _liquidity The amount of liquidity to decrease.
+     * @param _underlyingRedeemLiquidityMinAmount The minimum amount of the underlying token to be redeemed from the decreased liquidity.
+     * @param _wrappedSetTokenRedeemLiquidityMinAmount The minimum amount of the wrapped SetToken to be redeemed from the decreased liquidity.
      */
     function decreaseLiquidityPosition(
         uint256 _tokenId,
@@ -248,11 +249,22 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
             _underlyingRedeemLiquidityMinAmount,
             _wrappedSetTokenRedeemLiquidityMinAmount
         );
-        tokenIdToLiquidity[_tokenId] -= _liquidity;
     }
 
+
     /**
-     * OPERATOR ONLY: Migrates a SetToken position from a collateral asset to a SetToken composed only of that collateral asset.
+     * @notice Migrates a SetToken's position from an unwrapped collateral asset to another SetToken that consists 
+     * solely of Aave's wrapped collateral asset
+     * @param _underlyingLoanAmount The amount of unwrapped collateral asset to be borrowed via flash loan.
+     * @param _underlyingSupplyLiquidityAmount The amount of unwrapped collateral asset to supply for liquidity.
+     * @param _wrappedSetTokenSupplyLiquidityAmount The amount of the wrapped SetToken to supply for liquidity.
+     * @param _tokenId The Uniswap V3 position token ID related to the Extension's liquidity position.
+     * @param _exchangeName The name of the exchange to perform the trade.
+     * @param _underlyingTradeUnits The amount of the unwrapped collateral asset (in SetToken units) being sent to the exchange.
+     * @param _wrappedSetTokenTradeUnits The amount of the wrapped SetToken (in SetToken units) being received from the exchange.
+     * @param _exchangeData Additional data required for executing the trade on the specified exchange.
+     * @param _underlyingRedeemLiquidityMinAmount The minimum amount of unwrapped collateral asset to redeem from liquidity decrease.
+     * @param _wrappedSetTokenRedeemLiquidityMinAmount The minimum amount of the wrapped SetToken to redeem from liquidity decrease.
      */
     function migrate(
         uint256 _underlyingLoanAmount,
@@ -269,7 +281,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         external
         onlyOperator
     {
-        // Encode migration parameters
+        // Encode migration parameters for flash loan callback
         bytes memory params = abi.encode(
             DecodedParams(
                 _underlyingSupplyLiquidityAmount,
@@ -284,7 +296,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
            )
         );
 
-        // Flash loan the underlying
+        // Request flash loan for the underlying token
         POOL.flashLoanSimple(
             address(this),
             address(underlyingToken),
@@ -295,13 +307,16 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     }
 
     /**
-     * This is the callback function that will be called by the Aave V3 Pool after flashloaned tokens have been sent
-     * to this contract.
-     * After exiting this function the Pool will transfer back the loaned tokens plus a premium. If that check fails
-     * the whole transaction gets reverted
+     * @dev Callback function for Aave V3 flash loan, executed post-loan. It decodes the provided parameters, conducts the migration, and repays the flash loan.
+     * @param asset The asset borrowed in the flash loan.
+     * @param amount The amount borrowed.
+     * @param premium The additional fee charged for the flash loan.
+     * @param initiator The initiator of the flash loan.
+     * @param params Encoded migration parameters.
+     * @return True if the operation is successful.
      */
     function executeOperation(
-        address, // asset
+        address asset,
         uint256 amount,
         uint256 premium,
         address initiator,
@@ -309,9 +324,10 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     )
         external
         override
-        onlyPool
         returns (bool) 
     {
+        require(msg.sender == address(POOL), "MigrationExtension: invalid flashloan sender");
+        require(asset == address(underlyingToken), "MigrationExtension: invalid flashloan asset");
         require(initiator == address(this), "MigrationExtension: invalid flashloan initiator");
 
         // Decode parameters and migrate
@@ -325,7 +341,9 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     }
 
     /**
-     * Callback function used to receive ERC721 tokens
+     * @notice Receives ERC721 tokens, required for Uniswap V3 LP NFT handling.
+     * @dev Callback function for ERC721 token transfers, enabling the contract to receive Uniswap V3 LP NFTs. Always returns the selector to indicate successful receipt.
+     * @return The selector of the `onERC721Received` function.
      */
     function onERC721Received(
         address, // operator
@@ -345,7 +363,8 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     /* ========== Internal Functions ========== */
 
     /**
-     * Execute the token migraiton after the flash loan amount has been received
+     * @dev Conducts the actual migration steps utilizing the decoded parameters from the flash loan callback.
+     * @param decodedParams The decoded set of parameters needed for migration.
      */
     function _migrate(DecodedParams memory decodedParams) internal {
         _issueRequiredWrappedSetToken(decodedParams.wrappedSetTokenSupplyLiquidityAmount);
@@ -365,28 +384,27 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
             decodedParams.exchangeData
         );
 
-        console.log("Underlying token balance before", underlyingToken.balanceOf(address(this)));
-        console.log("Wrapped token balance before", wrappedSetToken.balanceOf(address(this)));
         _decreaseLiquidityPosition(
             decodedParams.tokenId,
             liquidity,
             decodedParams.underlyingRedeemLiquidityMinAmount,
             decodedParams.wrappedSetTokenRedeemLiquidityMinAmount
         );
-        console.log("Underlying token balance after", underlyingToken.balanceOf(address(this)));
-        console.log("Wrapped token balance after", wrappedSetToken.balanceOf(address(this)));
 
         _redeemExcessWrappedSetToken();
     }
 
-    /// @dev Although the SetToken units are passed in for the send and receive quantities, the total quantity
-    /// sent and received is the quantity of SetToken units multiplied by the SetToken totalSupply.
-    /// @param _exchangeName         Human readable name of the exchange in the integrations registry
-    /// @param _sendToken            Address of the token to be sent to the exchange
-    /// @param _sendQuantity         Units of token in SetToken sent to the exchange
-    /// @param _receiveToken         Address of the token that will be received from the exchange
-    /// @param _minReceiveQuantity   Min units of token in SetToken to be received from the exchange
-    /// @param _data                 Arbitrary bytes to be used to construct trade call data
+    /**
+     * @dev Internal function to execute trades. This function constructs the trade call data and invokes the trade module
+     * to execute the trade. The SetToken units for send and receive quantities are automatically scaled up by the SetToken's
+     * total supply.
+     * @param _exchangeName The human-readable name of the exchange in the integrations registry.
+     * @param _sendToken The address of the token being sent to the exchange.
+     * @param _sendQuantity The amount of the token (in SetToken units) being sent to the exchange.
+     * @param _receiveToken The address of the token being received from the exchange.
+     * @param _minReceiveQuantity The minimum amount of the receive token (in SetToken units) expected from the exchange.
+     * @param _data Arbitrary data used to construct the trade call data.
+     */
     function _trade(
         string memory _exchangeName,
         address _sendToken,
@@ -410,8 +428,10 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         invokeManager(address(tradeModule), callData);
     }
 
-    /// @dev Issues the required amount of wrapped SetToken for the liquidity increase
-    /// @param _wrappedSetTokenSupplyLiquidityAmount The amount of wrapped SetToken to be supplied to the pool
+    /**
+     * @dev Issues the required amount of wrapped SetToken for the liquidity increase
+     * @param _wrappedSetTokenSupplyLiquidityAmount The amount of wrapped SetToken to be supplied to the pool.
+     */
     function _issueRequiredWrappedSetToken(uint256 _wrappedSetTokenSupplyLiquidityAmount) internal {
         uint256 wrappedSetTokenBalance = wrappedSetToken.balanceOf(address(this));
         if (_wrappedSetTokenSupplyLiquidityAmount > wrappedSetTokenBalance) {
@@ -420,26 +440,53 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
                 wrappedSetToken,
                 wrappedSetTokenIssueAmount
             );
-            require(underlyingAssets.length == 1);
-            require(underlyingAssets[0] == address(underlyingToken));
+            require(underlyingAssets.length == 1, "MigrationExtension: invalid wrapped SetToken composition");
+            require(underlyingAssets[0] == address(aaveToken), "MigrationExtension: wrapped SetToken underlying mismatch");
 
-            underlyingToken.approve(address(issuanceModule), underlyingUnits[0]);
+            // Supply underlying for Aave wrapped token
+            underlyingToken.approve(address(POOL), underlyingUnits[0]);
+            POOL.supply(
+                address(underlyingToken),
+                underlyingUnits[0],
+                address(this),
+                0
+            );
+
+            // Issue wrapped SetToken
+            aaveToken.approve(address(issuanceModule), wrappedSetTokenIssueAmount);
             issuanceModule.issue(wrappedSetToken, wrappedSetTokenIssueAmount, address(this));
         }
     }
 
-    /// @dev Redeems any excess wrapped SetToken after liquidity decrease
+    /**
+     * @dev Redeems any excess wrapped SetToken after liquidity decrease
+     */
     function _redeemExcessWrappedSetToken() internal {
         uint256 wrappedSetTokenBalance = wrappedSetToken.balanceOf(address(this));
         if (wrappedSetTokenBalance > 0) {
+            // Redeem wrapped SetToken
             wrappedSetToken.approve(address(issuanceModule), wrappedSetTokenBalance);
             issuanceModule.redeem(wrappedSetToken, wrappedSetTokenBalance, address(this));
+
+            // Withdraw underlying from Aave
+            uint256 aaveBalance = aaveToken.balanceOf(address(this));
+            aaveToken.approve(address(POOL), aaveBalance);
+            POOL.withdraw(
+                address(underlyingToken),
+                aaveBalance,
+                address(this)
+            );
         }
     }
 
-    /// @param _underlyingSupplyLiquidityAmount The amount of underlying to be supplied to the pool
-    /// @param _wrappedSetTokenSupplyLiquidityAmount The amount of wrapped SetToken to be supplied to the pool
-    /// @param _tokenId The ID of the token for which liquidity is being increased
+    /**
+     * @dev Internal function to increase liquidity in a Uniswap V3 pool position.
+     * Calls Uniswap's `increaseLiquidity` function with specified parameters.
+     * @param _underlyingSupplyLiquidityAmount The amount of underlying token to be supplied to the pool.
+     * @param _wrappedSetTokenSupplyLiquidityAmount The amount of wrapped SetToken to be supplied to the pool.
+     * @param _tokenId The ID of the token for which liquidity is being increased.
+     * @return liquidity The new liquidity amount as a result of the increase.
+     */
     function _increaseLiquidityPosition(
         uint256 _underlyingSupplyLiquidityAmount,
         uint256 _wrappedSetTokenSupplyLiquidityAmount,
@@ -448,6 +495,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         internal
         returns (uint128 liquidity)
     {
+        // Approve tokens
         if (_underlyingSupplyLiquidityAmount > 0) {
             underlyingToken.approve(address(nonfungiblePositionManager), _underlyingSupplyLiquidityAmount);
         }
@@ -455,6 +503,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
             wrappedSetToken.approve(address(nonfungiblePositionManager), _wrappedSetTokenSupplyLiquidityAmount);
         }
 
+        // Increase liquidity
         INonfungiblePositionManager.IncreaseLiquidityParams memory increaseParams = INonfungiblePositionManager.IncreaseLiquidityParams({
             tokenId: _tokenId,
             amount0Desired: _wrappedSetTokenSupplyLiquidityAmount,
@@ -463,14 +512,17 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
             amount1Min: _underlyingSupplyLiquidityAmount,
             deadline: block.timestamp
         });
-
         (liquidity,,) = nonfungiblePositionManager.increaseLiquidity(increaseParams);
     }
 
-    /// @param _tokenId The ID of the token for which liquidity is being decreased
-    /// @param _liquidity The amount by which liquidity will be decreased
-    /// @param _underlyingRedeemLiquidityMinAmount The minimum amount of token0 that should be accounted for the burned liquidity
-    /// @param _wrappedSetTokenRedeemLiquidityMinAmount The minimum amount of token1 that should be accounted for the burned liquidity
+    /**
+     * @dev Internal function to decrease liquidity and collect fees for a Uniswap V3 position.
+     * Calls Uniswap's `decreaseLiquidity` and `collect` functions with specified parameters.
+     * @param _tokenId The ID of the token for which liquidity is being decreased.
+     * @param _liquidity The amount by which liquidity will be decreased.
+     * @param _underlyingRedeemLiquidityMinAmount The minimum amount of the underlying token that should be accounted for the burned liquidity.
+     * @param _wrappedSetTokenRedeemLiquidityMinAmount The minimum amount of the wrapped SetToken that should be accounted for the burned liquidity.
+     */
     function _decreaseLiquidityPosition(
         uint256 _tokenId,
         uint128 _liquidity,
@@ -487,15 +539,13 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         });
         nonfungiblePositionManager.decreaseLiquidity(decreaseParams);
 
-        // Collect fees / and liquidity
-        INonfungiblePositionManager.CollectParams memory params =
-            INonfungiblePositionManager.CollectParams({
-                tokenId: _tokenId,
-                recipient: address(this),
-                amount0Max: type(uint128).max,
-                amount1Max: type(uint128).max
-            });
+        // Collect liquidity and fees
+        INonfungiblePositionManager.CollectParams memory params = INonfungiblePositionManager.CollectParams({
+            tokenId: _tokenId,
+            recipient: address(this),
+            amount0Max: type(uint128).max,
+            amount1Max: type(uint128).max
+        });
         nonfungiblePositionManager.collect(params);
-
     }
 }
