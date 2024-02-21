@@ -115,7 +115,7 @@ export async function impersonateAccount(address: string): Promise<Signer> {
   return await ethers.provider.getSigner(address);
 }
 
-export function setBlockNumber(blockNumber: number) {
+export function setBlockNumber(blockNumber: number, reset: boolean = true) {
   before(async () => {
     await network.provider.request({
       method: "hardhat_reset",
@@ -130,17 +130,19 @@ export function setBlockNumber(blockNumber: number) {
     });
   });
   after(async () => {
-    await network.provider.request({
-      method: "hardhat_reset",
-      params: [
-        {
-          forking: {
-            jsonRpcUrl: forkingConfig.url,
-            blockNumber: forkingConfig.blockNumber,
+    if (reset) {
+      await network.provider.request({
+        method: "hardhat_reset",
+        params: [
+          {
+            forking: {
+              jsonRpcUrl: forkingConfig.url,
+              blockNumber: forkingConfig.blockNumber,
+            },
           },
-        },
-      ],
-    });
+        ],
+      });
+    }
   });
 }
 

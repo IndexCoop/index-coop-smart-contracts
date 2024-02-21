@@ -24,6 +24,7 @@ import {
   FeeSplitExtension,
   GIMExtension,
   GovernanceExtension,
+  AaveMigrationExtension,
   OptimisticAuctionRebalanceExtensionV1,
   StreamingFeeSplitExtension,
   WrapExtension,
@@ -53,6 +54,7 @@ import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/fact
 import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
 import { GovernanceExtension__factory } from "../../typechain/factories/GovernanceExtension__factory";
 import { FixedRebalanceExtension__factory } from "../../typechain/factories/FixedRebalanceExtension__factory";
+import { AaveMigrationExtension__factory } from "../../typechain/factories/AaveMigrationExtension__factory";
 import { OptimisticAuctionRebalanceExtensionV1__factory } from "../../typechain/factories/OptimisticAuctionRebalanceExtensionV1__factory";
 import { StakeWiseReinvestmentExtension__factory } from "../../typechain/factories/StakeWiseReinvestmentExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
@@ -451,6 +453,28 @@ export default class DeployExtensions {
 
   public async deployWrapExtension(manager: Address, wrapModule: Address): Promise<WrapExtension> {
     return await new WrapExtension__factory(this._deployerSigner).deploy(manager, wrapModule);
+  }
+
+  public async deployAaveMigrationExtension(
+    manager: Address,
+    underlyingToken: Address,
+    aaveToken: Address,
+    wrappedSetToken: Address,
+    tradeModule: Address,
+    issuanceModule: Address,
+    nonfungiblePositionManager: Address,
+    addressProvider: Address
+  ): Promise<AaveMigrationExtension> {
+    return await new AaveMigrationExtension__factory(this._deployerSigner).deploy(
+      manager,
+      underlyingToken,
+      aaveToken,
+      wrappedSetToken,
+      tradeModule,
+      issuanceModule,
+      nonfungiblePositionManager,
+      addressProvider
+    );
   }
 
   public async deployFlashMintWrappedExtension(
