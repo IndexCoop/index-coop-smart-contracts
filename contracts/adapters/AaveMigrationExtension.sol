@@ -258,11 +258,13 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
      * @param _decodedParams The decoded migration parameters.
      * @param _underlyingLoanAmount The amount of unwrapped collateral asset to be borrowed via flash loan.
      * @param _maxSubsidy The maximum amount of the wrapped SetToken to be transferred to the Extension as a subsidy.
+     * @param _minSubsidy The minimum amount to subsidise (to limit any loss of value on the fli token)
      */
     function migrate(
         DecodedParams memory _decodedParams,
         uint256 _underlyingLoanAmount,
-        uint256 _maxSubsidy
+        uint256 _maxSubsidy,
+        uint256 _minSubsidy
     )
         external
         onlyOperator
@@ -282,7 +284,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
             params,
             0
         );
-        return _checkAndRepaySubsidy(_maxSubsidy);
+        return _checkAndRepaySubsidy(_maxSubsidy, _minSubsidy);
     }
 
     /**
@@ -553,11 +555,14 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         nonfungiblePositionManager.collect(params);
     }
 
-    function _checkAndRepaySubsidy(uint256 _maxSubsidy) internal returns (uint256){
+    function _checkAndRepaySubsidy(uint256 _maxSubsidy, uint256 _minSubsidy) internal returns (uint256){
         uint256 underlyingTokenBalance = underlyingToken.balanceOf(address(this));
         uint256 subsidyAmount = _maxSubsidy.sub(underlyingTokenBalance); // Assumes 0 weth balance in this contract prior to tx
         if (underlyingTokenBalance > 0) {
             underlyingToken.transfer(msg.sender, underlyingTokenBalance);
+        }
+        if(subsidyAmount < _minSubsidy){
+            revert("MigrationExtension: Insufficient subsidy");
         }
         return subsidyAmount;
     }

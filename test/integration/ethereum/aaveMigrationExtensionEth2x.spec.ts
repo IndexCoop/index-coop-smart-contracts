@@ -1,6 +1,6 @@
 import "module-alias/register";
 import { ethers } from "hardhat";
-import { BigNumber, Signer } from "ethers";
+import { BigNumber, Signer, utils } from "ethers";
 import { JsonRpcSigner } from "@ethersproject/providers";
 import { Account } from "@utils/types";
 import DeployHelper from "@utils/deploys";
@@ -404,10 +404,23 @@ if (process.env.INTEGRATIONTEST) {
                       wrappedSetTokenRedeemLiquidityMinAmount,
                     };
 
+                    const expectedSubsidy = await migrationExtension.callStatic.migrate(
+                      decodedParams,
+                      underlyingLoanAmount,
+                      maxSubsidy,
+                      0,
+                    );
+
+                    expect(expectedSubsidy).to.lt(maxSubsidy);
+
+                    const minSubsidy = expectedSubsidy.sub(ether(0.1));
+                    console.log("expectedSubsidy", utils.formatUnits(expectedSubsidy, 18));
+
                     await migrationExtension.migrate(
                       decodedParams,
                       underlyingLoanAmount,
                       maxSubsidy,
+                      minSubsidy,
                     );
                     const operatorWethBalanceAfter = await weth.balanceOf(
                       await operator.getAddress(),
