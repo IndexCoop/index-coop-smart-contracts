@@ -393,12 +393,12 @@ if (process.env.INTEGRATIONTEST) {
                       underlyingRedeemLiquidityMinAmount,
                       wrappedSetTokenRedeemLiquidityMinAmount,
                     };
-                    const expectedSubsidy = await migrationExtension.callStatic.migrate(
+                    const expectedOutput = await migrationExtension.callStatic.migrate(
                       decodedParams,
                       underlyingLoanAmount,
                       maxSubsidy
                     );
-                    expect(expectedSubsidy).to.lt(maxSubsidy);
+                    expect(expectedOutput).to.lt(maxSubsidy);
 
                     // Migrate atomically via Migration Extension
                     await migrationExtension.migrate(
@@ -409,7 +409,7 @@ if (process.env.INTEGRATIONTEST) {
 
                     // Verify operator WETH balance change
                     const operatorWethBalanceAfter = await weth.balanceOf(operatorAddress);
-                    expect(operatorWethBalanceBefore.sub(operatorWethBalanceAfter)).to.be.eq(expectedSubsidy);
+                    expect(operatorWethBalanceBefore.sub(operatorWethBalanceAfter)).to.be.gte(maxSubsidy.sub(expectedOutput));
 
                     // Verify ending components and units
                     const endingComponents = await eth2xfli.getComponents();

@@ -258,7 +258,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
      * @param _decodedParams The decoded migration parameters.
      * @param _underlyingLoanAmount The amount of unwrapped collateral asset to be borrowed via flash loan.
      * @param _maxSubsidy The maximum amount of unwrapped collateral asset to be transferred to the Extension as a subsidy.
-     * @return subsidyAmount The amount of unwrapped collateral asset used by the Extension as subsidy.
+     * @return underlyingOutputAmount The amount of unwrapped collateral asset returned to the operator.
      */
     function migrate(
         DecodedParams memory _decodedParams,
@@ -267,10 +267,12 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
     )
         external
         onlyOperator
-        returns (uint256 subsidyAmount)
+        returns (uint256 underlyingOutputAmount)
     {
         // Subsidize the migration
-        underlyingToken.transferFrom(msg.sender, address(this), _maxSubsidy);
+        if (_maxSubsidy > 0) {
+            underlyingToken.transferFrom(msg.sender, address(this), _maxSubsidy);
+        }
 
         // Encode migration parameters for flash loan callback
         bytes memory params = abi.encode(_decodedParams);
@@ -284,8 +286,8 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
             0
         );
 
-        // Repay unused subsidy
-        subsidyAmount = _repaySubsidy(_maxSubsidy);
+        // Return remaining underlying token to the operator
+        underlyingOutputAmount = _returnExcessUnderlying();
     }
 
     /**
@@ -557,15 +559,13 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
     }
 
     /**
-     * @dev Internal function to repay any unused subsidy back to the operator. Assumes the contract has no WETH balance prior to the transaction.
-     * @param _maxSubsidy The maximum amount of unwrapped collateral asset to be transferred to the Extension as a subsidy.
-     * @return subsidyAmount The amount of unwrapped collateral asset used by the Extension as subsidy.
+     * @dev Internal function to return any remaining unwrapped collateral asset to the operator.
+     * @return underlyingOutputAmount The amount of unwrapped collateral asset returned to the operator.
      */
-    function _repaySubsidy(uint256 _maxSubsidy) internal returns (uint256 subsidyAmount) {
-        uint256 underlyingTokenBalance = underlyingToken.balanceOf(address(this));
-        subsidyAmount = _maxSubsidy.sub(underlyingTokenBalance);
-        if (underlyingTokenBalance > 0) {
-            underlyingToken.transfer(msg.sender, underlyingTokenBalance);
+    function _returnExcessUnderlying() internal returns (uint256 underlyingOutputAmount) {
+        underlyingOutputAmount = underlyingToken.balanceOf(address(this));
+        if (underlyingOutputAmount > 0) {
+            underlyingToken.transfer(msg.sender, underlyingOutputAmount);
         }
     }
 }
