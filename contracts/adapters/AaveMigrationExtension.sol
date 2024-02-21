@@ -67,7 +67,6 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         bytes exchangeData;
         uint256 underlyingRedeemLiquidityMinAmount;
         uint256 wrappedSetTokenRedeemLiquidityMinAmount;
-        uint256 maxSubsidy;
     }
 
     /* ========== State Variables ========= */
@@ -256,47 +255,23 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
     /**
      * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken 
      * that consists solely of Aave's wrapped collateral asset
+     * @param _decodedParams The decoded migration parameters.
      * @param _underlyingLoanAmount The amount of unwrapped collateral asset to be borrowed via flash loan.
-     * @param _underlyingSupplyLiquidityAmount The amount of unwrapped collateral asset to supply for liquidity.
-     * @param _wrappedSetTokenSupplyLiquidityAmount The amount of the wrapped SetToken to supply for liquidity.
-     * @param _tokenId The Uniswap V3 position token ID related to the Extension's liquidity position.
-     * @param _exchangeName The name of the exchange to perform the trade.
-     * @param _underlyingTradeUnits The amount of the unwrapped collateral asset (in SetToken units) being sent to the exchange.
-     * @param _wrappedSetTokenTradeUnits The amount of the wrapped SetToken (in SetToken units) being received from the exchange.
-     * @param _exchangeData Additional data required for executing the trade on the specified exchange.
-     * @param _underlyingRedeemLiquidityMinAmount The minimum amount of unwrapped collateral asset to redeem from liquidity decrease.
-     * @param _wrappedSetTokenRedeemLiquidityMinAmount The minimum amount of the wrapped SetToken to redeem from liquidity decrease.
+     * @param _maxSubsidy The maximum amount of the wrapped SetToken to be transferred to the Extension as a subsidy.
      */
     function migrate(
+        DecodedParams memory _decodedParams,
         uint256 _underlyingLoanAmount,
-        uint256 _underlyingSupplyLiquidityAmount,
-        uint256 _wrappedSetTokenSupplyLiquidityAmount,
-        uint256 _tokenId,
-        string memory _exchangeName,
-        uint256 _underlyingTradeUnits,
-        uint256 _wrappedSetTokenTradeUnits,
-        bytes memory _exchangeData,
-        uint256 _underlyingRedeemLiquidityMinAmount,
-        uint256 _wrappedSetTokenRedeemLiquidityMinAmount,
         uint256 _maxSubsidy
     )
         external
         onlyOperator
+        returns (uint256)
     {
+        underlyingToken.transferFrom(msg.sender, address(this), _maxSubsidy);
         // Encode migration parameters for flash loan callback
         bytes memory params = abi.encode(
-            DecodedParams(
-                _underlyingSupplyLiquidityAmount,
-                _wrappedSetTokenSupplyLiquidityAmount,
-                _tokenId,
-                _exchangeName,
-                _underlyingTradeUnits,
-                _wrappedSetTokenTradeUnits,
-                _exchangeData,
-                _underlyingRedeemLiquidityMinAmount,
-                _wrappedSetTokenRedeemLiquidityMinAmount,
-                _maxSubsidy
-           )
+            _decodedParams
         );
 
         // Request flash loan for the underlying token
@@ -307,6 +282,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
             params,
             0
         );
+        return _checkAndRepaySubsidy(_maxSubsidy);
     }
 
     /**
@@ -337,7 +313,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         DecodedParams memory decodedParams = abi.decode(params, (DecodedParams));
         _migrate(decodedParams);
 
-        _handleRepayment(amount + premium, decodedParams.maxSubsidy);
+        underlyingToken.approve(address(POOL), amount + premium);
         return true;
     }
 
@@ -577,16 +553,13 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         nonfungiblePositionManager.collect(params);
     }
 
-    /**
-     * @dev Internal function to enable flashloan repayment and verifying maxSubsidy
-     */
-    function _handleRepayment(uint256 _amount, uint256 _maxSubsidy) internal {
-        underlyingToken.approve(address(POOL), _amount);
-        uint256 shortFall = _amount - underlyingToken.balanceOf(address(this));
-        if(shortFall > 0) {
-            require(shortFall <= _maxSubsidy, "MigrationExtension: Exceeded max subsidy");
-            underlyingToken.transferFrom(tx.origin, address(this), shortFall); // TODO: Assumption: EOA initiating this tx will always be the one paying the subsidy
+    function _checkAndRepaySubsidy(uint256 _maxSubsidy) internal returns (uint256){
+        uint256 underlyingTokenBalance = underlyingToken.balanceOf(address(this));
+        uint256 subsidyAmount = _maxSubsidy.sub(underlyingTokenBalance); // Assumes 0 weth balance in this contract prior to tx
+        if (underlyingTokenBalance > 0) {
+            underlyingToken.transfer(msg.sender, underlyingTokenBalance);
         }
+        return subsidyAmount;
     }
 
 }
