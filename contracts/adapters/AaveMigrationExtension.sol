@@ -230,6 +230,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
      * @param _amount0Min The minimum amount of token0 to be added as liquidity.
      * @param _amount1Min The minimum amount of token1 to be added as liquidity.
      * @param _tokenId The ID of the token for which liquidity is being increased.
+     * @param _isUnderlyingToken0 True if the underlying token is token0, false if it is token1.
      * @return liquidity The new liquidity amount as a result of the increase.
      */
     function increaseLiquidityPosition(
@@ -277,7 +278,6 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
             _amount1Min
         );
     }
-
 
     /**
      * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken 
@@ -530,6 +530,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
      * @param _amount0Min The minimum amount of token0 to be added as liquidity.
      * @param _amount1Min The minimum amount of token1 to be added as liquidity.
      * @param _tokenId The ID of the token for which liquidity is being increased.
+     * @param _isUnderlyingToken0 True if the underlying token is token0, false if it is token1.
      * @return liquidity The new liquidity amount as a result of the increase.
      */
     function _increaseLiquidityPosition(
