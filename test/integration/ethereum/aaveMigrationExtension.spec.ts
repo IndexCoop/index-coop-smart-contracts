@@ -56,7 +56,7 @@ const keeperAddresses = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe.only("AaveMigrationExtension - ETH2x-FLI Integration Test", async () => {
+  describe("AaveMigrationExtension - ETH2x-FLI Integration Test", async () => {
     let owner: Account;
     let operator: Signer;
     let keeper: Signer;
