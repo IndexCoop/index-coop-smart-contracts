@@ -67,6 +67,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         bytes exchangeData;
         uint256 underlyingRedeemLiquidityMinAmount;
         uint256 wrappedSetTokenRedeemLiquidityMinAmount;
+        uint256 maxSubsidy;
     }
 
     /* ========== State Variables ========= */
@@ -276,7 +277,8 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         uint256 _wrappedSetTokenTradeUnits,
         bytes memory _exchangeData,
         uint256 _underlyingRedeemLiquidityMinAmount,
-        uint256 _wrappedSetTokenRedeemLiquidityMinAmount
+        uint256 _wrappedSetTokenRedeemLiquidityMinAmount,
+        uint256 _maxSubsidy
     )
         external
         onlyOperator
@@ -292,7 +294,8 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
                 _wrappedSetTokenTradeUnits,
                 _exchangeData,
                 _underlyingRedeemLiquidityMinAmount,
-                _wrappedSetTokenRedeemLiquidityMinAmount
+                _wrappedSetTokenRedeemLiquidityMinAmount,
+                _maxSubsidy
            )
         );
 
@@ -334,9 +337,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         DecodedParams memory decodedParams = abi.decode(params, (DecodedParams));
         _migrate(decodedParams);
 
-        // Approve flashloan repayment
-        uint256 totalAmount = amount + premium;
-        underlyingToken.approve(address(POOL), totalAmount);
+        _handleRepayment(amount + premium, decodedParams.maxSubsidy);
         return true;
     }
 
@@ -575,4 +576,17 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         });
         nonfungiblePositionManager.collect(params);
     }
+
+    /**
+     * @dev Internal function to enable flashloan repayment and verifying maxSubsidy
+     */
+    function _handleRepayment(uint256 _amount, uint256 _maxSubsidy) internal {
+        underlyingToken.approve(address(POOL), _amount);
+        uint256 shortFall = _amount - underlyingToken.balanceOf(address(this));
+        if(shortFall > 0) {
+            require(shortFall <= _maxSubsidy, "MigrationExtension: Exceeded max subsidy");
+            underlyingToken.transferFrom(tx.origin, address(this), shortFall); // TODO: Assumption: EOA initiating this tx will always be the one paying the subsidy
+        }
+    }
+
 }

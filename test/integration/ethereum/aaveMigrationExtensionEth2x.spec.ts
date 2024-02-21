@@ -309,8 +309,10 @@ if (process.env.INTEGRATIONTEST) {
                   let underlyingTradeUnits: BigNumber;
                   let wrappedSetTokenTradeUnits: BigNumber;
                   let exchangeData: string;
+                  let maxSubsidy: BigNumber;
                   let underlyingRedeemLiquidityMinAmount: BigNumber;
                   let wrappedSetTokenRedeemLiquidityMinAmount: BigNumber;
+                    let underlyingLoanAmountWithSubsidy: BigNumber;
 
                   let wethWhale: JsonRpcSigner;
 
@@ -318,6 +320,7 @@ if (process.env.INTEGRATIONTEST) {
                     const setTokenTotalSupply = await eth2xfli.totalSupply();
                     const wrappedPositionUnits = await eth2x.getDefaultPositionRealUnit(aEthWeth.address);
                     const wrappedExchangeRate = preciseDiv(ether(1), wrappedPositionUnits);
+                    maxSubsidy = ether(3.206);
 
                     // ETH2x-FLI trade parameters
                     underlyingTradeUnits = await eth2xfli.getDefaultPositionRealUnit(weth.address);
@@ -337,6 +340,8 @@ if (process.env.INTEGRATIONTEST) {
                       setTokenTotalSupply
                     );
 
+                    underlyingLoanAmountWithSubsidy = underlyingLoanAmount.add(maxSubsidy);
+
                     // Uniswap V3 liquidity parameters
                     underlyingSupplyLiquidityAmount = ZERO;
                     wrappedSetTokenSupplyLiquidityAmount = preciseMul(
@@ -354,7 +359,8 @@ if (process.env.INTEGRATIONTEST) {
 
                     // Subsidize 3.205 WETH to the migration extension
                     wethWhale = await impersonateAccount("0xde21F729137C5Af1b01d73aF1dC21eFfa2B8a0d6");
-                    await weth.connect(wethWhale).transfer(migrationExtension.address, ether(3.205));
+                    await weth.connect(wethWhale).transfer(await operator.getAddress(), maxSubsidy);
+                    await weth.connect(operator).approve(migrationExtension.address, maxSubsidy);
                   });
 
                   it("should be able to migrate atomically", async () => {
@@ -365,8 +371,10 @@ if (process.env.INTEGRATIONTEST) {
                     expect(startingUnit).to.eq(underlyingTradeUnits);
 
                     // Migrate atomically via Migration Extension
+
+                    const operatorWethBalanceBefore = await weth.balanceOf(await operator.getAddress());
                     await migrationExtension.migrate(
-                      underlyingLoanAmount,
+                      underlyingLoanAmountWithSubsidy,
                       underlyingSupplyLiquidityAmount,
                       wrappedSetTokenSupplyLiquidityAmount,
                       tokenId,
@@ -375,52 +383,17 @@ if (process.env.INTEGRATIONTEST) {
                       wrappedSetTokenTradeUnits,
                       exchangeData,
                       underlyingRedeemLiquidityMinAmount,
-                      wrappedSetTokenRedeemLiquidityMinAmount
+                      wrappedSetTokenRedeemLiquidityMinAmount,
+                      maxSubsidy
                     );
+                    const operatorWethBalanceAfter = await weth.balanceOf(await operator.getAddress());
+                    expect(operatorWethBalanceBefore.sub(operatorWethBalanceAfter)).to.lt(maxSubsidy);
 
                     // Verify ending components and units
                     const endingComponents = await eth2xfli.getComponents();
                     const endingUnit = await eth2xfli.getDefaultPositionRealUnit(tokenAddresses.eth2x);
                     expect(endingComponents).to.deep.equal([tokenAddresses.eth2x]);
                     expect(endingUnit).to.be.gt(wrappedSetTokenTradeUnits);
-                  });
-
-                  context("when the migration is completed", () => {
-                    it("can sweep any remaining tokens", async () => {
-                      const operatorAddress = await baseManager.operator();
-
-                      // Store initial units for the operator
-                      const initialWeth = await weth.balanceOf(operatorAddress);
-                      const initialAethWeth = await aEthWeth.balanceOf(operatorAddress);
-                      const initialEth2x = await eth2x.balanceOf(operatorAddress);
-
-                      // Verify remaining units on the migration extension
-                      const remainingWeth = await weth.balanceOf(migrationExtension.address);
-                      const remainingAethWeth = await aEthWeth.balanceOf(migrationExtension.address);
-                      const remainingEth2x = await eth2x.balanceOf(migrationExtension.address);
-                      expect(remainingWeth).to.gt(ZERO);
-                      expect(remainingAethWeth).to.eq(ZERO);
-                      expect(remainingEth2x).to.eq(ZERO);
-
-                      // Sweep remaining tokens to the operator
-                      await migrationExtension.sweepTokens();
-
-                      // Verify ending units for the operator
-                      const endingWeth = await weth.balanceOf(operatorAddress);
-                      const endingAethWeth = await aEthWeth.balanceOf(operatorAddress);
-                      const endingEth2x = await eth2x.balanceOf(operatorAddress);
-                      expect(endingWeth).to.eq(initialWeth.add(remainingWeth));
-                      expect(endingAethWeth).to.eq(initialAethWeth.add(remainingAethWeth));
-                      expect(endingEth2x).to.eq(initialEth2x.add(remainingEth2x));
-
-                      // Verify tokens are zeroed out on the migration extension
-                      const finalWeth = await weth.balanceOf(migrationExtension.address);
-                      const finalAethWeth = await aEthWeth.balanceOf(migrationExtension.address);
-                      const finalEth2x = await eth2x.balanceOf(migrationExtension.address);
-                      expect(finalWeth).to.eq(ZERO);
-                      expect(finalAethWeth).to.eq(ZERO);
-                      expect(finalEth2x).to.eq(ZERO);
-                    });
                   });
                 });
               });
