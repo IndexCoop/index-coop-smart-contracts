@@ -351,7 +351,6 @@ if (process.env.INTEGRATIONTEST) {
                     // Flash loan parameters
                     underlyingLoanAmount = preciseMul(underlyingTradeUnits, setTokenTotalSupply);
 
-
                     // Uniswap V3 liquidity parameters
                     underlyingSupplyLiquidityAmount = ZERO;
                     wrappedSetTokenSupplyLiquidityAmount = preciseMul(
@@ -359,11 +358,6 @@ if (process.env.INTEGRATIONTEST) {
                       underlyingLoanAmount,
                     );
                     tokenId = await migrationExtension.tokenIds(0);
-                    exchangeName = "UniswapV3ExchangeAdapter";
-                    exchangeData = await uniswapV3ExchangeAdapter.generateDataParam(
-                      [tokenAddresses.weth, tokenAddresses.eth2x],
-                      [BigNumber.from(100)],
-                    );
                     underlyingRedeemLiquidityMinAmount = ZERO;
                     wrappedSetTokenRedeemLiquidityMinAmount = ZERO;
 
@@ -387,7 +381,7 @@ if (process.env.INTEGRATIONTEST) {
                     expect(startingComponents).to.deep.equal([tokenAddresses.weth]);
                     expect(startingUnit).to.eq(underlyingTradeUnits);
 
-                    // Migrate atomically via Migration Extension
+                    // Get the expected subsidy
                     const decodedParams = {
                       underlyingSupplyLiquidityAmount,
                       wrappedSetTokenSupplyLiquidityAmount,
