@@ -384,6 +384,44 @@ if (process.env.INTEGRATIONTEST) {
                     expect(endingComponents).to.deep.equal([tokenAddresses.eth2x]);
                     expect(endingUnit).to.be.gt(wrappedSetTokenTradeUnits);
                   });
+
+                  context("when the migration is completed", () => {
+                    it("can sweep any remaining tokens", async () => {
+                      const operatorAddress = await baseManager.operator();
+
+                      // Store initial units for the operator
+                      const initialWeth = await weth.balanceOf(operatorAddress);
+                      const initialAethWeth = await aEthWeth.balanceOf(operatorAddress);
+                      const initialEth2x = await eth2x.balanceOf(operatorAddress);
+
+                      // Verify remaining units on the migration extension
+                      const remainingWeth = await weth.balanceOf(migrationExtension.address);
+                      const remainingAethWeth = await aEthWeth.balanceOf(migrationExtension.address);
+                      const remainingEth2x = await eth2x.balanceOf(migrationExtension.address);
+                      expect(remainingWeth).to.gt(ZERO);
+                      expect(remainingAethWeth).to.eq(ZERO);
+                      expect(remainingEth2x).to.eq(ZERO);
+
+                      // Sweep remaining tokens to the operator
+                      await migrationExtension.sweepTokens();
+
+                      // Verify ending units for the operator
+                      const endingWeth = await weth.balanceOf(operatorAddress);
+                      const endingAethWeth = await aEthWeth.balanceOf(operatorAddress);
+                      const endingEth2x = await eth2x.balanceOf(operatorAddress);
+                      expect(endingWeth).to.eq(initialWeth.add(remainingWeth));
+                      expect(endingAethWeth).to.eq(initialAethWeth.add(remainingAethWeth));
+                      expect(endingEth2x).to.eq(initialEth2x.add(remainingEth2x));
+
+                      // Verify tokens are zeroed out on the migration extension
+                      const finalWeth = await weth.balanceOf(migrationExtension.address);
+                      const finalAethWeth = await aEthWeth.balanceOf(migrationExtension.address);
+                      const finalEth2x = await eth2x.balanceOf(migrationExtension.address);
+                      expect(finalWeth).to.eq(ZERO);
+                      expect(finalAethWeth).to.eq(ZERO);
+                      expect(finalEth2x).to.eq(ZERO);
+                    });
+                  });
                 });
               });
             });

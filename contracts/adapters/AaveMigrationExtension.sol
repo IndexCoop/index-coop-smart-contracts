@@ -253,8 +253,8 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
 
 
     /**
-     * @notice Migrates a SetToken's position from an unwrapped collateral asset to another SetToken that consists 
-     * solely of Aave's wrapped collateral asset
+     * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken 
+     * that consists solely of Aave's wrapped collateral asset
      * @param _underlyingLoanAmount The amount of unwrapped collateral asset to be borrowed via flash loan.
      * @param _underlyingSupplyLiquidityAmount The amount of unwrapped collateral asset to supply for liquidity.
      * @param _wrappedSetTokenSupplyLiquidityAmount The amount of the wrapped SetToken to supply for liquidity.
@@ -356,6 +356,33 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         returns (bytes4)
     {
         return this.onERC721Received.selector;
+    }
+
+    /**
+     * @notice OPERATOR ONLY: Transfers any residual balances of the underlying token, Aave's 
+     * wrapped token, and the wrapped SetToken to the operator's address.
+     * @dev This function is intended to recover tokens that might have been left behind
+     * due to the migration process or any other operation. It ensures that the contract
+     * does not retain any assets inadvertently. Only callable by the operator.
+     */
+    function sweepTokens() external onlyOperator {
+        // Sweep underlying token
+        uint256 underlyingTokenBalance = underlyingToken.balanceOf(address(this));
+        if (underlyingTokenBalance > 0) {
+            underlyingToken.transfer(manager.operator(), underlyingTokenBalance);
+        }
+
+        // Sweep Aave's wrapped token
+        uint256 aaveTokenBalance = aaveToken.balanceOf(address(this));
+        if (aaveTokenBalance > 0) {
+            aaveToken.transfer(manager.operator(), aaveTokenBalance);
+        }
+
+        // Sweep wrapped SetToken
+        uint256 wrappedSetTokenBalance = wrappedSetToken.balanceOf(address(this));
+        if (wrappedSetTokenBalance > 0) {
+            wrappedSetToken.transfer(manager.operator(), wrappedSetTokenBalance);
+        }
     }
 
     receive() external payable {}
