@@ -187,22 +187,15 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         external
         onlyOperator
     {
-        // Sort amounts and tokens
-        address token0;
-        address token1;
-        uint256 underlyingAmount;
-        uint256 wrappedSetTokenAmount;
-        if (_isUnderlyingToken0) {
-            token0 = address(underlyingToken);
-            token1 = address(wrappedSetToken);
-            underlyingAmount = _amount0Desired;
-            wrappedSetTokenAmount = _amount1Desired;
-        } else {
-            token0 = address(wrappedSetToken);
-            token1 = address(underlyingToken);
-            underlyingAmount = _amount1Desired;
-            wrappedSetTokenAmount = _amount0Desired;
-        }
+        // Sort tokens and amounts
+        (
+            address token0,
+            address token1,
+            uint256 underlyingAmount,
+            uint256 wrappedSetTokenAmount
+        ) = _isUnderlyingToken0
+            ? (address(underlyingToken), address(wrappedSetToken), _amount0Desired, _amount1Desired)
+            : (address(wrappedSetToken), address(underlyingToken), _amount1Desired, _amount0Desired);
 
         // Approve tokens
         if (underlyingAmount > 0) {
@@ -410,7 +403,10 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
      * @param decodedParams The decoded set of parameters needed for migration.
      */
     function _migrate(DecodedParams memory decodedParams) internal {
-        uint256 wrappedSetTokenSupplyLiquidityAmount = decodedParams.isUnderlyingToken0 ? decodedParams.supplyLiquidityAmount1Desired : decodedParams.supplyLiquidityAmount0Desired;
+        uint256 wrappedSetTokenSupplyLiquidityAmount = decodedParams.isUnderlyingToken0 
+            ? decodedParams.supplyLiquidityAmount1Desired 
+            : decodedParams.supplyLiquidityAmount0Desired;
+
         _issueRequiredWrappedSetToken(wrappedSetTokenSupplyLiquidityAmount);
 
         uint128 liquidity = _increaseLiquidityPosition(
@@ -547,15 +543,9 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         internal
         returns (uint128 liquidity)
     {
-        uint256 underlyingAmount;
-        uint256 wrappedSetTokenAmount;
-        if (_isUnderlyingToken0) {
-            underlyingAmount = _amount0Desired;
-            wrappedSetTokenAmount = _amount1Desired;
-        } else {
-            underlyingAmount = _amount1Desired;
-            wrappedSetTokenAmount = _amount0Desired;
-        }
+        (uint256 underlyingAmount, uint256 wrappedSetTokenAmount) = _isUnderlyingToken0
+            ? (_amount0Desired, _amount1Desired)
+            : (_amount1Desired, _amount0Desired);
 
         // Approve tokens
         if (underlyingAmount > 0) {
