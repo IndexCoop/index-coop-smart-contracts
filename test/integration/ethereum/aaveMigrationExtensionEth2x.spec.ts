@@ -1,6 +1,6 @@
 import "module-alias/register";
 import { ethers } from "hardhat";
-import { BigNumber, Signer, utils } from "ethers";
+import { BigNumber, Signer } from "ethers";
 import { JsonRpcSigner } from "@ethersproject/providers";
 import { Account } from "@utils/types";
 import DeployHelper from "@utils/deploys";
@@ -376,6 +376,9 @@ if (process.env.INTEGRATIONTEST) {
                   });
 
                   it("should be able to migrate atomically", async () => {
+                    const operatorAddress = await operator.getAddress();
+                    const operatorWethBalanceBefore = await weth.balanceOf(operatorAddress);
+
                     // Verify starting components and units
                     const startingComponents = await eth2xfli.getComponents();
                     const startingUnit = await eth2xfli.getDefaultPositionRealUnit(
@@ -385,11 +388,6 @@ if (process.env.INTEGRATIONTEST) {
                     expect(startingUnit).to.eq(underlyingTradeUnits);
 
                     // Migrate atomically via Migration Extension
-
-                    const operatorWethBalanceBefore = await weth.balanceOf(
-                      await operator.getAddress(),
-                    );
-
                     const decodedParams = {
                       underlyingSupplyLiquidityAmount,
                       wrappedSetTokenSupplyLiquidityAmount,
@@ -401,32 +399,23 @@ if (process.env.INTEGRATIONTEST) {
                       underlyingRedeemLiquidityMinAmount,
                       wrappedSetTokenRedeemLiquidityMinAmount,
                     };
-
-                    const [expectedSubsidy, expectedWrappedSetTokenPosition] = await migrationExtension.callStatic.migrate(
+                    const expectedSubsidy = await migrationExtension.callStatic.migrate(
                       decodedParams,
                       underlyingLoanAmount,
-                      maxSubsidy,
-                      0,
+                      maxSubsidy
                     );
+                    expect(expectedSubsidy).to.lt(maxSubsidy);
 
-                    expect(expectedWrappedSetTokenPosition).to.lt(maxSubsidy);
-
-                    const minWrappedSetTokenPosition = expectedWrappedSetTokenPosition.sub(ether(0.001));
-                    console.log("expectedWrappedSetTokenPosition", utils.formatUnits(expectedWrappedSetTokenPosition, 18));
-                    console.log("expectedSubsidy", utils.formatUnits(expectedSubsidy, 18));
-
+                    // Migrate atomically via Migration Extension
                     await migrationExtension.migrate(
                       decodedParams,
                       underlyingLoanAmount,
-                      maxSubsidy,
-                      minWrappedSetTokenPosition,
+                      maxSubsidy
                     );
-                    const operatorWethBalanceAfter = await weth.balanceOf(
-                      await operator.getAddress(),
-                    );
-                    expect(operatorWethBalanceBefore.sub(operatorWethBalanceAfter)).to.lt(
-                      maxSubsidy,
-                    );
+
+                    // Verify operator WETH balance change
+                    const operatorWethBalanceAfter = await weth.balanceOf(operatorAddress);
+                    expect(operatorWethBalanceBefore.sub(operatorWethBalanceAfter)).to.be.eq(expectedSubsidy);
 
                     // Verify ending components and units
                     const endingComponents = await eth2xfli.getComponents();

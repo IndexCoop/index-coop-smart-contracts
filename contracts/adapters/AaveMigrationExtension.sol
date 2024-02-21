@@ -257,24 +257,23 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
      * that consists solely of Aave's wrapped collateral asset
      * @param _decodedParams The decoded migration parameters.
      * @param _underlyingLoanAmount The amount of unwrapped collateral asset to be borrowed via flash loan.
-     * @param _maxSubsidy The maximum amount of the wrapped SetToken to be transferred to the Extension as a subsidy.
-     * @param _minWrappedSetTokenPosition The minimum positio of the wrapped SetToken to be held by Old token after migration
+     * @param _maxSubsidy The maximum amount of unwrapped collateral asset to be transferred to the Extension as a subsidy.
+     * @return subsidyAmount The amount of unwrapped collateral asset used by the Extension as subsidy.
      */
     function migrate(
         DecodedParams memory _decodedParams,
         uint256 _underlyingLoanAmount,
-        uint256 _maxSubsidy,
-        uint256 _minWrappedSetTokenPosition
+        uint256 _maxSubsidy
     )
         external
         onlyOperator
-        returns (uint256, uint256)
+        returns (uint256 subsidyAmount)
     {
+        // Subsidize the migration
         underlyingToken.transferFrom(msg.sender, address(this), _maxSubsidy);
+
         // Encode migration parameters for flash loan callback
-        bytes memory params = abi.encode(
-            _decodedParams
-        );
+        bytes memory params = abi.encode(_decodedParams);
 
         // Request flash loan for the underlying token
         POOL.flashLoanSimple(
@@ -284,7 +283,9 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
             params,
             0
         );
-        return _checkAndRepaySubsidy(_maxSubsidy, _minWrappedSetTokenPosition);
+
+        // Repay unused subsidy
+        subsidyAmount = _repaySubsidy(_maxSubsidy);
     }
 
     /**
@@ -555,17 +556,16 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         nonfungiblePositionManager.collect(params);
     }
 
-    function _checkAndRepaySubsidy(uint256 _maxSubsidy, uint256 _minWrappedSetTokenPosition) internal returns (uint256, uint256){
+    /**
+     * @dev Internal function to repay any unused subsidy back to the operator. Assumes the contract has no WETH balance prior to the transaction.
+     * @param _maxSubsidy The maximum amount of unwrapped collateral asset to be transferred to the Extension as a subsidy.
+     * @return subsidyAmount The amount of unwrapped collateral asset used by the Extension as subsidy.
+     */
+    function _repaySubsidy(uint256 _maxSubsidy) internal returns (uint256 subsidyAmount) {
         uint256 underlyingTokenBalance = underlyingToken.balanceOf(address(this));
-        uint256 subsidyAmount = _maxSubsidy.sub(underlyingTokenBalance); // Assumes 0 weth balance in this contract prior to tx
+        subsidyAmount = _maxSubsidy.sub(underlyingTokenBalance);
         if (underlyingTokenBalance > 0) {
             underlyingToken.transfer(msg.sender, underlyingTokenBalance);
         }
-        uint256 wrappedSetTokenPositionAfter = uint256(setToken.getDefaultPositionRealUnit(address(wrappedSetToken)));
-        if(wrappedSetTokenPositionAfter< _minWrappedSetTokenPosition){
-            revert("MigrationExtension: Insufficient wrappedSetTokenPosition");
-        }
-        return (subsidyAmount, wrappedSetTokenPositionAfter);
     }
-
 }
