@@ -325,7 +325,6 @@ if (process.env.INTEGRATIONTEST) {
                   let maxSubsidy: BigNumber;
                   let underlyingRedeemLiquidityMinAmount: BigNumber;
                   let wrappedSetTokenRedeemLiquidityMinAmount: BigNumber;
-                  let underlyingLoanAmountWithSubsidy: BigNumber;
 
                   let wethWhale: JsonRpcSigner;
 
@@ -352,7 +351,6 @@ if (process.env.INTEGRATIONTEST) {
                     // Flash loan parameters
                     underlyingLoanAmount = preciseMul(underlyingTradeUnits, setTokenTotalSupply);
 
-                    underlyingLoanAmountWithSubsidy = underlyingLoanAmount.add(maxSubsidy);
 
                     // Uniswap V3 liquidity parameters
                     underlyingSupplyLiquidityAmount = ZERO;
