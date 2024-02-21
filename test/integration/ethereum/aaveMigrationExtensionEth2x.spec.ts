@@ -402,23 +402,24 @@ if (process.env.INTEGRATIONTEST) {
                       wrappedSetTokenRedeemLiquidityMinAmount,
                     };
 
-                    const expectedSubsidy = await migrationExtension.callStatic.migrate(
+                    const [expectedSubsidy, expectedWrappedSetTokenPosition] = await migrationExtension.callStatic.migrate(
                       decodedParams,
                       underlyingLoanAmount,
                       maxSubsidy,
                       0,
                     );
 
-                    expect(expectedSubsidy).to.lt(maxSubsidy);
+                    expect(expectedWrappedSetTokenPosition).to.lt(maxSubsidy);
 
-                    const minSubsidy = expectedSubsidy.sub(ether(0.1));
+                    const minWrappedSetTokenPosition = expectedWrappedSetTokenPosition.sub(ether(0.001));
+                    console.log("expectedWrappedSetTokenPosition", utils.formatUnits(expectedWrappedSetTokenPosition, 18));
                     console.log("expectedSubsidy", utils.formatUnits(expectedSubsidy, 18));
 
                     await migrationExtension.migrate(
                       decodedParams,
                       underlyingLoanAmount,
                       maxSubsidy,
-                      minSubsidy,
+                      minWrappedSetTokenPosition,
                     );
                     const operatorWethBalanceAfter = await weth.balanceOf(
                       await operator.getAddress(),

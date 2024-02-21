@@ -258,17 +258,17 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
      * @param _decodedParams The decoded migration parameters.
      * @param _underlyingLoanAmount The amount of unwrapped collateral asset to be borrowed via flash loan.
      * @param _maxSubsidy The maximum amount of the wrapped SetToken to be transferred to the Extension as a subsidy.
-     * @param _minSubsidy The minimum amount to subsidise (to limit any loss of value on the fli token)
+     * @param _minWrappedSetTokenPosition The minimum positio of the wrapped SetToken to be held by Old token after migration
      */
     function migrate(
         DecodedParams memory _decodedParams,
         uint256 _underlyingLoanAmount,
         uint256 _maxSubsidy,
-        uint256 _minSubsidy
+        uint256 _minWrappedSetTokenPosition
     )
         external
         onlyOperator
-        returns (uint256)
+        returns (uint256, uint256)
     {
         underlyingToken.transferFrom(msg.sender, address(this), _maxSubsidy);
         // Encode migration parameters for flash loan callback
@@ -284,7 +284,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
             params,
             0
         );
-        return _checkAndRepaySubsidy(_maxSubsidy, _minSubsidy);
+        return _checkAndRepaySubsidy(_maxSubsidy, _minWrappedSetTokenPosition);
     }
 
     /**
@@ -555,16 +555,17 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         nonfungiblePositionManager.collect(params);
     }
 
-    function _checkAndRepaySubsidy(uint256 _maxSubsidy, uint256 _minSubsidy) internal returns (uint256){
+    function _checkAndRepaySubsidy(uint256 _maxSubsidy, uint256 _minWrappedSetTokenPosition) internal returns (uint256, uint256){
         uint256 underlyingTokenBalance = underlyingToken.balanceOf(address(this));
         uint256 subsidyAmount = _maxSubsidy.sub(underlyingTokenBalance); // Assumes 0 weth balance in this contract prior to tx
         if (underlyingTokenBalance > 0) {
             underlyingToken.transfer(msg.sender, underlyingTokenBalance);
         }
-        if(subsidyAmount < _minSubsidy){
-            revert("MigrationExtension: Insufficient subsidy");
+        uint256 wrappedSetTokenPositionAfter = uint256(setToken.getDefaultPositionRealUnit(address(wrappedSetToken)));
+        if(wrappedSetTokenPositionAfter< _minWrappedSetTokenPosition){
+            revert("MigrationExtension: Insufficient wrappedSetTokenPosition");
         }
-        return subsidyAmount;
+        return (subsidyAmount, wrappedSetTokenPositionAfter);
     }
 
 }
