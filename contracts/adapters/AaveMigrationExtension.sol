@@ -162,41 +162,64 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
 
     /**
      * @notice OPERATOR ONLY: Mints a new liquidity position in the Uniswap V3 pool.
-     * @param _underlyingSupplyLiquidityAmount The amount of the underlying token to add as liquidity.
-     * @param _wrappedSetTokenSupplyLiquidityAmount The amount of the wrapped SetToken to add as liquidity.
+     * @param _amount0Desired The desired amount of token0 to be added as liquidity.
+     * @param _amount1Desired The desired amount of token1 to be added as liquidity.
+     * @param _amount0Min The minimum amount of token0 to be added as liquidity.
+     * @param _amount1Min The minimum amount of token1 to be added as liquidity.
      * @param _tickLower The lower end of the desired tick range for the position.
      * @param _tickUpper The upper end of the desired tick range for the position.
      * @param _fee The fee tier of the Uniswap V3 pool in which to add liquidity.
+     * @param _isUnderlyingToken0 True if the underlying token is token0, false if it is token1.
      */
     function mintLiquidityPosition(
-        uint256 _underlyingSupplyLiquidityAmount,
-        uint256 _wrappedSetTokenSupplyLiquidityAmount,
+        uint256 _amount0Desired,
+        uint256 _amount1Desired,
+        uint256 _amount0Min,
+        uint256 _amount1Min,
         int24 _tickLower,
         int24 _tickUpper,
-        uint24 _fee
+        uint24 _fee,
+        bool _isUnderlyingToken0
     )
         external
         onlyOperator
     {
-        // Approve tokens
-        if (_underlyingSupplyLiquidityAmount > 0) {
-            underlyingToken.approve(address(nonfungiblePositionManager), _underlyingSupplyLiquidityAmount);
+        // Sort amounts and tokens
+        address token0;
+        address token1;
+        uint256 underlyingAmount;
+        uint256 wrappedSetTokenAmount;
+        if (_isUnderlyingToken0) {
+            token0 = address(underlyingToken);
+            token1 = address(wrappedSetToken);
+            underlyingAmount = _amount0Desired;
+            wrappedSetTokenAmount = _amount1Desired;
+        } else {
+            token0 = address(wrappedSetToken);
+            token1 = address(underlyingToken);
+            underlyingAmount = _amount1Desired;
+            wrappedSetTokenAmount = _amount0Desired;
         }
-        if (_wrappedSetTokenSupplyLiquidityAmount > 0) {
-            wrappedSetToken.approve(address(nonfungiblePositionManager), _wrappedSetTokenSupplyLiquidityAmount);
+
+        // Approve tokens
+        if (underlyingAmount > 0) {
+            underlyingToken.approve(address(nonfungiblePositionManager), underlyingAmount);
+        }
+        if (wrappedSetTokenAmount > 0) {
+            wrappedSetToken.approve(address(nonfungiblePositionManager), wrappedSetTokenAmount);
         }
 
         // Mint liquidity position
         INonfungiblePositionManager.MintParams memory mintParams = INonfungiblePositionManager.MintParams({
-            token0: address(wrappedSetToken),
-            token1: address(underlyingToken),
+            token0: token0,
+            token1: token1,
             fee: _fee,
             tickLower: _tickLower,
             tickUpper: _tickUpper,
-            amount0Desired: _wrappedSetTokenSupplyLiquidityAmount,
-            amount1Desired: _underlyingSupplyLiquidityAmount,
-            amount0Min: _wrappedSetTokenSupplyLiquidityAmount,
-            amount1Min: _underlyingSupplyLiquidityAmount,
+            amount0Desired: _amount0Desired,
+            amount1Desired: _amount1Desired,
+            amount0Min: _amount0Min,
+            amount1Min: _amount1Min,
             recipient: address(this),
             deadline: block.timestamp
         });
