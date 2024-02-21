@@ -58,15 +58,18 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
     /* ============ Structs ============ */
 
     struct DecodedParams {
-        uint256 underlyingSupplyLiquidityAmount;
-        uint256 wrappedSetTokenSupplyLiquidityAmount;
+        uint256 supplyLiquidityAmount0Desired;
+        uint256 supplyLiquidityAmount1Desired;
+        uint256 supplyLiquidityAmount0Min;
+        uint256 supplyLiquidityAmount1Min;
         uint256 tokenId;
         string exchangeName;
         uint256 underlyingTradeUnits;
         uint256 wrappedSetTokenTradeUnits;
         bytes exchangeData;
-        uint256 underlyingRedeemLiquidityMinAmount;
-        uint256 wrappedSetTokenRedeemLiquidityMinAmount;
+        uint256 redeemLiquidityAmount0Min;
+        uint256 redeemLiquidityAmount1Min;
+        bool isUnderlyingToken0;
     }
 
     /* ========== State Variables ========= */
@@ -162,41 +165,57 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
 
     /**
      * @notice OPERATOR ONLY: Mints a new liquidity position in the Uniswap V3 pool.
-     * @param _underlyingSupplyLiquidityAmount The amount of the underlying token to add as liquidity.
-     * @param _wrappedSetTokenSupplyLiquidityAmount The amount of the wrapped SetToken to add as liquidity.
+     * @param _amount0Desired The desired amount of token0 to be added as liquidity.
+     * @param _amount1Desired The desired amount of token1 to be added as liquidity.
+     * @param _amount0Min The minimum amount of token0 to be added as liquidity.
+     * @param _amount1Min The minimum amount of token1 to be added as liquidity.
      * @param _tickLower The lower end of the desired tick range for the position.
      * @param _tickUpper The upper end of the desired tick range for the position.
      * @param _fee The fee tier of the Uniswap V3 pool in which to add liquidity.
+     * @param _isUnderlyingToken0 True if the underlying token is token0, false if it is token1.
      */
     function mintLiquidityPosition(
-        uint256 _underlyingSupplyLiquidityAmount,
-        uint256 _wrappedSetTokenSupplyLiquidityAmount,
+        uint256 _amount0Desired,
+        uint256 _amount1Desired,
+        uint256 _amount0Min,
+        uint256 _amount1Min,
         int24 _tickLower,
         int24 _tickUpper,
-        uint24 _fee
+        uint24 _fee,
+        bool _isUnderlyingToken0
     )
         external
         onlyOperator
     {
+        // Sort tokens and amounts
+        (
+            address token0,
+            address token1,
+            uint256 underlyingAmount,
+            uint256 wrappedSetTokenAmount
+        ) = _isUnderlyingToken0
+            ? (address(underlyingToken), address(wrappedSetToken), _amount0Desired, _amount1Desired)
+            : (address(wrappedSetToken), address(underlyingToken), _amount1Desired, _amount0Desired);
+
         // Approve tokens
-        if (_underlyingSupplyLiquidityAmount > 0) {
-            underlyingToken.approve(address(nonfungiblePositionManager), _underlyingSupplyLiquidityAmount);
+        if (underlyingAmount > 0) {
+            underlyingToken.approve(address(nonfungiblePositionManager), underlyingAmount);
         }
-        if (_wrappedSetTokenSupplyLiquidityAmount > 0) {
-            wrappedSetToken.approve(address(nonfungiblePositionManager), _wrappedSetTokenSupplyLiquidityAmount);
+        if (wrappedSetTokenAmount > 0) {
+            wrappedSetToken.approve(address(nonfungiblePositionManager), wrappedSetTokenAmount);
         }
 
         // Mint liquidity position
         INonfungiblePositionManager.MintParams memory mintParams = INonfungiblePositionManager.MintParams({
-            token0: address(wrappedSetToken),
-            token1: address(underlyingToken),
+            token0: token0,
+            token1: token1,
             fee: _fee,
             tickLower: _tickLower,
             tickUpper: _tickUpper,
-            amount0Desired: _wrappedSetTokenSupplyLiquidityAmount,
-            amount1Desired: _underlyingSupplyLiquidityAmount,
-            amount0Min: _wrappedSetTokenSupplyLiquidityAmount,
-            amount1Min: _underlyingSupplyLiquidityAmount,
+            amount0Desired: _amount0Desired,
+            amount1Desired: _amount1Desired,
+            amount0Min: _amount0Min,
+            amount1Min: _amount1Min,
             recipient: address(this),
             deadline: block.timestamp
         });
@@ -206,24 +225,33 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
 
     /**
      * @notice OPERATOR ONLY: Increases liquidity position in the Uniswap V3 pool.
-     * @param _underlyingSupplyLiquidityAmount The amount of the underlying token to add as liquidity.
-     * @param _wrappedSetTokenSupplyLiquidityAmount The amount of the wrapped SetToken to add as liquidity.
+     * @param _amount0Desired The desired amount of token0 to be added as liquidity.
+     * @param _amount1Desired The desired amount of token1 to be added as liquidity.
+     * @param _amount0Min The minimum amount of token0 to be added as liquidity.
+     * @param _amount1Min The minimum amount of token1 to be added as liquidity.
      * @param _tokenId The ID of the token for which liquidity is being increased.
+     * @param _isUnderlyingToken0 True if the underlying token is token0, false if it is token1.
      * @return liquidity The new liquidity amount as a result of the increase.
      */
     function increaseLiquidityPosition(
-        uint256 _underlyingSupplyLiquidityAmount,
-        uint256 _wrappedSetTokenSupplyLiquidityAmount,
-        uint256 _tokenId
+        uint256 _amount0Desired,
+        uint256 _amount1Desired,
+        uint256 _amount0Min,
+        uint256 _amount1Min,
+        uint256 _tokenId,
+        bool _isUnderlyingToken0
     )
         external
         onlyOperator
         returns (uint128 liquidity)
     {
         liquidity = _increaseLiquidityPosition(
-            _underlyingSupplyLiquidityAmount,
-            _wrappedSetTokenSupplyLiquidityAmount,
-            _tokenId
+            _amount0Desired,
+            _amount1Desired,
+            _amount0Min,
+            _amount1Min,
+            _tokenId,
+            _isUnderlyingToken0
         );
     }
 
@@ -231,14 +259,14 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
      * @notice OPERATOR ONLY: Decreases and collects from a liquidity position in the Uniswap V3 pool.
      * @param _tokenId The ID of the token for which liquidity is being decreased.
      * @param _liquidity The amount of liquidity to decrease.
-     * @param _underlyingRedeemLiquidityMinAmount The minimum amount of the underlying token to be redeemed from the decreased liquidity.
-     * @param _wrappedSetTokenRedeemLiquidityMinAmount The minimum amount of the wrapped SetToken to be redeemed from the decreased liquidity.
+     * @param _amount0Min The minimum amount of token0 that should be accounted for the burned liquidity.
+     * @param _amount1Min The minimum amount of token1 that should be accounted for the burned liquidity.
      */
     function decreaseLiquidityPosition(
         uint256 _tokenId,
         uint128 _liquidity,
-        uint256 _underlyingRedeemLiquidityMinAmount,
-        uint256 _wrappedSetTokenRedeemLiquidityMinAmount
+        uint256 _amount0Min,
+        uint256 _amount1Min
     )
         external
         onlyOperator
@@ -246,11 +274,10 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         _decreaseLiquidityPosition(
             _tokenId,
             _liquidity,
-            _underlyingRedeemLiquidityMinAmount,
-            _wrappedSetTokenRedeemLiquidityMinAmount
+            _amount0Min,
+            _amount1Min
         );
     }
-
 
     /**
      * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken 
@@ -376,12 +403,19 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
      * @param decodedParams The decoded set of parameters needed for migration.
      */
     function _migrate(DecodedParams memory decodedParams) internal {
-        _issueRequiredWrappedSetToken(decodedParams.wrappedSetTokenSupplyLiquidityAmount);
+        uint256 wrappedSetTokenSupplyLiquidityAmount = decodedParams.isUnderlyingToken0 
+            ? decodedParams.supplyLiquidityAmount1Desired 
+            : decodedParams.supplyLiquidityAmount0Desired;
+
+        _issueRequiredWrappedSetToken(wrappedSetTokenSupplyLiquidityAmount);
 
         uint128 liquidity = _increaseLiquidityPosition(
-            decodedParams.underlyingSupplyLiquidityAmount,
-            decodedParams.wrappedSetTokenSupplyLiquidityAmount,
-            decodedParams.tokenId
+            decodedParams.supplyLiquidityAmount0Desired,
+            decodedParams.supplyLiquidityAmount1Desired,
+            decodedParams.supplyLiquidityAmount0Min,
+            decodedParams.supplyLiquidityAmount1Min,
+            decodedParams.tokenId,
+            decodedParams.isUnderlyingToken0
         );
 
         _trade(
@@ -396,8 +430,8 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         _decreaseLiquidityPosition(
             decodedParams.tokenId,
             liquidity,
-            decodedParams.underlyingRedeemLiquidityMinAmount,
-            decodedParams.wrappedSetTokenRedeemLiquidityMinAmount
+            decodedParams.redeemLiquidityAmount0Min,
+            decodedParams.redeemLiquidityAmount1Min
         );
 
         _redeemExcessWrappedSetToken();
@@ -491,34 +525,44 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
     /**
      * @dev Internal function to increase liquidity in a Uniswap V3 pool position.
      * Calls Uniswap's `increaseLiquidity` function with specified parameters.
-     * @param _underlyingSupplyLiquidityAmount The amount of underlying token to be supplied to the pool.
-     * @param _wrappedSetTokenSupplyLiquidityAmount The amount of wrapped SetToken to be supplied to the pool.
+     * @param _amount0Desired The desired amount of token0 to be added as liquidity.
+     * @param _amount1Desired The desired amount of token1 to be added as liquidity.
+     * @param _amount0Min The minimum amount of token0 to be added as liquidity.
+     * @param _amount1Min The minimum amount of token1 to be added as liquidity.
      * @param _tokenId The ID of the token for which liquidity is being increased.
+     * @param _isUnderlyingToken0 True if the underlying token is token0, false if it is token1.
      * @return liquidity The new liquidity amount as a result of the increase.
      */
     function _increaseLiquidityPosition(
-        uint256 _underlyingSupplyLiquidityAmount,
-        uint256 _wrappedSetTokenSupplyLiquidityAmount,
-        uint256 _tokenId
+        uint256 _amount0Desired,
+        uint256 _amount1Desired,
+        uint256 _amount0Min,
+        uint256 _amount1Min,
+        uint256 _tokenId,
+        bool _isUnderlyingToken0
     )
         internal
         returns (uint128 liquidity)
     {
+        (uint256 underlyingAmount, uint256 wrappedSetTokenAmount) = _isUnderlyingToken0
+            ? (_amount0Desired, _amount1Desired)
+            : (_amount1Desired, _amount0Desired);
+
         // Approve tokens
-        if (_underlyingSupplyLiquidityAmount > 0) {
-            underlyingToken.approve(address(nonfungiblePositionManager), _underlyingSupplyLiquidityAmount);
+        if (underlyingAmount > 0) {
+            underlyingToken.approve(address(nonfungiblePositionManager), underlyingAmount);
         }
-        if (_wrappedSetTokenSupplyLiquidityAmount > 0) {
-            wrappedSetToken.approve(address(nonfungiblePositionManager), _wrappedSetTokenSupplyLiquidityAmount);
+        if (wrappedSetTokenAmount > 0) {
+            wrappedSetToken.approve(address(nonfungiblePositionManager), wrappedSetTokenAmount);
         }
 
         // Increase liquidity
         INonfungiblePositionManager.IncreaseLiquidityParams memory increaseParams = INonfungiblePositionManager.IncreaseLiquidityParams({
             tokenId: _tokenId,
-            amount0Desired: _wrappedSetTokenSupplyLiquidityAmount,
-            amount1Desired: _underlyingSupplyLiquidityAmount,
-            amount0Min: _wrappedSetTokenSupplyLiquidityAmount,
-            amount1Min: _underlyingSupplyLiquidityAmount,
+            amount0Desired: _amount0Desired,
+            amount1Desired: _amount1Desired,
+            amount0Min: _amount0Min,
+            amount1Min: _amount1Min,
             deadline: block.timestamp
         });
         (liquidity,,) = nonfungiblePositionManager.increaseLiquidity(increaseParams);
@@ -529,21 +573,21 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
      * Calls Uniswap's `decreaseLiquidity` and `collect` functions with specified parameters.
      * @param _tokenId The ID of the token for which liquidity is being decreased.
      * @param _liquidity The amount by which liquidity will be decreased.
-     * @param _underlyingRedeemLiquidityMinAmount The minimum amount of the underlying token that should be accounted for the burned liquidity.
-     * @param _wrappedSetTokenRedeemLiquidityMinAmount The minimum amount of the wrapped SetToken that should be accounted for the burned liquidity.
+     * @param _amount0Min The minimum amount of token0 that should be accounted for the burned liquidity.
+     * @param _amount1Min The minimum amount of token1 that should be accounted for the burned liquidity.
      */
     function _decreaseLiquidityPosition(
         uint256 _tokenId,
         uint128 _liquidity,
-        uint256 _underlyingRedeemLiquidityMinAmount,
-        uint256 _wrappedSetTokenRedeemLiquidityMinAmount
+        uint256 _amount0Min,
+        uint256 _amount1Min
     ) internal {
         // Decrease liquidity
         INonfungiblePositionManager.DecreaseLiquidityParams memory decreaseParams = INonfungiblePositionManager.DecreaseLiquidityParams({
             tokenId: _tokenId,
             liquidity: _liquidity,
-            amount0Min: _wrappedSetTokenRedeemLiquidityMinAmount,
-            amount1Min: _underlyingRedeemLiquidityMinAmount,
+            amount0Min: _amount0Min,
+            amount1Min: _amount1Min,
             deadline: block.timestamp
         });
         nonfungiblePositionManager.decreaseLiquidity(decreaseParams);
