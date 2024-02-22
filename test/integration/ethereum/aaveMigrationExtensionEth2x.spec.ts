@@ -110,13 +110,12 @@ if (process.env.INTEGRATIONTEST) {
       await setBalance(await operator.getAddress(), ether(1000));
     });
 
-    addSnapshotBeforeRestoreAfterEach();
 
     context("when the product is de-levered", () => {
       let flexibleLeverageStrategyExtension: FlexibleLeverageStrategyExtension;
 
       before(async () => {
-        await setBalance(await operator.getAddress(), ether(1000));
+      await setBalance(await operator.getAddress(), ether(1000));
         flexibleLeverageStrategyExtension = FlexibleLeverageStrategyExtension__factory.connect(
           contractAddresses.flexibleLeverageStrategyExtension,
           operator,
@@ -175,6 +174,8 @@ if (process.env.INTEGRATIONTEST) {
           .connect(operator)
           .disengage("UniswapV3ExchangeAdapter");
       });
+
+      addSnapshotBeforeRestoreAfterEach();
 
       it("should have leverage ratio of 1", async () => {
         const endingLeverage = await flexibleLeverageStrategyExtension.getCurrentLeverageRatio();
