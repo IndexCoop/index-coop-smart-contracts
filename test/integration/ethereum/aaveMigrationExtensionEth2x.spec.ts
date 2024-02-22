@@ -116,6 +116,7 @@ if (process.env.INTEGRATIONTEST) {
       let flexibleLeverageStrategyExtension: FlexibleLeverageStrategyExtension;
 
       before(async () => {
+        await setBalance(await operator.getAddress(), ether(1000));
         flexibleLeverageStrategyExtension = FlexibleLeverageStrategyExtension__factory.connect(
           contractAddresses.flexibleLeverageStrategyExtension,
           operator,
