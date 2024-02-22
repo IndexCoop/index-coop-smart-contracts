@@ -149,3 +149,8 @@ export function setBlockNumber(blockNumber: number, reset: boolean = true) {
 export async function getLastBlockTransaction(): Promise<any> {
   return (await provider.getBlockWithTransactions("latest")).transactions[0];
 }
+
+export const setBalance = async (account: string, balance: BigNumber): Promise<void> => {
+    await provider.send("hardhat_setBalance", [account, balance.toHexString().replace("0x0", "0x")]);
+};
+
