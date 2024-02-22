@@ -104,18 +104,16 @@ if (process.env.INTEGRATIONTEST) {
       // Deployed Migration Extension
       migrationExtension = AaveMigrationExtension__factory.connect(
         contractAddresses.aaveMigrationExtension,
-        operator
+        operator,
       );
-
       await setBalance(await operator.getAddress(), ether(1000));
     });
-
+    addSnapshotBeforeRestoreAfterEach();
 
     context("when the product is de-levered", () => {
       let flexibleLeverageStrategyExtension: FlexibleLeverageStrategyExtension;
 
       before(async () => {
-      await setBalance(await operator.getAddress(), ether(1000));
         flexibleLeverageStrategyExtension = FlexibleLeverageStrategyExtension__factory.connect(
           contractAddresses.flexibleLeverageStrategyExtension,
           operator,
@@ -175,8 +173,6 @@ if (process.env.INTEGRATIONTEST) {
           .disengage("UniswapV3ExchangeAdapter");
       });
 
-      addSnapshotBeforeRestoreAfterEach();
-
       it("should have leverage ratio of 1", async () => {
         const endingLeverage = await flexibleLeverageStrategyExtension.getCurrentLeverageRatio();
         expect(endingLeverage.eq(ether(1)));
@@ -192,10 +188,7 @@ if (process.env.INTEGRATIONTEST) {
 
         before(async () => {
           // Deployed Wrap Extension
-          wrapExtension = WrapExtension__factory.connect(
-            contractAddresses.wrapExtension,
-            operator
-          );
+          wrapExtension = WrapExtension__factory.connect(contractAddresses.wrapExtension, operator);
 
           // Add Wrap Module
           await baseManager.addModule(contractAddresses.wrapModule);
@@ -300,7 +293,7 @@ if (process.env.INTEGRATIONTEST) {
                     tickLower,
                     tickUpper,
                     fee,
-                    isUnderlyingToken0
+                    isUnderlyingToken0,
                   );
                 });
 
@@ -404,7 +397,7 @@ if (process.env.INTEGRATIONTEST) {
                     const expectedOutput = await migrationExtension.callStatic.migrate(
                       decodedParams,
                       underlyingLoanAmount,
-                      maxSubsidy
+                      maxSubsidy,
                     );
                     expect(expectedOutput).to.lt(maxSubsidy);
 
@@ -412,12 +405,14 @@ if (process.env.INTEGRATIONTEST) {
                     await migrationExtension.migrate(
                       decodedParams,
                       underlyingLoanAmount,
-                      maxSubsidy
+                      maxSubsidy,
                     );
 
                     // Verify operator WETH balance change
                     const operatorWethBalanceAfter = await weth.balanceOf(operatorAddress);
-                    expect(operatorWethBalanceBefore.sub(operatorWethBalanceAfter)).to.be.gte(maxSubsidy.sub(expectedOutput).sub(ONE));
+                    expect(operatorWethBalanceBefore.sub(operatorWethBalanceAfter)).to.be.gte(
+                      maxSubsidy.sub(expectedOutput).sub(ONE),
+                    );
 
                     // Verify ending components and units
                     const endingComponents = await eth2xfli.getComponents();

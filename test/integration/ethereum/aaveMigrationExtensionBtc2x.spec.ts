@@ -8,6 +8,7 @@ import {
   addSnapshotBeforeRestoreAfterEach,
   increaseTimeAsync,
   setBlockNumber,
+  setBalance,
 } from "@utils/test/testingUtils";
 import { impersonateAccount } from "./utils";
 import {
@@ -103,6 +104,8 @@ if (process.env.INTEGRATIONTEST) {
         contractAddresses.aaveMigrationExtension,
         operator
       );
+
+      await setBalance(await operator.getAddress(), ether(1000));
     });
 
     addSnapshotBeforeRestoreAfterEach();
