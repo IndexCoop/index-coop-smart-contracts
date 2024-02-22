@@ -187,40 +187,16 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         external
         onlyOperator
     {
-        // Sort tokens and amounts
-        (
-            address token0,
-            address token1,
-            uint256 underlyingAmount,
-            uint256 wrappedSetTokenAmount
-        ) = _isUnderlyingToken0
-            ? (address(underlyingToken), address(wrappedSetToken), _amount0Desired, _amount1Desired)
-            : (address(wrappedSetToken), address(underlyingToken), _amount1Desired, _amount0Desired);
-
-        // Approve tokens
-        if (underlyingAmount > 0) {
-            underlyingToken.approve(address(nonfungiblePositionManager), underlyingAmount);
-        }
-        if (wrappedSetTokenAmount > 0) {
-            wrappedSetToken.approve(address(nonfungiblePositionManager), wrappedSetTokenAmount);
-        }
-
-        // Mint liquidity position
-        INonfungiblePositionManager.MintParams memory mintParams = INonfungiblePositionManager.MintParams({
-            token0: token0,
-            token1: token1,
-            fee: _fee,
-            tickLower: _tickLower,
-            tickUpper: _tickUpper,
-            amount0Desired: _amount0Desired,
-            amount1Desired: _amount1Desired,
-            amount0Min: _amount0Min,
-            amount1Min: _amount1Min,
-            recipient: address(this),
-            deadline: block.timestamp
-        });
-        (uint256 tokenId,,,) = nonfungiblePositionManager.mint(mintParams);
-        tokenIds.push(tokenId);
+        _mintLiquidityPosition(
+            _amount0Desired,
+            _amount1Desired,
+            _amount0Min,
+            _amount1Min,
+            _tickLower,
+            _tickUpper,
+            _fee,
+            _isUnderlyingToken0
+        );
     }
 
     /**
@@ -520,6 +496,64 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
                 address(this)
             );
         }
+    }
+
+    /**
+     * @dev Internal function to mint a new liquidity position in the Uniswap V3 pool.
+     * Calls Uniswap's `mint` function with specified parameters.
+     * @param _amount0Desired The desired amount of token0 to be added as liquidity.
+     * @param _amount1Desired The desired amount of token1 to be added as liquidity.
+     * @param _amount0Min The minimum amount of token0 to be added as liquidity.
+     * @param _amount1Min The minimum amount of token1 to be added as liquidity.
+     * @param _tickLower The lower end of the desired tick range for the position.
+     * @param _tickUpper The upper end of the desired tick range for the position.
+     * @param _fee The fee tier of the Uniswap V3 pool in which to add liquidity.
+     * @param _isUnderlyingToken0 True if the underlying token is token0, false if it is token1.
+     */
+    function _mintLiquidityPosition(
+        uint256 _amount0Desired,
+        uint256 _amount1Desired,
+        uint256 _amount0Min,
+        uint256 _amount1Min,
+        int24 _tickLower,
+        int24 _tickUpper,
+        uint24 _fee,
+        bool _isUnderlyingToken0
+    ) internal {
+        // Sort tokens and amounts
+        (
+            address token0,
+            address token1,
+            uint256 underlyingAmount,
+            uint256 wrappedSetTokenAmount
+        ) = _isUnderlyingToken0
+            ? (address(underlyingToken), address(wrappedSetToken), _amount0Desired, _amount1Desired)
+            : (address(wrappedSetToken), address(underlyingToken), _amount1Desired, _amount0Desired);
+
+        // Approve tokens
+        if (underlyingAmount > 0) {
+            underlyingToken.approve(address(nonfungiblePositionManager), underlyingAmount);
+        }
+        if (wrappedSetTokenAmount > 0) {
+            wrappedSetToken.approve(address(nonfungiblePositionManager), wrappedSetTokenAmount);
+        }
+
+        // Mint liquidity position
+        INonfungiblePositionManager.MintParams memory mintParams = INonfungiblePositionManager.MintParams({
+            token0: token0,
+            token1: token1,
+            fee: _fee,
+            tickLower: _tickLower,
+            tickUpper: _tickUpper,
+            amount0Desired: _amount0Desired,
+            amount1Desired: _amount1Desired,
+            amount0Min: _amount0Min,
+            amount1Min: _amount1Min,
+            recipient: address(this),
+            deadline: block.timestamp
+        });
+        (uint256 tokenId,,,) = nonfungiblePositionManager.mint(mintParams);
+        tokenIds.push(tokenId);
     }
 
     /**
