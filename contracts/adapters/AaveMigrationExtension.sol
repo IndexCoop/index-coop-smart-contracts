@@ -368,8 +368,6 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         }
     }
 
-    receive() external payable {}
-
     /* ========== Internal Functions ========== */
 
     /**
