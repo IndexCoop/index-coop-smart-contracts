@@ -2,7 +2,6 @@ import "module-alias/register";
 import { BigNumber, Signer } from "ethers";
 import { JsonRpcSigner } from "@ethersproject/providers";
 import { Account } from "@utils/types";
-import DeployHelper from "@utils/deploys";
 import { bitcoin, ether, getAccounts, getWaffleExpect, preciseDiv, preciseMul } from "@utils/index";
 import { ONE, ZERO } from "@utils/constants";
 import {
@@ -13,10 +12,9 @@ import {
 import { impersonateAccount } from "./utils";
 import {
   AaveMigrationExtension,
+  AaveMigrationExtension__factory,
   BaseManagerV2__factory,
   BaseManagerV2,
-  DebtIssuanceModuleV2,
-  DebtIssuanceModuleV2__factory,
   FlexibleLeverageStrategyExtension,
   FlexibleLeverageStrategyExtension__factory,
   IERC20,
@@ -28,18 +26,20 @@ import {
   UniswapV3ExchangeAdapter,
   UniswapV3ExchangeAdapter__factory,
   WrapExtension,
+  WrapExtension__factory,
 } from "../../../typechain";
 
 const expect = getWaffleExpect();
 
 const contractAddresses = {
+  aaveMigrationExtension: "0x3a657Ec8a755d2E43DDbfDeaDc15899EDaf8dcf8",
   addressProvider: "0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e",
-  debtIssuanceModuleV2: "0x04b59F9F09750C044D7CfbC177561E409085f0f3",
   flexibleLeverageStrategyExtension: "0xFD4eA597E8346a6723FA4A06a31E4b6F7F37e9Ad",
   tradeModule: "0x90F765F63E7DC5aE97d6c576BF693FB6AF41C129",
   uniswapV3ExchangeAdapter: "0xcC327D928925584AB00Fe83646719dEAE15E0424",
   uniswapV3NonfungiblePositionManager: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
   uniswapV3Pool: "0xb1DD5eb0A64004E9Bbee68ca64AE0ccE8c7bB867",
+  wrapExtension: "0xc6678AC1462f626628E1B4ec247D2eF9fd21A4Cf",
   wrapModule: "0xbe4aEdE1694AFF7F1827229870f6cf3d9e7a999c",
 };
 
@@ -58,18 +58,16 @@ const keeperAddresses = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe("AaveMigrationExtension - BTC2x-FLI Integration Test", async () => {
+  describe.only("AaveMigrationExtension - BTC2x-FLI Integration Test", async () => {
     let owner: Account;
     let operator: Signer;
     let keeper: Signer;
-    let deployer: DeployHelper;
 
     let btc2xfli: SetToken;
     let baseManager: BaseManagerV2;
     let tradeModule: TradeModule;
 
     let btc2x: SetToken;
-    let debtIssuanceModuleV2: DebtIssuanceModuleV2;
 
     let wbtc: IERC20;
     let cwbtc: IERC20;
@@ -78,11 +76,10 @@ if (process.env.INTEGRATIONTEST) {
 
     let migrationExtension: AaveMigrationExtension;
 
-    setBlockNumber(19276457);
+    setBlockNumber(19280930);
 
     before(async () => {
       [owner] = await getAccounts();
-      deployer = new DeployHelper(owner.wallet);
 
       // Setup collateral tokens
       wbtc = IERC20__factory.connect(tokenAddresses.wbtc, owner.wallet);
@@ -100,23 +97,12 @@ if (process.env.INTEGRATIONTEST) {
 
       // Setup BTC2x contracts
       btc2x = SetToken__factory.connect(tokenAddresses.btc2x, owner.wallet);
-      debtIssuanceModuleV2 = DebtIssuanceModuleV2__factory.connect(
-        contractAddresses.debtIssuanceModuleV2,
-        owner.wallet
-      );
 
-      // Deploy Migration Extension
-      migrationExtension = await deployer.extensions.deployAaveMigrationExtension(
-        baseManager.address,
-        wbtc.address,
-        aEthWbtc.address,
-        btc2x.address,
-        tradeModule.address,
-        debtIssuanceModuleV2.address,
-        contractAddresses.uniswapV3NonfungiblePositionManager,
-        contractAddresses.addressProvider,
+      // Deployed Migration Extension
+      migrationExtension = AaveMigrationExtension__factory.connect(
+        contractAddresses.aaveMigrationExtension,
+        operator
       );
-      migrationExtension = migrationExtension.connect(operator);
     });
 
     addSnapshotBeforeRestoreAfterEach();
@@ -190,10 +176,10 @@ if (process.env.INTEGRATIONTEST) {
         let wrapExtension: WrapExtension;
 
         before(async () => {
-          // Deploy Wrap Extension
-          wrapExtension = await deployer.extensions.deployWrapExtension(
-            baseManager.address,
-            contractAddresses.wrapModule,
+          // Deployed Wrap Extension
+          wrapExtension = WrapExtension__factory.connect(
+            contractAddresses.wrapExtension,
+            operator
           );
 
           // Add Wrap Module
