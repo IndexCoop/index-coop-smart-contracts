@@ -82,7 +82,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
     IDebtIssuanceModule public immutable issuanceModule;
     INonfungiblePositionManager public immutable nonfungiblePositionManager;
 
-    uint256[] public tokenIds;
+    uint256[] public tokenIds; // UniV3 LP Token IDs
 
     /* ============ Constructor ============ */
 
@@ -205,7 +205,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
      * @param _amount1Desired The desired amount of token1 to be added as liquidity.
      * @param _amount0Min The minimum amount of token0 to be added as liquidity.
      * @param _amount1Min The minimum amount of token1 to be added as liquidity.
-     * @param _tokenId The ID of the token for which liquidity is being increased.
+     * @param _tokenId The ID of the UniV3 LP Token for which liquidity is being increased.
      * @param _isUnderlyingToken0 True if the underlying token is token0, false if it is token1.
      * @return liquidity The new liquidity amount as a result of the increase.
      */
@@ -233,7 +233,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
 
     /**
      * @notice OPERATOR ONLY: Decreases and collects from a liquidity position in the Uniswap V3 pool.
-     * @param _tokenId The ID of the token for which liquidity is being decreased.
+     * @param _tokenId The ID of the UniV3 LP Token for which liquidity is being decreased.
      * @param _liquidity The amount of liquidity to decrease.
      * @param _amount0Min The minimum amount of token0 that should be accounted for the burned liquidity.
      * @param _amount1Min The minimum amount of token1 that should be accounted for the burned liquidity.
@@ -561,7 +561,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
      * @param _amount1Desired The desired amount of token1 to be added as liquidity.
      * @param _amount0Min The minimum amount of token0 to be added as liquidity.
      * @param _amount1Min The minimum amount of token1 to be added as liquidity.
-     * @param _tokenId The ID of the token for which liquidity is being increased.
+     * @param _tokenId The ID of the UniV3 LP Token for which liquidity is being increased.
      * @param _isUnderlyingToken0 True if the underlying token is token0, false if it is token1.
      * @return liquidity The new liquidity amount as a result of the increase.
      */
@@ -603,7 +603,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
     /**
      * @dev Internal function to decrease liquidity and collect fees for a Uniswap V3 position.
      * Calls Uniswap's `decreaseLiquidity` and `collect` functions with specified parameters.
-     * @param _tokenId The ID of the token for which liquidity is being decreased.
+     * @param _tokenId The ID of the UniV3 LP Token for which liquidity is being decreased.
      * @param _liquidity The amount by which liquidity will be decreased.
      * @param _amount0Min The minimum amount of token0 that should be accounted for the burned liquidity.
      * @param _amount1Min The minimum amount of token1 that should be accounted for the burned liquidity.
