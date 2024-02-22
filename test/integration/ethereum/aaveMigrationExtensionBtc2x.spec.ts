@@ -401,7 +401,8 @@ if (process.env.INTEGRATIONTEST) {
                     const expectedOutput = await migrationExtension.callStatic.migrate(
                       decodedParams,
                       underlyingLoanAmount,
-                      maxSubsidy
+                      maxSubsidy,
+                      0
                     );
                     expect(expectedOutput).to.be.gt(0);
 
@@ -409,7 +410,8 @@ if (process.env.INTEGRATIONTEST) {
                     await migrationExtension.migrate(
                       decodedParams,
                       underlyingLoanAmount,
-                      maxSubsidy
+                      maxSubsidy,
+                      0
                     );
 
                     // Verify operator WBTC balance change

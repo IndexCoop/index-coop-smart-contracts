@@ -413,7 +413,8 @@ if (process.env.INTEGRATIONTEST) {
                     const expectedOutput = await migrationExtension.callStatic.migrate(
                       decodedParams,
                       underlyingLoanAmount,
-                      maxSubsidy
+                      maxSubsidy,
+                      0
                     );
                     expect(expectedOutput).to.lt(maxSubsidy);
 
@@ -421,7 +422,8 @@ if (process.env.INTEGRATIONTEST) {
                     await migrationExtension.migrate(
                       decodedParams,
                       underlyingLoanAmount,
-                      maxSubsidy
+                      maxSubsidy,
+                      0
                     );
 
                     // Verify operator WETH balance change

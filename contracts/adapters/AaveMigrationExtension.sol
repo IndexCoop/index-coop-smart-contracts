@@ -261,12 +261,14 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
      * @param _decodedParams The decoded migration parameters.
      * @param _underlyingLoanAmount The amount of unwrapped collateral asset to be borrowed via flash loan.
      * @param _maxSubsidy The maximum amount of unwrapped collateral asset to be transferred to the Extension as a subsidy.
+     * @param _referralCode The code used to register the integrator originating the operation, for potential rewards.
      * @return underlyingOutputAmount The amount of unwrapped collateral asset returned to the operator.
      */
     function migrate(
         DecodedParams memory _decodedParams,
         uint256 _underlyingLoanAmount,
-        uint256 _maxSubsidy
+        uint256 _maxSubsidy,
+        uint16 _referralCode
     )
         external
         onlyOperator
@@ -286,7 +288,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
             address(underlyingToken),
             _underlyingLoanAmount,
             params,
-            0
+            _referralCode
         );
 
         // Return remaining underlying token to the operator
