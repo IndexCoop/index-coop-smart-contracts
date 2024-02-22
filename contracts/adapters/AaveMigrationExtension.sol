@@ -342,30 +342,17 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
     }
 
     /**
-     * @notice OPERATOR ONLY: Transfers any residual balances of the underlying token, Aave's 
-     * wrapped token, and the wrapped SetToken to the operator's address.
+     * @notice OPERATOR ONLY: Transfers any residual balances to the operator's address.
      * @dev This function is intended to recover tokens that might have been left behind
      * due to the migration process or any other operation. It ensures that the contract
      * does not retain any assets inadvertently. Only callable by the operator.
+     * @param _token The address of the token to be swept.
      */
-    function sweepTokens() external onlyOperator {
-        // Sweep underlying token
-        uint256 underlyingTokenBalance = underlyingToken.balanceOf(address(this));
-        if (underlyingTokenBalance > 0) {
-            underlyingToken.transfer(manager.operator(), underlyingTokenBalance);
-        }
-
-        // Sweep Aave's wrapped token
-        uint256 aaveTokenBalance = aaveToken.balanceOf(address(this));
-        if (aaveTokenBalance > 0) {
-            aaveToken.transfer(manager.operator(), aaveTokenBalance);
-        }
-
-        // Sweep wrapped SetToken
-        uint256 wrappedSetTokenBalance = wrappedSetToken.balanceOf(address(this));
-        if (wrappedSetTokenBalance > 0) {
-            wrappedSetToken.transfer(manager.operator(), wrappedSetTokenBalance);
-        }
+    function sweepTokens(address _token) external onlyOperator {
+        IERC20 token = IERC20(_token);
+        uint256 balance = token.balanceOf(address(this));
+        require(balance > 0, "MigrationExtension: no balance to sweep");
+        token.transfer(manager.operator(), balance);
     }
 
     /* ========== Internal Functions ========== */
