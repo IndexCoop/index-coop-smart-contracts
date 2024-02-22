@@ -295,7 +295,6 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
 
     /**
      * @dev Callback function for Aave V3 flash loan, executed post-loan. It decodes the provided parameters, conducts the migration, and repays the flash loan.
-     * @param asset The asset borrowed in the flash loan.
      * @param amount The amount borrowed.
      * @param premium The additional fee charged for the flash loan.
      * @param initiator The initiator of the flash loan.
@@ -303,7 +302,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
      * @return True if the operation is successful.
      */
     function executeOperation(
-        address asset,
+        address, // asset
         uint256 amount,
         uint256 premium,
         address initiator,
@@ -314,7 +313,6 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         returns (bool) 
     {
         require(msg.sender == address(POOL), "MigrationExtension: invalid flashloan sender");
-        require(asset == address(underlyingToken), "MigrationExtension: invalid flashloan asset");
         require(initiator == address(this), "MigrationExtension: invalid flashloan initiator");
 
         // Decode parameters and migrate
