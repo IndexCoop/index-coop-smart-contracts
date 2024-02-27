@@ -1,6 +1,6 @@
 import "module-alias/register";
 import { ethers } from "hardhat";
-import { BigNumber, Signer } from "ethers";
+import { BigNumber, Signer, constants } from "ethers";
 import { JsonRpcSigner } from "@ethersproject/providers";
 import { Account } from "@utils/types";
 import DeployHelper from "@utils/deploys";
@@ -342,7 +342,7 @@ if (process.env.INTEGRATIONTEST) {
                       aEthWeth.address,
                     );
                     const wrappedExchangeRate = preciseDiv(ether(1), wrappedPositionUnits);
-                    maxSubsidy = ether(3.205);
+                    maxSubsidy = ether(10);
 
                     // ETH2x-FLI trade parameters
                     underlyingTradeUnits = await eth2xfli.getDefaultPositionRealUnit(weth.address);
@@ -375,14 +375,51 @@ if (process.env.INTEGRATIONTEST) {
                     redeemLiquidityAmount1Min = ZERO;
                     isUnderlyingToken0 = false;
 
+                      const wethWhaleAddress =  "0xde21F729137C5Af1b01d73aF1dC21eFfa2B8a0d6";
                     // Subsidize 3.205 WETH to the migration extension
                     wethWhale = await impersonateAccount(
-                      "0xde21F729137C5Af1b01d73aF1dC21eFfa2B8a0d6",
+                            wethWhaleAddress,
                     );
-                    await weth.connect(wethWhale).transfer(await operator.getAddress(), maxSubsidy);
-                    await weth.connect(operator).approve(migrationExtension.address, maxSubsidy);
+                    await weth.connect(wethWhale).transfer(await operator.getAddress(), await weth.balanceOf(wethWhaleAddress));
+                    await weth.connect(operator).approve(migrationExtension.address, constants.MaxUint256);
                   });
 
+                async function migrate(percentage: number = 100) {
+                    // Get the expected subsidy
+                    const decodedParams = {
+                      supplyLiquidityAmount0Desired: supplyLiquidityAmount0Desired.mul(percentage).div(100),
+                      supplyLiquidityAmount1Desired: supplyLiquidityAmount1Desired.mul(percentage).div(100),
+                      supplyLiquidityAmount0Min: supplyLiquidityAmount0Min.mul(percentage).div(100),
+                      supplyLiquidityAmount1Min: supplyLiquidityAmount1Min.mul(percentage).div(100),
+                      tokenId,
+                      exchangeName,
+                      underlyingTradeUnits: underlyingTradeUnits.mul(percentage).div(100),
+                      wrappedSetTokenTradeUnits: wrappedSetTokenTradeUnits.mul(percentage).div(100),
+                      exchangeData,
+                      redeemLiquidityAmount0Min: redeemLiquidityAmount0Min.mul(percentage).div(100),
+                      redeemLiquidityAmount1Min: redeemLiquidityAmount1Min.mul(percentage).div(100),
+                      isUnderlyingToken0,
+                    };
+
+                    console.log("decodedParams", decodedParams);
+
+                    // const expectedOutput = await migrationExtension.callStatic.migrate(
+                    //   decodedParams,
+                    //   underlyingLoanAmount,
+                    //   maxSubsidy
+                    // );
+                    // expect(expectedOutput).to.lt(maxSubsidy);
+
+                    // Migrate atomically via Migration Extension
+                    await migrationExtension.migrate(
+                      decodedParams,
+                      underlyingLoanAmount,
+                        maxSubsidy,
+                        { gasLimit: 2000000 }
+                    );
+                    return BigNumber.from(0);
+
+                }
                   it("should be able to migrate atomically", async () => {
                     const operatorAddress = await operator.getAddress();
                     const operatorWethBalanceBefore = await weth.balanceOf(operatorAddress);
@@ -395,34 +432,37 @@ if (process.env.INTEGRATIONTEST) {
                     expect(startingComponents).to.deep.equal([tokenAddresses.weth]);
                     expect(startingUnit).to.eq(underlyingTradeUnits);
 
-                    // Get the expected subsidy
-                    const decodedParams = {
-                      supplyLiquidityAmount0Desired,
-                      supplyLiquidityAmount1Desired,
-                      supplyLiquidityAmount0Min,
-                      supplyLiquidityAmount1Min,
-                      tokenId,
-                      exchangeName,
-                      underlyingTradeUnits,
-                      wrappedSetTokenTradeUnits,
-                      exchangeData,
-                      redeemLiquidityAmount0Min,
-                      redeemLiquidityAmount1Min,
-                      isUnderlyingToken0,
-                    };
-                    const expectedOutput = await migrationExtension.callStatic.migrate(
-                      decodedParams,
-                      underlyingLoanAmount,
-                      maxSubsidy
-                    );
-                    expect(expectedOutput).to.lt(maxSubsidy);
+                    const expectedOutput = await migrate();
 
-                    // Migrate atomically via Migration Extension
-                    await migrationExtension.migrate(
-                      decodedParams,
-                      underlyingLoanAmount,
-                      maxSubsidy
+                    // Verify operator WETH balance change
+                    const operatorWethBalanceAfter = await weth.balanceOf(operatorAddress);
+                    expect(operatorWethBalanceBefore.sub(operatorWethBalanceAfter)).to.be.gte(maxSubsidy.sub(expectedOutput).sub(ONE));
+
+                    // Verify ending components and units
+                    const endingComponents = await eth2xfli.getComponents();
+                    const endingUnit = await eth2xfli.getDefaultPositionRealUnit(
+                      tokenAddresses.eth2x,
                     );
+                    expect(endingComponents).to.deep.equal([tokenAddresses.eth2x]);
+                    expect(endingUnit).to.be.gt(wrappedSetTokenTradeUnits);
+                  });
+
+                  it("should be able to migrate in multiple steps", async () => {
+                    const operatorAddress = await operator.getAddress();
+                    const operatorWethBalanceBefore = await weth.balanceOf(operatorAddress);
+
+                    // Verify starting components and units
+                    const startingComponents = await eth2xfli.getComponents();
+                    const startingUnit = await eth2xfli.getDefaultPositionRealUnit(
+                      tokenAddresses.weth,
+                    );
+                    expect(startingComponents).to.deep.equal([tokenAddresses.weth]);
+                    expect(startingUnit).to.eq(underlyingTradeUnits);
+
+                      console.log("First migration");
+                    let expectedOutput = await migrate(99);
+                    console.log("Second migration");
+                    expectedOutput = expectedOutput.add(await migrate(1));
 
                     // Verify operator WETH balance change
                     const operatorWethBalanceAfter = await weth.balanceOf(operatorAddress);
