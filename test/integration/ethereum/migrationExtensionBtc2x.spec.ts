@@ -12,7 +12,7 @@ import {
 } from "@utils/test/testingUtils";
 import { impersonateAccount } from "./utils";
 import {
-  AaveMigrationExtension,
+  MigrationExtension,
   BaseManagerV2__factory,
   BaseManagerV2,
   DebtIssuanceModuleV2,
@@ -58,7 +58,7 @@ const keeperAddresses = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe("AaveMigrationExtension - BTC2x-FLI Integration Test", async () => {
+  describe("MigrationExtension - BTC2x-FLI Integration Test", async () => {
     let owner: Account;
     let operator: Signer;
     let keeper: Signer;
@@ -76,7 +76,7 @@ if (process.env.INTEGRATIONTEST) {
     let usdc: IERC20;
     let aEthWbtc: IERC20;
 
-    let migrationExtension: AaveMigrationExtension;
+    let migrationExtension: MigrationExtension;
 
     setBlockNumber(19276457);
 
@@ -106,7 +106,7 @@ if (process.env.INTEGRATIONTEST) {
       );
 
       // Deploy Migration Extension
-      migrationExtension = await deployer.extensions.deployAaveMigrationExtension(
+      migrationExtension = await deployer.extensions.deployMigrationExtension(
         baseManager.address,
         wbtc.address,
         aEthWbtc.address,

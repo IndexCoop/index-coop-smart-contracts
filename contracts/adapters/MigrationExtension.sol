@@ -41,7 +41,7 @@ import { IBalancerVault } from "../interfaces/IBalancerVault.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 /**
- * @title AaveMigrationExtension
+ * @title MigrationExtension
  * @author Index Coop
  * @notice This extension facilitates the migration of a SetToken's position from an unwrapped collateral
  * asset to another SetToken that consists solely of Aave's wrapped collateral asset. The migration is
@@ -51,7 +51,7 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  * redeeming any excess wrapped SetToken. This process is specifically designed to efficiently migrate
  * the SetToken's collateral using only the TradeModule on the SetToken.
  */
-contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC721Receiver {
+contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC721Receiver {
     using PreciseUnitMath for uint256;
     using SafeCast for int256;
     using SafeERC20 for IERC20;
@@ -91,7 +91,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
     /* ============ Constructor ============ */
 
     /**
-     * @notice Initializes the AaveMigrationExtension with immutable migration variables.
+     * @notice Initializes the MigrationExtension with immutable migration variables.
      * @param _manager BaseManager contract for managing the SetToken's operations and permissions.
      * @param _underlyingToken Address of the underlying token to be migrated.
      * @param _aaveToken Address of Aave's wrapped collateral asset.

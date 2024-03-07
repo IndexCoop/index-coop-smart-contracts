@@ -13,7 +13,7 @@ import {
 } from "@utils/test/testingUtils";
 import { impersonateAccount } from "./utils";
 import {
-  AaveMigrationExtension,
+  MigrationExtension,
   BaseManagerV2__factory,
   BaseManagerV2,
   DebtIssuanceModuleV2,
@@ -60,7 +60,7 @@ const keeperAddresses = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe("AaveMigrationExtension - ETH2x-FLI Integration Test", async () => {
+  describe("MigrationExtension - ETH2x-FLI Integration Test", async () => {
     let owner: Account;
     let operator: Signer;
     let keeper: Signer;
@@ -78,7 +78,7 @@ if (process.env.INTEGRATIONTEST) {
     let usdc: IERC20;
     let aEthWeth: IERC20;
 
-    let migrationExtension: AaveMigrationExtension;
+    let migrationExtension: MigrationExtension;
 
     setBlockNumber(19271340);
 
@@ -108,7 +108,7 @@ if (process.env.INTEGRATIONTEST) {
       );
 
       // Deploy Migration Extension
-      migrationExtension = await deployer.extensions.deployAaveMigrationExtension(
+      migrationExtension = await deployer.extensions.deployMigrationExtension(
         baseManager.address,
         weth.address,
         aEthWeth.address,
