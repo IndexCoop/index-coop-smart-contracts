@@ -262,12 +262,13 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
     /**
      * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken 
      * that consists solely of Aave's wrapped collateral asset
+     * using Aave Flashloan
      * @param _decodedParams The decoded migration parameters.
      * @param _underlyingLoanAmount The amount of unwrapped collateral asset to be borrowed via flash loan.
      * @param _maxSubsidy The maximum amount of unwrapped collateral asset to be transferred to the Extension as a subsidy.
      * @return underlyingOutputAmount The amount of unwrapped collateral asset returned to the operator.
      */
-    function migrate(
+    function migrateAave(
         DecodedParams memory _decodedParams,
         uint256 _underlyingLoanAmount,
         uint256 _maxSubsidy
@@ -297,6 +298,15 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         underlyingOutputAmount = _returnExcessUnderlying();
     }
 
+    /**
+     * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken 
+     * that consists solely of Aave's wrapped collateral asset
+     * using Balancer Flashloan
+     * @param _decodedParams The decoded migration parameters.
+     * @param _underlyingLoanAmount The amount of unwrapped collateral asset to be borrowed via flash loan.
+     * @param _maxSubsidy The maximum amount of unwrapped collateral asset to be transferred to the Extension as a subsidy.
+     * @return underlyingOutputAmount The amount of unwrapped collateral asset returned to the operator.
+     */
     function migrateBalancer(
         DecodedParams memory _decodedParams,
         uint256 _underlyingLoanAmount,
@@ -324,6 +334,10 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         // Return remaining underlying token to the operator
         underlyingOutputAmount = _returnExcessUnderlying();
     }
+
+    /**
+     * @dev Callback function for Balancer flashloan
+    */
     function receiveFlashLoan(
         IERC20[] memory tokens,
         uint256[] memory amounts,
@@ -339,6 +353,15 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
     }
 
 
+    /**
+     * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken 
+     * that consists solely of Aave's wrapped collateral asset
+     * using Morpho Flashloan
+     * @param _decodedParams The decoded migration parameters.
+     * @param _underlyingLoanAmount The amount of unwrapped collateral asset to be borrowed via flash loan.
+     * @param _maxSubsidy The maximum amount of unwrapped collateral asset to be transferred to the Extension as a subsidy.
+     * @return underlyingOutputAmount The amount of unwrapped collateral asset returned to the operator.
+     */
     function migrateMorpho(
         DecodedParams memory _decodedParams,
         uint256 _underlyingLoanAmount,
@@ -363,6 +386,9 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         underlyingOutputAmount = _returnExcessUnderlying();
     }
 
+    /**
+     * @dev Callback function for Morpho Flashloan
+    */
     function onMorphoFlashLoan(uint256 assets, bytes calldata params) external 
     {
         require(msg.sender == address(MORPHO), "MigrationExtension: invalid flashloan sender");
