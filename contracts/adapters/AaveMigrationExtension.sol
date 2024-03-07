@@ -36,6 +36,7 @@ import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { ITradeModule } from "../interfaces/ITradeModule.sol";
+import { IMorpho } from "../interfaces/IMorpho.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 /**
@@ -81,6 +82,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
     ITradeModule public immutable tradeModule;
     IDebtIssuanceModule public immutable issuanceModule;
     INonfungiblePositionManager public immutable nonfungiblePositionManager;
+    IMorpho public constant MORPHO = IMorpho(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
 
     uint256[] public tokenIds; // UniV3 LP Token IDs
 
@@ -292,6 +294,42 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         // Return remaining underlying token to the operator
         underlyingOutputAmount = _returnExcessUnderlying();
     }
+
+    function migrateMorpho(
+        DecodedParams memory _decodedParams,
+        uint256 _underlyingLoanAmount,
+        uint256 _maxSubsidy
+    )
+        external
+        onlyOperator
+        returns (uint256 underlyingOutputAmount)
+    {
+        // Subsidize the migration
+        if (_maxSubsidy > 0) {
+            underlyingToken.transferFrom(msg.sender, address(this), _maxSubsidy);
+        }
+
+        // Encode migration parameters for flash loan callback
+        bytes memory params = abi.encode(_decodedParams);
+
+        // Request flash loan for the underlying token
+        MORPHO.flashLoan(address(underlyingToken), _underlyingLoanAmount, params);
+
+        // Return remaining underlying token to the operator
+        underlyingOutputAmount = _returnExcessUnderlying();
+    }
+
+    function onMorphoFlashLoan(uint256 assets, bytes calldata params) external 
+    {
+        require(msg.sender == address(MORPHO), "MigrationExtension: invalid flashloan sender");
+
+        // Decode parameters and migrate
+        DecodedParams memory decodedParams = abi.decode(params, (DecodedParams));
+        _migrate(decodedParams);
+
+        underlyingToken.approve(address(MORPHO), assets);
+    }
+
 
     /**
      * @dev Callback function for Aave V3 flash loan, executed post-loan. It decodes the provided parameters, conducts the migration, and repays the flash loan.

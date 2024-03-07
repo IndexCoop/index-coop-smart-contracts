@@ -398,15 +398,16 @@ if (process.env.INTEGRATIONTEST) {
                       redeemLiquidityAmount1Min,
                       isUnderlyingToken0,
                     };
-                    const expectedOutput = await migrationExtension.callStatic.migrate(
+                    const expectedOutput = await migrationExtension.callStatic.migrateMorpho(
                       decodedParams,
                       underlyingLoanAmount,
                       maxSubsidy
                     );
                     expect(expectedOutput).to.be.gt(0);
+                    console.log("expectedOutput", expectedOutput.toString());
 
                     // Migrate atomically via Migration Extension
-                    await migrationExtension.migrate(
+                    await migrationExtension.migrateMorpho(
                       decodedParams,
                       underlyingLoanAmount,
                       maxSubsidy
