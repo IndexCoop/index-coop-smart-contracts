@@ -363,7 +363,7 @@ if (process.env.INTEGRATIONTEST) {
                     isUnderlyingToken0 = true;
 
                     // Subsidize 0.01 WBTC to the migration extension
-                    maxSubsidy = bitcoin(0.01);
+                    maxSubsidy = bitcoin(0.00);
                     wbtcWhale = await impersonateAccount(
                       "0xe74b28c2eAe8679e3cCc3a94d5d0dE83CCB84705",
                     );
@@ -404,7 +404,6 @@ if (process.env.INTEGRATIONTEST) {
                       maxSubsidy
                     );
                     expect(expectedOutput).to.be.gt(0);
-                    console.log("expectedOutput", expectedOutput.toString());
 
                     // Migrate atomically via Migration Extension
                     await migrationExtension.migrateMorpho(

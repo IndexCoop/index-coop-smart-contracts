@@ -342,7 +342,7 @@ if (process.env.INTEGRATIONTEST) {
                       aEthWeth.address,
                     );
                     const wrappedExchangeRate = preciseDiv(ether(1), wrappedPositionUnits);
-                    maxSubsidy = ether(3.205);
+                    maxSubsidy = ether(0.1);
 
                     // ETH2x-FLI trade parameters
                     underlyingTradeUnits = await eth2xfli.getDefaultPositionRealUnit(weth.address);
