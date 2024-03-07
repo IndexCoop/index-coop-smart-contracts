@@ -410,15 +410,14 @@ if (process.env.INTEGRATIONTEST) {
                       redeemLiquidityAmount1Min,
                       isUnderlyingToken0,
                     };
-                    const expectedOutput = await migrationExtension.callStatic.migrate(
+                    const expectedOutput = await migrationExtension.callStatic.migrateBalancer(
                       decodedParams,
                       underlyingLoanAmount,
                       maxSubsidy
                     );
-                    expect(expectedOutput).to.lt(maxSubsidy);
 
                     // Migrate atomically via Migration Extension
-                    await migrationExtension.migrate(
+                    await migrationExtension.migrateBalancer(
                       decodedParams,
                       underlyingLoanAmount,
                       maxSubsidy

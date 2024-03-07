@@ -37,6 +37,7 @@ import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { ITradeModule } from "../interfaces/ITradeModule.sol";
 import { IMorpho } from "../interfaces/IMorpho.sol";
+import { IBalancerVault } from "../interfaces/IBalancerVault.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 /**
@@ -83,6 +84,7 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
     IDebtIssuanceModule public immutable issuanceModule;
     INonfungiblePositionManager public immutable nonfungiblePositionManager;
     IMorpho public constant MORPHO = IMorpho(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
+    IBalancerVault public constant BALANCER = IBalancerVault(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
 
     uint256[] public tokenIds; // UniV3 LP Token IDs
 
@@ -294,6 +296,48 @@ contract AaveMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, I
         // Return remaining underlying token to the operator
         underlyingOutputAmount = _returnExcessUnderlying();
     }
+
+    function migrateBalancer(
+        DecodedParams memory _decodedParams,
+        uint256 _underlyingLoanAmount,
+        uint256 _maxSubsidy
+    )
+        external
+        onlyOperator
+        returns (uint256 underlyingOutputAmount)
+    {
+        // Subsidize the migration
+        if (_maxSubsidy > 0) {
+            underlyingToken.transferFrom(msg.sender, address(this), _maxSubsidy);
+        }
+
+        // Encode migration parameters for flash loan callback
+        bytes memory params = abi.encode(_decodedParams);
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(underlyingToken);
+        uint256[] memory amounts = new  uint256[](1);
+        amounts[0] = _underlyingLoanAmount;
+
+        // Request flash loan for the underlying token
+        BALANCER.flashLoan(address(this), tokens, amounts, params);
+
+        // Return remaining underlying token to the operator
+        underlyingOutputAmount = _returnExcessUnderlying();
+    }
+    function receiveFlashLoan(
+        IERC20[] memory tokens,
+        uint256[] memory amounts,
+        uint256[] memory feeAmounts,
+        bytes memory params
+    ) external {
+        require(msg.sender == address(BALANCER));
+        // Decode parameters and migrate
+        DecodedParams memory decodedParams = abi.decode(params, (DecodedParams));
+        _migrate(decodedParams);
+
+        underlyingToken.transfer(address(BALANCER), amounts[0] + feeAmounts[0]);
+    }
+
 
     function migrateMorpho(
         DecodedParams memory _decodedParams,
