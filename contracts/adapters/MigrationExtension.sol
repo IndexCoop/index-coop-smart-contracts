@@ -25,6 +25,8 @@ import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
+import { IBalancerVault } from "../interfaces/IBalancerVault.sol";
+import { IMorpho } from "../interfaces/IMorpho.sol";
 import { FlashLoanSimpleReceiverBase } from "../lib/FlashLoanSimpleReceiverBase.sol";
 import { IPoolAddressesProvider } from "../interfaces/IPoolAddressesProvider.sol";
 
@@ -36,8 +38,6 @@ import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { ITradeModule } from "../interfaces/ITradeModule.sol";
-import { IMorpho } from "../interfaces/IMorpho.sol";
-import { IBalancerVault } from "../interfaces/IBalancerVault.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 /**
