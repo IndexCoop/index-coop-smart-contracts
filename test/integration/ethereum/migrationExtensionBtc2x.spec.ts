@@ -41,6 +41,8 @@ const contractAddresses = {
   uniswapV3NonfungiblePositionManager: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
   uniswapV3Pool: "0xb1DD5eb0A64004E9Bbee68ca64AE0ccE8c7bB867",
   wrapModule: "0xbe4aEdE1694AFF7F1827229870f6cf3d9e7a999c",
+  morpho: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+  balancer: "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
 };
 
 const tokenAddresses = {
@@ -115,6 +117,8 @@ if (process.env.INTEGRATIONTEST) {
         debtIssuanceModuleV2.address,
         contractAddresses.uniswapV3NonfungiblePositionManager,
         contractAddresses.addressProvider,
+        contractAddresses.morpho,
+        contractAddresses.balancer
       );
       migrationExtension = migrationExtension.connect(operator);
     });

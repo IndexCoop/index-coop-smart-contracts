@@ -43,6 +43,8 @@ const contractAddresses = {
   uniswapV3NonfungiblePositionManager: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
   uniswapV3Pool: "0xF44D4d68C2Ea473C93c1F3d2C81E900535d73843",
   wrapModule: "0xbe4aEdE1694AFF7F1827229870f6cf3d9e7a999c",
+  morpho: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+  balancer: "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
 };
 
 const tokenAddresses = {
@@ -117,6 +119,8 @@ if (process.env.INTEGRATIONTEST) {
         debtIssuanceModuleV2.address,
         contractAddresses.uniswapV3NonfungiblePositionManager,
         contractAddresses.addressProvider,
+        contractAddresses.morpho,
+        contractAddresses.balancer,
       );
       migrationExtension = migrationExtension.connect(operator);
     });
@@ -309,7 +313,7 @@ if (process.env.INTEGRATIONTEST) {
                     tickLower,
                     tickUpper,
                     fee,
-                    isUnderlyingToken0
+                    isUnderlyingToken0,
                   );
                 });
 
@@ -413,19 +417,21 @@ if (process.env.INTEGRATIONTEST) {
                     const expectedOutput = await migrationExtension.callStatic.migrateBalancer(
                       decodedParams,
                       underlyingLoanAmount,
-                      maxSubsidy
+                      maxSubsidy,
                     );
 
                     // Migrate atomically via Migration Extension
                     await migrationExtension.migrateBalancer(
                       decodedParams,
                       underlyingLoanAmount,
-                      maxSubsidy
+                      maxSubsidy,
                     );
 
                     // Verify operator WETH balance change
                     const operatorWethBalanceAfter = await weth.balanceOf(operatorAddress);
-                    expect(operatorWethBalanceBefore.sub(operatorWethBalanceAfter)).to.be.gte(maxSubsidy.sub(expectedOutput).sub(ONE));
+                    expect(operatorWethBalanceBefore.sub(operatorWethBalanceAfter)).to.be.gte(
+                      maxSubsidy.sub(expectedOutput).sub(ONE),
+                    );
 
                     // Verify ending components and units
                     const endingComponents = await eth2xfli.getComponents();

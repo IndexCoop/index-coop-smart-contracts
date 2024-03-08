@@ -463,7 +463,9 @@ export default class DeployExtensions {
     tradeModule: Address,
     issuanceModule: Address,
     nonfungiblePositionManager: Address,
-    addressProvider: Address
+    addressProvider: Address,
+    morpho: Address,
+    balancer: Address
   ): Promise<MigrationExtension> {
     return await new MigrationExtension__factory(this._deployerSigner).deploy(
       manager,
@@ -473,7 +475,9 @@ export default class DeployExtensions {
       tradeModule,
       issuanceModule,
       nonfungiblePositionManager,
-      addressProvider
+      addressProvider,
+      morpho,
+      balancer,
     );
   }
 

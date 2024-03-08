@@ -83,8 +83,8 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     ITradeModule public immutable tradeModule;
     IDebtIssuanceModule public immutable issuanceModule;
     INonfungiblePositionManager public immutable nonfungiblePositionManager;
-    IMorpho public constant MORPHO = IMorpho(0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb);
-    IBalancerVault public constant BALANCER = IBalancerVault(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
+    IMorpho public immutable morpho;
+    IBalancerVault public immutable balancer;
 
     uint256[] public tokenIds; // UniV3 LP Token IDs
 
@@ -109,7 +109,9 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         ITradeModule _tradeModule,
         IDebtIssuanceModule _issuanceModule,
         INonfungiblePositionManager _nonfungiblePositionManager,
-        IPoolAddressesProvider _addressProvider
+        IPoolAddressesProvider _addressProvider,
+        IMorpho _morpho,
+        IBalancerVault _balancer
     ) 
         public
         BaseExtension(_manager)
@@ -123,6 +125,8 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         tradeModule = _tradeModule;
         issuanceModule = _issuanceModule;
         nonfungiblePositionManager = _nonfungiblePositionManager;
+        morpho = _morpho;
+        balancer = _balancer;
     }
 
     /* ========== External Functions ========== */
@@ -329,7 +333,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         amounts[0] = _underlyingLoanAmount;
 
         // Request flash loan for the underlying token
-        BALANCER.flashLoan(address(this), tokens, amounts, params);
+        balancer.flashLoan(address(this), tokens, amounts, params);
 
         // Return remaining underlying token to the operator
         underlyingOutputAmount = _returnExcessUnderlying();
@@ -344,12 +348,12 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         uint256[] memory feeAmounts,
         bytes memory params
     ) external {
-        require(msg.sender == address(BALANCER));
+        require(msg.sender == address(balancer));
         // Decode parameters and migrate
         DecodedParams memory decodedParams = abi.decode(params, (DecodedParams));
         _migrate(decodedParams);
 
-        underlyingToken.transfer(address(BALANCER), amounts[0] + feeAmounts[0]);
+        underlyingToken.transfer(address(balancer), amounts[0] + feeAmounts[0]);
     }
 
 
@@ -380,7 +384,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         bytes memory params = abi.encode(_decodedParams);
 
         // Request flash loan for the underlying token
-        MORPHO.flashLoan(address(underlyingToken), _underlyingLoanAmount, params);
+        morpho.flashLoan(address(underlyingToken), _underlyingLoanAmount, params);
 
         // Return remaining underlying token to the operator
         underlyingOutputAmount = _returnExcessUnderlying();
@@ -391,13 +395,13 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     */
     function onMorphoFlashLoan(uint256 assets, bytes calldata params) external 
     {
-        require(msg.sender == address(MORPHO), "MigrationExtension: invalid flashloan sender");
+        require(msg.sender == address(morpho), "MigrationExtension: invalid flashloan sender");
 
         // Decode parameters and migrate
         DecodedParams memory decodedParams = abi.decode(params, (DecodedParams));
         _migrate(decodedParams);
 
-        underlyingToken.approve(address(MORPHO), assets);
+        underlyingToken.approve(address(morpho), assets);
     }
 
 
