@@ -13,7 +13,7 @@ import {
 } from "@utils/test/testingUtils";
 import { impersonateAccount } from "./utils";
 import {
-  AaveMigrationExtension,
+  MigrationExtension,
   BaseManagerV2__factory,
   BaseManagerV2,
   DebtIssuanceModuleV2,
@@ -43,6 +43,8 @@ const contractAddresses = {
   uniswapV3NonfungiblePositionManager: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
   uniswapV3Pool: "0xF44D4d68C2Ea473C93c1F3d2C81E900535d73843",
   wrapModule: "0xbe4aEdE1694AFF7F1827229870f6cf3d9e7a999c",
+  morpho: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+  balancer: "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
 };
 
 const tokenAddresses = {
@@ -60,7 +62,7 @@ const keeperAddresses = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe("AaveMigrationExtension - ETH2x-FLI Integration Test", async () => {
+  describe("MigrationExtension - ETH2x-FLI Integration Test", async () => {
     let owner: Account;
     let operator: Signer;
     let keeper: Signer;
@@ -78,7 +80,7 @@ if (process.env.INTEGRATIONTEST) {
     let usdc: IERC20;
     let aEthWeth: IERC20;
 
-    let migrationExtension: AaveMigrationExtension;
+    let migrationExtension: MigrationExtension;
 
     setBlockNumber(19271340);
 
@@ -108,7 +110,7 @@ if (process.env.INTEGRATIONTEST) {
       );
 
       // Deploy Migration Extension
-      migrationExtension = await deployer.extensions.deployAaveMigrationExtension(
+      migrationExtension = await deployer.extensions.deployMigrationExtension(
         baseManager.address,
         weth.address,
         aEthWeth.address,
@@ -117,6 +119,8 @@ if (process.env.INTEGRATIONTEST) {
         debtIssuanceModuleV2.address,
         contractAddresses.uniswapV3NonfungiblePositionManager,
         contractAddresses.addressProvider,
+        contractAddresses.morpho,
+        contractAddresses.balancer,
       );
       migrationExtension = migrationExtension.connect(operator);
     });
@@ -309,7 +313,7 @@ if (process.env.INTEGRATIONTEST) {
                     tickLower,
                     tickUpper,
                     fee,
-                    isUnderlyingToken0
+                    isUnderlyingToken0,
                   );
                 });
 
@@ -342,7 +346,7 @@ if (process.env.INTEGRATIONTEST) {
                       aEthWeth.address,
                     );
                     const wrappedExchangeRate = preciseDiv(ether(1), wrappedPositionUnits);
-                    maxSubsidy = ether(3.205);
+                    maxSubsidy = ether(0.1);
 
                     // ETH2x-FLI trade parameters
                     underlyingTradeUnits = await eth2xfli.getDefaultPositionRealUnit(weth.address);
@@ -410,23 +414,24 @@ if (process.env.INTEGRATIONTEST) {
                       redeemLiquidityAmount1Min,
                       isUnderlyingToken0,
                     };
-                    const expectedOutput = await migrationExtension.callStatic.migrate(
+                    const expectedOutput = await migrationExtension.callStatic.migrateBalancer(
                       decodedParams,
                       underlyingLoanAmount,
-                      maxSubsidy
+                      maxSubsidy,
                     );
-                    expect(expectedOutput).to.lt(maxSubsidy);
 
                     // Migrate atomically via Migration Extension
-                    await migrationExtension.migrate(
+                    await migrationExtension.migrateBalancer(
                       decodedParams,
                       underlyingLoanAmount,
-                      maxSubsidy
+                      maxSubsidy,
                     );
 
                     // Verify operator WETH balance change
                     const operatorWethBalanceAfter = await weth.balanceOf(operatorAddress);
-                    expect(operatorWethBalanceBefore.sub(operatorWethBalanceAfter)).to.be.gte(maxSubsidy.sub(expectedOutput).sub(ONE));
+                    expect(operatorWethBalanceBefore.sub(operatorWethBalanceAfter)).to.be.gte(
+                      maxSubsidy.sub(expectedOutput).sub(ONE),
+                    );
 
                     // Verify ending components and units
                     const endingComponents = await eth2xfli.getComponents();

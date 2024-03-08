@@ -12,7 +12,7 @@ import {
 } from "@utils/test/testingUtils";
 import { impersonateAccount } from "./utils";
 import {
-  AaveMigrationExtension,
+  MigrationExtension,
   BaseManagerV2__factory,
   BaseManagerV2,
   DebtIssuanceModuleV2,
@@ -41,6 +41,8 @@ const contractAddresses = {
   uniswapV3NonfungiblePositionManager: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
   uniswapV3Pool: "0xb1DD5eb0A64004E9Bbee68ca64AE0ccE8c7bB867",
   wrapModule: "0xbe4aEdE1694AFF7F1827229870f6cf3d9e7a999c",
+  morpho: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+  balancer: "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
 };
 
 const tokenAddresses = {
@@ -58,7 +60,7 @@ const keeperAddresses = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe("AaveMigrationExtension - BTC2x-FLI Integration Test", async () => {
+  describe("MigrationExtension - BTC2x-FLI Integration Test", async () => {
     let owner: Account;
     let operator: Signer;
     let keeper: Signer;
@@ -76,7 +78,7 @@ if (process.env.INTEGRATIONTEST) {
     let usdc: IERC20;
     let aEthWbtc: IERC20;
 
-    let migrationExtension: AaveMigrationExtension;
+    let migrationExtension: MigrationExtension;
 
     setBlockNumber(19276457);
 
@@ -106,7 +108,7 @@ if (process.env.INTEGRATIONTEST) {
       );
 
       // Deploy Migration Extension
-      migrationExtension = await deployer.extensions.deployAaveMigrationExtension(
+      migrationExtension = await deployer.extensions.deployMigrationExtension(
         baseManager.address,
         wbtc.address,
         aEthWbtc.address,
@@ -115,6 +117,8 @@ if (process.env.INTEGRATIONTEST) {
         debtIssuanceModuleV2.address,
         contractAddresses.uniswapV3NonfungiblePositionManager,
         contractAddresses.addressProvider,
+        contractAddresses.morpho,
+        contractAddresses.balancer
       );
       migrationExtension = migrationExtension.connect(operator);
     });
@@ -363,7 +367,7 @@ if (process.env.INTEGRATIONTEST) {
                     isUnderlyingToken0 = true;
 
                     // Subsidize 0.01 WBTC to the migration extension
-                    maxSubsidy = bitcoin(0.01);
+                    maxSubsidy = bitcoin(0.00);
                     wbtcWhale = await impersonateAccount(
                       "0xe74b28c2eAe8679e3cCc3a94d5d0dE83CCB84705",
                     );
@@ -398,7 +402,7 @@ if (process.env.INTEGRATIONTEST) {
                       redeemLiquidityAmount1Min,
                       isUnderlyingToken0,
                     };
-                    const expectedOutput = await migrationExtension.callStatic.migrate(
+                    const expectedOutput = await migrationExtension.callStatic.migrateMorpho(
                       decodedParams,
                       underlyingLoanAmount,
                       maxSubsidy
@@ -406,7 +410,7 @@ if (process.env.INTEGRATIONTEST) {
                     expect(expectedOutput).to.be.gt(0);
 
                     // Migrate atomically via Migration Extension
-                    await migrationExtension.migrate(
+                    await migrationExtension.migrateMorpho(
                       decodedParams,
                       underlyingLoanAmount,
                       maxSubsidy
