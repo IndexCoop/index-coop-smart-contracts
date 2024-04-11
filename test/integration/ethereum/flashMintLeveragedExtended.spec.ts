@@ -252,7 +252,7 @@ if (process.env.INTEGRATIONTEST) {
                     exchange: Exchange.None,
                   };
 
-                  subjectPriceEstimateInflater = ether(0.75);
+                  subjectPriceEstimateInflater = ether(0.9);
 
                   if (inputTokenName === "collateralToken") {
                     inputToken = rEth;
@@ -303,33 +303,22 @@ if (process.env.INTEGRATIONTEST) {
                   );
                 }
 
-                it("should issue the correct amount of tokens", async () => {
-                  const inputBalanceBefore =
-                    inputTokenName === "ETH"
-                      ? await owner.wallet.getBalance()
-                      : await inputToken.balanceOf(owner.address);
-                  console.log("inputBalanceBefore", inputBalanceBefore.toString());
+                it("should issue at least minSetAmount of set tokens", async () => {
                   const setBalancebefore = await setToken.balanceOf(owner.address);
                   await subject();
                   const setBalanceAfter = await setToken.balanceOf(owner.address);
                   const setObtained = setBalanceAfter.sub(setBalancebefore);
                   expect(setObtained).to.gte(subjectMinSetAmount);
-                  const inputBalanceAfter =
-                    inputTokenName === "ETH"
-                      ? await owner.wallet.getBalance()
-                      : await inputToken.balanceOf(owner.address);
-                  console.log("inputBalanceAfter", inputBalanceAfter.toString());
                 });
 
-                it("should spend less than specified max amount", async () => {
+                it("should spend at least inputAmount - maxDust", async () => {
                   const inputBalanceBefore =
                     inputTokenName === "ETH"
                       ? await owner.wallet.getBalance()
                       : await inputToken.balanceOf(owner.address);
                   console.log("inputBalanceBefore", inputBalanceBefore.toString());
 
-                  const tx = await subject();
-                  const receipt = await tx.wait();
+                  await subject();
 
                   const inputBalanceAfter =
                     inputTokenName === "ETH"
@@ -337,8 +326,11 @@ if (process.env.INTEGRATIONTEST) {
                       : await inputToken.balanceOf(owner.address);
                   console.log("inputBalanceAfter", inputBalanceAfter.toString());
                   const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
+                  console.log("inputSpent", ethers.utils.formatEther(inputSpent));
+                  console.log("subjectAmountIn", ethers.utils.formatEther(subjectAmountIn));
+                  console.log("subjectMaxDust", ethers.utils.formatEther(subjectMaxDust));
                   expect(inputSpent).to.gt(BigNumber.from(0));
-                  expect(inputSpent).to.lte(subjectAmountIn);
+                  expect(inputSpent).to.gte(subjectAmountIn.sub(subjectMaxDust));
                 });
               },
             );

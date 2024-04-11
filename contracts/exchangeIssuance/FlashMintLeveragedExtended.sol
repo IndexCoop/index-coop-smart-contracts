@@ -74,21 +74,16 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         nonReentrant
         returns(uint256)
     {
-        require(_inputTokenAmount > _maxDust, "FlashMintLeveragedExtended: _inputToken must be more than _maxDust");
-        while (_inputTokenAmount > _maxDust) {
-            uint256 inputTokenAmountSpent = _initiateIssuanceAndReturnInputAmountSpent(
-                _setToken,
-                _minSetAmount,
-                _inputToken,
-                _inputTokenAmount,
-                _swapDataDebtForCollateral,
-                _swapDataInputToken
-            );
-            _inputTokenAmount = _inputTokenAmount - inputTokenAmountSpent;
-            uint256 priceEstimate = _minSetAmount.mul(_priceEstimateInflator).div(inputTokenAmountSpent);
-            _minSetAmount = _inputTokenAmount.mul(priceEstimate).div(1 ether);
-        }
-        return _maxDust;
+        return _issueSetFromExactInput(
+            _setToken,
+            _minSetAmount,
+            _inputToken,
+            _inputTokenAmount,
+            _swapDataDebtForCollateral,
+            _swapDataInputToken,
+            _priceEstimateInflator,
+            _maxDust
+        );
     }
 
     function issueSetFromExactETH(
@@ -104,12 +99,37 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         nonReentrant
         returns(uint256)
     {
-        uint256 _inputTokenAmount = msg.value;
+        return _issueSetFromExactInput(
+            _setToken,
+            _minSetAmount,
+            DEXAdapter.ETH_ADDRESS,
+            msg.value,
+            _swapDataDebtForCollateral,
+            _swapDataInputToken,
+            _priceEstimateInflator,
+            _maxDust
+        );
+    }
+
+    function _issueSetFromExactInput(
+        ISetToken _setToken,
+        uint256 _minSetAmount,
+        address _inputToken,
+        uint256 _inputTokenAmount,
+        DEXAdapter.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapter.SwapData memory _swapDataInputToken,
+        uint256 _priceEstimateInflator,
+        uint256 _maxDust
+    )
+        internal
+        returns(uint256)
+    {
+        require(_inputTokenAmount > _maxDust, "FlashMintLeveragedExtended: _inputToken must be more than _maxDust");
         while (_inputTokenAmount > _maxDust) {
             uint256 inputTokenAmountSpent = _initiateIssuanceAndReturnInputAmountSpent(
                 _setToken,
                 _minSetAmount,
-                DEXAdapter.ETH_ADDRESS,
+                _inputToken,
                 _inputTokenAmount,
                 _swapDataDebtForCollateral,
                 _swapDataInputToken
@@ -118,7 +138,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
             uint256 priceEstimate = _minSetAmount.mul(_priceEstimateInflator).div(inputTokenAmountSpent);
             _minSetAmount = _inputTokenAmount.mul(priceEstimate).div(1 ether);
         }
-        return _maxDust;
+        return _inputTokenAmount;
     }
 
     function _initiateIssuanceAndReturnInputAmountSpent(
@@ -134,7 +154,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
     {
         uint256 inputTokenBalanceBefore;
         if( _inputToken == DEXAdapter.ETH_ADDRESS) {
-            inputTokenBalanceBefore = address(this).balance;
+            inputTokenBalanceBefore = msg.sender.balance;
         } else {
             inputTokenBalanceBefore = IERC20(_inputToken).balanceOf(msg.sender);
         }
@@ -149,7 +169,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
 
         uint256 inputTokenBalanceAfter;
         if( _inputToken == DEXAdapter.ETH_ADDRESS) {
-            inputTokenBalanceAfter = address(this).balance;
+            inputTokenBalanceAfter = msg.sender.balance;
         } else {
             inputTokenBalanceAfter = IERC20(_inputToken).balanceOf(msg.sender);
         }
