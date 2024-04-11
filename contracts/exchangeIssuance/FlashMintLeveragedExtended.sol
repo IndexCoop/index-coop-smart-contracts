@@ -26,7 +26,6 @@ import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { IAToken } from "../interfaces/IAToken.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 
-import "hardhat/console.sol";
 
 /**
  * @title FlashMintLeveragedExtended
@@ -77,9 +76,6 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
     {
         require(_inputTokenAmount > _maxDust, "FlashMintLeveragedExtended: _inputToken must be more than _maxDust");
         while (_inputTokenAmount > _maxDust) {
-            console.log("inputTokenAmount: %s", _inputTokenAmount);
-            console.log("_minSetAmount: %s", _minSetAmount);
-            console.log("_priceEstimateInflator: %s", _priceEstimateInflator);
             uint256 inputTokenAmountSpent = _initiateIssuanceAndReturnInputAmountSpent(
                 _setToken,
                 _minSetAmount,
@@ -88,10 +84,8 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
                 _swapDataDebtForCollateral,
                 _swapDataInputToken
             );
-            console.log("inputTokenAmountSpent: %s", inputTokenAmountSpent);
             _inputTokenAmount = _inputTokenAmount - inputTokenAmountSpent;
             uint256 priceEstimate = _minSetAmount.mul(_priceEstimateInflator).div(inputTokenAmountSpent);
-            console.log("priceEstimate: %s", priceEstimate);
             _minSetAmount = _inputTokenAmount.mul(priceEstimate).div(1 ether);
         }
         return _maxDust;
@@ -144,7 +138,6 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         } else {
             inputTokenBalanceBefore = IERC20(_inputToken).balanceOf(msg.sender);
         }
-        console.log("inputTokenBalanceBefore: %s", inputTokenBalanceBefore);
         _initiateIssuance(
             _setToken,
             _minSetAmount,
@@ -160,7 +153,6 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         } else {
             inputTokenBalanceAfter = IERC20(_inputToken).balanceOf(msg.sender);
         }
-        console.log("inputTokenBalanceAfter: %s", inputTokenBalanceAfter);
 
         return inputTokenBalanceBefore.sub(inputTokenBalanceAfter);
     }
