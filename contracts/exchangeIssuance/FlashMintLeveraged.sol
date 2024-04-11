@@ -36,6 +36,8 @@ import { DEXAdapter } from "./DEXAdapter.sol";
 import {IVault, IFlashLoanRecipient} from "../interfaces/external/balancer-v2/IVault.sol";
 import {IPool} from "../interfaces/IPool.sol";
 
+import "hardhat/console.sol";
+
 /**
  * @title FlashMintLeveraged
  * @author Index Coop
@@ -934,7 +936,11 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         internal
     {
         if(_shortfall>0){ 
+            console.log("Transfer shortfall from sender: %s", _shortfall);
+            console.log("sender", _originalSender);
+            console.log("token", _token);
             IERC20(_token).safeTransferFrom(_originalSender, address(this), _shortfall);
+            console.log("done");
         }
     }
 
@@ -960,11 +966,18 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         internal
         returns (uint256)
     {
+        console.log("Make up shortfall with erc20");
         if(address(_inputToken) == _collateralToken){
+            console.log("Transfer");
             _transferShortfallFromSender(_collateralToken, _collateralTokenShortfall, _originalSender);
             return _collateralTokenShortfall;
         } else {
+            console.log("Trade");
+            console.log("Transfer in");
+            console.log("_originalSender", _originalSender);
+            console.log("_maxAmountInputToken", _maxAmountInputToken);
             _inputToken.transferFrom(_originalSender, address(this), _maxAmountInputToken);
+            console.log("Swap");
             uint256 amountInputToken = _swapInputForCollateralToken(
                 _collateralToken,
                 _collateralTokenShortfall,
@@ -973,7 +986,9 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
                 _swapData
             );
             if(amountInputToken < _maxAmountInputToken){
+                console.log("sending back excess input token");
                 _inputToken.transfer(_originalSender, _maxAmountInputToken.sub(amountInputToken));
+                console.log("done");
             }
             return amountInputToken;
         }

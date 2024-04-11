@@ -16,11 +16,17 @@
 pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 import { FlashMintLeveraged } from "./FlashMintLeveraged.sol";
 import { DEXAdapter } from "./DEXAdapter.sol";
 import { IController } from "../interfaces/IController.sol";
 import { IAaveLeverageModule } from "../interfaces/IAaveLeverageModule.sol";
 import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
+import { IAToken } from "../interfaces/IAToken.sol";
+import { ISetToken } from "../interfaces/ISetToken.sol";
+
+import "hardhat/console.sol";
 
 /**
  * @title FlashMintLeveragedExtended
@@ -54,5 +60,110 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         FlashMintLeveraged(_addresses, _setController, _debtIssuanceModule, _aaveLeverageModule, _aaveV3Pool, _vault)
     {
     }
+
+    function issueSetFromExactERC20(
+        ISetToken _setToken,
+        uint256 _minSetAmount,
+        address _inputToken,
+        uint256 _inputTokenAmount,
+        DEXAdapter.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapter.SwapData memory _swapDataInputToken,
+        uint256 _priceEstimateInflator,
+        uint256 _maxDust
+    )
+        external
+        nonReentrant
+        returns(uint256)
+    {
+        require(_inputTokenAmount > _maxDust, "FlashMintLeveragedExtended: _inputToken must be more than _maxDust");
+        while (_inputTokenAmount > _maxDust) {
+            console.log("inputTokenAmount: %s", _inputTokenAmount);
+            console.log("_minSetAmount: %s", _minSetAmount);
+            console.log("_priceEstimateInflator: %s", _priceEstimateInflator);
+            uint256 inputTokenAmountSpent = _initiateIssuanceAndReturnInputAmountSpent(
+                _setToken,
+                _minSetAmount,
+                _inputToken,
+                _inputTokenAmount,
+                _swapDataDebtForCollateral,
+                _swapDataInputToken
+            );
+            console.log("inputTokenAmountSpent: %s", inputTokenAmountSpent);
+            _inputTokenAmount = _inputTokenAmount - inputTokenAmountSpent;
+            uint256 priceEstimate = _minSetAmount.mul(_priceEstimateInflator).div(inputTokenAmountSpent);
+            console.log("priceEstimate: %s", priceEstimate);
+            _minSetAmount = _inputTokenAmount.mul(priceEstimate).div(1 ether);
+        }
+        return _maxDust;
+    }
+
+    function issueSetFromExactETH(
+        ISetToken _setToken,
+        uint256 _minSetAmount,
+        DEXAdapter.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapter.SwapData memory _swapDataInputToken,
+        uint256 _priceEstimateInflator,
+        uint256 _maxDust
+    )
+        external
+        payable
+        nonReentrant
+        returns(uint256)
+    {
+        uint256 _inputTokenAmount = msg.value;
+        while (_inputTokenAmount > _maxDust) {
+            uint256 inputTokenAmountSpent = _initiateIssuanceAndReturnInputAmountSpent(
+                _setToken,
+                _minSetAmount,
+                DEXAdapter.ETH_ADDRESS,
+                _inputTokenAmount,
+                _swapDataDebtForCollateral,
+                _swapDataInputToken
+            );
+            _inputTokenAmount = _inputTokenAmount - inputTokenAmountSpent;
+            uint256 priceEstimate = _minSetAmount.mul(_priceEstimateInflator).div(inputTokenAmountSpent);
+            _minSetAmount = _inputTokenAmount.mul(priceEstimate).div(1 ether);
+        }
+        return _maxDust;
+    }
+
+    function _initiateIssuanceAndReturnInputAmountSpent(
+        ISetToken _setToken,
+        uint256 _minSetAmount,
+        address _inputToken,
+        uint256 _inputTokenAmount,
+        DEXAdapter.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapter.SwapData memory _swapDataInputToken
+    ) 
+        internal
+        returns (uint256)
+    {
+        uint256 inputTokenBalanceBefore;
+        if( _inputToken == DEXAdapter.ETH_ADDRESS) {
+            inputTokenBalanceBefore = address(this).balance;
+        } else {
+            inputTokenBalanceBefore = IERC20(_inputToken).balanceOf(msg.sender);
+        }
+        console.log("inputTokenBalanceBefore: %s", inputTokenBalanceBefore);
+        _initiateIssuance(
+            _setToken,
+            _minSetAmount,
+            _inputToken,
+            _inputTokenAmount,
+            _swapDataDebtForCollateral,
+            _swapDataInputToken
+        );
+
+        uint256 inputTokenBalanceAfter;
+        if( _inputToken == DEXAdapter.ETH_ADDRESS) {
+            inputTokenBalanceAfter = address(this).balance;
+        } else {
+            inputTokenBalanceAfter = IERC20(_inputToken).balanceOf(msg.sender);
+        }
+        console.log("inputTokenBalanceAfter: %s", inputTokenBalanceAfter);
+
+        return inputTokenBalanceBefore.sub(inputTokenBalanceAfter);
+    }
+
 }
 
