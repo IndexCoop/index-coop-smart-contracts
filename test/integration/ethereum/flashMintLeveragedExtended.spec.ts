@@ -1,7 +1,7 @@
 import "module-alias/register";
 import { Account, Address } from "@utils/types";
 import DeployHelper from "@utils/deploys";
-import { getAccounts, getWaffleExpect, preciseMul } from "@utils/index";
+import { getAccounts, getWaffleExpect } from "@utils/index";
 import { setBlockNumber } from "@utils/test/testingUtils";
 import { ethers } from "hardhat";
 import { BigNumber, utils } from "ethers";
@@ -45,7 +45,6 @@ if (process.env.INTEGRATIONTEST) {
     let setToken: StandardTokenMock;
     let weth: IWETH;
 
-    // const collateralTokenAddress = addresses.tokens.stEth;
     setBlockNumber(17665622);
 
     before(async () => {
@@ -131,7 +130,6 @@ if (process.env.INTEGRATIONTEST) {
         let collateralAToken: StandardTokenMock;
         let debtToken: StandardTokenMock;
         let collateralATokenAddress: Address;
-        let collateralTokenAddress: Address;
         let debtTokenAddress: Address;
         before(async () => {
           const arETHWhale = "0x4D17676309cb16fA991E6AE43181d08203b781F8";
@@ -185,7 +183,6 @@ if (process.env.INTEGRATIONTEST) {
           );
 
           collateralATokenAddress = leveragedTokenData.collateralAToken;
-          collateralTokenAddress = leveragedTokenData.collateralToken;
           debtTokenAddress = leveragedTokenData.debtToken;
 
           collateralAToken = (await ethers.getContractAt(
@@ -215,7 +212,7 @@ if (process.env.INTEGRATIONTEST) {
           ).to.equal(MAX_UINT_256);
         });
 
-        ["collateralToken", "WETH", "ETH"].forEach((inputTokenName) => {
+        ["collateralToken", "WETH", "ETH"].forEach(inputTokenName => {
           describe(`When input/output token is ${inputTokenName}`, () => {
             let subjectMinSetAmount: BigNumber;
             let amountIn: BigNumber;
