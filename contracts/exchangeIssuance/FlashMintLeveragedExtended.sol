@@ -62,6 +62,77 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
     {
     }
 
+    function redeemSetForExactERC20(
+        ISetToken _setToken,
+        uint256 _maxSetAmount,
+        address _outputToken,
+        uint256 _outputTokenAmount,
+        DEXAdapter.SwapData memory _swapDataCollateralForDebt,
+        DEXAdapter.SwapData memory _swapDataOutputToken,
+        DEXAdapter.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapter.SwapData memory _swapDataInputToken,
+        uint256 _priceEstimateInflator,
+        uint256 _maxDust
+    )
+        external
+        nonReentrant
+    {
+        uint256 outputTokenBalanceBefore = IERC20(_outputToken).balanceOf(address(this));
+        _initiateRedemption(
+            _setToken,
+            _maxSetAmount,
+            _outputToken,
+            _outputTokenAmount,
+            _swapDataCollateralForDebt,
+            _swapDataOutputToken
+        );
+
+        _issueSetFromExcessOutput(
+            _setToken,
+            _maxSetAmount,
+            _outputToken,
+            _outputTokenAmount,
+            _swapDataDebtForCollateral,
+            _swapDataInputToken,
+            _priceEstimateInflator,
+            _maxDust,
+            outputTokenBalanceBefore
+        );
+
+    }
+
+    function _issueSetFromExcessOutput(
+        ISetToken _setToken,
+        uint256 _maxSetAmount,
+        address _outputToken,
+        uint256 _outputTokenAmount,
+        DEXAdapter.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapter.SwapData memory _swapDataInputToken,
+        uint256 _priceEstimateInflator,
+        uint256 _maxDust,
+        uint256 _outputTokenBalanceBefore
+    )
+    internal 
+    {
+        uint256 obtainedOutputAmount = IERC20(_outputToken).balanceOf(address(this)).sub(_outputTokenBalanceBefore);
+        uint256 excessOutputTokenAmount = obtainedOutputAmount.sub(_outputTokenAmount);
+        uint256 priceEstimate = _maxSetAmount.mul(1 ether).div(obtainedOutputAmount);
+        uint256 minSetAmount = excessOutputTokenAmount.mul(priceEstimate).div(1 ether);
+        _issueSetFromExactInput(
+            _setToken,
+            minSetAmount,
+            _outputToken,
+            excessOutputTokenAmount,
+            _swapDataDebtForCollateral,
+            _swapDataInputToken,
+            _priceEstimateInflator,
+            _maxDust
+        );
+    }
+
+
+
+
     /**
      * Trigger redemption of set token to pay the user with Eth
      *
@@ -214,6 +285,8 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         nonReentrant
         returns(uint256)
     {
+        IERC20(_inputToken).transferFrom(msg.sender, address(this), _inputTokenAmount);
+
         return _issueSetFromExactInput(
             _setToken,
             _minSetAmount,
@@ -239,6 +312,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         nonReentrant
         returns(uint256)
     {
+        IWETH(addresses.weth).deposit{value: msg.value}();
         return _issueSetFromExactInput(
             _setToken,
             _minSetAmount,
@@ -265,12 +339,6 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         returns(uint256)
     {
         require(_inputTokenAmount > _maxDust, "FlashMintLeveragedExtended: _inputToken must be more than _maxDust");
-
-        if(_inputToken == DEXAdapter.ETH_ADDRESS) {
-            IWETH(addresses.weth).deposit{value: msg.value}();
-        } else {
-            IERC20(_inputToken).transferFrom(msg.sender, address(this), _inputTokenAmount);
-        }
 
         while (_inputTokenAmount > _maxDust) {
             uint256 inputTokenAmountSpent = _initiateIssuanceAndReturnInputAmountSpent(
