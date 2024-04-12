@@ -63,6 +63,74 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
     }
 
     /**
+     * Trigger redemption of set token to pay the user with Eth
+     *
+     * @param _setToken                   Set token to redeem
+     * @param _setAmount                  Amount to redeem
+     * @param _minAmountOutputToken       Minimum amount of ETH to send to the user
+     * @param _swapDataCollateralForDebt  Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
+     * @param _swapDataOutputToken        Data (token path and fee levels) describing the swap from Collateral Token to Eth
+     */
+    function redeemExactSetForETH(
+        ISetToken _setToken,
+        uint256 _setAmount,
+        uint256 _minAmountOutputToken,
+        DEXAdapter.SwapData memory _swapDataCollateralForDebt,
+        DEXAdapter.SwapData memory _swapDataOutputToken
+    )
+        external
+        override
+        nonReentrant
+    {
+        uint256 wethBalanceBefore = IWETH(addresses.weth).balanceOf(address(this));
+        _initiateRedemption(
+            _setToken,
+            _setAmount,
+            DEXAdapter.ETH_ADDRESS,
+            _minAmountOutputToken,
+            _swapDataCollateralForDebt,
+            _swapDataOutputToken
+        );
+        uint256 amountToReturn = IWETH(addresses.weth).balanceOf(address(this)).sub(wethBalanceBefore);
+        IWETH(addresses.weth).withdraw(amountToReturn);
+        (payable(msg.sender)).sendValue(amountToReturn);
+    }
+
+    /**
+     * Trigger redemption of set token to pay the user with an arbitrary ERC20 
+     *
+     * @param _setToken                   Set token to redeem
+     * @param _setAmount                  Amount to redeem
+     * @param _outputToken                Address of the ERC20 token to send to the user
+     * @param _minAmountOutputToken       Minimum amount of output token to send to the user
+     * @param _swapDataCollateralForDebt  Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
+     * @param _swapDataOutputToken        Data (token path and fee levels) describing the swap from Collateral Token to Output token
+     */
+    function redeemExactSetForERC20(
+        ISetToken _setToken,
+        uint256 _setAmount,
+        address _outputToken,
+        uint256 _minAmountOutputToken,
+        DEXAdapter.SwapData memory _swapDataCollateralForDebt,
+        DEXAdapter.SwapData memory _swapDataOutputToken
+    )
+        external
+        override
+        nonReentrant
+    {
+        uint256 outputTokenBalanceBefore = IERC20(_outputToken).balanceOf(address(this));
+        _initiateRedemption(
+            _setToken,
+            _setAmount,
+            _outputToken,
+            _minAmountOutputToken,
+            _swapDataCollateralForDebt,
+            _swapDataOutputToken
+        );
+        IERC20(_outputToken).transfer(msg.sender, IERC20(_outputToken).balanceOf(address(this)).sub(outputTokenBalanceBefore));
+    }
+
+    /**
      * Trigger issuance of set token paying with any arbitrary ERC20 token
      *
      * @param _setToken                     Set token to issue
@@ -330,7 +398,76 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         return amountEth;
     }
 
-    // TODO: Adjust fixed set amount methods to account for new input token handling
+    /**
+     * Sells the collateral tokens for the selected output ERC20 and returns that to the user
+     *
+     * @param _collateralToken       Address of the collateral token
+     * @param _collateralRemaining   Amount of the collateral token remaining after buying required debt tokens
+     * @param _originalSender        Address of the original sender to return the tokens to
+     * @param _outputToken           Address of token to return to the user
+     * @param _minAmountOutputToken  Minimum amount of output token to return to the user
+     * @param _swapData              Data (token path and fee levels) describing the swap path from Collateral Token to Output token
+     *
+     * @return Amount of output token returned to the user
+     */
+    function _liquidateCollateralTokensForERC20(
+        address _collateralToken,
+        uint256 _collateralRemaining,
+        address _originalSender,
+        IERC20 _outputToken,
+        uint256 _minAmountOutputToken,
+        DEXAdapter.SwapData memory _swapData
+    )
+        internal
+        override
+        returns (uint256)
+    {
+        if(address(_outputToken) == _collateralToken){
+            return _collateralRemaining;
+        }
+        uint256 outputTokenAmount = _swapCollateralForOutputToken(
+            _collateralToken,
+            _collateralRemaining,
+            address(_outputToken),
+            _minAmountOutputToken,
+            _swapData
+        );
+        return outputTokenAmount;
+    }
+
+    /**
+     * Sells the remaining collateral tokens for weth, withdraws that and returns native eth to the user
+     *
+     * @param _collateralToken            Address of the collateral token
+     * @param _collateralRemaining        Amount of the collateral token remaining after buying required debt tokens
+     * @param _originalSender             Address of the original sender to return the eth to
+     * @param _minAmountOutputToken       Minimum amount of output token to return to user
+     * @param _swapData                   Data (token path and fee levels) describing the swap path from Collateral Token to eth
+     *
+     * @return Amount of eth returned to the user
+     */
+    function _liquidateCollateralTokensForETH(
+        address _collateralToken,
+        uint256 _collateralRemaining,
+        address _originalSender,
+        uint256 _minAmountOutputToken,
+        DEXAdapter.SwapData memory _swapData
+    )
+        internal
+        override
+        isValidPath(_swapData.path, _collateralToken, addresses.weth)
+        returns(uint256)
+    {
+        uint256 ethAmount = _swapCollateralForOutputToken(
+            _collateralToken,
+            _collateralRemaining,
+            addresses.weth,
+            _minAmountOutputToken,
+            _swapData
+        );
+        return ethAmount;
+    }
+
 
 }
 

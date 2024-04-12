@@ -285,6 +285,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         DEXAdapter.SwapData memory _swapDataOutputToken
     )
         external
+        virtual
         nonReentrant
     {
         _initiateRedemption(
@@ -316,6 +317,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         DEXAdapter.SwapData memory _swapDataOutputToken
     )
         external
+        virtual
         nonReentrant
     {
         _initiateRedemption(
@@ -787,6 +789,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         DEXAdapter.SwapData memory _swapData
     )
         internal
+        virtual
         returns (uint256)
     {
         if(address(_outputToken) == _collateralToken){
@@ -823,6 +826,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         DEXAdapter.SwapData memory _swapData
     )
         internal
+        virtual
         isValidPath(_swapData.path, _collateralToken, addresses.weth)
         returns(uint256)
     {
