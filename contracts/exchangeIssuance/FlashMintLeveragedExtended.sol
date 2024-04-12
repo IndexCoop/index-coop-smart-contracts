@@ -98,7 +98,9 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
             _maxDust,
             outputTokenBalanceBefore
         );
-
+        uint256 outputTokenObtained = IERC20(_outputToken).balanceOf(address(this)).sub(outputTokenBalanceBefore);
+        require(outputTokenObtained >= _outputTokenAmount, "FlashMintLeveragedExtended: outputTokenBalanceAfter < _outputTokenAmount");
+        IERC20(_outputToken).transfer(msg.sender, _outputTokenAmount);
     }
 
     function redeemSetForExactETH(
@@ -136,7 +138,10 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
             _maxDust,
             wethBalanceBefore
         );
-
+        uint256 wethObtained = IERC20(addresses.weth).balanceOf(address(this)).sub(wethBalanceBefore);
+        require(wethObtained >= _outputTokenAmount, "FlashMintLeveragedExtended: outputTokenBalanceAfter < _outputTokenAmount");
+        IWETH(addresses.weth).withdraw(_outputTokenAmount);
+        (payable(msg.sender)).sendValue(_outputTokenAmount);
     }
 
     function _issueSetFromExcessOutput(
@@ -160,7 +165,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         }
 
         uint256 excessOutputTokenAmount = obtainedOutputAmount.sub(_outputTokenAmount);
-        uint256 priceEstimate = _maxSetAmount.mul(1 ether).div(obtainedOutputAmount);
+        uint256 priceEstimate = _maxSetAmount.mul(_priceEstimateInflator).div(obtainedOutputAmount);
         uint256 minSetAmount = excessOutputTokenAmount.mul(priceEstimate).div(1 ether);
         _issueSetFromExactInput(
             _setToken,
