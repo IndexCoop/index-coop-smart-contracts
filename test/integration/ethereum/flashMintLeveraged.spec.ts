@@ -3,6 +3,7 @@ import { Account, Address } from "@utils/types";
 import DeployHelper from "@utils/deploys";
 import { getAccounts, getWaffleExpect, preciseMul } from "@utils/index";
 import { setBlockNumber } from "@utils/test/testingUtils";
+import { cacheBeforeEach } from "@utils/test";
 import { ethers } from "hardhat";
 import { BigNumber, utils } from "ethers";
 import { FlashMintLeveraged } from "@utils/contracts/index";
@@ -212,7 +213,7 @@ if (process.env.INTEGRATIONTEST) {
           describe(`When input/output token is ${inputTokenName}`, () => {
             let subjectSetAmount: BigNumber;
             let amountIn: BigNumber;
-            beforeEach(async () => {
+            cacheBeforeEach(async () => {
               amountIn = ether(2);
               subjectSetAmount = ether(1);
             });

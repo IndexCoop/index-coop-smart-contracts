@@ -101,6 +101,44 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
 
     }
 
+    function redeemSetForExactETH(
+        ISetToken _setToken,
+        uint256 _maxSetAmount,
+        uint256 _outputTokenAmount,
+        DEXAdapter.SwapData memory _swapDataCollateralForDebt,
+        DEXAdapter.SwapData memory _swapDataOutputToken,
+        DEXAdapter.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapter.SwapData memory _swapDataInputToken,
+        uint256 _priceEstimateInflator,
+        uint256 _maxDust
+    )
+        external
+        nonReentrant
+    {
+        uint256 wethBalanceBefore = IERC20(addresses.weth).balanceOf(address(this));
+        _initiateRedemption(
+            _setToken,
+            _maxSetAmount,
+            DEXAdapter.ETH_ADDRESS,
+            _outputTokenAmount,
+            _swapDataCollateralForDebt,
+            _swapDataOutputToken
+        );
+
+        _issueSetFromExcessOutput(
+            _setToken,
+            _maxSetAmount,
+            DEXAdapter.ETH_ADDRESS,
+            _outputTokenAmount,
+            _swapDataDebtForCollateral,
+            _swapDataInputToken,
+            _priceEstimateInflator,
+            _maxDust,
+            wethBalanceBefore
+        );
+
+    }
+
     function _issueSetFromExcessOutput(
         ISetToken _setToken,
         uint256 _maxSetAmount,
@@ -114,7 +152,13 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
     )
     internal 
     {
-        uint256 obtainedOutputAmount = IERC20(_outputToken).balanceOf(address(this)).sub(_outputTokenBalanceBefore);
+        uint256 obtainedOutputAmount;
+        if( _outputToken == DEXAdapter.ETH_ADDRESS) {
+            obtainedOutputAmount = IERC20(addresses.weth).balanceOf(address(this)).sub(_outputTokenBalanceBefore);
+        } else {
+            obtainedOutputAmount = IERC20(_outputToken).balanceOf(address(this)).sub(_outputTokenBalanceBefore);
+        }
+
         uint256 excessOutputTokenAmount = obtainedOutputAmount.sub(_outputTokenAmount);
         uint256 priceEstimate = _maxSetAmount.mul(1 ether).div(obtainedOutputAmount);
         uint256 minSetAmount = excessOutputTokenAmount.mul(priceEstimate).div(1 ether);
