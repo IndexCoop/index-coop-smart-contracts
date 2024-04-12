@@ -130,6 +130,7 @@ if (process.env.INTEGRATIONTEST) {
         let collateralAToken: StandardTokenMock;
         let debtToken: StandardTokenMock;
         let collateralATokenAddress: Address;
+        let collateralTokenAddress: Address;
         let debtTokenAddress: Address;
         before(async () => {
           const arETHWhale = "0x4D17676309cb16fA991E6AE43181d08203b781F8";
@@ -183,6 +184,7 @@ if (process.env.INTEGRATIONTEST) {
           );
 
           collateralATokenAddress = leveragedTokenData.collateralAToken;
+          collateralTokenAddress = leveragedTokenData.collateralToken;
           debtTokenAddress = leveragedTokenData.debtToken;
 
           collateralAToken = (await ethers.getContractAt(
@@ -452,6 +454,123 @@ if (process.env.INTEGRATIONTEST) {
                     inputSpent = inputSpent.sub(gasCosts);
                   }
                   expect(inputSpent).to.eq(subjectAmountIn);
+                });
+              },
+            );
+            describe(
+              inputTokenName === "ETH" ? "redeemExactSetForETH" : "#redeemExactSetForERC20",
+              () => {
+                let swapDataCollateralToDebt: SwapData;
+                let swapDataOutputToken: SwapData;
+
+                let outputToken: StandardTokenMock | IWETH;
+
+                let subjectSetToken: Address;
+                let subjectSetAmount: BigNumber;
+                let subjectMinAmountOut: BigNumber;
+                let subjectOutputToken: Address;
+
+                async function subject() {
+                  if (inputTokenName === "ETH") {
+                    return flashMintLeveraged.redeemExactSetForETH(
+                      subjectSetToken,
+                      subjectSetAmount,
+                      subjectMinAmountOut,
+                      swapDataCollateralToDebt,
+                      swapDataOutputToken,
+                    );
+                  }
+                  return flashMintLeveraged.redeemExactSetForERC20(
+                    subjectSetToken,
+                    subjectSetAmount,
+                    subjectOutputToken,
+                    subjectMinAmountOut,
+                    swapDataCollateralToDebt,
+                    swapDataOutputToken,
+                  );
+                }
+
+                async function subjectQuote(): Promise<BigNumber> {
+                  return flashMintLeveraged.callStatic.getRedeemExactSet(
+                    subjectSetToken,
+                    subjectSetAmount,
+                    swapDataCollateralToDebt,
+                    swapDataOutputToken,
+                  );
+                }
+
+                beforeEach(async () => {
+                  subjectSetAmount = ether(1);
+                  swapDataCollateralToDebt = {
+                    path: [collateralTokenAddress, addresses.tokens.weth],
+                    fees: [500],
+                    pool: ADDRESS_ZERO,
+                    exchange: Exchange.UniV3,
+                  };
+
+                  if (inputTokenName === "collateralToken") {
+                    outputToken = rEth;
+                    swapDataOutputToken = {
+                      path: [],
+                      fees: [],
+                      pool: ADDRESS_ZERO,
+                      exchange: Exchange.None,
+                    };
+                  } else {
+                    swapDataOutputToken = swapDataCollateralToDebt;
+
+                    if (inputTokenName === "WETH") {
+                      outputToken = weth;
+                      await weth.deposit({ value: amountIn });
+                    }
+                  }
+
+                  subjectMinAmountOut = subjectSetAmount.div(2);
+                  subjectSetToken = setToken.address;
+                  await setToken.approve(flashMintLeveraged.address, subjectSetAmount);
+
+                  if (inputTokenName !== "ETH") {
+                    subjectOutputToken = outputToken.address;
+                  }
+                });
+
+                it("should redeem the correct amount of tokens", async () => {
+                  const setBalanceBefore = await setToken.balanceOf(owner.address);
+                  await subject();
+                  const setBalanceAfter = await setToken.balanceOf(owner.address);
+                  const setRedeemed = setBalanceBefore.sub(setBalanceAfter);
+                  expect(setRedeemed).to.eq(subjectSetAmount);
+                });
+
+                it("should return at least the specified minimum of output tokens", async () => {
+                  const outputBalanceBefore =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await outputToken.balanceOf(owner.address);
+                  await subject();
+                  const outputBalanceAfter =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await outputToken.balanceOf(owner.address);
+                  const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
+                  expect(outputObtained.gte(subjectMinAmountOut)).to.be.true;
+                });
+
+                it("should quote the correct output amount", async () => {
+                  const outputBalanceBefore =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await outputToken.balanceOf(owner.address);
+                  await subject();
+                  const outputBalanceAfter =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await outputToken.balanceOf(owner.address);
+                  const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
+
+                  const outputAmountQuote = await subjectQuote();
+                  expect(outputAmountQuote).to.gt(preciseMul(outputObtained, ether(0.99)));
+                  expect(outputAmountQuote).to.lt(preciseMul(outputObtained, ether(1.01)));
                 });
               },
             );
