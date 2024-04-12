@@ -959,6 +959,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         DEXAdapter.SwapData memory _swapData
     )
         internal
+        virtual
         returns (uint256)
     {
         if(address(_inputToken) == _collateralToken){
@@ -999,6 +1000,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
 
     )
         internal
+        virtual
         returns(uint256)
     {
         IWETH(addresses.weth).deposit{value: _maxAmountEth}();

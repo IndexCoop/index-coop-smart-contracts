@@ -308,26 +308,26 @@ if (process.env.INTEGRATIONTEST) {
                   expect(setObtained).to.gte(subjectMinSetAmount);
                 });
 
-                it("should spend at least inputAmount - maxDust", async () => {
+                it("should spend exactly inputAmount", async () => {
                   const inputBalanceBefore =
                     inputTokenName === "ETH"
                       ? await owner.wallet.getBalance()
                       : await inputToken.balanceOf(owner.address);
-                  console.log("inputBalanceBefore", inputBalanceBefore.toString());
 
-                  await subject();
+                  const tx = await subject();
+                  const receipt = await tx.wait();
+                  const gasCosts = receipt.gasUsed.mul(tx.gasPrice);
 
                   const inputBalanceAfter =
                     inputTokenName === "ETH"
                       ? await owner.wallet.getBalance()
                       : await inputToken.balanceOf(owner.address);
-                  console.log("inputBalanceAfter", inputBalanceAfter.toString());
-                  const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
-                  console.log("inputSpent", ethers.utils.formatEther(inputSpent));
-                  console.log("subjectAmountIn", ethers.utils.formatEther(subjectAmountIn));
-                  console.log("subjectMaxDust", ethers.utils.formatEther(subjectMaxDust));
+                  let inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
                   expect(inputSpent).to.gt(BigNumber.from(0));
-                  expect(inputSpent).to.gte(subjectAmountIn.sub(subjectMaxDust));
+                  if (inputTokenName === "ETH") {
+                    inputSpent = inputSpent.sub(gasCosts);
+                  }
+                  expect(inputSpent).to.eq(subjectAmountIn);
                 });
               },
             );

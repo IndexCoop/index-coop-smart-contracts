@@ -25,6 +25,7 @@ import { IAaveLeverageModule } from "../interfaces/IAaveLeverageModule.sol";
 import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { IAToken } from "../interfaces/IAToken.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
+import { IWETH } from "../interfaces/IWETH.sol";
 
 
 /**
@@ -125,6 +126,13 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         returns(uint256)
     {
         require(_inputTokenAmount > _maxDust, "FlashMintLeveragedExtended: _inputToken must be more than _maxDust");
+
+        if(_inputToken == DEXAdapter.ETH_ADDRESS) {
+            IWETH(addresses.weth).deposit{value: msg.value}();
+        } else {
+            IERC20(_inputToken).transferFrom(msg.sender, address(this), _inputTokenAmount);
+        }
+
         while (_inputTokenAmount > _maxDust) {
             uint256 inputTokenAmountSpent = _initiateIssuanceAndReturnInputAmountSpent(
                 _setToken,
@@ -138,6 +146,9 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
             uint256 priceEstimate = _minSetAmount.mul(_priceEstimateInflator).div(inputTokenAmountSpent);
             _minSetAmount = _inputTokenAmount.mul(priceEstimate).div(1 ether);
         }
+
+        // TODO: Decide what to do with the dust (maybe swap to eth and return as gas subsidy)
+
         return _inputTokenAmount;
     }
 
@@ -154,9 +165,9 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
     {
         uint256 inputTokenBalanceBefore;
         if( _inputToken == DEXAdapter.ETH_ADDRESS) {
-            inputTokenBalanceBefore = msg.sender.balance;
+            inputTokenBalanceBefore = IERC20(addresses.weth).balanceOf(address(this));
         } else {
-            inputTokenBalanceBefore = IERC20(_inputToken).balanceOf(msg.sender);
+            inputTokenBalanceBefore = IERC20(_inputToken).balanceOf(address(this));
         }
         _initiateIssuance(
             _setToken,
@@ -169,13 +180,86 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
 
         uint256 inputTokenBalanceAfter;
         if( _inputToken == DEXAdapter.ETH_ADDRESS) {
-            inputTokenBalanceAfter = msg.sender.balance;
+            inputTokenBalanceAfter = IERC20(addresses.weth).balanceOf(address(this));
         } else {
-            inputTokenBalanceAfter = IERC20(_inputToken).balanceOf(msg.sender);
+            inputTokenBalanceAfter = IERC20(_inputToken).balanceOf(address(this));
         }
 
         return inputTokenBalanceBefore.sub(inputTokenBalanceAfter);
     }
+
+    /**
+     * Makes up the collateral token shortfall with user specified ERC20 token
+     *
+     * @param _collateralToken             Address of the collateral token
+     * @param _collateralTokenShortfall    Shortfall of collateral token that was not covered by selling the debt tokens
+     * @param _originalSender              Address of the original sender to return the tokens to
+     * @param _inputToken                  Input token to pay with
+     * @param _maxAmountInputToken         Maximum amount of input token to spend
+     *
+     * @return Amount of input token spent
+     */
+    function _makeUpShortfallWithERC20(
+        address _collateralToken,
+        uint256 _collateralTokenShortfall,
+        address _originalSender,
+        IERC20 _inputToken,
+        uint256 _maxAmountInputToken,
+        DEXAdapter.SwapData memory _swapData
+    )
+        internal
+        override
+        returns (uint256)
+    {
+        if(address(_inputToken) == _collateralToken){
+            return _collateralTokenShortfall;
+        } else {
+            uint256 amountInputToken = _swapInputForCollateralToken(
+                _collateralToken,
+                _collateralTokenShortfall,
+                address(_inputToken),
+                _maxAmountInputToken,
+                _swapData
+            );
+            return amountInputToken;
+        }
+    }
+
+    /**
+     * Makes up the collateral token shortfall with native eth
+     *
+     * @param _collateralToken             Address of the collateral token
+     * @param _collateralTokenShortfall    Shortfall of collateral token that was not covered by selling the debt tokens
+     * @param _originalSender              Address of the original sender to return the tokens to
+     * @param _maxAmountEth                Maximum amount of eth to pay
+     *
+     * @return Amount of eth spent
+     */
+    function _makeUpShortfallWithETH(
+        address _collateralToken,
+        uint256 _collateralTokenShortfall,
+        address _originalSender,
+        uint256 _maxAmountEth,
+        DEXAdapter.SwapData memory _swapData
+
+    )
+        internal
+        override
+        returns(uint256)
+    {
+
+        uint256 amountEth = _swapInputForCollateralToken(
+            _collateralToken,
+            _collateralTokenShortfall,
+            addresses.weth,
+            _maxAmountEth,
+            _swapData
+        );
+
+        return amountEth;
+    }
+
+    // TODO: Adjust fixed set amount methods to account for new input token handling
 
 }
 
