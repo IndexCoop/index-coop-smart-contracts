@@ -347,6 +347,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         DEXAdapter.SwapData memory _swapDataInputToken
     )
         external
+        virtual
         nonReentrant
     {
         _initiateIssuance(
@@ -374,6 +375,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         DEXAdapter.SwapData memory _swapDataInputToken
     )
         external
+        virtual
         payable
         nonReentrant
     {

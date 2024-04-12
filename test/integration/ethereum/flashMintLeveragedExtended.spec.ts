@@ -1,7 +1,7 @@
 import "module-alias/register";
 import { Account, Address } from "@utils/types";
 import DeployHelper from "@utils/deploys";
-import { getAccounts, getWaffleExpect } from "@utils/index";
+import { getAccounts, getWaffleExpect, preciseMul } from "@utils/index";
 import { setBlockNumber } from "@utils/test/testingUtils";
 import { ethers } from "hardhat";
 import { BigNumber, utils } from "ethers";
@@ -214,11 +214,134 @@ if (process.env.INTEGRATIONTEST) {
 
         ["collateralToken", "WETH", "ETH"].forEach(inputTokenName => {
           describe(`When input/output token is ${inputTokenName}`, () => {
-            let subjectMinSetAmount: BigNumber;
             let amountIn: BigNumber;
             beforeEach(async () => {
               amountIn = ether(2);
             });
+
+            describe(
+              inputTokenName === "ETH" ? "issueExactSetFromETH" : "#issueExactSetFromERC20",
+              () => {
+                let subjectSetAmount: BigNumber;
+                let swapDataDebtToCollateral: SwapData;
+                let swapDataInputToken: SwapData;
+
+                let inputToken: StandardTokenMock | IWETH;
+
+                let subjectSetToken: Address;
+                let subjectMaxAmountIn: BigNumber;
+                let subjectInputToken: Address;
+
+                beforeEach(async () => {
+                  subjectSetAmount = ether(1);
+                  swapDataDebtToCollateral = {
+                    path: [addresses.tokens.weth, addresses.tokens.rETH],
+                    fees: [500],
+                    pool: ADDRESS_ZERO,
+                    exchange: Exchange.UniV3,
+                  };
+
+                  swapDataInputToken = {
+                    path: [],
+                    fees: [],
+                    pool: ADDRESS_ZERO,
+                    exchange: Exchange.None,
+                  };
+
+                  if (inputTokenName === "collateralToken") {
+                    inputToken = rEth;
+                  } else {
+                    swapDataInputToken = swapDataDebtToCollateral;
+
+                    if (inputTokenName === "WETH") {
+                      inputToken = weth;
+                      await weth.deposit({ value: amountIn });
+                    }
+                  }
+
+                  let inputTokenBalance: BigNumber;
+                  if (inputTokenName === "ETH") {
+                    subjectMaxAmountIn = amountIn;
+                  } else {
+                    inputTokenBalance = await inputToken.balanceOf(owner.address);
+                    subjectMaxAmountIn = inputTokenBalance;
+                    await inputToken.approve(flashMintLeveraged.address, subjectMaxAmountIn);
+                    subjectInputToken = inputToken.address;
+                  }
+                  subjectSetToken = setToken.address;
+                });
+
+                async function subject() {
+                  if (inputTokenName === "ETH") {
+                    return flashMintLeveraged.issueExactSetFromETH(
+                      subjectSetToken,
+                      subjectSetAmount,
+                      swapDataDebtToCollateral,
+                      swapDataInputToken,
+                      { value: subjectMaxAmountIn },
+                    );
+                  }
+                  return flashMintLeveraged.issueExactSetFromERC20(
+                    subjectSetToken,
+                    subjectSetAmount,
+                    subjectInputToken,
+                    subjectMaxAmountIn,
+                    swapDataDebtToCollateral,
+                    swapDataInputToken,
+                  );
+                }
+
+                async function subjectQuote() {
+                  return flashMintLeveraged.callStatic.getIssueExactSet(
+                    subjectSetToken,
+                    subjectSetAmount,
+                    swapDataDebtToCollateral,
+                    swapDataInputToken,
+                  );
+                }
+
+                it("should issue the correct amount of tokens", async () => {
+                  const setBalancebefore = await setToken.balanceOf(owner.address);
+                  await subject();
+                  const setBalanceAfter = await setToken.balanceOf(owner.address);
+                  const setObtained = setBalanceAfter.sub(setBalancebefore);
+                  expect(setObtained).to.eq(subjectSetAmount);
+                });
+
+                it("should spend less than specified max amount", async () => {
+                  const inputBalanceBefore =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await inputToken.balanceOf(owner.address);
+                  await subject();
+                  const inputBalanceAfter =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await inputToken.balanceOf(owner.address);
+                  const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
+                  expect(inputSpent.gt(0)).to.be.true;
+                  expect(inputSpent.lte(subjectMaxAmountIn)).to.be.true;
+                });
+
+                it("should quote the correct input amount", async () => {
+                  const inputBalanceBefore =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await inputToken.balanceOf(owner.address);
+                  await subject();
+                  const inputBalanceAfter =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await inputToken.balanceOf(owner.address);
+                  const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
+
+                  const quotedInputAmount = await subjectQuote();
+
+                  expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.99)));
+                  expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.01)));
+                });
+              },
+            );
 
             describe(
               inputTokenName === "ETH" ? "issueSetFromExactETH" : "#issueSetFromExactERC20",
@@ -227,6 +350,7 @@ if (process.env.INTEGRATIONTEST) {
                 let swapDataInputToken: SwapData;
 
                 let inputToken: StandardTokenMock | IWETH;
+                let subjectMinSetAmount: BigNumber;
 
                 let subjectSetToken: Address;
                 let subjectAmountIn: BigNumber;

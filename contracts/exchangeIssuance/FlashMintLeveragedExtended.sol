@@ -28,6 +28,7 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 
 
+
 /**
  * @title FlashMintLeveragedExtended
  * @author Index Coop
@@ -59,6 +60,76 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         public
         FlashMintLeveraged(_addresses, _setController, _debtIssuanceModule, _aaveLeverageModule, _aaveV3Pool, _vault)
     {
+    }
+
+    /**
+     * Trigger issuance of set token paying with any arbitrary ERC20 token
+     *
+     * @param _setToken                     Set token to issue
+     * @param _setAmount                    Amount to issue
+     * @param _inputToken                   Input token to pay with
+     * @param _maxAmountInputToken          Maximum amount of input token to spend
+     * @param _swapDataDebtForCollateral    Data (token addresses and fee levels) to describe the swap path from Debt to collateral token
+     * @param _swapDataInputToken           Data (token addresses and fee levels) to describe the swap path from input to collateral token
+     */
+    function issueExactSetFromERC20(
+        ISetToken _setToken,
+        uint256 _setAmount,
+        address _inputToken,
+        uint256 _maxAmountInputToken,
+        DEXAdapter.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapter.SwapData memory _swapDataInputToken
+    )
+        external
+        override
+        nonReentrant
+    {
+        uint256 inputTokenBalanceBefore = IERC20(_inputToken).balanceOf(address(this));
+        IERC20(_inputToken).transferFrom(msg.sender, address(this), _maxAmountInputToken);
+        _initiateIssuance(
+            _setToken,
+            _setAmount,
+            _inputToken,
+            _maxAmountInputToken,
+            _swapDataDebtForCollateral,
+            _swapDataInputToken
+        );
+        uint256 amountToReturn = IERC20(_inputToken).balanceOf(address(this)).sub(inputTokenBalanceBefore);
+        IERC20(_inputToken).transfer(msg.sender, amountToReturn);
+    }
+
+    /**
+     * Trigger issuance of set token paying with Eth
+     *
+     * @param _setToken                     Set token to issue
+     * @param _setAmount                    Amount to issue
+     * @param _swapDataDebtForCollateral    Data (token addresses and fee levels) to describe the swap path from Debt to collateral token
+     * @param _swapDataInputToken           Data (token addresses and fee levels) to describe the swap path from eth to collateral token
+     */
+    function issueExactSetFromETH(
+        ISetToken _setToken,
+        uint256 _setAmount,
+        DEXAdapter.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapter.SwapData memory _swapDataInputToken
+    )
+        external
+        override
+        payable
+        nonReentrant
+    {
+        uint256 inputTokenBalanceBefore = IERC20(addresses.weth).balanceOf(address(this));
+        IWETH(addresses.weth).deposit{value: msg.value}();
+        _initiateIssuance(
+            _setToken,
+            _setAmount,
+            DEXAdapter.ETH_ADDRESS,
+            msg.value,
+            _swapDataDebtForCollateral,
+            _swapDataInputToken
+        );
+        uint256 amountToReturn = IERC20(addresses.weth).balanceOf(address(this)).sub(inputTokenBalanceBefore);
+        IWETH(addresses.weth).withdraw(amountToReturn);
+        msg.sender.transfer(amountToReturn);
     }
 
     function issueSetFromExactERC20(
