@@ -22,6 +22,7 @@
     "chain:fork:ethereum": "FORK=true yarn run chain",
     "chain:fork:polygon": "FORK=true NETWORK=polygon yarn run chain",
     "chain:fork:optimism": "FORK=true NETWORK=optimism yarn run chain",
+    "chain:fork:arbitrum": "FORK=true NETWORK=arbitrum yarn run chain",
     "clean": "rm -rf coverage.json .coverage_cache .coverage_contracts cache coverage typechain artifacts dist",
     "clean-dev-deployment": "rm -rf deployments/50-development.json",
     "compile": "npx hardhat compile",
