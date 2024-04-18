@@ -17,13 +17,21 @@ export const PRODUCTION_ADDRESSES = {
   whales: {
     wbtc: "0x7bcefd1bc97a1af01c5ede3a3199aa11a77b6b45",
     aWBTC: "0x8Af700bA841f30e0a3Fcb0EE4C4A9D223E1eFA05",
-    weth: "",
+    weth: "0xc3e5607cd4ca0d5fe51e09b60ed97a0ae6f874dd",
+    aWETH: "0xb7fb2b774eb5e2dad9c060fb367acbdc7fa7099b",
     USDC: "0xB38e8c17e38363aF6EbdCb3dAE12e0243582891D",
     aUSDC: "0xa0894a415c4f246ce95bae718849579c099cc1d2",
   },
   dexes: {
     uniV3: {
-      router: "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+      router: "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45", // SwapRouter02
+      quoter: "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6",
+    },
+    sushiswap: {
+      router: "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506",
+    },
+    curve: {
+      addressProvider: "0x0000000022D53366457F9d5E68Ec105046FC4383",
     },
     balancerv2: {
       vault: "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
@@ -33,6 +41,26 @@ export const PRODUCTION_ADDRESSES = {
     controller: "0xCd79A0B9aeca0eCE7eA59d14338ea330cb1cb2d7",
     debtIssuanceModuleV2: "0x120d2f26B7ffd35a8917415A5766Fa63B2af94aa",
     aaveV3LeverageModule: "0x6D1b74e18064172D028C5EE7Af5D0ccC26f2A4Ae",
+    extensions: {
+      ETH2X: {
+        aaveV3LeverageStrategyExtension: "0x6Ab1a997df5637810F5CEb0CC25a28ADDCD75A82",
+      },
+      ETH3X: {
+        aaveV3LeverageStrategyExtension: "0x991fAA73e64435EAC3697AE9DEE4E6e7B85fda59",
+      },
+      iETH1X: {
+        aaveV3LeverageStrategyExtension: "0x5d5f7b965833470A65817558C167420E6c09286e",
+      },
+      BTC2X: {
+        aaveV3LeverageStrategyExtension: "0x3E6aDeC44f5271508E6A119bd4a3fecfdB87A012",
+      },
+      BTC3X: {
+        aaveV3LeverageStrategyExtension: "0xeB3826bFc2fA9baf56EA3EA9771EcBfe5B0CD606",
+      },
+      iBTC1X: {
+        aaveV3LeverageStrategyExtension: "0x86a71F1f8f3b140B7B2c867857d3624edDfeF5dD",
+      },
+    },
   },
   lending: {
     aaveV3: {
