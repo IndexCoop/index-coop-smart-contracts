@@ -25,7 +25,7 @@ export const PRODUCTION_ADDRESSES = {
   dexes: {
     uniV3: {
       router: "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45", // SwapRouter02
-      quoter: "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6",
+      quoter: "0x61fFE014bA17989E743c5F6cB21bF9697530B21e", // QuoterV2
     },
     sushiswap: {
       router: "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506",

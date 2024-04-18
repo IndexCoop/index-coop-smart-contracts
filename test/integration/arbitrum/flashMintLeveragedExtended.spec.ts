@@ -130,9 +130,7 @@ if (process.env.INTEGRATIONTEST) {
           const aweth = IERC20__factory.connect(addresses.tokens.aWETH, whaleSigner);
 
           const weth = IERC20__factory.connect(addresses.tokens.weth, wethWhaleSigner);
-            console.log("transfering weth from  whale");
           await weth.transfer(owner.address, ether(100));
-            console.log("transfering aweth from  whale");
           await aweth.transfer(owner.address, ether(100));
 
           await aweth
@@ -244,7 +242,6 @@ if (process.env.INTEGRATIONTEST) {
                     subjectMaxAmountIn = amountIn;
                   } else {
                     inputTokenBalance = await inputToken.balanceOf(owner.address);
-                      console.log("inputTokenBalance", ethers.utils.formatEther(inputTokenBalance));
                     subjectMaxAmountIn = inputTokenBalance;
                     await inputToken.approve(flashMintLeveraged.address, subjectMaxAmountIn);
                     subjectInputToken = inputToken.address;
@@ -305,6 +302,7 @@ if (process.env.INTEGRATIONTEST) {
                 });
 
                 it("should quote the correct input amount", async () => {
+                  const quotedInputAmount = await subjectQuote();
                   const inputBalanceBefore =
                     inputTokenName === "ETH"
                       ? await owner.wallet.getBalance()
@@ -316,7 +314,6 @@ if (process.env.INTEGRATIONTEST) {
                       : await inputToken.balanceOf(owner.address);
                   const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
 
-                  const quotedInputAmount = await subjectQuote();
 
                   expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.99)));
                   expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.01)));
@@ -484,17 +481,17 @@ if (process.env.INTEGRATIONTEST) {
                 beforeEach(async () => {
                   subjectPriceEstimateInflater = ether(0.9);
                   subjectMaxSetAmount = ether(1);
-                  subjectAmountOut = subjectMaxSetAmount.div(2);
+                  subjectAmountOut = ether(0.1);
                   subjectMaxDust = subjectAmountOut.div(1000);
                   swapDataCollateralToDebt = {
-                    path: [collateralTokenAddress, addresses.tokens.weth],
+                    path: [collateralTokenAddress, addresses.tokens.USDC],
                     fees: [500],
                     pool: ADDRESS_ZERO,
                     exchange: Exchange.UniV3,
                   };
 
                   swapDataDebtToCollateral = {
-                    path: [addresses.tokens.weth, collateralTokenAddress],
+                    path: [addresses.tokens.USDC, collateralTokenAddress],
                     fees: [500],
                     pool: ADDRESS_ZERO,
                     exchange: Exchange.UniV3,
@@ -503,14 +500,14 @@ if (process.env.INTEGRATIONTEST) {
                   if (inputTokenName === "collateralToken") {
                     outputToken = weth;
                     swapDataOutputToken = {
-                      path: [],
-                      fees: [],
+                      path: [collateralTokenAddress, collateralTokenAddress],
+                      fees: [500],
                       pool: ADDRESS_ZERO,
                       exchange: Exchange.None,
                     };
                     swapDataInputToken = {
-                      path: [],
-                      fees: [],
+                      path: [collateralTokenAddress, collateralTokenAddress],
+                      fees: [500],
                       pool: ADDRESS_ZERO,
                       exchange: Exchange.None,
                     };
@@ -605,7 +602,7 @@ if (process.env.INTEGRATIONTEST) {
                 beforeEach(async () => {
                   subjectSetAmount = ether(1);
                   swapDataCollateralToDebt = {
-                    path: [collateralTokenAddress, addresses.tokens.weth],
+                    path: [collateralTokenAddress, addresses.tokens.USDC],
                     fees: [500],
                     pool: ADDRESS_ZERO,
                     exchange: Exchange.UniV3,
@@ -628,7 +625,7 @@ if (process.env.INTEGRATIONTEST) {
                     }
                   }
 
-                  subjectMinAmountOut = subjectSetAmount.div(2);
+                  subjectMinAmountOut = subjectSetAmount.div(10);
                   subjectSetToken = setToken.address;
                   await setToken.approve(flashMintLeveraged.address, subjectSetAmount);
 
