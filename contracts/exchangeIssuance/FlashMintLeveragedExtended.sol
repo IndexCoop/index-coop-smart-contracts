@@ -362,7 +362,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         returns(uint256)
     {
         IWETH(addresses.weth).deposit{value: msg.value}();
-        return _issueSetFromExactInput(
+        uint256 inputTokenLeft = _issueSetFromExactInput(
             _setToken,
             _minSetAmount,
             DEXAdapter.ETH_ADDRESS,
@@ -372,6 +372,8 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
             _priceEstimateInflator,
             _maxDust
         );
+        IWETH(addresses.weth).withdraw(inputTokenLeft);
+        msg.sender.transfer(inputTokenLeft);
     }
 
     function _issueSetFromExactInput(

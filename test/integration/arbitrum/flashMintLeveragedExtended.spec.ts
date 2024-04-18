@@ -422,8 +422,11 @@ if (process.env.INTEGRATIONTEST) {
                   expect(inputSpent).to.gt(BigNumber.from(0));
                   if (inputTokenName === "ETH") {
                     inputSpent = inputSpent.sub(gasCosts);
+                    expect(inputSpent).to.gte(subjectAmountIn.sub(subjectMaxDust));
+                    expect(inputSpent).to.lte(subjectAmountIn);
+                  } else {
+                    expect(inputSpent).to.eq(subjectAmountIn);
                   }
-                  expect(inputSpent).to.eq(subjectAmountIn);
                 });
               },
             );
