@@ -202,9 +202,17 @@ jobs:
       - run:
           name: Test RPC
           command: yarn chain:fork:arbitrum
+          environment:
+            ARBITRUM_RPC_URL: https://arb-mainnet.g.alchemy.com/v2/NpgutFt2TfCFgUsHixNBsyoIkdgfg6tH
+            NETWORK: arbitrum
+            FORK: TRUE
           background: true
       - run:
           name: Hardhat Test
+          environment:
+            ARBITRUM_RPC_URL: https://arb-mainnet.g.alchemy.com/v2/NpgutFt2TfCFgUsHixNBsyoIkdgfg6tH
+            NETWORK: arbitrum
+            FORK: TRUE
           command: yarn run test:integration:arbitrum
 
 workflows:
