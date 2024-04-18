@@ -6,12 +6,7 @@ import { impersonateAccount, setBlockNumber, setBalance } from "@utils/test/test
 import { ethers } from "hardhat";
 import { BigNumber, utils } from "ethers";
 import { FlashMintLeveragedExtended } from "../../../typechain";
-import {
-  IWETH,
-  StandardTokenMock,
-  IDebtIssuanceModule,
-  IERC20__factory,
-} from "../../../typechain";
+import { IWETH, StandardTokenMock, IDebtIssuanceModule, IERC20__factory } from "../../../typechain";
 import { PRODUCTION_ADDRESSES } from "./addresses";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { ether } from "@utils/index";
@@ -229,7 +224,7 @@ if (process.env.INTEGRATIONTEST) {
                   if (inputTokenName === "collateralToken") {
                     inputToken = weth;
                   } else {
-                    swapDataInputToken = swapDataDebtToCollateral;
+                    // swapDataInputToken = swapDataDebtToCollateral;
 
                     if (inputTokenName === "WETH") {
                       inputToken = weth;
@@ -314,7 +309,6 @@ if (process.env.INTEGRATIONTEST) {
                       : await inputToken.balanceOf(owner.address);
                   const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
 
-
                   expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.99)));
                   expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.01)));
                 });
@@ -356,7 +350,7 @@ if (process.env.INTEGRATIONTEST) {
                   if (inputTokenName === "collateralToken") {
                     inputToken = weth;
                   } else {
-                    swapDataInputToken = swapDataDebtToCollateral;
+                    // swapDataInputToken = swapDataDebtToCollateral;
 
                     if (inputTokenName === "WETH") {
                       inputToken = weth;
@@ -497,23 +491,24 @@ if (process.env.INTEGRATIONTEST) {
                     exchange: Exchange.UniV3,
                   };
 
+                  swapDataOutputToken = {
+                    path: [],
+                    fees: [],
+                    pool: ADDRESS_ZERO,
+                    exchange: Exchange.None,
+                  };
+                  swapDataInputToken = {
+                    path: [],
+                    fees: [],
+                    pool: ADDRESS_ZERO,
+                    exchange: Exchange.None,
+                  };
+
                   if (inputTokenName === "collateralToken") {
                     outputToken = weth;
-                    swapDataOutputToken = {
-                      path: [collateralTokenAddress, collateralTokenAddress],
-                      fees: [500],
-                      pool: ADDRESS_ZERO,
-                      exchange: Exchange.None,
-                    };
-                    swapDataInputToken = {
-                      path: [collateralTokenAddress, collateralTokenAddress],
-                      fees: [500],
-                      pool: ADDRESS_ZERO,
-                      exchange: Exchange.None,
-                    };
                   } else {
-                    swapDataOutputToken = swapDataCollateralToDebt;
-                    swapDataInputToken = swapDataDebtToCollateral;
+                    // swapDataOutputToken = swapDataCollateralToDebt;
+                    // swapDataInputToken = swapDataDebtToCollateral;
 
                     if (inputTokenName === "WETH") {
                       outputToken = weth;
@@ -607,18 +602,16 @@ if (process.env.INTEGRATIONTEST) {
                     pool: ADDRESS_ZERO,
                     exchange: Exchange.UniV3,
                   };
+                  swapDataOutputToken = {
+                    path: [],
+                    fees: [],
+                    pool: ADDRESS_ZERO,
+                    exchange: Exchange.None,
+                  };
 
                   if (inputTokenName === "collateralToken") {
                     outputToken = weth;
-                    swapDataOutputToken = {
-                      path: [],
-                      fees: [],
-                      pool: ADDRESS_ZERO,
-                      exchange: Exchange.None,
-                    };
                   } else {
-                    swapDataOutputToken = swapDataCollateralToDebt;
-
                     if (inputTokenName === "WETH") {
                       outputToken = weth;
                       await weth.deposit({ value: amountIn });
