@@ -77,7 +77,9 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
     )
         external
         nonReentrant
+        returns(uint256 setAmount)
     {
+        uint256 setBalanceBefore = _setToken.balanceOf(msg.sender);
         uint256 outputTokenBalanceBefore = IERC20(_outputToken).balanceOf(address(this));
         _initiateRedemption(
             _setToken,
@@ -99,7 +101,19 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
             _maxDust,
             outputTokenBalanceBefore
         );
-        uint256 outputTokenObtained = IERC20(_outputToken).balanceOf(address(this)).sub(outputTokenBalanceBefore);
+        _sendOutputTokenAndETHToUser(_outputToken, outputTokenBalanceBefore, _outputTokenAmount, _swapDataOutputTokenForETH);
+        return setBalanceBefore.sub(_setToken.balanceOf(msg.sender));
+    }
+
+    function _sendOutputTokenAndETHToUser(
+        address _outputToken,
+        uint256 _outputTokenBalanceBefore,
+        uint256 _outputTokenAmount,
+        DEXAdapter.SwapData memory _swapDataOutputTokenForETH
+    )
+        internal
+    {
+        uint256 outputTokenObtained = IERC20(_outputToken).balanceOf(address(this)).sub(_outputTokenBalanceBefore);
         require(outputTokenObtained >= _outputTokenAmount, "FlashMintLeveragedExtended: insufficient outputTokenObtained");
         IERC20(_outputToken).transfer(msg.sender, _outputTokenAmount);
         _swapTokenForETHAndReturnToUser(_outputToken, outputTokenObtained - _outputTokenAmount, _swapDataOutputTokenForETH);
