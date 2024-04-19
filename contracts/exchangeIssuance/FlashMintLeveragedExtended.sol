@@ -37,6 +37,9 @@ import { IWETH } from "../interfaces/IWETH.sol";
  */
 contract FlashMintLeveragedExtended is FlashMintLeveraged {
 
+
+    uint256 public maxIterations = 10;
+
     /* ============ Constructor ============ */
 
     /**
@@ -403,6 +406,10 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         return _setToken.balanceOf(msg.sender).sub(setBalanceBefore);
     }
 
+    function setMaxIterations(uint256 _maxIterations) external onlyOwner {
+        maxIterations = _maxIterations;
+    }
+
     function _issueSetFromExactInput(
         ISetToken _setToken,
         uint256 _minSetAmount,
@@ -418,7 +425,8 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
     {
         require(_inputTokenAmount > _maxDust, "FlashMintLeveragedExtended: _inputToken must be more than _maxDust");
 
-        while (_inputTokenAmount > _maxDust) {
+        uint256 iterations = 0;
+        while (_inputTokenAmount > _maxDust && iterations < maxIterations) {
             uint256 inputTokenAmountSpent = _initiateIssuanceAndReturnInputAmountSpent(
                 _setToken,
                 _minSetAmount,
@@ -430,6 +438,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
             _inputTokenAmount = _inputTokenAmount - inputTokenAmountSpent;
             uint256 priceEstimate = _minSetAmount.mul(_priceEstimateInflator).div(inputTokenAmountSpent);
             _minSetAmount = _inputTokenAmount.mul(priceEstimate).div(1 ether);
+            iterations++;
         }
 
         // TODO: Decide what to do with the dust (maybe swap to eth and return as gas subsidy)
