@@ -326,7 +326,8 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         address _inputToken,
         uint256 _inputTokenAmount,
         DEXAdapter.SwapData memory _swapDataDebtForCollateral,
-        DEXAdapter.SwapData memory _swapDataInputToken,
+        DEXAdapter.SwapData memory _swapDataInputTokenToCollateral,
+        DEXAdapter.SwapData memory _swapDataInputTokenToETH,
         uint256 _priceEstimateInflator,
         uint256 _maxDust
     )
@@ -336,16 +337,21 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
     {
         IERC20(_inputToken).transferFrom(msg.sender, address(this), _inputTokenAmount);
 
-        return _issueSetFromExactInput(
+        uint256 inputAmountLeft = _issueSetFromExactInput(
             _setToken,
             _minSetAmount,
             _inputToken,
             _inputTokenAmount,
             _swapDataDebtForCollateral,
-            _swapDataInputToken,
+            _swapDataInputTokenToCollateral,
             _priceEstimateInflator,
             _maxDust
         );
+
+        uint256 ethObtained = _swapInputTokenForETH(_inputToken, inputAmountLeft, _swapDataInputTokenToETH);
+        IWETH(addresses.weth).withdraw(ethObtained);
+        msg.sender.transfer(ethObtained);
+        return inputAmountLeft;
     }
 
     function issueSetFromExactETH(
@@ -588,5 +594,27 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
     }
 
 
+    function _swapInputTokenForETH(
+        address _inputToken,
+        uint256 _inputAmount,
+        DEXAdapter.SwapData memory _swapData
+    )
+        internal
+        returns (uint256)
+    {
+        if(_inputToken == addresses.weth) {
+            return _inputAmount;
+        }
+        if(_swapData.path.length == 0) {
+            return 0;
+        }
+        require(_swapData.path[0] == _inputToken, "FlashMintLeveragedExtended: InputToken not first in path");
+        require(_swapData.path[_swapData.path.length - 1] == addresses.weth, "FlashMintLeveragedExtended: WETH not last in path");
+        return addresses.swapExactTokensForTokens(
+            _inputAmount,
+            0, 
+            _swapData
+        );
+    }
 }
 

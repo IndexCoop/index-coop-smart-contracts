@@ -319,7 +319,8 @@ if (process.env.INTEGRATIONTEST) {
               inputTokenName === "ETH" ? "issueSetFromExactETH" : "#issueSetFromExactERC20",
               () => {
                 let swapDataDebtToCollateral: SwapData;
-                let swapDataInputToken: SwapData;
+                let swapDataInputTokenToCollateral: SwapData;
+                let swapDataInputTokenToETH: SwapData;
 
                 let inputToken: StandardTokenMock | IWETH;
                 let subjectMinSetAmount: BigNumber;
@@ -338,7 +339,7 @@ if (process.env.INTEGRATIONTEST) {
                     exchange: Exchange.UniV3,
                   };
 
-                  swapDataInputToken = {
+                  swapDataInputTokenToCollateral = {
                     path: [],
                     fees: [],
                     pool: ADDRESS_ZERO,
@@ -350,7 +351,7 @@ if (process.env.INTEGRATIONTEST) {
                   if (inputTokenName === "collateralToken") {
                     inputToken = weth;
                   } else {
-                    // swapDataInputToken = swapDataDebtToCollateral;
+                    // swapDataInputTokenToCollateral = swapDataDebtToCollateral;
 
                     if (inputTokenName === "WETH") {
                       inputToken = weth;
@@ -370,6 +371,7 @@ if (process.env.INTEGRATIONTEST) {
                   subjectMaxDust = subjectAmountIn.div(1000);
                   subjectMinSetAmount = subjectAmountIn.mul(2).div(3);
                   subjectSetToken = setToken.address;
+                  swapDataInputTokenToETH = swapDataInputTokenToCollateral; // Assumes Collateral Token is WETH
                 });
 
                 async function subject() {
@@ -378,7 +380,7 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSetToken,
                       subjectMinSetAmount,
                       swapDataDebtToCollateral,
-                      swapDataInputToken,
+                      swapDataInputTokenToCollateral,
                       subjectPriceEstimateInflater,
                       subjectMaxDust,
                       { value: subjectAmountIn },
@@ -390,7 +392,8 @@ if (process.env.INTEGRATIONTEST) {
                     subjectInputToken,
                     subjectAmountIn,
                     swapDataDebtToCollateral,
-                    swapDataInputToken,
+                    swapDataInputTokenToCollateral,
+                    swapDataInputTokenToETH,
                     subjectPriceEstimateInflater,
                     subjectMaxDust,
                   );
