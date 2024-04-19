@@ -17,6 +17,7 @@ pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 import { FlashMintLeveraged } from "./FlashMintLeveraged.sol";
 import { DEXAdapter } from "./DEXAdapter.sol";
@@ -35,7 +36,7 @@ import { IWETH } from "../interfaces/IWETH.sol";
  *
  * Extended version of FlashMintLeveraged which allows for exactInputIssuance and exactOutputRedemption
  */
-contract FlashMintLeveragedExtended is FlashMintLeveraged {
+contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
 
 
     uint256 public maxIterations = 10;
@@ -59,12 +60,27 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         IAaveLeverageModule _aaveLeverageModule,
         address _aaveV3Pool,
         address _vault
-    )
+    ) Ownable()
         public
         FlashMintLeveraged(_addresses, _setController, _debtIssuanceModule, _aaveLeverageModule, _aaveV3Pool, _vault)
     {
     }
 
+    /**
+     * Redeems a variable amount of setTokens to return exactly the specified amount of outputToken to the user
+     *
+     * @param _setToken                                Set token to redeem
+     * @param _maxSetAmount                            Maximum amout of set tokens to redeem
+     * @param _outputToken                             Address of output token to return to the user
+     * @param _outputTokenAmount                       Amount of output token to return to the user
+     * @param _swapDataCollateralForDebt               Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
+     * @param _swapDataCollateralForOutputToken        Data (token path and fee levels) describing the swap from Collateral Token to Output TOken
+     * @param _swapDataDebtForCollateral               Data (token path and fee levels) describing the swap from Debt Token to Collateral Token
+     * @param _swapDataOutputTokenForCollateral        Data (token path and fee levels) describing the swap from Output Token to Collateral Token
+     * @param _swapDataOutputTokenForETH               Data (token path and fee levels) describing the swap from Output Token to ETH
+     * @param _priceEstimateInflator                   Factor by which to increase the estimated price from the previous iteration to account for used up liquidity
+     * @param _maxDust                                 Minimum accuracy for approximating the output token amount. Excess will be swapped to eth and returned to user as gas rebate
+     */
     function redeemSetForExactERC20(
         ISetToken _setToken,
         uint256 _maxSetAmount,
@@ -108,28 +124,27 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         return setBalanceBefore.sub(_setToken.balanceOf(msg.sender));
     }
 
-    function _sendOutputTokenAndETHToUser(
-        address _outputToken,
-        uint256 _outputTokenBalanceBefore,
-        uint256 _outputTokenAmount,
-        DEXAdapter.SwapData memory _swapDataOutputTokenForETH
-    )
-        internal
-    {
-        uint256 outputTokenObtained = IERC20(_outputToken).balanceOf(address(this)).sub(_outputTokenBalanceBefore);
-        require(outputTokenObtained >= _outputTokenAmount, "FlashMintLeveragedExtended: insufficient outputTokenObtained");
-        IERC20(_outputToken).transfer(msg.sender, _outputTokenAmount);
-        _swapTokenForETHAndReturnToUser(_outputToken, outputTokenObtained - _outputTokenAmount, _swapDataOutputTokenForETH);
-    }
-
+    /**
+     * Redeems a variable amount of setTokens to return exactly the specified amount of ETH to the user
+     *
+     * @param _setToken                                Set token to redeem
+     * @param _maxSetAmount                            Maximum amout of set tokens to redeem
+     * @param _outputTokenAmount                       Amount of eth to return to the user
+     * @param _swapDataCollateralForDebt               Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
+     * @param _swapDataCollateralForOutputToken        Data (token path and fee levels) describing the swap from Collateral Token to eth
+     * @param _swapDataDebtForCollateral               Data (token path and fee levels) describing the swap from Debt Token to Collateral Token
+     * @param _swapDataOutputTokenForCollateral        Data (token path and fee levels) describing the swap from eth to Collateral Token
+     * @param _priceEstimateInflator                   Factor by which to increase the estimated price from the previous iteration to account for used up liquidity
+     * @param _maxDust                                 Minimum accuracy for approximating the eth amount. Excess will be swapped to eth and returned to user as gas rebate
+     */
     function redeemSetForExactETH(
         ISetToken _setToken,
         uint256 _maxSetAmount,
         uint256 _outputTokenAmount,
         DEXAdapter.SwapData memory _swapDataCollateralForDebt,
-        DEXAdapter.SwapData memory _swapDataOutputToken,
+        DEXAdapter.SwapData memory _swapDataCollateralForOutputToken,
         DEXAdapter.SwapData memory _swapDataDebtForCollateral,
-        DEXAdapter.SwapData memory _swapDataInputToken,
+        DEXAdapter.SwapData memory _swapDataOutputTokenForCollateral,
         uint256 _priceEstimateInflator,
         uint256 _maxDust
     )
@@ -145,7 +160,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
             DEXAdapter.ETH_ADDRESS,
             _outputTokenAmount,
             _swapDataCollateralForDebt,
-            _swapDataOutputToken
+            _swapDataCollateralForOutputToken
         );
 
         _issueSetFromExcessOutput(
@@ -154,7 +169,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
             DEXAdapter.ETH_ADDRESS,
             _outputTokenAmount,
             _swapDataDebtForCollateral,
-            _swapDataInputToken,
+            _swapDataOutputTokenForCollateral,
             _priceEstimateInflator,
             _maxDust,
             wethBalanceBefore
@@ -165,43 +180,6 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         (payable(msg.sender)).sendValue(wethObtained);
         return setBalanceBefore.sub(_setToken.balanceOf(msg.sender));
     }
-
-    function _issueSetFromExcessOutput(
-        ISetToken _setToken,
-        uint256 _maxSetAmount,
-        address _outputToken,
-        uint256 _outputTokenAmount,
-        DEXAdapter.SwapData memory _swapDataDebtForCollateral,
-        DEXAdapter.SwapData memory _swapDataInputToken,
-        uint256 _priceEstimateInflator,
-        uint256 _maxDust,
-        uint256 _outputTokenBalanceBefore
-    )
-    internal 
-    {
-        uint256 obtainedOutputAmount;
-        if( _outputToken == DEXAdapter.ETH_ADDRESS) {
-            obtainedOutputAmount = IERC20(addresses.weth).balanceOf(address(this)).sub(_outputTokenBalanceBefore);
-        } else {
-            obtainedOutputAmount = IERC20(_outputToken).balanceOf(address(this)).sub(_outputTokenBalanceBefore);
-        }
-
-        uint256 excessOutputTokenAmount = obtainedOutputAmount.sub(_outputTokenAmount);
-        uint256 priceEstimate = _maxSetAmount.mul(_priceEstimateInflator).div(obtainedOutputAmount);
-        uint256 minSetAmount = excessOutputTokenAmount.mul(priceEstimate).div(1 ether);
-        _issueSetFromExactInput(
-            _setToken,
-            minSetAmount,
-            _outputToken,
-            excessOutputTokenAmount,
-            _swapDataDebtForCollateral,
-            _swapDataInputToken,
-            _priceEstimateInflator,
-            _maxDust
-        );
-    }
-
-
 
 
     /**
@@ -343,14 +321,27 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         msg.sender.transfer(amountToReturn);
     }
 
+    /**
+     * Issues a variable amount of set tokens for a fixed amount of input tokenss
+     *
+     * @param _setToken                                Set token to redeem
+     * @param _minSetAmount                            Minimum amount of Set Tokens to issue
+     * @param _inputToken                              Address of input token for which to issue set tokens
+     * @param _inputTokenAmount                         Amount of inputToken to return to the user
+     * @param _swapDataDebtForCollateral               Data (token path and fee levels) describing the swap from Debt Token to Collateral Token
+     * @param _swapDataInputTokenForCollateral         Data (token path and fee levels) describing the swap from input token to Collateral Token
+     * @param _swapDataInputTokenForETH                Data (token path and fee levels) describing the swap from unspent input token to ETH, to use as gas rebate
+     * @param _priceEstimateInflator                   Factor by which to increase the estimated price from the previous iteration to account for used up liquidity
+     * @param _maxDust                                 Minimum accuracy for approximating the input token amount. Excess will be swapped to input token and returned to user as gas rebate
+     */
     function issueSetFromExactERC20(
         ISetToken _setToken,
         uint256 _minSetAmount,
         address _inputToken,
         uint256 _inputTokenAmount,
         DEXAdapter.SwapData memory _swapDataDebtForCollateral,
-        DEXAdapter.SwapData memory _swapDataInputTokenToCollateral,
-        DEXAdapter.SwapData memory _swapDataInputTokenToETH,
+        DEXAdapter.SwapData memory _swapDataInputTokenForCollateral,
+        DEXAdapter.SwapData memory _swapDataInputTokenForETH,
         uint256 _priceEstimateInflator,
         uint256 _maxDust
     )
@@ -367,20 +358,30 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
             _inputToken,
             _inputTokenAmount,
             _swapDataDebtForCollateral,
-            _swapDataInputTokenToCollateral,
+            _swapDataInputTokenForCollateral,
             _priceEstimateInflator,
             _maxDust
         );
 
-        _swapTokenForETHAndReturnToUser(_inputToken, inputAmountLeft, _swapDataInputTokenToETH);
+        _swapTokenForETHAndReturnToUser(_inputToken, inputAmountLeft, _swapDataInputTokenForETH);
         return _setToken.balanceOf(msg.sender).sub(setBalanceBefore);
     }
 
+    /**
+     * Issues a variable amount of set tokens for a fixed amount of eth
+     *
+     * @param _setToken                                Set token to redeem
+     * @param _minSetAmount                            Minimum amount of Set Tokens to issue
+     * @param _swapDataDebtForCollateral               Data (token path and fee levels) describing the swap from Debt Token to Collateral Token
+     * @param _swapDataInputTokenForCollateral         Data (token path and fee levels) describing the swap from eth to Collateral Token
+     * @param _priceEstimateInflator                   Factor by which to increase the estimated price from the previous iteration to account for used up liquidity
+     * @param _maxDust                                 Minimum accuracy for approximating the eth amount. Excess will be swapped to eth and returned to user as gas rebate
+     */
     function issueSetFromExactETH(
         ISetToken _setToken,
         uint256 _minSetAmount,
         DEXAdapter.SwapData memory _swapDataDebtForCollateral,
-        DEXAdapter.SwapData memory _swapDataInputToken,
+        DEXAdapter.SwapData memory _swapDataInputTokenForCollateral,
         uint256 _priceEstimateInflator,
         uint256 _maxDust
     )
@@ -397,7 +398,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
             DEXAdapter.ETH_ADDRESS,
             msg.value,
             _swapDataDebtForCollateral,
-            _swapDataInputToken,
+            _swapDataInputTokenForCollateral,
             _priceEstimateInflator,
             _maxDust
         );
@@ -406,9 +407,72 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         return _setToken.balanceOf(msg.sender).sub(setBalanceBefore);
     }
 
+    /**
+     * Update maximum number of iterations allowed in the fixed input issuance / fixed output redemption
+     *
+     * @param _setToken                                Set token to redeem
+     * @param _minSetAmount                            Minimum amount of Set Tokens to issue
+     * @param _swapDataDebtForCollateral               Data (token path and fee levels) describing the swap from Debt Token to Collateral Token
+     * @param _swapDataInputTokenForCollateral         Data (token path and fee levels) describing the swap from eth to Collateral Token
+     * @param _priceEstimateInflator                   Factor by which to increase the estimated price from the previous iteration to account for used up liquidity
+     * @param _maxDust                                 Minimum accuracy for approximating the eth amount. Excess will be swapped to eth and returned to user as gas rebate
+     */
     function setMaxIterations(uint256 _maxIterations) external onlyOwner {
         maxIterations = _maxIterations;
     }
+
+    function _issueSetFromExcessOutput(
+        ISetToken _setToken,
+        uint256 _maxSetAmount,
+        address _outputToken,
+        uint256 _outputTokenAmount,
+        DEXAdapter.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapter.SwapData memory _swapDataInputToken,
+        uint256 _priceEstimateInflator,
+        uint256 _maxDust,
+        uint256 _outputTokenBalanceBefore
+    )
+    internal 
+    {
+        uint256 obtainedOutputAmount;
+        if( _outputToken == DEXAdapter.ETH_ADDRESS) {
+            obtainedOutputAmount = IERC20(addresses.weth).balanceOf(address(this)).sub(_outputTokenBalanceBefore);
+        } else {
+            obtainedOutputAmount = IERC20(_outputToken).balanceOf(address(this)).sub(_outputTokenBalanceBefore);
+        }
+
+        uint256 excessOutputTokenAmount = obtainedOutputAmount.sub(_outputTokenAmount);
+        uint256 priceEstimate = _maxSetAmount.mul(_priceEstimateInflator).div(obtainedOutputAmount);
+        uint256 minSetAmount = excessOutputTokenAmount.mul(priceEstimate).div(1 ether);
+        _issueSetFromExactInput(
+            _setToken,
+            minSetAmount,
+            _outputToken,
+            excessOutputTokenAmount,
+            _swapDataDebtForCollateral,
+            _swapDataInputToken,
+            _priceEstimateInflator,
+            _maxDust
+        );
+    }
+
+
+
+
+    function _sendOutputTokenAndETHToUser(
+        address _outputToken,
+        uint256 _outputTokenBalanceBefore,
+        uint256 _outputTokenAmount,
+        DEXAdapter.SwapData memory _swapDataOutputTokenForETH
+    )
+        internal
+    {
+        uint256 outputTokenObtained = IERC20(_outputToken).balanceOf(address(this)).sub(_outputTokenBalanceBefore);
+        require(outputTokenObtained >= _outputTokenAmount, "FlashMintLeveragedExtended: insufficient outputTokenObtained");
+        IERC20(_outputToken).transfer(msg.sender, _outputTokenAmount);
+        _swapTokenForETHAndReturnToUser(_outputToken, outputTokenObtained - _outputTokenAmount, _swapDataOutputTokenForETH);
+    }
+
 
     function _issueSetFromExactInput(
         ISetToken _setToken,
@@ -426,7 +490,8 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         require(_inputTokenAmount > _maxDust, "FlashMintLeveragedExtended: _inputToken must be more than _maxDust");
 
         uint256 iterations = 0;
-        while (_inputTokenAmount > _maxDust && iterations < maxIterations) {
+        while (_inputTokenAmount > _maxDust) {
+            require(iterations < maxIterations, "FlashMintLeveragedExtended: exceeded Max Iterations");
             uint256 inputTokenAmountSpent = _initiateIssuanceAndReturnInputAmountSpent(
                 _setToken,
                 _minSetAmount,
