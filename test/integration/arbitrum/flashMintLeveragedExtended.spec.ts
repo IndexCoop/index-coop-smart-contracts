@@ -440,6 +440,7 @@ if (process.env.INTEGRATIONTEST) {
                 let swapDataOutputToken: SwapData;
                 let swapDataDebtToCollateral: SwapData;
                 let swapDataInputToken: SwapData;
+                let swapDataOutputTokenToETH: SwapData;
 
                 let outputToken: StandardTokenMock | IWETH;
 
@@ -473,6 +474,7 @@ if (process.env.INTEGRATIONTEST) {
                     swapDataOutputToken,
                     swapDataDebtToCollateral,
                     swapDataInputToken,
+                    swapDataOutputTokenToETH,
                     subjectPriceEstimateInflater,
                     subjectMaxDust,
                   );
@@ -509,6 +511,7 @@ if (process.env.INTEGRATIONTEST) {
                     pool: ADDRESS_ZERO,
                     exchange: Exchange.None,
                   };
+                  swapDataOutputTokenToETH = swapDataInputToken; // Assumes Collateral Token is WETH
 
                   if (inputTokenName === "collateralToken") {
                     outputToken = weth;

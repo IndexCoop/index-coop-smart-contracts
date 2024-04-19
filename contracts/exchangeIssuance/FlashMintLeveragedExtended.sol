@@ -68,9 +68,10 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         address _outputToken,
         uint256 _outputTokenAmount,
         DEXAdapter.SwapData memory _swapDataCollateralForDebt,
-        DEXAdapter.SwapData memory _swapDataOutputToken,
+        DEXAdapter.SwapData memory _swapDataCollateralForOutputToken,
         DEXAdapter.SwapData memory _swapDataDebtForCollateral,
-        DEXAdapter.SwapData memory _swapDataInputToken,
+        DEXAdapter.SwapData memory _swapDataOutputTokenForCollateral,
+        DEXAdapter.SwapData memory _swapDataOutputTokenForETH,
         uint256 _priceEstimateInflator,
         uint256 _maxDust
     )
@@ -84,7 +85,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
             _outputToken,
             _outputTokenAmount,
             _swapDataCollateralForDebt,
-            _swapDataOutputToken
+            _swapDataCollateralForOutputToken
         );
 
         _issueSetFromExcessOutput(
@@ -93,7 +94,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
             _outputToken,
             _outputTokenAmount,
             _swapDataDebtForCollateral,
-            _swapDataInputToken,
+            _swapDataOutputTokenForCollateral,
             _priceEstimateInflator,
             _maxDust,
             outputTokenBalanceBefore
@@ -101,6 +102,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         uint256 outputTokenObtained = IERC20(_outputToken).balanceOf(address(this)).sub(outputTokenBalanceBefore);
         require(outputTokenObtained >= _outputTokenAmount, "FlashMintLeveragedExtended: outputTokenBalanceAfter < _outputTokenAmount");
         IERC20(_outputToken).transfer(msg.sender, _outputTokenAmount);
+        _swapTokenForETHAndReturnToUser(_outputToken, outputTokenObtained - _outputTokenAmount, _swapDataOutputTokenForETH);
     }
 
     function redeemSetForExactETH(
@@ -348,9 +350,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
             _maxDust
         );
 
-        uint256 ethObtained = _swapInputTokenForETH(_inputToken, inputAmountLeft, _swapDataInputTokenToETH);
-        IWETH(addresses.weth).withdraw(ethObtained);
-        msg.sender.transfer(ethObtained);
+        _swapTokenForETHAndReturnToUser(_inputToken, inputAmountLeft, _swapDataInputTokenToETH);
         return inputAmountLeft;
     }
 
@@ -594,27 +594,32 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
     }
 
 
-    function _swapInputTokenForETH(
+    function _swapTokenForETHAndReturnToUser(
         address _inputToken,
         uint256 _inputAmount,
         DEXAdapter.SwapData memory _swapData
     )
         internal
-        returns (uint256)
     {
-        if(_inputToken == addresses.weth) {
-            return _inputAmount;
-        }
         if(_swapData.path.length == 0) {
-            return 0;
+            return;
         }
-        require(_swapData.path[0] == _inputToken, "FlashMintLeveragedExtended: InputToken not first in path");
-        require(_swapData.path[_swapData.path.length - 1] == addresses.weth, "FlashMintLeveragedExtended: WETH not last in path");
-        return addresses.swapExactTokensForTokens(
-            _inputAmount,
-            0, 
-            _swapData
-        );
+
+        uint256 ethObtained;
+        if(_inputToken == addresses.weth) {
+            ethObtained = _inputAmount;
+        } else {
+            require(_swapData.path[0] == _inputToken, "FlashMintLeveragedExtended: InputToken not first in path");
+            require(_swapData.path[_swapData.path.length - 1] == addresses.weth, "FlashMintLeveragedExtended: WETH not last in path");
+            ethObtained = addresses.swapExactTokensForTokens(
+                _inputAmount,
+                0, 
+                _swapData
+            );
+        }
+
+        IWETH(addresses.weth).withdraw(ethObtained);
+        msg.sender.transfer(ethObtained);
     }
 }
 
