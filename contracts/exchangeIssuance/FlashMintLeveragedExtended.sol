@@ -132,8 +132,10 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
     )
         external
         nonReentrant
+        returns(uint256)
     {
         uint256 wethBalanceBefore = IERC20(addresses.weth).balanceOf(address(this));
+        uint256 setBalanceBefore = _setToken.balanceOf(msg.sender);
         _initiateRedemption(
             _setToken,
             _maxSetAmount,
@@ -158,6 +160,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         require(wethObtained >= _outputTokenAmount, "FlashMintLeveragedExtended: insufficient wethObtained");
         IWETH(addresses.weth).withdraw(wethObtained);
         (payable(msg.sender)).sendValue(wethObtained);
+        return setBalanceBefore.sub(_setToken.balanceOf(msg.sender));
     }
 
     function _issueSetFromExcessOutput(
@@ -263,7 +266,8 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
             _swapDataCollateralForDebt,
             _swapDataOutputToken
         );
-        IERC20(_outputToken).transfer(msg.sender, IERC20(_outputToken).balanceOf(address(this)).sub(outputTokenBalanceBefore));
+        uint256 outputTokenAmount = IERC20(_outputToken).balanceOf(address(this)).sub(outputTokenBalanceBefore);
+        IERC20(_outputToken).transfer(msg.sender, outputTokenAmount);
     }
 
     /**
@@ -351,6 +355,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         nonReentrant
         returns(uint256)
     {
+        uint256 setBalanceBefore = _setToken.balanceOf(msg.sender);
         IERC20(_inputToken).transferFrom(msg.sender, address(this), _inputTokenAmount);
 
         uint256 inputAmountLeft = _issueSetFromExactInput(
@@ -365,7 +370,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         );
 
         _swapTokenForETHAndReturnToUser(_inputToken, inputAmountLeft, _swapDataInputTokenToETH);
-        return inputAmountLeft;
+        return _setToken.balanceOf(msg.sender).sub(setBalanceBefore);
     }
 
     function issueSetFromExactETH(
@@ -381,6 +386,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         nonReentrant
         returns(uint256)
     {
+        uint256 setBalanceBefore = _setToken.balanceOf(msg.sender);
         IWETH(addresses.weth).deposit{value: msg.value}();
         uint256 inputTokenLeft = _issueSetFromExactInput(
             _setToken,
@@ -394,6 +400,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
         );
         IWETH(addresses.weth).withdraw(inputTokenLeft);
         msg.sender.transfer(inputTokenLeft);
+        return _setToken.balanceOf(msg.sender).sub(setBalanceBefore);
     }
 
     function _issueSetFromExactInput(
