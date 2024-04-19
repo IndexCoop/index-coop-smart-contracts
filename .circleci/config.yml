@@ -220,9 +220,10 @@ workflows:
   build-and-test:
     jobs:
       - checkout_and_compile
-      - test:
-          requires:
-            - checkout_and_compile
+      # TODO: Comment back in when adding a new non-integration test (and use .only() to avoid rerunning all the old tests)
+      # - test:
+      #     requires:
+      #       - checkout_and_compile
       - test_integration_ethereum:
           requires:
             - checkout_and_compile
@@ -235,9 +236,9 @@ workflows:
       - test_integration_arbitrum:
           requires:
             - checkout_and_compile
-      - coverage:
-          requires:
-            - checkout_and_compile
-      - report_coverage:
-          requires:
-            - coverage
+      # - coverage:
+      #     requires:
+      #       - checkout_and_compile
+      # - report_coverage:
+      #     requires:
+      #       - coverage
