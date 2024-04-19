@@ -410,17 +410,15 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
     /**
      * Update maximum number of iterations allowed in the fixed input issuance / fixed output redemption
      *
-     * @param _setToken                                Set token to redeem
-     * @param _minSetAmount                            Minimum amount of Set Tokens to issue
-     * @param _swapDataDebtForCollateral               Data (token path and fee levels) describing the swap from Debt Token to Collateral Token
-     * @param _swapDataInputTokenForCollateral         Data (token path and fee levels) describing the swap from eth to Collateral Token
-     * @param _priceEstimateInflator                   Factor by which to increase the estimated price from the previous iteration to account for used up liquidity
-     * @param _maxDust                                 Minimum accuracy for approximating the eth amount. Excess will be swapped to eth and returned to user as gas rebate
+     * @param _maxIterations           New value to set for maximum number of iterations. If "maxDust" is not met by that iteration the respective transaction will fail
      */
     function setMaxIterations(uint256 _maxIterations) external onlyOwner {
         maxIterations = _maxIterations;
     }
 
+    /* ============ Internal Functions ============ */
+
+    // @dev Use excess amout of output token to re-issue set tokens
     function _issueSetFromExcessOutput(
         ISetToken _setToken,
         uint256 _maxSetAmount,
@@ -459,6 +457,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
 
 
 
+    // @dev Send requested amount of Output tokens to user, sell excess for eth and send to user as gas rebate
     function _sendOutputTokenAndETHToUser(
         address _outputToken,
         uint256 _outputTokenBalanceBefore,
@@ -474,6 +473,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
     }
 
 
+    // @dev Issue Set Tokens for (approximately) the requested amount of input tokens. Works by first issuing minimum requested amount of set tokens and then iteratively using observed exchange rate on previous issuance to spend the remaining input tokens until the difference is les than the specivied _maxDust
     function _issueSetFromExactInput(
         ISetToken _setToken,
         uint256 _minSetAmount,
@@ -501,16 +501,17 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
                 _swapDataInputToken
             );
             _inputTokenAmount = _inputTokenAmount - inputTokenAmountSpent;
+            // Estimate price of setToken / inputToken, multiplying by provided factor to account for used up liquidity
             uint256 priceEstimate = _minSetAmount.mul(_priceEstimateInflator).div(inputTokenAmountSpent);
+            // Amount to  issue in next iteration is equal to the left over amount of input tokens times the price estimate from the previous step
             _minSetAmount = _inputTokenAmount.mul(priceEstimate).div(1 ether);
             iterations++;
         }
 
-        // TODO: Decide what to do with the dust (maybe swap to eth and return as gas subsidy)
-
         return _inputTokenAmount;
     }
 
+    // @dev Extends original _initiateIssuance by returning the amount of input tokens that was spent in issuance. (requisite for approximation algorithm above
     function _initiateIssuanceAndReturnInputAmountSpent(
         ISetToken _setToken,
         uint256 _minSetAmount,
@@ -548,15 +549,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
     }
 
     /**
-     * Makes up the collateral token shortfall with user specified ERC20 token
-     *
-     * @param _collateralToken             Address of the collateral token
-     * @param _collateralTokenShortfall    Shortfall of collateral token that was not covered by selling the debt tokens
-     * @param _originalSender              Address of the original sender to return the tokens to
-     * @param _inputToken                  Input token to pay with
-     * @param _maxAmountInputToken         Maximum amount of input token to spend
-     *
-     * @return Amount of input token spent
+     * @dev Same as in FlashMintLeveraged but without transfering input token from the user (since this is now done once at the very beginning to avoid transfering multiple times back and forth)
      */
     function _makeUpShortfallWithERC20(
         address _collateralToken,
@@ -585,14 +578,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
     }
 
     /**
-     * Makes up the collateral token shortfall with native eth
-     *
-     * @param _collateralToken             Address of the collateral token
-     * @param _collateralTokenShortfall    Shortfall of collateral token that was not covered by selling the debt tokens
-     * @param _originalSender              Address of the original sender to return the tokens to
-     * @param _maxAmountEth                Maximum amount of eth to pay
-     *
-     * @return Amount of eth spent
+     * @dev Same as in FlashMintLeveraged but without transfering eth from the user (since this is now done once at the very beginning to avoid transfering multiple times back and forth)
      */
     function _makeUpShortfallWithETH(
         address _collateralToken,
@@ -619,16 +605,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
     }
 
     /**
-     * Sells the collateral tokens for the selected output ERC20 and returns that to the user
-     *
-     * @param _collateralToken       Address of the collateral token
-     * @param _collateralRemaining   Amount of the collateral token remaining after buying required debt tokens
-     * @param _originalSender        Address of the original sender to return the tokens to
-     * @param _outputToken           Address of token to return to the user
-     * @param _minAmountOutputToken  Minimum amount of output token to return to the user
-     * @param _swapData              Data (token path and fee levels) describing the swap path from Collateral Token to Output token
-     *
-     * @return Amount of output token returned to the user
+     * @dev Same as in FlashMintLeveraged but without transfering output tokens to the user (since this is now done once at the very end to avoid transfering multiple times back and forth)
      */
     function _liquidateCollateralTokensForERC20(
         address _collateralToken,
@@ -656,15 +633,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
     }
 
     /**
-     * Sells the remaining collateral tokens for weth, withdraws that and returns native eth to the user
-     *
-     * @param _collateralToken            Address of the collateral token
-     * @param _collateralRemaining        Amount of the collateral token remaining after buying required debt tokens
-     * @param _originalSender             Address of the original sender to return the eth to
-     * @param _minAmountOutputToken       Minimum amount of output token to return to user
-     * @param _swapData                   Data (token path and fee levels) describing the swap path from Collateral Token to eth
-     *
-     * @return Amount of eth returned to the user
+     * @dev Same as in FlashMintLeveraged but without transfering eth to the user (since this is now done once at the very end to avoid transfering multiple times back and forth)
      */
     function _liquidateCollateralTokensForETH(
         address _collateralToken,
@@ -689,6 +658,9 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
     }
 
 
+    /**
+     * @dev Used to swap excess input / output tokens for eth and return to user as gas rebate
+     */
     function _swapTokenForETHAndReturnToUser(
         address _inputToken,
         uint256 _inputAmount,
