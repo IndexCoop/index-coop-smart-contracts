@@ -100,7 +100,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
             outputTokenBalanceBefore
         );
         uint256 outputTokenObtained = IERC20(_outputToken).balanceOf(address(this)).sub(outputTokenBalanceBefore);
-        require(outputTokenObtained >= _outputTokenAmount, "FlashMintLeveragedExtended: outputTokenBalanceAfter < _outputTokenAmount");
+        require(outputTokenObtained >= _outputTokenAmount, "FlashMintLeveragedExtended: insufficient outputTokenObtained");
         IERC20(_outputToken).transfer(msg.sender, _outputTokenAmount);
         _swapTokenForETHAndReturnToUser(_outputToken, outputTokenObtained - _outputTokenAmount, _swapDataOutputTokenForETH);
     }
@@ -141,9 +141,9 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged {
             wethBalanceBefore
         );
         uint256 wethObtained = IERC20(addresses.weth).balanceOf(address(this)).sub(wethBalanceBefore);
-        require(wethObtained >= _outputTokenAmount, "FlashMintLeveragedExtended: outputTokenBalanceAfter < _outputTokenAmount");
-        IWETH(addresses.weth).withdraw(_outputTokenAmount);
-        (payable(msg.sender)).sendValue(_outputTokenAmount);
+        require(wethObtained >= _outputTokenAmount, "FlashMintLeveragedExtended: insufficient wethObtained");
+        IWETH(addresses.weth).withdraw(wethObtained);
+        (payable(msg.sender)).sendValue(wethObtained);
     }
 
     function _issueSetFromExcessOutput(
