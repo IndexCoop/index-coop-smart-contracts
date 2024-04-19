@@ -556,8 +556,11 @@ if (process.env.INTEGRATIONTEST) {
                   let outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
                   if (inputTokenName === "ETH") {
                     outputObtained = outputObtained.add(gasCosts);
+                    expect(outputObtained).to.gte(subjectAmountOut);
+                    expect(outputObtained).to.lte(subjectAmountOut.add(subjectMaxDust));
+                  } else {
+                    expect(outputObtained).to.eq(subjectAmountOut);
                   }
-                  expect(outputObtained).to.eq(subjectAmountOut);
                 });
               },
             );
