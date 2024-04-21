@@ -227,9 +227,10 @@ workflows:
       - test_integration_ethereum:
           requires:
             - checkout_and_compile
-      - test_integration_polygon:
-          requires:
-            - checkout_and_compile
+      # TODO: Reactivate when developing new contract on polygon (and use .only() to avoid rerunning all the old tests)
+      # - test_integration_polygon:
+      #     requires:
+      #       - checkout_and_compile
       - test_integration_optimism:
           requires:
             - checkout_and_compile
