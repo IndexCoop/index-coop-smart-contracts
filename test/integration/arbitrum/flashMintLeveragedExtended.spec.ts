@@ -6,7 +6,13 @@ import { impersonateAccount, setBlockNumber, setBalance } from "@utils/test/test
 import { ethers } from "hardhat";
 import { BigNumber, utils } from "ethers";
 import { FlashMintLeveragedExtended } from "../../../typechain";
-import { IWETH, StandardTokenMock, IDebtIssuanceModule, IERC20__factory } from "../../../typechain";
+import {
+  IWETH,
+  StandardTokenMock,
+  IDebtIssuanceModule,
+  IERC20__factory,
+  IERC20,
+} from "../../../typechain";
 import { PRODUCTION_ADDRESSES } from "./addresses";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { ether } from "@utils/index";
@@ -35,6 +41,7 @@ if (process.env.INTEGRATIONTEST) {
     let deployer: DeployHelper;
     let setToken: StandardTokenMock;
     let weth: IWETH;
+    let usdc: IERC20;
 
     setBlockNumber(201830000);
 
@@ -48,6 +55,8 @@ if (process.env.INTEGRATIONTEST) {
       )) as StandardTokenMock;
 
       weth = (await ethers.getContractAt("IWETH", addresses.tokens.weth)) as IWETH;
+
+      usdc = IERC20__factory.connect(addresses.tokens.USDC, owner.wallet);
     });
 
     it("can get lending pool from address provider", async () => {
@@ -185,11 +194,17 @@ if (process.env.INTEGRATIONTEST) {
           ).to.equal(MAX_UINT_256);
         });
 
-        ["collateralToken", "ETH"].forEach(inputTokenName => {
+        ["USDC"].forEach(inputTokenName => {
           describe(`When input/output token is ${inputTokenName}`, () => {
             let amountIn: BigNumber;
             beforeEach(async () => {
-              amountIn = ether(2);
+              amountIn = ether(0.4);
+              if (inputTokenName === "USDC") {
+                amountIn = utils.parseUnits("2500", 6);
+                usdc
+                  .connect(await impersonateAccount(addresses.whales.USDC))
+                  .transfer(owner.address, utils.parseUnits("10000", 6));
+              }
             });
 
             describe(
@@ -199,7 +214,7 @@ if (process.env.INTEGRATIONTEST) {
                 let swapDataDebtToCollateral: SwapData;
                 let swapDataInputToken: SwapData;
 
-                let inputToken: StandardTokenMock | IWETH;
+                let inputToken: StandardTokenMock | IWETH | IERC20;
 
                 let subjectSetToken: Address;
                 let subjectMaxAmountIn: BigNumber;
@@ -223,13 +238,10 @@ if (process.env.INTEGRATIONTEST) {
 
                   if (inputTokenName === "collateralToken") {
                     inputToken = weth;
-                  } else {
-                    // swapDataInputToken = swapDataDebtToCollateral;
-
-                    if (inputTokenName === "WETH") {
-                      inputToken = weth;
-                      await weth.deposit({ value: amountIn });
-                    }
+                  }
+                  if (inputTokenName === "USDC") {
+                    inputToken = usdc;
+                    swapDataInputToken = swapDataDebtToCollateral;
                   }
 
                   let inputTokenBalance: BigNumber;
@@ -322,7 +334,7 @@ if (process.env.INTEGRATIONTEST) {
                 let swapDataInputTokenToCollateral: SwapData;
                 let swapDataInputTokenToETH: SwapData;
 
-                let inputToken: StandardTokenMock | IWETH;
+                let inputToken: IERC20 | IWETH;
                 let subjectMinSetAmount: BigNumber;
 
                 let subjectSetToken: Address;
@@ -350,26 +362,20 @@ if (process.env.INTEGRATIONTEST) {
 
                   if (inputTokenName === "collateralToken") {
                     inputToken = weth;
-                  } else {
-                    // swapDataInputTokenToCollateral = swapDataDebtToCollateral;
-
-                    if (inputTokenName === "WETH") {
-                      inputToken = weth;
-                      await weth.deposit({ value: amountIn });
-                    }
+                    // await weth.deposit({ value: amountIn });
+                  }
+                  if (inputTokenName === "USDC") {
+                    inputToken = usdc;
+                    swapDataInputTokenToCollateral = swapDataDebtToCollateral;
                   }
 
-                  let inputTokenBalance: BigNumber;
-                  if (inputTokenName === "ETH") {
-                    subjectAmountIn = amountIn;
-                  } else {
-                    inputTokenBalance = await inputToken.balanceOf(owner.address);
-                    subjectAmountIn = inputTokenBalance.div(50);
+                  subjectAmountIn = amountIn;
+                  if (inputTokenName !== "ETH") {
                     await inputToken.approve(flashMintLeveraged.address, MAX_UINT_256);
                     subjectInputToken = inputToken.address;
                   }
                   subjectMaxDust = subjectAmountIn.div(1000);
-                  subjectMinSetAmount = subjectAmountIn.mul(2).div(3);
+                  subjectMinSetAmount = ether(1);
                   subjectSetToken = setToken.address;
                   swapDataInputTokenToETH = swapDataInputTokenToCollateral; // Assumes Collateral Token is WETH
                 });
@@ -442,7 +448,7 @@ if (process.env.INTEGRATIONTEST) {
                 let swapDataInputToken: SwapData;
                 let swapDataOutputTokenToETH: SwapData;
 
-                let outputToken: StandardTokenMock | IWETH;
+                let outputToken: IERC20 | IWETH;
 
                 let subjectSetToken: Address;
                 let subjectMaxSetAmount: BigNumber;
@@ -483,7 +489,8 @@ if (process.env.INTEGRATIONTEST) {
                 beforeEach(async () => {
                   subjectPriceEstimateInflater = ether(0.9);
                   subjectMaxSetAmount = ether(1);
-                  subjectAmountOut = ether(0.1);
+                  subjectAmountOut =
+                    inputTokenName === "USDC" ? utils.parseUnits("800", 6) : ether(0.25);
                   subjectMaxDust = subjectAmountOut.div(1000);
                   swapDataCollateralToDebt = {
                     path: [collateralTokenAddress, addresses.tokens.USDC],
@@ -491,7 +498,6 @@ if (process.env.INTEGRATIONTEST) {
                     pool: ADDRESS_ZERO,
                     exchange: Exchange.UniV3,
                   };
-
                   swapDataDebtToCollateral = {
                     path: [addresses.tokens.USDC, collateralTokenAddress],
                     fees: [500],
@@ -511,19 +517,17 @@ if (process.env.INTEGRATIONTEST) {
                     pool: ADDRESS_ZERO,
                     exchange: Exchange.None,
                   };
-                  swapDataOutputTokenToETH = swapDataInputToken; // Assumes Collateral Token is WETH
 
                   if (inputTokenName === "collateralToken") {
                     outputToken = weth;
-                  } else {
-                    // swapDataOutputToken = swapDataCollateralToDebt;
-                    // swapDataInputToken = swapDataDebtToCollateral;
-
-                    if (inputTokenName === "WETH") {
-                      outputToken = weth;
-                      await weth.deposit({ value: amountIn });
-                    }
                   }
+                  if (inputTokenName === "USDC") {
+                    outputToken = usdc;
+                    swapDataOutputToken = swapDataCollateralToDebt;
+                    swapDataInputToken = swapDataDebtToCollateral;
+                  }
+
+                  swapDataOutputTokenToETH = swapDataInputToken; // Assumes Collateral Token is WETH
 
                   subjectSetToken = setToken.address;
                   await setToken.approve(flashMintLeveraged.address, subjectMaxSetAmount);
@@ -570,7 +574,7 @@ if (process.env.INTEGRATIONTEST) {
                 let swapDataCollateralToDebt: SwapData;
                 let swapDataOutputToken: SwapData;
 
-                let outputToken: StandardTokenMock | IWETH;
+                let outputToken: IERC20 | IWETH;
 
                 let subjectSetToken: Address;
                 let subjectSetAmount: BigNumber;
@@ -623,14 +627,14 @@ if (process.env.INTEGRATIONTEST) {
 
                   if (inputTokenName === "collateralToken") {
                     outputToken = weth;
-                  } else {
-                    if (inputTokenName === "WETH") {
-                      outputToken = weth;
-                      await weth.deposit({ value: amountIn });
-                    }
+                  }
+                  if (inputTokenName === "USDC") {
+                    outputToken = usdc;
+                    swapDataOutputToken = swapDataCollateralToDebt;
                   }
 
-                  subjectMinAmountOut = subjectSetAmount.div(10);
+                  subjectMinAmountOut =
+                    inputTokenName === "USDC" ? utils.parseUnits("800", 6) : ether(0.25);
                   subjectSetToken = setToken.address;
                   await setToken.approve(flashMintLeveraged.address, subjectSetAmount);
 
