@@ -115,6 +115,10 @@ export async function impersonateAccount(address: string): Promise<Signer> {
   return await ethers.provider.getSigner(address);
 }
 
+export const setBalance = async (account: string, balance: BigNumber): Promise<void> => {
+    await provider.send("hardhat_setBalance", [account, balance.toHexString().replace("0x0", "0x")]);
+};
+
 export function setBlockNumber(blockNumber: number, reset: boolean = true) {
   before(async () => {
     await network.provider.request({

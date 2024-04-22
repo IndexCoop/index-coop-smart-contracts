@@ -36,6 +36,7 @@ import { DEXAdapter } from "./DEXAdapter.sol";
 import {IVault, IFlashLoanRecipient} from "../interfaces/external/balancer-v2/IVault.sol";
 import {IPool} from "../interfaces/IPool.sol";
 
+
 /**
  * @title FlashMintLeveraged
  * @author Index Coop
@@ -284,6 +285,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         DEXAdapter.SwapData memory _swapDataOutputToken
     )
         external
+        virtual
         nonReentrant
     {
         _initiateRedemption(
@@ -315,6 +317,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         DEXAdapter.SwapData memory _swapDataOutputToken
     )
         external
+        virtual
         nonReentrant
     {
         _initiateRedemption(
@@ -346,6 +349,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         DEXAdapter.SwapData memory _swapDataInputToken
     )
         external
+        virtual
         nonReentrant
     {
         _initiateIssuance(
@@ -373,6 +377,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         DEXAdapter.SwapData memory _swapDataInputToken
     )
         external
+        virtual
         payable
         nonReentrant
     {
@@ -784,6 +789,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         DEXAdapter.SwapData memory _swapData
     )
         internal
+        virtual
         returns (uint256)
     {
         if(address(_outputToken) == _collateralToken){
@@ -820,6 +826,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         DEXAdapter.SwapData memory _swapData
     )
         internal
+        virtual
         isValidPath(_swapData.path, _collateralToken, addresses.weth)
         returns(uint256)
     {
@@ -958,6 +965,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         DEXAdapter.SwapData memory _swapData
     )
         internal
+        virtual
         returns (uint256)
     {
         if(address(_inputToken) == _collateralToken){
@@ -998,6 +1006,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
 
     )
         internal
+        virtual
         returns(uint256)
     {
         IWETH(addresses.weth).deposit{value: _maxAmountEth}();

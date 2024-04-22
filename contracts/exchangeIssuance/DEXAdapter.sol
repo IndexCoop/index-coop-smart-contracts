@@ -100,7 +100,7 @@ library DEXAdapter {
         external
         returns (uint256)
     {
-        if (_swapData.path[0] == _swapData.path[_swapData.path.length -1]) {
+        if (_swapData.path.length == 0 || _swapData.path[0] == _swapData.path[_swapData.path.length -1]) {
             return _amountIn;
         }
 
@@ -151,7 +151,7 @@ library DEXAdapter {
         external
         returns (uint256 amountIn)
     {
-        if (_swapData.path[0] == _swapData.path[_swapData.path.length -1]) {
+        if (_swapData.path.length == 0 || _swapData.path[0] == _swapData.path[_swapData.path.length -1]) {
             return _amountOut;
         }
 

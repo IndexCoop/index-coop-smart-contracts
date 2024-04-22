@@ -8,6 +8,11 @@ export const optimismForkingConfig = {
   blockNumber: 15275100,
 };
 
+export const arbitrumForkingConfig = {
+  url: process.env.ARBITRUM_RPC_URL ?? "",
+  blockNumber: 201830000,
+};
+
 export const mainnetForkingConfig = {
   url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
   blockNumber: process.env.LATESTBLOCK ? undefined : 17895372,
@@ -18,5 +23,7 @@ export const forkingConfig =
     ? polygonForkingConfig
     : process.env.NETWORK === "optimism"
     ? optimismForkingConfig
+    : process.env.NETWORK === "arbitrum"
+    ? arbitrumForkingConfig
     : mainnetForkingConfig;
 

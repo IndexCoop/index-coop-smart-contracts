@@ -35,6 +35,7 @@ import { AaveLeverageStrategyExtension__factory } from "../../typechain/factorie
 import {
   AaveV3LeverageStrategyExtension,
   AaveV3LeverageStrategyExtension__factory,
+  FlashMintLeveragedExtended__factory,
 } from "../../typechain";
 import { AirdropExtension__factory } from "../../typechain/factories/AirdropExtension__factory";
 import { AuctionRebalanceExtension__factory } from "../../typechain/factories/AuctionRebalanceExtension__factory";
@@ -222,6 +223,50 @@ export default class DeployExtensions {
     );
   }
 
+  public async deployFlashMintLeveragedExtended(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+    aaveLeveragedModuleAddress: Address,
+    aaveAddressProviderAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+    BalancerV2VaultAddress: Address,
+  ) {
+    const dexAdapter = await this.deployDEXAdapter();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
+    );
+
+    return await new FlashMintLeveragedExtended__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      {
+        quickRouter: quickRouterAddress,
+        sushiRouter: sushiRouterAddress,
+        uniV3Router: uniV3RouterAddress,
+        uniV3Quoter: uniswapV3QuoterAddress,
+        curveAddressProvider: curveAddressProviderAddress,
+        curveCalculator: curveCalculatorAddress,
+        weth: wethAddress,
+      },
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      aaveLeveragedModuleAddress,
+      aaveAddressProviderAddress,
+      BalancerV2VaultAddress,
+    );
+  }
   public async deployFlashMintLeveraged(
     wethAddress: Address,
     quickRouterAddress: Address,
@@ -465,7 +510,7 @@ export default class DeployExtensions {
     nonfungiblePositionManager: Address,
     addressProvider: Address,
     morpho: Address,
-    balancer: Address
+    balancer: Address,
   ): Promise<MigrationExtension> {
     return await new MigrationExtension__factory(this._deployerSigner).deploy(
       manager,
