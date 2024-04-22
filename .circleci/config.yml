@@ -3,7 +3,7 @@ version: 2
 jobs:
   checkout_and_compile:
     docker:
-      - image: cimg/node:16.18
+      - image: cimg/node:20.12.2
     working_directory: ~/index-coop-smart-contracts
     steps:
       - checkout
@@ -33,7 +33,7 @@ jobs:
             - ~/index-coop-smart-contracts
   test:
     docker:
-      - image: cimg/node:16.18
+      - image: cimg/node:20.12.2
     working_directory: ~/index-coop-smart-contracts
     parallelism: 2
     steps:
@@ -60,7 +60,7 @@ jobs:
 
   test_integration_polygon:
     docker:
-      - image: cimg/node:16.18
+      - image: cimg/node:20.12.2
     working_directory: ~/index-coop-smart-contracts
     steps:
       - setup_remote_docker:
@@ -83,7 +83,7 @@ jobs:
 
   test_integration_optimism:
     docker:
-      - image: cimg/node:16.18
+      - image: cimg/node:20.12.2
     working_directory: ~/index-coop-smart-contracts
     steps:
       - setup_remote_docker:
@@ -106,7 +106,7 @@ jobs:
 
   test_integration_ethereum:
     docker:
-      - image: cimg/node:16.18
+      - image: cimg/node:20.12.2
     working_directory: ~/index-coop-smart-contracts
     steps:
       - setup_remote_docker:
@@ -129,7 +129,7 @@ jobs:
 
   coverage:
     docker:
-      - image: cimg/node:16.18
+      - image: cimg/node:20.12.2
     working_directory: ~/index-coop-smart-contracts
     parallelism: 2
     steps:
@@ -166,7 +166,7 @@ jobs:
 
   report_coverage:
     docker:
-      - image: cimg/node:16.18
+      - image: cimg/node:20.12.2
     working_directory: ~/index-coop-smart-contracts
     steps:
       - attach_workspace:
@@ -186,7 +186,7 @@ jobs:
 
   test_integration_arbitrum:
     docker:
-      - image: cimg/node:16.18
+      - image: cimg/node:20.12.2
     working_directory: ~/index-coop-smart-contracts
     steps:
       - setup_remote_docker:
