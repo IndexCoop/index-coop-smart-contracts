@@ -511,6 +511,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
                 _swapDataDebtForCollateral,
                 _swapDataInputToken
             );
+            // Update remaining inputTokens left to be spent
             _inputTokenAmount = _inputTokenAmount - inputTokenAmountSpent;
             // Estimate price of setToken / inputToken, multiplying by provided factor to account for used up liquidity
             uint256 priceEstimate = _minSetAmount.mul(_priceEstimateInflator).div(inputTokenAmountSpent);
