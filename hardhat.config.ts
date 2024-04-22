@@ -52,7 +52,6 @@ const config: HardhatUserConfig = {
   networks: {
     hardhat: {
       forking: process.env.FORK ? forkingConfig : undefined,
-      allowUnlimitedContractSize: true,
       accounts: getHardhatPrivateKeys(),
       // @ts-ignore
       timeout: INTEGRATIONTEST_TIMEOUT,
