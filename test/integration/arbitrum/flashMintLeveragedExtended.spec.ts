@@ -129,11 +129,6 @@ if (process.env.INTEGRATIONTEST) {
           await weth.transfer(owner.address, ether(100));
           await aweth.transfer(owner.address, ether(100));
 
-          // This is done to avoid flaky "Invalid transfer in, results in undercollateralization" error
-          // See: https://github.com/IndexCoop/index-protocol/blob/1a587d93d273d9004d03f1235c395f6f7cd147dc/test/protocol/modules/v1/debtIssuanceModuleV2.spec.ts#L730
-          // TODO: Review if we have to do this in production.
-          await aweth.transfer(setToken.address, ether(0.000001));
-
           await aweth
             .connect(owner.wallet)
             .approve(addresses.setFork.debtIssuanceModuleV2, ether(10));
