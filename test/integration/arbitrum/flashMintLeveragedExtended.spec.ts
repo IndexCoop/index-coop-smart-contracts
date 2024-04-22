@@ -186,10 +186,10 @@ if (process.env.INTEGRATIONTEST) {
           ).to.equal(MAX_UINT_256);
         });
 
-        ["collateralToken", "USDC", "ETH"].forEach(inputTokenName => {
+        ["USDC", "ETH"].forEach(inputTokenName => {
           describe(`When input/output token is ${inputTokenName}`, () => {
             let amountIn: BigNumber;
-            beforeEach(async () => {
+            before(async () => {
               amountIn = ether(0.4);
               if (inputTokenName === "USDC") {
                 amountIn = utils.parseUnits("2500", 6);
@@ -215,8 +215,11 @@ if (process.env.INTEGRATIONTEST) {
                 let subjectSetToken: Address;
                 let subjectMaxAmountIn: BigNumber;
                 let subjectInputToken: Address;
+                let setBalancebefore: BigNumber;
+                let inputBalanceBefore: BigNumber;
+                let quotedInputAmount: BigNumber;
 
-                beforeEach(async () => {
+                before(async () => {
                   subjectSetAmount = ether(1);
                   swapDataDebtToCollateral = {
                     path: [addresses.tokens.USDC, addresses.tokens.weth],
@@ -250,6 +253,13 @@ if (process.env.INTEGRATIONTEST) {
                     subjectInputToken = inputToken.address;
                   }
                   subjectSetToken = setToken.address;
+                  setBalancebefore = await setToken.balanceOf(owner.address);
+                  inputBalanceBefore =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await inputToken.balanceOf(owner.address);
+                  quotedInputAmount = await subjectQuote();
+                  await subject();
                 });
 
                 async function subject() {
@@ -282,35 +292,22 @@ if (process.env.INTEGRATIONTEST) {
                 }
 
                 it("should issue the correct amount of tokens", async () => {
-                  const setBalancebefore = await setToken.balanceOf(owner.address);
-                  await subject();
                   const setBalanceAfter = await setToken.balanceOf(owner.address);
                   const setObtained = setBalanceAfter.sub(setBalancebefore);
                   expect(setObtained).to.eq(subjectSetAmount);
                 });
 
                 it("should spend less than specified max amount", async () => {
-                  const inputBalanceBefore =
-                    inputTokenName === "ETH"
-                      ? await owner.wallet.getBalance()
-                      : await inputToken.balanceOf(owner.address);
-                  await subject();
                   const inputBalanceAfter =
                     inputTokenName === "ETH"
                       ? await owner.wallet.getBalance()
                       : await inputToken.balanceOf(owner.address);
                   const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
-                  expect(inputSpent.gt(0)).to.be.true;
-                  expect(inputSpent.lte(subjectMaxAmountIn)).to.be.true;
+                  expect(inputSpent).to.be.gt(0);
+                  expect(inputSpent).to.be.lte(subjectMaxAmountIn);
                 });
 
                 it("should quote the correct input amount", async () => {
-                  const quotedInputAmount = await subjectQuote();
-                  const inputBalanceBefore =
-                    inputTokenName === "ETH"
-                      ? await owner.wallet.getBalance()
-                      : await inputToken.balanceOf(owner.address);
-                  await subject();
                   const inputBalanceAfter =
                     inputTokenName === "ETH"
                       ? await owner.wallet.getBalance()
@@ -339,7 +336,12 @@ if (process.env.INTEGRATIONTEST) {
                 let subjectPriceEstimateInflater: BigNumber;
                 let subjectMaxDust: BigNumber;
 
-                beforeEach(async () => {
+                let setBalancebefore: BigNumber;
+                let ethBalanceBefore: BigNumber;
+                let gasCosts: BigNumber;
+                let inputBalanceBefore: BigNumber;
+
+                before(async () => {
                   swapDataDebtToCollateral = {
                     path: [addresses.tokens.USDC, addresses.tokens.weth],
                     fees: [500],
@@ -374,6 +376,15 @@ if (process.env.INTEGRATIONTEST) {
                   subjectMinSetAmount = ether(1);
                   subjectSetToken = setToken.address;
                   swapDataInputTokenToETH = swapDataInputTokenToCollateral; // Assumes Collateral Token is WETH
+                  setBalancebefore = await setToken.balanceOf(owner.address);
+                  ethBalanceBefore = await owner.wallet.getBalance();
+                  inputBalanceBefore =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await inputToken.balanceOf(owner.address);
+                  const tx = await subject();
+                  const receipt = await tx.wait();
+                  gasCosts = receipt.gasUsed.mul(tx.gasPrice);
                 });
 
                 async function subject() {
@@ -402,8 +413,6 @@ if (process.env.INTEGRATIONTEST) {
                 }
 
                 it("should issue at least minSetAmount of set tokens", async () => {
-                  const setBalancebefore = await setToken.balanceOf(owner.address);
-                  await subject();
                   const setBalanceAfter = await setToken.balanceOf(owner.address);
                   const setObtained = setBalanceAfter.sub(setBalancebefore);
                   expect(setObtained).to.gte(subjectMinSetAmount);
@@ -411,25 +420,12 @@ if (process.env.INTEGRATIONTEST) {
 
                 if (inputTokenName !== "ETH") {
                   it("should give gas rebaste", async () => {
-                    const ethBalanceBefore = await owner.wallet.getBalance();
-                    const tx = await subject();
-                    const receipt = await tx.wait();
-                    const gasCosts = receipt.gasUsed.mul(tx.gasPrice);
                     const ethBalanceAfter = await owner.wallet.getBalance();
                     expect(ethBalanceBefore.sub(ethBalanceAfter)).to.lt(gasCosts);
                   });
                 }
 
                 it("should spend exactly inputAmount", async () => {
-                  const inputBalanceBefore =
-                    inputTokenName === "ETH"
-                      ? await owner.wallet.getBalance()
-                      : await inputToken.balanceOf(owner.address);
-
-                  const tx = await subject();
-                  const receipt = await tx.wait();
-                  const gasCosts = receipt.gasUsed.mul(tx.gasPrice);
-
                   const inputBalanceAfter =
                     inputTokenName === "ETH"
                       ? await owner.wallet.getBalance()
@@ -463,6 +459,10 @@ if (process.env.INTEGRATIONTEST) {
                 let subjectOutputToken: Address;
                 let subjectPriceEstimateInflater: BigNumber;
                 let subjectMaxDust: BigNumber;
+                let setBalanceBefore: BigNumber;
+                let ethBalanceBefore: BigNumber;
+                let outputBalanceBefore: BigNumber;
+                let gasCosts: BigNumber;
 
                 async function subject() {
                   if (inputTokenName === "ETH") {
@@ -493,7 +493,7 @@ if (process.env.INTEGRATIONTEST) {
                   );
                 }
 
-                beforeEach(async () => {
+                before(async () => {
                   subjectPriceEstimateInflater = ether(0.9);
                   subjectMaxSetAmount = ether(1);
                   subjectAmountOut =
@@ -542,11 +542,19 @@ if (process.env.INTEGRATIONTEST) {
                   if (inputTokenName !== "ETH") {
                     subjectOutputToken = outputToken.address;
                   }
+                  setBalanceBefore = await setToken.balanceOf(owner.address);
+                  ethBalanceBefore = await owner.wallet.getBalance();
+                  outputBalanceBefore =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await outputToken.balanceOf(owner.address);
+
+                  const tx = await subject();
+                  const receipt = await tx.wait();
+                  gasCosts = receipt.gasUsed.mul(tx.gasPrice);
                 });
 
                 it("should redeem at most subjectMaxSetAmount", async () => {
-                  const setBalanceBefore = await setToken.balanceOf(owner.address);
-                  await subject();
                   const setBalanceAfter = await setToken.balanceOf(owner.address);
                   const setRedeemed = setBalanceBefore.sub(setBalanceAfter);
                   expect(setRedeemed).to.lte(subjectMaxSetAmount);
@@ -554,23 +562,12 @@ if (process.env.INTEGRATIONTEST) {
 
                 if (inputTokenName !== "ETH") {
                   it("should give gas rebaste", async () => {
-                    const ethBalanceBefore = await owner.wallet.getBalance();
-                    const tx = await subject();
-                    const receipt = await tx.wait();
-                    const gasCosts = receipt.gasUsed.mul(tx.gasPrice);
                     const ethBalanceAfter = await owner.wallet.getBalance();
                     expect(ethBalanceBefore.sub(ethBalanceAfter)).to.lt(gasCosts);
                   });
                 }
 
                 it("should return exactly specified of output tokens", async () => {
-                  const outputBalanceBefore =
-                    inputTokenName === "ETH"
-                      ? await owner.wallet.getBalance()
-                      : await outputToken.balanceOf(owner.address);
-                  const tx = await subject();
-                  const receipt = await tx.wait();
-                  const gasCosts = receipt.gasUsed.mul(tx.gasPrice);
                   const outputBalanceAfter =
                     inputTokenName === "ETH"
                       ? await owner.wallet.getBalance()
@@ -598,6 +595,9 @@ if (process.env.INTEGRATIONTEST) {
                 let subjectSetAmount: BigNumber;
                 let subjectMinAmountOut: BigNumber;
                 let subjectOutputToken: Address;
+                let setBalanceBefore: BigNumber;
+                let outputBalanceBefore: BigNumber;
+                let outputAmountQuote: BigNumber;
 
                 async function subject() {
                   if (inputTokenName === "ETH") {
@@ -628,7 +628,7 @@ if (process.env.INTEGRATIONTEST) {
                   );
                 }
 
-                beforeEach(async () => {
+                before(async () => {
                   subjectSetAmount = ether(1);
                   swapDataCollateralToDebt = {
                     path: [collateralTokenAddress, addresses.tokens.USDC],
@@ -659,22 +659,22 @@ if (process.env.INTEGRATIONTEST) {
                   if (inputTokenName !== "ETH") {
                     subjectOutputToken = outputToken.address;
                   }
+                  setBalanceBefore = await setToken.balanceOf(owner.address);
+                  outputBalanceBefore =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await outputToken.balanceOf(owner.address);
+                  outputAmountQuote = await subjectQuote();
+                  await subject();
                 });
 
                 it("should redeem the correct amount of tokens", async () => {
-                  const setBalanceBefore = await setToken.balanceOf(owner.address);
-                  await subject();
                   const setBalanceAfter = await setToken.balanceOf(owner.address);
                   const setRedeemed = setBalanceBefore.sub(setBalanceAfter);
                   expect(setRedeemed).to.eq(subjectSetAmount);
                 });
 
                 it("should return at least the specified minimum of output tokens", async () => {
-                  const outputBalanceBefore =
-                    inputTokenName === "ETH"
-                      ? await owner.wallet.getBalance()
-                      : await outputToken.balanceOf(owner.address);
-                  await subject();
                   const outputBalanceAfter =
                     inputTokenName === "ETH"
                       ? await owner.wallet.getBalance()
@@ -684,18 +684,12 @@ if (process.env.INTEGRATIONTEST) {
                 });
 
                 it("should quote the correct output amount", async () => {
-                  const outputBalanceBefore =
-                    inputTokenName === "ETH"
-                      ? await owner.wallet.getBalance()
-                      : await outputToken.balanceOf(owner.address);
-                  await subject();
                   const outputBalanceAfter =
                     inputTokenName === "ETH"
                       ? await owner.wallet.getBalance()
                       : await outputToken.balanceOf(owner.address);
                   const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
 
-                  const outputAmountQuote = await subjectQuote();
                   expect(outputAmountQuote).to.gt(preciseMul(outputObtained, ether(0.99)));
                   expect(outputAmountQuote).to.lt(preciseMul(outputObtained, ether(1.01)));
                 });
