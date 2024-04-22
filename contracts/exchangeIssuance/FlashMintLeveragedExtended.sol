@@ -176,8 +176,8 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
             wethBalanceBefore
         );
         uint256 wethObtained = IERC20(addresses.weth).balanceOf(address(this)).sub(wethBalanceBefore);
-        require(wethObtained >= _outputTokenAmount, "FlashMintLeveragedExtended: insufficient wethObtained");
-        require(wethObtained - _outputTokenAmount <= maxGasRebate, "FlashMintLeveragedExtended: maxGasRebate exceeded");
+        require(wethObtained >= _outputTokenAmount, "IWO");
+        require(wethObtained - _outputTokenAmount <= maxGasRebate, "MGR");
         IWETH(addresses.weth).withdraw(wethObtained);
         (payable(msg.sender)).sendValue(wethObtained);
         return setBalanceBefore.sub(_setToken.balanceOf(msg.sender));
@@ -478,7 +478,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
         internal
     {
         uint256 outputTokenObtained = IERC20(_outputToken).balanceOf(address(this)).sub(_outputTokenBalanceBefore);
-        require(outputTokenObtained >= _outputTokenAmount, "FlashMintLeveragedExtended: insufficient outputTokenObtained");
+        require(outputTokenObtained >= _outputTokenAmount, "IOTO");
         IERC20(_outputToken).transfer(msg.sender, _outputTokenAmount);
         _swapTokenForETHAndReturnToUser(_outputToken, outputTokenObtained - _outputTokenAmount, _swapDataOutputTokenForETH);
     }
@@ -498,11 +498,11 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
         internal
         returns(uint256)
     {
-        require(_inputTokenAmount > _maxDust, "FlashMintLeveragedExtended: _inputToken must be more than _maxDust");
+        require(_inputTokenAmount > _maxDust, "MD");
 
         uint256 iterations = 0;
         while (_inputTokenAmount > _maxDust) {
-            require(iterations < maxIterations, "FlashMintLeveragedExtended: exceeded Max Iterations");
+            require(iterations < maxIterations, "MI");
             uint256 inputTokenAmountSpent = _initiateIssuanceAndReturnInputAmountSpent(
                 _setToken,
                 _minSetAmount,
@@ -688,7 +688,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
             if(_swapData.path.length == 0) {
                 return;
             }
-            require(_swapData.path[0] == _inputToken, "FlashMintLeveragedExtended: InputToken not first in path");
+            require(_swapData.path[0] == _inputToken, "ITNF");
             require(_swapData.path[_swapData.path.length - 1] == addresses.weth, "FlashMintLeveragedExtended: WETH not last in path");
             ethObtained = addresses.swapExactTokensForTokens(
                 _inputAmount,
@@ -696,7 +696,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
                 _swapData
             );
         }
-        require(ethObtained <= maxGasRebate, "FlashMintLeveragedExtended: maxGasRebate exceeded");
+        require(ethObtained <= maxGasRebate, "MGR");
 
         IWETH(addresses.weth).withdraw(ethObtained);
         msg.sender.transfer(ethObtained);
