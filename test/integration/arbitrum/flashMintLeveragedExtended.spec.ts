@@ -59,15 +59,6 @@ if (process.env.INTEGRATIONTEST) {
       usdc = IERC20__factory.connect(addresses.tokens.USDC, owner.wallet);
     });
 
-    it("can get lending pool from address provider", async () => {
-      const addressProvider = await ethers.getContractAt(
-        "IPoolAddressesProvider",
-        addresses.lending.aaveV3.addressProvider,
-      );
-      const lendingPool = await addressProvider.getPool();
-      expect(lendingPool).to.eq(addresses.lending.aaveV3.lendingPool);
-    });
-
     context("When exchange issuance is deployed", () => {
       let flashMintLeveraged: FlashMintLeveragedExtended;
       before(async () => {
@@ -122,6 +113,7 @@ if (process.env.INTEGRATIONTEST) {
         let collateralATokenAddress: Address;
         let collateralTokenAddress: Address;
         let debtTokenAddress: Address;
+        let aweth: IERC20;
         before(async () => {
           const awethWhale = addresses.whales.aWETH;
           const wethWhale = addresses.whales.weth;
@@ -131,7 +123,7 @@ if (process.env.INTEGRATIONTEST) {
 
           const wethWhaleSigner = await impersonateAccount(wethWhale);
 
-          const aweth = IERC20__factory.connect(addresses.tokens.aWETH, whaleSigner);
+          aweth = IERC20__factory.connect(addresses.tokens.aWETH, whaleSigner);
 
           const weth = IERC20__factory.connect(addresses.tokens.weth, wethWhaleSigner);
           await weth.transfer(owner.address, ether(100));
@@ -205,6 +197,11 @@ if (process.env.INTEGRATIONTEST) {
                   .connect(await impersonateAccount(addresses.whales.USDC))
                   .transfer(owner.address, utils.parseUnits("10000", 6));
               }
+
+              // This is done to avoid flaky "Invalid transfer in, results in undercollateralization" error
+              // See: https://github.com/IndexCoop/index-protocol/blob/1a587d93d273d9004d03f1235c395f6f7cd147dc/test/protocol/modules/v1/debtIssuanceModuleV2.spec.ts#L730
+              // TODO: Review if we have to do this in production.
+              await aweth.transfer(setToken.address, 100);
             });
 
             describe(

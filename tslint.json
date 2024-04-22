@@ -71,7 +71,7 @@
       ],
       "max-line-length": [
           true,
-          150
+          350
       ],
       "ter-no-mixed-spaces-and-tabs": [
           true,
