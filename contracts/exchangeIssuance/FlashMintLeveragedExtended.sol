@@ -679,14 +679,14 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
     )
         internal
     {
-        if(_swapData.path.length == 0) {
-            return;
-        }
-
         uint256 ethObtained;
         if(_inputToken == addresses.weth) {
             ethObtained = _inputAmount;
         } else {
+            // Setting path to empty array means opting out of the gas rebate swap
+            if(_swapData.path.length == 0) {
+                return;
+            }
             require(_swapData.path[0] == _inputToken, "FlashMintLeveragedExtended: InputToken not first in path");
             require(_swapData.path[_swapData.path.length - 1] == addresses.weth, "FlashMintLeveragedExtended: WETH not last in path");
             ethObtained = addresses.swapExactTokensForTokens(
