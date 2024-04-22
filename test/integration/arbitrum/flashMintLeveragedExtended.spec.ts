@@ -194,7 +194,7 @@ if (process.env.INTEGRATIONTEST) {
           ).to.equal(MAX_UINT_256);
         });
 
-        ["USDC"].forEach(inputTokenName => {
+        ["collateralToken", "USDC", "ETH"].forEach(inputTokenName => {
           describe(`When input/output token is ${inputTokenName}`, () => {
             let amountIn: BigNumber;
             beforeEach(async () => {
@@ -413,6 +413,17 @@ if (process.env.INTEGRATIONTEST) {
                   expect(setObtained).to.gte(subjectMinSetAmount);
                 });
 
+                if (inputTokenName !== "ETH") {
+                  it("should give gas rebaste", async () => {
+                    const ethBalanceBefore = await owner.wallet.getBalance();
+                    const tx = await subject();
+                    const receipt = await tx.wait();
+                    const gasCosts = receipt.gasUsed.mul(tx.gasPrice);
+                    const ethBalanceAfter = await owner.wallet.getBalance();
+                    expect(ethBalanceBefore.sub(ethBalanceAfter)).to.lt(gasCosts);
+                  });
+                }
+
                 it("should spend exactly inputAmount", async () => {
                   const inputBalanceBefore =
                     inputTokenName === "ETH"
@@ -544,6 +555,17 @@ if (process.env.INTEGRATIONTEST) {
                   const setRedeemed = setBalanceBefore.sub(setBalanceAfter);
                   expect(setRedeemed).to.lte(subjectMaxSetAmount);
                 });
+
+                if (inputTokenName !== "ETH") {
+                  it("should give gas rebaste", async () => {
+                    const ethBalanceBefore = await owner.wallet.getBalance();
+                    const tx = await subject();
+                    const receipt = await tx.wait();
+                    const gasCosts = receipt.gasUsed.mul(tx.gasPrice);
+                    const ethBalanceAfter = await owner.wallet.getBalance();
+                    expect(ethBalanceBefore.sub(ethBalanceAfter)).to.lt(gasCosts);
+                  });
+                }
 
                 it("should return exactly specified of output tokens", async () => {
                   const outputBalanceBefore =
