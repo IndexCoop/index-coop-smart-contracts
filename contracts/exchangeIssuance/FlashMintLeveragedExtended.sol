@@ -40,6 +40,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
 
 
     uint256 public maxIterations = 10;
+    uint256 public maxGasRebate = 0.01 ether;
 
     /* ============ Constructor ============ */
 
@@ -176,6 +177,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
         );
         uint256 wethObtained = IERC20(addresses.weth).balanceOf(address(this)).sub(wethBalanceBefore);
         require(wethObtained >= _outputTokenAmount, "FlashMintLeveragedExtended: insufficient wethObtained");
+        require(wethObtained - _outputTokenAmount <= maxGasRebate, "FlashMintLeveragedExtended: maxGasRebate exceeded");
         IWETH(addresses.weth).withdraw(wethObtained);
         (payable(msg.sender)).sendValue(wethObtained);
         return setBalanceBefore.sub(_setToken.balanceOf(msg.sender));
@@ -414,6 +416,15 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
      */
     function setMaxIterations(uint256 _maxIterations) external onlyOwner {
         maxIterations = _maxIterations;
+    }
+
+    /**
+     * Update maximum value of gas rebate returned to user in fixed input issuance / fixed output redemption
+     *
+     * @param _maxGasRebate           New value to set for max gas rebate. Gas rebate above this value is assumed to be a misconfiguration and the respective transaction will fail
+     */
+    function setMaxGasRebate(uint256 _maxGasRebate) external onlyOwner {
+        maxGasRebate = _maxGasRebate;
     }
 
     /* ============ Internal Functions ============ */
@@ -684,6 +695,7 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
                 _swapData
             );
         }
+        require(ethObtained <= maxGasRebate, "FlashMintLeveragedExtended: maxGasRebate exceeded");
 
         IWETH(addresses.weth).withdraw(ethObtained);
         msg.sender.transfer(ethObtained);
