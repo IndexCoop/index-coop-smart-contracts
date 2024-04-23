@@ -474,6 +474,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         DecodedParams memory _decodedParams
     ) 
     internal 
+    virtual
     {
         // Deposit collateral token obtained from flashloan to get the respective aToken position required for issuance
         _depositCollateralToken(_collateralToken, _collateralTokenAmountNet);
@@ -504,6 +505,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         DecodedParams memory _decodedParams
     ) 
     internal 
+    virtual
     {
         // Redeem set using debt tokens obtained from flashloan
         _redeemSet(

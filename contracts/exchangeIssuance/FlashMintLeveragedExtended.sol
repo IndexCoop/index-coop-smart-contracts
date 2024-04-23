@@ -701,5 +701,83 @@ contract FlashMintLeveragedExtended is FlashMintLeveraged, Ownable {
         IWETH(addresses.weth).withdraw(ethObtained);
         msg.sender.transfer(ethObtained);
     }
+
+    /**
+     * @dev Same as in FlashMintLeveraged but with added transfer of 1 wei of atoken to the set token to avoid "undercollateralized" revertion
+     */
+    function _performIssuance(
+        address _collateralToken,
+        uint256 _collateralTokenAmountNet,
+        uint256 _premium,
+        DecodedParams memory _decodedParams
+    ) 
+    internal 
+    override
+    {
+        // Deposit collateral token obtained from flashloan to get the respective aToken position required for issuance
+        _depositCollateralToken(_collateralToken, _collateralTokenAmountNet);
+
+        // Avoid  "undercollateralized" revertion due to rounding error here: https://github.com/IndexCoop/index-protocol/blob/1a587d93d273d9004d03f1235c395f6f7cd147dc/contracts/protocol/lib/IssuanceValidationUtils.sol#L63
+        IERC20(_decodedParams.leveragedTokenData.collateralAToken).safeTransfer(address(_decodedParams.setToken), 1);
+
+        // Issue set using the aToken returned by deposit step
+        _issueSet(_decodedParams.setToken, _decodedParams.setAmount, _decodedParams.originalSender);
+        // Obtain necessary collateral tokens to repay flashloan 
+        uint amountInputTokenSpent = _obtainCollateralTokens(
+            _collateralToken,
+            _collateralTokenAmountNet + _premium,
+            _decodedParams
+        );
+        require(amountInputTokenSpent <= _decodedParams.limitAmount, "IIA");
+    }
+
+    /**
+     * @dev Same as in FlashMintLeveraged but with added transfer of 1 wei of atoken to the set token to avoid "undercollateralized" revertion
+     */
+    function _performRedemption(
+        address _debtToken,
+        uint256 _debtTokenAmountNet,
+        uint256 _premium,
+        DecodedParams memory _decodedParams
+    ) 
+    internal 
+    override
+    {
+        // Avoid  "undercollateralized" revertion due to rounding error here: https://github.com/IndexCoop/index-protocol/blob/1a587d93d273d9004d03f1235c395f6f7cd147dc/contracts/protocol/lib/IssuanceValidationUtils.sol#L6
+        IERC20(_decodedParams.leveragedTokenData.collateralAToken).safeTransfer(address(_decodedParams.setToken), 1);
+
+        // Redeem set using debt tokens obtained from flashloan
+        _redeemSet(
+            _decodedParams.setToken,
+            _decodedParams.setAmount,
+            _decodedParams.originalSender
+        );
+        // Withdraw underlying collateral token from the aToken position returned by redeem step
+        _withdrawCollateralToken(
+            _decodedParams.leveragedTokenData.collateralToken,
+            _decodedParams.leveragedTokenData.collateralAmount - ROUNDING_ERROR_MARGIN
+        );
+        // Obtain debt tokens required to repay flashloan by swapping the underlying collateral tokens obtained in withdraw step
+        uint256 collateralTokenSpent = _swapCollateralForDebtToken(
+            _debtTokenAmountNet + _premium,
+            _debtToken,
+            _decodedParams.leveragedTokenData.collateralAmount,
+            _decodedParams.leveragedTokenData.collateralToken,
+            _decodedParams.collateralAndDebtSwapData
+        );
+        // Liquidate remaining collateral tokens for the payment token specified by user
+        uint256 amountOutputToken = _liquidateCollateralTokens(
+            collateralTokenSpent,
+            _decodedParams.setToken,
+            _decodedParams.setAmount,
+            _decodedParams.originalSender,
+            _decodedParams.paymentToken,
+            _decodedParams.limitAmount,
+            _decodedParams.leveragedTokenData.collateralToken,
+            _decodedParams.leveragedTokenData.collateralAmount  - 2*ROUNDING_ERROR_MARGIN,
+            _decodedParams.paymentTokenSwapData
+        );
+        require(amountOutputToken >= _decodedParams.limitAmount, "IOA");
+    }
 }
 
