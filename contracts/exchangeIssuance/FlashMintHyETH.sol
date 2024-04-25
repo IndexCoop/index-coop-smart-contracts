@@ -34,25 +34,9 @@ import { DEXAdapter } from "./DEXAdapter.sol";
 
 
 /**
- * @title FlashMintWrapped
- *
- * Flash issues SetTokens whose components contain wrapped tokens.
- *
- * Compatible with:
- * IssuanceModules: DebtIssuanceModule, DebtIssuanceModuleV2
- * WrapAdapters: IWrapV2Adapter
- *
- * Supports flash minting for sets that contain both unwrapped and wrapped components.
- * Does not support debt positions on Set token.
- * Wrapping / Unwrapping is skipped for a component if ComponentSwapData[component_index].underlyingERC20 address == set component address
- *
- * If the set contains both the wrapped and unwrapped version of a token (e.g. DAI and cDAI)
- * ->  two separate component data points have to be supplied in _swapData and _wrapData
- * e.g. for issue
- * Set components at index 0 = DAI; then -> ComponentSwapData[0].underlyingERC20 = DAI; (no wrapping will happen)
- * Set components at index 1 = cDAI; then -> ComponentSwapData[1].underlyingERC20 = DAI; (wrapping will happen)
+ * @title FlashMintHyETH
  */
-contract FlashMintWrapped is Ownable, ReentrancyGuard {
+contract FlashMintHyETH is Ownable, ReentrancyGuard {
   using DEXAdapter for DEXAdapter.Addresses;
   using Address for address payable;
   using Address for address;
@@ -206,6 +190,28 @@ contract FlashMintWrapped is Ownable, ReentrancyGuard {
 
     issuanceModule.issue(_setToken, _amountSetToken, msg.sender);
   }
+    function issueExactSetFromERC20(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        address _inputToken,
+        uint256 _maxAmountInputToken,
+        DEXAdapter.SwapData memory _swapData
+    )
+        isValidPath(_swapData.path, _inputToken, dexAdapter.weth)
+        external
+        returns (uint256)
+    {
+        IERC20(_inputToken).safeTransferFrom(msg.sender, address(this), _maxAmountInputToken);
+        // TODO: Implement
+        return dexAdapter.swapExactTokensForTokens(
+            _maxAmountInputToken,
+            // minAmountOut is 0 here since we are going to make up the shortfall with the input token.
+            // Sandwich protection is provided by the check at the end against _maxAmountInputToken parameter specified by the user
+            0, 
+            _swapData
+        );
+    }
+
 
   function _depositIntoInstadapp(IERC4626 _vault, uint256 _amount) internal {
       uint256 stETHAmount = _vault.previewMint(_amount);
