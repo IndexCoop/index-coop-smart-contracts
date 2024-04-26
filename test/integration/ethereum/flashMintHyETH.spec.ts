@@ -60,6 +60,7 @@ if (process.env.INTEGRATIONTEST) {
           addresses.setFork.controller,
           addresses.setFork.debtIssuanceModuleV2,
           addresses.tokens.stEth,
+          addresses.dexes.curve.pools.stEthEth,
         );
       });
 
@@ -142,11 +143,30 @@ if (process.env.INTEGRATIONTEST) {
         it("Can issue set token from eth", async () => {
           const setTokenAmount = ether(1);
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+          const ethBalanceBefore = await owner.wallet.getBalance();
+          const maxEthIn = ether(1.04);
+          await flashMintHyETH.issueExactSetFromETH(setToken.address, setTokenAmount, {
+            value: maxEthIn,
+          });
+          const ethSpent = ethBalanceBefore.sub(await owner.wallet.getBalance());
+          console.log("ethSpent", ethSpent.toString());
+          const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+          expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
+        });
+
+        it("Can redeem set token for eth", async () => {
+          const setTokenAmount = ether(1);
+          const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           await flashMintHyETH.issueExactSetFromETH(setToken.address, setTokenAmount, {
             value: ether(10),
           });
-          const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
-          expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
+          const setTokenBalanceAfterIssuance = await setToken.balanceOf(owner.address);
+          expect(setTokenBalanceAfterIssuance).to.eq(setTokenBalanceBefore.add(setTokenAmount));
+          await setToken.approve(flashMintHyETH.address, setTokenAmount);
+          const minETHOut = ether(1.03);
+          await flashMintHyETH.redeemExactSetForETH(setToken.address, setTokenAmount, minETHOut);
+          const setTokenBalanceAfterRedemption = await setToken.balanceOf(owner.address);
+          expect(setTokenBalanceAfterRedemption).to.eq(setTokenBalanceBefore);
         });
       });
     });

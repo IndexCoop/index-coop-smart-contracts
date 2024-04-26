@@ -30,14 +30,14 @@ import { IDebtIssuanceModule} from "../interfaces/IDebtIssuanceModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH} from "../interfaces/IWETH.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { DEXAdapter } from "./DEXAdapter.sol";
+import { DEXAdapterV2 } from "./DEXAdapterV2.sol";
 
 
 /**
  * @title FlashMintHyETH
  */
 contract FlashMintHyETH is Ownable, ReentrancyGuard {
-  using DEXAdapter for DEXAdapter.Addresses;
+  using DEXAdapterV2 for DEXAdapterV2.Addresses;
   using Address for address payable;
   using Address for address;
   using SafeMath for uint256;
@@ -48,7 +48,7 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
   /* ============ Constants ============= */
 
   uint256 private constant MAX_UINT256 = type(uint256).max;
-
+  DEXAdapterV2.SwapData private stETHForETHSwapData;
   /* ============ Immutables ============ */
 
   IController public immutable setController;
@@ -57,7 +57,7 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
 
   /* ============ State Variables ============ */
 
-  DEXAdapter.Addresses public dexAdapter;
+  DEXAdapterV2.Addresses public dexAdapter;
 
   /* ============ Events ============ */
 
@@ -104,12 +104,12 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
     if (_inputToken != _outputToken) {
       require(
         _path[0] == _inputToken ||
-          (_inputToken == dexAdapter.weth && _path[0] == DEXAdapter.ETH_ADDRESS),
+          (_inputToken == dexAdapter.weth && _path[0] == DEXAdapterV2.ETH_ADDRESS),
         "FlashMint: INPUT_TOKEN_NOT_IN_PATH"
       );
       require(
         _path[_path.length - 1] == _outputToken ||
-          (_outputToken == dexAdapter.weth && _path[_path.length - 1] == DEXAdapter.ETH_ADDRESS),
+          (_outputToken == dexAdapter.weth && _path[_path.length - 1] == DEXAdapterV2.ETH_ADDRESS),
         "FlashMint: OUTPUT_TOKEN_NOT_IN_PATH"
       );
     }
@@ -119,21 +119,32 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
   /* ========== Constructor ========== */
 
   constructor(
-    DEXAdapter.Addresses memory _dexAddresses,
+    DEXAdapterV2.Addresses memory _dexAddresses,
     IController _setController,
     IDebtIssuanceModule _issuanceModule,
-    IStETH _stETH
+    IStETH _stETH,
+    address _stEthETHPool
   ) public {
     dexAdapter = _dexAddresses;
     setController = _setController;
     issuanceModule = _issuanceModule;
     stETH = _stETH;
+
+    address[] memory path = new address[](2);
+    path[0] = address(_stETH);
+    path[1] = DEXAdapterV2.ETH_ADDRESS;
+    stETHForETHSwapData = DEXAdapterV2.SwapData({
+        path: path,
+        fees: new uint24[](0),
+        pool: _stEthETHPool,
+        exchange: DEXAdapterV2.Exchange.Curve
+    });
+    IERC20(address(_stETH)).approve(_stEthETHPool, MAX_UINT256);
+
   }
 
   /* ============ External Functions ============ */
   receive() external payable {
-    // required for weth.withdraw() to work properly
-    require(msg.sender == dexAdapter.weth, "FlashMint: DEPOSITS_NOT_ALLOWED");
   }
 
   /**
@@ -144,7 +155,7 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
   */
   function withdrawTokens(IERC20[] calldata _tokens, address payable _to) external onlyOwner payable {
       for(uint256 i = 0; i < _tokens.length; i++) {
-          if(address(_tokens[i]) == DEXAdapter.ETH_ADDRESS){
+          if(address(_tokens[i]) == DEXAdapterV2.ETH_ADDRESS){
               _to.sendValue(address(this).balance);
           }
           else{
@@ -163,8 +174,9 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
   function approveSetToken(ISetToken _setToken) external isSetToken(_setToken) {
     address[] memory _components = _setToken.getComponents();
     for (uint256 i = 0; i < _components.length; ++i) {
-      DEXAdapter._safeApprove(IERC20(_components[i]), address(issuanceModule), MAX_UINT256);
+      DEXAdapterV2._safeApprove(IERC20(_components[i]), address(issuanceModule), MAX_UINT256);
     }
+   _setToken.approve(address(issuanceModule), MAX_UINT256);
   }
 
   function approveToken(IERC20 _token, address _spender, uint256 _allowance) external onlyOwner {
@@ -175,9 +187,9 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
     ISetToken _setToken,
     uint256 _amountSetToken
   ) external payable nonReentrant returns (uint256) {
-    uint256 maxAmountInputToken = msg.value; // = deposited amount ETH -> WETH
     (address[] memory components, uint256[] memory positions, ) = IDebtIssuanceModule(issuanceModule).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
 
+    uint256 ethBalanceBefore = address(this).balance;
     for (uint256 i = 0; i < components.length; i++) {
       if (components[i] == dexAdapter.weth) {
         continue;
@@ -185,17 +197,45 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
       if(_isInstadapp(components[i])){
           _depositIntoInstadapp(IERC4626(components[i]), positions[i]);
       }
-
     }
+    uint256 ethSpent = ethBalanceBefore.sub(address(this).balance);
+    require(ethSpent <= msg.value, "FlashMint: INSUFFICIENT_ETH");
 
     issuanceModule.issue(_setToken, _amountSetToken, msg.sender);
+    msg.sender.sendValue(msg.value.sub(ethSpent));
   }
+
+  function redeemExactSetForETH(
+    ISetToken _setToken,
+    uint256 _amountSetToken,
+    uint256 _minETHOut
+  ) external payable nonReentrant returns (uint256) {
+    uint256 maxAmountInputToken = msg.value; // = deposited amount ETH -> WETH
+    uint256 ethBalanceBefore = address(this).balance;
+
+    _setToken.safeTransferFrom(msg.sender, address(this), _amountSetToken);
+    issuanceModule.redeem(_setToken, _amountSetToken, address(this));
+    (address[] memory components, uint256[] memory positions, ) = IDebtIssuanceModule(issuanceModule).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
+
+    for (uint256 i = 0; i < components.length; i++) {
+      if (components[i] == dexAdapter.weth) {
+        continue;
+      }
+      if(_isInstadapp(components[i])){
+          _withdrawFromInstadapp(IERC4626(components[i]), positions[i]);
+      }
+    }
+    uint256 ethObtained = address(this).balance.sub(ethBalanceBefore);
+    require(ethObtained >= _minETHOut, "FlashMint: INSUFFICIENT_OUTPUT");
+    msg.sender.sendValue(ethObtained);
+  }
+
     function issueExactSetFromERC20(
         ISetToken _setToken,
         uint256 _amountSetToken,
         address _inputToken,
         uint256 _maxAmountInputToken,
-        DEXAdapter.SwapData memory _swapData
+        DEXAdapterV2.SwapData memory _swapData
     )
         isValidPath(_swapData.path, _inputToken, dexAdapter.weth)
         external
@@ -215,9 +255,27 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
 
   function _depositIntoInstadapp(IERC4626 _vault, uint256 _amount) internal {
       uint256 stETHAmount = _vault.previewMint(_amount);
-      stETH.submit{value: stETHAmount}(address(0)); // TODO: Check if we want to pass referral address
+      _depositIntoLido(stETHAmount);
       _vault.mint(_amount, address(this));
   }
+
+  function _depositIntoLido(uint256 _amount) internal {
+      stETH.submit{value: _amount}(address(0)); // TODO: Check if we want to pass referral address
+  }
+
+  function _withdrawFromInstadapp(IERC4626 _vault, uint256 _amount) internal {
+      uint256 stETHAmount = _vault.redeem(_amount, address(this), address(this));
+      _sellStETHForETH(stETHAmount);
+  }
+
+  function _sellStETHForETH(uint256 _stETHAmount) internal returns (uint256) {
+    return dexAdapter.swapExactTokensForTokens(
+        _stETHAmount,
+        0,
+        stETHForETHSwapData
+    );
+  }
+
 
   function _isInstadapp(address _token) internal pure returns (bool) {
       return _token == 0xA0D3707c569ff8C87FA923d3823eC5D81c98Be78;

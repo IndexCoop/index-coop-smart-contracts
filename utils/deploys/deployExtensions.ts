@@ -13,6 +13,7 @@ import {
   AirdropExtension,
   AuctionRebalanceExtension,
   DEXAdapter,
+  DEXAdapterV2,
   ExchangeIssuance,
   ExchangeIssuanceV2,
   ExchangeIssuanceLeveraged,
@@ -40,6 +41,7 @@ import {
 import { AirdropExtension__factory } from "../../typechain/factories/AirdropExtension__factory";
 import { AuctionRebalanceExtension__factory } from "../../typechain/factories/AuctionRebalanceExtension__factory";
 import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__factory";
+import { DEXAdapterV2__factory } from "../../typechain/factories/DEXAdapterV2__factory";
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { ExchangeIssuanceLeveraged__factory } from "../../typechain/factories/ExchangeIssuanceLeveraged__factory";
@@ -183,6 +185,10 @@ export default class DeployExtensions {
     return await new DEXAdapter__factory(this._deployerSigner).deploy();
   }
 
+  public async deployDEXAdapterV2(): Promise<DEXAdapterV2> {
+    return await new DEXAdapterV2__factory(this._deployerSigner).deploy();
+  }
+
   public async deployExchangeIssuanceLeveraged(
     wethAddress: Address,
     quickRouterAddress: Address,
@@ -324,11 +330,12 @@ export default class DeployExtensions {
     setControllerAddress: Address,
     debtIssuanceModuleAddress: Address,
     stETHAddress: Address,
+    curveStEthEthPoolAddress: Address,
   ) {
-    const dexAdapter = await this.deployDEXAdapter();
+    const dexAdapter = await this.deployDEXAdapterV2();
 
     const linkId = convertLibraryNameToLinkId(
-      "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
+      "contracts/exchangeIssuance/DEXAdapterV2.sol:DEXAdapterV2",
     );
 
     return await new FlashMintHyETH__factory(
@@ -351,6 +358,7 @@ export default class DeployExtensions {
       setControllerAddress,
       debtIssuanceModuleAddress,
       stETHAddress,
+      curveStEthEthPoolAddress
     );
   }
 
