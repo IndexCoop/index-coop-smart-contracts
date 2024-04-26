@@ -25,6 +25,7 @@ export const PRODUCTION_ADDRESSES = {
     wbtc: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
     swETH: "0xf951E335afb289353dc249e82926178EaC7DEd78",
     ETHx: "0xA35b1B31Ce002FBF2058D22F30f95D405200A15b",
+    instadappEthV2: "0xa0d3707c569ff8c87fa923d3823ec5d81c98be78",
   },
   whales: {
     stEth: "0xdc24316b9ae028f1497c275eb9192a3ea0f67022",
@@ -76,6 +77,7 @@ export const PRODUCTION_ADDRESSES = {
     aaveV3LeverageModule: "0x71E932715F5987077ADC5A7aA245f38841E0DcBe",
     constantPriceAdapter: "0x13c33656570092555Bf27Bdf53Ce24482B85D992",
     linearPriceAdapter: "0x237F7BBe0b358415bE84AB6d279D4338C0d026bB",
+    setTokenCreator: "0x2758BF6Af0EC63f1710d3d7890e1C263a247B75E",
   },
   lending: {
     aave: {

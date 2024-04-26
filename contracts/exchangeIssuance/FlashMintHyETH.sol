@@ -167,8 +167,8 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
     }
   }
 
-  function approveToken(IERC20 _token, address _spender) external onlyOwner {
-    _token.safeApprove(_spender, MAX_UINT256);
+  function approveToken(IERC20 _token, address _spender, uint256 _allowance) external onlyOwner {
+    _token.safeApprove(_spender, _allowance);
   }
 
   function issueExactSetFromETH(
