@@ -52,18 +52,19 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
   struct PendleMarketData {
       IPendlePrincipalToken pt;
       IPendleStandardizedYield sy;
+      address underlying;
   }
   /* ============ Constants ============= */
 
   uint256 private constant MAX_UINT256 = type(uint256).max;
-  DEXAdapterV2.SwapData private stETHForETHSwapData;
   /* ============ Immutables ============ */
 
   IController public immutable setController;
   IStETH public immutable stETH;
   IDebtIssuanceModule public immutable issuanceModule; // interface is compatible with DebtIssuanceModuleV2
   mapping(IPendlePrincipalToken => IPendleMarketV3) public pendleMarkets;
-  mapping(address => PendleMarketData) public pendleMarketData;
+  mapping(IPendleMarketV3 => PendleMarketData) public pendleMarketData;
+  mapping(address => mapping(address => DEXAdapterV2.SwapData)) public swapData;
 
   /* ============ State Variables ============ */
 
@@ -143,7 +144,7 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
     address[] memory path = new address[](2);
     path[0] = address(_stETH);
     path[1] = DEXAdapterV2.ETH_ADDRESS;
-    stETHForETHSwapData = DEXAdapterV2.SwapData({
+    swapData[address(_stETH)][address(0)] = DEXAdapterV2.SwapData({
         path: path,
         fees: new uint24[](0),
         pool: _stEthETHPool,
@@ -234,6 +235,11 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
       if(_isInstadapp(components[i])){
           _withdrawFromInstadapp(IERC4626(components[i]), positions[i]);
       }
+      IPendleMarketV3 market = pendleMarkets[IPendlePrincipalToken(components[i])];
+      if(market != IPendleMarketV3(address(0))){
+          console.log("Withdrawing from Pendle");
+          _withdrawFromPendle(IPendlePrincipalToken(components[i]), positions[i], market);
+      }
     }
     uint256 ethObtained = address(this).balance.sub(ethBalanceBefore);
     require(ethObtained >= _minETHOut, "FlashMint: INSUFFICIENT_OUTPUT");
@@ -262,24 +268,28 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
         );
     }
 
-function setPendleMarket(IPendlePrincipalToken _pt, IPendleStandardizedYield _sy, IPendleMarketV3 _market) external onlyOwner {
-    pendleMarkets[_pt] = _market;
-    pendleMarketData[address(_market)] = PendleMarketData({
-        pt: _pt,
-        sy: _sy
-    });
-}
+    function setSwapData(address _inputToken, address _outputToken, DEXAdapterV2.SwapData memory _swapData) external onlyOwner {
+        swapData[_inputToken][_outputToken] = _swapData;
+    }
+    function setPendleMarket(IPendlePrincipalToken _pt, IPendleStandardizedYield _sy, address _underlying, IPendleMarketV3 _market) external onlyOwner {
+        pendleMarkets[_pt] = _market;
+        pendleMarketData[_market] = PendleMarketData({
+            pt: _pt,
+            sy: _sy,
+            underlying: _underlying
+        });
+    }
 
     function swapCallback(int256 ptToAccount, int256 syToAccount, bytes calldata data) external {
-        require(address(pendleMarketData[msg.sender].sy) != address(0), "ISC");
+        PendleMarketData storage marketData = pendleMarketData[IPendleMarketV3(msg.sender)];
+        require(address(marketData.sy) != address(0), "ISC");
         if(ptToAccount < 0){
             uint256 ptAmount = uint256(-ptToAccount);
-            pendleMarketData[msg.sender].pt.transfer(msg.sender, ptAmount);
+            marketData.pt.transfer(msg.sender, ptAmount);
         } else if(syToAccount < 0){
             uint256 syAmount = uint256(-syToAccount);
-            IPendleStandardizedYield sy = pendleMarketData[msg.sender].sy;
-            uint256 ethAmount = syAmount.mul(sy.exchangeRate()).div(1e18);
-            sy.deposit{value: ethAmount}(msg.sender, address(0), ethAmount, 0);
+            uint256 ethAmount = syAmount.mul(marketData.sy.exchangeRate()).div(1e18);
+            marketData.sy.deposit{value: ethAmount}(msg.sender, address(0), ethAmount, 0);
         } else {
             revert("Invalid callback");
         }
@@ -298,17 +308,8 @@ function setPendleMarket(IPendlePrincipalToken _pt, IPendleStandardizedYield _sy
 
   function _withdrawFromInstadapp(IERC4626 _vault, uint256 _amount) internal {
       uint256 stETHAmount = _vault.redeem(_amount, address(this), address(this));
-      _sellStETHForETH(stETHAmount);
+     _swapExactTokensForTokens(stETHAmount, address(stETH), address(0));
   }
-
-  function _sellStETHForETH(uint256 _stETHAmount) internal returns (uint256) {
-    return dexAdapter.swapExactTokensForTokens(
-        _stETHAmount,
-        0,
-        stETHForETHSwapData
-    );
-  }
-
 
   function _isInstadapp(address _token) internal pure returns (bool) {
       return _token == 0xA0D3707c569ff8C87FA923d3823eC5D81c98Be78;
@@ -325,5 +326,26 @@ function setPendleMarket(IPendlePrincipalToken _pt, IPendleStandardizedYield _sy
   function _depositIntoPendle(IPendlePrincipalToken _pt, uint256 _ptAmount, IPendleStandardizedYield _sy) internal {
       // Adding random bytes here since PendleMarket will not call back if data is empty
       IPendleMarketV3(pendleMarkets[_pt]).swapSyForExactPt(address(this), _ptAmount, bytes("a"));
+  }
+  function _withdrawFromPendle(IPendlePrincipalToken _pt, uint256 _ptAmount, IPendleMarketV3 _pendleMarket) internal {
+      // Adding random bytes here since PendleMarket will not call back if data is empty
+      (uint256 syAmount, ) = _pendleMarket.swapExactPtForSy(address(this), _ptAmount, bytes("a"));
+      PendleMarketData storage data = pendleMarketData[_pendleMarket];
+      uint256 amountUnderlying = data.sy.redeem(address(this), syAmount, data.underlying, 0, false);
+      _swapExactTokensForTokens(amountUnderlying, data.underlying, address(0));
+      IWETH(dexAdapter.weth).withdraw(IERC20(dexAdapter.weth).balanceOf(address(this)));
+  }
+
+  function _swapExactTokensForTokens(
+    uint256 _amountIn,
+    address _inputToken,
+    address _outputToken
+  ) internal returns (uint256) {
+    dexAdapter.swapExactTokensForTokens(
+      _amountIn,
+      0,
+      swapData[_inputToken][_outputToken]
+    );
+
   }
 }

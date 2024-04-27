@@ -32,7 +32,7 @@ if (process.env.INTEGRATIONTEST) {
     let debtIssuanceModule: IDebtIssuanceModule;
 
     // const collateralTokenAddress = addresses.tokens.stEth;
-    setBlockNumber(19740000, false);
+    setBlockNumber(19740000, true);
 
     before(async () => {
       [owner] = await getAccounts();
@@ -152,8 +152,17 @@ if (process.env.INTEGRATIONTEST) {
           await flashMintHyETH.setPendleMarket(
             addresses.tokens.pendleEEth0624,
             syToken,
+            addresses.tokens.weEth,
             addresses.dexes.pendle.markets.eEth0624,
           );
+
+          // weETH -> weth pool: https://etherscan.io/address/0x7a415b19932c0105c82fdb6b720bb01b0cc2cae3
+          await flashMintHyETH.setSwapData(addresses.tokens.weEth, ADDRESS_ZERO, {
+            path: [addresses.tokens.weEth, addresses.tokens.weth],
+            fees: [500],
+            pool: ADDRESS_ZERO,
+            exchange: 3,
+          });
         });
         it("setToken is deployed correctly", async () => {
           expect(await setToken.symbol()).to.eq(tokenSymbol);
@@ -163,7 +172,7 @@ if (process.env.INTEGRATIONTEST) {
           const setTokenAmount = ether(1);
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           const ethBalanceBefore = await owner.wallet.getBalance();
-          const maxEthIn = ether(1.04);
+          const maxEthIn = ether(0.6);
           await flashMintHyETH.issueExactSetFromETH(setToken.address, setTokenAmount, {
             value: maxEthIn,
           });
@@ -182,7 +191,7 @@ if (process.env.INTEGRATIONTEST) {
           const setTokenBalanceAfterIssuance = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfterIssuance).to.eq(setTokenBalanceBefore.add(setTokenAmount));
           await setToken.approve(flashMintHyETH.address, setTokenAmount);
-          const minETHOut = ether(1.03);
+          const minETHOut = ether(0.45);
           await flashMintHyETH.redeemExactSetForETH(setToken.address, setTokenAmount, minETHOut);
           const setTokenBalanceAfterRedemption = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfterRedemption).to.eq(setTokenBalanceBefore);
