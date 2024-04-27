@@ -26,6 +26,7 @@ export const PRODUCTION_ADDRESSES = {
     swETH: "0xf951E335afb289353dc249e82926178EaC7DEd78",
     ETHx: "0xA35b1B31Ce002FBF2058D22F30f95D405200A15b",
     instadappEthV2: "0xa0d3707c569ff8c87fa923d3823ec5d81c98be78",
+    pendleEEth0624: "0xc69Ad9baB1dEE23F4605a82b3354F8E40d1E5966",
   },
   whales: {
     stEth: "0xdc24316b9ae028f1497c275eb9192a3ea0f67022",
@@ -56,6 +57,11 @@ export const PRODUCTION_ADDRESSES = {
     },
     balancerv2: {
       vault: "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
+    },
+    pendle: {
+      markets: {
+        eEth0624: "0xF32e58F92e60f4b0A37A69b95d642A471365EAe8",
+      },
     },
   },
   set: {

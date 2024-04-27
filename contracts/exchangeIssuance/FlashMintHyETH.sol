@@ -34,6 +34,7 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH} from "../interfaces/IWETH.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { DEXAdapterV2 } from "./DEXAdapterV2.sol";
+import "hardhat/console.sol";
 
 
 /**
@@ -48,6 +49,10 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
   using SafeERC20 for ISetToken;
 
 
+  struct PendleMarketData {
+      IPendlePrincipalToken pt;
+      IPendleStandardizedYield sy;
+  }
   /* ============ Constants ============= */
 
   uint256 private constant MAX_UINT256 = type(uint256).max;
@@ -58,6 +63,7 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
   IStETH public immutable stETH;
   IDebtIssuanceModule public immutable issuanceModule; // interface is compatible with DebtIssuanceModuleV2
   mapping(IPendlePrincipalToken => IPendleMarketV3) public pendleMarkets;
+  mapping(address => PendleMarketData) public pendleMarketData;
 
   /* ============ State Variables ============ */
 
@@ -178,8 +184,10 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
   function approveSetToken(ISetToken _setToken) external isSetToken(_setToken) {
     address[] memory _components = _setToken.getComponents();
     for (uint256 i = 0; i < _components.length; ++i) {
-      DEXAdapterV2._safeApprove(IERC20(_components[i]), address(issuanceModule), MAX_UINT256);
+        console.log("Approving %s", _components[i]);
+        IERC20(_components[i]).safeApprove(address(issuanceModule), MAX_UINT256);
     }
+        console.log("Approving setToken %s", address(_setToken));
    _setToken.approve(address(issuanceModule), MAX_UINT256);
   }
 
@@ -253,9 +261,29 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
         );
     }
 
-function setPendleMarket(IPendlePrincipalToken _pt, IPendleMarketV3 _market) external onlyOwner {
+function setPendleMarket(IPendlePrincipalToken _pt, IPendleStandardizedYield _sy, IPendleMarketV3 _market) external onlyOwner {
     pendleMarkets[_pt] = _market;
+    pendleMarketData[address(_market)] = PendleMarketData({
+        pt: _pt,
+        sy: _sy
+    });
 }
+
+    function swapCallback(int256 ptToAccount, int256 syToAccount, bytes calldata data) external {
+        require(address(pendleMarketData[msg.sender].sy) != address(0), "ISC");
+        uint256 maxAmountIn = abi.decode(data, (uint256));
+        if(ptToAccount < 0){
+            uint256 ptAmount = uint256(-ptToAccount);
+            require(ptAmount <= maxAmountIn, "IPTA");
+            pendleMarketData[msg.sender].pt.transfer(msg.sender, ptAmount);
+        } else if(syToAccount < 0){
+            uint256 syAmount = uint256(-syToAccount);
+            require(syAmount <= maxAmountIn, "ISYA");
+            pendleMarketData[msg.sender].sy.transfer(msg.sender, syAmount);
+        } else {
+            revert("Invalid callback");
+        }
+    }
 
 
   function _depositIntoInstadapp(IERC4626 _vault, uint256 _amount) internal returns(uint256){
@@ -296,8 +324,9 @@ function setPendleMarket(IPendlePrincipalToken _pt, IPendleMarketV3 _market) ext
   }
 
   function _depositIntoPendle(IPendlePrincipalToken _pt, uint256 _ptAmount, IPendleStandardizedYield _sy, uint256 _ethAvailable) internal returns(uint256){
-      uint256 syAmount = _sy.deposit(address(this), address(0), _ethAvailable, 0);
-      (uint256 sySpent,) = IPendleMarketV3(pendleMarkets[_pt]).swapSyForExactPt(address(this), _ptAmount, bytes(""));
+      uint256 syAmount = _sy.deposit{value: _ethAvailable}(address(this), address(0), _ethAvailable, 0);
+      bytes memory swapCallBackData= abi.encode(syAmount);
+      (uint256 sySpent,) = IPendleMarketV3(pendleMarkets[_pt]).swapSyForExactPt(address(this), _ptAmount, swapCallBackData);
       uint256 ethReturned = _sy.redeem(address(this), syAmount - sySpent, address(0), 0, false);
       return _ethAvailable - ethReturned;
   }

@@ -14,6 +14,7 @@ import {
   SetTokenCreator,
   SetTokenCreator__factory,
   FlashMintHyETH,
+  IPendlePrincipalToken__factory,
 } from "../../../typechain";
 import { PRODUCTION_ADDRESSES } from "./addresses";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
@@ -31,7 +32,7 @@ if (process.env.INTEGRATIONTEST) {
     let debtIssuanceModule: IDebtIssuanceModule;
 
     // const collateralTokenAddress = addresses.tokens.stEth;
-    setBlockNumber(17665622);
+    setBlockNumber(19740000, false);
 
     before(async () => {
       [owner] = await getAccounts();
@@ -100,8 +101,9 @@ if (process.env.INTEGRATIONTEST) {
 
       context("when setToken with hyETH launch composition is deployed", () => {
         const setToken: SetToken;
-        const components = [addresses.tokens.instadappEthV2];
-        const positions = [ethers.utils.parseUnits("1", 18)];
+        const components = [addresses.tokens.instadappEthV2, addresses.tokens.pendleEEth0624];
+        console.log("components", components);
+        const positions = [ethers.utils.parseEther("0.25"), ethers.utils.parseEther("0.25")];
         const modules = [addresses.setFork.debtIssuanceModuleV2];
         const tokenName = "IndexCoop High Yield ETH";
         const tokenSymbol = "HyETH";
@@ -129,11 +131,28 @@ if (process.env.INTEGRATIONTEST) {
             ADDRESS_ZERO,
           );
 
+          const pendleToken = IPendlePrincipalToken__factory.connect(
+            addresses.tokens.pendleEEth0624,
+            owner.wallet,
+          );
           await flashMintHyETH.approveSetToken(setToken.address);
+          const syToken = await pendleToken.SY();
+          console.log("syToken", syToken);
+          await flashMintHyETH.approveToken(
+            syToken,
+            addresses.dexes.pendle.markets.eEth0624,
+            MAX_UINT_256,
+          );
           await flashMintHyETH.approveToken(
             addresses.tokens.stEth,
             addresses.tokens.instadappEthV2,
             MAX_UINT_256,
+          );
+
+          await flashMintHyETH.setPendleMarket(
+            addresses.tokens.pendleEEth0624,
+            syToken,
+            addresses.dexes.pendle.markets.eEth0624,
           );
         });
         it("setToken is deployed correctly", async () => {
