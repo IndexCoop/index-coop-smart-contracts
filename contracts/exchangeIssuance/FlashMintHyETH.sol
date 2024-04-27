@@ -201,20 +201,21 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
   ) external payable nonReentrant returns (uint256) {
     (address[] memory components, uint256[] memory positions, ) = IDebtIssuanceModule(issuanceModule).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
 
-    uint256 ethLeft = msg.value;
     for (uint256 i = 0; i < components.length; i++) {
       if(_isInstadapp(components[i])){
-          ethLeft -= _depositIntoInstadapp(IERC4626(components[i]), positions[i]);
+          _depositIntoInstadapp(IERC4626(components[i]), positions[i]);
           continue;
       }
       IPendleStandardizedYield syToken = _getSyToken(IPendlePrincipalToken(components[i]));
       if(syToken != IPendleStandardizedYield(address(0))){
-          ethLeft -= _depositIntoPendle(IPendlePrincipalToken(components[i]), positions[i], syToken, ethLeft);
+          _depositIntoPendle(IPendlePrincipalToken(components[i]), positions[i], syToken);
           continue;
       }
     }
     issuanceModule.issue(_setToken, _amountSetToken, msg.sender);
-    msg.sender.sendValue(ethLeft);
+    // Assumes no eth was stored in this token previously, otherwise it can be stolen
+    // TODO: maybe add check
+    msg.sender.sendValue(address(this).balance);
   }
 
   function redeemExactSetForETH(
@@ -271,26 +272,24 @@ function setPendleMarket(IPendlePrincipalToken _pt, IPendleStandardizedYield _sy
 
     function swapCallback(int256 ptToAccount, int256 syToAccount, bytes calldata data) external {
         require(address(pendleMarketData[msg.sender].sy) != address(0), "ISC");
-        uint256 maxAmountIn = abi.decode(data, (uint256));
         if(ptToAccount < 0){
             uint256 ptAmount = uint256(-ptToAccount);
-            require(ptAmount <= maxAmountIn, "IPTA");
             pendleMarketData[msg.sender].pt.transfer(msg.sender, ptAmount);
         } else if(syToAccount < 0){
             uint256 syAmount = uint256(-syToAccount);
-            require(syAmount <= maxAmountIn, "ISYA");
-            pendleMarketData[msg.sender].sy.transfer(msg.sender, syAmount);
+            IPendleStandardizedYield sy = pendleMarketData[msg.sender].sy;
+            uint256 ethAmount = syAmount.mul(sy.exchangeRate()).div(1e18);
+            sy.deposit{value: ethAmount}(msg.sender, address(0), ethAmount, 0);
         } else {
             revert("Invalid callback");
         }
     }
 
 
-  function _depositIntoInstadapp(IERC4626 _vault, uint256 _amount) internal returns(uint256){
+  function _depositIntoInstadapp(IERC4626 _vault, uint256 _amount) internal {
       uint256 stETHAmount = _vault.previewMint(_amount);
       _depositIntoLido(stETHAmount);
       _vault.mint(_amount, address(this));
-      return stETHAmount;
   }
 
   function _depositIntoLido(uint256 _amount) internal {
@@ -323,11 +322,8 @@ function setPendleMarket(IPendlePrincipalToken _pt, IPendleStandardizedYield _sy
       }
   }
 
-  function _depositIntoPendle(IPendlePrincipalToken _pt, uint256 _ptAmount, IPendleStandardizedYield _sy, uint256 _ethAvailable) internal returns(uint256){
-      uint256 syAmount = _sy.deposit{value: _ethAvailable}(address(this), address(0), _ethAvailable, 0);
-      bytes memory swapCallBackData= abi.encode(syAmount);
-      (uint256 sySpent,) = IPendleMarketV3(pendleMarkets[_pt]).swapSyForExactPt(address(this), _ptAmount, swapCallBackData);
-      uint256 ethReturned = _sy.redeem(address(this), syAmount - sySpent, address(0), 0, false);
-      return _ethAvailable - ethReturned;
+  function _depositIntoPendle(IPendlePrincipalToken _pt, uint256 _ptAmount, IPendleStandardizedYield _sy) internal {
+      // Adding random bytes here since PendleMarket will not call back if data is empty
+      IPendleMarketV3(pendleMarkets[_pt]).swapSyForExactPt(address(this), _ptAmount, bytes("a"));
   }
 }
