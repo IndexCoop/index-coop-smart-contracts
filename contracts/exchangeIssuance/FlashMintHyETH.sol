@@ -25,6 +25,8 @@ import { ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.so
 
 import { IERC4626 } from "../interfaces/IERC4626.sol";
 import { IStETH } from "../interfaces/external/IStETH.sol";
+import { IPendlePrincipalToken } from "../interfaces/external/IPendlePrincipalToken.sol";
+import { IPendleStandardizedYield } from "../interfaces/external/IPendleStandardizedYield.sol";
 import { IController } from "../interfaces/IController.sol";
 import { IDebtIssuanceModule} from "../interfaces/IDebtIssuanceModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
@@ -196,6 +198,11 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
       }
       if(_isInstadapp(components[i])){
           _depositIntoInstadapp(IERC4626(components[i]), positions[i]);
+          continue;
+      }
+      IPendleStandardizedYield syToken = _getSyToken(IPendlePrincipalToken(components[i]));
+      if(syToken != IPendleStandardizedYield(address(0))){
+          _depositIntoPendle(IPendlePrincipalToken(components[i]), positions[i], syToken);
       }
     }
     uint256 ethSpent = ethBalanceBefore.sub(address(this).balance);
@@ -279,5 +286,16 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
 
   function _isInstadapp(address _token) internal pure returns (bool) {
       return _token == 0xA0D3707c569ff8C87FA923d3823eC5D81c98Be78;
+  }
+
+  function _getSyToken(IPendlePrincipalToken _pt) internal view returns (IPendleStandardizedYield) {
+      try _pt.SY() returns (address sy) {
+          return IPendleStandardizedYield(sy);
+      } catch {
+          return IPendleStandardizedYield(address(0));
+      }
+  }
+
+  function _depositIntoPendle(IPendlePrincipalToken _pt, uint256 _amount, IPendleStandardizedYield _sy) internal {
   }
 }
