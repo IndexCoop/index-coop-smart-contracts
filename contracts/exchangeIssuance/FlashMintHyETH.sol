@@ -26,6 +26,7 @@ import { ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.so
 import { IERC4626 } from "../interfaces/IERC4626.sol";
 import { IStETH } from "../interfaces/external/IStETH.sol";
 import { IPendlePrincipalToken } from "../interfaces/external/IPendlePrincipalToken.sol";
+import { IPendleMarketV3 } from "../interfaces/external/IPendleMarketV3.sol";
 import { IPendleStandardizedYield } from "../interfaces/external/IPendleStandardizedYield.sol";
 import { IController } from "../interfaces/IController.sol";
 import { IDebtIssuanceModule} from "../interfaces/IDebtIssuanceModule.sol";
@@ -56,6 +57,7 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
   IController public immutable setController;
   IStETH public immutable stETH;
   IDebtIssuanceModule public immutable issuanceModule; // interface is compatible with DebtIssuanceModuleV2
+  mapping(IPendlePrincipalToken => IPendleMarketV3) public pendleMarkets;
 
   /* ============ State Variables ============ */
 
@@ -191,25 +193,20 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
   ) external payable nonReentrant returns (uint256) {
     (address[] memory components, uint256[] memory positions, ) = IDebtIssuanceModule(issuanceModule).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
 
-    uint256 ethBalanceBefore = address(this).balance;
+    uint256 ethLeft = msg.value;
     for (uint256 i = 0; i < components.length; i++) {
-      if (components[i] == dexAdapter.weth) {
-        continue;
-      }
       if(_isInstadapp(components[i])){
-          _depositIntoInstadapp(IERC4626(components[i]), positions[i]);
+          ethLeft -= _depositIntoInstadapp(IERC4626(components[i]), positions[i]);
           continue;
       }
       IPendleStandardizedYield syToken = _getSyToken(IPendlePrincipalToken(components[i]));
       if(syToken != IPendleStandardizedYield(address(0))){
-          _depositIntoPendle(IPendlePrincipalToken(components[i]), positions[i], syToken);
+          ethLeft -= _depositIntoPendle(IPendlePrincipalToken(components[i]), positions[i], syToken, ethLeft);
+          continue;
       }
     }
-    uint256 ethSpent = ethBalanceBefore.sub(address(this).balance);
-    require(ethSpent <= msg.value, "FlashMint: INSUFFICIENT_ETH");
-
     issuanceModule.issue(_setToken, _amountSetToken, msg.sender);
-    msg.sender.sendValue(msg.value.sub(ethSpent));
+    msg.sender.sendValue(ethLeft);
   }
 
   function redeemExactSetForETH(
@@ -225,9 +222,6 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
     (address[] memory components, uint256[] memory positions, ) = IDebtIssuanceModule(issuanceModule).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
 
     for (uint256 i = 0; i < components.length; i++) {
-      if (components[i] == dexAdapter.weth) {
-        continue;
-      }
       if(_isInstadapp(components[i])){
           _withdrawFromInstadapp(IERC4626(components[i]), positions[i]);
       }
@@ -259,11 +253,16 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
         );
     }
 
+function setPendleMarket(IPendlePrincipalToken _pt, IPendleMarketV3 _market) external onlyOwner {
+    pendleMarkets[_pt] = _market;
+}
 
-  function _depositIntoInstadapp(IERC4626 _vault, uint256 _amount) internal {
+
+  function _depositIntoInstadapp(IERC4626 _vault, uint256 _amount) internal returns(uint256){
       uint256 stETHAmount = _vault.previewMint(_amount);
       _depositIntoLido(stETHAmount);
       _vault.mint(_amount, address(this));
+      return stETHAmount;
   }
 
   function _depositIntoLido(uint256 _amount) internal {
@@ -296,6 +295,10 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
       }
   }
 
-  function _depositIntoPendle(IPendlePrincipalToken _pt, uint256 _amount, IPendleStandardizedYield _sy) internal {
+  function _depositIntoPendle(IPendlePrincipalToken _pt, uint256 _ptAmount, IPendleStandardizedYield _sy, uint256 _ethAvailable) internal returns(uint256){
+      uint256 syAmount = _sy.deposit(address(this), address(0), _ethAvailable, 0);
+      (uint256 sySpent,) = IPendleMarketV3(pendleMarkets[_pt]).swapSyForExactPt(address(this), _ptAmount, bytes(""));
+      uint256 ethReturned = _sy.redeem(address(this), syAmount - sySpent, address(0), 0, false);
+      return _ethAvailable - ethReturned;
   }
 }
