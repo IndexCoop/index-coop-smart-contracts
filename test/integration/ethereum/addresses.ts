@@ -30,7 +30,8 @@ export const PRODUCTION_ADDRESSES = {
     pendleRsEth0624: "0xB05cABCd99cf9a73b19805edefC5f67CA5d1895E",
     pendleRswEth0624: "0x5cb12D56F5346a016DBBA8CA90635d82e6D1bcEa",
     weEth: "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee",
-      rsEth: "0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7",
+    rsEth: "0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7",
+    rswEth: "0xFAe103DC9cf190eD75350761e95403b7b8aFa6c0",
   },
   whales: {
     stEth: "0xdc24316b9ae028f1497c275eb9192a3ea0f67022",
@@ -66,6 +67,7 @@ export const PRODUCTION_ADDRESSES = {
       markets: {
         eEth0624: "0xF32e58F92e60f4b0A37A69b95d642A471365EAe8",
         rsEth0624: "0x4f43c77872db6ba177c270986cd30c3381af37ee",
+        rswEth0624: "0xa9355a5d306c67027c54de0e5a72df76befa5694",
       },
     },
   },

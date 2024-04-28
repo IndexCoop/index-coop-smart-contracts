@@ -105,9 +105,11 @@ if (process.env.INTEGRATIONTEST) {
           addresses.tokens.instadappEthV2,
           addresses.tokens.pendleEEth0624,
           addresses.tokens.pendleRsEth0624,
+          addresses.tokens.pendleRswEth0624,
         ];
         console.log("components", components);
         const positions = [
+          ethers.utils.parseEther("0.25"),
           ethers.utils.parseEther("0.25"),
           ethers.utils.parseEther("0.25"),
           ethers.utils.parseEther("0.25"),
@@ -194,6 +196,31 @@ if (process.env.INTEGRATIONTEST) {
             pool: ADDRESS_ZERO,
             exchange: 3,
           });
+
+          const rswEthPendleToken = IPendlePrincipalToken__factory.connect(
+            addresses.tokens.pendleRswEth0624,
+            owner.wallet,
+          );
+          await flashMintHyETH.approveSetToken(setToken.address);
+          const rswEthSyToken = await rswEthPendleToken.SY();
+          await flashMintHyETH.approveToken(
+            rswEthSyToken,
+            addresses.dexes.pendle.markets.rswEth0624,
+            MAX_UINT_256,
+          );
+          await flashMintHyETH.setPendleMarket(
+            addresses.tokens.pendleRswEth0624,
+            rswEthSyToken,
+            addresses.tokens.rswEth,
+            addresses.dexes.pendle.markets.rswEth0624,
+          );
+          // rswEth -> weth pool: https://etherscan.io/address/0xe62627326d7794e20bb7261b24985294de1579fe
+          await flashMintHyETH.setSwapData(addresses.tokens.rswEth, ADDRESS_ZERO, {
+            path: [addresses.tokens.rswEth, addresses.tokens.weth],
+            fees: [3000],
+            pool: ADDRESS_ZERO,
+            exchange: 3,
+          });
         });
         it("setToken is deployed correctly", async () => {
           expect(await setToken.symbol()).to.eq(tokenSymbol);
@@ -222,7 +249,7 @@ if (process.env.INTEGRATIONTEST) {
           const setTokenBalanceAfterIssuance = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfterIssuance).to.eq(setTokenBalanceBefore.add(setTokenAmount));
           await setToken.approve(flashMintHyETH.address, setTokenAmount);
-          const minETHOut = ether(0.45);
+          const minETHOut = ether(0.9);
           await flashMintHyETH.redeemExactSetForETH(setToken.address, setTokenAmount, minETHOut);
           const setTokenBalanceAfterRedemption = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfterRedemption).to.eq(setTokenBalanceBefore);
