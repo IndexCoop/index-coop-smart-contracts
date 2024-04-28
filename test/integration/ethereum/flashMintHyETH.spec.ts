@@ -21,6 +21,7 @@ import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { ether } from "@utils/index";
 
 const expect = getWaffleExpect();
+const ETH_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
 if (process.env.INTEGRATIONTEST) {
   describe("FlashMintHyETH - Integration Test", async () => {
@@ -32,7 +33,7 @@ if (process.env.INTEGRATIONTEST) {
     let debtIssuanceModule: IDebtIssuanceModule;
 
     // const collateralTokenAddress = addresses.tokens.stEth;
-    setBlockNumber(19740000, false);
+    setBlockNumber(19740000, true);
 
     before(async () => {
       [owner] = await getAccounts();
@@ -108,13 +109,12 @@ if (process.env.INTEGRATIONTEST) {
           addresses.tokens.pendleRswEth0624,
           addresses.tokens.acrossWethLP,
         ];
-        console.log("components", components);
         const positions = [
-          ethers.utils.parseEther("0.25"),
-          ethers.utils.parseEther("0.25"),
-          ethers.utils.parseEther("0.25"),
-          ethers.utils.parseEther("0.25"),
-          ethers.utils.parseEther("0.25"),
+          ethers.utils.parseEther("0.2"),
+          ethers.utils.parseEther("0.2"),
+          ethers.utils.parseEther("0.2"),
+          ethers.utils.parseEther("0.2"),
+          ethers.utils.parseEther("0.2"),
         ];
         const modules = [addresses.setFork.debtIssuanceModuleV2];
         const tokenName = "IndexCoop High Yield ETH";
@@ -148,6 +148,12 @@ if (process.env.INTEGRATIONTEST) {
             addresses.tokens.instadappEthV2,
             MAX_UINT_256,
           );
+          await flashMintHyETH.setSwapData(addresses.tokens.stEth, ADDRESS_ZERO, {
+            path: [addresses.tokens.stEth, ETH_ADDRESS],
+            fees: [],
+            pool: addresses.dexes.curve.pools.stEthEth,
+            exchange: 4,
+          });
 
           const eEthPendleToken = IPendlePrincipalToken__factory.connect(
             addresses.tokens.pendleEEth0624,
@@ -231,13 +237,10 @@ if (process.env.INTEGRATIONTEST) {
         it("Can issue set token from eth", async () => {
           const setTokenAmount = ether(1);
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
-          const ethBalanceBefore = await owner.wallet.getBalance();
-          const maxEthIn = ether(2);
+          const maxEthIn = ether(1.01);
           await flashMintHyETH.issueExactSetFromETH(setToken.address, setTokenAmount, {
             value: maxEthIn,
           });
-          const ethSpent = ethBalanceBefore.sub(await owner.wallet.getBalance());
-          console.log("ethSpent", ethSpent.toString());
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
         });
@@ -251,7 +254,7 @@ if (process.env.INTEGRATIONTEST) {
           const setTokenBalanceAfterIssuance = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfterIssuance).to.eq(setTokenBalanceBefore.add(setTokenAmount));
           await setToken.approve(flashMintHyETH.address, setTokenAmount);
-          const minETHOut = ether(0.9);
+          const minETHOut = ether(0.99);
           await flashMintHyETH.redeemExactSetForETH(setToken.address, setTokenAmount, minETHOut);
           const setTokenBalanceAfterRedemption = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfterRedemption).to.eq(setTokenBalanceBefore);

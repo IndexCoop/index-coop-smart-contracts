@@ -35,7 +35,6 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH} from "../interfaces/IWETH.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { DEXAdapterV2 } from "./DEXAdapterV2.sol";
-import "hardhat/console.sol";
 
 
 /**
@@ -146,15 +145,6 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
     issuanceModule = _issuanceModule;
     stETH = _stETH;
 
-    address[] memory path = new address[](2);
-    path[0] = address(_stETH);
-    path[1] = DEXAdapterV2.ETH_ADDRESS;
-    swapData[address(_stETH)][address(0)] = DEXAdapterV2.SwapData({
-        path: path,
-        fees: new uint24[](0),
-        pool: _stEthETHPool,
-        exchange: DEXAdapterV2.Exchange.Curve
-    });
     IERC20(address(_stETH)).approve(_stEthETHPool, MAX_UINT256);
 
   }
@@ -190,11 +180,9 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
   function approveSetToken(ISetToken _setToken) external isSetToken(_setToken) {
     address[] memory _components = _setToken.getComponents();
     for (uint256 i = 0; i < _components.length; ++i) {
-        console.log("Approving %s", _components[i]);
         IERC20(_components[i]).approve(address(issuanceModule), MAX_UINT256);
     }
-        console.log("Approving setToken %s", address(_setToken));
-   _setToken.approve(address(issuanceModule), MAX_UINT256);
+    _setToken.approve(address(issuanceModule), MAX_UINT256);
   }
 
   function approveToken(IERC20 _token, address _spender, uint256 _allowance) external onlyOwner {
@@ -207,6 +195,7 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
   ) external payable nonReentrant returns (uint256) {
     (address[] memory components, uint256[] memory positions, ) = IDebtIssuanceModule(issuanceModule).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
 
+    uint256 ethBalanceBefore = address(this).balance;
     for (uint256 i = 0; i < components.length; i++) {
       if(_isInstadapp(components[i])){
           _depositIntoInstadapp(IERC4626(components[i]), positions[i]);
@@ -223,9 +212,7 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
       }
     }
     issuanceModule.issue(_setToken, _amountSetToken, msg.sender);
-    // Assumes no eth was stored in this token previously, otherwise it can be stolen
-    // TODO: maybe add check
-    msg.sender.sendValue(address(this).balance);
+    msg.sender.sendValue(msg.value.sub(ethBalanceBefore.sub(address(this).balance)));
   }
 
   function redeemExactSetForETH(
@@ -247,7 +234,6 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
       }
       IPendleMarketV3 market = pendleMarkets[IPendlePrincipalToken(components[i])];
       if(market != IPendleMarketV3(address(0))){
-          console.log("Withdrawing from Pendle");
           _withdrawFromPendle(IPendlePrincipalToken(components[i]), positions[i], market);
           continue;
       }
