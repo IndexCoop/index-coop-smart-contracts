@@ -1,6 +1,5 @@
 {
   "printWidth": 100,
-  "parser": "typescript",
   "tabWidth": 2,
   "trailingComma": "all",
   "arrowParens": "always",
@@ -9,11 +8,17 @@
       "files": "*.sol",
       "options": {
         "printWidth": 100,
-        "tabWidth": 2,
+        "tabWidth": 4,
         "useTabs": false,
         "singleQuote": false,
         "bracketSpacing": true,
         "explicitTypes": "always"
+      }
+    },
+    {
+      "files": "*.ts",
+      "options": {
+        "parser": "typescript"
       }
     }
   ]
