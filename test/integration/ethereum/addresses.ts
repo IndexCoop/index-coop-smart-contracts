@@ -27,7 +27,10 @@ export const PRODUCTION_ADDRESSES = {
     ETHx: "0xA35b1B31Ce002FBF2058D22F30f95D405200A15b",
     instadappEthV2: "0xa0d3707c569ff8c87fa923d3823ec5d81c98be78",
     pendleEEth0624: "0xc69Ad9baB1dEE23F4605a82b3354F8E40d1E5966",
+    pendleRsEth0624: "0xB05cABCd99cf9a73b19805edefC5f67CA5d1895E",
+    pendleRswEth0624: "0x5cb12D56F5346a016DBBA8CA90635d82e6D1bcEa",
     weEth: "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee",
+      rsEth: "0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7",
   },
   whales: {
     stEth: "0xdc24316b9ae028f1497c275eb9192a3ea0f67022",
@@ -62,6 +65,7 @@ export const PRODUCTION_ADDRESSES = {
     pendle: {
       markets: {
         eEth0624: "0xF32e58F92e60f4b0A37A69b95d642A471365EAe8",
+        rsEth0624: "0x4f43c77872db6ba177c270986cd30c3381af37ee",
       },
     },
   },

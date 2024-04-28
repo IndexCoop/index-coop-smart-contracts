@@ -101,9 +101,17 @@ if (process.env.INTEGRATIONTEST) {
 
       context("when setToken with hyETH launch composition is deployed", () => {
         const setToken: SetToken;
-        const components = [addresses.tokens.instadappEthV2, addresses.tokens.pendleEEth0624];
+        const components = [
+          addresses.tokens.instadappEthV2,
+          addresses.tokens.pendleEEth0624,
+          addresses.tokens.pendleRsEth0624,
+        ];
         console.log("components", components);
-        const positions = [ethers.utils.parseEther("0.25"), ethers.utils.parseEther("0.25")];
+        const positions = [
+          ethers.utils.parseEther("0.25"),
+          ethers.utils.parseEther("0.25"),
+          ethers.utils.parseEther("0.25"),
+        ];
         const modules = [addresses.setFork.debtIssuanceModuleV2];
         const tokenName = "IndexCoop High Yield ETH";
         const tokenSymbol = "HyETH";
@@ -131,34 +139,57 @@ if (process.env.INTEGRATIONTEST) {
             ADDRESS_ZERO,
           );
 
-          const pendleToken = IPendlePrincipalToken__factory.connect(
-            addresses.tokens.pendleEEth0624,
-            owner.wallet,
-          );
-          await flashMintHyETH.approveSetToken(setToken.address);
-          const syToken = await pendleToken.SY();
-          console.log("syToken", syToken);
-          await flashMintHyETH.approveToken(
-            syToken,
-            addresses.dexes.pendle.markets.eEth0624,
-            MAX_UINT_256,
-          );
           await flashMintHyETH.approveToken(
             addresses.tokens.stEth,
             addresses.tokens.instadappEthV2,
             MAX_UINT_256,
           );
 
+          const eEthPendleToken = IPendlePrincipalToken__factory.connect(
+            addresses.tokens.pendleEEth0624,
+            owner.wallet,
+          );
+          await flashMintHyETH.approveSetToken(setToken.address);
+          const eEthSyToken = await eEthPendleToken.SY();
+          await flashMintHyETH.approveToken(
+            eEthSyToken,
+            addresses.dexes.pendle.markets.eEth0624,
+            MAX_UINT_256,
+          );
           await flashMintHyETH.setPendleMarket(
             addresses.tokens.pendleEEth0624,
-            syToken,
+            eEthSyToken,
             addresses.tokens.weEth,
             addresses.dexes.pendle.markets.eEth0624,
           );
-
           // weETH -> weth pool: https://etherscan.io/address/0x7a415b19932c0105c82fdb6b720bb01b0cc2cae3
           await flashMintHyETH.setSwapData(addresses.tokens.weEth, ADDRESS_ZERO, {
             path: [addresses.tokens.weEth, addresses.tokens.weth],
+            fees: [500],
+            pool: ADDRESS_ZERO,
+            exchange: 3,
+          });
+
+          const rsEthPendleToken = IPendlePrincipalToken__factory.connect(
+            addresses.tokens.pendleRsEth0624,
+            owner.wallet,
+          );
+          await flashMintHyETH.approveSetToken(setToken.address);
+          const rsEthSyToken = await rsEthPendleToken.SY();
+          await flashMintHyETH.approveToken(
+            rsEthSyToken,
+            addresses.dexes.pendle.markets.rsEth0624,
+            MAX_UINT_256,
+          );
+          await flashMintHyETH.setPendleMarket(
+            addresses.tokens.pendleRsEth0624,
+            rsEthSyToken,
+            addresses.tokens.rsEth,
+            addresses.dexes.pendle.markets.rsEth0624,
+          );
+          // rsEth -> weth pool: https://etherscan.io/address/0x059615ebf32c946aaab3d44491f78e4f8e97e1d3
+          await flashMintHyETH.setSwapData(addresses.tokens.rsEth, ADDRESS_ZERO, {
+            path: [addresses.tokens.rsEth, addresses.tokens.weth],
             fees: [500],
             pool: ADDRESS_ZERO,
             exchange: 3,
@@ -172,7 +203,7 @@ if (process.env.INTEGRATIONTEST) {
           const setTokenAmount = ether(1);
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           const ethBalanceBefore = await owner.wallet.getBalance();
-          const maxEthIn = ether(0.6);
+          const maxEthIn = ether(1);
           await flashMintHyETH.issueExactSetFromETH(setToken.address, setTokenAmount, {
             value: maxEthIn,
           });
