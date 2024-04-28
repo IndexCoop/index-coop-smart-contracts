@@ -32,7 +32,7 @@ if (process.env.INTEGRATIONTEST) {
     let debtIssuanceModule: IDebtIssuanceModule;
 
     // const collateralTokenAddress = addresses.tokens.stEth;
-    setBlockNumber(19740000, true);
+    setBlockNumber(19740000, false);
 
     before(async () => {
       [owner] = await getAccounts();
@@ -106,9 +106,11 @@ if (process.env.INTEGRATIONTEST) {
           addresses.tokens.pendleEEth0624,
           addresses.tokens.pendleRsEth0624,
           addresses.tokens.pendleRswEth0624,
+          addresses.tokens.acrossWethLP,
         ];
         console.log("components", components);
         const positions = [
+          ethers.utils.parseEther("0.25"),
           ethers.utils.parseEther("0.25"),
           ethers.utils.parseEther("0.25"),
           ethers.utils.parseEther("0.25"),
@@ -230,7 +232,7 @@ if (process.env.INTEGRATIONTEST) {
           const setTokenAmount = ether(1);
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           const ethBalanceBefore = await owner.wallet.getBalance();
-          const maxEthIn = ether(1);
+          const maxEthIn = ether(2);
           await flashMintHyETH.issueExactSetFromETH(setToken.address, setTokenAmount, {
             value: maxEthIn,
           });

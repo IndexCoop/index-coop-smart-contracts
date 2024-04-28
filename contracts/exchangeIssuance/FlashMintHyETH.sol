@@ -25,6 +25,7 @@ import { ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.so
 
 import { IERC4626 } from "../interfaces/IERC4626.sol";
 import { IStETH } from "../interfaces/external/IStETH.sol";
+import { IAcrossHubPoolV2 } from "../interfaces/external/IAcrossHubPoolV2.sol";
 import { IPendlePrincipalToken } from "../interfaces/external/IPendlePrincipalToken.sol";
 import { IPendleMarketV3 } from "../interfaces/external/IPendleMarketV3.sol";
 import { IPendleStandardizedYield } from "../interfaces/external/IPendleStandardizedYield.sol";
@@ -57,6 +58,10 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
   /* ============ Constants ============= */
 
   uint256 private constant MAX_UINT256 = type(uint256).max;
+  uint256 public constant ROUNDING_ERROR = 10;
+  // TODO: Check if this will ever change
+  IERC20 public constant acrossToken = IERC20(0x28F77208728B0A45cAb24c4868334581Fe86F95B);
+  IAcrossHubPoolV2 public constant acrossPool = IAcrossHubPoolV2(0xc186fA914353c44b2E33eBE05f21846F1048bEda);
   /* ============ Immutables ============ */
 
   IController public immutable setController;
@@ -212,6 +217,10 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
           _depositIntoPendle(IPendlePrincipalToken(components[i]), positions[i], syToken);
           continue;
       }
+      if(IERC20(components[i]) == acrossToken){
+          _depositIntoAcross(positions[i]);
+          continue;
+      }
     }
     issuanceModule.issue(_setToken, _amountSetToken, msg.sender);
     // Assumes no eth was stored in this token previously, otherwise it can be stolen
@@ -234,11 +243,17 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
     for (uint256 i = 0; i < components.length; i++) {
       if(_isInstadapp(components[i])){
           _withdrawFromInstadapp(IERC4626(components[i]), positions[i]);
+          continue;
       }
       IPendleMarketV3 market = pendleMarkets[IPendlePrincipalToken(components[i])];
       if(market != IPendleMarketV3(address(0))){
           console.log("Withdrawing from Pendle");
           _withdrawFromPendle(IPendlePrincipalToken(components[i]), positions[i], market);
+          continue;
+      }
+      if(IERC20(components[i]) == acrossToken){
+          _withdrawFromAcross(positions[i]);
+          continue;
       }
     }
     uint256 ethObtained = address(this).balance.sub(ethBalanceBefore);
@@ -327,6 +342,16 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
       // Adding random bytes here since PendleMarket will not call back if data is empty
       IPendleMarketV3(pendleMarkets[_pt]).swapSyForExactPt(address(this), _ptAmount, bytes("a"));
   }
+
+  function _depositIntoAcross(uint256 _acrossLpAmount) internal {
+      uint256 ethAmount = acrossPool.exchangeRateCurrent(dexAdapter.weth).mul(_acrossLpAmount).div(1e18).add(ROUNDING_ERROR);
+      acrossPool.addLiquidity{value: ethAmount}(dexAdapter.weth, ethAmount);
+  }
+
+  function _withdrawFromAcross(uint256 _acrossLpAmount) internal {
+      acrossPool.removeLiquidity(dexAdapter.weth, _acrossLpAmount, true);
+  }
+
   function _withdrawFromPendle(IPendlePrincipalToken _pt, uint256 _ptAmount, IPendleMarketV3 _pendleMarket) internal {
       // Adding random bytes here since PendleMarket will not call back if data is empty
       (uint256 syAmount, ) = _pendleMarket.swapExactPtForSy(address(this), _ptAmount, bytes("a"));
