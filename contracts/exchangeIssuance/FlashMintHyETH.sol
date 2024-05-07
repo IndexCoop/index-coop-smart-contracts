@@ -176,18 +176,54 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
         ISetToken _setToken,
         uint256 _amountSetToken
     ) external payable nonReentrant returns (uint256) {
-        (address[] memory components, uint256[] memory positions, ) = IDebtIssuanceModule(
-            issuanceModule
-        ).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
-        uint256 ethBalanceBefore = address(this).balance;
-        for (uint256 i = 0; i < components.length; i++) {
-            _depositIntoComponent(components[i], positions[i]);
-        }
-
-        uint256 ethSpent = ethBalanceBefore.sub(address(this).balance);
-        issuanceModule.issue(_setToken, _amountSetToken, msg.sender);
+        uint256 ethSpent = _issueExactSetFromEth(_setToken, _amountSetToken);
         msg.sender.sendValue(msg.value.sub(ethSpent));
         return ethSpent;
+    }
+
+    function issueExactSetFromERC20(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        IERC20 _inputToken,
+        uint256 _maxInputTokenAmount,
+        DEXAdapterV2.SwapData memory _swapDataInputTokenToEth,
+        DEXAdapterV2.SwapData memory _swapDataEthToInputToken
+    ) external payable nonReentrant returns (uint256) {
+        _inputToken.safeTransferFrom(msg.sender, address(this), _maxInputTokenAmount);
+
+        uint256 ethAmount;
+        if(address(_inputToken) == address(IWETH(dexAdapter.weth))) {
+           ethAmount = _maxInputTokenAmount;
+           IWETH(dexAdapter.weth).withdraw(ethAmount);
+        } else {
+           ethAmount = dexAdapter.swapExactTokensForTokens(
+               _maxInputTokenAmount,
+               0,
+               _swapDataInputTokenToEth
+           );
+           if(_swapDataInputTokenToEth.path[_swapDataInputTokenToEth.path.length - 1] == dexAdapter.weth) {
+               IWETH(dexAdapter.weth).withdraw(ethAmount);
+           } 
+        }
+
+        ethAmount = ethAmount.sub(_issueExactSetFromEth(_setToken, _amountSetToken));
+
+        uint256 inputTokenLeft;
+        if(address(_inputToken) == address(dexAdapter.weth)) {
+           inputTokenLeft = ethAmount;
+           IWETH(dexAdapter.weth).deposit{value: ethAmount}();
+        } else {
+           if(_swapDataEthToInputToken.path[0] == DEXAdapterV2.ETH_ADDRESS) {
+               IWETH(dexAdapter.weth).deposit{value: ethAmount}();
+           } 
+           inputTokenLeft = dexAdapter.swapExactTokensForTokens(
+               ethAmount,
+               0,
+               _swapDataEthToInputToken
+           );
+        }
+
+        return _maxInputTokenAmount.sub(inputTokenLeft);
     }
 
 
@@ -326,6 +362,21 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
 
 
     /* ============ Internal ============ */
+
+    function _issueExactSetFromEth(
+        ISetToken _setToken,
+        uint256 _amountSetToken
+    ) internal returns (uint256) {
+        (address[] memory components, uint256[] memory positions, ) = IDebtIssuanceModule(
+            issuanceModule
+        ).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
+        uint256 ethBalanceBefore = address(this).balance;
+        for (uint256 i = 0; i < components.length; i++) {
+            _depositIntoComponent(components[i], positions[i]);
+        }
+        issuanceModule.issue(_setToken, _amountSetToken, msg.sender);
+        return ethBalanceBefore.sub(address(this).balance);
+    }
 
     function _depositIntoComponent(
         address _component,
