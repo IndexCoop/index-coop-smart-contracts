@@ -1,5 +1,5 @@
 import "module-alias/register";
-import { Account } from "@utils/types";
+import { Account, Address } from "@utils/types";
 import DeployHelper from "@utils/deploys";
 import { getAccounts, getWaffleExpect } from "@utils/index";
 import { setBlockNumber } from "@utils/test/testingUtils";
@@ -15,13 +15,33 @@ import {
   SetTokenCreator__factory,
   FlashMintHyETH,
   IPendlePrincipalToken__factory,
+  IERC20,
+  IERC20__factory,
+  IWETH,
+  IWETH__factory,
 } from "../../../typechain";
 import { PRODUCTION_ADDRESSES } from "./addresses";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
-import { ether } from "@utils/index";
+import { ether, usdc } from "@utils/index";
+import { impersonateAccount } from "./utils";
 
 const expect = getWaffleExpect();
 const ETH_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+
+enum Exchange {
+  None,
+  Sushiswap,
+  Quickswap,
+  UniV3,
+  Curve,
+}
+
+type SwapData = {
+  path: Address[];
+  fees: number[];
+  pool: Address;
+  exchange: Exchange;
+};
 
 if (process.env.INTEGRATIONTEST) {
   describe("FlashMintHyETH - Integration Test", async () => {
@@ -234,18 +254,86 @@ if (process.env.INTEGRATIONTEST) {
           expect(await setToken.symbol()).to.eq(tokenSymbol);
         });
 
-        it("Can issue set token from eth", async () => {
-          const setTokenAmount = ether(1);
-          const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
-          const maxEthIn = ether(1.01);
-          await flashMintHyETH.issueExactSetFromETH(setToken.address, setTokenAmount, {
-            value: maxEthIn,
+        ["eth", "weth", "USDC"].forEach((inputTokenName: keyof typeof addresses.tokens | "eth") => {
+          describe(`When inputToken is ${inputTokenName}`, () => {
+            let maxAmountIn = inputTokenName == "USDC" ? usdc(4000) : ether(1.01);
+            let setTokenAmount = ether(1);
+            let inputToken: IERC20 | IWETH;
+            let swapDataInputTokenToEth: SwapData;
+            let swapDataEthToInputToken: SwapData;
+
+            before(async () => {
+              if (inputTokenName != "eth") {
+                inputToken = IWETH__factory.connect(addresses.tokens[inputTokenName], owner.wallet);
+                inputToken.approve(flashMintHyETH.address, maxAmountIn);
+              }
+              if (inputTokenName === "weth") {
+                await inputToken.deposit({ value: maxAmountIn });
+                swapDataInputTokenToEth = {
+                  path: [addresses.tokens.weth, ETH_ADDRESS],
+                  fees: [],
+                  pool: ADDRESS_ZERO,
+                  exchange: 0,
+                };
+                swapDataEthToInputToken = {
+                  path: [ETH_ADDRESS, addresses.tokens.weth],
+                  fees: [],
+                  pool: ADDRESS_ZERO,
+                  exchange: 0,
+                };
+              }
+              if (inputTokenName === "USDC") {
+                const whaleSigner = await impersonateAccount(addresses.whales.USDC);
+                await inputToken.connect(whaleSigner).transfer(owner.address, maxAmountIn);
+                swapDataInputTokenToEth = {
+                  path: [addresses.tokens.USDC, addresses.tokens.weth],
+                  fees: [500],
+                  pool: ADDRESS_ZERO,
+                  exchange: Exchange.UniV3,
+                };
+                swapDataEthToInputToken = {
+                  path: [addresses.tokens.weth, addresses.tokens.USDC],
+                  fees: [500],
+                  pool: ADDRESS_ZERO,
+                  exchange: Exchange.UniV3,
+                };
+              }
+            });
+            function subject() {
+              if (inputTokenName === "eth") {
+                return flashMintHyETH.issueExactSetFromETH(setToken.address, setTokenAmount, {
+                  value: maxAmountIn,
+                });
+              } else {
+                return flashMintHyETH.issueExactSetFromERC20(
+                  setToken.address,
+                  setTokenAmount,
+                  inputToken.address,
+                  maxAmountIn,
+                  swapDataInputTokenToEth,
+                  swapDataEthToInputToken,
+                );
+              }
+            }
+            it("Can issue set token", async () => {
+              const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+              const inputTokenBalanceBefore =
+                inputTokenName === "eth"
+                  ? await owner.wallet.getBalance()
+                  : await inputToken.balanceOf(owner.address);
+              await subject();
+              const inputTokenBalanceAfter =
+                inputTokenName === "eth"
+                  ? await owner.wallet.getBalance()
+                  : await inputToken.balanceOf(owner.address);
+              const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+              expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
+              expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.sub(maxAmountIn));
+            });
           });
-          const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
-          expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
         });
 
-        it("Can redeem set token for eth", async () => {
+        it("Can redeem set token", async () => {
           const setTokenAmount = ether(1);
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           await flashMintHyETH.issueExactSetFromETH(setToken.address, setTokenAmount, {

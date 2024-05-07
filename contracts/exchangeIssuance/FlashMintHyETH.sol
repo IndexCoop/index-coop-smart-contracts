@@ -213,7 +213,7 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
            inputTokenLeft = ethAmount;
            IWETH(dexAdapter.weth).deposit{value: ethAmount}();
         } else {
-           if(_swapDataEthToInputToken.path[0] == DEXAdapterV2.ETH_ADDRESS) {
+           if(_swapDataEthToInputToken.path[0] == dexAdapter.weth) {
                IWETH(dexAdapter.weth).deposit{value: ethAmount}();
            } 
            inputTokenLeft = dexAdapter.swapExactTokensForTokens(
@@ -223,6 +223,7 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
            );
         }
 
+        _inputToken.safeTransfer(msg.sender, inputTokenLeft);
         return _maxInputTokenAmount.sub(inputTokenLeft);
     }
 
