@@ -181,19 +181,7 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
         ).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
         uint256 ethBalanceBefore = address(this).balance;
         for (uint256 i = 0; i < components.length; i++) {
-            if (_isInstadapp(components[i])) {
-                _depositIntoInstadapp(IERC4626(components[i]), positions[i]);
-                continue;
-            }
-            IPendleStandardizedYield syToken = _getSyToken(IPendlePrincipalToken(components[i]));
-            if (syToken != IPendleStandardizedYield(address(0))) {
-                _depositIntoPendle(IPendlePrincipalToken(components[i]), positions[i], syToken);
-                continue;
-            }
-            if (IERC20(components[i]) == acrossToken) {
-                _depositIntoAcross(positions[i]);
-                continue;
-            }
+            _depositIntoComponent(components[i], positions[i]);
         }
 
         uint256 ethSpent = ethBalanceBefore.sub(address(this).balance);
@@ -201,6 +189,7 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
         msg.sender.sendValue(msg.value.sub(ethSpent));
         return ethSpent;
     }
+
 
     /**
      * Redeem exact amount of SetToken for ETH
@@ -337,6 +326,25 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
 
 
     /* ============ Internal ============ */
+
+    function _depositIntoComponent(
+        address _component,
+        uint256 _amount
+    ) internal {
+        if (_isInstadapp(_component)) {
+            _depositIntoInstadapp(IERC4626(_component), _amount);
+            return;
+        }
+        IPendleStandardizedYield syToken = _getSyToken(IPendlePrincipalToken(_component));
+        if (syToken != IPendleStandardizedYield(address(0))) {
+            _depositIntoPendle(IPendlePrincipalToken(_component), _amount, syToken);
+            return;
+        }
+        if (IERC20(_component) == acrossToken) {
+            _depositIntoAcross(_amount);
+            return;
+        }
+    }
 
     /**
      * @dev Deposit eth into steth and then into instadapp vault
