@@ -181,6 +181,16 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
         return ethSpent;
     }
 
+    /**
+     * Issue exact amout of SetToken from ERC20 token
+     *
+     * @param _setToken     Address of the SetToken to issue
+     * @param _amountSetToken   Amount of SetToken to issue
+     * @param _inputToken    Address of the input token
+     * @param _maxInputTokenAmount  Maximum amount of input token to spend
+     * @param _swapDataInputTokenToEth Swap data from input token to ETH
+     * @param _swapDataEthToInputToken Swap data from ETH to input token (used to swap back the leftover eth)
+     */
     function issueExactSetFromERC20(
         ISetToken _setToken,
         uint256 _amountSetToken,
