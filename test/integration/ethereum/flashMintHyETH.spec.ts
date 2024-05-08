@@ -256,7 +256,8 @@ if (process.env.INTEGRATIONTEST) {
 
         ["eth", "weth", "USDC"].forEach((inputTokenName: keyof typeof addresses.tokens | "eth") => {
           describe(`When inputToken is ${inputTokenName}`, () => {
-            let maxAmountIn = inputTokenName == "USDC" ? usdc(4000) : ether(1.01);
+            let ethIn = ether(1.01);
+            let maxAmountIn = inputTokenName == "USDC" ? usdc(3300) : ethIn;
             let setTokenAmount = ether(1);
             let inputToken: IERC20 | IWETH;
             let swapDataInputTokenToEth: SwapData;
@@ -330,22 +331,51 @@ if (process.env.INTEGRATIONTEST) {
               expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
               expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.sub(maxAmountIn));
             });
-          });
-        });
 
-        it("Can redeem set token", async () => {
-          const setTokenAmount = ether(1);
-          const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
-          await flashMintHyETH.issueExactSetFromETH(setToken.address, setTokenAmount, {
-            value: ether(10),
+            describe("When set token has been issued", () => {
+              let minAmountOut = maxAmountIn.mul(8).div(10);
+              beforeEach(async () => {
+                await flashMintHyETH.issueExactSetFromETH(setToken.address, setTokenAmount, {
+                  value: ethIn,
+                });
+                await setToken.approve(flashMintHyETH.address, setTokenAmount);
+              });
+
+              function subject() {
+                if (inputTokenName === "eth") {
+                  return flashMintHyETH.redeemExactSetForETH(
+                    setToken.address,
+                    setTokenAmount,
+                    minAmountOut,
+                  );
+                } else {
+                  return flashMintHyETH.redeemExactSetForERC20(
+                    setToken.address,
+                    setTokenAmount,
+                    inputToken.address,
+                    minAmountOut,
+                    swapDataEthToInputToken,
+                  );
+                }
+              }
+
+              it("Can redeem set token", async () => {
+                const inputTokenBalanceBefore =
+                  inputTokenName === "eth"
+                    ? await owner.wallet.getBalance()
+                    : await inputToken.balanceOf(owner.address);
+                const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+                await subject();
+                const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+                const inputTokenBalanceAfter =
+                  inputTokenName === "eth"
+                    ? await owner.wallet.getBalance()
+                    : await inputToken.balanceOf(owner.address);
+                expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
+                expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.add(minAmountOut));
+              });
+            });
           });
-          const setTokenBalanceAfterIssuance = await setToken.balanceOf(owner.address);
-          expect(setTokenBalanceAfterIssuance).to.eq(setTokenBalanceBefore.add(setTokenAmount));
-          await setToken.approve(flashMintHyETH.address, setTokenAmount);
-          const minETHOut = ether(0.99);
-          await flashMintHyETH.redeemExactSetForETH(setToken.address, setTokenAmount, minETHOut);
-          const setTokenBalanceAfterRedemption = await setToken.balanceOf(owner.address);
-          expect(setTokenBalanceAfterRedemption).to.eq(setTokenBalanceBefore);
         });
       });
     });

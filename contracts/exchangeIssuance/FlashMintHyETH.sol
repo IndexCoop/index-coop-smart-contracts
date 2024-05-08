@@ -200,49 +200,6 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
         return _maxInputTokenAmount.sub(inputTokenLeft);
     }
 
-    function _swapFromEthToToken(
-        IERC20 _outputToken,
-        uint256 _ethAmount,
-        DEXAdapterV2.SwapData memory _swapDataEthToOutputToken
-    ) internal returns(uint256 outputTokenAmount) {
-        if(address(_outputToken) == address(dexAdapter.weth)) {
-           outputTokenAmount = _ethAmount;
-           IWETH(dexAdapter.weth).deposit{value: _ethAmount}();
-        } else {
-           if(_swapDataEthToOutputToken.path[0] == dexAdapter.weth) {
-               IWETH(dexAdapter.weth).deposit{value: _ethAmount}();
-           } 
-           outputTokenAmount = dexAdapter.swapExactTokensForTokens(
-               _ethAmount,
-               0,
-               _swapDataEthToOutputToken
-           );
-        }
-    }
-
-    function _swapFromTokenToEth(
-        IERC20 _inputToken,
-        uint256 _maxInputTokenAmount,
-        DEXAdapterV2.SwapData memory _swapDataInputTokenToEth
-    ) internal returns (uint256 ethAmount) {
-        if(address(_inputToken) == dexAdapter.weth) {
-           ethAmount = _maxInputTokenAmount;
-           IWETH(dexAdapter.weth).withdraw(ethAmount);
-        } else {
-           ethAmount = dexAdapter.swapExactTokensForTokens(
-               _maxInputTokenAmount,
-               0,
-               _swapDataInputTokenToEth
-           );
-           if(_swapDataInputTokenToEth.path[_swapDataInputTokenToEth.path.length - 1] == dexAdapter.weth) {
-               IWETH(dexAdapter.weth).withdraw(ethAmount);
-           } 
-        }
-
-
-    }
-
-
     /**
      * Redeem exact amount of SetToken for ETH
      *
@@ -255,36 +212,35 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
         uint256 _amountSetToken,
         uint256 _minETHOut
     ) external payable nonReentrant returns (uint256) {
-        uint256 maxAmountInputToken = msg.value; // = deposited amount ETH -> WETH
-        uint256 ethBalanceBefore = address(this).balance;
-
-        _setToken.safeTransferFrom(msg.sender, address(this), _amountSetToken);
-        issuanceModule.redeem(_setToken, _amountSetToken, address(this));
-        (address[] memory components, uint256[] memory positions, ) = IDebtIssuanceModule(
-            issuanceModule
-        ).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
-
-        for (uint256 i = 0; i < components.length; i++) {
-            if (_isInstadapp(components[i])) {
-                _withdrawFromInstadapp(IERC4626(components[i]), positions[i]);
-                continue;
-            }
-            IPendleMarketV3 market = pendleMarkets[IPendlePrincipalToken(components[i])];
-            if (market != IPendleMarketV3(address(0))) {
-                _withdrawFromPendle(IPendlePrincipalToken(components[i]), positions[i], market);
-                continue;
-            }
-            if (IERC20(components[i]) == acrossToken) {
-                _withdrawFromAcross(positions[i]);
-                continue;
-            }
-        }
-
-        uint256 ethObtained = address(this).balance.sub(ethBalanceBefore);
+        uint256 ethObtained = _redeemExactSetForETH(_setToken, _amountSetToken, _minETHOut);
         require(ethObtained >= _minETHOut, "FlashMint: INSUFFICIENT_OUTPUT");
         msg.sender.sendValue(ethObtained);
         return ethObtained;
     }
+
+    /**
+     * Redeem exact amount of SetToken for ERC20
+     *
+     * @param _setToken         Address of the SetToken to redeem
+     * @param _amountSetToken   Amount of SetToken to redeem
+     * @param _outputToken      Address of the output token
+     * @param _minOutputTokenAmount  Minimum amount of output token to receive (tx will revert if actual amount is less)
+     * @param _swapDataEthToOutputToken Swap data from ETH to output token
+     */
+    function redeemExactSetForERC20(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        IERC20 _outputToken,
+        uint256 _minOutputTokenAmount,
+        DEXAdapterV2.SwapData memory _swapDataEthToOutputToken
+    ) external payable nonReentrant returns (uint256) {
+        uint256 ethObtained = _redeemExactSetForETH(_setToken, _amountSetToken, 0);
+        uint256 outputTokenAmount = _swapFromEthToToken(_outputToken, ethObtained, _swapDataEthToOutputToken);
+        require(outputTokenAmount >= _minOutputTokenAmount, "FlashMint: INSUFFICIENT_OUTPUT");
+        _outputToken.safeTransfer(msg.sender, outputTokenAmount);
+        return outputTokenAmount;
+    }
+
 
     receive() external payable {}
 
@@ -379,6 +335,10 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
 
     /* ============ Internal ============ */
 
+    /**
+     * @dev Issue exact amount of SetToken from ETH
+     *
+     */
     function _issueExactSetFromEth(
         ISetToken _setToken,
         uint256 _amountSetToken
@@ -394,6 +354,34 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
         return ethBalanceBefore.sub(address(this).balance);
     }
 
+    /**
+     * @dev Redeem exact amount of SetToken for ETH
+     *
+     */
+    function _redeemExactSetForETH(
+        ISetToken _setToken,
+        uint256 _amountSetToken,
+        uint256 _minETHOut
+    ) internal returns (uint256) {
+        uint256 ethBalanceBefore = address(this).balance;
+
+        _setToken.safeTransferFrom(msg.sender, address(this), _amountSetToken);
+        issuanceModule.redeem(_setToken, _amountSetToken, address(this));
+        (address[] memory components, uint256[] memory positions, ) = IDebtIssuanceModule(
+            issuanceModule
+        ).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
+
+        for (uint256 i = 0; i < components.length; i++) {
+            _withdrawFromComponent(components[i], positions[i]);
+        }
+
+        return address(this).balance.sub(ethBalanceBefore);
+    }
+
+    /**
+     * @dev Deposit ETH into given component
+     *
+     */
     function _depositIntoComponent(
         address _component,
         uint256 _amount
@@ -411,6 +399,31 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
             _depositIntoAcross(_amount);
             return;
         }
+        revert("Component not supported for deposit");
+    }
+
+    /**
+     * @dev Withdraw ETH from given component
+     *
+     */
+    function _withdrawFromComponent(
+        address _component,
+        uint256 _amount
+    ) internal {
+        if (_isInstadapp(_component)) {
+            _withdrawFromInstadapp(IERC4626(_component), _amount);
+            return;
+        }
+        IPendleMarketV3 market = pendleMarkets[IPendlePrincipalToken(_component)];
+        if (market != IPendleMarketV3(address(0))) {
+            _withdrawFromPendle(IPendlePrincipalToken(_component), _amount, market);
+            return;
+        }
+        if (IERC20(_component) == acrossToken) {
+            _withdrawFromAcross(_amount);
+            return;
+        }
+        revert("Component not supported for withdrawal");
     }
 
     /**
@@ -524,4 +537,52 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
     ) internal returns (uint256) {
         dexAdapter.swapExactTokensForTokens(_amountIn, 0, swapData[_inputToken][_outputToken]);
     }
+
+    /**
+     * @dev Convert ETH to specified token, either swapping or simply depositing if outputToken is WETH
+     */
+    function _swapFromEthToToken(
+        IERC20 _outputToken,
+        uint256 _ethAmount,
+        DEXAdapterV2.SwapData memory _swapDataEthToOutputToken
+    ) internal returns(uint256 outputTokenAmount) {
+        if(address(_outputToken) == address(dexAdapter.weth)) {
+           outputTokenAmount = _ethAmount;
+           IWETH(dexAdapter.weth).deposit{value: _ethAmount}();
+        } else {
+           if(_swapDataEthToOutputToken.path[0] == dexAdapter.weth) {
+               IWETH(dexAdapter.weth).deposit{value: _ethAmount}();
+           } 
+           outputTokenAmount = dexAdapter.swapExactTokensForTokens(
+               _ethAmount,
+               0,
+               _swapDataEthToOutputToken
+           );
+        }
+    }
+
+    /**
+     * @dev Convert specified token to ETH, either swapping or simply withdrawing if inputToken is WETH
+     */
+    function _swapFromTokenToEth(
+        IERC20 _inputToken,
+        uint256 _maxInputTokenAmount,
+        DEXAdapterV2.SwapData memory _swapDataInputTokenToEth
+    ) internal returns (uint256 ethAmount) {
+        if(address(_inputToken) == dexAdapter.weth) {
+           ethAmount = _maxInputTokenAmount;
+           IWETH(dexAdapter.weth).withdraw(ethAmount);
+        } else {
+           ethAmount = dexAdapter.swapExactTokensForTokens(
+               _maxInputTokenAmount,
+               0,
+               _swapDataInputTokenToEth
+           );
+           if(_swapDataInputTokenToEth.path[_swapDataInputTokenToEth.path.length - 1] == dexAdapter.weth) {
+               IWETH(dexAdapter.weth).withdraw(ethAmount);
+           } 
+        }
+    }
+
+
 }
