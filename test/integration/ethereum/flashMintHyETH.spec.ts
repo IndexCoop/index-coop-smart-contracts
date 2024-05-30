@@ -16,7 +16,6 @@ import {
   FlashMintHyETH,
   IPendlePrincipalToken__factory,
   IERC20,
-  IERC20__factory,
   IWETH,
   IWETH__factory,
 } from "../../../typechain";
@@ -41,6 +40,13 @@ type SwapData = {
   fees: number[];
   pool: Address;
   exchange: Exchange;
+};
+
+const NO_OP_SWAP_DATA: SwapData = {
+  path: [],
+  fees: [],
+  pool: ADDRESS_ZERO,
+  exchange: Exchange.None,
 };
 
 if (process.env.INTEGRATIONTEST) {
@@ -121,7 +127,7 @@ if (process.env.INTEGRATIONTEST) {
       });
 
       context("when setToken with hyETH launch composition is deployed", () => {
-        const setToken: SetToken;
+        let setToken: SetToken;
         const components = [
           addresses.tokens.instadappEthV2,
           addresses.tokens.pendleEEth0624,
@@ -136,6 +142,15 @@ if (process.env.INTEGRATIONTEST) {
           ethers.utils.parseEther("0.2"),
           ethers.utils.parseEther("0.2"),
         ];
+
+        const componentSwapData = [
+          NO_OP_SWAP_DATA,
+          NO_OP_SWAP_DATA,
+          NO_OP_SWAP_DATA,
+          NO_OP_SWAP_DATA,
+          NO_OP_SWAP_DATA,
+        ];
+
         const modules = [addresses.setFork.debtIssuanceModuleV2];
         const tokenName = "IndexCoop High Yield ETH";
         const tokenSymbol = "HyETH";
@@ -256,9 +271,9 @@ if (process.env.INTEGRATIONTEST) {
 
         ["eth", "weth", "USDC"].forEach((inputTokenName: keyof typeof addresses.tokens | "eth") => {
           describe(`When inputToken is ${inputTokenName}`, () => {
-            let ethIn = ether(1.01);
-            let maxAmountIn = inputTokenName == "USDC" ? usdc(3300) : ethIn;
-            let setTokenAmount = ether(1);
+            const ethIn = ether(1.01);
+            const maxAmountIn = inputTokenName == "USDC" ? usdc(3300) : ethIn;
+            const setTokenAmount = ether(1);
             let inputToken: IERC20 | IWETH;
             let swapDataInputTokenToEth: SwapData;
             let swapDataEthToInputToken: SwapData;
@@ -302,9 +317,14 @@ if (process.env.INTEGRATIONTEST) {
             });
             function subject() {
               if (inputTokenName === "eth") {
-                return flashMintHyETH.issueExactSetFromETH(setToken.address, setTokenAmount, {
-                  value: maxAmountIn,
-                });
+                return flashMintHyETH.issueExactSetFromETH(
+                  setToken.address,
+                  setTokenAmount,
+                  componentSwapData,
+                  {
+                    value: maxAmountIn,
+                  },
+                );
               } else {
                 return flashMintHyETH.issueExactSetFromERC20(
                   setToken.address,
@@ -313,6 +333,7 @@ if (process.env.INTEGRATIONTEST) {
                   maxAmountIn,
                   swapDataInputTokenToEth,
                   swapDataEthToInputToken,
+                  componentSwapData,
                 );
               }
             }
@@ -333,11 +354,16 @@ if (process.env.INTEGRATIONTEST) {
             });
 
             describe("When set token has been issued", () => {
-              let minAmountOut = maxAmountIn.mul(8).div(10);
+              const minAmountOut = maxAmountIn.mul(8).div(10);
               beforeEach(async () => {
-                await flashMintHyETH.issueExactSetFromETH(setToken.address, setTokenAmount, {
-                  value: ethIn,
-                });
+                await flashMintHyETH.issueExactSetFromETH(
+                  setToken.address,
+                  setTokenAmount,
+                  componentSwapData,
+                  {
+                    value: ethIn,
+                  },
+                );
                 await setToken.approve(flashMintHyETH.address, setTokenAmount);
               });
 
@@ -347,6 +373,7 @@ if (process.env.INTEGRATIONTEST) {
                     setToken.address,
                     setTokenAmount,
                     minAmountOut,
+                    componentSwapData,
                   );
                 } else {
                   return flashMintHyETH.redeemExactSetForERC20(
@@ -355,6 +382,7 @@ if (process.env.INTEGRATIONTEST) {
                     inputToken.address,
                     minAmountOut,
                     swapDataEthToInputToken,
+                    componentSwapData,
                   );
                 }
               }
