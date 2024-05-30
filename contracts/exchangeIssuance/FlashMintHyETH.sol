@@ -56,7 +56,6 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
 
     uint256 private constant MAX_UINT256 = type(uint256).max;
     uint256 public constant ROUNDING_ERROR = 10;
-    // TODO: Check if this will ever change
     IERC20 public constant acrossToken = IERC20(0x28F77208728B0A45cAb24c4868334581Fe86F95B);
     IAcrossHubPoolV2 public constant acrossPool =
         IAcrossHubPoolV2(0xc186fA914353c44b2E33eBE05f21846F1048bEda);
@@ -494,7 +493,7 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
      *
      */
     function _depositIntoLido(uint256 _amount) internal {
-        stETH.submit{ value: _amount }(address(0)); // TODO: Check if we want to pass referral address
+        stETH.submit{ value: _amount }(address(0));
     }
 
     /**
