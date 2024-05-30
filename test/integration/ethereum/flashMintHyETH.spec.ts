@@ -134,21 +134,43 @@ if (process.env.INTEGRATIONTEST) {
           addresses.tokens.pendleRsEth0624,
           addresses.tokens.pendleRswEth0624,
           addresses.tokens.acrossWethLP,
+          addresses.tokens.USDC,
         ];
         const positions = [
-          ethers.utils.parseEther("0.2"),
-          ethers.utils.parseEther("0.2"),
-          ethers.utils.parseEther("0.2"),
-          ethers.utils.parseEther("0.2"),
-          ethers.utils.parseEther("0.2"),
+          ethers.utils.parseEther("0.16"),
+          ethers.utils.parseEther("0.16"),
+          ethers.utils.parseEther("0.16"),
+          ethers.utils.parseEther("0.16"),
+          ethers.utils.parseEther("0.16"),
+          usdc(600),
         ];
 
-        const componentSwapData = [
+        const componentSwapDataIssue = [
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
+          {
+            exchange: Exchange.UniV3,
+            fees: [500],
+            path: [addresses.tokens.weth, addresses.tokens.USDC],
+            pool: ADDRESS_ZERO,
+          },
+        ];
+
+        const componentSwapDataRedeem = [
+          NO_OP_SWAP_DATA,
+          NO_OP_SWAP_DATA,
+          NO_OP_SWAP_DATA,
+          NO_OP_SWAP_DATA,
+          NO_OP_SWAP_DATA,
+          {
+            exchange: Exchange.UniV3,
+            fees: [500],
+            path: [ addresses.tokens.USDC, addresses.tokens.weth],
+            pool: ADDRESS_ZERO,
+          },
         ];
 
         const modules = [addresses.setFork.debtIssuanceModuleV2];
@@ -320,7 +342,7 @@ if (process.env.INTEGRATIONTEST) {
                 return flashMintHyETH.issueExactSetFromETH(
                   setToken.address,
                   setTokenAmount,
-                  componentSwapData,
+                  componentSwapDataIssue,
                   {
                     value: maxAmountIn,
                   },
@@ -333,7 +355,7 @@ if (process.env.INTEGRATIONTEST) {
                   maxAmountIn,
                   swapDataInputTokenToEth,
                   swapDataEthToInputToken,
-                  componentSwapData,
+                  componentSwapDataIssue,
                 );
               }
             }
@@ -359,7 +381,7 @@ if (process.env.INTEGRATIONTEST) {
                 await flashMintHyETH.issueExactSetFromETH(
                   setToken.address,
                   setTokenAmount,
-                  componentSwapData,
+                  componentSwapDataIssue,
                   {
                     value: ethIn,
                   },
@@ -373,7 +395,7 @@ if (process.env.INTEGRATIONTEST) {
                     setToken.address,
                     setTokenAmount,
                     minAmountOut,
-                    componentSwapData,
+                    componentSwapDataRedeem,
                   );
                 } else {
                   return flashMintHyETH.redeemExactSetForERC20(
@@ -382,7 +404,7 @@ if (process.env.INTEGRATIONTEST) {
                     inputToken.address,
                     minAmountOut,
                     swapDataEthToInputToken,
-                    componentSwapData,
+                    componentSwapDataRedeem,
                   );
                 }
               }

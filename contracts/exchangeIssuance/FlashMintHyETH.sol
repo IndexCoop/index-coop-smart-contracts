@@ -406,7 +406,19 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
         DEXAdapterV2.SwapData memory _swapData
     ) internal {
         if(_swapData.exchange != DEXAdapterV2.Exchange.None) {
-            dexAdapter.swapTokensForExactTokens(_amount, type(uint256).max, _swapData);
+            require(_swapData.path.length > 1, "zero length swap path");
+            require(_swapData.path[0] == DEXAdapterV2.ETH_ADDRESS || _swapData.path[0] == dexAdapter.weth, "Invalid input token");
+            require(_swapData.path[_swapData.path.length - 1] == _component, "Invalid output token");
+            if(_swapData.path[0] == dexAdapter.weth) {
+                uint256 balanceBefore = IWETH(dexAdapter.weth).balanceOf(address(this));
+                IWETH(dexAdapter.weth).deposit{value: address(this).balance}();
+                dexAdapter.swapTokensForExactTokens(_amount, IWETH(dexAdapter.weth).balanceOf(address(this)), _swapData);
+                IWETH(dexAdapter.weth).withdraw(IWETH(dexAdapter.weth).balanceOf(address(this)).sub(balanceBefore));
+            }
+            else {
+                dexAdapter.swapTokensForExactTokens(_amount, address(this).balance, _swapData);
+            }
+            return;
         }
         if (_isInstadapp(_component)) {
             _depositIntoInstadapp(IERC4626(_component), _amount);
@@ -425,7 +437,7 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
             IWETH(dexAdapter.weth).deposit{ value: _amount }();
             return;
         }
-        revert("Component not supported for deposit");
+        revert("Missing Swapdata for non-standard component");
     }
 
     /**
@@ -438,7 +450,14 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
         DEXAdapterV2.SwapData memory _swapData
     ) internal {
         if(_swapData.exchange != DEXAdapterV2.Exchange.None) {
-            dexAdapter.swapExactTokensForTokens(_amount, 0, _swapData);
+            require(_swapData.path.length > 1, "zero length swap path");
+            require(_swapData.path[0] == _component, "Invalid input token");
+            require(_swapData.path[_swapData.path.length - 1] == DEXAdapterV2.ETH_ADDRESS || _swapData.path[_swapData.path.length - 1] == dexAdapter.weth, "Invalid output token");
+            uint256 ethReceived = dexAdapter.swapExactTokensForTokens(_amount, 0, _swapData);
+            if(_swapData.path[_swapData.path.length - 1] == dexAdapter.weth) {
+                IWETH(dexAdapter.weth).withdraw(ethReceived);
+            }
+            return;
         }
         if (_isInstadapp(_component)) {
             _withdrawFromInstadapp(IERC4626(_component), _amount);
@@ -457,7 +476,7 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
             IWETH(dexAdapter.weth).withdraw(_amount);
             return;
         }
-        revert("Component not supported for withdrawal");
+        revert("Missing Swapdata for non-standard component");
     }
 
     /**
