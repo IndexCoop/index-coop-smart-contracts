@@ -25,6 +25,14 @@ export const PRODUCTION_ADDRESSES = {
     wbtc: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
     swETH: "0xf951E335afb289353dc249e82926178EaC7DEd78",
     ETHx: "0xA35b1B31Ce002FBF2058D22F30f95D405200A15b",
+    instadappEthV2: "0xa0d3707c569ff8c87fa923d3823ec5d81c98be78",
+    pendleEEth0624: "0xc69Ad9baB1dEE23F4605a82b3354F8E40d1E5966",
+    pendleRsEth0624: "0xB05cABCd99cf9a73b19805edefC5f67CA5d1895E",
+    pendleRswEth0624: "0x5cb12D56F5346a016DBBA8CA90635d82e6D1bcEa",
+    weEth: "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee",
+    rsEth: "0xA1290d69c65A6Fe4DF752f95823fae25cB99e5A7",
+    rswEth: "0xFAe103DC9cf190eD75350761e95403b7b8aFa6c0",
+    acrossWethLP: "0x28F77208728B0A45cAb24c4868334581Fe86F95B",
   },
   whales: {
     stEth: "0xdc24316b9ae028f1497c275eb9192a3ea0f67022",
@@ -56,6 +64,13 @@ export const PRODUCTION_ADDRESSES = {
     balancerv2: {
       vault: "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
     },
+    pendle: {
+      markets: {
+        eEth0624: "0xF32e58F92e60f4b0A37A69b95d642A471365EAe8",
+        rsEth0624: "0x4f43c77872db6ba177c270986cd30c3381af37ee",
+        rswEth0624: "0xa9355a5d306c67027c54de0e5a72df76befa5694",
+      },
+    },
   },
   set: {
     controller: "0xa4c8d221d8BB851f83aadd0223a8900A6921A349",
@@ -76,6 +91,7 @@ export const PRODUCTION_ADDRESSES = {
     aaveV3LeverageModule: "0x71E932715F5987077ADC5A7aA245f38841E0DcBe",
     constantPriceAdapter: "0x13c33656570092555Bf27Bdf53Ce24482B85D992",
     linearPriceAdapter: "0x237F7BBe0b358415bE84AB6d279D4338C0d026bB",
+    setTokenCreator: "0x2758BF6Af0EC63f1710d3d7890e1C263a247B75E",
   },
   lending: {
     aave: {

@@ -12,6 +12,7 @@ export { DebtIssuanceModule } from "../../typechain/DebtIssuanceModule";
 export { DebtIssuanceModuleV2 } from "../../typechain/DebtIssuanceModuleV2";
 export { BasicIssuanceModule } from "../../typechain/BasicIssuanceModule";
 export { DEXAdapter } from "../../typechain/DEXAdapter";
+export { DEXAdapterV2 } from "../../typechain/DEXAdapterV2";
 export { ExchangeIssuance } from "../../typechain/ExchangeIssuance";
 export { ExchangeIssuanceV2 } from "../../typechain/ExchangeIssuanceV2";
 export { ExchangeIssuanceLeveraged } from "../../typechain/ExchangeIssuanceLeveraged";
