@@ -228,6 +228,7 @@ if (process.env.INTEGRATIONTEST) {
             eEthSyToken,
             addresses.tokens.weEth,
             addresses.dexes.pendle.markets.eEth0624,
+            ethers.utils.parseEther("1.0005"),
           );
           // weETH -> weth pool: https://etherscan.io/address/0x7a415b19932c0105c82fdb6b720bb01b0cc2cae3
           await flashMintHyETH.setSwapData(addresses.tokens.weEth, ADDRESS_ZERO, {
@@ -253,6 +254,7 @@ if (process.env.INTEGRATIONTEST) {
             rsEthSyToken,
             addresses.tokens.rsEth,
             addresses.dexes.pendle.markets.rsEth0624,
+            ethers.utils.parseEther("1.0005"),
           );
           // rsEth -> weth pool: https://etherscan.io/address/0x059615ebf32c946aaab3d44491f78e4f8e97e1d3
           await flashMintHyETH.setSwapData(addresses.tokens.rsEth, ADDRESS_ZERO, {
@@ -278,6 +280,7 @@ if (process.env.INTEGRATIONTEST) {
             rswEthSyToken,
             addresses.tokens.rswEth,
             addresses.dexes.pendle.markets.rswEth0624,
+            ethers.utils.parseEther("1.0005"),
           );
           // rswEth -> weth pool: https://etherscan.io/address/0xe62627326d7794e20bb7261b24985294de1579fe
           await flashMintHyETH.setSwapData(addresses.tokens.rswEth, ADDRESS_ZERO, {

@@ -51,6 +51,7 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
         IPendlePrincipalToken pt;
         IPendleStandardizedYield sy;
         address underlying;
+        uint256 exchangeRateFactor;
     }
     /* ============ Constants ============= */
 
@@ -314,15 +315,22 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
      * @param _sy             Address of the corresponding Standardized Yield Token
      * @param _underlying     Address of the underlying token to redeem to
      * @param _market         Address of the Pendle Market to use for swapping between pt and sy
+     * @param _exchangeRateFactor  Factor to multiply the exchange rate when supplying to Pendle Market
      */
     function setPendleMarket(
         IPendlePrincipalToken _pt,
         IPendleStandardizedYield _sy,
         address _underlying,
-        IPendleMarketV3 _market
+        IPendleMarketV3 _market,
+        uint256 _exchangeRateFactor
     ) external onlyOwner {
         pendleMarkets[_pt] = _market;
-        pendleMarketData[_market] = PendleMarketData({ pt: _pt, sy: _sy, underlying: _underlying });
+        pendleMarketData[_market] = PendleMarketData({
+            pt: _pt,
+            sy: _sy,
+            underlying: _underlying,
+            exchangeRateFactor: _exchangeRateFactor
+        });
     }
 
     /**
@@ -340,7 +348,15 @@ contract FlashMintHyETH is Ownable, ReentrancyGuard {
             marketData.pt.transfer(msg.sender, ptAmount);
         } else if (_syToAccount < 0) {
             uint256 syAmount = uint256(-_syToAccount);
-            uint256 ethAmount = syAmount.mul(marketData.sy.exchangeRate()).div(1e18);
+
+            // Withdraw necessary ETH, if deposit size is enough to move the oracle, then the exchange rate will not be 
+            // valid for computing the amount of ETH to withdraw, so increase by exchangeRateFactor
+            uint256 ethAmount = syAmount.mul(marketData.sy.exchangeRate()).div(1 ether);
+            uint256 syAmountPreview = marketData.sy.previewDeposit(address(0), ethAmount);
+            if (syAmountPreview < syAmount) {
+                ethAmount = ethAmount * marketData.exchangeRateFactor / 1 ether;
+            }
+
             marketData.sy.deposit{ value: ethAmount }(msg.sender, address(0), ethAmount, 0);
         } else {
             revert("Invalid callback");
