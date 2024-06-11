@@ -298,6 +298,9 @@ describe.only("PrtStakingPool", () => {
     beforeEach(async () => {
       const amount = ether(1);
 
+      await prt.connect(owner.wallet).approve(prtStakingPool.address, amount);
+      await prtStakingPool.connect(owner.wallet).stake(amount);
+
       await setToken.connect(owner.wallet).transfer(feeSplitExtension.address, amount);
       await setToken.connect(feeSplitExtension.wallet).approve(prtStakingPool.address, amount);
 
@@ -344,6 +347,18 @@ describe.only("PrtStakingPool", () => {
 
       it("should revert", async () => {
         await expect(subject()).to.be.revertedWith("Cannot accrue 0");
+      });
+    });
+
+    describe("when the amount staked is 0", async () => {
+      beforeEach(async () => {
+        await prtStakingPool.connect(owner.wallet).unstake(
+          await prtStakingPool.balanceOf(owner.address)
+        );
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Cannot accrue with 0 staked supply");
       });
     });
 

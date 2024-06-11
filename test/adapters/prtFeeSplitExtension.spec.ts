@@ -168,6 +168,10 @@ describe.only("PrtFeeSplitExtension", () => {
         prt.address,
         feeExtension.address,
       );
+
+      // Stake PRT in PRT Staking Pool
+      await prt.connect(owner.wallet).approve(prtStakingPool.address, ether(1));
+      await prtStakingPool.connect(owner.wallet).stake(ether(1));
     });
 
     describe("#updatePrtStakingPool", async () => {
