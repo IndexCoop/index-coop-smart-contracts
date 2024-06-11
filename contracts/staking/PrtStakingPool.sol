@@ -41,13 +41,15 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
 
     event FeeSplitExtensionChanged(address _newFeeSplitExtension);
 
-    /* ============ State Variables ============ */
+    /* ============ Immutables ============ */
 
     /// @notice SetToken to be distributed to stakers
     ISetToken public immutable setToken;
 
     /// @notice PRT token to be staked
     IPrt public immutable prt;
+
+    /* ============ State Variables ============ */
 
     /// @notice PRT Fee split extension which accrues fees and distributes setToken
     address public feeSplitExtension;

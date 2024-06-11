@@ -52,9 +52,12 @@ contract PrtFeeSplitExtension is FeeSplitExtension {
         uint256 prtTake
     );
 
+    /* ============ Immutables ============ */
+
+    IPrt public immutable prt;
+
     /* ============ State Variables ============ */
 
-    IPrt public prt;
     IPrtStakingPool public prtStakingPool;
 
     /* ============ Constructor ============ */
