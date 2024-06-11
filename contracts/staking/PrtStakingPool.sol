@@ -120,6 +120,7 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
      * @param _amount The amount of SetTokens to accrue
      */
     function accrue(uint256 _amount) external nonReentrant onlyFeeSplitExtension {
+        require(_amount > 0, "Cannot accrue 0");
         setToken.transferFrom(msg.sender, address(this), _amount);
         accrueSnapshots.push(_amount);
         super._snapshot();

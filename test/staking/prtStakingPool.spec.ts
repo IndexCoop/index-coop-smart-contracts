@@ -337,6 +337,16 @@ describe.only("PrtStakingPool", () => {
       await expect(subject()).to.emit(prtStakingPool, "Snapshot").withArgs(1);
     });
 
+    describe("when the amount is 0", async () => {
+      beforeEach(async () => {
+        subjectAmount = ZERO;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Cannot accrue 0");
+      });
+    });
+
     describe("when the caller is not the FeeSplitExtension", async () => {
       beforeEach(async () => {
         subjectCaller = await getRandomAccount();
