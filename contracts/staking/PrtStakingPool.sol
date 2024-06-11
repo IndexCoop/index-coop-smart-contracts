@@ -142,6 +142,16 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
         FeeSplitExtensionChanged(_feeSplitExtension);
     }
 
+    /* ========== ERC20 Overrides ========== */
+
+    function transfer(address /*recipient*/, uint256 /*amount*/) public override returns (bool) {
+        revert("Transfers not allowed");
+    }
+
+    function transferFrom(address /*sender*/, address /*recipient*/, uint256 /*amount*/) public override returns (bool) {
+        revert("Transfers not allowed");
+    }
+
     /* ========== View Functions ========== */
 
     /**

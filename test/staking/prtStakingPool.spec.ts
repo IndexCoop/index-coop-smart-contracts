@@ -207,6 +207,19 @@ describe.only("PrtStakingPool", () => {
       await expect(subject()).to.emit(prtStakingPool, "Transfer").withArgs(ADDRESS_ZERO, bob.address, subjectAmount);
     });
 
+    it("should be non-transferrable", async () => {
+      await subject();
+
+      await expect(
+        prtStakingPool.connect(bob.wallet).transfer(owner.address, subjectAmount)
+      ).to.be.revertedWith("Transfers not allowed");
+
+      await prtStakingPool.connect(bob.wallet).approve(owner.address, subjectAmount);
+      await expect(
+        prtStakingPool.connect(bob.wallet).transferFrom(bob.address, owner.address, subjectAmount)
+      ).to.be.revertedWith("Transfers not allowed");
+    });
+
     describe("when the amount is 0", async () => {
       beforeEach(async () => {
         subjectAmount = ZERO;
@@ -320,6 +333,10 @@ describe.only("PrtStakingPool", () => {
       expect(accrueSnapshotsAfter[accrueSnapshotsAfter.length - 1]).to.eq(subjectAmount);
     });
 
+    it("should emit the correct PRT Staking Pool Snapshot event", async () => {
+      await expect(subject()).to.emit(prtStakingPool, "Snapshot").withArgs(1);
+    });
+
     describe("when the caller is not the FeeSplitExtension", async () => {
       beforeEach(async () => {
         subjectCaller = await getRandomAccount();
@@ -386,8 +403,6 @@ describe.only("PrtStakingPool", () => {
       await setToken.connect(owner.wallet).transfer(feeSplitExtension.address, snap3Amount);
       await setToken.connect(feeSplitExtension.wallet).approve(prtStakingPool.address, snap3Amount);
       await prtStakingPool.connect(feeSplitExtension.wallet).accrue(snap3Amount);
-
-      subjectCaller = bob;
     });
 
     async function subject(caller: Account): Promise<any> {
@@ -472,12 +487,68 @@ describe.only("PrtStakingPool", () => {
     describe("when the rewards have been claimed", async () => {
       beforeEach(async () => {
         await prtStakingPool.connect(bob.wallet).claim();
-        subjectCaller = bob;
       });
 
       it("should return 0", async () => {
         await expect(subject(bob)).to.be.revertedWith("No rewards to claim");
       });
+    });
+  });
+
+  describe("#transfer", async () => {
+    let subjectAmount: BigNumber;
+    let subjectCaller: Account;
+    let subjectReceiver: Account;
+
+    beforeEach(async () => {
+      const amount = ether(1);
+
+      await prt.connect(owner.wallet).transfer(bob.address, amount);
+      await prt.connect(bob.wallet).approve(prtStakingPool.address, amount);
+      await prtStakingPool.connect(bob.wallet).stake(amount);
+
+      subjectAmount = amount;
+      subjectCaller = bob;
+      subjectReceiver = alice;
+    });
+
+    async function subject(): Promise<any> {
+      return prtStakingPool.connect(subjectCaller.wallet).transfer(subjectReceiver.address, subjectAmount);
+    }
+
+    it("should revert", async () => {
+      await expect(subject()).to.be.revertedWith("Transfers not allowed");
+    });
+  });
+
+  describe("#transferFrom", async () => {
+    let subjectAmount: BigNumber;
+    let subjectCaller: Account;
+    let subjectSender: Account;
+
+    beforeEach(async () => {
+      const amount = ether(1);
+
+      await prt.connect(owner.wallet).transfer(bob.address, amount);
+      await prt.connect(bob.wallet).approve(prtStakingPool.address, amount);
+      await prtStakingPool.connect(bob.wallet).stake(amount);
+      await prtStakingPool.connect(bob.wallet).approve(alice.address, amount);
+
+      subjectAmount = amount;
+      subjectCaller = alice;
+      subjectSender = bob;
+    });
+
+    async function subject(): Promise<any> {
+      return prtStakingPool.connect(subjectCaller.wallet).transferFrom(
+        subjectSender.address,
+        subjectCaller.address,
+        subjectAmount
+      );
+    }
+
+    it("should revert", async () => {
+      await expect(subject()).to.be.revertedWith("Transfers not allowed");
     });
   });
 
