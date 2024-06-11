@@ -23,6 +23,7 @@ import {
   FlashMintPerp,
   FlexibleLeverageStrategyExtension,
   FeeSplitExtension,
+  PrtFeeSplitExtension,
   GIMExtension,
   GovernanceExtension,
   MigrationExtension,
@@ -54,6 +55,7 @@ import { FlashMintWrapped__factory } from "../../typechain/factories/FlashMintWr
 import { ExchangeIssuanceZeroEx__factory } from "../../typechain/factories/ExchangeIssuanceZeroEx__factory";
 import { FlashMintPerp__factory } from "../../typechain/factories/FlashMintPerp__factory";
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
+import { PrtFeeSplitExtension__factory } from "../../typechain/factories/PrtFeeSplitExtension__factory";
 import { FlexibleLeverageStrategyExtension__factory } from "../../typechain/factories/FlexibleLeverageStrategyExtension__factory";
 import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__factory";
 import { GovernanceExtension__factory } from "../../typechain/factories/GovernanceExtension__factory";
@@ -84,6 +86,24 @@ export default class DeployExtensions {
       debtIssuanceModule,
       operatorFeeSplit,
       operatorFeeRecipient,
+    );
+  }
+
+  public async deployPrtFeeSplitExtension(
+    manager: Address,
+    streamingFeeModule: Address,
+    debtIssuanceModule: Address,
+    operatorFeeSplit: BigNumber,
+    operatorFeeRecipient: Address,
+    prt: Address,
+  ): Promise<PrtFeeSplitExtension> {
+    return await new PrtFeeSplitExtension__factory(this._deployerSigner).deploy(
+      manager,
+      streamingFeeModule,
+      debtIssuanceModule,
+      operatorFeeSplit,
+      operatorFeeRecipient,
+      prt,
     );
   }
 

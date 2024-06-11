@@ -69,3 +69,6 @@ export { GlobalAuctionRebalanceExtension } from "../../typechain/GlobalAuctionRe
 export { GlobalOptimisticAuctionRebalanceExtension } from "../../typechain/GlobalOptimisticAuctionRebalanceExtension";
 export { OptimisticAuctionRebalanceExtensionV1 } from "../../typechain/OptimisticAuctionRebalanceExtensionV1";
 export { OptimisticOracleV3Mock } from "../../typechain/OptimisticOracleV3Mock";
+export { PrtStakingPool } from "../../typechain/PrtStakingPool";
+export { PrtFeeSplitExtension } from "../../typechain/PrtFeeSplitExtension";
+export { Prt } from "../../typechain/Prt";

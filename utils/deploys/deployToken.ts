@@ -16,6 +16,8 @@ import { Vesting__factory } from "../../typechain/factories/Vesting__factory";
 import { OtcEscrow__factory } from "../../typechain/factories/OtcEscrow__factory";
 import { FTCVesting__factory } from "../../typechain/factories/FTCVesting__factory";
 import { IndexPowah__factory } from "@typechain/factories/IndexPowah__factory";
+import { Prt } from "@typechain/Prt";
+import { Prt__factory } from "@typechain/factories/Prt__factory";
 
 export default class DeployToken {
   private _deployerSigner: Signer;
@@ -116,6 +118,22 @@ export default class DeployToken {
       masterChefId,
       farms,
       vesting,
+    );
+  }
+
+  public async deployPrt(
+    name: Address,
+    symbol: Address,
+    setToken: Address,
+    distributor: Address,
+    totalSupply: BigNumber,
+  ): Promise<Prt> {
+    return await new Prt__factory(this._deployerSigner).deploy(
+      name,
+      symbol,
+      setToken,
+      distributor,
+      totalSupply,
     );
   }
 }

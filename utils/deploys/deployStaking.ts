@@ -3,6 +3,8 @@ import { Address } from "../types";
 import { StakingRewardsV2 } from "../contracts/index";
 
 import { StakingRewardsV2__factory } from "../../typechain/factories/StakingRewardsV2__factory";
+import { PrtStakingPool } from "../contracts/index";
+import { PrtStakingPool__factory } from "../../typechain/factories/PrtStakingPool__factory";
 
 export default class DeployStaking {
   private _deployerSigner: Signer;
@@ -22,6 +24,20 @@ export default class DeployStaking {
       rewardToken,
       stakingToken,
       duration
+    );
+  }
+
+  public async deployPrtStakingPool(
+    name: string,
+    symbol: string,
+    prt: Address,
+    feeSplitExtension: Address
+  ): Promise<PrtStakingPool> {
+    return await new PrtStakingPool__factory(this._deployerSigner).deploy(
+      name,
+      symbol,
+      prt,
+      feeSplitExtension
     );
   }
 }

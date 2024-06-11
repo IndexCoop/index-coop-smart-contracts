@@ -91,7 +91,7 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
      * will automatically be sent to this address so reading the balance of the SetToken in the contract after accrual is
      * sufficient for accounting for all collected fees.
      */
-    function accrueFeesAndDistribute() public {
+    function accrueFeesAndDistribute() public virtual {
         // Emits a FeeActualized event
         streamingFeeModule.accrueFee(setToken);
 
@@ -260,6 +260,7 @@ contract FeeSplitExtension is BaseExtension, TimeLockUpgrade, MutualUpgrade {
      */
     function updateFeeSplit(uint256 _newFeeSplit)
         external
+        virtual
         mutualUpgrade(manager.operator(), manager.methodologist())
     {
         require(_newFeeSplit <= PreciseUnitMath.preciseUnit(), "Fee must be less than 100%");
