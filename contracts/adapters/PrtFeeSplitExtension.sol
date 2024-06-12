@@ -36,7 +36,7 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  * PRT Staking Pool. The operator can accrue fees from the streaming fee module and distribute
  * them to the operator and the PRT Staking Pool, snapshotting the PRT Staking Pool. The operator 
  * can update the PRT staking pool address and the fee split between the operator and the 
- * PRT staking pool. 
+ * PRT staking pool. Includes an optional allow list and timelock on accrue function.
  */
 contract PrtFeeSplitExtension is FeeSplitExtension {
     using Address for address;
@@ -45,15 +45,15 @@ contract PrtFeeSplitExtension is FeeSplitExtension {
 
     /* ============ Events ============ */
 
+    event AnyoneAccrueUpdated(bool isAnyoneAllowedToBid);
+    event AccruerStatusUpdated(address indexed accruer, bool isBidderAllowed);
     event OperatorFeeSplitUpdated(uint256 newFeeSplit);
-
     event PrtFeesDistributed(
         address indexed operatorFeeRecipient,
         address indexed prtStakingPool,
         uint256 operatorTake,
         uint256 prtTake
     );
-
     event PrtStakingPoolUpdated(address newPrtStakingPool);
 
     /* ============ Immutables ============ */
@@ -62,7 +62,17 @@ contract PrtFeeSplitExtension is FeeSplitExtension {
 
     /* ============ State Variables ============ */
 
+    bool public isAnyoneAllowedToAccrue;
+    address[] accruersHistory;
+    mapping(address => bool) accrueAllowList;
     IPrtStakingPool public prtStakingPool;
+
+    /* ============ Modifiers ============ */
+
+    modifier onlyAllowedAccruer() {
+        require(_isAllowedAccruer(msg.sender), "Not allowed to accrue");
+        _;
+    }
 
     /* ============ Constructor ============ */
 
@@ -104,13 +114,13 @@ contract PrtFeeSplitExtension is FeeSplitExtension {
     }
 
     /**
-     * @notice ONLY OPERATOR: Accrues fees from streaming fee module. Gets resulting balance after fee accrual, calculates fees for
+     * @notice ONLY ALLOWED ACCRUER: Accrues fees from streaming fee module. Gets resulting balance after fee accrual, calculates fees for
      * operator and PRT staking pool, and sends to operator fee recipient and PRT Staking Pool respectively. NOTE: mint/redeem fees
      * will automatically be sent to this address so reading the balance of the SetToken in the contract after accrual is
      * sufficient for accounting for all collected fees. If the PRT take is greater than 0, the PRT Staking Pool will accrue the fees
      * and update the snapshot.
      */
-    function accrueFeesAndDistribute() public override onlyOperator {
+    function accrueFeesAndDistribute() public override onlyAllowedAccruer {
         // Emits a FeeActualized event
         streamingFeeModule.accrueFee(setToken);
 
@@ -145,5 +155,70 @@ contract PrtFeeSplitExtension is FeeSplitExtension {
         require(_newFeeSplit <= PreciseUnitMath.preciseUnit(), "Fee must be less than 100%");
         operatorFeeSplit = _newFeeSplit;
         emit OperatorFeeSplitUpdated(_newFeeSplit);
+    }
+
+    /**
+     * @notice MUTUAL UPGRADE: Toggles the permission status of specified addresses to call the `accrueFeesAndDistribute()` function.
+     * @param _accruers An array of addresses whose accrue permission status is to be toggled.
+     * @param _statuses An array of booleans indicating the new accrue permission status for each corresponding address in `_accruers`.
+     */
+    function setAccruersStatus(
+        address[] memory _accruers,
+        bool[] memory _statuses
+    )
+        external
+        mutualUpgrade(manager.operator(), manager.methodologist())
+    {
+        _accruers.validatePairsWithArray(_statuses);
+        for (uint256 i = 0; i < _accruers.length; i++) {
+            _updateAccruersHistory(_accruers[i], _statuses[i]);
+            accrueAllowList[_accruers[i]] = _statuses[i];
+            emit AccruerStatusUpdated(_accruers[i], _statuses[i]);
+        }
+    }
+
+    /**
+     * @notice MUTUAL UPGRADE: Toggles whether or not anyone is allowed to call the `accrueFeesAndDistribute()` function.
+     * If set to true, it bypasses the accrueAllowList, allowing any address to call the `accrueFeesAndDistribute()` function.
+     * @param _status A boolean indicating if anyone can accrue.
+     */
+    function updateAnyoneAccrue(bool _status)
+        external
+        mutualUpgrade(manager.operator(), manager.methodologist())
+    {
+        isAnyoneAllowedToAccrue = _status;
+        emit AnyoneAccrueUpdated(_status);
+    }
+
+    /**
+     * @notice Determines whether the given address is permitted to `accrueFeesAndDistribute()`.
+     * @param _accruer Address of the accruer.
+     * @return bool True if the given `_accruer` is permitted to accrue, false otherwise.
+     */
+    function isAllowedAccruer(address _accruer) external view returns (bool) {
+        return _isAllowedAccruer(_accruer);
+    }
+
+    /**
+     * @dev Retrieves the list of addresses that are permitted to `accrueFeesAndDistribute()`.
+     * @return address[] Array of addresses representing the allowed accruers.
+     */
+    function getAllowedAccruers() external view returns (address[] memory) {
+        return accruersHistory;
+    }
+
+
+    /* ============ Internal Functions ============ */
+
+    function _isAllowedAccruer(address _accruer) internal view returns (bool) {
+        return isAnyoneAllowedToAccrue || accrueAllowList[_accruer];
+    }
+
+    function _updateAccruersHistory(address _accruer, bool _status) internal {
+        if (_status && !accruersHistory.contains(_accruer)) {
+            accruersHistory.push(_accruer);
+        } else if(!_status && accruersHistory.contains(_accruer)) {
+            accruersHistory.removeStorage(_accruer);
+        }
     }
 }

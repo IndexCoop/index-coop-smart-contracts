@@ -16,7 +16,8 @@ import {
   getWaffleExpect,
   increaseTimeAsync,
   preciseMul,
-  getRandomAccount
+  getRandomAccount,
+  getRandomAddress
 } from "@utils/index";
 import { SetFixture } from "@utils/fixtures";
 import { BigNumber, ContractTransaction } from "ethers";
@@ -279,6 +280,9 @@ describe.only("PrtFeeSplitExtension", () => {
         await feeExtension.connect(operator.wallet).updatePrtStakingPool(prtStakingPool.address);
         await feeExtension.connect(methodologist.wallet).updatePrtStakingPool(prtStakingPool.address);
 
+        await feeExtension.connect(operator.wallet).updateAnyoneAccrue(true);
+        await feeExtension.connect(methodologist.wallet).updateAnyoneAccrue(true);
+
         subjectCaller = operator;
       });
 
@@ -501,6 +505,274 @@ describe.only("PrtFeeSplitExtension", () => {
             await subject(subjectOperatorCaller);
             await expect(subject(subjectMethodologistCaller)).to.be.revertedWith("Fee must be less than 100%");
           });
+        });
+      });
+
+      context("when a single mutual upgrade party has called the method", async () => {
+        afterEach(async () => await subject(subjectMethodologistCaller));
+
+        it("should log the proposed streaming fee hash in the mutualUpgrades mapping", async () => {
+          const txHash = await subject(subjectOperatorCaller);
+
+          const expectedHash = solidityKeccak256(
+            ["bytes", "address"],
+            [txHash.data, subjectOperatorCaller.address]
+          );
+
+          const isLogged = await feeExtension.mutualUpgrades(expectedHash);
+
+          expect(isLogged).to.be.true;
+        });
+      });
+
+      describe("when the caller is not the operator or methodologist", async () => {
+        beforeEach(async () => {
+          subjectOperatorCaller = await getRandomAccount();
+        });
+
+        it("should revert", async () => {
+          await expect(subject(subjectOperatorCaller)).to.be.revertedWith("Must be authorized address");
+        });
+      });
+    });
+
+    describe("#isAllowedAccruer", async () => {
+      let subjectAccruer: Account;
+
+      beforeEach(async () => {
+        await feeExtension.connect(operator.wallet).setAccruersStatus([owner.address], [true]);
+        await feeExtension.connect(methodologist.wallet).setAccruersStatus([owner.address], [true]);
+
+        subjectAccruer = owner;
+      });
+
+      async function subject(): Promise<Boolean> {
+        return await feeExtension.isAllowedAccruer(subjectAccruer.address);
+      }
+
+      it("should return true if the address is an allowed accruer", async () => {
+        const isAccruer = await subject();
+
+        expect(isAccruer).to.be.true;
+      });
+
+      it("should return false if the address is not an allowed accruer", async () => {
+        await feeExtension.connect(operator.wallet).setAccruersStatus([owner.address], [false]);
+        await feeExtension.connect(methodologist.wallet).setAccruersStatus([owner.address], [false]);
+
+        const isAccruer = await subject();
+
+        expect(isAccruer).to.be.false;
+      });
+    });
+
+    describe("#getAllowedAccruers", async () => {
+      let subjectAccruers: Address[];
+      let subjectStatuses: boolean[];
+
+      beforeEach(async () => {
+        subjectAccruers = [operator.address, owner.address];
+        subjectStatuses = [true, true];
+
+        await feeExtension.connect(operator.wallet).setAccruersStatus(subjectAccruers, subjectStatuses);
+        await feeExtension.connect(methodologist.wallet).setAccruersStatus(subjectAccruers, subjectStatuses);
+      });
+
+      async function subject(): Promise<Address[]> {
+        return await feeExtension.getAllowedAccruers();
+      }
+
+      it("should return the addresses of the allowed accruers", async () => {
+        const allowedAccruers = await subject();
+
+        expect(allowedAccruers).to.deep.equal(subjectAccruers);
+      });
+
+      describe("when a accruer is removed", async () => {
+        beforeEach(async () => {
+          await feeExtension.connect(operator.wallet).setAccruersStatus([operator.address], [false]);
+          await feeExtension.connect(methodologist.wallet).setAccruersStatus([operator.address], [false]);
+        });
+
+        it("should remove the accruer and maintain the list correctly", async () => {
+          const allowedAccruers = await subject();
+
+          expect(allowedAccruers).to.not.deep.equal(subjectAccruers);
+          expect(allowedAccruers).to.deep.equal([owner.address]);
+        });
+      });
+    });
+
+    describe("#setAccruersStatus", async () => {
+      let subjectAccruers: Address[];
+      let subjectStatuses: boolean[];
+
+      let subjectOperatorCaller: Account;
+      let subjectMethodologistCaller: Account;
+
+      beforeEach(async () => {
+        subjectAccruers = [owner.address, await getRandomAddress(), await getRandomAddress()];
+        subjectStatuses = [true, true, true];
+
+        subjectOperatorCaller = operator;
+        subjectMethodologistCaller = methodologist;
+      });
+
+      async function subject(caller: Account): Promise<ContractTransaction> {
+        return await feeExtension.connect(caller.wallet).setAccruersStatus(
+          subjectAccruers,
+          subjectStatuses
+        );
+      }
+
+      context("when operator and methodologist both execute update", () => {
+        it("should set the accruer status to true for multiple accruers", async () => {
+          await subject(subjectOperatorCaller);
+          await subject(subjectMethodologistCaller);
+
+          const isAccruerOne = await feeExtension.isAllowedAccruer(subjectAccruers[0]);
+          const isAccruerTwo = await feeExtension.isAllowedAccruer(subjectAccruers[1]);
+          const isAccruerThree = await feeExtension.isAllowedAccruer(subjectAccruers[2]);
+
+          expect(isAccruerOne).to.be.true;
+          expect(isAccruerTwo).to.be.true;
+          expect(isAccruerThree).to.be.true;
+        });
+
+        it("should emit an AccruerStatusUpdated event", async () => {
+          await subject(subjectOperatorCaller);
+          await expect(subject(subjectMethodologistCaller)).to.emit(feeExtension, "AccruerStatusUpdated").withArgs(
+            subjectAccruers[0],
+            true
+          );
+        });
+
+        describe("when de-authorizing an accruer", async () => {
+          beforeEach(async () => {
+            await subject(subjectOperatorCaller);
+            await subject(subjectMethodologistCaller);
+            subjectStatuses = [false, true, true];
+          });
+
+          it("should set the accruer status to false for the de-authorized accruer", async () => {
+            const initialStatus = await feeExtension.isAllowedAccruer(subjectAccruers[0]);
+            expect(initialStatus).to.be.true;
+
+            await subject(subjectOperatorCaller);
+            await subject(subjectMethodologistCaller);
+
+            const finalStatus = await feeExtension.isAllowedAccruer(subjectAccruers[0]);
+            expect(finalStatus).to.be.false;
+          });
+
+          it("should update the accruersHistory correctly", async () => {
+            const initialAccruers = await feeExtension.getAllowedAccruers();
+            expect(initialAccruers).to.deep.equal(subjectAccruers);
+
+            await subject(subjectOperatorCaller);
+            await subject(subjectMethodologistCaller);
+
+            const finalAccruers = await feeExtension.getAllowedAccruers();
+            const expectedAccruers = subjectAccruers.slice(1);
+
+            expect(expectedAccruers[0]).to.not.equal(expectedAccruers[1]);
+            expect(finalAccruers[0]).to.not.equal(finalAccruers[1]);
+
+            expect(finalAccruers.includes(expectedAccruers[0])).to.be.true;
+            expect(finalAccruers.includes(expectedAccruers[1])).to.be.true;
+          });
+        });
+
+        describe("when array lengths don't match", async () => {
+          beforeEach(async () => {
+            subjectStatuses = [false];
+          });
+
+          it("should revert with 'Array length mismatch'", async () => {
+            await subject(subjectOperatorCaller);
+            await expect(subject(subjectMethodologistCaller)).to.be.revertedWith("Array length mismatch");
+          });
+        });
+
+        describe("when accruers are duplicated", async () => {
+          beforeEach(async () => {
+            subjectAccruers = [owner.address, owner.address, await getRandomAddress()];
+          });
+
+          it("should revert with 'Cannot duplicate addresses'", async () => {
+            await subject(subjectOperatorCaller);
+            await expect(subject(subjectMethodologistCaller)).to.be.revertedWith("Cannot duplicate addresses");
+          });
+        });
+
+        describe("when arrays are empty", async () => {
+          beforeEach(async () => {
+            subjectAccruers = [];
+            subjectStatuses = [];
+          });
+
+          it("should revert with 'Array length must be > 0'", async () => {
+            await subject(subjectOperatorCaller);
+            await expect(subject(subjectMethodologistCaller)).to.be.revertedWith("Array length must be > 0");
+          });
+        });
+      });
+
+      context("when a single mutual upgrade party has called the method", async () => {
+        afterEach(async () => await subject(subjectMethodologistCaller));
+
+        it("should log the proposed streaming fee hash in the mutualUpgrades mapping", async () => {
+          const txHash = await subject(subjectOperatorCaller);
+
+          const expectedHash = solidityKeccak256(
+            ["bytes", "address"],
+            [txHash.data, subjectOperatorCaller.address]
+          );
+
+          const isLogged = await feeExtension.mutualUpgrades(expectedHash);
+
+          expect(isLogged).to.be.true;
+        });
+      });
+
+      describe("when the caller is not the operator or methodologist", async () => {
+        beforeEach(async () => {
+          subjectOperatorCaller = await getRandomAccount();
+        });
+
+        it("should revert", async () => {
+          await expect(subject(subjectOperatorCaller)).to.be.revertedWith("Must be authorized address");
+        });
+      });
+    });
+
+    describe("#updateAnyoneAccrue", async () => {
+      let subjectStatus: boolean;
+      let subjectOperatorCaller: Account;
+      let subjectMethodologistCaller: Account;
+
+      beforeEach(async () => {
+        subjectOperatorCaller = operator;
+        subjectMethodologistCaller = methodologist;
+        subjectStatus = true;
+      });
+
+      async function subject(caller: Account): Promise<ContractTransaction> {
+        return await feeExtension.connect(caller.wallet).updateAnyoneAccrue(subjectStatus);
+      }
+
+      context("when operator and methodologist both execute update", () => {
+        it("should set isAnyoneAllowedToAccrue to true", async () => {
+          await subject(subjectOperatorCaller);
+          await subject(subjectMethodologistCaller);
+
+          const isAnyoneAllowedToAccrue = await feeExtension.isAnyoneAllowedToAccrue();
+          expect(isAnyoneAllowedToAccrue).to.be.true;
+        });
+
+        it("should emit an AnyoneAccrueUpdated event", async () => {
+          await subject(subjectOperatorCaller);
+          await expect(subject(subjectMethodologistCaller)).to.emit(feeExtension, "AnyoneAccrueUpdated").withArgs(true);
         });
       });
 
