@@ -31,13 +31,15 @@ export default class DeployStaking {
     name: string,
     symbol: string,
     prt: Address,
-    feeSplitExtension: Address
+    feeSplitExtension: Address,
+    snapshotDelay: BigNumberish
   ): Promise<PrtStakingPool> {
     return await new PrtStakingPool__factory(this._deployerSigner).deploy(
       name,
       symbol,
       prt,
-      feeSplitExtension
+      feeSplitExtension,
+      snapshotDelay
     );
   }
 }

@@ -1,7 +1,7 @@
 import "module-alias/register";
 
 import { Address, Account } from "@utils/types";
-import { ADDRESS_ZERO, ZERO, ONE_YEAR_IN_SECONDS } from "@utils/constants";
+import { ADDRESS_ZERO, ZERO, ONE_YEAR_IN_SECONDS, ONE_MONTH_IN_SECONDS } from "@utils/constants";
 import { Prt, PrtFeeSplitExtension, BaseManagerV2, PrtStakingPool } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
@@ -169,6 +169,7 @@ describe.only("PrtFeeSplitExtension", () => {
         "sPRT",
         prt.address,
         feeExtension.address,
+        ONE_MONTH_IN_SECONDS
       );
 
       // Stake PRT in PRT Staking Pool
@@ -225,6 +226,7 @@ describe.only("PrtFeeSplitExtension", () => {
               "sPRT",
               prt.address,
               ADDRESS_ZERO, // Use zero address instead of FeeExtension
+              ONE_MONTH_IN_SECONDS
             );
             subjectNewPrtStakingPool = wrongPrtPool.address;
           });

@@ -40,6 +40,7 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
     /* ============ Events ============ */
 
     event FeeSplitExtensionChanged(address _newFeeSplitExtension);
+    event SnapshotDelayChanged(uint256 _newSnapshotDelay);
 
     /* ============ Immutables ============ */
 
@@ -60,6 +61,12 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
     /// @notice Amount of setToken accrued and distributed with each snapshot
     uint256[] public accrueSnapshots;
 
+    /// @notice The minimum amount of time between snapshots
+    uint256 public snapshotDelay;
+
+    /// @notice The last time a snapshot was taken
+    uint256 public lastSnapshotTime;
+
     /* ============ Modifiers ============ */
 
     /**
@@ -78,12 +85,14 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
      * @param _symbol Symbol of the staked PRT token
      * @param _prt Instance of the PRT token contract
      * @param _feeSplitExtension Address of the PrtFeeSplitExtension contract
+     * @param _snapshotDelay The minimum amount of time between snapshots
      */
     constructor(
         string memory _name,
         string memory _symbol,
         IPrt _prt,
-        address _feeSplitExtension
+        address _feeSplitExtension,
+        uint256 _snapshotDelay
     )
         public
         ERC20(_name, _symbol)
@@ -91,6 +100,7 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
         prt = _prt;
         setToken = ISetToken(_prt.setToken());
         feeSplitExtension = _feeSplitExtension;
+        snapshotDelay = _snapshotDelay;
     }
 
     /* ========== External Functions ========== */
@@ -123,7 +133,9 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
     function accrue(uint256 _amount) external nonReentrant onlyFeeSplitExtension {
         require(_amount > 0, "Cannot accrue 0");
         require(totalSupply() > 0, "Cannot accrue with 0 staked supply");
+        require(canAccrue(), "Snapshot delay not passed");
         setToken.transferFrom(msg.sender, address(this), _amount);
+        lastSnapshotTime = block.timestamp;
         accrueSnapshots.push(_amount);
         super._snapshot();
     }
@@ -156,7 +168,16 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
      */
     function setFeeSplitExtension(address _feeSplitExtension) external onlyOwner {
         feeSplitExtension = _feeSplitExtension;
-        FeeSplitExtensionChanged(_feeSplitExtension);
+        emit FeeSplitExtensionChanged(_feeSplitExtension);
+    }
+
+    /**
+     * @notice ONLY OWNER: Update the snapshot delay. Can set to 0 to disable snapshot delay.
+     * @param _snapshotDelay The new snapshot delay
+     */
+    function setSnapshotDelay(uint256 _snapshotDelay) external onlyOwner {
+        snapshotDelay = _snapshotDelay;
+        emit SnapshotDelayChanged(_snapshotDelay);
     }
 
     /* ========== ERC20 Overrides ========== */
@@ -170,6 +191,14 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
     }
 
     /* ========== View Functions ========== */
+
+    /**
+     * @notice Check if rewards can be accrued.
+     * @return Boolean indicating if rewards can be accrued
+     */
+    function canAccrue() public view returns (bool) {
+        return block.timestamp >= lastSnapshotTime.add(snapshotDelay);
+    }
 
     /**
      * @notice Get the current snapshot id.

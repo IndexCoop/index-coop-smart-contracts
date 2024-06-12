@@ -1,7 +1,7 @@
 import "module-alias/register";
 
 import { Address, Account } from "@utils/types";
-import { ADDRESS_ZERO, ONE, THREE, TWO, ZERO } from "@utils/constants";
+import { ADDRESS_ZERO, ONE, ONE_MONTH_IN_SECONDS, ONE_YEAR_IN_SECONDS, THREE, TWO, ZERO } from "@utils/constants";
 import { PrtStakingPool, StandardTokenMock } from "@utils/contracts/index";
 import DeployHelper from "@utils/deploys";
 import {
@@ -11,7 +11,9 @@ import {
   getSetFixture,
   getWaffleExpect,
   getRandomAccount,
-  getRandomAddress
+  getRandomAddress,
+  getTransactionTimestamp,
+  increaseTimeAsync
 } from "@utils/index";
 import { SetFixture } from "@utils/fixtures";
 import { BigNumber } from "ethers";
@@ -32,6 +34,8 @@ describe.only("PrtStakingPool", () => {
   let setToken: StandardTokenMock;
   let prt: StandardTokenMock;
   let prtStakingPool: PrtStakingPool;
+
+  let snapshotDelay: BigNumber;
 
   before(async () => {
     [
@@ -56,11 +60,14 @@ describe.only("PrtStakingPool", () => {
         ether(1000000)
     );
 
+    snapshotDelay = ONE_MONTH_IN_SECONDS;
+
     prtStakingPool = await deployer.staking.deployPrtStakingPool(
       "PRT Staking Pool",
       "PRT-POOL",
       prt.address,
-      feeSplitExtension.address
+      feeSplitExtension.address,
+      snapshotDelay
     );
   });
 
@@ -72,6 +79,7 @@ describe.only("PrtStakingPool", () => {
     let subjectSetToken: Address;
     let subjectPrt: Address;
     let subjectFeeSplitExtension: Address;
+    let subjectSnapshotDelay: BigNumber;
 
     beforeEach(async () => {
       subjectName = "PRT Staking Pool";
@@ -79,6 +87,7 @@ describe.only("PrtStakingPool", () => {
       subjectSetToken = setToken.address;
       subjectPrt = prt.address;
       subjectFeeSplitExtension = setToken.address;
+      subjectSnapshotDelay = snapshotDelay;
     });
 
     async function subject(): Promise<PrtStakingPool> {
@@ -86,7 +95,8 @@ describe.only("PrtStakingPool", () => {
         subjectName,
         subjectSymbol,
         subjectPrt,
-        subjectFeeSplitExtension
+        subjectFeeSplitExtension,
+        subjectSnapshotDelay
       );
     }
 
@@ -123,6 +133,13 @@ describe.only("PrtStakingPool", () => {
       const actualFeeSplitExtension = await retrievedPrtStakingPool.feeSplitExtension();
       expect(actualFeeSplitExtension).to.eq(subjectFeeSplitExtension);
     });
+
+    it("should set the correct snapshotDelay", async () => {
+      const retrievedPrtStakingPool = await subject();
+
+      const actualSnapshotDelay = await retrievedPrtStakingPool.snapshotDelay();
+      expect(actualSnapshotDelay).to.eq(subjectSnapshotDelay);
+    });
   });
 
   describe("#setFeeSplitExtension", async () => {
@@ -146,6 +163,40 @@ describe.only("PrtStakingPool", () => {
 
     it("should emit the correct FeeSplitExtensionChanged event", async () => {
       await expect(subject()).to.emit(prtStakingPool, "FeeSplitExtensionChanged").withArgs(subjectNewFeeSplitExtension);
+    });
+
+    describe("when the caller is not the owner", async () => {
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Ownable: caller is not the owner");
+      });
+    });
+  });
+
+  describe("#setSnapshotDelay", async () => {
+    let subjectNewSnapshotDelay: BigNumber;
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      subjectNewSnapshotDelay = ONE_YEAR_IN_SECONDS;
+      subjectCaller = owner;
+    });
+
+    async function subject(): Promise<any> {
+      return prtStakingPool.connect(subjectCaller.wallet).setSnapshotDelay(subjectNewSnapshotDelay);
+    }
+
+    it("should set the new snapshotDelay", async () => {
+      await subject();
+      const actualSnapshotDelay = await prtStakingPool.snapshotDelay();
+      expect(actualSnapshotDelay).to.eq(subjectNewSnapshotDelay);
+    });
+
+    it("should emit the correct SnapshotDelayChanged event", async () => {
+      await expect(subject()).to.emit(prtStakingPool, "SnapshotDelayChanged").withArgs(subjectNewSnapshotDelay);
     });
 
     describe("when the caller is not the owner", async () => {
@@ -361,8 +412,31 @@ describe.only("PrtStakingPool", () => {
       expect(accrueSnapshotsAfter[accrueSnapshotsAfter.length - 1]).to.eq(subjectAmount);
     });
 
+    it("should update the last snapshot time", async () => {
+      const lastSnapshotTimeBefore = await prtStakingPool.lastSnapshotTime();
+
+      const txnTimestamp = await getTransactionTimestamp(subject());
+
+      const lastSnapshotTimeAfter = await prtStakingPool.lastSnapshotTime();
+
+      expect(lastSnapshotTimeAfter).to.eq(txnTimestamp);
+      expect(lastSnapshotTimeAfter).to.be.gt(lastSnapshotTimeBefore);
+    });
+
     it("should emit the correct PRT Staking Pool Snapshot event", async () => {
       await expect(subject()).to.emit(prtStakingPool, "Snapshot").withArgs(1);
+    });
+
+    describe("when the snapshotDelay is 0", async () => {
+      beforeEach(async () => {
+        await prtStakingPool.connect(owner.wallet).setSnapshotDelay(ZERO);
+        subjectAmount = ether(0.1);
+      });
+
+      it("should allow successive accruals", async () => {
+        await subject();
+        await expect(subject()).to.not.be.reverted;
+      });
     });
 
     describe("when the amount is 0", async () => {
@@ -384,6 +458,16 @@ describe.only("PrtStakingPool", () => {
 
       it("should revert", async () => {
         await expect(subject()).to.be.revertedWith("Cannot accrue with 0 staked supply");
+      });
+    });
+
+    describe("when the snapshot delay has not passed", async () => {
+      beforeEach(async () => {
+        await prtStakingPool.connect(subjectCaller.wallet).accrue(subjectAmount);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Snapshot delay not passed");
       });
     });
 
@@ -442,6 +526,7 @@ describe.only("PrtStakingPool", () => {
       await prtStakingPool.connect(carol.wallet).stake(carolPrtAmount);
 
       // Take snapshot 2
+      await increaseTimeAsync(ONE_MONTH_IN_SECONDS);
       await setToken.connect(owner.wallet).transfer(feeSplitExtension.address, snap2Amount);
       await setToken.connect(feeSplitExtension.wallet).approve(prtStakingPool.address, snap2Amount);
       await prtStakingPool.connect(feeSplitExtension.wallet).accrue(snap2Amount);
@@ -450,6 +535,7 @@ describe.only("PrtStakingPool", () => {
       await prtStakingPool.connect(carol.wallet).unstake(carolPrtAmount);
 
       // Take snapshot 3
+      await increaseTimeAsync(ONE_MONTH_IN_SECONDS);
       await setToken.connect(owner.wallet).transfer(feeSplitExtension.address, snap3Amount);
       await setToken.connect(feeSplitExtension.wallet).approve(prtStakingPool.address, snap3Amount);
       await prtStakingPool.connect(feeSplitExtension.wallet).accrue(snap3Amount);
@@ -591,6 +677,7 @@ describe.only("PrtStakingPool", () => {
       await prtStakingPool.connect(carol.wallet).stake(carolPrtAmount);
 
       // Take snapshot 2
+      await increaseTimeAsync(ONE_MONTH_IN_SECONDS);
       await setToken.connect(owner.wallet).transfer(feeSplitExtension.address, snap2Amount);
       await setToken.connect(feeSplitExtension.wallet).approve(prtStakingPool.address, snap2Amount);
       await prtStakingPool.connect(feeSplitExtension.wallet).accrue(snap2Amount);
@@ -599,6 +686,7 @@ describe.only("PrtStakingPool", () => {
       await prtStakingPool.connect(carol.wallet).unstake(carolPrtAmount);
 
       // Take snapshot 3
+      await increaseTimeAsync(ONE_MONTH_IN_SECONDS);
       await setToken.connect(owner.wallet).transfer(feeSplitExtension.address, snap3Amount);
       await setToken.connect(feeSplitExtension.wallet).approve(prtStakingPool.address, snap3Amount);
       await prtStakingPool.connect(feeSplitExtension.wallet).accrue(snap3Amount);
@@ -792,6 +880,7 @@ describe.only("PrtStakingPool", () => {
       await prtStakingPool.connect(alice.wallet).stake(alicePrtAmount);
 
       // Take snapshot 2
+      await increaseTimeAsync(ONE_MONTH_IN_SECONDS);
       await setToken.connect(owner.wallet).transfer(feeSplitExtension.address, snap2Amount);
       await setToken.connect(feeSplitExtension.wallet).approve(prtStakingPool.address, snap2Amount);
       await prtStakingPool.connect(feeSplitExtension.wallet).accrue(snap2Amount);
@@ -874,6 +963,7 @@ describe.only("PrtStakingPool", () => {
       await prtStakingPool.connect(carol.wallet).stake(carolPrtAmount);
 
       // Take snapshot 2
+      await increaseTimeAsync(ONE_MONTH_IN_SECONDS);
       await setToken.connect(owner.wallet).transfer(feeSplitExtension.address, snap2Amount);
       await setToken.connect(feeSplitExtension.wallet).approve(prtStakingPool.address, snap2Amount);
       await prtStakingPool.connect(feeSplitExtension.wallet).accrue(snap2Amount);
@@ -882,6 +972,7 @@ describe.only("PrtStakingPool", () => {
       await prtStakingPool.connect(carol.wallet).unstake(carolPrtAmount);
 
       // Take snapshot 3
+      await increaseTimeAsync(ONE_MONTH_IN_SECONDS);
       await setToken.connect(owner.wallet).transfer(feeSplitExtension.address, snap3Amount);
       await setToken.connect(feeSplitExtension.wallet).approve(prtStakingPool.address, snap3Amount);
       await prtStakingPool.connect(feeSplitExtension.wallet).accrue(snap3Amount);
@@ -984,6 +1075,7 @@ describe.only("PrtStakingPool", () => {
       await prtStakingPool.connect(carol.wallet).stake(carolPrtAmount);
 
       // Take snapshot 2
+      await increaseTimeAsync(ONE_MONTH_IN_SECONDS);
       await setToken.connect(owner.wallet).transfer(feeSplitExtension.address, snap2Amount);
       await setToken.connect(feeSplitExtension.wallet).approve(prtStakingPool.address, snap2Amount);
       await prtStakingPool.connect(feeSplitExtension.wallet).accrue(snap2Amount);
@@ -992,6 +1084,7 @@ describe.only("PrtStakingPool", () => {
       await prtStakingPool.connect(carol.wallet).unstake(carolPrtAmount);
 
       // Take snapshot 3
+      await increaseTimeAsync(ONE_MONTH_IN_SECONDS);
       await setToken.connect(owner.wallet).transfer(feeSplitExtension.address, snap3Amount);
       await setToken.connect(feeSplitExtension.wallet).approve(prtStakingPool.address, snap3Amount);
       await prtStakingPool.connect(feeSplitExtension.wallet).accrue(snap3Amount);

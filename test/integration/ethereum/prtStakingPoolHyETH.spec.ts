@@ -92,7 +92,8 @@ if (process.env.INTEGRATIONTEST) {
           prtStakingPoolName,
           prtStakingPoolSymbol,
           prt.address,
-          prtFeeSplitExtension.address
+          prtFeeSplitExtension.address,
+          ONE_MONTH_IN_SECONDS
         );
         await prtFeeSplitExtension.connect(operator).updatePrtStakingPool(prtStakingPool.address);
         await prtFeeSplitExtension.connect(methodologist).updatePrtStakingPool(prtStakingPool.address);
