@@ -140,6 +140,18 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
     }
 
     /**
+     * @notice Claim partial staking rewards from pending snapshots for `msg.sender` up to `_endClaimId`.
+     * @param _endClaimId The snapshot id to end the partial claim
+     */
+    function claimPartial(uint256 _endClaimId) public nonReentrant {
+        uint256 currentId = getCurrentId();
+        uint256 amount = _getPendingPartialRewards(currentId, _endClaimId, msg.sender);
+        require(amount > 0, "No rewards to claim");
+        lastSnapshotId[msg.sender] = _endClaimId;
+        setToken.transfer(msg.sender, amount);
+    }
+
+    /**
      * @notice ONLY OWNER: Update the PrtFeeSplitExtension address.
      */
     function setFeeSplitExtension(address _feeSplitExtension) external onlyOwner {
@@ -177,6 +189,20 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
     ) external view returns (uint256) {
         uint256 currentId = getCurrentId();
         return _getPendingRewards(currentId, _account);
+    }
+
+    /**
+     * @notice Get pending partial rewards for an account.
+     * @param _account The address of the account
+     * @param _endClaimId The snapshot id to end the partial claim
+     * @return The pending partial rewards for the account
+     */
+    function getPendingPartialRewards(
+        address _account,
+        uint256 _endClaimId
+    ) external view returns (uint256) {
+        uint256 currentId = getCurrentId();
+        return _getPendingPartialRewards(currentId, _endClaimId, _account);
     }
 
     /**
@@ -246,6 +272,29 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
     {
         uint256 lastRewardId = lastSnapshotId[_account];
         for (uint256 i = lastRewardId; i < _currentId; i++) {
+            amount += _getSnapshotRewards(i, _account);
+        }
+    }
+
+    /**
+     * @dev Get pending partial rewards for an account.
+     * @param _currentId The current snapshot id
+     * @param _endClaimId The snapshot id to end the partial claim
+     * @param _account The address of the account
+     * @return amount The pending partial rewards for the account
+     */
+    function _getPendingPartialRewards(
+        uint256 _currentId,
+        uint256 _endClaimId,
+        address _account
+    ) 
+        private 
+        view 
+        returns (uint256 amount) 
+    {
+        require(_endClaimId < _currentId, "End claim id must be less than current id");
+        uint256 lastRewardId = lastSnapshotId[_account];
+        for (uint256 i = lastRewardId; i < _endClaimId; i++) {
             amount += _getSnapshotRewards(i, _account);
         }
     }
