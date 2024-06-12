@@ -102,6 +102,7 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
     function stake(uint256 _amount) external nonReentrant {
         require(_amount > 0, "Cannot stake 0");
         prt.transferFrom(msg.sender, address(this), _amount);
+        lastSnapshotId[msg.sender] = getCurrentId();
         super._mint(msg.sender, _amount);
     }
 

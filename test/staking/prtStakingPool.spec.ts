@@ -220,6 +220,31 @@ describe.only("PrtStakingPool", () => {
       ).to.be.revertedWith("Transfers not allowed");
     });
 
+    describe("when the snapshot id is greater than 0", async () => {
+      beforeEach(async () => {
+        const amount = ether(1);
+
+        await prt.connect(owner.wallet).approve(prtStakingPool.address, amount);
+        await prtStakingPool.connect(owner.wallet).stake(amount);
+
+        await setToken.connect(owner.wallet).transfer(feeSplitExtension.address, amount);
+        await setToken.connect(feeSplitExtension.wallet).approve(prtStakingPool.address, amount);
+
+        await prtStakingPool.connect(feeSplitExtension.wallet).accrue(amount);
+      });
+
+      it("should increment the last claimed id for the staker", async () => {
+        const lastSnapshotIdBefore = await prtStakingPool.lastSnapshotId(bob.address);
+        expect(lastSnapshotIdBefore).to.eq(0);
+
+        await subject();
+
+        const lastSnapshotIdAfter = await prtStakingPool.lastSnapshotId(bob.address);
+        expect(lastSnapshotIdAfter).to.eq(1);
+        expect(lastSnapshotIdAfter).to.eq(lastSnapshotIdBefore.add(1));
+      });
+    });
+
     describe("when the amount is 0", async () => {
       beforeEach(async () => {
         subjectAmount = ZERO;
