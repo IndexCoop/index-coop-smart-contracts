@@ -95,6 +95,7 @@ if (process.env.INTEGRATIONTEST) {
           prtFeeSplitExtension.address
         );
         await prtFeeSplitExtension.connect(operator).updatePrtStakingPool(prtStakingPool.address);
+        await prtFeeSplitExtension.connect(methodologist).updatePrtStakingPool(prtStakingPool.address);
       });
 
       it("should set the PRT state correctly", async () => {

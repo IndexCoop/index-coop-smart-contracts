@@ -45,12 +45,16 @@ contract PrtFeeSplitExtension is FeeSplitExtension {
 
     /* ============ Events ============ */
 
+    event OperatorFeeSplitUpdated(uint256 newFeeSplit);
+
     event PrtFeesDistributed(
         address indexed operatorFeeRecipient,
         address indexed prtStakingPool,
         uint256 operatorTake,
         uint256 prtTake
     );
+
+    event PrtStakingPoolUpdated(address newPrtStakingPool);
 
     /* ============ Immutables ============ */
 
@@ -86,13 +90,17 @@ contract PrtFeeSplitExtension is FeeSplitExtension {
     /* ============ External Functions ============ */
 
     /**
-     * @notice ONLY OPERATOR: Updates PRT staking pool. PRT staking pool must have this extension set as the feeSplitExtension.
+     * @notice MUTUAL UPGRADE: Updates PRT staking pool. PRT staking pool must have this extension set as the feeSplitExtension.
      * @param _prtStakingPool Address of the new PRT staking pool
      */
-    function updatePrtStakingPool(IPrtStakingPool _prtStakingPool) external onlyOperator {
+    function updatePrtStakingPool(IPrtStakingPool _prtStakingPool) 
+        external 
+        mutualUpgrade(manager.operator(), manager.methodologist()) 
+    {
         require(address(_prtStakingPool) != address(0), "Zero address not valid");
         require(_prtStakingPool.feeSplitExtension() == address(this), "PrtFeeSplitExtension must be set");
         prtStakingPool = _prtStakingPool;
+        emit PrtStakingPoolUpdated(address(_prtStakingPool));
     }
 
     /**
@@ -125,16 +133,17 @@ contract PrtFeeSplitExtension is FeeSplitExtension {
     }
 
     /**
-     * @notice Updates fee split between operator and PRT Staking Pool. Split defined in precise units (1% = 10^16).
+     * @notice MUTUAL UPGRADE: Updates fee split between operator and PRT Staking Pool. Split defined in precise units (1% = 10^16).
      * Does not accrue fees and snapshot PRT Staking Pool.
      * @param _newFeeSplit Percent of fees in precise units (10^16 = 1%) sent to operator, (rest go to the PRT Staking Pool).
      */
     function updateFeeSplit(uint256 _newFeeSplit)
         external
         override
-        onlyOperator
+        mutualUpgrade(manager.operator(), manager.methodologist())
     {
         require(_newFeeSplit <= PreciseUnitMath.preciseUnit(), "Fee must be less than 100%");
         operatorFeeSplit = _newFeeSplit;
+        emit OperatorFeeSplitUpdated(_newFeeSplit);
     }
 }

@@ -20,6 +20,7 @@ import {
 } from "@utils/index";
 import { SetFixture } from "@utils/fixtures";
 import { BigNumber, ContractTransaction } from "ethers";
+import { solidityKeccak256 } from "ethers/lib/utils";
 
 const expect = getWaffleExpect();
 
@@ -175,60 +176,89 @@ describe.only("PrtFeeSplitExtension", () => {
     });
 
     describe("#updatePrtStakingPool", async () => {
-      let subjectCaller: Account;
       let subjectNewPrtStakingPool: Address;
+      let subjectOperatorCaller: Account;
+      let subjectMethodologistCaller: Account;
 
       beforeEach(async () => {
-        subjectCaller = operator;
         subjectNewPrtStakingPool = prtStakingPool.address;
+        subjectOperatorCaller = operator;
+        subjectMethodologistCaller = methodologist;
       });
 
-      async function subject(): Promise<ContractTransaction> {
+      async function subject(caller: Account): Promise<ContractTransaction> {
         return await feeExtension
-          .connect(subjectCaller.wallet)
+          .connect(caller.wallet)
           .updatePrtStakingPool(subjectNewPrtStakingPool);
       }
 
-      it("sets the new PRT Staking Pool", async () => {
-        await subject();
+      context("when operator and methodologist both execute update", () => {
+        it("sets the new PRT Staking Pool", async () => {
+          await subject(subjectOperatorCaller);
+          await subject(subjectMethodologistCaller);
 
-        const newPrtStakingPool = await feeExtension.prtStakingPool();
-        expect(newPrtStakingPool).to.eq(subjectNewPrtStakingPool);
-      });
-
-      describe("when the new PRT Staking Pool is address zero", async () => {
-        beforeEach(async () => {
-          subjectNewPrtStakingPool = ADDRESS_ZERO;
+          const newPrtStakingPool = await feeExtension.prtStakingPool();
+          expect(newPrtStakingPool).to.eq(subjectNewPrtStakingPool);
         });
 
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Zero address not valid");
+        it("should emit a PrtStakingPoolUpdated event", async () => {
+          await subject(subjectOperatorCaller);
+          await expect(subject(subjectMethodologistCaller)).to.emit(feeExtension, "PrtStakingPoolUpdated").withArgs(subjectNewPrtStakingPool);
+        });
+
+        describe("when the new PRT Staking Pool is address zero", async () => {
+          beforeEach(async () => {
+            subjectNewPrtStakingPool = ADDRESS_ZERO;
+          });
+
+          it("should revert", async () => {
+            await subject(subjectOperatorCaller);
+            await expect(subject(subjectMethodologistCaller)).to.be.revertedWith("Zero address not valid");
+          });
+        });
+
+        describe("when there is a FeeExtension mismatch", async () => {
+          beforeEach(async () => {
+            const wrongPrtPool = await deployer.staking.deployPrtStakingPool(
+              "PRT Staking Pool",
+              "sPRT",
+              prt.address,
+              ADDRESS_ZERO, // Use zero address instead of FeeExtension
+            );
+            subjectNewPrtStakingPool = wrongPrtPool.address;
+          });
+
+          it("should revert", async () => {
+            await subject(subjectOperatorCaller);
+            await expect(subject(subjectMethodologistCaller)).to.be.revertedWith("PrtFeeSplitExtension must be set");
+          });
         });
       });
 
-      describe("when there is a FeeExtension mismatch", async () => {
-        beforeEach(async () => {
-          const wrongPrtPool = await deployer.staking.deployPrtStakingPool(
-            "PRT Staking Pool",
-            "sPRT",
-            prt.address,
-            ADDRESS_ZERO, // Use zero address instead of FeeExtension
+      context("when a single mutual upgrade party has called the method", async () => {
+        afterEach(async () => await subject(subjectMethodologistCaller));
+
+        it("should log the proposed streaming fee hash in the mutualUpgrades mapping", async () => {
+          const txHash = await subject(subjectOperatorCaller);
+
+          const expectedHash = solidityKeccak256(
+            ["bytes", "address"],
+            [txHash.data, subjectOperatorCaller.address]
           );
-          subjectNewPrtStakingPool = wrongPrtPool.address;
-        });
 
-        it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("PrtFeeSplitExtension must be set");
+          const isLogged = await feeExtension.mutualUpgrades(expectedHash);
+
+          expect(isLogged).to.be.true;
         });
       });
 
-      describe("when the caller is not the operator", async () => {
+      describe("when the caller is not the operator or methodologist", async () => {
         beforeEach(async () => {
-          subjectCaller = methodologist;
+          subjectOperatorCaller = await getRandomAccount();
         });
 
         it("should revert", async () => {
-          await expect(subject()).to.be.revertedWith("Must be operator");
+          await expect(subject(subjectOperatorCaller)).to.be.revertedWith("Must be authorized address");
         });
       });
     });
@@ -247,6 +277,7 @@ describe.only("PrtFeeSplitExtension", () => {
         await increaseTimeAsync(timeFastForward);
 
         await feeExtension.connect(operator.wallet).updatePrtStakingPool(prtStakingPool.address);
+        await feeExtension.connect(methodologist.wallet).updatePrtStakingPool(prtStakingPool.address);
 
         subjectCaller = operator;
       });
@@ -320,6 +351,7 @@ describe.only("PrtFeeSplitExtension", () => {
       describe("when PRT Staking Pool fees are 0", async () => {
         beforeEach(async () => {
           await feeExtension.connect(operator.wallet).updateFeeSplit(ether(1));
+          await feeExtension.connect(methodologist.wallet).updateFeeSplit(ether(1));
         });
 
         it("should not send fees to the PRT Staking Pool", async () => {
@@ -344,6 +376,7 @@ describe.only("PrtFeeSplitExtension", () => {
       describe("when operator fees are 0", async () => {
         beforeEach(async () => {
           await feeExtension.connect(operator.wallet).updateFeeSplit(ZERO);
+          await feeExtension.connect(methodologist.wallet).updateFeeSplit(ZERO);
         });
 
         it("should not send fees to operator fee recipient", async () => {
@@ -418,63 +451,83 @@ describe.only("PrtFeeSplitExtension", () => {
     describe("#updateFeeSplit", async () => {
       let subjectNewFeeSplit: BigNumber;
       let subjectOperatorCaller: Account;
-
-      const mintedTokens: BigNumber = ether(2);
-      const timeFastForward: BigNumber = ONE_YEAR_IN_SECONDS;
+      let subjectMethodologistCaller: Account;
 
       beforeEach(async () => {
-        await setV2Setup.dai.approve(setV2Setup.debtIssuanceModule.address, ether(3));
-        await setV2Setup.debtIssuanceModule.issue(setToken.address, mintedTokens, owner.address);
-
-        await increaseTimeAsync(timeFastForward);
-
-        await feeExtension.connect(operator.wallet).updatePrtStakingPool(prtStakingPool.address);
-
         subjectNewFeeSplit = ether(.5);
         subjectOperatorCaller = operator;
+        subjectMethodologistCaller = methodologist;
       });
 
       async function subject(caller: Account): Promise<ContractTransaction> {
         return await feeExtension.connect(caller.wallet).updateFeeSplit(subjectNewFeeSplit);
       }
 
-      it("should not accrue fees", async () => {
-        const operatorFeeRecipientBalanceBefore = await setToken.balanceOf(operatorFeeRecipient.address);
-        const prtStakingPoolBalanceBefore = await setToken.balanceOf(prtStakingPool.address);
-        await subject(subjectOperatorCaller);
+      context("when operator and methodologist both execute update", () => {
+        it("should not accrue fees", async () => {
+          const operatorFeeRecipientBalanceBefore = await setToken.balanceOf(operatorFeeRecipient.address);
+          const prtStakingPoolBalanceBefore = await setToken.balanceOf(prtStakingPool.address);
 
-        const operatorFeeRecipientBalanceAfter = await setToken.balanceOf(operatorFeeRecipient.address);
-        const prtStakingPoolBalanceAfter = await setToken.balanceOf(prtStakingPool.address);
+          await subject(subjectOperatorCaller);
+          await subject(subjectMethodologistCaller);
 
-        expect(operatorFeeRecipientBalanceAfter).to.eq(operatorFeeRecipientBalanceBefore);
-        expect(prtStakingPoolBalanceAfter).to.eq(prtStakingPoolBalanceBefore);
-      });
+          const operatorFeeRecipientBalanceAfter = await setToken.balanceOf(operatorFeeRecipient.address);
+          const prtStakingPoolBalanceAfter = await setToken.balanceOf(prtStakingPool.address);
 
-      it("sets the new fee split", async () => {
-        await subject(subjectOperatorCaller);
-
-        const actualFeeSplit = await feeExtension.operatorFeeSplit();
-
-        expect(actualFeeSplit).to.eq(subjectNewFeeSplit);
-      });
-
-      describe("when fee splits is >100%", async () => {
-        beforeEach(async () => {
-          subjectNewFeeSplit = ether(1.1);
+          expect(operatorFeeRecipientBalanceAfter).to.eq(operatorFeeRecipientBalanceBefore);
+          expect(prtStakingPoolBalanceAfter).to.eq(prtStakingPoolBalanceBefore);
         });
 
-        it("should revert", async () => {
-          await expect(subject(subjectOperatorCaller)).to.be.revertedWith("Fee must be less than 100%");
+        it("sets the new fee split", async () => {
+          await subject(subjectOperatorCaller);
+          await subject(subjectMethodologistCaller);
+
+          const actualFeeSplit = await feeExtension.operatorFeeSplit();
+
+          expect(actualFeeSplit).to.eq(subjectNewFeeSplit);
+        });
+
+        it("should emit a OperatorFeeSplitUpdated event", async () => {
+          await subject(subjectOperatorCaller);
+          await expect(subject(subjectMethodologistCaller)).to.emit(feeExtension, "OperatorFeeSplitUpdated").withArgs(subjectNewFeeSplit);
+        });
+
+        describe("when fee splits is >100%", async () => {
+          beforeEach(async () => {
+            subjectNewFeeSplit = ether(1.1);
+          });
+
+          it("should revert", async () => {
+            await subject(subjectOperatorCaller);
+            await expect(subject(subjectMethodologistCaller)).to.be.revertedWith("Fee must be less than 100%");
+          });
         });
       });
 
-      describe("when the caller is not the operator", async () => {
+      context("when a single mutual upgrade party has called the method", async () => {
+        afterEach(async () => await subject(subjectMethodologistCaller));
+
+        it("should log the proposed streaming fee hash in the mutualUpgrades mapping", async () => {
+          const txHash = await subject(subjectOperatorCaller);
+
+          const expectedHash = solidityKeccak256(
+            ["bytes", "address"],
+            [txHash.data, subjectOperatorCaller.address]
+          );
+
+          const isLogged = await feeExtension.mutualUpgrades(expectedHash);
+
+          expect(isLogged).to.be.true;
+        });
+      });
+
+      describe("when the caller is not the operator or methodologist", async () => {
         beforeEach(async () => {
           subjectOperatorCaller = await getRandomAccount();
         });
 
         it("should revert", async () => {
-          await expect(subject(subjectOperatorCaller)).to.be.revertedWith("Must be operator");
+          await expect(subject(subjectOperatorCaller)).to.be.revertedWith("Must be authorized address");
         });
       });
     });
