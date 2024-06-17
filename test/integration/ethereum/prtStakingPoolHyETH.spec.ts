@@ -17,6 +17,7 @@ import { ether } from "@utils/index";
 import { impersonateAccount } from "./utils";
 import { JsonRpcSigner } from "@ethersproject/providers";
 import { ONE_MONTH_IN_SECONDS } from "@utils/constants";
+import { ethers } from "hardhat";
 
 const expect = getWaffleExpect();
 
@@ -54,6 +55,11 @@ if (process.env.INTEGRATIONTEST) {
         const prtName = "High Yield ETH Index PRT";
         const prtSymbol = "prtHyETH";
         const prtSupply = ether(10_000);
+
+        // TODO: Check if  this is correct
+        const eip712Name = "Index Coop";
+        const eip712Version = "v1";
+        const message = "Sign message";
 
         const prtStakingPoolName = "High Yield ETH Index Staked PRT";
         const prtStakingPoolSymbol = "sPrtHyETH";
@@ -101,10 +107,6 @@ if (process.env.INTEGRATIONTEST) {
             ONE_MONTH_IN_SECONDS,
           ]);
 
-          // TODO: Check if  this is correct
-          const eip712Name = "Index Coop";
-          const eip712Version = "v1";
-          const message = "Sign message";
           prtStakingPool = await deployer.staking.deployPrtStakingPool(
             eip712Name,
             eip712Version,
@@ -182,9 +184,37 @@ if (process.env.INTEGRATIONTEST) {
             await prt.connect(alice.wallet).approve(prtStakingPool.address, alicePrtAmount);
             await prt.connect(carol.wallet).approve(prtStakingPool.address, carolPrtAmount);
 
-            await prtStakingPool.connect(bob.wallet).stake(bobPrtAmount);
-            await prtStakingPool.connect(alice.wallet).stake(alicePrtAmount);
-            await prtStakingPool.connect(carol.wallet).stake(carolPrtAmount);
+            const domain = {
+              name: eip712Name,
+              version: eip712Version,
+              chainId: await ethers.provider.getNetwork().then(({ chainId }) => chainId),
+              verifyingContract: prtStakingPool.address,
+            };
+
+            const signTypes = {
+              Stake: [{ name: "message", type: "string" }],
+            };
+
+            const stakeMessage = {
+              message,
+            };
+
+            const bobSignature = await bob.wallet._signTypedData(domain, signTypes, stakeMessage);
+            await prtStakingPool.connect(bob.wallet).stake(bobPrtAmount, bobSignature);
+
+            const aliceSignature = await alice.wallet._signTypedData(
+              domain,
+              signTypes,
+              stakeMessage,
+            );
+            await prtStakingPool.connect(alice.wallet).stake(alicePrtAmount, aliceSignature);
+
+            const carolSignature = await carol.wallet._signTypedData(
+              domain,
+              signTypes,
+              stakeMessage,
+            );
+            await prtStakingPool.connect(carol.wallet).stake(carolPrtAmount, carolSignature);
           });
 
           it("should set the pre snapshot balances correctly", async () => {
