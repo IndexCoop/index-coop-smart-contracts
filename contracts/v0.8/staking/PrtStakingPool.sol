@@ -53,8 +53,6 @@ contract PrtStakingPool is Ownable, EIP712, ERC20Snapshot, ReentrancyGuard {
     /* ============ EIP712 ============ */
 
 
-    bytes32 private immutable _hashedName;
-    bytes32 private immutable _hashedVersion;
 
 
     string public message;
@@ -118,13 +116,6 @@ contract PrtStakingPool is Ownable, EIP712, ERC20Snapshot, ReentrancyGuard {
         feeSplitExtension = _feeSplitExtension;
         snapshotDelay = _snapshotDelay;
         message = _message;
-
-        uint256 _chainId;
-        assembly {
-            _chainId := chainid()
-        }
-        _hashedName = keccak256(bytes(eip712Name_));
-        _hashedVersion = keccak256(bytes(eip712Version_));
     }
 
     /* ========== External Functions ========== */
