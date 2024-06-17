@@ -112,6 +112,7 @@
     "ethers": "5.0.24",
     "fs-extra": "^5.0.0",
     "module-alias": "^2.2.2",
+    "openzeppelin-contracts-v0.8": "npm:@openzeppelin/contracts@4.9.6",
     "replace-in-file": "^6.1.0",
     "typechain": "^4.0.1"
   },

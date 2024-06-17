@@ -13,18 +13,17 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 
-    SPDX-License-Identifier: Apache License, Version 2.0
+    SPDX-License-Identifier: Apache-2.0
 */
 
-pragma solidity ^0.6.10;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.8.20;
 
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { ERC20Snapshot } from "@openzeppelin/contracts/token/ERC20/ERC20Snapshot.sol";
-import { Math } from  "@openzeppelin/contracts/math/Math.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+import { ECDSA } from "openzeppelin-contracts-v0.8/utils/cryptography/ECDSA.sol";
+import { EIP712 } from "openzeppelin-contracts-v0.8/utils/cryptography/EIP712.sol";
+import { ERC20 } from "openzeppelin-contracts-v0.8/token/ERC20/ERC20.sol";
+import { ERC20Snapshot } from "openzeppelin-contracts-v0.8/token/ERC20/extensions/ERC20Snapshot.sol";
+import { Ownable } from "openzeppelin-contracts-v0.8/access/Ownable.sol";
+import { ReentrancyGuard } from "openzeppelin-contracts-v0.8/security/ReentrancyGuard.sol";
 
 import { IPrt } from "../interfaces/IPrt.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
@@ -34,8 +33,9 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
  * @author Index Cooperative
  * @dev A contract for staking PRT tokens and distributing SetTokens.
  */
-contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
-    using SafeMath for uint256;
+contract PrtStakingPool is Ownable, EIP712, ERC20Snapshot, ReentrancyGuard {
+
+    string private constant MESSAGE_TYPE = "Stake(string message)";
 
     /* ============ Events ============ */
 
@@ -49,6 +49,13 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
 
     /// @notice PRT token to be staked
     IPrt public immutable prt;
+
+    /* ============ EIP712 ============ */
+
+
+
+
+    string public message;
 
     /* ============ State Variables ============ */
 
@@ -81,6 +88,9 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
 
     /**
      * @notice Constructor to initialize the PRT Staking Pool.
+     * @param eip712Name_ Name of the EIP712 signing domain
+     * @param eip712Version_ Current major version of the EIP712 signing domain
+     * @param _message The message to sign when staking
      * @param _name Name of the staked PRT token
      * @param _symbol Symbol of the staked PRT token
      * @param _prt Instance of the PRT token contract
@@ -88,6 +98,9 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
      * @param _snapshotDelay The minimum amount of time between snapshots
      */
     constructor(
+        string memory eip712Name_,
+        string memory eip712Version_,
+        string memory _message,
         string memory _name,
         string memory _symbol,
         IPrt _prt,
@@ -96,11 +109,13 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
     )
         public
         ERC20(_name, _symbol)
+        EIP712(eip712Name_, eip712Version_)
     {
         prt = _prt;
         setToken = ISetToken(_prt.setToken());
         feeSplitExtension = _feeSplitExtension;
         snapshotDelay = _snapshotDelay;
+        message = _message;
     }
 
     /* ========== External Functions ========== */
@@ -109,7 +124,8 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
      * @notice Stake `amount` of PRT tokens from `msg.sender` and mint staked PRT tokens.
      * @param _amount The amount of PRT tokens to stake
      */
-    function stake(uint256 _amount) external nonReentrant {
+    function stake(uint256 _amount, bytes memory _signature) external nonReentrant {
+        require(getSigner(_signature) == msg.sender, "Invalid signature");
         require(_amount > 0, "Cannot stake 0");
         prt.transferFrom(msg.sender, address(this), _amount);
         super._mint(msg.sender, _amount);
@@ -191,12 +207,20 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
 
     /* ========== View Functions ========== */
 
+    function getSigner(bytes memory _signature) public view returns (address) {
+        bytes32 hash = _hashTypedDataV4(keccak256(abi.encode(
+            keccak256(bytes(MESSAGE_TYPE)),
+            keccak256(bytes(message))
+        )));
+
+        return ECDSA.recover(hash, _signature);
+    }
     /**
      * @notice Check if rewards can be accrued.
      * @return Boolean indicating if rewards can be accrued
      */
     function canAccrue() public view returns (bool) {
-        return block.timestamp >= lastSnapshotTime.add(snapshotDelay);
+        return block.timestamp >= lastSnapshotTime + snapshotDelay;
     }
 
     /**
@@ -341,10 +365,7 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
         view 
         returns (uint256) 
     {
-        return accrueSnapshots[_snapshotId].mul(
-            balanceOfAt(_account, _snapshotId + 1)
-        ).div(
-            totalSupplyAt(_snapshotId + 1)
-        );
+        return (accrueSnapshots[_snapshotId] * balanceOfAt(_account, _snapshotId + 1)) / totalSupplyAt(_snapshotId + 1);
     }
+
 }

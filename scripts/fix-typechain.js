@@ -1,4 +1,27 @@
 const replace = require('replace-in-file');
+const fs = require('fs');
+
+function removeDuplicates(filePath) {
+    console.log("Removing duplicates in file: ", filePath);
+    fs.readFile(filePath, 'utf8', (err, data) => {
+        if (err) {
+            console.error(err);
+            return;
+        }
+
+        const lines = data.split('\n');
+        const uniqueLines = Array.from(new Set(lines));
+
+        fs.writeFile(filePath, uniqueLines.join('\n'), 'utf8', (err) => {
+            if (err) {
+                console.error(err);
+                return;
+            }
+            console.log('Duplicates removed successfully.');
+        });
+    });
+}
+
 
 let changedFiles;
 
@@ -62,3 +85,6 @@ try {
 catch (error) {
   console.error('Error occurred:', error);
 }
+
+// Step 4: Remove Duplicates
+removeDuplicates('./typechain/index.ts');
