@@ -246,7 +246,7 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
                 keccak256(
                     abi.encode(
                         keccak256(abi.encodePacked(MESSAGE_TYPE)),
-                        message
+                        keccak256(bytes(message))
                     )
                 )
             )
