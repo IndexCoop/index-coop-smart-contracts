@@ -13,12 +13,13 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 
-    SPDX-License-Identifier: Apache License, Version 2.0
+    SPDX-License-Identifier: Apache-2.0
 */
 
 pragma solidity ^0.8.20;
 
 import { ECDSA } from "openzeppelin-contracts-v0.8/utils/cryptography/ECDSA.sol";
+import { EIP712 } from "openzeppelin-contracts-v0.8/utils/cryptography/EIP712.sol";
 import { ERC20 } from "openzeppelin-contracts-v0.8/token/ERC20/ERC20.sol";
 import { ERC20Snapshot } from "openzeppelin-contracts-v0.8/token/ERC20/extensions/ERC20Snapshot.sol";
 import { Ownable } from "openzeppelin-contracts-v0.8/access/Ownable.sol";
@@ -32,11 +33,8 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
  * @author Index Cooperative
  * @dev A contract for staking PRT tokens and distributing SetTokens.
  */
-contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
-    using SafeMath for uint256;
+contract PrtStakingPool is Ownable, EIP712, ERC20Snapshot, ReentrancyGuard {
 
-    bytes32 private constant TYPE_HASH =
-        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     string private constant MESSAGE_TYPE = "Stake(string message)";
 
     /* ============ Events ============ */
@@ -54,15 +52,10 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
 
     /* ============ EIP712 ============ */
 
-    bytes32 private immutable _cachedDomainSeparator;
-    uint256 private immutable _cachedChainId;
-    address private immutable _cachedThis;
 
     bytes32 private immutable _hashedName;
     bytes32 private immutable _hashedVersion;
 
-    string private _eip712Name;
-    string private _eip712Version;
 
     string public message;
 
@@ -118,6 +111,7 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
     )
         public
         ERC20(_name, _symbol)
+        EIP712(eip712Name_, eip712Version_)
     {
         prt = _prt;
         setToken = ISetToken(_prt.setToken());
@@ -129,19 +123,6 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
         assembly {
             _chainId := chainid()
         }
-        _cachedChainId = _chainId;
-        _cachedDomainSeparator = keccak256(
-            abi.encode(
-                TYPE_HASH, 
-                keccak256(bytes(eip712Name_)), 
-                keccak256(bytes(eip712Version_)), 
-                _chainId, 
-                address(this)
-            )
-        );
-        _cachedThis = address(this);
-        _eip712Name = eip712Name_;
-        _eip712Version = eip712Version_;
         _hashedName = keccak256(bytes(eip712Name_));
         _hashedVersion = keccak256(bytes(eip712Version_));
     }
@@ -236,57 +217,19 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
     /* ========== View Functions ========== */
 
     function getSigner(bytes memory _signature) public view returns (address) {
-        bytes32 hash = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                _domainSeparatorV4(),
-                keccak256(
-                    abi.encode(
-                        keccak256(abi.encodePacked(MESSAGE_TYPE)),
-                        message
-                    )
-                )
-            )
-        );
+        bytes32 hash = _hashTypedDataV4(keccak256(abi.encode(
+            keccak256(bytes(MESSAGE_TYPE)),
+            keccak256(bytes(message))
+        )));
+
         return ECDSA.recover(hash, _signature);
     }
-
-    /**
-     * @notice ERC-5267 retrieval of EIP-712 domain
-     */
-    function eip712Domain()
-        public
-        view
-        returns (
-            bytes1 fields,
-            string memory name,
-            string memory version,
-            uint256 chainId,
-            address verifyingContract,
-            bytes32 salt,
-            uint256[] memory extensions
-        )
-    {
-        assembly {
-            chainId := chainid()
-        }
-        return (
-            hex"0f", // 01111
-            _eip712Name,
-            _eip712Version,
-            chainId,
-            address(this),
-            bytes32(0),
-            new uint256[](0)
-        );
-    }
-
     /**
      * @notice Check if rewards can be accrued.
      * @return Boolean indicating if rewards can be accrued
      */
     function canAccrue() public view returns (bool) {
-        return block.timestamp >= lastSnapshotTime.add(snapshotDelay);
+        return block.timestamp >= lastSnapshotTime + snapshotDelay;
     }
 
     /**
@@ -431,29 +374,7 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
         view 
         returns (uint256) 
     {
-        return accrueSnapshots[_snapshotId].mul(
-            balanceOfAt(_account, _snapshotId + 1)
-        ).div(
-            totalSupplyAt(_snapshotId + 1)
-        );
+        return (accrueSnapshots[_snapshotId] * balanceOfAt(_account, _snapshotId + 1)) / totalSupplyAt(_snapshotId + 1);
     }
 
-    /**
-     * @dev Returns the domain separator for the current chain.
-     */
-    function _domainSeparatorV4() internal view returns (bytes32) {
-        uint256 _chainId;
-        assembly {
-            _chainId := chainid()
-        }
-        if (address(this) == _cachedThis && _chainId == _cachedChainId) {
-            return _cachedDomainSeparator;
-        } else {
-            return _buildDomainSeparator(_chainId);
-        }
-    }
-
-    function _buildDomainSeparator(uint256 _chainId) private view returns (bytes32) {
-        return keccak256(abi.encode(TYPE_HASH, _hashedName, _hashedVersion, _chainId, address(this)));
-    }
 }
