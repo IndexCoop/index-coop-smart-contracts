@@ -16,16 +16,13 @@
     SPDX-License-Identifier: Apache License, Version 2.0
 */
 
-pragma solidity ^0.6.10;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.8.20;
 
-import { ECDSA } from "@openzeppelin/contracts/cryptography/ECDSA.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { ERC20Snapshot } from "@openzeppelin/contracts/token/ERC20/ERC20Snapshot.sol";
-import { Math } from  "@openzeppelin/contracts/math/Math.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+import { ECDSA } from "openzeppelin-contracts-v0.8/utils/cryptography/ECDSA.sol";
+import { ERC20 } from "openzeppelin-contracts-v0.8/token/ERC20/ERC20.sol";
+import { ERC20Snapshot } from "openzeppelin-contracts-v0.8/token/ERC20/extensions/ERC20Snapshot.sol";
+import { Ownable } from "openzeppelin-contracts-v0.8/access/Ownable.sol";
+import { ReentrancyGuard } from "openzeppelin-contracts-v0.8/security/ReentrancyGuard.sol";
 
 import { IPrt } from "../interfaces/IPrt.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
