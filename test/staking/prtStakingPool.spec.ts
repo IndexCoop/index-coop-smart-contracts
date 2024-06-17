@@ -1,6 +1,6 @@
 import "module-alias/register";
 
-import { Address, Account } from "@utils/types";
+import { Address, Account, Bytes } from "@utils/types";
 import { ADDRESS_ZERO, ONE, ONE_MONTH_IN_SECONDS, ONE_YEAR_IN_SECONDS, THREE, TWO, ZERO } from "@utils/constants";
 import { PrtStakingPool, StandardTokenMock } from "@utils/contracts/index";
 import DeployHelper from "@utils/deploys";
@@ -17,6 +17,7 @@ import {
 } from "@utils/index";
 import { SetFixture } from "@utils/fixtures";
 import { BigNumber } from "ethers";
+import { ethers } from "hardhat";
 
 const expect = getWaffleExpect();
 
@@ -36,6 +37,10 @@ describe.only("PrtStakingPool", () => {
   let prtStakingPool: PrtStakingPool;
 
   let snapshotDelay: BigNumber;
+
+  let eip712Name: string;
+  let eip712Version: string;
+  let message: string;
 
   before(async () => {
     [
@@ -62,7 +67,14 @@ describe.only("PrtStakingPool", () => {
 
     snapshotDelay = ONE_MONTH_IN_SECONDS;
 
+    eip712Name = "Index Coop";
+    eip712Version = "v1";
+    message = "Sign message";
+
     prtStakingPool = await deployer.staking.deployPrtStakingPool(
+      eip712Name,
+      eip712Version,
+      message,
       "PRT Staking Pool",
       "PRT-POOL",
       prt.address,
@@ -73,7 +85,10 @@ describe.only("PrtStakingPool", () => {
 
   addSnapshotBeforeRestoreAfterEach();
 
-  describe("#constructor", async () => {
+  describe.only("#constructor", async () => {
+    let subjectEip712Name: string;
+    let subjectEip712Version: string;
+    let subjectMessage: string;
     let subjectName: string;
     let subjectSymbol: string;
     let subjectSetToken: Address;
@@ -82,6 +97,9 @@ describe.only("PrtStakingPool", () => {
     let subjectSnapshotDelay: BigNumber;
 
     beforeEach(async () => {
+      subjectEip712Name = eip712Name;
+      subjectEip712Version = eip712Version;
+      subjectMessage = message;
       subjectName = "PRT Staking Pool";
       subjectSymbol = "PRT-POOL";
       subjectSetToken = setToken.address;
@@ -92,6 +110,9 @@ describe.only("PrtStakingPool", () => {
 
     async function subject(): Promise<PrtStakingPool> {
       return await deployer.staking.deployPrtStakingPool(
+        subjectEip712Name,
+        subjectEip712Version,
+        subjectMessage,
         subjectName,
         subjectSymbol,
         subjectPrt,
@@ -99,6 +120,24 @@ describe.only("PrtStakingPool", () => {
         subjectSnapshotDelay
       );
     }
+
+    it("should set the correct EIP712 configuration", async () => {
+      const retrievedPrtStakingPool = await subject();
+
+      const expectedDomain = {
+        name: subjectEip712Name,
+        version: subjectEip712Version,
+        chainId: await ethers.provider.getNetwork().then(({ chainId }) => chainId),
+        verifyingContract: retrievedPrtStakingPool.address,
+      };
+
+      const actualDomain = await retrievedPrtStakingPool.eip712Domain();
+
+      expect(actualDomain.name).to.eq(expectedDomain.name);
+      expect(actualDomain.version).to.eq(expectedDomain.version);
+      expect(actualDomain.chainId).to.eq(expectedDomain.chainId);
+      expect(actualDomain.verifyingContract).to.eq(expectedDomain.verifyingContract);
+    });
 
     it("should set the correct name, symbol, and decimals", async () => {
       const retrievedPrtStakingPool = await subject();
@@ -210,22 +249,43 @@ describe.only("PrtStakingPool", () => {
     });
   });
 
-  describe("#stake", async () => {
+  describe.only("#stake", async () => {
     let subjectAmount: BigNumber;
+    let subjectSignature: Bytes;
     let subjectCaller: Account;
 
     beforeEach(async () => {
       const amount = ether(1);
 
+      const domain = {
+        name: eip712Name,
+        version: eip712Version,
+        chainId: await ethers.provider.getNetwork().then(({ chainId }) => chainId),
+        verifyingContract: prtStakingPool.address,
+      };
+
+      const signTypes = {
+        Stake: [
+          { name: "message", type: "string" },
+        ],
+      };
+
+      const stakeMessage = {
+        message: "Sign message",
+      };
+
+      const stakeSignature = await bob.wallet._signTypedData(domain, signTypes, stakeMessage);
+
       await prt.connect(owner.wallet).transfer(bob.address, amount);
       await prt.connect(bob.wallet).approve(prtStakingPool.address, amount);
 
       subjectAmount = amount;
+      subjectSignature = stakeSignature;
       subjectCaller = bob;
     });
 
     async function subject(): Promise<any> {
-      return prtStakingPool.connect(subjectCaller.wallet).stake(subjectAmount);
+      return prtStakingPool.connect(subjectCaller.wallet).stake(subjectAmount, subjectSignature);
     }
 
     it("should transfer PRTs from the staker to the PrtStakingPool", async () => {

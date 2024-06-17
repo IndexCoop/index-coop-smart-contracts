@@ -28,6 +28,9 @@ export default class DeployStaking {
   }
 
   public async deployPrtStakingPool(
+    eip712Name: string,
+    eip712Version: string,
+    message: string,
     name: string,
     symbol: string,
     prt: Address,
@@ -35,6 +38,9 @@ export default class DeployStaking {
     snapshotDelay: BigNumberish
   ): Promise<PrtStakingPool> {
     return await new PrtStakingPool__factory(this._deployerSigner).deploy(
+      eip712Name,
+      eip712Version,
+      message,
       name,
       symbol,
       prt,

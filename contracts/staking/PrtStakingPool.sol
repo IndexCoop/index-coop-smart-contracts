@@ -19,6 +19,7 @@
 pragma solidity ^0.6.10;
 pragma experimental ABIEncoderV2;
 
+import { ECDSA } from "@openzeppelin/contracts/cryptography/ECDSA.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { ERC20Snapshot } from "@openzeppelin/contracts/token/ERC20/ERC20Snapshot.sol";
 import { Math } from  "@openzeppelin/contracts/math/Math.sol";
@@ -37,6 +38,10 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
     using SafeMath for uint256;
 
+    bytes32 private constant TYPE_HASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    string private constant MESSAGE_TYPE = "Stake(string message)";
+
     /* ============ Events ============ */
 
     event FeeSplitExtensionChanged(address _newFeeSplitExtension);
@@ -49,6 +54,20 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
 
     /// @notice PRT token to be staked
     IPrt public immutable prt;
+
+    /* ============ EIP712 ============ */
+
+    bytes32 private immutable _cachedDomainSeparator;
+    uint256 private immutable _cachedChainId;
+    address private immutable _cachedThis;
+
+    bytes32 private immutable _hashedName;
+    bytes32 private immutable _hashedVersion;
+
+    string private _eip712Name;
+    string private _eip712Version;
+
+    string public message;
 
     /* ============ State Variables ============ */
 
@@ -81,6 +100,9 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
 
     /**
      * @notice Constructor to initialize the PRT Staking Pool.
+     * @param eip712Name_ Name of the EIP712 signing domain
+     * @param eip712Version_ Current major version of the EIP712 signing domain
+     * @param _message The message to sign when staking
      * @param _name Name of the staked PRT token
      * @param _symbol Symbol of the staked PRT token
      * @param _prt Instance of the PRT token contract
@@ -88,6 +110,9 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
      * @param _snapshotDelay The minimum amount of time between snapshots
      */
     constructor(
+        string memory eip712Name_,
+        string memory eip712Version_,
+        string memory _message,
         string memory _name,
         string memory _symbol,
         IPrt _prt,
@@ -101,6 +126,27 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
         setToken = ISetToken(_prt.setToken());
         feeSplitExtension = _feeSplitExtension;
         snapshotDelay = _snapshotDelay;
+        message = _message;
+
+        uint256 _chainId;
+        assembly {
+            _chainId := chainid()
+        }
+        _cachedChainId = _chainId;
+        _cachedDomainSeparator = keccak256(
+            abi.encode(
+                TYPE_HASH, 
+                keccak256(bytes(eip712Name_)), 
+                keccak256(bytes(eip712Version_)), 
+                _chainId, 
+                address(this)
+            )
+        );
+        _cachedThis = address(this);
+        _eip712Name = eip712Name_;
+        _eip712Version = eip712Version_;
+        _hashedName = keccak256(bytes(eip712Name_));
+        _hashedVersion = keccak256(bytes(eip712Version_));
     }
 
     /* ========== External Functions ========== */
@@ -109,7 +155,8 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
      * @notice Stake `amount` of PRT tokens from `msg.sender` and mint staked PRT tokens.
      * @param _amount The amount of PRT tokens to stake
      */
-    function stake(uint256 _amount) external nonReentrant {
+    function stake(uint256 _amount, bytes memory _signature) external nonReentrant {
+        require(getSigner(_signature) == msg.sender, "Invalid signature");
         require(_amount > 0, "Cannot stake 0");
         prt.transferFrom(msg.sender, address(this), _amount);
         super._mint(msg.sender, _amount);
@@ -190,6 +237,52 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
     }
 
     /* ========== View Functions ========== */
+
+    function getSigner(bytes memory _signature) public view returns (address) {
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                _domainSeparatorV4(),
+                keccak256(
+                    abi.encode(
+                        keccak256(abi.encodePacked(MESSAGE_TYPE)),
+                        message
+                    )
+                )
+            )
+        );
+        return ECDSA.recover(hash, _signature);
+    }
+
+    /**
+     * @notice ERC-5267 retrieval of EIP-712 domain
+     */
+    function eip712Domain()
+        public
+        view
+        returns (
+            bytes1 fields,
+            string memory name,
+            string memory version,
+            uint256 chainId,
+            address verifyingContract,
+            bytes32 salt,
+            uint256[] memory extensions
+        )
+    {
+        assembly {
+            chainId := chainid()
+        }
+        return (
+            hex"0f", // 01111
+            _eip712Name,
+            _eip712Version,
+            chainId,
+            address(this),
+            bytes32(0),
+            new uint256[](0)
+        );
+    }
 
     /**
      * @notice Check if rewards can be accrued.
@@ -346,5 +439,24 @@ contract PrtStakingPool is Ownable, ERC20Snapshot, ReentrancyGuard {
         ).div(
             totalSupplyAt(_snapshotId + 1)
         );
+    }
+
+    /**
+     * @dev Returns the domain separator for the current chain.
+     */
+    function _domainSeparatorV4() internal view returns (bytes32) {
+        uint256 _chainId;
+        assembly {
+            _chainId := chainid()
+        }
+        if (address(this) == _cachedThis && _chainId == _cachedChainId) {
+            return _cachedDomainSeparator;
+        } else {
+            return _buildDomainSeparator(_chainId);
+        }
+    }
+
+    function _buildDomainSeparator(uint256 _chainId) private view returns (bytes32) {
+        return keccak256(abi.encode(TYPE_HASH, _hashedName, _hashedVersion, _chainId, address(this)));
     }
 }
