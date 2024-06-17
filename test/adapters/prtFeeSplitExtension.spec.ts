@@ -25,7 +25,7 @@ import { solidityKeccak256 } from "ethers/lib/utils";
 
 const expect = getWaffleExpect();
 
-describe.only("PrtFeeSplitExtension", () => {
+describe("PrtFeeSplitExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
