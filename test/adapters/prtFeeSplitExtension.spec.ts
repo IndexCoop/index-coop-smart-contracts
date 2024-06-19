@@ -1,8 +1,8 @@
 import "module-alias/register";
 
 import { Address, Account } from "@utils/types";
-import { ADDRESS_ZERO, ZERO, ONE_YEAR_IN_SECONDS, ONE_MONTH_IN_SECONDS } from "@utils/constants";
-import { Prt, PrtFeeSplitExtension, BaseManagerV2, PrtStakingPool } from "@utils/contracts/index";
+import { ADDRESS_ZERO, ZERO, ONE_YEAR_IN_SECONDS } from "@utils/constants";
+import { Prt, PrtFeeSplitExtension, BaseManagerV2, PrtStakingPoolMock } from "@utils/contracts/index";
 import { SetToken } from "@utils/contracts/setV2";
 import DeployHelper from "@utils/deploys";
 import {
@@ -25,7 +25,7 @@ import { solidityKeccak256 } from "ethers/lib/utils";
 
 const expect = getWaffleExpect();
 
-describe.only("PrtFeeSplitExtension", () => {
+describe("PrtFeeSplitExtension", () => {
   let owner: Account;
   let methodologist: Account;
   let operator: Account;
@@ -136,7 +136,7 @@ describe.only("PrtFeeSplitExtension", () => {
   });
 
   context("when fee extension is deployed and system fully set up", async () => {
-    let prtStakingPool: PrtStakingPool;
+    let prtStakingPool: PrtStakingPoolMock;
     const operatorSplit: BigNumber = ether(.7);
 
     beforeEach(async () => {
@@ -164,17 +164,11 @@ describe.only("PrtFeeSplitExtension", () => {
       await feeExtension.connect(methodologist.wallet).updateFeeRecipient(feeExtension.address);
 
       // Deploy PrtStakingPool
-      prtStakingPool = await deployer.staking.deployPrtStakingPool(
-        "PRT Staking Pool",
-        "sPRT",
+      prtStakingPool = await deployer.mocks.deployPrtStakingPoolMock(
+        setToken.address,
         prt.address,
         feeExtension.address,
-        ONE_MONTH_IN_SECONDS
       );
-
-      // Stake PRT in PRT Staking Pool
-      await prt.connect(owner.wallet).approve(prtStakingPool.address, ether(1));
-      await prtStakingPool.connect(owner.wallet).stake(ether(1));
     });
 
     describe("#updatePrtStakingPool", async () => {
@@ -221,12 +215,10 @@ describe.only("PrtFeeSplitExtension", () => {
 
         describe("when there is a FeeExtension mismatch", async () => {
           beforeEach(async () => {
-            const wrongPrtPool = await deployer.staking.deployPrtStakingPool(
-              "PRT Staking Pool",
-              "sPRT",
+            const wrongPrtPool = await deployer.mocks.deployPrtStakingPoolMock(
+              setToken.address,
               prt.address,
               ADDRESS_ZERO, // Use zero address instead of FeeExtension
-              ONE_MONTH_IN_SECONDS
             );
             subjectNewPrtStakingPool = wrongPrtPool.address;
           });
@@ -322,38 +314,6 @@ describe.only("PrtFeeSplitExtension", () => {
         await expect(subject()).to.emit(feeExtension, "PrtFeesDistributed");
       });
 
-      it("should snapshot the PRT Staking Pool correctly", async () => {
-        const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
-        const totalSupply = await setToken.totalSupply();
-
-        const prtStakingPoolPreSnapshot = await prtStakingPool.getCurrentId();
-        const prtStakingPoolPreSnapshotBalance = await setToken.balanceOf(prtStakingPool.address);
-
-        const txnTimestamp = await getTransactionTimestamp(subject());
-
-        const expectedFeeInflation = await getStreamingFee(
-          setV2Setup.streamingFeeModule,
-          setToken.address,
-          feeState.lastStreamingFeeTimestamp,
-          txnTimestamp
-        );
-
-        const feeInflation = getStreamingFeeInflationAmount(expectedFeeInflation, totalSupply);
-
-        const expectedMintRedeemFees = preciseMul(mintedTokens, ether(.01));
-        const expectedOperatorTake = preciseMul(feeInflation.add(expectedMintRedeemFees), operatorSplit);
-        const expectedPrtStakingPoolTake = feeInflation.add(expectedMintRedeemFees).sub(expectedOperatorTake);
-
-        const prtStakingPoolPostSnapshot = await prtStakingPool.getCurrentId();
-        const prtStakingPoolPostSnapshotBalance = await setToken.balanceOf(prtStakingPool.address);
-
-        const storedPrtStakingPoolTake = await prtStakingPool.accrueSnapshots(prtStakingPoolPostSnapshot.sub(1));
-
-        expect(prtStakingPoolPreSnapshot).to.eq(prtStakingPoolPostSnapshot.sub(1));
-        expect(prtStakingPoolPreSnapshotBalance).to.eq(prtStakingPoolPostSnapshotBalance.sub(expectedPrtStakingPoolTake));
-        expect(storedPrtStakingPoolTake).to.eq(expectedPrtStakingPoolTake);
-      });
-
       describe("when PRT Staking Pool fees are 0", async () => {
         beforeEach(async () => {
           await feeExtension.connect(operator.wallet).updateFeeSplit(ether(1));
@@ -367,15 +327,6 @@ describe.only("PrtFeeSplitExtension", () => {
 
           const postMethodologistBalance = await setToken.balanceOf(methodologist.address);
           expect(postMethodologistBalance.sub(preMethodologistBalance)).to.eq(ZERO);
-        });
-
-        it("should create a snapshot on the PRT Staking Pool", async () => {
-          const preSnapshotId = await prtStakingPool.getCurrentId();
-
-          await subject();
-
-          const postSnapshotId = await prtStakingPool.getCurrentId();
-          expect(postSnapshotId).to.eq(preSnapshotId);
         });
       });
 

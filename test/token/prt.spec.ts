@@ -13,7 +13,7 @@ import { StandardTokenMock } from "@typechain/StandardTokenMock";
 
 const expect = getWaffleExpect();
 
-describe.only("Prt", async () => {
+describe("Prt", async () => {
   const prtName = "High Yield ETH Index PRT Token";
   const prtSymbol = "prtHyETH";
   const prtSupply = ether(10_000);

@@ -20,6 +20,7 @@ import {
   ModuleMock,
   BaseGlobalExtensionMock,
   MutualUpgradeV2Mock,
+  PrtStakingPoolMock,
 } from "../contracts/index";
 
 import { BaseExtensionMock__factory } from "../../typechain/factories/BaseExtensionMock__factory";
@@ -49,6 +50,7 @@ import { AaveV2LendingPoolMock } from "@typechain/AaveV2LendingPoolMock";
 import { FlashMintLeveragedCompMock } from "@typechain/FlashMintLeveragedCompMock";
 import { FlashMintLeveragedCompMock__factory } from "@typechain/factories/FlashMintLeveragedCompMock__factory";
 import { OptimisticOracleV3Mock__factory } from "@typechain/factories/OptimisticOracleV3Mock__factory";
+import { PrtStakingPoolMock__factory } from "@typechain/factories/PrtStakingPoolMock__factory";
 
 export default class DeployMocks {
   private _deployerSigner: Signer;
@@ -227,5 +229,17 @@ export default class DeployMocks {
 
   public async deployOptimisticOracleV3Mock() {
     return await new OptimisticOracleV3Mock__factory(this._deployerSigner).deploy();
+  }
+
+  public async deployPrtStakingPoolMock(
+    setToken: Address,
+    prt: Address,
+    feeSplitExtension: Address,
+  ): Promise<PrtStakingPoolMock> {
+    return await new PrtStakingPoolMock__factory(this._deployerSigner).deploy(
+      setToken,
+      prt,
+      feeSplitExtension,
+    );
   }
 }
