@@ -45,8 +45,8 @@ contract PrtFeeSplitExtension is FeeSplitExtension {
 
     /* ============ Events ============ */
 
-    event AnyoneAccrueUpdated(bool isAnyoneAllowedToBid);
-    event AccruerStatusUpdated(address indexed accruer, bool isBidderAllowed);
+    event AnyoneAccrueUpdated(bool isAnyoneAllowedToAccrue);
+    event AccruerStatusUpdated(address indexed accruer, bool isAccruerAllowed);
     event OperatorFeeSplitUpdated(uint256 newFeeSplit);
     event PrtFeesDistributed(
         address indexed operatorFeeRecipient,
