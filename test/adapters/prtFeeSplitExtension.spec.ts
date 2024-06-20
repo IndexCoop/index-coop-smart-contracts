@@ -303,9 +303,6 @@ describe("PrtFeeSplitExtension", () => {
 
         await increaseTimeAsync(timeFastForward);
 
-        await feeExtension.connect(operator.wallet).updatePrtStakingPool(prtStakingPool.address);
-        await feeExtension.connect(methodologist.wallet).updatePrtStakingPool(prtStakingPool.address);
-
         await feeExtension.connect(operator.wallet).updateAnyoneAccrue(true);
         await feeExtension.connect(methodologist.wallet).updateAnyoneAccrue(true);
 
@@ -317,6 +314,9 @@ describe("PrtFeeSplitExtension", () => {
       }
 
       it("should send correct amount of fees to operator fee recipient and PRT Staking Pool", async () => {
+        await feeExtension.connect(operator.wallet).updatePrtStakingPool(prtStakingPool.address);
+        await feeExtension.connect(methodologist.wallet).updatePrtStakingPool(prtStakingPool.address);
+
         const feeState: any = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
         const totalSupply = await setToken.totalSupply();
 
@@ -343,11 +343,15 @@ describe("PrtFeeSplitExtension", () => {
       });
 
       it("should emit a PrtFeesDistributed event", async () => {
+        await feeExtension.connect(operator.wallet).updatePrtStakingPool(prtStakingPool.address);
+        await feeExtension.connect(methodologist.wallet).updatePrtStakingPool(prtStakingPool.address);
         await expect(subject()).to.emit(feeExtension, "PrtFeesDistributed");
       });
 
       describe("when PRT Staking Pool fees are 0", async () => {
         beforeEach(async () => {
+          await feeExtension.connect(operator.wallet).updatePrtStakingPool(prtStakingPool.address);
+          await feeExtension.connect(methodologist.wallet).updatePrtStakingPool(prtStakingPool.address);
           await feeExtension.connect(operator.wallet).updateFeeSplit(ether(1));
           await feeExtension.connect(methodologist.wallet).updateFeeSplit(ether(1));
         });
@@ -364,6 +368,8 @@ describe("PrtFeeSplitExtension", () => {
 
       describe("when operator fees are 0", async () => {
         beforeEach(async () => {
+          await feeExtension.connect(operator.wallet).updatePrtStakingPool(prtStakingPool.address);
+          await feeExtension.connect(methodologist.wallet).updatePrtStakingPool(prtStakingPool.address);
           await feeExtension.connect(operator.wallet).updateFeeSplit(ZERO);
           await feeExtension.connect(methodologist.wallet).updateFeeSplit(ZERO);
         });
@@ -378,6 +384,12 @@ describe("PrtFeeSplitExtension", () => {
         });
       });
 
+      describe("when the PRT Staking Pool is not set", async () => {
+        it("should not revert", async () => {
+          await expect(subject()).to.be.revertedWith("PRT Staking Pool not set");
+        });
+      });
+
       describe("when extension has fees accrued, is removed and no longer the feeRecipient", () => {
         let txnTimestamp: BigNumber;
         let feeState: any;
@@ -385,6 +397,9 @@ describe("PrtFeeSplitExtension", () => {
         let totalSupply: BigNumber;
 
         beforeEach(async () => {
+          await feeExtension.connect(operator.wallet).updatePrtStakingPool(prtStakingPool.address);
+          await feeExtension.connect(methodologist.wallet).updatePrtStakingPool(prtStakingPool.address);
+
           feeState = await setV2Setup.streamingFeeModule.feeStates(setToken.address);
           totalSupply = await setToken.totalSupply();
 

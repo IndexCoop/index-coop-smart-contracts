@@ -123,6 +123,8 @@ contract PrtFeeSplitExtension is FeeSplitExtension {
      * and update the snapshot.
      */
     function accrueFeesAndDistribute() public override onlyAllowedAccruer {
+        require(address(prtStakingPool) != address(0), "PRT Staking Pool not set");
+
         // Emits a FeeActualized event
         streamingFeeModule.accrueFee(setToken);
 
