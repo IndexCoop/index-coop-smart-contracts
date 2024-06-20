@@ -3,6 +3,7 @@ pragma solidity ^0.6.10;
 
 interface IPrtStakingPool {
     function accrue(uint256 _amount) external;
-    function feeSplitExtension() external view returns (address);
-    function prt() external view returns (address);
+    function distributor() external view returns (address);
+    function stakeToken() external view returns (address);
+    function rewardToken() external view returns (address);
 }

@@ -19,21 +19,20 @@
 pragma solidity ^0.6.10;
 pragma experimental ABIEncoderV2;
 
-import { IPrt } from "../interfaces/IPrt.sol";
-import { ISetToken } from "../interfaces/ISetToken.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract PrtStakingPoolMock {
-    ISetToken public immutable setToken;
-    IPrt public immutable prt;
-    address public feeSplitExtension;
+    IERC20 public immutable rewardToken;
+    IERC20 public immutable stakeToken;
+    address public distributor;
 
-    constructor(ISetToken _setToken, IPrt _prt, address _feeSplitExtension) public {
-        prt = _prt;
-        setToken = _setToken;
-        feeSplitExtension = _feeSplitExtension;
+    constructor(IERC20 _rewardToken, IERC20 _stakeToken, address _distributor) public {
+        rewardToken = _rewardToken;
+        stakeToken = _stakeToken;
+        distributor = _distributor;
     }
 
     function accrue(uint256 _amount) external {
-        setToken.transferFrom(msg.sender, address(this), _amount);
+        rewardToken.transferFrom(msg.sender, address(this), _amount);
     }
 }

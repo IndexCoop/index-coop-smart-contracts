@@ -225,7 +225,39 @@ describe("PrtFeeSplitExtension", () => {
 
           it("should revert", async () => {
             await subject(subjectOperatorCaller);
-            await expect(subject(subjectMethodologistCaller)).to.be.revertedWith("PrtFeeSplitExtension must be set");
+            await expect(subject(subjectMethodologistCaller)).to.be.revertedWith("PRT Staking Pool distributor must be this extension");
+          });
+        });
+
+        describe("when there is a stakeToken mismatch", async () => {
+          beforeEach(async () => {
+            const wrongPrtPool = await deployer.mocks.deployPrtStakingPoolMock(
+              setToken.address,
+              ADDRESS_ZERO, // Use zero address instead of PRT
+              feeExtension.address,
+            );
+            subjectNewPrtStakingPool = wrongPrtPool.address;
+          });
+
+          it("should revert", async () => {
+            await subject(subjectOperatorCaller);
+            await expect(subject(subjectMethodologistCaller)).to.be.revertedWith("PRT Staking Pool stake token must be PRT");
+          });
+        });
+
+        describe("when there is a rewardToken mismatch", async () => {
+          beforeEach(async () => {
+            const wrongPrtPool = await deployer.mocks.deployPrtStakingPoolMock(
+              ADDRESS_ZERO, // Use zero address instead of SetToken
+              prt.address,
+              feeExtension.address,
+            );
+            subjectNewPrtStakingPool = wrongPrtPool.address;
+          });
+
+          it("should revert", async () => {
+            await subject(subjectOperatorCaller);
+            await expect(subject(subjectMethodologistCaller)).to.be.revertedWith("PRT Staking Pool reward token must be SetToken");
           });
         });
       });

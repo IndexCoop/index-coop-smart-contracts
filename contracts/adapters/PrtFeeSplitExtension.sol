@@ -108,7 +108,9 @@ contract PrtFeeSplitExtension is FeeSplitExtension {
         mutualUpgrade(manager.operator(), manager.methodologist()) 
     {
         require(address(_prtStakingPool) != address(0), "Zero address not valid");
-        require(_prtStakingPool.feeSplitExtension() == address(this), "PrtFeeSplitExtension must be set");
+        require(_prtStakingPool.distributor() == address(this), "PRT Staking Pool distributor must be this extension");
+        require(_prtStakingPool.stakeToken() == address(prt), "PRT Staking Pool stake token must be PRT");
+        require(_prtStakingPool.rewardToken() == address(manager.setToken()), "PRT Staking Pool reward token must be SetToken");
         prtStakingPool = _prtStakingPool;
         emit PrtStakingPoolUpdated(address(_prtStakingPool));
     }
