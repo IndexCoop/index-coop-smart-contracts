@@ -162,7 +162,7 @@ contract PrtFeeSplitExtension is FeeSplitExtension {
     }
 
     /**
-     * @notice MUTUAL UPGRADE: Toggles the permission status of specified addresses to call the `accrueFeesAndDistribute()` function.
+     * @notice ONLY OPERATOR: Toggles the permission status of specified addresses to call the `accrueFeesAndDistribute()` function.
      * @param _accruers An array of addresses whose accrue permission status is to be toggled.
      * @param _statuses An array of booleans indicating the new accrue permission status for each corresponding address in `_accruers`.
      */
@@ -171,7 +171,7 @@ contract PrtFeeSplitExtension is FeeSplitExtension {
         bool[] memory _statuses
     )
         external
-        mutualUpgrade(manager.operator(), manager.methodologist())
+        onlyOperator
     {
         _accruers.validatePairsWithArray(_statuses);
         for (uint256 i = 0; i < _accruers.length; i++) {
@@ -182,13 +182,13 @@ contract PrtFeeSplitExtension is FeeSplitExtension {
     }
 
     /**
-     * @notice MUTUAL UPGRADE: Toggles whether or not anyone is allowed to call the `accrueFeesAndDistribute()` function.
+     * @notice ONLY OPERATOR: Toggles whether or not anyone is allowed to call the `accrueFeesAndDistribute()` function.
      * If set to true, it bypasses the accrueAllowList, allowing any address to call the `accrueFeesAndDistribute()` function.
      * @param _status A boolean indicating if anyone can accrue.
      */
     function updateAnyoneAccrue(bool _status)
         external
-        mutualUpgrade(manager.operator(), manager.methodologist())
+        onlyOperator
     {
         isAnyoneAllowedToAccrue = _status;
         emit AnyoneAccrueUpdated(_status);
