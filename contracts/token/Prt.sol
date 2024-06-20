@@ -49,6 +49,5 @@ contract Prt is ERC20 {
     {
         setToken = _setToken;
         _mint(_distributor, _totalSupply);
-        _setupDecimals(18);
     }
 }
