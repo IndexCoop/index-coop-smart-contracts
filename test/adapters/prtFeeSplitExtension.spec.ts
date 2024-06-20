@@ -357,12 +357,12 @@ describe("PrtFeeSplitExtension", () => {
         });
 
         it("should not send fees to the PRT Staking Pool", async () => {
-          const preMethodologistBalance = await setToken.balanceOf(methodologist.address);
+          const preStakingPoolBalance = await setToken.balanceOf(prtStakingPool.address);
 
           await subject();
 
-          const postMethodologistBalance = await setToken.balanceOf(methodologist.address);
-          expect(postMethodologistBalance.sub(preMethodologistBalance)).to.eq(ZERO);
+          const postStakingPoolBalance = await setToken.balanceOf(prtStakingPool.address);
+          expect(postStakingPoolBalance.sub(preStakingPoolBalance)).to.eq(ZERO);
         });
       });
 
