@@ -63,8 +63,8 @@ contract PrtFeeSplitExtension is FeeSplitExtension {
     /* ============ State Variables ============ */
 
     bool public isAnyoneAllowedToAccrue;
-    address[] accruersHistory;
-    mapping(address => bool) accrueAllowList;
+    address[] accrueAllowList;
+    mapping(address => bool) public accrueAllowMap;
     IPrtStakingPool public prtStakingPool;
 
     /* ============ Modifiers ============ */
@@ -171,8 +171,8 @@ contract PrtFeeSplitExtension is FeeSplitExtension {
     {
         _accruers.validatePairsWithArray(_statuses);
         for (uint256 i = 0; i < _accruers.length; i++) {
-            _updateAccruersHistory(_accruers[i], _statuses[i]);
-            accrueAllowList[_accruers[i]] = _statuses[i];
+            _updateAccrueAllowList(_accruers[i], _statuses[i]);
+            accrueAllowMap[_accruers[i]] = _statuses[i];
             emit AccruerStatusUpdated(_accruers[i], _statuses[i]);
         }
     }
@@ -204,21 +204,21 @@ contract PrtFeeSplitExtension is FeeSplitExtension {
      * @return address[] Array of addresses representing the allowed accruers.
      */
     function getAllowedAccruers() external view returns (address[] memory) {
-        return accruersHistory;
+        return accrueAllowList;
     }
 
 
     /* ============ Internal Functions ============ */
 
     function _isAllowedAccruer(address _accruer) internal view returns (bool) {
-        return isAnyoneAllowedToAccrue || accrueAllowList[_accruer];
+        return isAnyoneAllowedToAccrue || accrueAllowMap[_accruer];
     }
 
-    function _updateAccruersHistory(address _accruer, bool _status) internal {
-        if (_status && !accruersHistory.contains(_accruer)) {
-            accruersHistory.push(_accruer);
-        } else if(!_status && accruersHistory.contains(_accruer)) {
-            accruersHistory.removeStorage(_accruer);
+    function _updateAccrueAllowList(address _accruer, bool _status) internal {
+        if (_status && !accrueAllowList.contains(_accruer)) {
+            accrueAllowList.push(_accruer);
+        } else if(!_status && accrueAllowList.contains(_accruer)) {
+            accrueAllowList.removeStorage(_accruer);
         }
     }
 }
