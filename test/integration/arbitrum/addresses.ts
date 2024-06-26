@@ -40,6 +40,7 @@ export const PRODUCTION_ADDRESSES = {
   setFork: {
     controller: "0xCd79A0B9aeca0eCE7eA59d14338ea330cb1cb2d7",
     debtIssuanceModuleV2: "0x120d2f26B7ffd35a8917415A5766Fa63B2af94aa",
+    debtIssuanceModuleV3: "0x4AC26c26116Fa976352b70700af58Bc2442489d8",
     aaveV3LeverageModule: "0x6D1b74e18064172D028C5EE7Af5D0ccC26f2A4Ae",
     extensions: {
       ETH2X: {

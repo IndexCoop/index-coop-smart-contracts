@@ -43,7 +43,7 @@ if (process.env.INTEGRATIONTEST) {
     let weth: IWETH;
     let usdc: IERC20;
 
-    setBlockNumber(201830000);
+    setBlockNumber(225770000);
 
     before(async () => {
       [owner] = await getAccounts();
@@ -69,7 +69,7 @@ if (process.env.INTEGRATIONTEST) {
           addresses.dexes.uniV3.router,
           addresses.dexes.uniV3.quoter,
           addresses.setFork.controller,
-          addresses.setFork.debtIssuanceModuleV2,
+          addresses.setFork.debtIssuanceModuleV3,
           addresses.setFork.aaveV3LeverageModule,
           addresses.lending.aaveV3.lendingPool,
           addresses.dexes.curve.addressProvider,
@@ -103,7 +103,7 @@ if (process.env.INTEGRATIONTEST) {
 
       it("debt issuance module address is set correctly", async () => {
         expect(await flashMintLeveraged.debtIssuanceModule()).to.eq(
-          utils.getAddress(addresses.setFork.debtIssuanceModuleV2),
+          utils.getAddress(addresses.setFork.debtIssuanceModuleV3),
         );
       });
 
@@ -131,11 +131,11 @@ if (process.env.INTEGRATIONTEST) {
 
           await aweth
             .connect(owner.wallet)
-            .approve(addresses.setFork.debtIssuanceModuleV2, ether(10));
+            .approve(addresses.setFork.debtIssuanceModuleV3, ether(10));
           await weth.connect(owner.wallet).approve(flashMintLeveraged.address, ether(100));
           const debtIssuanceModule = (await ethers.getContractAt(
             "IDebtIssuanceModule",
-            addresses.setFork.debtIssuanceModuleV2,
+            addresses.setFork.debtIssuanceModuleV3,
             owner.wallet,
           )) as IDebtIssuanceModule;
 
@@ -173,7 +173,7 @@ if (process.env.INTEGRATIONTEST) {
           expect(
             await collateralAToken.allowance(
               flashMintLeveraged.address,
-              addresses.setFork.debtIssuanceModuleV2,
+              addresses.setFork.debtIssuanceModuleV3,
             ),
           ).to.equal(MAX_UINT_256);
         });
@@ -181,7 +181,7 @@ if (process.env.INTEGRATIONTEST) {
           expect(
             await debtToken.allowance(
               flashMintLeveraged.address,
-              addresses.setFork.debtIssuanceModuleV2,
+              addresses.setFork.debtIssuanceModuleV3,
             ),
           ).to.equal(MAX_UINT_256);
         });
@@ -198,7 +198,7 @@ if (process.env.INTEGRATIONTEST) {
                   .transfer(owner.address, utils.parseUnits("10000", 6));
               }
               // This is done to avoid flaky "Invalid transfer in, results in undercollateralization" error
-              // See: https://github.com/IndexCoop/index-protocol/blob/1a587d93d273d9004d03f1235c395f6f7cd147dc/test/protocol/modules/v1/debtIssuanceModuleV2.spec.ts#L730
+              // See: https://github.com/IndexCoop/index-protocol/blob/1a587d93d273d9004d03f1235c395f6f7cd147dc/test/protocol/modules/v1/debtIssuanceModuleV3.spec.ts#L730
               // TODO: Review if we have to do this in production.
               await aweth.transfer(setToken.address, ether(0.000001));
             });
