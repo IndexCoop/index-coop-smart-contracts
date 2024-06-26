@@ -37,7 +37,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { DEXAdapterV2 } from "./DEXAdapterV2.sol";
 
 /**
- * @title FlashMintHyETH
+ * @title FlashMintHyETHV2
  */
 contract FlashMintHyETHV2 is Ownable, ReentrancyGuard {
     using DEXAdapterV2 for DEXAdapterV2.Addresses;
@@ -504,7 +504,7 @@ contract FlashMintHyETHV2 is Ownable, ReentrancyGuard {
         if (erc4626Components[_component]) {
             address asset = IERC4626(_component).asset();
             uint256 assetAmount = IERC4626(_component).redeem(_amount, address(this), address(this));
-            _swapExactTokenForEth(IERC20(_component), assetAmount, swapData[asset][DEXAdapterV2.ETH_ADDRESS]);
+            _swapExactTokenForEth(IERC20(asset), assetAmount, swapData[asset][DEXAdapterV2.ETH_ADDRESS]);
             return;
         }
         revert("Missing Swapdata for non-standard component");

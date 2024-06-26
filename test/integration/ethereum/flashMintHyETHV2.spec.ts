@@ -133,7 +133,7 @@ if (process.env.INTEGRATIONTEST) {
           addresses.tokens.pendleEzEth1226,
           addresses.tokens.pendleEEth0926,
           addresses.tokens.pendleEEth1226,
-          addresses.tokens.acrossWethLP,
+          addresses.tokens.morphoRe7WETH,
           addresses.tokens.USDC,
         ];
         const positions = [
@@ -212,6 +212,15 @@ if (process.env.INTEGRATIONTEST) {
             exchange: 4,
           });
 
+          await flashMintHyETH.setERC4626Component(
+            addresses.tokens.morphoRe7WETH,
+            true
+          );
+          await flashMintHyETH.approveToken(
+            addresses.tokens.weth,
+            addresses.tokens.morphoRe7WETH,
+            MAX_UINT_256
+          );
           const ezEth1226PendleToken = IPendlePrincipalToken__factory.connect(
             addresses.tokens.pendleEzEth1226,
             owner.wallet,
