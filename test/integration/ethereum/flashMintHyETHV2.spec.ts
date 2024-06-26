@@ -13,7 +13,7 @@ import {
   SetToken__factory,
   SetTokenCreator,
   SetTokenCreator__factory,
-  FlashMintHyETH,
+  FlashMintHyETHV2,
   IPendlePrincipalToken__factory,
   IERC20,
   IWETH,
@@ -50,7 +50,7 @@ const NO_OP_SWAP_DATA: SwapData = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe("FlashMintHyETH - Integration Test", async () => {
+  describe.only("FlashMintHyETHV2 - Integration Test", async () => {
     const addresses = PRODUCTION_ADDRESSES;
     let owner: Account;
     let deployer: DeployHelper;
@@ -75,9 +75,9 @@ if (process.env.INTEGRATIONTEST) {
     });
 
     context("When exchange issuance is deployed", () => {
-      let flashMintHyETH: FlashMintHyETH;
+      let flashMintHyETH: FlashMintHyETHV2;
       before(async () => {
-        flashMintHyETH = await deployer.extensions.deployFlashMintHyETH(
+        flashMintHyETH = await deployer.extensions.deployFlashMintHyETHV2(
           addresses.tokens.weth,
           addresses.dexes.uniV2.router,
           addresses.dexes.sushiswap.router,
