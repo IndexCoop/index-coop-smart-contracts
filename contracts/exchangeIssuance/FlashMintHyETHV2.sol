@@ -204,7 +204,7 @@ contract FlashMintHyETHV2 is Ownable, ReentrancyGuard {
     ) external payable nonReentrant returns (uint256) {
         _inputToken.safeTransferFrom(msg.sender, address(this), _maxInputTokenAmount);
 
-        uint256 ethAmount = _swapFromTokenToEth(_inputToken, _maxInputTokenAmount, _swapDataInputTokenToEth);
+        uint256 ethAmount = _swapExactTokenForEth(_inputToken, _maxInputTokenAmount, _swapDataInputTokenToEth);
         ethAmount = ethAmount.sub(_issueExactSetFromEth(_setToken, _amountSetToken, _swapDataEthToComponent));
 
         uint256 inputTokenLeft = _swapFromEthToToken(_inputToken, ethAmount, _swapDataEthToInputToken);
@@ -435,18 +435,7 @@ contract FlashMintHyETHV2 is Ownable, ReentrancyGuard {
         DEXAdapterV2.SwapData memory _swapData
     ) internal {
         if(_swapData.exchange != DEXAdapterV2.Exchange.None) {
-            require(_swapData.path.length > 1, "zero length swap path");
-            require(_swapData.path[0] == DEXAdapterV2.ETH_ADDRESS || _swapData.path[0] == dexAdapter.weth, "Invalid input token");
-            require(_swapData.path[_swapData.path.length - 1] == _component, "Invalid output token");
-            if(_swapData.path[0] == dexAdapter.weth) {
-                uint256 balanceBefore = IWETH(dexAdapter.weth).balanceOf(address(this));
-                IWETH(dexAdapter.weth).deposit{value: address(this).balance}();
-                dexAdapter.swapTokensForExactTokens(_amount, IWETH(dexAdapter.weth).balanceOf(address(this)), _swapData);
-                IWETH(dexAdapter.weth).withdraw(IWETH(dexAdapter.weth).balanceOf(address(this)).sub(balanceBefore));
-            }
-            else {
-                dexAdapter.swapTokensForExactTokens(_amount, address(this).balance, _swapData);
-            }
+            _swapEthForExactToken(_component, _amount, _swapData);
             return;
         }
         if (_isInstadapp(_component)) {
@@ -469,12 +458,7 @@ contract FlashMintHyETHV2 is Ownable, ReentrancyGuard {
         if (erc4626Components[_component]) {
             uint256 assetAmount = IERC4626(_component).previewMint(_amount);
             address asset = IERC4626(_component).asset();
-            if(asset == dexAdapter.weth) {
-                IWETH(dexAdapter.weth).deposit{value: assetAmount}();
-            }
-            else {
-                dexAdapter.swapTokensForExactTokens(assetAmount, IWETH(dexAdapter.weth).balanceOf(address(this)), swapData[dexAdapter.weth][asset]);
-            }
+            _swapEthForExactToken(asset, assetAmount, swapData[DEXAdapterV2.ETH_ADDRESS][asset]);
             IERC4626(_component).mint(_amount, address(this));
             return;
         }
@@ -520,12 +504,7 @@ contract FlashMintHyETHV2 is Ownable, ReentrancyGuard {
         if (erc4626Components[_component]) {
             address asset = IERC4626(_component).asset();
             uint256 assetAmount = IERC4626(_component).redeem(_amount, address(this), address(this));
-            if(asset == dexAdapter.weth) {
-                IWETH(dexAdapter.weth).withdraw(assetAmount);
-            }
-            else {
-                dexAdapter.swapExactTokensForTokens(assetAmount, 0, swapData[asset][DEXAdapterV2.ETH_ADDRESS]);
-            }
+            _swapExactTokenForEth(IERC20(_component), assetAmount, swapData[asset][DEXAdapterV2.ETH_ADDRESS]);
             return;
         }
         revert("Missing Swapdata for non-standard component");
@@ -669,17 +648,17 @@ contract FlashMintHyETHV2 is Ownable, ReentrancyGuard {
     /**
      * @dev Convert specified token to ETH, either swapping or simply withdrawing if inputToken is WETH
      */
-    function _swapFromTokenToEth(
+    function _swapExactTokenForEth(
         IERC20 _inputToken,
-        uint256 _maxInputTokenAmount,
+        uint256 _inputTokenAmount,
         DEXAdapterV2.SwapData memory _swapDataInputTokenToEth
     ) internal returns (uint256 ethAmount) {
         if(address(_inputToken) == dexAdapter.weth) {
-           ethAmount = _maxInputTokenAmount;
+           ethAmount = _inputTokenAmount;
            IWETH(dexAdapter.weth).withdraw(ethAmount);
         } else {
            ethAmount = dexAdapter.swapExactTokensForTokens(
-               _maxInputTokenAmount,
+               _inputTokenAmount,
                0,
                _swapDataInputTokenToEth
            );
@@ -688,6 +667,27 @@ contract FlashMintHyETHV2 is Ownable, ReentrancyGuard {
            } 
         }
     }
+
+    function _swapEthForExactToken(address _token, uint256 _amount, DEXAdapterV2.SwapData memory _swapData) internal {
+        if(_token == dexAdapter.weth) {
+           IWETH(dexAdapter.weth).deposit{value: _amount}();
+           return;
+        } 
+
+        require(_swapData.path.length > 1, "zero length swap path");
+        require(_swapData.path[0] == DEXAdapterV2.ETH_ADDRESS || _swapData.path[0] == dexAdapter.weth, "Invalid input token");
+        require(_swapData.path[_swapData.path.length - 1] == _token, "Invalid output token");
+        if(_swapData.path[0] == dexAdapter.weth) {
+            uint256 balanceBefore = IWETH(dexAdapter.weth).balanceOf(address(this));
+            IWETH(dexAdapter.weth).deposit{value: address(this).balance}();
+            dexAdapter.swapTokensForExactTokens(_amount, IWETH(dexAdapter.weth).balanceOf(address(this)), _swapData);
+            IWETH(dexAdapter.weth).withdraw(IWETH(dexAdapter.weth).balanceOf(address(this)).sub(balanceBefore));
+        }
+        else {
+            dexAdapter.swapTokensForExactTokens(_amount, address(this).balance, _swapData);
+        }
+    }
+
 
 
 }
