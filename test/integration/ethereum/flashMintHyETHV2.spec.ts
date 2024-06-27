@@ -13,7 +13,7 @@ import {
   SetToken__factory,
   SetTokenCreator,
   SetTokenCreator__factory,
-  FlashMintHyETH,
+  FlashMintHyETHV2,
   IPendlePrincipalToken__factory,
   IERC20,
   IWETH,
@@ -50,7 +50,7 @@ const NO_OP_SWAP_DATA: SwapData = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe("FlashMintHyETH - Integration Test", async () => {
+  describe.only("FlashMintHyETHV2 - Integration Test", async () => {
     const addresses = PRODUCTION_ADDRESSES;
     let owner: Account;
     let deployer: DeployHelper;
@@ -75,9 +75,9 @@ if (process.env.INTEGRATIONTEST) {
     });
 
     context("When exchange issuance is deployed", () => {
-      let flashMintHyETH: FlashMintHyETH;
+      let flashMintHyETH: FlashMintHyETHV2;
       before(async () => {
-        flashMintHyETH = await deployer.extensions.deployFlashMintHyETH(
+        flashMintHyETH = await deployer.extensions.deployFlashMintHyETHV2(
           addresses.tokens.weth,
           addresses.dexes.uniV2.router,
           addresses.dexes.sushiswap.router,
@@ -133,7 +133,7 @@ if (process.env.INTEGRATIONTEST) {
           addresses.tokens.pendleEzEth1226,
           addresses.tokens.pendleEEth0926,
           addresses.tokens.pendleEEth1226,
-          addresses.tokens.acrossWethLP,
+          addresses.tokens.morphoRe7WETH,
           addresses.tokens.USDC,
         ];
         const positions = [
@@ -212,6 +212,15 @@ if (process.env.INTEGRATIONTEST) {
             exchange: 4,
           });
 
+          await flashMintHyETH.setERC4626Component(
+            addresses.tokens.morphoRe7WETH,
+            true
+          );
+          await flashMintHyETH.approveToken(
+            addresses.tokens.weth,
+            addresses.tokens.morphoRe7WETH,
+            MAX_UINT_256
+          );
           const ezEth1226PendleToken = IPendlePrincipalToken__factory.connect(
             addresses.tokens.pendleEzEth1226,
             owner.wallet,
