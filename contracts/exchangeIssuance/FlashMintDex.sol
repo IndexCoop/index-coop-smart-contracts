@@ -262,14 +262,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         uint256 outputAmount;
         _redeemExactSet(_redeemParams.setToken, _redeemParams.amountSetToken, _redeemParams.issuanceModule);
 
-        outputAmount = _sellComponentsForOutputToken(
-            _redeemParams.setToken,
-            _redeemParams.amountSetToken,
-            _redeemParams.swapData,
-            _redeemParams.outputToken,
-            _redeemParams.issuanceModule,
-            _redeemParams.isDebtIssuance
-        );
+        outputAmount = _sellComponentsForOutputToken(_redeemParams);
         require(outputAmount >= _redeemParams.minOutputReceive, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
 
         _redeemParams.outputToken.safeTransfer(msg.sender, outputAmount);
@@ -282,39 +275,29 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      * Redeems an exact amount of SetTokens for ETH.
      * The SetToken must be approved by the sender to this contract.
      *
-     * @param _setToken             Address of the SetToken being redeemed
-     * @param _amountSetToken       Amount SetTokens to redeem
-     * @param _minEthReceive        Minimum amount of Eth to receive
-     * @param _swapData             Swap data from input token to each component token
-     * @param _issuanceModule       Address of issuance Module to use 
-     * @param _isDebtIssuance       Flag indicating wether given issuance module is a debt issuance module
+     * @param _redeemParams   Struct containing addresses, amounts, and swap data for issuance
      *
-     * @return outputAmount         Amount of output tokens sent to the caller
+     * @return ethAmount      The amount of ETH received.
      */
-    function redeemExactSetForETH(
-        ISetToken _setToken,
-        uint256 _amountSetToken,
-        uint256 _minEthReceive,
-        DEXAdapterV2.SwapData[] memory _swapData,
-        address _issuanceModule,
-        bool _isDebtIssuance
-    )
-        isValidModule(_issuanceModule)
+    function redeemExactSetForETH(RedeemParams memory _redeemParams)
+        isValidModule(_redeemParams.issuanceModule)
         external
         nonReentrant
         returns (uint256)
     {
-        _redeemExactSet(_setToken, _amountSetToken, _issuanceModule);
-        uint ethAmount = _sellComponentsForOutputToken(_setToken, _amountSetToken, _swapData, IERC20(WETH), _issuanceModule, _isDebtIssuance);
-        require(ethAmount >= _minEthReceive, "ExchangeIssuance: INSUFFICIENT WETH RECEIVED");
+        require(_redeemParams.outputToken == IERC20(WETH), "ExchangeIssuance: OUTPUT TOKEN MUST BE WETH");
+        _redeemExactSet(_redeemParams.setToken, _redeemParams.amountSetToken, _redeemParams.issuanceModule);
+
+        uint ethAmount = _sellComponentsForOutputToken(_redeemParams);
+        require(ethAmount >= _redeemParams.minOutputReceive, "ExchangeIssuance: INSUFFICIENT WETH RECEIVED");
 
         IWETH(WETH).withdraw(ethAmount);
-        (payable(msg.sender)).sendValue(ethAmount);
+        payable(msg.sender).sendValue(ethAmount);
 
-        emit FlashRedeem(msg.sender, _setToken, IERC20(ETH_ADDRESS), _amountSetToken, ethAmount);
+        emit FlashRedeem(msg.sender, _redeemParams.setToken, IERC20(ETH_ADDRESS), _redeemParams.amountSetToken, ethAmount);
         return ethAmount;
-         
     }
+
     
 
     /**
@@ -377,44 +360,71 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     /**
      * Redeems a given list of SetToken components for given token.
      *
-     * @param _setToken             The set token being swapped.
-     * @param _amountSetToken       The amount of set token being swapped.
-     * @param _swapData             Swap data from input token to each component token
-     * @param _outputToken          The token for which to sell the index components must be the same as the buyToken that was specified when generating the swaps
-     * @param _issuanceModule    Address of issuance Module to use 
-     * @param _isDebtIssuance    Flag indicating wether given issuance module is a debt issuance module
+     * @param _redeemParams           Struct containing addresses, amounts, and swap data for issuance
      *
      * @return totalOutputTokenBought  Total amount of output token received after liquidating all SetToken components
      */
-    function _sellComponentsForOutputToken(ISetToken _setToken, uint256 _amountSetToken, DEXAdapterV2.SwapData[] memory _swapData, IERC20 _outputToken, address _issuanceModule, bool _isDebtIssuance)
+    function _sellComponentsForOutputToken(RedeemParams memory _redeemParams)
         internal
         returns (uint256 totalOutputTokenBought)
     {
-        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(_issuanceModule, _isDebtIssuance, _setToken, _amountSetToken);
-        uint256 outputTokenBalanceBefore = _outputToken.balanceOf(address(this));
-        for (uint256 i = 0; i < components.length; i++) {
-            uint256 maxAmountSell = componentUnits[i];
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(
+            _redeemParams.issuanceModule,
+            _redeemParams.isDebtIssuance,
+            _redeemParams.setToken,
+            _redeemParams.amountSetToken
+        );
 
+        uint256 outputTokenBalanceBefore = _redeemParams.outputToken.balanceOf(address(this));
+        for (uint256 i = 0; i < _redeemParams.swapData.length; i++) {
+            uint256 maxAmountSell = componentUnits[i];
             uint256 componentAmountSold;
 
             // If the component is equal to the output token we don't have to trade
-            if(components[i] == address(_outputToken)) {
+            if (components[i] == address(_redeemParams.outputToken)) {
                 totalOutputTokenBought = totalOutputTokenBought.add(maxAmountSell);
                 componentAmountSold = maxAmountSell;
-            }
-            else {
+            } else {
                 // _safeApprove(IERC20(components[i]), address(swapTarget), maxAmountSell);
                 uint256 componentBalanceBefore = IERC20(components[i]).balanceOf(address(this));
-                dexAdapter.swapTokensForExactTokens(componentAmountSold, totalOutputTokenBought, _swapData[i]);
+                dexAdapter.swapTokensForExactTokens(componentAmountSold, totalOutputTokenBought, _redeemParams.swapData[i]);
                 uint256 componentBalanceAfter = IERC20(components[i]).balanceOf(address(this));
                 componentAmountSold = componentBalanceBefore.sub(componentBalanceAfter);
                 require(maxAmountSell >= componentAmountSold, "ExchangeIssuance: OVERSOLD COMPONENT");
             }
-
         }
-        uint256 outputTokenBalanceAfter = _outputToken.balanceOf(address(this));
+        uint256 outputTokenBalanceAfter = _redeemParams.outputToken.balanceOf(address(this));
         totalOutputTokenBought = totalOutputTokenBought.add(outputTokenBalanceAfter.sub(outputTokenBalanceBefore));
     }
+    // function _sellComponentsForOutputToken(ISetToken _setToken, uint256 _amountSetToken, DEXAdapterV2.SwapData[] memory _swapData, IERC20 _outputToken, address _issuanceModule, bool _isDebtIssuance)
+    //     internal
+    //     returns (uint256 totalOutputTokenBought)
+    // {
+    //     (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(_issuanceModule, _isDebtIssuance, _setToken, _amountSetToken);
+    //     uint256 outputTokenBalanceBefore = _outputToken.balanceOf(address(this));
+    //     for (uint256 i = 0; i < components.length; i++) {
+    //         uint256 maxAmountSell = componentUnits[i];
+
+    //         uint256 componentAmountSold;
+
+    //         // If the component is equal to the output token we don't have to trade
+    //         if(components[i] == address(_outputToken)) {
+    //             totalOutputTokenBought = totalOutputTokenBought.add(maxAmountSell);
+    //             componentAmountSold = maxAmountSell;
+    //         }
+    //         else {
+    //             // _safeApprove(IERC20(components[i]), address(swapTarget), maxAmountSell);
+    //             uint256 componentBalanceBefore = IERC20(components[i]).balanceOf(address(this));
+    //             dexAdapter.swapTokensForExactTokens(componentAmountSold, totalOutputTokenBought, _swapData[i]);
+    //             uint256 componentBalanceAfter = IERC20(components[i]).balanceOf(address(this));
+    //             componentAmountSold = componentBalanceBefore.sub(componentBalanceAfter);
+    //             require(maxAmountSell >= componentAmountSold, "ExchangeIssuance: OVERSOLD COMPONENT");
+    //         }
+
+    //     }
+    //     uint256 outputTokenBalanceAfter = _outputToken.balanceOf(address(this));
+    //     totalOutputTokenBought = totalOutputTokenBought.add(outputTokenBalanceAfter.sub(outputTokenBalanceBefore));
+    // }
 
     /**
      * Transfers given amount of set token from the sender and redeems it for underlying components.
