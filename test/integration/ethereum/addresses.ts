@@ -38,6 +38,9 @@ export const PRODUCTION_ADDRESSES = {
     rswEth: "0xFAe103DC9cf190eD75350761e95403b7b8aFa6c0",
     acrossWethLP: "0x28F77208728B0A45cAb24c4868334581Fe86F95B",
     morphoRe7WETH: "0x78Fc2c2eD1A4cDb5402365934aE5648aDAd094d0",
+    wstEth: "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+    sfrxEth: "0xac3E018457B222d93114458476f3E3416Abbe38F",
+    osEth: "0xf1C9acDc66974dFB6dEcB12aA385b9cD01190E38",
   },
   whales: {
     stEth: "0xdc24316b9ae028f1497c275eb9192a3ea0f67022",
@@ -82,6 +85,7 @@ export const PRODUCTION_ADDRESSES = {
   },
   set: {
     controller: "0xa4c8d221d8BB851f83aadd0223a8900A6921A349",
+    basicIssuanceModule: "0xd8EF3cACe8b4907117a45B0b125c68560532F94D",
     debtIssuanceModule: "0x39F024d621367C044BacE2bf0Fb15Fb3612eCB92",
     debtIssuanceModuleV2: "0x69a592D2129415a4A1d1b1E309C17051B7F28d57",
     aaveLeverageModule: "0x251Bd1D42Df1f153D86a5BA2305FaADE4D5f51DC",

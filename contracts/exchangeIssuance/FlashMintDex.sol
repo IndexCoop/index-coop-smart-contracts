@@ -341,7 +341,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
                 componentAmountBought = units;
             } else {
                 uint256 componentBalanceBefore = IERC20(component).balanceOf(address(this));
-                dexAdapter.swapTokensForExactTokens(componentAmountBought, totalInputTokenSold, _issueParams.swapData[i]);
+                dexAdapter.swapTokensForExactTokens(units, _issueParams.maxAmountInputToken, _issueParams.swapData[i]);
                 uint256 componentBalanceAfter = IERC20(component).balanceOf(address(this));
                 componentAmountBought = componentBalanceAfter.sub(componentBalanceBefore);
                 require(componentAmountBought >= units, "ExchangeIssuance: UNDERBOUGHT COMPONENT");

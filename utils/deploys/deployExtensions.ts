@@ -54,6 +54,7 @@ import { FlashMintLeveragedForCompound__factory } from "../../typechain/factorie
 import { FlashMintWrapped } from "../../typechain/FlashMintWrapped";
 import { FlashMintWrapped__factory } from "../../typechain/factories/FlashMintWrapped__factory";
 import { ExchangeIssuanceZeroEx__factory } from "../../typechain/factories/ExchangeIssuanceZeroEx__factory";
+import { FlashMintDex__factory } from "../../typechain/factories/FlashMintDex__factory";
 import { FlashMintPerp__factory } from "../../typechain/factories/FlashMintPerp__factory";
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
 import { PrtFeeSplitExtension__factory } from "../../typechain/factories/PrtFeeSplitExtension__factory";
@@ -481,6 +482,46 @@ export default class DeployExtensions {
       wethAddress,
       setControllerAddress,
       swapTarget,
+    );
+  }
+  public async deployFlashMintDex(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+    setControllerAddress: Address,
+    debtIssuanceModuleAddress: Address,
+    stETHAddress: Address,
+    curveStEthEthPoolAddress: Address,
+  ) {
+    const dexAdapter = await this.deployDEXAdapterV2();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapterV2.sol:DEXAdapterV2",
+    );
+
+    return await new FlashMintDex__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      wethAddress,
+      setControllerAddress,
+      {
+        quickRouter: quickRouterAddress,
+        sushiRouter: sushiRouterAddress,
+        uniV3Router: uniV3RouterAddress,
+        uniV3Quoter: uniswapV3QuoterAddress,
+        curveAddressProvider: curveAddressProviderAddress,
+        curveCalculator: curveCalculatorAddress,
+        weth: wethAddress,
+      },
     );
   }
 
