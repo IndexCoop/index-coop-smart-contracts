@@ -15,8 +15,8 @@ import {
   SetTokenCreator__factory,
   FlashMintDex,
   IERC20,
+  IERC20__factory,
   IWETH,
-  IWETH__factory,
 } from "../../../typechain";
 import { PRODUCTION_ADDRESSES } from "./addresses";
 import { ADDRESS_ZERO } from "@utils/constants";
@@ -49,6 +49,16 @@ type IssueParams = {
   issuanceModule: Address;
   isDebtIssuance: boolean;
 };
+
+// type RedeemParams = {
+//   setToken: Address;
+//   outputToken: Address;
+//   amountSetToken: BigNumber;
+//   maxAmountInputToken: BigNumber;
+//   swapData: SwapData[];
+//   issuanceModule: Address;
+//   isDebtIssuance: boolean;
+// };
 
 const NO_OP_SWAP_DATA: SwapData = {
   path: [],
@@ -234,45 +244,24 @@ if (process.env.INTEGRATIONTEST) {
             // let swapDataInputTokenToEth: SwapData;
             // let swapDataEthToInputToken: SwapData;
             let issueParams: IssueParams;
+            // let redeemParams: RedeemParams;
+
 
             before(async () => {
               if (inputTokenName != "eth") {
-                inputToken = IWETH__factory.connect(addresses.tokens[inputTokenName], owner.wallet);
+                inputToken = IERC20__factory.connect(addresses.tokens[inputTokenName], owner.wallet);
                 inputToken.approve(flashMintDex.address, maxAmountIn);
               }
               if (inputTokenName === "weth") {
                 await inputToken.deposit({ value: maxAmountIn });
-                // swapDataInputTokenToEth = {
-                //   path: [addresses.tokens.weth, ETH_ADDRESS],
-                //   fees: [],
-                //   pool: ADDRESS_ZERO,
-                //   exchange: 0,
-                // };
-                // swapDataEthToInputToken = {
-                //   path: [ETH_ADDRESS, addresses.tokens.weth],
-                //   fees: [],
-                //   pool: ADDRESS_ZERO,
-                //   exchange: 0,
-                // };
               }
               if (inputTokenName === "USDC") {
                 const whaleSigner = await impersonateAccount(addresses.whales.USDC);
                 await inputToken.connect(whaleSigner).transfer(owner.address, maxAmountIn);
-                swapDataInputTokenToEth = {
-                  path: [addresses.tokens.USDC, addresses.tokens.weth],
-                  fees: [500],
-                  pool: ADDRESS_ZERO,
-                  exchange: Exchange.UniV3,
-                };
-                swapDataEthToInputToken = {
-                  path: [addresses.tokens.weth, addresses.tokens.USDC],
-                  fees: [500],
-                  pool: ADDRESS_ZERO,
-                  exchange: Exchange.UniV3,
-                };
               }
             });
             function subject() {
+              console.log("debtIssuanceModule", debtIssuanceModule.address);
               issueParams = {
                 setToken: setToken.address,
                 inputToken: inputToken.address,
@@ -312,60 +301,58 @@ if (process.env.INTEGRATIONTEST) {
               expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.sub(maxAmountIn));
             });
           });
+
+
+            // describe("When set token has been issued", () => {
+            //   const minAmountOut = maxAmountIn.mul(8).div(10);
+            //   beforeEach(async () => {
+            //     await flashMintDex.issueExactSetFromETH(
+            //       issueParams,
+            //       {
+            //         value: maxAmountIn,
+            //       },
+            //     );
+            //     await setToken.approve(flashMintDex.address, setTokenAmount);
+            //   });
+
+            //   function subject() {
+            //     if (inputTokenName === "eth") {
+            //       return flashMintDex.redeemExactSetForETH(
+            //         setToken.address,
+            //         setTokenAmount,
+            //         minAmountOut,
+            //         componentSwapDataRedeem,
+            //       );
+            //     } else {
+            //       return flashMintDex.redeemExactSetForERC20(
+            //         setToken.address,
+            //         setTokenAmount,
+            //         inputToken.address,
+            //         minAmountOut,
+            //         swapDataEthToInputToken,
+            //         componentSwapDataRedeem,
+            //       );
+            //     }
+            //   }
+
+            //   it("Can redeem set token", async () => {
+            //     const inputTokenBalanceBefore =
+            //       inputTokenName === "eth"
+            //         ? await owner.wallet.getBalance()
+            //         : await inputToken.balanceOf(owner.address);
+            //     const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+            //     await subject();
+            //     const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+            //     const inputTokenBalanceAfter =
+            //       inputTokenName === "eth"
+            //         ? await owner.wallet.getBalance()
+            //         : await inputToken.balanceOf(owner.address);
+            //     expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
+            //     expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.add(minAmountOut));
+            //   });
+            // });
+          // });
         });
-
-        //     describe("When set token has been issued", () => {
-        //       const minAmountOut = maxAmountIn.mul(8).div(10);
-        //       beforeEach(async () => {
-        //         await flashMintDex.issueExactSetFromETH(
-        //           setToken.address,
-        //           setTokenAmount,
-        //           componentSwapDataIssue,
-        //           {
-        //             value: ethIn,
-        //           },
-        //         );
-        //         await setToken.approve(flashMintDex.address, setTokenAmount);
-        //       });
-
-        //       function subject() {
-        //         if (inputTokenName === "eth") {
-        //           return flashMintDex.redeemExactSetForETH(
-        //             setToken.address,
-        //             setTokenAmount,
-        //             minAmountOut,
-        //             componentSwapDataRedeem,
-        //           );
-        //         } else {
-        //           return flashMintDex.redeemExactSetForERC20(
-        //             setToken.address,
-        //             setTokenAmount,
-        //             inputToken.address,
-        //             minAmountOut,
-        //             swapDataEthToInputToken,
-        //             componentSwapDataRedeem,
-        //           );
-        //         }
-        //       }
-
-        //       it("Can redeem set token", async () => {
-        //         const inputTokenBalanceBefore =
-        //           inputTokenName === "eth"
-        //             ? await owner.wallet.getBalance()
-        //             : await inputToken.balanceOf(owner.address);
-        //         const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
-        //         await subject();
-        //         const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
-        //         const inputTokenBalanceAfter =
-        //           inputTokenName === "eth"
-        //             ? await owner.wallet.getBalance()
-        //             : await inputToken.balanceOf(owner.address);
-        //         expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
-        //         expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.add(minAmountOut));
-        //       });
-        //     });
-        //   });
-        // });
       });
     });
   });
