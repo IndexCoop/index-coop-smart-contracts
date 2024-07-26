@@ -341,6 +341,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
                 componentAmountBought = units;
             } else {
                 uint256 componentBalanceBefore = IERC20(component).balanceOf(address(this));
+                // TODO: Calculate the max amount input token to be used for each swap
                 dexAdapter.swapTokensForExactTokens(units, _issueParams.maxAmountInputToken, _issueParams.swapData[i]);
                 uint256 componentBalanceAfter = IERC20(component).balanceOf(address(this));
                 componentAmountBought = componentBalanceAfter.sub(componentBalanceBefore);
@@ -380,6 +381,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
                 componentAmountSold = maxAmountSell;
             } else {
                 uint256 componentBalanceBefore = IERC20(components[i]).balanceOf(address(this));
+                // TODO: Calculate the min amount output token to be received for each swap
                 dexAdapter.swapTokensForExactTokens(componentAmountSold, totalOutputTokenBought, _redeemParams.swapData[i]);
                 uint256 componentBalanceAfter = IERC20(components[i]).balanceOf(address(this));
                 componentAmountSold = componentBalanceBefore.sub(componentBalanceAfter);

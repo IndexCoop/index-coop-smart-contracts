@@ -493,9 +493,6 @@ export default class DeployExtensions {
     curveCalculatorAddress: Address,
     curveAddressProviderAddress: Address,
     setControllerAddress: Address,
-    debtIssuanceModuleAddress: Address,
-    stETHAddress: Address,
-    curveStEthEthPoolAddress: Address,
   ) {
     const dexAdapter = await this.deployDEXAdapterV2();
 

@@ -25,6 +25,7 @@ import { ether, /*usdc*/ } from "@utils/index";
 // import { impersonateAccount } from "./utils";
 
 const expect = getWaffleExpect();
+// const ETH_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
 enum Exchange {
   None,
@@ -109,9 +110,6 @@ if (process.env.INTEGRATIONTEST) {
           addresses.dexes.curve.calculator,
           addresses.dexes.curve.addressProvider,
           addresses.setFork.controller,
-          addresses.setFork.debtIssuanceModuleV2,
-          addresses.tokens.stEth,
-          addresses.dexes.curve.pools.stEthEth,
         );
       });
 
@@ -143,37 +141,46 @@ if (process.env.INTEGRATIONTEST) {
         );
       });
 
-      context("when setToken with dsETH composition is deployed", () => {
+      context("when setToken with a simple LST composition is deployed", () => {
         let setToken: SetToken;
         const components = [
-          // addresses.tokens.wstEth,
-          // addresses.tokens.rETH,
-          // addresses.tokens.sfrxEth,
-          // addresses.tokens.osEth,
-          // addresses.tokens.ETHx,
+          addresses.tokens.wstEth,
+          addresses.tokens.rETH,
           addresses.tokens.swETH,
+          // addresses.tokens.ETHx,
         ];
         const positions = [
-          // ethers.utils.parseEther("0.16"),
-          // ethers.utils.parseEther("0.16"),
-          // ethers.utils.parseEther("0.16"),
-          // ethers.utils.parseEther("0.16"),
-          // ethers.utils.parseEther("0.16"),
-          ethers.utils.parseEther("0.16"),
+          ethers.utils.parseEther("0.25"),
+          ethers.utils.parseEther("0.25"),
+          ethers.utils.parseEther("0.25"),
+          // ethers.utils.parseEther("0.25"),
         ];
 
         const componentSwapDataIssue = [
-          // NO_OP_SWAP_DATA,
-          // NO_OP_SWAP_DATA,
-          // NO_OP_SWAP_DATA,
-          // NO_OP_SWAP_DATA,
-          // NO_OP_SWAP_DATA,
+          {
+            exchange: Exchange.UniV3,
+            fees: [100],
+            path: [addresses.tokens.weth, addresses.tokens.wstEth],
+            pool: ADDRESS_ZERO,
+          },
+          {
+            exchange: Exchange.UniV3,
+            fees: [100],
+            path: [addresses.tokens.weth, addresses.tokens.rETH],
+            pool: ADDRESS_ZERO,
+          },
           {
             exchange: Exchange.UniV3,
             fees: [500],
             path: [addresses.tokens.weth, addresses.tokens.swETH],
             pool: ADDRESS_ZERO,
           },
+          // {
+          //   exchange: Exchange.Curve,
+          //   fees: [],
+          //   path: [ETH_ADDRESS, addresses.tokens.ETHx],
+          //   pool: "0x59Ab5a5b5d617E478a2479B0cAD80DA7e2831492",
+          // },
         ];
 
         // const componentSwapDataRedeem = [
@@ -191,8 +198,8 @@ if (process.env.INTEGRATIONTEST) {
         // ];
 
         const modules = [addresses.setFork.debtIssuanceModuleV2];
-        const tokenName = "Diversified Staked ETH Index";
-        const tokenSymbol = "dsETH";
+        const tokenName = "Simple Diversified Staked ETH Index";
+        const tokenSymbol = "dsETHSimp";
 
         before(async () => {
           const tx = await setTokenCreator.create(
@@ -216,21 +223,9 @@ if (process.env.INTEGRATIONTEST) {
             owner.address,
             ADDRESS_ZERO,
           );
-
-          await flashMintDex.approveTokens(
-            [
-              addresses.tokens.wstEth,
-              addresses.tokens.rETH,
-              addresses.tokens.sfrxEth,
-              addresses.tokens.osEth,
-              addresses.tokens.ETHx,
-              addresses.tokens.swETH,
-            ],
-            debtIssuanceModule.address
-          );
-
           await flashMintDex.approveSetToken(setToken.address, debtIssuanceModule.address);
         });
+
         it("setToken is deployed correctly", async () => {
           expect(await setToken.symbol()).to.eq(tokenSymbol);
         });
@@ -256,6 +251,8 @@ if (process.env.INTEGRATIONTEST) {
             },
           );
           const inputTokenBalanceAfter = await owner.wallet.getBalance();
+          console.log("inputTokenBalanceBefore", inputTokenBalanceBefore.toString());
+          console.log("inputTokenBalanceAfter", inputTokenBalanceAfter.toString());
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
           expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.sub(maxAmountIn));
