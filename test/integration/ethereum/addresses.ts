@@ -85,7 +85,6 @@ export const PRODUCTION_ADDRESSES = {
   },
   set: {
     controller: "0xa4c8d221d8BB851f83aadd0223a8900A6921A349",
-    basicIssuanceModule: "0xd8EF3cACe8b4907117a45B0b125c68560532F94D",
     debtIssuanceModule: "0x39F024d621367C044BacE2bf0Fb15Fb3612eCB92",
     debtIssuanceModuleV2: "0x69a592D2129415a4A1d1b1E309C17051B7F28d57",
     aaveLeverageModule: "0x251Bd1D42Df1f153D86a5BA2305FaADE4D5f51DC",
