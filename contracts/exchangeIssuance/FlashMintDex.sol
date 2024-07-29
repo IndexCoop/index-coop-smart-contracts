@@ -54,13 +54,14 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
 
     /* ============ Structs ============ */
     struct IssueParams {
-        ISetToken setToken;                // The address of the SetToken to be issued
-        IERC20 inputToken;                 // The address of the input token
-        uint256 amountSetToken;            // The amount of SetTokens to issue
-        uint256 maxAmountInputToken;       // The maximum amount of input tokens to be used to issue SetTokens
-        DEXAdapterV2.SwapData[] swapData;  // The swap data from input token to each component token
-        address issuanceModule;            // The address of the issuance module to be used
-        bool isDebtIssuance;               // A flag indicating whether the issuance module is a debt issuance module
+        ISetToken setToken;                         // The address of the SetToken to be issued
+        IERC20 inputToken;                          // The address of the input token
+        uint256 amountSetToken;                     // The amount of SetTokens to issue
+        uint256 maxAmountInputToken;                // The maximum amount of input tokens to be used to issue SetTokens
+        DEXAdapterV2.SwapData[] componentSwapData;  // The swap data from WETH to each component token
+        DEXAdapterV2.SwapData paymentTokenSwapData; // The swap data from input token to WETH
+        address issuanceModule;                     // The address of the issuance module to be used
+        bool isDebtIssuance;                        // A flag indicating whether the issuance module is a debt issuance module
     }
 
     struct RedeemParams {
@@ -68,7 +69,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         IERC20 outputToken;                // The address of the output token
         uint256 amountSetToken;            // The amount of SetTokens to redeem
         uint256 minOutputReceive;          // The minimum amount of output tokens to receive
-        DEXAdapterV2.SwapData[] swapData;  // The swap data from each component token to the output token
+        DEXAdapterV2.SwapData[] componentSwapData;  // The swap data from each component token to the output token
         address issuanceModule;            // The address of the issuance module to be used
         bool isDebtIssuance;               // A flag indicating whether the issuance module is a debt issuance module
     }
@@ -194,6 +195,8 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     {
 
         _issueParams.inputToken.safeTransferFrom(msg.sender, address(this), _issueParams.maxAmountInputToken);
+        _issueParams.maxAmountInputToken = _swapInputTokenForWETH(_issueParams);
+        _issueParams.inputToken = IERC20(WETH);
 
         uint256 totalInputTokenSold = _buyComponentsForInputToken(_issueParams);
         require(totalInputTokenSold <= _issueParams.maxAmountInputToken, "FlashMint: OVERSPENT TOKEN");
@@ -312,10 +315,29 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     }
 
     /**
-     * Acquires SetToken components by executing swaps whose callata is passed in _swapData.
+     * Swaps a given amount of an ERC20 token for WETH using the DEXAdapter.
+     *
+     * @param _issueParams      Struct containing input token amount and swap params
+     *
+     * @return amountWethOut    Amount of WETH received after the swap
+     */
+    function _swapInputTokenForWETH(IssueParams memory _issueParams)
+        internal
+        returns (uint256 amountWethOut)
+    {
+        if (_issueParams.inputToken == IERC20(WETH)) {
+            return _issueParams.maxAmountInputToken;
+        }
+        if (_issueParams.inputToken != IERC20(WETH)) {
+            return dexAdapter.swapTokensForExactTokens(_issueParams.maxAmountInputToken, _issueParams.maxAmountInputToken, _issueParams.paymentTokenSwapData);
+        }
+    }
+
+    /**
+     * Acquires SetToken components by executing swaps whose callata is passed in _componentSwapData.
      * Acquired components are then used to issue the SetTokens.
      *
-     * @param _issueParams           Struct containing addresses, amounts, and swap data for issuance
+     * @param _issueParams          Struct containing addresses, amounts, and swap data for issuance
      *
      * @return totalInputTokenSold  Total amount of input token spent on this issuance
      */
@@ -346,11 +368,11 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
                 // Calculate the max amount of input token to be used for the swap
                 uint256 maxAmountInputToken = DEXAdapterV2.getAmountIn(
                     dexAdapter,
-                    _issueParams.swapData[i],
+                    _issueParams.componentSwapData[i],
                     units
                 );
                 emit MaxAmountInputTokenLogged(maxAmountInputToken);
-                dexAdapter.swapTokensForExactTokens(units, maxAmountInputToken, _issueParams.swapData[i]);
+                dexAdapter.swapTokensForExactTokens(units, maxAmountInputToken, _issueParams.componentSwapData[i]);
                 uint256 componentBalanceAfter = IERC20(component).balanceOf(address(this));
                 componentAmountBought = componentBalanceAfter.sub(componentBalanceBefore);
                 require(componentAmountBought >= units, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
@@ -379,7 +401,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         );
 
         uint256 outputTokenBalanceBefore = _redeemParams.outputToken.balanceOf(address(this));
-        for (uint256 i = 0; i < _redeemParams.swapData.length; i++) {
+        for (uint256 i = 0; i < _redeemParams.componentSwapData.length; i++) {
             uint256 maxAmountSell = componentUnits[i];
             uint256 componentAmountSold;
 
@@ -390,7 +412,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
             } else {
                 uint256 componentBalanceBefore = IERC20(components[i]).balanceOf(address(this));
                 // TODO: Calculate the min amount output token to be received for each swap
-                dexAdapter.swapTokensForExactTokens(componentAmountSold, totalOutputTokenBought, _redeemParams.swapData[i]);
+                dexAdapter.swapTokensForExactTokens(componentAmountSold, totalOutputTokenBought, _redeemParams.componentSwapData[i]);
                 uint256 componentBalanceAfter = IERC20(components[i]).balanceOf(address(this));
                 componentAmountSold = componentBalanceBefore.sub(componentBalanceAfter);
                 require(maxAmountSell >= componentAmountSold, "ExchangeIssuance: OVERSOLD COMPONENT");

@@ -15,14 +15,14 @@ import {
   SetTokenCreator__factory,
   FlashMintDex,
   // IERC20,
-  // IERC20__factory,
+  IERC20__factory,
   // IWETH,
   // IWETH__factory,
 } from "../../../typechain";
 import { PRODUCTION_ADDRESSES } from "./addresses";
 import { ADDRESS_ZERO } from "@utils/constants";
-import { ether, /*usdc*/ } from "@utils/index";
-// import { impersonateAccount } from "./utils";
+import { ether, usdc } from "@utils/index";
+import { impersonateAccount } from "./utils";
 
 const expect = getWaffleExpect();
 // const ETH_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
@@ -47,7 +47,8 @@ type IssueParams = {
   inputToken: Address;
   amountSetToken: BigNumber;
   maxAmountInputToken: BigNumber;
-  swapData: SwapData[];
+  componentSwapData: SwapData[];
+  paymentTokenSwapData: SwapData;
   issuanceModule: Address;
   isDebtIssuance: boolean;
 };
@@ -189,6 +190,13 @@ if (process.env.INTEGRATIONTEST) {
           // },
         ];
 
+        const paymentTokenSwapData = {
+          exchange: Exchange.UniV3,
+          fees: [100],
+          path: [addresses.tokens.USDC, addresses.tokens.weth],
+          pool: ADDRESS_ZERO,
+        };
+
         // const componentSwapDataRedeem = [
         //   NO_OP_SWAP_DATA,
         //   NO_OP_SWAP_DATA,
@@ -244,7 +252,8 @@ if (process.env.INTEGRATIONTEST) {
             inputToken: addresses.tokens.weth,
             amountSetToken: setTokenAmount,
             maxAmountInputToken: maxAmountIn,
-            swapData: componentSwapDataIssue,
+            componentSwapData: componentSwapDataIssue,
+            paymentTokenSwapData: paymentTokenSwapData,
             issuanceModule: debtIssuanceModule.address,
             isDebtIssuance: true,
           };
@@ -256,6 +265,8 @@ if (process.env.INTEGRATIONTEST) {
               value: maxAmountIn,
             },
           );
+
+          /* Start of Debugging - remove before PR */
           // Wait for the transaction to be mined
           const receipt = await tx.wait();
 
@@ -267,9 +278,52 @@ if (process.env.INTEGRATIONTEST) {
               console.log("Max Amount Input Token:", maxAmountInputToken.toString());
               // Additional assertions can be made here
           });
+          /* End Debugging */
 
           const inputTokenBalanceAfter = await owner.wallet.getBalance();
           console.log("inputTokenBalanceBefore", inputTokenBalanceBefore.toString());
+          console.log("inputTokenBalanceAfter", inputTokenBalanceAfter.toString());
+          const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+          expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
+          expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.sub(maxAmountIn));
+        });
+
+        it("Can issue set token from USDC", async () => {
+          const maxAmountIn = usdc(30000);
+          const setTokenAmount = ether(10);
+          const issueParams: IssueParams = {
+            setToken: setToken.address,
+            inputToken: addresses.tokens.USDC,
+            amountSetToken: setTokenAmount,
+            maxAmountInputToken: maxAmountIn,
+            componentSwapData: componentSwapDataIssue,
+            paymentTokenSwapData: paymentTokenSwapData,
+            issuanceModule: debtIssuanceModule.address,
+            isDebtIssuance: true,
+          };
+          const usdcToken = IERC20__factory.connect(issueParams.inputToken, owner.wallet);
+          const whaleSigner = await impersonateAccount(addresses.whales.USDC);
+          await usdcToken.connect(whaleSigner).transfer(owner.address, maxAmountIn);
+          usdcToken.approve(flashMintDex.address, maxAmountIn);
+          // flashMintDex.approveToken(issueParams.inputToken, issueParams.issuanceModule);
+          const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+          const inputTokenBalanceBefore = await usdcToken.balanceOf(owner.address);
+          console.log("inputTokenBalanceBefore", inputTokenBalanceBefore.toString());
+          const tx = await flashMintDex.issueExactSetFromToken(issueParams);
+          /* Start of Debugging - remove before PR */
+          // Wait for the transaction to be mined
+          const receipt = await tx.wait();
+
+          const events = receipt.events.filter(event => event.event === "MaxAmountInputTokenLogged");
+
+          // Log and check the value of each maxAmountInputToken
+          events.forEach(event => {
+              const maxAmountInputToken = event.args.maxAmountInputToken;
+              console.log("Max Amount Input Token:", maxAmountInputToken.toString());
+              // Additional assertions can be made here
+          });
+          /* End Debugging */
+          const inputTokenBalanceAfter = await usdcToken.balanceOf(owner.address);
           console.log("inputTokenBalanceAfter", inputTokenBalanceAfter.toString());
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
