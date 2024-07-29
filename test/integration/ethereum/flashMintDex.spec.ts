@@ -48,7 +48,8 @@ type IssueParams = {
   amountSetToken: BigNumber;
   maxAmountInputToken: BigNumber;
   componentSwapData: SwapData[];
-  paymentTokenSwapData: SwapData;
+  swapDataTokenToWeth: SwapData;
+  swapDataWethToToken: SwapData;
   issuanceModule: Address;
   isDebtIssuance: boolean;
 };
@@ -184,10 +185,17 @@ if (process.env.INTEGRATIONTEST) {
           },
         ];
 
-        const paymentTokenSwapData = {
+        const swapDataFromInputToken = {
           exchange: Exchange.UniV3,
           fees: [500],
           path: [addresses.tokens.USDC, addresses.tokens.weth],
+          pool: ADDRESS_ZERO,
+        };
+
+        const swapDataToInputToken = {
+          exchange: Exchange.UniV3,
+          fees: [500],
+          path: [addresses.tokens.weth, addresses.tokens.USDC],
           pool: ADDRESS_ZERO,
         };
 
@@ -247,7 +255,8 @@ if (process.env.INTEGRATIONTEST) {
             amountSetToken: setTokenAmount,
             maxAmountInputToken: maxAmountIn,
             componentSwapData: componentSwapDataIssue,
-            paymentTokenSwapData: paymentTokenSwapData,
+            swapDataTokenToWeth: swapDataFromInputToken,
+            swapDataWethToToken: swapDataToInputToken,
             issuanceModule: debtIssuanceModule.address,
             isDebtIssuance: true,
           };
@@ -282,16 +291,17 @@ if (process.env.INTEGRATIONTEST) {
           expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.sub(maxAmountIn));
         });
 
-        it.only("Can issue set token from USDC", async () => {
+        it("Can issue set token from USDC", async () => {
           const maxAmountIn = usdc(30000);
           const setTokenAmount = ether(10);
           const issueParams: IssueParams = {
             setToken: setToken.address,
-            inputToken: addresses.tokens.USDC,
+            inputToken: addresses.tokens.weth,
             amountSetToken: setTokenAmount,
             maxAmountInputToken: maxAmountIn,
             componentSwapData: componentSwapDataIssue,
-            paymentTokenSwapData: paymentTokenSwapData,
+            swapDataTokenToWeth: swapDataFromInputToken,
+            swapDataWethToToken: swapDataToInputToken,
             issuanceModule: debtIssuanceModule.address,
             isDebtIssuance: true,
           };
@@ -300,9 +310,7 @@ if (process.env.INTEGRATIONTEST) {
           await usdcToken.connect(whaleSigner).transfer(owner.address, maxAmountIn);
           usdcToken.approve(flashMintDex.address, maxAmountIn);
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
-          console.log("setTokenBalanceBefore", setTokenBalanceBefore.toString());
           const inputTokenBalanceBefore = await usdcToken.balanceOf(owner.address);
-          console.log("inputTokenBalanceBefore", inputTokenBalanceBefore.toString());
           const tx = await flashMintDex.issueExactSetFromToken(issueParams);
           /* Start of Debugging - remove before PR */
           // Wait for the transaction to be mined
