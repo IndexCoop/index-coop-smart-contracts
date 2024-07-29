@@ -147,13 +147,13 @@ if (process.env.INTEGRATIONTEST) {
           addresses.tokens.wstEth,
           addresses.tokens.rETH,
           addresses.tokens.swETH,
-          // addresses.tokens.ETHx,
+          addresses.tokens.comp,
         ];
         const positions = [
           ethers.utils.parseEther("0.25"),
           ethers.utils.parseEther("0.25"),
           ethers.utils.parseEther("0.25"),
-          // ethers.utils.parseEther("0.25"),
+          ethers.utils.parseEther("0.25"),
         ];
 
         const componentSwapDataIssue = [
@@ -173,6 +173,12 @@ if (process.env.INTEGRATIONTEST) {
             exchange: Exchange.UniV3,
             fees: [500],
             path: [addresses.tokens.weth, addresses.tokens.swETH],
+            pool: ADDRESS_ZERO,
+          },
+          {
+            exchange: Exchange.Sushiswap,
+            fees: [],
+            path: [addresses.tokens.weth, addresses.tokens.comp],
             pool: ADDRESS_ZERO,
           },
           // {
@@ -198,8 +204,8 @@ if (process.env.INTEGRATIONTEST) {
         // ];
 
         const modules = [addresses.setFork.debtIssuanceModuleV2];
-        const tokenName = "Simple Diversified Staked ETH Index";
-        const tokenSymbol = "dsETHSimp";
+        const tokenName = "Simple Index";
+        const tokenSymbol = "icSimple";
 
         before(async () => {
           const tx = await setTokenCreator.create(
@@ -244,12 +250,24 @@ if (process.env.INTEGRATIONTEST) {
           };
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           const inputTokenBalanceBefore = await owner.wallet.getBalance();
-          await flashMintDex.issueExactSetFromETH(
+          const tx = await flashMintDex.issueExactSetFromETH(
             issueParams,
             {
               value: maxAmountIn,
             },
           );
+          // Wait for the transaction to be mined
+          const receipt = await tx.wait();
+
+          const events = receipt.events.filter(event => event.event === "MaxAmountInputTokenLogged");
+
+          // Log and check the value of each maxAmountInputToken
+          events.forEach(event => {
+              const maxAmountInputToken = event.args.maxAmountInputToken;
+              console.log("Max Amount Input Token:", maxAmountInputToken.toString());
+              // Additional assertions can be made here
+          });
+
           const inputTokenBalanceAfter = await owner.wallet.getBalance();
           console.log("inputTokenBalanceBefore", inputTokenBalanceBefore.toString());
           console.log("inputTokenBalanceAfter", inputTokenBalanceAfter.toString());

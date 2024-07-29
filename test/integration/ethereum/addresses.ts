@@ -41,6 +41,7 @@ export const PRODUCTION_ADDRESSES = {
     wstEth: "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
     sfrxEth: "0xac3E018457B222d93114458476f3E3416Abbe38F",
     osEth: "0xf1C9acDc66974dFB6dEcB12aA385b9cD01190E38",
+    comp: "0xc00e94Cb662C3520282E6f5717214004A7f26888",
   },
   whales: {
     stEth: "0xdc24316b9ae028f1497c275eb9192a3ea0f67022",

@@ -91,6 +91,8 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         uint256 _amountOutputToken      // The amount of output tokens received by the recipient
     );
 
+    event MaxAmountInputTokenLogged(uint256 maxAmountInputToken);
+
     /* ============ Modifiers ============ */
 
     modifier isValidModule(address _issuanceModule) {
@@ -341,8 +343,14 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
                 componentAmountBought = units;
             } else {
                 uint256 componentBalanceBefore = IERC20(component).balanceOf(address(this));
-                // TODO: Calculate the max amount input token to be used for each swap
-                dexAdapter.swapTokensForExactTokens(units, _issueParams.maxAmountInputToken, _issueParams.swapData[i]);
+                // Calculate the max amount of input token to be used for the swap
+                uint256 maxAmountInputToken = DEXAdapterV2.getAmountIn(
+                    dexAdapter,
+                    _issueParams.swapData[i],
+                    units
+                );
+                emit MaxAmountInputTokenLogged(maxAmountInputToken);
+                dexAdapter.swapTokensForExactTokens(units, maxAmountInputToken, _issueParams.swapData[i]);
                 uint256 componentBalanceAfter = IERC20(component).balanceOf(address(this));
                 componentAmountBought = componentBalanceAfter.sub(componentBalanceBefore);
                 require(componentAmountBought >= units, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
