@@ -182,17 +182,11 @@ if (process.env.INTEGRATIONTEST) {
             path: [addresses.tokens.weth, addresses.tokens.comp],
             pool: ADDRESS_ZERO,
           },
-          // {
-          //   exchange: Exchange.Curve,
-          //   fees: [],
-          //   path: [ETH_ADDRESS, addresses.tokens.ETHx],
-          //   pool: "0x59Ab5a5b5d617E478a2479B0cAD80DA7e2831492",
-          // },
         ];
 
         const paymentTokenSwapData = {
           exchange: Exchange.UniV3,
-          fees: [100],
+          fees: [500],
           path: [addresses.tokens.USDC, addresses.tokens.weth],
           pool: ADDRESS_ZERO,
         };
@@ -288,7 +282,7 @@ if (process.env.INTEGRATIONTEST) {
           expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.sub(maxAmountIn));
         });
 
-        it("Can issue set token from USDC", async () => {
+        it.only("Can issue set token from USDC", async () => {
           const maxAmountIn = usdc(30000);
           const setTokenAmount = ether(10);
           const issueParams: IssueParams = {
@@ -305,8 +299,8 @@ if (process.env.INTEGRATIONTEST) {
           const whaleSigner = await impersonateAccount(addresses.whales.USDC);
           await usdcToken.connect(whaleSigner).transfer(owner.address, maxAmountIn);
           usdcToken.approve(flashMintDex.address, maxAmountIn);
-          // flashMintDex.approveToken(issueParams.inputToken, issueParams.issuanceModule);
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+          console.log("setTokenBalanceBefore", setTokenBalanceBefore.toString());
           const inputTokenBalanceBefore = await usdcToken.balanceOf(owner.address);
           console.log("inputTokenBalanceBefore", inputTokenBalanceBefore.toString());
           const tx = await flashMintDex.issueExactSetFromToken(issueParams);
@@ -314,18 +308,18 @@ if (process.env.INTEGRATIONTEST) {
           // Wait for the transaction to be mined
           const receipt = await tx.wait();
 
-          const events = receipt.events.filter(event => event.event === "MaxAmountInputTokenLogged");
+          const events = receipt.events.filter(event => event.event === "InputTokenBalanceLogged");
 
           // Log and check the value of each maxAmountInputToken
           events.forEach(event => {
-              const maxAmountInputToken = event.args.maxAmountInputToken;
-              console.log("Max Amount Input Token:", maxAmountInputToken.toString());
+              const inputTokenBalanceBefore = event.args.inputTokenBalanceBefore;
+              console.log("Max Amount Input Token:", inputTokenBalanceBefore.toString());
               // Additional assertions can be made here
           });
           /* End Debugging */
           const inputTokenBalanceAfter = await usdcToken.balanceOf(owner.address);
-          console.log("inputTokenBalanceAfter", inputTokenBalanceAfter.toString());
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+          console.log("setTokenBalanceAfter", setTokenBalanceAfter.toString());
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
           expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.sub(maxAmountIn));
         });

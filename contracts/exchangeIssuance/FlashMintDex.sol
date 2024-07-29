@@ -93,6 +93,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     );
 
     event MaxAmountInputTokenLogged(uint256 maxAmountInputToken);
+    // event InputTokenBalanceLogged(uint256 inputTokenBalance);
 
     /* ============ Modifiers ============ */
 
@@ -321,16 +322,20 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      *
      * @return amountWethOut    Amount of WETH received after the swap
      */
+    /* TODO: Change to internal */
     function _swapInputTokenForWETH(IssueParams memory _issueParams)
-        internal
+        public 
         returns (uint256 amountWethOut)
     {
         if (_issueParams.inputToken == IERC20(WETH)) {
             return _issueParams.maxAmountInputToken;
         }
-        if (_issueParams.inputToken != IERC20(WETH)) {
-            return dexAdapter.swapTokensForExactTokens(_issueParams.maxAmountInputToken, _issueParams.maxAmountInputToken, _issueParams.paymentTokenSwapData);
-        }
+
+        return dexAdapter.swapExactTokensForTokens(
+            _issueParams.maxAmountInputToken,
+            0,
+            _issueParams.paymentTokenSwapData
+        );
     }
 
     /**
