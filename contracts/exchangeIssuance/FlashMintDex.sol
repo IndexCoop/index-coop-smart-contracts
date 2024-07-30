@@ -187,28 +187,25 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     *
     * @param _issueParams           Struct containing addresses, amounts, and swap data for issuance
     *
-    * @return totalInputTokenSold   Amount of input token spent for issuance
+    * @return excessInputTokenAmt   Amount of input token returned to the caller
     */
     function issueExactSetFromToken(IssueParams memory _issueParams)
         external
         isValidModule(_issueParams.issuanceModule)
         nonReentrant
-        returns (uint256)
+        returns (uint256 excessInputTokenAmt)
     {
-
         _issueParams.inputToken.safeTransferFrom(msg.sender, address(this), _issueParams.maxAmountInputToken);
-        _swapInputTokenForWETH(_issueParams.inputToken, _issueParams.maxAmountInputToken, _issueParams.swapDataTokenToWeth);
+        uint256 wethReceived = _swapInputTokenForWETH(_issueParams.inputToken, _issueParams.maxAmountInputToken, _issueParams.swapDataTokenToWeth);
 
-        uint256 totalInputTokenSold = _buyComponentsWithWeth(_issueParams);
-
-        IBasicIssuanceModule(_issueParams.issuanceModule).issue(_issueParams.setToken, _issueParams.amountSetToken, msg.sender);
+        uint256 totalEthSold = _issueExactSetFromWeth(_issueParams);
+        require(totalEthSold <= wethReceived, "FlashMint: OVERSPENT WETH");
 
         // Swap leftover WETH back to input token and return to the caller
-        _swapRemainingWethForInputToken(_issueParams.inputToken, _issueParams.swapDataWethToToken);
-        _issueParams.inputToken.safeTransfer(msg.sender, _issueParams.inputToken.balanceOf(address(this)));
+        excessInputTokenAmt = _swapWethForInputToken(wethReceived.sub(totalEthSold), _issueParams.inputToken, _issueParams.swapDataWethToToken);
+        _issueParams.inputToken.safeTransfer(msg.sender, excessInputTokenAmt);
 
         emit FlashMint(msg.sender, _issueParams.setToken, _issueParams.inputToken, _issueParams.maxAmountInputToken, _issueParams.amountSetToken);
-        return 0;
     }
 
 
@@ -232,10 +229,9 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
 
         IWETH(WETH).deposit{value: msg.value}();
 
-        uint256 totalEthSold = _buyComponentsWithWeth(_issueParams);
+        uint256 totalEthSold = _issueExactSetFromWeth(_issueParams);
 
         require(totalEthSold <= msg.value, "FlashMint: OVERSPENT ETH");
-        IBasicIssuanceModule(_issueParams.issuanceModule).issue(_issueParams.setToken, _issueParams.amountSetToken, msg.sender);
 
         uint256 amountEthReturn = msg.value.sub(totalEthSold);
         if (amountEthReturn > 0) {
@@ -244,7 +240,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         }
 
         emit FlashMint(msg.sender, _issueParams.setToken, IERC20(ETH_ADDRESS), totalEthSold, _issueParams.amountSetToken);
-        return amountEthReturn; 
+        return amountEthReturn;
     }
 
     /**
@@ -256,8 +252,8 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      * @return outputAmount         Amount of output tokens sent to the caller
      */
     function redeemExactSetForToken(RedeemParams memory _redeemParams)
-        isValidModule(_redeemParams.issuanceModule)
         external
+        isValidModule(_redeemParams.issuanceModule)
         nonReentrant
         returns (uint256)
     {
@@ -282,8 +278,8 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      * @return ethAmount      The amount of ETH received.
      */
     function redeemExactSetForETH(RedeemParams memory _redeemParams)
-        isValidModule(_redeemParams.issuanceModule)
         external
+        isValidModule(_redeemParams.issuanceModule)
         nonReentrant
         returns (uint256)
     {
@@ -347,22 +343,23 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     /**
      * Swaps a given amount of an WETH for ERC20 using the DEXAdapter.
      *
+     * @param _wethAmount       Amount of WETH to swap for input token
      * @param _inputToken       Address of the input token
-     * @param _swapData         Swap data from WETH to ERC20
+     * @param _swapData         Swap data from WETH to input token
      *
      * @return amountOut        Amount of ERC20 received after the swap
      */
-    function _swapRemainingWethForInputToken(IERC20 _inputToken, DEXAdapterV2.SwapData memory _swapData)
+    function _swapWethForInputToken(uint256 _wethAmount, IERC20 _inputToken, DEXAdapterV2.SwapData memory _swapData)
         internal 
         returns (uint256 amountOut)
     {
-        uint256 wethAmount = IWETH(WETH).balanceOf(address(this));
+        // If the input token is equal to WETH we don't have to trade
         if (_inputToken == IERC20(WETH)) {
-            return wethAmount;
+            return _wethAmount;
         }
 
         return dexAdapter.swapExactTokensForTokens(
-            wethAmount,
+            _wethAmount,
             0,
             _swapData
         );
@@ -377,11 +374,9 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     */
     function _issueExactSetFromWeth(IssueParams memory _issueParams)
         internal
-        isValidModule(_issueParams.issuanceModule)
-        nonReentrant
         returns (uint256 totalWethSold)
     {
-        uint256 totalWethSold = _buyComponentsWithWeth(_issueParams);
+        totalWethSold = _buyComponentsWithWeth(_issueParams);
         IBasicIssuanceModule(_issueParams.issuanceModule).issue(_issueParams.setToken, _issueParams.amountSetToken, msg.sender);
     }
 
@@ -426,7 +421,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
                 dexAdapter.swapTokensForExactTokens(units, maxAmountWeth, _issueParams.componentSwapData[i]);
                 uint256 componentBalanceAfter = IERC20(component).balanceOf(address(this));
                 componentAmountBought = componentBalanceAfter.sub(componentBalanceBefore);
-                require(componentAmountBought >= units, "ExchangeIssuance: UNDERBOUGHT COMPONENT");
+                require(componentAmountBought >= units, "FlashMint: UNDERBOUGHT COMPONENT");
             }
         }
         uint256 wethBalanceAfter = IWETH(WETH).balanceOf(address(this));
@@ -483,20 +478,6 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     function _redeemExactSet(ISetToken _setToken, uint256 _amount, address _issuanceModule) internal returns (uint256) {
         _setToken.safeTransferFrom(msg.sender, address(this), _amount);
         IBasicIssuanceModule(_issuanceModule).redeem(_setToken, _amount, address(this));
-    }
-
-    /**
-     * Returns excess input token
-     *
-     * @param _inputToken         Address of the input token to return
-     * @param _receivedAmount     Amount received by the caller
-     * @param _spentAmount        Amount spent for issuance
-     */
-    function _returnExcessInputToken(IERC20 _inputToken, uint256 _receivedAmount, uint256 _spentAmount) internal {
-        uint256 amountTokenReturn = _receivedAmount.sub(_spentAmount);
-        if (amountTokenReturn > 0) {
-            _inputToken.safeTransfer(msg.sender,  amountTokenReturn);
-        }
     }
 
     /**

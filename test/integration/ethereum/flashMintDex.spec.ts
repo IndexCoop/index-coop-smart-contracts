@@ -297,11 +297,15 @@ if (process.env.INTEGRATIONTEST) {
           usdcToken.approve(flashMintDex.address, maxAmountIn);
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           const inputTokenBalanceBefore = await usdcToken.balanceOf(owner.address);
-          await flashMintDex.issueExactSetFromToken(issueParams);
+          console.log("inputTokenBalanceBefore", inputTokenBalanceBefore.toString());
+          const tx = await flashMintDex.issueExactSetFromToken(issueParams);
+          const receipt = await tx.wait();
+          console.log(`Gas used for myFunction: ${receipt.gasUsed.toString()}`);
 
           const inputTokenBalanceAfter = await usdcToken.balanceOf(owner.address);
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           console.log("setTokenBalanceAfter", setTokenBalanceAfter.toString());
+          console.log("inputTokenBalanceAfter", inputTokenBalanceAfter.toString());
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
           expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.sub(maxAmountIn));
         });
