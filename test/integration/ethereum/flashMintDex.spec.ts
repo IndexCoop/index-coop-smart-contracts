@@ -58,7 +58,7 @@ type RedeemParams = {
   setToken: Address;
   outputToken: Address;
   amountSetToken: BigNumber;
-  minAmountOutputToken: BigNumber;
+  minOutputReceive: BigNumber;
   componentSwapData: SwapData[];
   swapDataTokenToWeth: SwapData;
   swapDataWethToToken: SwapData;
@@ -145,7 +145,7 @@ if (process.env.INTEGRATIONTEST) {
         );
       });
 
-      context("when setToken with a simple LST composition is deployed", () => {
+      context("when setToken with a simple composition is deployed", () => {
         let setToken: SetToken;
         const components = [
           addresses.tokens.wstEth,
@@ -339,7 +339,7 @@ if (process.env.INTEGRATIONTEST) {
               setToken: setToken.address,
               outputToken: addresses.tokens.weth,
               amountSetToken: setTokenAmount,
-              minAmountOutputToken: minAmountOut,
+              minOutputReceive: minAmountOut,
               componentSwapData: componentSwapDataRedeem,
               swapDataTokenToWeth: swapDataFromInputToken,
               swapDataWethToToken: swapDataToInputToken,
