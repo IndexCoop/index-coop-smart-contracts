@@ -54,15 +54,17 @@ type IssueParams = {
   isDebtIssuance: boolean;
 };
 
-// type RedeemParams = {
-//   setToken: Address;
-//   outputToken: Address;
-//   amountSetToken: BigNumber;
-//   maxAmountInputToken: BigNumber;
-//   swapData: SwapData[];
-//   issuanceModule: Address;
-//   isDebtIssuance: boolean;
-// };
+type RedeemParams = {
+  setToken: Address;
+  outputToken: Address;
+  amountSetToken: BigNumber;
+  minAmountOutputToken: BigNumber;
+  componentSwapData: SwapData[];
+  swapDataTokenToWeth: SwapData;
+  swapDataWethToToken: SwapData;
+  issuanceModule: Address;
+  isDebtIssuance: boolean;
+};
 
 // const NO_OP_SWAP_DATA: SwapData = {
 //   path: [],
@@ -199,19 +201,32 @@ if (process.env.INTEGRATIONTEST) {
           pool: ADDRESS_ZERO,
         };
 
-        // const componentSwapDataRedeem = [
-        //   NO_OP_SWAP_DATA,
-        //   NO_OP_SWAP_DATA,
-        //   NO_OP_SWAP_DATA,
-        //   NO_OP_SWAP_DATA,
-        //   NO_OP_SWAP_DATA,
-        //   {
-        //     exchange: Exchange.UniV3,
-        //     fees: [500],
-        //     path: [ addresses.tokens.swETH, addresses.tokens.weth],
-        //     pool: ADDRESS_ZERO,
-        //   },
-        // ];
+        const componentSwapDataRedeem = [
+          {
+            exchange: Exchange.UniV3,
+            fees: [100],
+            path: [addresses.tokens.wstEth, addresses.tokens.weth],
+            pool: ADDRESS_ZERO,
+          },
+          {
+            exchange: Exchange.UniV3,
+            fees: [100],
+            path: [addresses.tokens.rETH, addresses.tokens.weth],
+            pool: ADDRESS_ZERO,
+          },
+          {
+            exchange: Exchange.UniV3,
+            fees: [500],
+            path: [addresses.tokens.swETH, addresses.tokens.weth],
+            pool: ADDRESS_ZERO,
+          },
+          {
+            exchange: Exchange.Sushiswap,
+            fees: [],
+            path: [addresses.tokens.comp, addresses.tokens.weth],
+            pool: ADDRESS_ZERO,
+          },
+        ];
 
         const modules = [addresses.setFork.debtIssuanceModuleV2];
         const tokenName = "Simple Index";
@@ -308,6 +323,53 @@ if (process.env.INTEGRATIONTEST) {
           console.log("inputTokenBalanceAfter", inputTokenBalanceAfter.toString());
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
           expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.sub(maxAmountIn));
+        });
+
+        describe("When set token has been issued", () => {
+          const setTokenAmount = ether(10);
+          const minAmountOut = ether(5);
+          beforeEach(async () => {
+
+            await setToken.approve(flashMintDex.address, ether(10));
+          });
+
+          function subject() {
+
+            const redeemParams: RedeemParams = {
+              setToken: setToken.address,
+              outputToken: addresses.tokens.weth,
+              amountSetToken: setTokenAmount,
+              minAmountOutputToken: minAmountOut,
+              componentSwapData: componentSwapDataRedeem,
+              swapDataTokenToWeth: swapDataFromInputToken,
+              swapDataWethToToken: swapDataToInputToken,
+              issuanceModule: debtIssuanceModule.address,
+              isDebtIssuance: true,
+            };
+              return flashMintDex.redeemExactSetForETH(redeemParams);
+            // } else {
+            //   return flashMintHyETH.redeemExactSetForERC20(
+            //     setToken.address,
+            //     setTokenAmount,
+            //     inputToken.address,
+            //     minAmountOut,
+            //     swapDataEthToInputToken,
+            //     componentSwapDataRedeem,
+            //   );
+            // }
+          }
+
+          it("Can redeem set token", async () => {
+            const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+            await subject();
+            const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+            // const inputTokenBalanceAfter =
+            //   inputTokenName === "eth"
+            //     ? await owner.wallet.getBalance()
+            //     : await inputToken.balanceOf(owner.address);
+            expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
+            // expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.add(minAmountOut));
+          });
         });
 
         // ["eth", "weth", "USDC"].forEach((inputTokenName: keyof typeof addresses.tokens | "eth") => {
