@@ -200,7 +200,6 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         _swapInputTokenForWETH(_issueParams.inputToken, _issueParams.maxAmountInputToken, _issueParams.swapDataTokenToWeth);
 
         uint256 totalInputTokenSold = _buyComponentsWithWeth(_issueParams);
-        // require(totalInputTokenSold <= _issueParams.maxAmountInputToken, "FlashMint: OVERSPENT TOKEN");
 
         IBasicIssuanceModule(_issueParams.issuanceModule).issue(_issueParams.setToken, _issueParams.amountSetToken, msg.sender);
 
@@ -209,7 +208,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         _issueParams.inputToken.safeTransfer(msg.sender, _issueParams.inputToken.balanceOf(address(this)));
 
         emit FlashMint(msg.sender, _issueParams.setToken, _issueParams.inputToken, _issueParams.maxAmountInputToken, _issueParams.amountSetToken);
-        return totalInputTokenSold;
+        return 0;
     }
 
 
@@ -301,7 +300,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         return ethAmount;
     }
 
-    
+    /* ============ Internal Functions ============ */
 
     /**
      * Sets a max approval limit for an ERC20 token, provided the current allowance
@@ -320,9 +319,9 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     /**
      * Swaps a given amount of an ERC20 token for WETH using the DEXAdapter.
      *
-     * @param _inputToken        Address of the input token
+     * @param _inputToken        Address of the ERC20 input token
      * @param _inputTokenAmount  Amount of input token to swap
-     * @param _swapData          Swap data from ERC20 to WETH
+     * @param _swapData          Swap data from input token to WETH
      *
      * @return amountWethOut    Amount of WETH received after the swap
      */
@@ -367,6 +366,23 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
             0,
             _swapData
         );
+    }
+
+    /**
+    * Issues an exact amount of SetTokens for given amount of WETH.
+    *
+    * @param _issueParams           Struct containing addresses, amounts, and swap data for issuance
+    *
+    * @return totalWethSold         Amount of WETH used to buy components
+    */
+    function _issueExactSetFromWeth(IssueParams memory _issueParams)
+        internal
+        isValidModule(_issueParams.issuanceModule)
+        nonReentrant
+        returns (uint256 totalWethSold)
+    {
+        uint256 totalWethSold = _buyComponentsWithWeth(_issueParams);
+        IBasicIssuanceModule(_issueParams.issuanceModule).issue(_issueParams.setToken, _issueParams.amountSetToken, msg.sender);
     }
 
     /**

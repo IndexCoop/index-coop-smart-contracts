@@ -262,26 +262,12 @@ if (process.env.INTEGRATIONTEST) {
           };
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           const inputTokenBalanceBefore = await owner.wallet.getBalance();
-          const tx = await flashMintDex.issueExactSetFromETH(
+          await flashMintDex.issueExactSetFromETH(
             issueParams,
             {
               value: maxAmountIn,
             },
           );
-
-          /* Start of Debugging - remove before PR */
-          // Wait for the transaction to be mined
-          const receipt = await tx.wait();
-
-          const events = receipt.events.filter(event => event.event === "MaxAmountInputTokenLogged");
-
-          // Log and check the value of each maxAmountInputToken
-          events.forEach(event => {
-              const maxAmountInputToken = event.args.maxAmountInputToken;
-              console.log("Max Amount Input Token:", maxAmountInputToken.toString());
-              // Additional assertions can be made here
-          });
-          /* End Debugging */
 
           const inputTokenBalanceAfter = await owner.wallet.getBalance();
           console.log("inputTokenBalanceBefore", inputTokenBalanceBefore.toString());
@@ -296,7 +282,7 @@ if (process.env.INTEGRATIONTEST) {
           const setTokenAmount = ether(10);
           const issueParams: IssueParams = {
             setToken: setToken.address,
-            inputToken: addresses.tokens.weth,
+            inputToken: addresses.tokens.USDC,
             amountSetToken: setTokenAmount,
             maxAmountInputToken: maxAmountIn,
             componentSwapData: componentSwapDataIssue,
@@ -311,20 +297,8 @@ if (process.env.INTEGRATIONTEST) {
           usdcToken.approve(flashMintDex.address, maxAmountIn);
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           const inputTokenBalanceBefore = await usdcToken.balanceOf(owner.address);
-          const tx = await flashMintDex.issueExactSetFromToken(issueParams);
-          /* Start of Debugging - remove before PR */
-          // Wait for the transaction to be mined
-          const receipt = await tx.wait();
+          await flashMintDex.issueExactSetFromToken(issueParams);
 
-          const events = receipt.events.filter(event => event.event === "InputTokenBalanceLogged");
-
-          // Log and check the value of each maxAmountInputToken
-          events.forEach(event => {
-              const inputTokenBalanceBefore = event.args.inputTokenBalanceBefore;
-              console.log("Max Amount Input Token:", inputTokenBalanceBefore.toString());
-              // Additional assertions can be made here
-          });
-          /* End Debugging */
           const inputTokenBalanceAfter = await usdcToken.balanceOf(owner.address);
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           console.log("setTokenBalanceAfter", setTokenBalanceAfter.toString());
