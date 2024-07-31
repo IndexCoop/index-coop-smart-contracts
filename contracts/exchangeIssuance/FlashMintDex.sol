@@ -226,7 +226,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         nonReentrant
         returns (uint256)
     {
-        require(_issueParams.inputToken == IERC20(WETH), "FlashMint: INPUT TOKEN MUST BE WETH");
+        // require(_issueParams.inputToken == IERC20(WETH), "FlashMint: INPUT TOKEN MUST BE WETH");
         require(msg.value > 0, "FlashMint: NO ETH SENT");
 
         IWETH(WETH).deposit{value: msg.value}();
@@ -259,10 +259,10 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         nonReentrant
         returns (uint256)
     {
-        uint256 outputAmount;
         _redeemExactSet(_redeemParams.setToken, _redeemParams.amountSetToken, _redeemParams.issuanceModule);
 
-        outputAmount = _sellComponentsForWeth(_redeemParams);
+        uint256 wethReceived = _sellComponentsForWeth(_redeemParams);
+        uint256 outputAmount = _swapWethForInputToken(wethReceived, _redeemParams.outputToken, _redeemParams.swapDataWethToToken);
         require(outputAmount >= _redeemParams.minOutputReceive, "FlashMint: INSUFFICIENT OUTPUT AMOUNT");
 
         _redeemParams.outputToken.safeTransfer(msg.sender, outputAmount);
@@ -415,6 +415,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
             } else {
                 uint256 componentBalanceBefore = IERC20(component).balanceOf(address(this));
                 // Calculate the max amount of WETH to be used for the swap
+                // TODO: Change this to compare against maxAmountInputToken fter all components bought
                 uint256 maxAmountWeth = DEXAdapterV2.getAmountIn(
                     dexAdapter,
                     _issueParams.componentSwapData[i],
@@ -454,6 +455,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
             if (components[i] == address(WETH)) {
                 totalWethBought = totalWethBought.add(componentUnits[i]);
             } else {
+                // TODO: Change this to compare against minAmountOut after all components sold
                 uint256 minAmountWeth = DEXAdapterV2.getAmountOut(
                     dexAdapter,
                     _redeemParams.componentSwapData[i],

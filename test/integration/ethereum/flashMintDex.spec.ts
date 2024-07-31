@@ -20,7 +20,7 @@ import {
   // IWETH__factory,
 } from "../../../typechain";
 import { PRODUCTION_ADDRESSES } from "./addresses";
-import { ADDRESS_ZERO } from "@utils/constants";
+import { ADDRESS_ZERO, ETH_ADDRESS } from "@utils/constants";
 import { ether, usdc } from "@utils/index";
 import { impersonateAccount } from "./utils";
 
@@ -293,7 +293,7 @@ if (process.env.INTEGRATIONTEST) {
         });
 
         it("Can issue set token from USDC", async () => {
-          const maxAmountIn = usdc(30000);
+          const maxAmountIn = usdc(27000);
           const setTokenAmount = ether(10);
           const issueParams: IssueParams = {
             setToken: setToken.address,
@@ -327,17 +327,17 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("When set token has been issued", () => {
           const setTokenAmount = ether(10);
-          const minAmountOut = ether(5);
-          beforeEach(async () => {
+          let outputToken: Address;
+          let minAmountOut: BigNumber;
 
+          beforeEach(async () => {
             await setToken.approve(flashMintDex.address, ether(10));
           });
 
           function subject() {
-
             const redeemParams: RedeemParams = {
               setToken: setToken.address,
-              outputToken: addresses.tokens.weth,
+              outputToken: outputToken,
               amountSetToken: setTokenAmount,
               minOutputReceive: minAmountOut,
               componentSwapData: componentSwapDataRedeem,
@@ -346,29 +346,38 @@ if (process.env.INTEGRATIONTEST) {
               issuanceModule: debtIssuanceModule.address,
               isDebtIssuance: true,
             };
+            if (redeemParams.outputToken === ETH_ADDRESS) {
               return flashMintDex.redeemExactSetForETH(redeemParams);
-            // } else {
-            //   return flashMintHyETH.redeemExactSetForERC20(
-            //     setToken.address,
-            //     setTokenAmount,
-            //     inputToken.address,
-            //     minAmountOut,
-            //     swapDataEthToInputToken,
-            //     componentSwapDataRedeem,
-            //   );
-            // }
+            } else {
+              return flashMintDex.redeemExactSetForToken(redeemParams);
+            }
           }
 
-          it("Can redeem set token", async () => {
+          it("Can redeem set token for ETH", async () => {
+            outputToken = ETH_ADDRESS;
+            minAmountOut = ether(5);
+            const outputTokenBalanceBefore = await owner.wallet.getBalance();
             const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
             await subject();
             const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
-            // const inputTokenBalanceAfter =
-            //   inputTokenName === "eth"
-            //     ? await owner.wallet.getBalance()
-            //     : await inputToken.balanceOf(owner.address);
+            const outputTokenBalanceAfter = await owner.wallet.getBalance();
             expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
-            // expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.add(minAmountOut));
+            expect(outputTokenBalanceAfter).to.gt(outputTokenBalanceBefore.add(minAmountOut));
+          });
+
+          it("Can redeem set token for USDC", async () => {
+            outputToken = addresses.tokens.USDC;
+            minAmountOut = usdc(26000);
+            const usdcToken = IERC20__factory.connect(outputToken, owner.wallet);
+            const outputTokenBalanceBefore = await usdcToken.balanceOf(owner.address);
+            console.log("USDC Balance Before", outputTokenBalanceBefore.toString());
+            const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+            await subject();
+            const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+            const outputTokenBalanceAfter = await usdcToken.balanceOf(owner.address);
+            console.log("USDC Balance After", outputTokenBalanceAfter.toString());
+            expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
+            expect(outputTokenBalanceAfter).to.gt(outputTokenBalanceBefore.add(minAmountOut));
           });
         });
 
