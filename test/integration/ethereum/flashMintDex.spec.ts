@@ -14,9 +14,7 @@ import {
   SetTokenCreator,
   SetTokenCreator__factory,
   FlashMintDex,
-  // IERC20,
   IERC20__factory,
-  // IWETH,
   IWETH__factory,
 } from "../../../typechain";
 import { PRODUCTION_ADDRESSES } from "./addresses";
@@ -49,12 +47,12 @@ type IssueRedeemParams = {
   isDebtIssuance: boolean;
 };
 
-// type PaymentInfo = {
-//   token: Address;
-//   limitAmt: BigNumber;
-//   swapDataTokenToWeth: SwapData;
-//   swapDataWethToToken: SwapData;
-// }
+type PaymentInfo = {
+  token: Address;
+  limitAmt: BigNumber;
+  swapDataTokenToWeth: SwapData;
+  swapDataWethToToken: SwapData;
+};
 
 if (process.env.INTEGRATIONTEST) {
   describe.only("FlashMintDex - Integration Test", async () => {
@@ -260,16 +258,18 @@ if (process.env.INTEGRATIONTEST) {
           console.log("maxAmountIn", maxAmountIn.toString());
           const issueParams: IssueRedeemParams = {
             setToken: setToken.address,
-            paymentToken: inputToken,
             amountSetToken: setTokenAmount,
-            paymentTokenLimit: maxAmountIn,
             componentSwapData: componentSwapDataIssue,
-            swapDataTokenToWeth: swapDataFromInputToken,
-            swapDataWethToToken: swapDataToInputToken,
             issuanceModule: debtIssuanceModule.address,
             isDebtIssuance: true,
           };
-          if (issueParams.paymentToken === ETH_ADDRESS) {
+          const paymentInfo: PaymentInfo = {
+            token: inputToken,
+            limitAmt: maxAmountIn,
+            swapDataTokenToWeth: swapDataFromInputToken,
+            swapDataWethToToken: swapDataToInputToken,
+          };
+          if (paymentInfo.token === ETH_ADDRESS) {
             return flashMintDex.issueExactSetFromETH(
               issueParams,
               {
@@ -277,7 +277,7 @@ if (process.env.INTEGRATIONTEST) {
               },
             );
           } else {
-            return flashMintDex.issueExactSetFromToken(issueParams);
+            return flashMintDex.issueExactSetFromToken(issueParams, paymentInfo);
           }
         }
 
@@ -341,12 +341,8 @@ if (process.env.INTEGRATIONTEST) {
             const maxAmountIn = ether(11);
             const issueParams: IssueRedeemParams = {
               setToken: setToken.address,
-              paymentToken: ETH_ADDRESS,
               amountSetToken: setTokenAmount,
-              paymentTokenLimit: maxAmountIn,
               componentSwapData: componentSwapDataIssue,
-              swapDataTokenToWeth: swapDataFromInputToken,
-              swapDataWethToToken: swapDataToInputToken,
               issuanceModule: debtIssuanceModule.address,
               isDebtIssuance: true,
             };
@@ -362,19 +358,22 @@ if (process.env.INTEGRATIONTEST) {
           function subject() {
             const redeemParams: IssueRedeemParams = {
               setToken: setToken.address,
-              paymentToken: outputToken,
               amountSetToken: setTokenAmount,
-              paymentTokenLimit: minAmountOut,
               componentSwapData: componentSwapDataRedeem,
-              swapDataTokenToWeth: swapDataFromInputToken,
-              swapDataWethToToken: swapDataToInputToken,
               issuanceModule: debtIssuanceModule.address,
               isDebtIssuance: true,
             };
-            if (redeemParams.paymentToken === ETH_ADDRESS) {
-              return flashMintDex.redeemExactSetForETH(redeemParams);
+            const paymentInfo: PaymentInfo = {
+              token: outputToken,
+              limitAmt: minAmountOut,
+              swapDataTokenToWeth: swapDataFromInputToken,
+              swapDataWethToToken: swapDataToInputToken,
+            };
+            if (paymentInfo.token === ETH_ADDRESS) {
+              return flashMintDex.redeemExactSetForETH(redeemParams, minAmountOut);
             } else {
-              return flashMintDex.redeemExactSetForToken(redeemParams);
+
+              return flashMintDex.redeemExactSetForToken(redeemParams, paymentInfo);
             }
           }
 
