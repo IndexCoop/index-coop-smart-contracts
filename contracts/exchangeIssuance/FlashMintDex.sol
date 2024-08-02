@@ -1,5 +1,6 @@
 /*
-    Copyright 2022 Index Cooperative
+    Copyright 2024 Index Cooperative
+
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
     You may obtain a copy of the License at
@@ -9,14 +10,15 @@
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
     See the License for the specific language governing permissions and
     limitations under the License.
+
     SPDX-License-Identifier: Apache License, Version 2.0
 */
+
 pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { Math } from "@openzeppelin/contracts/math/Math.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
@@ -50,6 +52,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
 
     address public immutable WETH;
     IController public immutable setController;
+    IController public immutable indexController;
     DEXAdapterV2.Addresses public dexAdapter;
 
     /* ============ Structs ============ */
@@ -95,24 +98,23 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         uint256 _amountOutputToken      // The amount of output tokens received by the recipient
     );
 
-    event MaxAmountInputTokenLogged(uint256 maxAmountInputToken);
-    // event InputTokenBalanceLogged(uint256 inputTokenBalance);
-
     /* ============ Modifiers ============ */
 
     modifier isValidModule(address _issuanceModule) {
-        require(setController.isModule(_issuanceModule), "FlashMint: INVALID ISSUANCE MODULE");
+        require(setController.isModule(_issuanceModule) || indexController.isModule(_issuanceModule), "FlashMint: INVALID ISSUANCE MODULE");
          _;
     }
 
     constructor(
         address _weth,
         IController _setController,
+        IController _indexController,
         DEXAdapterV2.Addresses memory _dexAddresses
     )
         public
     {
         setController = _setController;
+        indexController = _indexController;
         dexAdapter = _dexAddresses;
         WETH = _weth;
     }
