@@ -493,6 +493,7 @@ export default class DeployExtensions {
     curveCalculatorAddress: Address,
     curveAddressProviderAddress: Address,
     setControllerAddress: Address,
+    indexControllerAddress: Address,
   ) {
     const dexAdapter = await this.deployDEXAdapterV2();
 
@@ -510,6 +511,7 @@ export default class DeployExtensions {
     ).deploy(
       wethAddress,
       setControllerAddress,
+      indexControllerAddress,
       {
         quickRouter: quickRouterAddress,
         sushiRouter: sushiRouterAddress,

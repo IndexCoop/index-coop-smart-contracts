@@ -41,23 +41,11 @@ type SwapData = {
   exchange: Exchange;
 };
 
-type IssueParams = {
+type IssueRedeemParams = {
   setToken: Address;
-  inputToken: Address;
+  paymentToken: Address;
   amountSetToken: BigNumber;
-  maxAmountInputToken: BigNumber;
-  componentSwapData: SwapData[];
-  swapDataTokenToWeth: SwapData;
-  swapDataWethToToken: SwapData;
-  issuanceModule: Address;
-  isDebtIssuance: boolean;
-};
-
-type RedeemParams = {
-  setToken: Address;
-  outputToken: Address;
-  amountSetToken: BigNumber;
-  minOutputReceive: BigNumber;
+  paymentTokenLimit: BigNumber;
   componentSwapData: SwapData[];
   swapDataTokenToWeth: SwapData;
   swapDataWethToToken: SwapData;
@@ -112,6 +100,7 @@ if (process.env.INTEGRATIONTEST) {
           addresses.dexes.uniV3.quoter,
           addresses.dexes.curve.calculator,
           addresses.dexes.curve.addressProvider,
+          addresses.set.controller,
           addresses.setFork.controller,
         );
       });
@@ -138,8 +127,14 @@ if (process.env.INTEGRATIONTEST) {
         expect(returnedAddresses.uniV3Router).to.eq(utils.getAddress(addresses.dexes.uniV3.router));
       });
 
-      it("controller address is set correctly", async () => {
+      it("Set controller address is set correctly", async () => {
         expect(await flashMintDex.setController()).to.eq(
+          utils.getAddress(addresses.set.controller),
+        );
+      });
+
+      it("Index controller address is set correctly", async () => {
+        expect(await flashMintDex.indexController()).to.eq(
           utils.getAddress(addresses.setFork.controller),
         );
       });
@@ -263,21 +258,22 @@ if (process.env.INTEGRATIONTEST) {
         const setTokenAmount = ether(10);
         let maxAmountIn: BigNumber;
         let inputToken: Address;
+
         function subject() {
           console.log("inputToken", inputToken);
           console.log("maxAmountIn", maxAmountIn.toString());
-          const issueParams: IssueParams = {
+          const issueParams: IssueRedeemParams = {
             setToken: setToken.address,
-            inputToken: inputToken,
+            paymentToken: inputToken,
             amountSetToken: setTokenAmount,
-            maxAmountInputToken: maxAmountIn,
+            paymentTokenLimit: maxAmountIn,
             componentSwapData: componentSwapDataIssue,
             swapDataTokenToWeth: swapDataFromInputToken,
             swapDataWethToToken: swapDataToInputToken,
             issuanceModule: debtIssuanceModule.address,
             isDebtIssuance: true,
           };
-          if (issueParams.inputToken === ETH_ADDRESS) {
+          if (issueParams.paymentToken === ETH_ADDRESS) {
             return flashMintDex.issueExactSetFromETH(
               issueParams,
               {
@@ -294,14 +290,14 @@ if (process.env.INTEGRATIONTEST) {
           maxAmountIn = ether(11);
 
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
-          const inputTokenBalanceBefore = await owner.wallet.getBalance();
+          const ethBalanceBefore = await owner.wallet.getBalance();
+          console.log("ethBalanceBefore", ethBalanceBefore.toString());
           await subject();
-          const inputTokenBalanceAfter = await owner.wallet.getBalance();
-          console.log("inputTokenBalanceBefore", inputTokenBalanceBefore.toString());
-          console.log("inputTokenBalanceAfter", inputTokenBalanceAfter.toString());
+          const ethBalanceAfter = await owner.wallet.getBalance();
+          console.log("ethBalanceAfter", ethBalanceAfter.toString());
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
-          expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.sub(maxAmountIn));
+          expect(ethBalanceAfter).to.gt(ethBalanceBefore.sub(maxAmountIn));
         });
 
         it("Can issue set token from WETH", async () => {
@@ -347,11 +343,11 @@ if (process.env.INTEGRATIONTEST) {
 
           beforeEach(async () => {
             const maxAmountIn = ether(11);
-            const issueParams: IssueParams = {
+            const issueParams: IssueRedeemParams = {
               setToken: setToken.address,
-              inputToken: addresses.tokens.weth,
+              paymentToken: ETH_ADDRESS,
               amountSetToken: setTokenAmount,
-              maxAmountInputToken: maxAmountIn,
+              paymentTokenLimit: maxAmountIn,
               componentSwapData: componentSwapDataIssue,
               swapDataTokenToWeth: swapDataFromInputToken,
               swapDataWethToToken: swapDataToInputToken,
@@ -368,18 +364,18 @@ if (process.env.INTEGRATIONTEST) {
           });
 
           function subject() {
-            const redeemParams: RedeemParams = {
+            const redeemParams: IssueRedeemParams = {
               setToken: setToken.address,
-              outputToken: outputToken,
+              paymentToken: outputToken,
               amountSetToken: setTokenAmount,
-              minOutputReceive: minAmountOut,
+              paymentTokenLimit: minAmountOut,
               componentSwapData: componentSwapDataRedeem,
               swapDataTokenToWeth: swapDataFromInputToken,
               swapDataWethToToken: swapDataToInputToken,
               issuanceModule: debtIssuanceModule.address,
               isDebtIssuance: true,
             };
-            if (redeemParams.outputToken === ETH_ADDRESS) {
+            if (redeemParams.paymentToken === ETH_ADDRESS) {
               return flashMintDex.redeemExactSetForETH(redeemParams);
             } else {
               return flashMintDex.redeemExactSetForToken(redeemParams);

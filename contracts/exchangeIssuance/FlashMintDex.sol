@@ -56,28 +56,16 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     DEXAdapterV2.Addresses public dexAdapter;
 
     /* ============ Structs ============ */
-    struct IssueParams {
+    struct IssueRedeemParams {
         ISetToken setToken;                         // The address of the SetToken to be issued
-        IERC20 inputToken;                          // The address of the input token
+        IERC20 paymentToken;                        // The address of the input/output token for issuance/redemption
         uint256 amountSetToken;                     // The amount of SetTokens to issue
-        uint256 maxAmountInputToken;                // The maximum amount of input tokens to be used to issue SetTokens
+        uint256 paymentTokenLimit;                  // Max/min amount of payment token spent/received
         DEXAdapterV2.SwapData[] componentSwapData;  // The swap data from WETH to each component token
-        DEXAdapterV2.SwapData swapDataTokenToWeth;  // The swap data from input token to WETH
-        DEXAdapterV2.SwapData swapDataWethToToken;  // The swap data from WETH back to input token
+        DEXAdapterV2.SwapData swapDataTokenToWeth;  // The swap data from payment token to WETH
+        DEXAdapterV2.SwapData swapDataWethToToken;  // The swap data from WETH back to payment token
         address issuanceModule;                     // The address of the issuance module to be used
         bool isDebtIssuance;                        // A flag indicating whether the issuance module is a debt issuance module
-    }
-
-    struct RedeemParams {
-        ISetToken setToken;                // The address of the SetToken to be redeemed
-        IERC20 outputToken;                // The address of the output token
-        uint256 amountSetToken;            // The amount of SetTokens to redeem
-        uint256 minOutputReceive;          // The minimum amount of output tokens to receive
-        DEXAdapterV2.SwapData[] componentSwapData;  // The swap data from each component token to the output token
-        DEXAdapterV2.SwapData swapDataTokenToWeth;  // The swap data from input token to WETH
-        DEXAdapterV2.SwapData swapDataWethToToken;  // The swap data from WETH back to input token
-        address issuanceModule;            // The address of the issuance module to be used
-        bool isDebtIssuance;               // A flag indicating whether the issuance module is a debt issuance module
     }
 
     /* ============ Events ============ */
@@ -93,7 +81,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     event FlashRedeem(
         address indexed _recipient,     // The recipient adress of the output tokens obtained for redemption
         ISetToken indexed _setToken,    // The redeemed SetToken
-        IERC20 indexed _outputToken,    // The address of output asset(ERC20/ETH) received by the recipient
+        IERC20 indexed _outputToken,   // The address of output asset(ERC20/ETH) received by the recipient
         uint256 _amountSetRedeemed,     // The amount of SetTokens redeemed for output tokens
         uint256 _amountOutputToken      // The amount of output tokens received by the recipient
     );
@@ -191,25 +179,25 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     *
     * @param _issueParams           Struct containing addresses, amounts, and swap data for issuance
     *
-    * @return excessInputTokenAmt   Amount of input token returned to the caller
+    * @return excessPaymentTokenAmt   Amount of input token returned to the caller
     */
-    function issueExactSetFromToken(IssueParams memory _issueParams)
+    function issueExactSetFromToken(IssueRedeemParams memory _issueParams)
         external
         isValidModule(_issueParams.issuanceModule)
         nonReentrant
-        returns (uint256 excessInputTokenAmt)
+        returns (uint256 excessPaymentTokenAmt)
     {
-        _issueParams.inputToken.safeTransferFrom(msg.sender, address(this), _issueParams.maxAmountInputToken);
-        uint256 wethReceived = _swapInputTokenForWETH(_issueParams.inputToken, _issueParams.maxAmountInputToken, _issueParams.swapDataTokenToWeth);
+        _issueParams.paymentToken.safeTransferFrom(msg.sender, address(this), _issueParams.paymentTokenLimit);
+        uint256 wethReceived = _swapPaymentTokenForWETH(_issueParams.paymentToken, _issueParams.paymentTokenLimit, _issueParams.swapDataTokenToWeth);
 
         uint256 totalEthSold = _issueExactSetFromWeth(_issueParams);
         require(totalEthSold <= wethReceived, "FlashMint: OVERSPENT WETH");
 
         // Swap leftover WETH back to input token and return to the caller
-        excessInputTokenAmt = _swapWethForInputToken(wethReceived.sub(totalEthSold), _issueParams.inputToken, _issueParams.swapDataWethToToken);
-        _issueParams.inputToken.safeTransfer(msg.sender, excessInputTokenAmt);
+        excessPaymentTokenAmt = _swapWethForPaymentToken(wethReceived.sub(totalEthSold), _issueParams.paymentToken, _issueParams.swapDataWethToToken);
+        _issueParams.paymentToken.safeTransfer(msg.sender, excessPaymentTokenAmt);
 
-        emit FlashMint(msg.sender, _issueParams.setToken, _issueParams.inputToken, _issueParams.maxAmountInputToken, _issueParams.amountSetToken);
+        emit FlashMint(msg.sender, _issueParams.setToken, _issueParams.paymentToken, _issueParams.paymentTokenLimit, _issueParams.amountSetToken);
     }
 
 
@@ -221,7 +209,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     *
     * @return amountEthReturn       Amount of ether returned to the caller
     */
-    function issueExactSetFromETH(IssueParams memory _issueParams)
+    function issueExactSetFromETH(IssueRedeemParams memory _issueParams)
         external
         payable
         isValidModule(_issueParams.issuanceModule)
@@ -255,7 +243,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      *
      * @return outputAmount         Amount of output tokens sent to the caller
      */
-    function redeemExactSetForToken(RedeemParams memory _redeemParams)
+    function redeemExactSetForToken(IssueRedeemParams memory _redeemParams)
         external
         isValidModule(_redeemParams.issuanceModule)
         nonReentrant
@@ -264,12 +252,12 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         _redeemExactSet(_redeemParams.setToken, _redeemParams.amountSetToken, _redeemParams.issuanceModule);
 
         uint256 wethReceived = _sellComponentsForWeth(_redeemParams);
-        uint256 outputAmount = _swapWethForInputToken(wethReceived, _redeemParams.outputToken, _redeemParams.swapDataWethToToken);
-        require(outputAmount >= _redeemParams.minOutputReceive, "FlashMint: INSUFFICIENT OUTPUT AMOUNT");
+        uint256 outputAmount = _swapWethForPaymentToken(wethReceived, _redeemParams.paymentToken, _redeemParams.swapDataWethToToken);
+        require(outputAmount >= _redeemParams.paymentTokenLimit, "FlashMint: INSUFFICIENT OUTPUT AMOUNT");
 
-        _redeemParams.outputToken.safeTransfer(msg.sender, outputAmount);
+        _redeemParams.paymentToken.safeTransfer(msg.sender, outputAmount);
 
-        emit FlashRedeem(msg.sender, _redeemParams.setToken, _redeemParams.outputToken, _redeemParams.amountSetToken, outputAmount);
+        emit FlashRedeem(msg.sender, _redeemParams.setToken, _redeemParams.paymentToken, _redeemParams.amountSetToken, outputAmount);
         return outputAmount;
     }
 
@@ -281,17 +269,17 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      *
      * @return ethAmount      The amount of ETH received.
      */
-    function redeemExactSetForETH(RedeemParams memory _redeemParams)
+    function redeemExactSetForETH(IssueRedeemParams memory _redeemParams)
         external
         isValidModule(_redeemParams.issuanceModule)
         nonReentrant
         returns (uint256)
     {
-        // require(_redeemParams.outputToken == IERC20(WETH), "FlashMint: OUTPUT TOKEN MUST BE WETH");
+        // require(_redeemParams.paymentToken == IERC20(WETH), "FlashMint: OUTPUT TOKEN MUST BE WETH");
         _redeemExactSet(_redeemParams.setToken, _redeemParams.amountSetToken, _redeemParams.issuanceModule);
 
         uint256 ethAmount = _sellComponentsForWeth(_redeemParams);
-        require(ethAmount >= _redeemParams.minOutputReceive, "FlashMint: INSUFFICIENT WETH RECEIVED");
+        require(ethAmount >= _redeemParams.paymentTokenLimit, "FlashMint: INSUFFICIENT WETH RECEIVED");
 
         IWETH(WETH).withdraw(ethAmount);
         payable(msg.sender).sendValue(ethAmount);
@@ -319,26 +307,26 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     /**
      * Swaps a given amount of an ERC20 token for WETH using the DEXAdapter.
      *
-     * @param _inputToken        Address of the ERC20 input token
-     * @param _inputTokenAmount  Amount of input token to swap
+     * @param _paymentToken        Address of the ERC20 payment token
+     * @param _paymentTokenAmount  Amount of payment token to swap
      * @param _swapData          Swap data from input token to WETH
      *
      * @return amountWethOut    Amount of WETH received after the swap
      */
-    function _swapInputTokenForWETH(
-        IERC20 _inputToken,
-        uint256 _inputTokenAmount,
+    function _swapPaymentTokenForWETH(
+        IERC20 _paymentToken,
+        uint256 _paymentTokenAmount,
         DEXAdapterV2.SwapData memory _swapData
     )
         internal 
         returns (uint256 amountWethOut)
     {
-        if (_inputToken == IERC20(WETH)) {
-            return _inputTokenAmount;
+        if (_paymentToken == IERC20(WETH)) {
+            return _paymentTokenAmount;
         }
 
         return dexAdapter.swapExactTokensForTokens(
-            _inputTokenAmount,
+            _paymentTokenAmount,
             0,
             _swapData
         );
@@ -348,17 +336,17 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      * Swaps a given amount of an WETH for ERC20 using the DEXAdapter.
      *
      * @param _wethAmount       Amount of WETH to swap for input token
-     * @param _inputToken       Address of the input token
+     * @param _paymentToken       Address of the input token
      * @param _swapData         Swap data from WETH to input token
      *
      * @return amountOut        Amount of ERC20 received after the swap
      */
-    function _swapWethForInputToken(uint256 _wethAmount, IERC20 _inputToken, DEXAdapterV2.SwapData memory _swapData)
+    function _swapWethForPaymentToken(uint256 _wethAmount, IERC20 _paymentToken, DEXAdapterV2.SwapData memory _swapData)
         internal 
         returns (uint256 amountOut)
     {
-        // If the input token is equal to WETH we don't have to trade
-        if (_inputToken == IERC20(WETH)) {
+        // If the payment token is equal to WETH we don't have to trade
+        if (_paymentToken == IERC20(WETH)) {
             return _wethAmount;
         }
 
@@ -376,7 +364,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     *
     * @return totalWethSold         Amount of WETH used to buy components
     */
-    function _issueExactSetFromWeth(IssueParams memory _issueParams)
+    function _issueExactSetFromWeth(IssueRedeemParams memory _issueParams)
         internal
         returns (uint256 totalWethSold)
     {
@@ -392,7 +380,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      *
      * @return totalWethSold        Total amount of WETH spent to buy components
      */
-    function _buyComponentsWithWeth(IssueParams memory _issueParams)
+    function _buyComponentsWithWeth(IssueRedeemParams memory _issueParams)
         internal
         returns (uint256 totalWethSold)
     {
@@ -417,7 +405,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
             } else {
                 uint256 componentBalanceBefore = IERC20(component).balanceOf(address(this));
                 // Calculate the max amount of WETH to be used for the swap
-                // TODO: Change this to compare against maxAmountInputToken fter all components bought
+                // TODO: Change this to compare against paymentTokenLimit fter all components bought
                 uint256 maxAmountWeth = DEXAdapterV2.getAmountIn(
                     dexAdapter,
                     _issueParams.componentSwapData[i],
@@ -440,7 +428,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      *
      * @return totalWethBought  Total amount of output token received after liquidating all SetToken components
      */
-    function _sellComponentsForWeth(RedeemParams memory _redeemParams)
+    function _sellComponentsForWeth(IssueRedeemParams memory _redeemParams)
         internal
         returns (uint256 totalWethBought)
     {
