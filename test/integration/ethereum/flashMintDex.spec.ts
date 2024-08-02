@@ -61,7 +61,6 @@ if (process.env.INTEGRATIONTEST) {
     let deployer: DeployHelper;
 
     let setTokenCreator: SetTokenCreator;
-    // let basicIssuanceModule: IBasicIssuanceModule;
     let debtIssuanceModule: IDebtIssuanceModule;
 
     setBlockNumber(20385208, true);
@@ -73,10 +72,7 @@ if (process.env.INTEGRATIONTEST) {
         addresses.setFork.setTokenCreator,
         owner.wallet,
       );
-      // basicIssuanceModule = IBasicIssuanceModule__factory.connect(
-      //   addresses.set.basicIssuanceModule,
-      //   owner.wallet,
-      // );
+
       debtIssuanceModule = IDebtIssuanceModule__factory.connect(
         addresses.setFork.debtIssuanceModuleV2,
         owner.wallet,
@@ -254,8 +250,6 @@ if (process.env.INTEGRATIONTEST) {
         let inputToken: Address;
 
         function subject() {
-          console.log("inputToken", inputToken);
-          console.log("maxAmountIn", maxAmountIn.toString());
           const issueParams: IssueRedeemParams = {
             setToken: setToken.address,
             amountSetToken: setTokenAmount,
@@ -287,10 +281,8 @@ if (process.env.INTEGRATIONTEST) {
 
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           const ethBalanceBefore = await owner.wallet.getBalance();
-          console.log("ethBalanceBefore", ethBalanceBefore.toString());
           await subject();
           const ethBalanceAfter = await owner.wallet.getBalance();
-          console.log("ethBalanceAfter", ethBalanceAfter.toString());
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
           expect(ethBalanceAfter).to.gt(ethBalanceBefore.sub(maxAmountIn));
@@ -305,9 +297,7 @@ if (process.env.INTEGRATIONTEST) {
 
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           const inputTokenBalanceBefore = await wethToken.balanceOf(owner.address);
-          const tx = await subject();
-          const receipt = await tx.wait();
-          console.log(`Gas used for issuance: ${receipt.gasUsed.toString()}`);
+          await subject();
           const inputTokenBalanceAfter = await wethToken.balanceOf(owner.address);
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
@@ -324,9 +314,7 @@ if (process.env.INTEGRATIONTEST) {
 
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           const inputTokenBalanceBefore = await usdcToken.balanceOf(owner.address);
-          const tx = await subject();
-          const receipt = await tx.wait();
-          console.log(`Gas used for issuance: ${receipt.gasUsed.toString()}`);
+          await subject();
           const inputTokenBalanceAfter = await usdcToken.balanceOf(owner.address);
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
@@ -394,12 +382,10 @@ if (process.env.INTEGRATIONTEST) {
             minAmountOut = ether(5);
             const wethToken = IWETH__factory.connect(outputToken, owner.wallet);
             const outputTokenBalanceBefore = await wethToken.balanceOf(owner.address);
-            console.log("WETH Balance Before", outputTokenBalanceBefore.toString());
             const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
             await subject();
             const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
             const outputTokenBalanceAfter = await wethToken.balanceOf(owner.address);
-            console.log("WETH Balance After", outputTokenBalanceAfter.toString());
             expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
             expect(outputTokenBalanceAfter).to.gt(outputTokenBalanceBefore.add(minAmountOut));
           });
@@ -409,12 +395,10 @@ if (process.env.INTEGRATIONTEST) {
             minAmountOut = usdc(26000);
             const usdcToken = IERC20__factory.connect(outputToken, owner.wallet);
             const outputTokenBalanceBefore = await usdcToken.balanceOf(owner.address);
-            console.log("USDC Balance Before", outputTokenBalanceBefore.toString());
             const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
             await subject();
             const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
             const outputTokenBalanceAfter = await usdcToken.balanceOf(owner.address);
-            console.log("USDC Balance After", outputTokenBalanceAfter.toString());
             expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
             expect(outputTokenBalanceAfter).to.gt(outputTokenBalanceBefore.add(minAmountOut));
           });
