@@ -43,22 +43,18 @@ type SwapData = {
 
 type IssueRedeemParams = {
   setToken: Address;
-  paymentToken: Address;
   amountSetToken: BigNumber;
-  paymentTokenLimit: BigNumber;
   componentSwapData: SwapData[];
-  swapDataTokenToWeth: SwapData;
-  swapDataWethToToken: SwapData;
   issuanceModule: Address;
   isDebtIssuance: boolean;
 };
 
-// const NO_OP_SWAP_DATA: SwapData = {
-//   path: [],
-//   fees: [],
-//   pool: ADDRESS_ZERO,
-//   exchange: Exchange.None,
-// };
+// type PaymentInfo = {
+//   token: Address;
+//   limitAmt: BigNumber;
+//   swapDataTokenToWeth: SwapData;
+//   swapDataWethToToken: SwapData;
+// }
 
 if (process.env.INTEGRATIONTEST) {
   describe.only("FlashMintDex - Integration Test", async () => {
