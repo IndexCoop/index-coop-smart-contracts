@@ -16,6 +16,8 @@ import {
   FlashMintDex,
   IERC20__factory,
   IWETH__factory,
+  IBasicIssuanceModule,
+  IBasicIssuanceModule__factory,
 } from "../../../typechain";
 import { PRODUCTION_ADDRESSES } from "./addresses";
 import { ADDRESS_ZERO, ETH_ADDRESS } from "@utils/constants";
@@ -54,13 +56,29 @@ type PaymentInfo = {
   swapDataWethToToken: SwapData;
 };
 
+const addresses = PRODUCTION_ADDRESSES;
+
+const swapDataFromInputToken = {
+  exchange: Exchange.UniV3,
+  fees: [500],
+  path: [addresses.tokens.USDC, addresses.tokens.weth],
+  pool: ADDRESS_ZERO,
+};
+
+const swapDataToInputToken = {
+  exchange: Exchange.UniV3,
+  fees: [500],
+  path: [addresses.tokens.weth, addresses.tokens.USDC],
+  pool: ADDRESS_ZERO,
+};
 if (process.env.INTEGRATIONTEST) {
   describe.only("FlashMintDex - Integration Test", async () => {
-    const addresses = PRODUCTION_ADDRESSES;
     let owner: Account;
     let deployer: DeployHelper;
 
+    let legacySetTokenCreator: SetTokenCreator;
     let setTokenCreator: SetTokenCreator;
+    let legacyBasicIssuanceModule: IBasicIssuanceModule;
     let debtIssuanceModule: IDebtIssuanceModule;
 
     setBlockNumber(20385208, true);
@@ -68,8 +86,18 @@ if (process.env.INTEGRATIONTEST) {
     before(async () => {
       [owner] = await getAccounts();
       deployer = new DeployHelper(owner.wallet);
+      legacySetTokenCreator = SetTokenCreator__factory.connect(
+        addresses.set.setTokenCreator,
+        owner.wallet,
+      );
+
       setTokenCreator = SetTokenCreator__factory.connect(
         addresses.setFork.setTokenCreator,
+        owner.wallet,
+      );
+
+      legacyBasicIssuanceModule = IBasicIssuanceModule__factory.connect(
+        addresses.set.basicIssuanceModule,
         owner.wallet,
       );
 
@@ -81,6 +109,8 @@ if (process.env.INTEGRATIONTEST) {
 
     context("When FlashMintDex contract is deployed", () => {
       let flashMintDex: FlashMintDex;
+
+
       before(async () => {
         flashMintDex = await deployer.extensions.deployFlashMintDex(
           addresses.tokens.weth,
@@ -127,6 +157,116 @@ if (process.env.INTEGRATIONTEST) {
         expect(await flashMintDex.indexController()).to.eq(
           utils.getAddress(addresses.setFork.controller),
         );
+      });
+
+      context("when BED SetToken is deployed on Set Protocol", () => {
+        let setToken: SetToken;
+        const components = [
+          addresses.tokens.wbtc,
+          addresses.tokens.weth,
+          addresses.tokens.dpi,
+        ];
+        const positions = [
+          BigNumber.from("84581"),
+          BigNumber.from("11556875581911945"),
+          BigNumber.from("218100363826474304"),
+        ];
+
+        const modules = [addresses.set.basicIssuanceModule];
+        const tokenName = "BED Index";
+        const tokenSymbol = "BED";
+
+        before(async () => {
+          const tx = await legacySetTokenCreator.create(
+            components,
+            positions,
+            modules,
+            owner.address,
+            tokenName,
+            tokenSymbol,
+          );
+          const retrievedSetAddress = await new ProtocolUtils(
+            ethers.provider,
+          ).getCreatedSetTokenAddress(tx.hash);
+          setToken = SetToken__factory.connect(retrievedSetAddress, owner.wallet);
+
+          await legacyBasicIssuanceModule.initialize(
+            setToken.address,
+            ADDRESS_ZERO,
+          );
+          await flashMintDex.approveSetToken(setToken.address, legacyBasicIssuanceModule.address);
+        });
+
+        it("setToken is deployed correctly", async () => {
+          expect(await setToken.symbol()).to.eq(tokenSymbol);
+        });
+
+        const componentSwapDataIssue = [
+          {
+            exchange: Exchange.UniV3,
+            fees: [3000],
+            path: [addresses.tokens.weth, addresses.tokens.wbtc],
+            pool: ADDRESS_ZERO,
+          },
+          {
+            exchange: Exchange.UniV3,
+            fees: [500],
+            path: [addresses.tokens.weth, addresses.tokens.weth],
+            pool: ADDRESS_ZERO,
+          },
+          {
+            exchange: Exchange.UniV3,
+            fees: [3000],
+            path: [addresses.tokens.weth, addresses.tokens.dpi],
+            pool: ADDRESS_ZERO,
+          },
+        ];
+        // const componentSwapDataRedeem = componentSwapDataIssue.map(item => ({
+        //   ...item,
+        //   path: [...item.path].reverse()
+        // }));
+        const setTokenAmount = ether(10);
+        let maxAmountIn: BigNumber;
+        let inputToken: Address;
+
+        function subject() {
+          const issueParams: IssueRedeemParams = {
+            setToken: setToken.address,
+            amountSetToken: setTokenAmount,
+            componentSwapData: componentSwapDataIssue,
+            issuanceModule: legacyBasicIssuanceModule.address,
+            isDebtIssuance: false,
+          };
+          const paymentInfo: PaymentInfo = {
+            token: inputToken,
+            limitAmt: maxAmountIn,
+            swapDataTokenToWeth: swapDataFromInputToken,
+            swapDataWethToToken: swapDataToInputToken,
+          };
+          if (paymentInfo.token === ETH_ADDRESS) {
+            return flashMintDex.issueExactSetFromETH(
+              issueParams,
+              {
+                value: maxAmountIn,
+              },
+            );
+          } else {
+            return flashMintDex.issueExactSetFromToken(issueParams, paymentInfo);
+          }
+        }
+
+        it("Can issue legacy set token from ETH", async () => {
+          inputToken = ETH_ADDRESS;
+          maxAmountIn = ether(11);
+
+          const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+          const ethBalanceBefore = await owner.wallet.getBalance();
+          await subject();
+          const ethBalanceAfter = await owner.wallet.getBalance();
+          const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+          expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
+          expect(ethBalanceAfter).to.gt(ethBalanceBefore.sub(maxAmountIn));
+        });
       });
 
       context("when setToken with a simple composition is deployed", () => {
