@@ -221,10 +221,10 @@ if (process.env.INTEGRATIONTEST) {
             pool: ADDRESS_ZERO,
           },
         ];
-        // const componentSwapDataRedeem = componentSwapDataIssue.map(item => ({
-        //   ...item,
-        //   path: [...item.path].reverse()
-        // }));
+        const componentSwapDataRedeem = componentSwapDataIssue.map(item => ({
+          ...item,
+          path: [...item.path].reverse(),
+        }));
         const setTokenAmount = ether(100);
         let maxAmountIn: BigNumber;
         let inputToken: Address;
@@ -299,6 +299,89 @@ if (process.env.INTEGRATIONTEST) {
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
           expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.sub(maxAmountIn));
+        });
+
+        describe("When legacy set token has been issued", () => {
+          let outputToken: Address;
+          let minAmountOut: BigNumber;
+
+          beforeEach(async () => {
+            const maxAmountIn = ether(5);
+            const issueParams: IssueRedeemParams = {
+              setToken: setToken.address,
+              amountSetToken: setTokenAmount,
+              componentSwapData: componentSwapDataIssue,
+              issuanceModule: legacyBasicIssuanceModule.address,
+              isDebtIssuance: false,
+            };
+            await flashMintDex.issueExactSetFromETH(
+              issueParams,
+              {
+                value: maxAmountIn,
+              },
+            );
+            await setToken.approve(flashMintDex.address, setTokenAmount);
+          });
+
+          function subject() {
+            const redeemParams: IssueRedeemParams = {
+              setToken: setToken.address,
+              amountSetToken: setTokenAmount,
+              componentSwapData: componentSwapDataRedeem,
+              issuanceModule: legacyBasicIssuanceModule.address,
+              isDebtIssuance: false,
+            };
+            const paymentInfo: PaymentInfo = {
+              token: outputToken,
+              limitAmt: minAmountOut,
+              swapDataTokenToWeth: swapDataFromInputToken,
+              swapDataWethToToken: swapDataToInputToken,
+            };
+            if (paymentInfo.token === ETH_ADDRESS) {
+              return flashMintDex.redeemExactSetForETH(redeemParams, minAmountOut);
+            } else {
+
+              return flashMintDex.redeemExactSetForToken(redeemParams, paymentInfo);
+            }
+          }
+
+          it("Can redeem set token for ETH", async () => {
+            outputToken = ETH_ADDRESS;
+            minAmountOut = maxAmountIn.mul(10).div(9);
+            const outputTokenBalanceBefore = await owner.wallet.getBalance();
+            const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+            await subject();
+            const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+            const outputTokenBalanceAfter = await owner.wallet.getBalance();
+            expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
+            expect(outputTokenBalanceAfter).to.gt(outputTokenBalanceBefore.add(minAmountOut));
+          });
+
+          it("Can redeem set token for WETH", async () => {
+            outputToken = addresses.tokens.weth;
+            minAmountOut = maxAmountIn.mul(10).div(9);
+            const wethToken = IWETH__factory.connect(outputToken, owner.wallet);
+            const outputTokenBalanceBefore = await wethToken.balanceOf(owner.address);
+            const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+            await subject();
+            const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+            const outputTokenBalanceAfter = await wethToken.balanceOf(owner.address);
+            expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
+            expect(outputTokenBalanceAfter).to.gt(outputTokenBalanceBefore.add(minAmountOut));
+          });
+
+          it("Can redeem set token for USDC", async () => {
+            outputToken = addresses.tokens.USDC;
+            minAmountOut = usdc(5000);
+            const usdcToken = IERC20__factory.connect(outputToken, owner.wallet);
+            const outputTokenBalanceBefore = await usdcToken.balanceOf(owner.address);
+            const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+            await subject();
+            const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+            const outputTokenBalanceAfter = await usdcToken.balanceOf(owner.address);
+            expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
+            expect(outputTokenBalanceAfter).to.gt(outputTokenBalanceBefore.add(minAmountOut));
+          });
         });
       });
 
