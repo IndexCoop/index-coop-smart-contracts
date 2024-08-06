@@ -225,7 +225,7 @@ if (process.env.INTEGRATIONTEST) {
         //   ...item,
         //   path: [...item.path].reverse()
         // }));
-        const setTokenAmount = ether(10);
+        const setTokenAmount = ether(100);
         let maxAmountIn: BigNumber;
         let inputToken: Address;
 
@@ -257,7 +257,7 @@ if (process.env.INTEGRATIONTEST) {
 
         it("Can issue legacy set token from ETH", async () => {
           inputToken = ETH_ADDRESS;
-          maxAmountIn = ether(11);
+          maxAmountIn = ether(5);
 
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           const ethBalanceBefore = await owner.wallet.getBalance();
@@ -266,6 +266,39 @@ if (process.env.INTEGRATIONTEST) {
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
           expect(ethBalanceAfter).to.gt(ethBalanceBefore.sub(maxAmountIn));
+        });
+
+        it("Can issue legacy set token from WETH", async () => {
+          inputToken = addresses.tokens.weth;
+          maxAmountIn = ether(5);
+          const wethToken = IWETH__factory.connect(inputToken, owner.wallet);
+          await wethToken.deposit({ value: maxAmountIn });
+          wethToken.approve(flashMintDex.address, maxAmountIn);
+
+          const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+          const inputTokenBalanceBefore = await wethToken.balanceOf(owner.address);
+          await subject();
+          const inputTokenBalanceAfter = await wethToken.balanceOf(owner.address);
+          const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+          expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
+          expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.sub(maxAmountIn));
+        });
+
+        it("Can issue set token from USDC", async () => {
+          inputToken = addresses.tokens.USDC;
+          maxAmountIn = usdc(20000);
+          const usdcToken = IERC20__factory.connect(inputToken, owner.wallet);
+          const whaleSigner = await impersonateAccount(addresses.whales.USDC);
+          await usdcToken.connect(whaleSigner).transfer(owner.address, maxAmountIn);
+          usdcToken.approve(flashMintDex.address, maxAmountIn);
+
+          const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+          const inputTokenBalanceBefore = await usdcToken.balanceOf(owner.address);
+          await subject();
+          const inputTokenBalanceAfter = await usdcToken.balanceOf(owner.address);
+          const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+          expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
+          expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.sub(maxAmountIn));
         });
       });
 
