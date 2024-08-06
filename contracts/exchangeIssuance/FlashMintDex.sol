@@ -181,6 +181,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     * The excess amount of tokens is returned in an equivalent amount of ether.
     *
     * @param _issueParams           Struct containing addresses, amounts, and swap data for issuance
+    * @param _paymentInfo           Struct containing input token address, max amount to spend, and swap data to trade for WETH
     *
     * @return excessPaymentTokenAmt   Amount of input token returned to the caller
     */
@@ -511,5 +512,87 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
                 positions[i] = unit.preciseMul(_amountSetToken);
             }
         }
+    }
+
+    /**
+     * Gets the input cost of issuing a given amount of a set token with the provided issuance params.
+     * This function is not marked view, but should be static called from frontends.
+     * This constraint is due to the need to interact with the Uniswap V3 quoter contract
+     *
+     * @param _issueParams     Struct containing addresses, amounts, and swap data for issuance
+     *
+     * @return totalEthNeeded  Amount of input tokens required to perfrom the issuance
+     */
+    function getIssueExactSetFromEth(
+        IssueRedeemParams memory _issueParams
+    )
+        external
+        returns (uint256)
+    {
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(
+            _issueParams.issuanceModule,
+            _issueParams.isDebtIssuance,
+            _issueParams.setToken,
+            _issueParams.amountSetToken
+        );
+        uint256 totalEthNeeded = 0;
+        for (uint256 i = 0; i < components.length; i++) {
+            address component = components[i];
+            uint256 units = componentUnits[i];
+
+            // If the component is equal to WETH we don't have to trade
+            if (component == address(WETH)) {
+                totalEthNeeded = totalEthNeeded.add(units);
+            } else {
+                totalEthNeeded += DEXAdapterV2.getAmountIn(
+                    dexAdapter,
+                    _issueParams.componentSwapData[i],
+                    units
+                );
+            }
+        }
+        return totalEthNeeded;
+    }
+
+    /**
+     * Gets the input cost of issuing a given amount of a set token with the provided issuance params.
+     * This function is not marked view, but should be static called from frontends.
+     * This constraint is due to the need to interact with the Uniswap V3 quoter contract
+     *
+     * @param _issueParams  Struct containing addresses, amounts, and swap data for issuance
+     * @param _paymentInfo  Struct containing input token address, max amount to spend, and swap data to trade for WETH
+     *
+     * @return              the amount of input tokens required to perfrom the issuance
+     */
+    function getIssueExactSetFromToken(
+        IssueRedeemParams memory _issueParams,
+        PaymentInfo memory _paymentInfo
+    )
+        external
+        returns (uint256)
+    {
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(
+            _issueParams.issuanceModule,
+            _issueParams.isDebtIssuance,
+            _issueParams.setToken,
+            _issueParams.amountSetToken
+        );
+        uint256 totalWethNeeded = 0;
+        for (uint256 i = 0; i < components.length; i++) {
+            address component = components[i];
+            uint256 units = componentUnits[i];
+
+            // If the component is equal to WETH we don't have to trade
+            if (component == address(WETH)) {
+                totalWethNeeded = totalWethNeeded.add(units);
+            } else {
+                totalWethNeeded += DEXAdapterV2.getAmountIn(
+                    dexAdapter,
+                    _issueParams.componentSwapData[i],
+                    units
+                );
+            }
+        }
+        return dexAdapter.getAmountOut(_paymentInfo.swapDataWethToToken, totalWethNeeded);
     }
 }
