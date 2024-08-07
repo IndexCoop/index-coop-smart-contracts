@@ -537,17 +537,14 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         );
         uint256 totalEthNeeded = 0;
         for (uint256 i = 0; i < components.length; i++) {
-            address component = components[i];
-            uint256 units = componentUnits[i];
-
             // If the component is equal to WETH we don't have to trade
-            if (component == address(WETH)) {
-                totalEthNeeded = totalEthNeeded.add(units);
+            if (components[i] == address(WETH)) {
+                totalEthNeeded = totalEthNeeded.add(componentUnits[i]);
             } else {
                 totalEthNeeded += DEXAdapterV2.getAmountIn(
                     dexAdapter,
                     _issueParams.componentSwapData[i],
-                    units
+                    componentUnits[i]
                 );
             }
         }
@@ -579,20 +576,55 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         );
         uint256 totalWethNeeded = 0;
         for (uint256 i = 0; i < components.length; i++) {
-            address component = components[i];
-            uint256 units = componentUnits[i];
-
             // If the component is equal to WETH we don't have to trade
-            if (component == address(WETH)) {
-                totalWethNeeded = totalWethNeeded.add(units);
+            if (components[i] == address(WETH)) {
+                totalWethNeeded = totalWethNeeded.add(componentUnits[i]);
             } else {
                 totalWethNeeded += DEXAdapterV2.getAmountIn(
                     dexAdapter,
                     _issueParams.componentSwapData[i],
-                    units
+                    componentUnits[i]
                 );
             }
         }
         return dexAdapter.getAmountOut(_paymentInfo.swapDataWethToToken, totalWethNeeded);
+    }
+
+    /**
+     * Gets the amount of ETH expected after redeeming a given amount of a set token with the provided redemption params.
+     * This function is not marked view, but should be static called from frontends.
+     * This constraint is due to the need to interact with the Uniswap V3 quoter contract
+     *
+     * @param _redeemParams     Struct containing addresses, amounts, and swap data for redemption
+     *
+     * @return totalEthReceived  Estimated amount of ETH received from redemption
+     */
+    function getRedeemExactSetForEth(
+        IssueRedeemParams memory _redeemParams
+    )
+        external
+        returns (uint256)
+    {
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(
+            _redeemParams.issuanceModule,
+            _redeemParams.isDebtIssuance,
+            _redeemParams.setToken,
+            _redeemParams.amountSetToken
+        );
+        uint256 totalEthReceived = 0;
+        for (uint256 i = 0; i < _redeemParams.componentSwapData.length; i++) {
+
+            // If the component is equal to WETH we don't have to trade
+            if (components[i] == address(WETH)) {
+                totalEthReceived = totalEthReceived.add(componentUnits[i]);
+            } else {
+                totalEthReceived += DEXAdapterV2.getAmountOut(
+                    dexAdapter,
+                    _redeemParams.componentSwapData[i],
+                    componentUnits[i]
+                );
+            }
+        }
+        return totalEthReceived;
     }
 }
