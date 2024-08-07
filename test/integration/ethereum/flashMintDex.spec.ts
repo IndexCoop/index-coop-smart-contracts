@@ -159,7 +159,7 @@ if (process.env.INTEGRATIONTEST) {
         );
       });
 
-      context("when BED SetToken is deployed on Set Protocol", () => {
+      context("when SetToken is deployed on legacy Set Protocol", () => {
         let setToken: SetToken;
         const components = [
           addresses.tokens.wbtc,
@@ -254,6 +254,19 @@ if (process.env.INTEGRATIONTEST) {
             return flashMintDex.issueExactSetFromToken(issueParams, paymentInfo);
           }
         }
+
+        it("Can return ETH quantity required to issue legacy set token", async () => {
+          const issueParams: IssueRedeemParams = {
+            setToken: setToken.address,
+            amountSetToken: setTokenAmount,
+            componentSwapData: componentSwapDataIssue,
+            issuanceModule: debtIssuanceModule.address,
+            isDebtIssuance: true,
+          };
+          const ethRequired = await flashMintDex.callStatic.getIssueExactSetFromEth(issueParams);
+          console.log(ethRequired);
+          expect(ethRequired).to.eq(BigNumber.from("3498514628413285230"));
+        });
 
         it("Can issue legacy set token from ETH", async () => {
           inputToken = ETH_ADDRESS;
@@ -530,6 +543,18 @@ if (process.env.INTEGRATIONTEST) {
             return flashMintDex.issueExactSetFromToken(issueParams, paymentInfo);
           }
         }
+
+        it("Can return ETH quantity required to issue set token", async () => {
+          const issueParams: IssueRedeemParams = {
+            setToken: setToken.address,
+            amountSetToken: setTokenAmount,
+            componentSwapData: componentSwapDataIssue,
+            issuanceModule: debtIssuanceModule.address,
+            isDebtIssuance: true,
+          };
+          const ethRequired = await flashMintDex.callStatic.getIssueExactSetFromEth(issueParams);
+          expect(ethRequired).to.eq(BigNumber.from("8427007884995480469"));
+        });
 
         it("Can issue set token from ETH", async () => {
           inputToken = ETH_ADDRESS;
