@@ -610,7 +610,6 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         );
         uint256 totalWethReceived = 0;
         for (uint256 i = 0; i < _redeemParams.componentSwapData.length; i++) {
-
             // If the component is equal to WETH we don't have to trade
             if (components[i] == address(WETH)) {
                 totalWethReceived = totalWethReceived.add(componentUnits[i]);
@@ -648,7 +647,6 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         );
         uint256 totalEthReceived = 0;
         for (uint256 i = 0; i < _redeemParams.componentSwapData.length; i++) {
-
             // If the component is equal to WETH we don't have to trade
             if (components[i] == address(WETH)) {
                 totalEthReceived = totalEthReceived.add(componentUnits[i]);
