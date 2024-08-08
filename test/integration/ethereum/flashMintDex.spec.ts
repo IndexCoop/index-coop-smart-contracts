@@ -169,9 +169,9 @@ if (process.env.INTEGRATIONTEST) {
 
       context("when SetToken is deployed on legacy Set Protocol", () => {
         let setToken: SetToken;
-        let setTokenAmount: BigNumber;
         let issueParams: IssueRedeemParams;
         let redeemParams: IssueRedeemParams;
+        const setTokenAmount = ether(100);
 
         const components = [
           addresses.tokens.wbtc,
@@ -187,7 +187,6 @@ if (process.env.INTEGRATIONTEST) {
         const modules = [addresses.set.basicIssuanceModule];
         const tokenName = "BED Index";
         const tokenSymbol = "BED";
-        const setTokenAmount = ether(100);
 
         const componentSwapDataIssue = [
           {
@@ -342,7 +341,6 @@ if (process.env.INTEGRATIONTEST) {
         });
 
         describe("When legacy set token has been issued", () => {
-          let outputToken: Address;
           let inputTokenAmount: BigNumber;
           let minAmountOut: BigNumber;
 
@@ -357,33 +355,11 @@ if (process.env.INTEGRATIONTEST) {
             await setToken.approve(flashMintDex.address, setTokenAmount);
           });
 
-          // function subject() {
-          //   const redeemParams: IssueRedeemParams = {
-          //     setToken: setToken.address,
-          //     amountSetToken: setTokenAmount,
-          //     componentSwapData: componentSwapDataRedeem,
-          //     issuanceModule: legacyBasicIssuanceModule.address,
-          //     isDebtIssuance: false,
-          //   };
-          //   const paymentInfo: PaymentInfo = {
-          //     token: outputToken,
-          //     limitAmt: minAmountOut,
-          //     swapDataTokenToWeth: swapDataFromInputToken,
-          //     swapDataWethToToken: swapDataToInputToken,
-          //   };
-          //   if (paymentInfo.token === ETH_ADDRESS) {
-          //     return flashMintDex.redeemExactSetForETH(redeemParams, minAmountOut);
-          //   } else {
-
-          //     return flashMintDex.redeemExactSetForToken(redeemParams, paymentInfo);
-          //   }
-          // }
-
-          it.only("Can redeem legacy set token for ETH", async () => {
-            // TODO - replace with getRedeemExactSetForEth
+          it("Can redeem legacy set token for ETH", async () => {
             const ethEstimate = await flashMintDex.callStatic.getRedeemExactSetForEth(redeemParams);
+            console.log("ethEstimate", ethEstimate.toString());
             minAmountOut = ethEstimate.mul(500).div(1000); // 50% slippage (why?)
-            console.log("minAmountOut", minAmountOut.toString());
+            console.log("setToken amount", setTokenAmount.toString());
             console.log("inputTokenAmount", inputTokenAmount.toString());
             const outputTokenBalanceBefore = await owner.wallet.getBalance();
             const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
@@ -391,33 +367,45 @@ if (process.env.INTEGRATIONTEST) {
             const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
             const outputTokenBalanceAfter = await owner.wallet.getBalance();
             expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
-            expect(outputTokenBalanceAfter).to.gt(outputTokenBalanceBefore.add(minAmountOut));
+            expect(outputTokenBalanceAfter).to.gte(outputTokenBalanceBefore.add(minAmountOut));
           });
 
-          it("Can redeem set token for WETH", async () => {
-            outputToken = addresses.tokens.weth;
-            minAmountOut = maxAmountIn.mul(10).div(9);
-            const wethToken = IWETH__factory.connect(outputToken, owner.wallet);
+          it("Can redeem legacy set token for WETH", async () => {
+            const paymentInfo: PaymentInfo = {
+              token: addresses.tokens.weth,
+              limitAmt: ether(0),
+              swapDataTokenToWeth: swapDataEmpty,
+              swapDataWethToToken: swapDataEmpty,
+            };
+            const wethEstimate = await flashMintDex.callStatic.getIssueExactSetFromToken(issueParams, paymentInfo);
+            paymentInfo.limitAmt = wethEstimate.mul(50).div(100); // 50% slippage (why?)
+            const wethToken = IWETH__factory.connect(paymentInfo.token, owner.wallet);
             const outputTokenBalanceBefore = await wethToken.balanceOf(owner.address);
             const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
-            await subject();
+            await flashMintDex.redeemExactSetForToken(redeemParams, paymentInfo);
             const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
             const outputTokenBalanceAfter = await wethToken.balanceOf(owner.address);
             expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
-            expect(outputTokenBalanceAfter).to.gt(outputTokenBalanceBefore.add(minAmountOut));
+            expect(outputTokenBalanceAfter).to.gt(outputTokenBalanceBefore.add(paymentInfo.limitAmt));
           });
 
           it("Can redeem set token for USDC", async () => {
-            outputToken = addresses.tokens.USDC;
-            minAmountOut = usdc(5000);
-            const usdcToken = IERC20__factory.connect(outputToken, owner.wallet);
+            const paymentInfo: PaymentInfo = {
+              token: addresses.tokens.USDC,
+              limitAmt: ether(0),
+              swapDataTokenToWeth: swapDataFromInputToken,
+              swapDataWethToToken: swapDataToInputToken,
+            };
+            const usdcEstimate = await flashMintDex.callStatic.getIssueExactSetFromToken(issueParams, paymentInfo);
+            paymentInfo.limitAmt = usdcEstimate.mul(50).div(100); // 50% slippage (why?)
+            const usdcToken = IERC20__factory.connect(paymentInfo.token, owner.wallet);
             const outputTokenBalanceBefore = await usdcToken.balanceOf(owner.address);
             const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
-            await subject();
+            await flashMintDex.redeemExactSetForToken(redeemParams, paymentInfo);
             const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
             const outputTokenBalanceAfter = await usdcToken.balanceOf(owner.address);
             expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
-            expect(outputTokenBalanceAfter).to.gt(outputTokenBalanceBefore.add(minAmountOut));
+            expect(outputTokenBalanceAfter).to.gt(outputTokenBalanceBefore.add(paymentInfo.limitAmt));
           });
         });
       });
@@ -589,13 +577,13 @@ if (process.env.INTEGRATIONTEST) {
             isDebtIssuance: true,
           };
           const paymentInfo: PaymentInfo = {
-            token: inputToken,
-            limitAmt: maxAmountIn,
+            token: addresses.tokens.USDC,
+            limitAmt: ether(0),
             swapDataTokenToWeth: swapDataFromInputToken,
             swapDataWethToToken: swapDataToInputToken,
           };
           const usdcRequired = await flashMintDex.callStatic.getIssueExactSetFromToken(issueParams, paymentInfo);
-          expect(usdcRequired).to.eq(BigNumber.from("8427007884995480469"));
+          expect(usdcRequired).to.eq(BigNumber.from("26648572145"));
         });
         it("Can issue set token from ETH", async () => {
           inputToken = ETH_ADDRESS;

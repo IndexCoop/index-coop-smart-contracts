@@ -214,8 +214,6 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     * The excess amount of tokens is returned in an equivalent amount of ether.
     *
     * @param _issueParams           Struct containing addresses, amounts, and swap data for issuance
-    *
-    * @return amountEthReturn       Amount of ether returned to the caller
     */
     function issueExactSetFromETH(IssueRedeemParams memory _issueParams)
         external
@@ -239,7 +237,6 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         }
 
         emit FlashMint(msg.sender, _issueParams.setToken, IERC20(ETH_ADDRESS), totalEthSold, _issueParams.amountSetToken);
-        return amountEthReturn;
     }
 
     /**
@@ -247,8 +244,6 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      * The SetToken must be approved by the sender to this contract.
      *
      * @param _redeemParams         Struct containing token addresses, amounts, and swap data for issuance
-     *
-     * @return outputAmount         Amount of output tokens sent to the caller
      */
     function redeemExactSetForToken(IssueRedeemParams memory _redeemParams, PaymentInfo memory _paymentInfo)
         external
@@ -265,7 +260,6 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         _paymentInfo.token.safeTransfer(msg.sender, outputAmount);
 
         emit FlashRedeem(msg.sender, _redeemParams.setToken, _paymentInfo.token, _redeemParams.amountSetToken, outputAmount);
-        return outputAmount;
     }
 
     /**
