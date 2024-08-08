@@ -553,7 +553,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      * @param _issueParams  Struct containing addresses, amounts, and swap data for issuance
      * @param _paymentInfo  Struct containing input token address, max amount to spend, and swap data to trade for WETH
      *
-     * @return              the amount of input tokens required to perfrom the issuance
+     * @return              the amount of input tokens required to perform the issuance
      */
     function getIssueExactSetFromToken(
         IssueRedeemParams memory _issueParams,
@@ -582,6 +582,47 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
             }
         }
         return dexAdapter.getAmountOut(_paymentInfo.swapDataWethToToken, totalWethNeeded);
+    }
+
+    /**
+     * Gets the amount of specified payment token expected to be received after redeeming 
+     *  a given quantity of a set token with the provided redemption params.
+     * This function is not marked view, but should be static called from frontends.
+     * This constraint is due to the need to interact with the Uniswap V3 quoter contract
+     *
+     * @param _redeemParams  Struct containing addresses, amounts, and swap data for redemption
+     * @param _paymentInfo   Struct containing output token address, max amount to spend, and swap data to trade for WETH
+     *
+     * @return               the amount of output tokens expected after performing redemption
+     */
+    function getRedeemExactSetForToken(
+        IssueRedeemParams memory _redeemParams,
+        PaymentInfo memory _paymentInfo
+    )
+        external
+        returns (uint256)
+    {
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(
+            _redeemParams.issuanceModule,
+            _redeemParams.isDebtIssuance,
+            _redeemParams.setToken,
+            _redeemParams.amountSetToken
+        );
+        uint256 totalWethReceived = 0;
+        for (uint256 i = 0; i < _redeemParams.componentSwapData.length; i++) {
+
+            // If the component is equal to WETH we don't have to trade
+            if (components[i] == address(WETH)) {
+                totalWethReceived = totalWethReceived.add(componentUnits[i]);
+            } else {
+                totalWethReceived += DEXAdapterV2.getAmountOut(
+                    dexAdapter,
+                    _redeemParams.componentSwapData[i],
+                    componentUnits[i]
+                );
+            }
+        }
+        return dexAdapter.getAmountOut(_paymentInfo.swapDataWethToToken, totalWethReceived);
     }
 
     /**
