@@ -193,24 +193,11 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         external
         returns (uint256)
     {
-        (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(
-            _issueParams.issuanceModule,
-            _issueParams.isDebtIssuance,
-            _issueParams.setToken,
-            _issueParams.amountSetToken
-        );
         uint256 totalEthNeeded = 0;
-        for (uint256 i = 0; i < components.length; i++) {
-            // If the component is equal to WETH we don't have to trade
-            if (components[i] == address(WETH)) {
-                totalEthNeeded = totalEthNeeded.add(componentUnits[i]);
-            } else {
-                totalEthNeeded += DEXAdapterV2.getAmountIn(
-                    dexAdapter,
-                    _issueParams.componentSwapData[i],
-                    componentUnits[i]
-                );
-            }
+        (,, uint256[] memory wethCosts) = _getWethCostsPerComponent(_issueParams);
+
+        for (uint256 i = 0; i < wethCosts.length; i++) {
+            totalEthNeeded += wethCosts[i];
         }
         return dexAdapter.getAmountIn(_swapDataInputTokenToWeth, totalEthNeeded);
     }
@@ -464,39 +451,44 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         internal
         returns (uint256 totalWethSold)
     {
-        uint256 componentAmountBought;
+        (
+            address[] memory components, 
+            uint256[] memory componentUnits,
+            uint256[] memory wethCosts
+        ) = _getWethCostsPerComponent(_issueParams);
 
+        totalWethSold = 0;
+        for (uint256 i = 0; i < wethCosts.length; i++) {
+            // If the component is equal to WETH we don't have to trade
+            if (components[i] == address(WETH)) {
+                totalWethSold = totalWethSold.add(wethCosts[i]);
+            } else {
+                uint256 wethSpent = dexAdapter.swapTokensForExactTokens(componentUnits[i], wethCosts[i], _issueParams.componentSwapData[i]);
+                totalWethSold = totalWethSold.add(wethSpent);
+            }
+        }
+    }
+
+    function _getWethCostsPerComponent(IssueRedeemParams memory _issueParams) internal returns (address[] memory, uint256[] memory, uint256[] memory) {
         (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(
             _issueParams.issuanceModule,
             _issueParams.isDebtIssuance,
             _issueParams.setToken,
             _issueParams.amountSetToken
         );
-
-        uint256 wethBalanceBefore = IWETH(WETH).balanceOf(address(this));
+        require(components.length == _issueParams.componentSwapData.length, "FlashMint: INVALID SWAP DATA - NUMBER OF COMPONENTS");
+        uint256[] memory wethCosts = new uint256[](components.length);
         for (uint256 i = 0; i < components.length; i++) {
-            address component = components[i];
-            uint256 units = componentUnits[i];
-
-            // If the component is equal to WETH we don't have to trade
-            if (component == address(WETH)) {
-                totalWethSold = totalWethSold.add(units);
-                componentAmountBought = units;
+            if (components[i] == address(WETH)) {
+                wethCosts[i] = componentUnits[i];
             } else {
-                uint256 componentBalanceBefore = IERC20(component).balanceOf(address(this));
-                uint256 wethSellAmt = DEXAdapterV2.getAmountIn(
-                    dexAdapter,
+                wethCosts[i] = dexAdapter.getAmountIn(
                     _issueParams.componentSwapData[i],
-                    units
+                    componentUnits[i]
                 );
-                dexAdapter.swapTokensForExactTokens(units, wethSellAmt, _issueParams.componentSwapData[i]);
-                uint256 componentBalanceAfter = IERC20(component).balanceOf(address(this));
-                componentAmountBought = componentBalanceAfter.sub(componentBalanceBefore);
-                require(componentAmountBought >= units, "FlashMint: UNDERBOUGHT COMPONENT");
             }
         }
-        uint256 wethBalanceAfter = IWETH(WETH).balanceOf(address(this));
-        totalWethSold = totalWethSold.add(wethBalanceBefore.sub(wethBalanceAfter));
+        return (components, componentUnits, wethCosts);
     }
 
     /**

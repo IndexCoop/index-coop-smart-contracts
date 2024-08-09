@@ -118,7 +118,6 @@ if (process.env.INTEGRATIONTEST) {
     context("When FlashMintDex contract is deployed", () => {
       let flashMintDex: FlashMintDex;
 
-
       before(async () => {
         flashMintDex = await deployer.extensions.deployFlashMintDex(
           addresses.tokens.weth,
@@ -366,7 +365,6 @@ if (process.env.INTEGRATIONTEST) {
               swapDataWethToToken: swapDataEmpty,
             };
             const wethReceivedEstimate = await flashMintDex.callStatic.getRedeemExactSet(redeemParams, swapDataEmpty);
-            console.log("wethReceivedEstimate", wethReceivedEstimate.toString());
             paymentInfo.limitAmt = wethReceivedEstimate.mul(995).div(1000); // 0.5% slippage
             const wethToken = IWETH__factory.connect(paymentInfo.token, owner.wallet);
             const outputTokenBalanceBefore = await wethToken.balanceOf(owner.address);
@@ -374,7 +372,6 @@ if (process.env.INTEGRATIONTEST) {
             await flashMintDex.redeemExactSetForToken(redeemParams, paymentInfo);
             const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
             const outputTokenBalanceAfter = await wethToken.balanceOf(owner.address);
-            console.log("weth received", outputTokenBalanceAfter.sub(outputTokenBalanceBefore).toString());
             expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
             expect(outputTokenBalanceAfter).to.gt(outputTokenBalanceBefore.add(paymentInfo.limitAmt));
           });
