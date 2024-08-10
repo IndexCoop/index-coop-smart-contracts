@@ -293,7 +293,7 @@ if (process.env.INTEGRATIONTEST) {
 
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           const inputTokenBalanceBefore = await wethToken.balanceOf(owner.address);
-          await flashMintDex.issueExactSetFromToken(issueParams, paymentInfo);
+          await flashMintDex.issueExactSetFromERC20(issueParams, paymentInfo);
           const inputTokenBalanceAfter = await wethToken.balanceOf(owner.address);
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
@@ -317,7 +317,7 @@ if (process.env.INTEGRATIONTEST) {
 
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           const inputTokenBalanceBefore = await usdcToken.balanceOf(owner.address);
-          await flashMintDex.issueExactSetFromToken(issueParams, paymentInfo);
+          await flashMintDex.issueExactSetFromERC20(issueParams, paymentInfo);
           const inputTokenBalanceAfter = await usdcToken.balanceOf(owner.address);
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
@@ -369,7 +369,7 @@ if (process.env.INTEGRATIONTEST) {
             const wethToken = IWETH__factory.connect(paymentInfo.token, owner.wallet);
             const outputTokenBalanceBefore = await wethToken.balanceOf(owner.address);
             const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
-            await flashMintDex.redeemExactSetForToken(redeemParams, paymentInfo);
+            await flashMintDex.redeemExactSetForERC20(redeemParams, paymentInfo);
             const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
             const outputTokenBalanceAfter = await wethToken.balanceOf(owner.address);
             expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
@@ -388,7 +388,7 @@ if (process.env.INTEGRATIONTEST) {
             const usdcToken = IERC20__factory.connect(paymentInfo.token, owner.wallet);
             const outputTokenBalanceBefore = await usdcToken.balanceOf(owner.address);
             const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
-            await flashMintDex.redeemExactSetForToken(redeemParams, paymentInfo);
+            await flashMintDex.redeemExactSetForERC20(redeemParams, paymentInfo);
             const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
             const outputTokenBalanceAfter = await usdcToken.balanceOf(owner.address);
             expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
@@ -571,7 +571,7 @@ if (process.env.INTEGRATIONTEST) {
 
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           const inputTokenBalanceBefore = await wethToken.balanceOf(owner.address);
-          await flashMintDex.issueExactSetFromToken(issueParams, paymentInfo);
+          await flashMintDex.issueExactSetFromERC20(issueParams, paymentInfo);
           const inputTokenBalanceAfter = await wethToken.balanceOf(owner.address);
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
@@ -595,7 +595,7 @@ if (process.env.INTEGRATIONTEST) {
 
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           const inputTokenBalanceBefore = await usdcToken.balanceOf(owner.address);
-          await flashMintDex.issueExactSetFromToken(issueParams, paymentInfo);
+          await flashMintDex.issueExactSetFromERC20(issueParams, paymentInfo);
           const inputTokenBalanceAfter = await usdcToken.balanceOf(owner.address);
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
@@ -647,7 +647,7 @@ if (process.env.INTEGRATIONTEST) {
             const wethToken = IWETH__factory.connect(paymentInfo.token, owner.wallet);
             const outputTokenBalanceBefore = await wethToken.balanceOf(owner.address);
             const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
-            await flashMintDex.redeemExactSetForToken(redeemParams, paymentInfo);
+            await flashMintDex.redeemExactSetForERC20(redeemParams, paymentInfo);
             const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
             const outputTokenBalanceAfter = await wethToken.balanceOf(owner.address);
             expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
@@ -666,7 +666,7 @@ if (process.env.INTEGRATIONTEST) {
             const usdcToken = IERC20__factory.connect(paymentInfo.token, owner.wallet);
             const outputTokenBalanceBefore = await usdcToken.balanceOf(owner.address);
             const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
-            await flashMintDex.redeemExactSetForToken(redeemParams, paymentInfo);
+            await flashMintDex.redeemExactSetForERC20(redeemParams, paymentInfo);
             const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
             const outputTokenBalanceAfter = await usdcToken.balanceOf(owner.address);
             expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
