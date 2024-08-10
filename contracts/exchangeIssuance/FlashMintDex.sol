@@ -235,7 +235,6 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         emit FlashMint(msg.sender, _issueParams.setToken, _paymentInfo.token, paymentTokenSold, _issueParams.amountSetToken);
     }
 
-
     /**
     * Issues an exact amount of SetTokens for given amount of ETH.
     * The excess amount of tokens is returned in an equivalent amount of ether.
@@ -284,24 +283,11 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         external
         returns (uint256)
     {
-        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(
-            _redeemParams.issuanceModule,
-            _redeemParams.isDebtIssuance,
-            _redeemParams.setToken,
-            _redeemParams.amountSetToken
-        );
         uint256 totalWethReceived = 0;
-        for (uint256 i = 0; i < _redeemParams.componentSwapData.length; i++) {
-            // If the component is equal to WETH we don't have to trade
-            if (components[i] == address(WETH)) {
-                totalWethReceived = totalWethReceived.add(componentUnits[i]);
-            } else {
-                totalWethReceived = totalWethReceived.add(DEXAdapterV2.getAmountOut(
-                    dexAdapter,
-                    _redeemParams.componentSwapData[i],
-                    componentUnits[i]
-                ));
-            }
+        (,, uint256[] memory wethReceived) = _getWethReceivedPerComponent(_redeemParams);
+
+        for (uint256 i = 0; i < wethReceived.length; i++) {
+            totalWethReceived += wethReceived[i];
         }
         return dexAdapter.getAmountOut(_swapDataWethToOutputToken, totalWethReceived);
     }
@@ -431,9 +417,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     *
     * @return totalWethSold         Amount of WETH used to buy components
     */
-    function _issueExactSetFromWeth(IssueRedeemParams memory _issueParams)
-        internal
-        returns (uint256 totalWethSold)
+    function _issueExactSetFromWeth(IssueRedeemParams memory _issueParams) internal returns (uint256 totalWethSold)
     {
         totalWethSold = _buyComponentsWithWeth(_issueParams);
         IBasicIssuanceModule(_issueParams.issuanceModule).issue(_issueParams.setToken, _issueParams.amountSetToken, msg.sender);
@@ -447,10 +431,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      *
      * @return totalWethSold        Total amount of WETH spent to buy components
      */
-    function _buyComponentsWithWeth(IssueRedeemParams memory _issueParams)
-        internal
-        returns (uint256 totalWethSold)
-    {
+    function _buyComponentsWithWeth(IssueRedeemParams memory _issueParams) internal returns (uint256 totalWethSold) {
         (
             address[] memory components, 
             uint256[] memory componentUnits,
@@ -459,7 +440,6 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
 
         totalWethSold = 0;
         for (uint256 i = 0; i < wethCosts.length; i++) {
-            // If the component is equal to WETH we don't have to trade
             if (components[i] == address(WETH)) {
                 totalWethSold = totalWethSold.add(wethCosts[i]);
             } else {
@@ -469,14 +449,19 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         }
     }
 
-    function _getWethCostsPerComponent(IssueRedeemParams memory _issueParams) internal returns (address[] memory, uint256[] memory, uint256[] memory) {
+    function _getWethCostsPerComponent(IssueRedeemParams memory _issueParams)
+        internal
+        returns (address[] memory, uint256[] memory, uint256[] memory)
+    {
         (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(
             _issueParams.issuanceModule,
             _issueParams.isDebtIssuance,
             _issueParams.setToken,
             _issueParams.amountSetToken
         );
-        require(components.length == _issueParams.componentSwapData.length, "FlashMint: INVALID SWAP DATA - NUMBER OF COMPONENTS");
+
+        require(components.length == _issueParams.componentSwapData.length, "FlashMint: INVALID NUMBER OF COMPONENTS IN SWAP DATA");
+
         uint256[] memory wethCosts = new uint256[](components.length);
         for (uint256 i = 0; i < components.length; i++) {
             if (components[i] == address(WETH)) {
@@ -514,6 +499,27 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         internal
         returns (uint256 totalWethBought)
     {
+        (
+            address[] memory components, 
+            uint256[] memory componentUnits,
+            uint256[] memory wethReceived
+        ) = _getWethReceivedPerComponent(_redeemParams);
+
+        totalWethBought = 0;
+        for (uint256 i = 0; i < wethReceived.length; i++) {
+            if (components[i] == address(WETH)) {
+                totalWethBought = totalWethBought.add(wethReceived[i]);
+            } else {
+                uint256 wethSpent = dexAdapter.swapExactTokensForTokens(componentUnits[i], wethReceived[i], _redeemParams.componentSwapData[i]);
+                totalWethBought = totalWethBought.add(wethSpent);
+            }
+        }
+    }
+
+    function _getWethReceivedPerComponent(IssueRedeemParams memory _redeemParams)
+        internal
+        returns (address[] memory, uint256[] memory, uint256[] memory)
+    {
         (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(
             _redeemParams.issuanceModule,
             _redeemParams.isDebtIssuance,
@@ -521,24 +527,20 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
             _redeemParams.amountSetToken
         );
 
-        require(components.length == _redeemParams.componentSwapData.length, "FlashMint: INVALID SWAP DATA");
+        require(components.length == _redeemParams.componentSwapData.length, "FlashMint: INVALID NUMBER OF COMPONENTS IN SWAP DATA");
 
-        totalWethBought = 0;
+        uint256[] memory wethReceived = new uint256[](components.length);
         for (uint256 i = 0; i < components.length; i++) {
-
-            // If the component is equal to the output token we don't have to trade
             if (components[i] == address(WETH)) {
-                totalWethBought = totalWethBought.add(componentUnits[i]);
+                wethReceived[i] = componentUnits[i];
             } else {
-                uint256 wethBuyAmt = DEXAdapterV2.getAmountOut(
-                    dexAdapter,
+                wethReceived[i] = dexAdapter.getAmountOut(
                     _redeemParams.componentSwapData[i],
                     componentUnits[i]
                 );
-                uint256 wethReceived = dexAdapter.swapExactTokensForTokens(componentUnits[i], wethBuyAmt, _redeemParams.componentSwapData[i]);
-                totalWethBought = totalWethBought.add(wethReceived);
             }
         }
+        return (components, componentUnits, wethReceived);
     }
 
     /**
@@ -556,7 +558,6 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         else {
             (components, positions) = IBasicIssuanceModule(_issuanceModule).getRequiredComponentUnitsForIssue(_setToken, _amountSetToken);
         }
-
     }
 
     /**
