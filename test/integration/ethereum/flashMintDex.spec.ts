@@ -697,29 +697,36 @@ if (process.env.INTEGRATIONTEST) {
           });
 
           it("should revert when not enough ERC20 is sent for issuance", async () => {
-            const paymentInfo: PaymentInfo = {
+            const usdcEstimate = await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataUsdcToWeth);
+            const usdc = IERC20__factory.connect(addresses.tokens.USDC, owner.wallet);
+            const whaleSigner = await impersonateAccount(addresses.whales.USDC);
+            await usdc.connect(whaleSigner).transfer(owner.address, usdcEstimate);
+            usdc.approve(flashMintDex.address, usdcEstimate);
+
+            const paymentInfoNotEnoughUsdc: PaymentInfo = {
               token: addresses.tokens.USDC,
-              limitAmt: ether(0),
+              limitAmt: usdcEstimate.div(2),
               swapDataTokenToWeth: swapDataUsdcToWeth,
               swapDataWethToToken: swapDataWethToUsdc,
             };
-            const usdcEstimate = await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataUsdcToWeth);
-            const usdc = IERC20__factory.connect(paymentInfo.token, owner.wallet);
-            usdc.approve(flashMintDex.address, usdcEstimate);
-            paymentInfo.limitAmt = usdcEstimate.div(2);
             await expect(
-              flashMintDex.issueExactSetFromERC20(issueParams, paymentInfo),
-            ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
+              flashMintDex.issueExactSetFromERC20(issueParams, paymentInfoNotEnoughUsdc),
+            ).to.be.revertedWith("STF");
           });
 
-        //   it("should revert when minimum ETH is not received during redemption", async () => {
-
-        //     const ethEstimate = await flashMintDex.callStatic.getRedeemExactSet(redeemParams, swapDataEmpty);
-        //     paymentInfo.limitAmt = usdcEstimate.div(2);
-        //     await expect(
-        //       flashMintDex.issueExactSetFromERC20(issueParams, paymentInfo),
-        //     ).to.be.revertedWith("STF");
-        //   });
+          it("should revert when minimum ETH is not received during redemption", async () => {
+            const testRedeemParams = { ...redeemParams };
+            const setToken = SetToken__factory.connect(testRedeemParams.setToken, owner.wallet);
+            setToken.approve(flashMintDex.address, testRedeemParams.amountSetToken);
+            await flashMintDex.issueExactSetFromETH(issueParams, {
+              value: await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataEmpty),
+            });
+            const ethEstimate = await flashMintDex.callStatic.getRedeemExactSet(testRedeemParams, swapDataEmpty);
+            const minAmountOutTooHigh = ethEstimate.mul(2);
+            await expect(
+              flashMintDex.redeemExactSetForETH(testRedeemParams, minAmountOutTooHigh),
+            ).to.be.revertedWith("FlashMint: INSUFFICIENT WETH RECEIVED");
+          });
         });
       });
     });
