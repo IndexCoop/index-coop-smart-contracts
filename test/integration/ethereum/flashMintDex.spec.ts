@@ -715,17 +715,31 @@ if (process.env.INTEGRATIONTEST) {
           });
 
           it("should revert when minimum ETH is not received during redemption", async () => {
-            const testRedeemParams = { ...redeemParams };
-            const setToken = SetToken__factory.connect(testRedeemParams.setToken, owner.wallet);
-            setToken.approve(flashMintDex.address, testRedeemParams.amountSetToken);
+            const setToken = SetToken__factory.connect(redeemParams.setToken, owner.wallet);
+            setToken.approve(flashMintDex.address, redeemParams.amountSetToken);
             await flashMintDex.issueExactSetFromETH(issueParams, {
               value: await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataEmpty),
             });
-            const ethEstimate = await flashMintDex.callStatic.getRedeemExactSet(testRedeemParams, swapDataEmpty);
+            const ethEstimate = await flashMintDex.callStatic.getRedeemExactSet(redeemParams, swapDataEmpty);
             const minAmountOutTooHigh = ethEstimate.mul(2);
             await expect(
-              flashMintDex.redeemExactSetForETH(testRedeemParams, minAmountOutTooHigh),
+              flashMintDex.redeemExactSetForETH(redeemParams, minAmountOutTooHigh),
             ).to.be.revertedWith("FlashMint: INSUFFICIENT WETH RECEIVED");
+          });
+
+          it("should revert when minimum ERC20 is not received during redemption", async () => {
+            const setToken = SetToken__factory.connect(redeemParams.setToken, owner.wallet);
+            setToken.approve(flashMintDex.address, redeemParams.amountSetToken);
+            const usdcEstimate = await flashMintDex.callStatic.getRedeemExactSet(redeemParams, swapDataWethToUsdc);
+            const paymentInfoNotEnoughUsdc: PaymentInfo = {
+              token: addresses.tokens.USDC,
+              limitAmt: usdcEstimate.mul(2),
+              swapDataTokenToWeth: swapDataUsdcToWeth,
+              swapDataWethToToken: swapDataWethToUsdc,
+            };
+            await expect(
+              flashMintDex.redeemExactSetForERC20(redeemParams, paymentInfoNotEnoughUsdc),
+            ).to.be.revertedWith("FlashMint: INSUFFICIENT OUTPUT AMOUNT");
           });
         });
       });
