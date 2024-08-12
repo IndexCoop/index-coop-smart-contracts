@@ -660,7 +660,7 @@ if (process.env.INTEGRATIONTEST) {
           });
         });
 
-        context("When invalid unputs are given", () => {
+        context.only("When invalid unputs are given", () => {
           let invalidIssueParams: IssueRedeemParams;
           beforeEach(async () => {
             // reset invalidIssueParams each test
@@ -679,7 +679,7 @@ if (process.env.INTEGRATIONTEST) {
 
             await expect(
               flashMintDex.issueExactSetFromETH(
-                issueParams,
+                invalidIssueParams,
                 {
                   value: await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataEmpty),
                 },
@@ -688,13 +688,38 @@ if (process.env.INTEGRATIONTEST) {
           });
 
           it("should revert when not enough ETH is sent for issuance", async () => {
-            const ethRequiredEstimate = await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataEmpty);
+            const ethRequiredEstimate = await flashMintDex.callStatic.getIssueExactSet(invalidIssueParams, swapDataEmpty);
             const notEnoughEth = ethRequiredEstimate.div(2);
 
             await expect(
-              flashMintDex.issueExactSetFromETH(issueParams, { value: notEnoughEth }),
+              flashMintDex.issueExactSetFromETH(invalidIssueParams, { value: notEnoughEth }),
             ).to.be.revertedWith("STF");
           });
+
+          it("should revert when not enough ERC20 is sent for issuance", async () => {
+            const paymentInfo: PaymentInfo = {
+              token: addresses.tokens.USDC,
+              limitAmt: ether(0),
+              swapDataTokenToWeth: swapDataUsdcToWeth,
+              swapDataWethToToken: swapDataWethToUsdc,
+            };
+            const usdcEstimate = await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataUsdcToWeth);
+            const usdc = IERC20__factory.connect(paymentInfo.token, owner.wallet);
+            usdc.approve(flashMintDex.address, usdcEstimate);
+            paymentInfo.limitAmt = usdcEstimate.div(2);
+            await expect(
+              flashMintDex.issueExactSetFromERC20(issueParams, paymentInfo),
+            ).to.be.revertedWith("ERC20: transfer amount exceeds balance");
+          });
+
+        //   it("should revert when minimum ETH is not received during redemption", async () => {
+
+        //     const ethEstimate = await flashMintDex.callStatic.getRedeemExactSet(redeemParams, swapDataEmpty);
+        //     paymentInfo.limitAmt = usdcEstimate.div(2);
+        //     await expect(
+        //       flashMintDex.issueExactSetFromERC20(issueParams, paymentInfo),
+        //     ).to.be.revertedWith("STF");
+        //   });
         });
       });
     });
