@@ -397,7 +397,7 @@ if (process.env.INTEGRATIONTEST) {
         });
       });
 
-      context("when setToken with a simple composition is deployed", () => {
+      context("when setToken is deployed on Index Protocol", () => {
         let setToken: SetToken;
         let issueParams: IssueRedeemParams;
         let redeemParams: IssueRedeemParams;
@@ -442,20 +442,6 @@ if (process.env.INTEGRATIONTEST) {
             pool: ADDRESS_ZERO,
           },
         ];
-
-        const swapDataFromInputToken = {
-          exchange: Exchange.UniV3,
-          fees: [500],
-          path: [addresses.tokens.USDC, addresses.tokens.weth],
-          pool: ADDRESS_ZERO,
-        };
-
-        const swapDataToInputToken = {
-          exchange: Exchange.UniV3,
-          fees: [500],
-          path: [addresses.tokens.weth, addresses.tokens.USDC],
-          pool: ADDRESS_ZERO,
-        };
 
         const componentSwapDataRedeem = [
           {
@@ -582,8 +568,8 @@ if (process.env.INTEGRATIONTEST) {
           const paymentInfo: PaymentInfo = {
             token: addresses.tokens.USDC,
             limitAmt: ether(0),
-            swapDataTokenToWeth: swapDataFromInputToken,
-            swapDataWethToToken: swapDataToInputToken,
+            swapDataTokenToWeth: swapDataUsdcToWeth,
+            swapDataWethToToken: swapDataWethToUsdc,
           };
           const usdcRequiredEstimate = await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataUsdcToWeth);
           paymentInfo.limitAmt = usdcRequiredEstimate.mul(1005).div(1000); // 0.5% slippage
