@@ -659,6 +659,43 @@ if (process.env.INTEGRATIONTEST) {
             expect(outputTokenBalanceAfter).to.gt(outputTokenBalanceBefore.add(paymentInfo.limitAmt));
           });
         });
+
+        context("When invalid unputs are given", () => {
+          let invalidIssueParams: IssueRedeemParams;
+          beforeEach(async () => {
+            // reset invalidIssueParams each test
+            invalidIssueParams = { ...issueParams };
+          });
+
+          it("Should revert when trying to issue set token with invalid swap data", async () => {
+            const invalidSwapData = {
+              exchange: Exchange.UniV3,
+              fees: [100],
+              path: [addresses.tokens.weth, addresses.tokens.comp],
+              pool: ADDRESS_ZERO,
+            };
+
+            invalidIssueParams.componentSwapData = [invalidSwapData];
+
+            await expect(
+              flashMintDex.issueExactSetFromETH(
+                issueParams,
+                {
+                  value: await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataEmpty),
+                },
+              ),
+            ).to.be.revertedWith("FlashMint: INVALID NUMBER OF COMPONENTS IN SWAP DATA");
+          });
+
+          it("should revert when not enough ETH is sent for issuance", async () => {
+            const ethRequiredEstimate = await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataEmpty);
+            const notEnoughEth = ethRequiredEstimate.div(2);
+
+            await expect(
+              flashMintDex.issueExactSetFromETH(issueParams, { value: notEnoughEth }),
+            ).to.be.revertedWith("STF");
+          });
+        });
       });
     });
   });
