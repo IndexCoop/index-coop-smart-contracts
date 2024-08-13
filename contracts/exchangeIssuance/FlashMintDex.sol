@@ -240,10 +240,10 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
 
     /**
     * Issues an exact amount of SetTokens for given amount of ETH.
-    * The excess amount of tokens is returned in an equivalent amount of ether.
+    * Any leftover ether is returned to the caller.
     *
     * @param _issueParams           Struct containing addresses, amounts, and swap data for issuance
-    * 
+    *
     * @return ethSpent              Amount of ETH spent
     */
     function issueExactSetFromETH(IssueRedeemParams memory _issueParams)
@@ -273,7 +273,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
 
     /**
     * Issues an exact amount of SetTokens for given amount of input ERC20 tokens.
-    * The excess amount of tokens is returned in an equivalent amount of ether.
+    * Any leftover value is swapped back to the payment token and returned to the caller.
     *
     * @param _issueParams           Struct containing addresses, amounts, and swap data for issuance
     * @param _paymentInfo           Struct containing input token address, max amount to spend, and swap data to trade for WETH
@@ -309,7 +309,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      * The SetToken must be approved by the sender to this contract.
      *
      * @param _redeemParams   Struct containing addresses, amounts, and swap data for issuance
-     * 
+     *
      * @return ethReceived      Amount of ETH received
      */
     function redeemExactSetForETH(IssueRedeemParams memory _redeemParams, uint256 _minEthReceive)
@@ -335,7 +335,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      * The SetToken must be approved by the sender to this contract.
      *
      * @param _redeemParams             Struct containing token addresses, amounts, and swap data for issuance
-     * 
+     *
      * @return outputTokenReceived      Amount of output token received
      */
     function redeemExactSetForERC20(IssueRedeemParams memory _redeemParams, PaymentInfo memory _paymentInfo)

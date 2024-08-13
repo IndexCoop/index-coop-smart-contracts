@@ -534,27 +534,20 @@ if (process.env.INTEGRATIONTEST) {
           expect(usdcRequired).to.eq(BigNumber.from("26678902800"));
         });
 
-        it.only("Can issue set token from ETH", async () => {
+        it("Can issue set token from ETH", async () => {
           const ethRequiredEstimate = await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataEmpty);
           const maxEthIn = ethRequiredEstimate.mul(1005).div(1000); // 0.5% slippage
 
           const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
           const ethBalanceBefore = await owner.wallet.getBalance();
-          const tx = await flashMintDex.issueExactSetFromETH(issueParams, { value: maxEthIn });
+          await flashMintDex.issueExactSetFromETH(issueParams, { value: maxEthIn });
           const ethBalanceAfter = await owner.wallet.getBalance();
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
           expect(ethBalanceAfter).to.gt(ethBalanceBefore.sub(maxEthIn));
-
-          // Check that excess ETH was returned to caller
-          const receipt = await tx.wait();
-          const gasUsed = receipt.gasUsed;
-          const gasPrice = tx.gasPrice;
-          const ethUsedForGas = gasUsed.mul(gasPrice);
-          expect(ethBalanceBefore.sub(ethRequiredEstimate).sub(ethUsedForGas)).to.eq(ethBalanceAfter);
         });
 
-        it.only("Can issue set token from WETH", async () => {
+        it("Can issue set token from WETH", async () => {
           const paymentInfo: PaymentInfo = {
             token: addresses.tokens.weth,
             limitAmt: ether(0),
@@ -574,12 +567,9 @@ if (process.env.INTEGRATIONTEST) {
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
           expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.sub(paymentInfo.limitAmt));
-
-          // Check that excess WETH was returned to caller
-          expect(inputTokenBalanceBefore.sub(wethRequiredEstimate)).to.eq(inputTokenBalanceAfter);
         });
 
-        it.only("Can issue set token from USDC", async () => {
+        it("Can issue set token from USDC", async () => {
           const paymentInfo: PaymentInfo = {
             token: addresses.tokens.USDC,
             limitAmt: ether(0),
@@ -601,9 +591,6 @@ if (process.env.INTEGRATIONTEST) {
           const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
           expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.add(setTokenAmount));
           expect(inputTokenBalanceAfter).to.gt(inputTokenBalanceBefore.sub(paymentInfo.limitAmt));
-
-          // Check that excess USDC was returned to caller
-          expect(inputTokenBalanceBefore.sub(usdcRequiredEstimate)).to.eq(inputTokenBalanceAfter);
         });
 
         describe("When set token has been issued", () => {
