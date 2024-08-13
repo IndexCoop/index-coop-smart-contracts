@@ -96,6 +96,15 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
          _;
     }
 
+    modifier isValidModuleAndSet(address _issuanceModule, address _setToken) {
+        require(
+            setController.isModule(_issuanceModule) && setController.isSet(_setToken) ||
+            indexController.isModule(_issuanceModule) && indexController.isSet(_setToken),
+            "FlashMint: INVALID ISSUANCE MODULE OR SET TOKEN"
+        );
+         _;
+    }
+
     constructor(
         address _weth,
         IController _setController,
@@ -238,7 +247,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     function issueExactSetFromETH(IssueRedeemParams memory _issueParams)
         external
         payable
-        isValidModule(_issueParams.issuanceModule)
+        isValidModuleAndSet(_issueParams.issuanceModule, address(_issueParams.setToken))
         nonReentrant
         returns (uint256)
     {
@@ -271,7 +280,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     */
     function issueExactSetFromERC20(IssueRedeemParams memory _issueParams, PaymentInfo memory _paymentInfo)
         external
-        isValidModule(_issueParams.issuanceModule)
+        isValidModuleAndSet(_issueParams.issuanceModule, address(_issueParams.setToken))
         nonReentrant
         returns (uint256 paymentTokenReturned)
     {
@@ -300,7 +309,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      */
     function redeemExactSetForETH(IssueRedeemParams memory _redeemParams, uint256 _minEthReceive)
         external
-        isValidModule(_redeemParams.issuanceModule)
+        isValidModuleAndSet(_redeemParams.issuanceModule, address(_redeemParams.setToken))
         nonReentrant
         returns (uint256)
     {
@@ -324,7 +333,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      */
     function redeemExactSetForERC20(IssueRedeemParams memory _redeemParams, PaymentInfo memory _paymentInfo)
         external
-        isValidModule(_redeemParams.issuanceModule)
+        isValidModuleAndSet(_redeemParams.issuanceModule, address(_redeemParams.setToken))
         nonReentrant
         returns (uint256)
     {

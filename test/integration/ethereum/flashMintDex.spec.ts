@@ -80,10 +80,9 @@ const swapDataWethToUsdc = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe.only("FlashMintDex - Integration Test", async () => {
+  describe("FlashMintDex - Integration Test", async () => {
     let owner: Account;
     let deployer: DeployHelper;
-
     let legacySetTokenCreator: SetTokenCreator;
     let setTokenCreator: SetTokenCreator;
     let legacyBasicIssuanceModule: IBasicIssuanceModule;
@@ -164,6 +163,12 @@ if (process.env.INTEGRATIONTEST) {
         expect(await flashMintDex.indexController()).to.eq(
           utils.getAddress(addresses.setFork.controller),
         );
+      });
+
+      it("should revert when eth is sent to the contract", async () => {
+        await expect(
+          owner.wallet.sendTransaction({ to: flashMintDex.address, value: ether(1) })
+        ).to.be.revertedWith("FlashMint: DIRECT DEPOSITS NOT ALLOWED");
       });
 
       context("when SetToken is deployed on legacy Set Protocol", () => {
@@ -660,10 +665,9 @@ if (process.env.INTEGRATIONTEST) {
           });
         });
 
-        context.only("When invalid unputs are given", () => {
+        context("When invalid inputs are given", () => {
           let invalidIssueParams: IssueRedeemParams;
           beforeEach(async () => {
-            // reset invalidIssueParams each test
             invalidIssueParams = { ...issueParams };
           });
 
@@ -740,6 +744,57 @@ if (process.env.INTEGRATIONTEST) {
             await expect(
               flashMintDex.redeemExactSetForERC20(redeemParams, paymentInfoNotEnoughUsdc),
             ).to.be.revertedWith("FlashMint: INSUFFICIENT OUTPUT AMOUNT");
+          });
+
+          it("issueExactSetFromETH should revert when incompatible set token is provided", async () => {
+            invalidIssueParams.setToken = addresses.tokens.dpi;
+            await expect(
+              flashMintDex.issueExactSetFromETH(invalidIssueParams, {
+                value: ether(1),
+              }),
+            ).to.be.revertedWith("FlashMint: INVALID ISSUANCE MODULE OR SET TOKEN");
+          });
+
+          it("issueExactSetFromERC20 should revert when incompatible issuance module is provided", async () => {
+            const usdcEstimate = await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataUsdcToWeth);
+            const usdc = IERC20__factory.connect(addresses.tokens.USDC, owner.wallet);
+            const whaleSigner = await impersonateAccount(addresses.whales.USDC);
+            await usdc.connect(whaleSigner).transfer(owner.address, usdcEstimate);
+            usdc.approve(flashMintDex.address, usdcEstimate);
+            const paymentInfo: PaymentInfo = {
+              token: addresses.tokens.USDC,
+              limitAmt: usdcEstimate,
+              swapDataTokenToWeth: swapDataUsdcToWeth,
+              swapDataWethToToken: swapDataWethToUsdc,
+            };
+            invalidIssueParams.issuanceModule = addresses.set.basicIssuanceModule;
+            await expect(
+              flashMintDex.issueExactSetFromERC20(invalidIssueParams, paymentInfo)
+            ).to.be.revertedWith("FlashMint: INVALID ISSUANCE MODULE OR SET TOKEN");
+          });
+
+          it("redeemExactSetForETH should revert when incompatible set token is provided", async () => {
+            const invalidRedeemParams = { ...redeemParams };
+            const minEthOut = await flashMintDex.callStatic.getRedeemExactSet(redeemParams, swapDataEmpty);
+            invalidRedeemParams.setToken = addresses.tokens.dpi;
+            await expect(
+              flashMintDex.redeemExactSetForETH(invalidRedeemParams, minEthOut),
+            ).to.be.revertedWith("FlashMint: INVALID ISSUANCE MODULE OR SET TOKEN");
+          });
+
+          it("redeemExactSetForERC20 should revert when incompatible issuance module is provided", async () => {
+            const invalidRedeemParams = { ...redeemParams };
+            const usdcEstimate = await flashMintDex.callStatic.getRedeemExactSet(redeemParams, swapDataWethToUsdc);
+            const paymentInfo: PaymentInfo = {
+              token: addresses.tokens.USDC,
+              limitAmt: usdcEstimate,
+              swapDataTokenToWeth: swapDataUsdcToWeth,
+              swapDataWethToToken: swapDataWethToUsdc,
+            };
+            invalidRedeemParams.issuanceModule = addresses.set.basicIssuanceModule;
+            await expect(
+              flashMintDex.redeemExactSetForERC20(invalidRedeemParams, paymentInfo),
+            ).to.be.revertedWith("FlashMint: INVALID ISSUANCE MODULE OR SET TOKEN");
           });
         });
       });
