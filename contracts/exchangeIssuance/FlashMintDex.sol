@@ -243,13 +243,15 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     * The excess amount of tokens is returned in an equivalent amount of ether.
     *
     * @param _issueParams           Struct containing addresses, amounts, and swap data for issuance
+    * 
+    * @return ethSpent              Amount of ETH spent
     */
     function issueExactSetFromETH(IssueRedeemParams memory _issueParams)
         external
         payable
         isValidModuleAndSet(_issueParams.issuanceModule, address(_issueParams.setToken))
         nonReentrant
-        returns (uint256)
+        returns (uint256 ethSpent)
     {
         require(msg.value > 0, "FlashMint: NO ETH SENT");
 
@@ -264,7 +266,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
             IWETH(WETH).withdraw(ethReturned);
             payable(msg.sender).sendValue(ethReturned);
         }
-        uint256 ethSpent = msg.value.sub(ethReturned);
+        ethSpent = msg.value.sub(ethReturned);
 
         emit FlashMint(msg.sender, _issueParams.setToken, IERC20(ETH_ADDRESS), ethSpent, _issueParams.amountSetToken);
     }
@@ -276,13 +278,13 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     * @param _issueParams           Struct containing addresses, amounts, and swap data for issuance
     * @param _paymentInfo           Struct containing input token address, max amount to spend, and swap data to trade for WETH
     *
-    * @return paymentTokenReturned   Amount of input token returned to the caller
+    * @return paymentTokenSpent     Amount of input token spent
     */
     function issueExactSetFromERC20(IssueRedeemParams memory _issueParams, PaymentInfo memory _paymentInfo)
         external
         isValidModuleAndSet(_issueParams.issuanceModule, address(_issueParams.setToken))
         nonReentrant
-        returns (uint256 paymentTokenReturned)
+        returns (uint256 paymentTokenSpent)
     {
         _paymentInfo.token.safeTransferFrom(msg.sender, address(this), _paymentInfo.limitAmt);
         uint256 wethReceived = _swapPaymentTokenForWeth(_paymentInfo.token, _paymentInfo.limitAmt, _paymentInfo.swapDataTokenToWeth);
@@ -290,13 +292,14 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         uint256 wethSpent = _issueExactSetFromWeth(_issueParams);
         require(wethSpent <= wethReceived, "FlashMint: OVERSPENT WETH");
         uint256 leftoverWeth = wethReceived.sub(wethSpent);
+        uint256 paymentTokenReturned = 0;
 
         if (leftoverWeth > 0) {
             paymentTokenReturned = _swapWethForPaymentToken(leftoverWeth, _paymentInfo.token, _paymentInfo.swapDataWethToToken);
             _paymentInfo.token.safeTransfer(msg.sender, paymentTokenReturned);
         }
 
-        uint256 paymentTokenSpent = _paymentInfo.limitAmt.sub(paymentTokenReturned);
+        paymentTokenSpent = _paymentInfo.limitAmt.sub(paymentTokenReturned);
 
         emit FlashMint(msg.sender, _issueParams.setToken, _paymentInfo.token, paymentTokenSpent, _issueParams.amountSetToken);
     }
@@ -306,46 +309,50 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      * The SetToken must be approved by the sender to this contract.
      *
      * @param _redeemParams   Struct containing addresses, amounts, and swap data for issuance
+     * 
+     * @return ethReceived      Amount of ETH received
      */
     function redeemExactSetForETH(IssueRedeemParams memory _redeemParams, uint256 _minEthReceive)
         external
         isValidModuleAndSet(_redeemParams.issuanceModule, address(_redeemParams.setToken))
         nonReentrant
-        returns (uint256)
+        returns (uint256 ethReceived)
     {
         _redeem(_redeemParams.setToken, _redeemParams.amountSetToken, _redeemParams.issuanceModule);
 
-        uint256 ethAmount = _sellComponentsForWeth(_redeemParams);
-        require(ethAmount >= _minEthReceive, "FlashMint: INSUFFICIENT WETH RECEIVED");
+        ethReceived = _sellComponentsForWeth(_redeemParams);
+        require(ethReceived >= _minEthReceive, "FlashMint: INSUFFICIENT WETH RECEIVED");
 
-        IWETH(WETH).withdraw(ethAmount);
-        payable(msg.sender).sendValue(ethAmount);
+        IWETH(WETH).withdraw(ethReceived);
+        payable(msg.sender).sendValue(ethReceived);
 
-        emit FlashRedeem(msg.sender, _redeemParams.setToken, IERC20(ETH_ADDRESS), _redeemParams.amountSetToken, ethAmount);
-        return ethAmount;
+        emit FlashRedeem(msg.sender, _redeemParams.setToken, IERC20(ETH_ADDRESS), _redeemParams.amountSetToken, ethReceived);
+        return ethReceived;
     }
 
     /**
      * Redeems an exact amount of SetTokens for an ERC20 token.
      * The SetToken must be approved by the sender to this contract.
      *
-     * @param _redeemParams         Struct containing token addresses, amounts, and swap data for issuance
+     * @param _redeemParams             Struct containing token addresses, amounts, and swap data for issuance
+     * 
+     * @return outputTokenReceived      Amount of output token received
      */
     function redeemExactSetForERC20(IssueRedeemParams memory _redeemParams, PaymentInfo memory _paymentInfo)
         external
         isValidModuleAndSet(_redeemParams.issuanceModule, address(_redeemParams.setToken))
         nonReentrant
-        returns (uint256)
+        returns (uint256 outputTokenReceived)
     {
         _redeem(_redeemParams.setToken, _redeemParams.amountSetToken, _redeemParams.issuanceModule);
 
         uint256 wethReceived = _sellComponentsForWeth(_redeemParams);
-        uint256 outputAmount = _swapWethForPaymentToken(wethReceived, _paymentInfo.token, _paymentInfo.swapDataWethToToken);
-        require(outputAmount >= _paymentInfo.limitAmt, "FlashMint: INSUFFICIENT OUTPUT AMOUNT");
+        outputTokenReceived = _swapWethForPaymentToken(wethReceived, _paymentInfo.token, _paymentInfo.swapDataWethToToken);
+        require(outputTokenReceived >= _paymentInfo.limitAmt, "FlashMint: INSUFFICIENT OUTPUT AMOUNT");
 
-        _paymentInfo.token.safeTransfer(msg.sender, outputAmount);
+        _paymentInfo.token.safeTransfer(msg.sender, outputTokenReceived);
 
-        emit FlashRedeem(msg.sender, _redeemParams.setToken, _paymentInfo.token, _redeemParams.amountSetToken, outputAmount);
+        emit FlashRedeem(msg.sender, _redeemParams.setToken, _paymentInfo.token, _redeemParams.amountSetToken, outputTokenReceived);
     }
 
     /* ============ Internal Functions ============ */
