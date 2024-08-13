@@ -283,14 +283,13 @@ if (process.env.INTEGRATIONTEST) {
         });
 
         it("Can issue legacy set token from WETH", async () => {
+          const wethEstimate = await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataEmpty);
           const paymentInfo: PaymentInfo = {
             token: addresses.tokens.weth,
-            limitAmt: ether(0),
+            limitAmt: wethEstimate.mul(1005).div(1000), // 0.5% slippage
             swapDataTokenToWeth: swapDataEmpty,
             swapDataWethToToken: swapDataEmpty,
           };
-          const wethEstimate = await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataEmpty);
-          paymentInfo.limitAmt = wethEstimate.mul(1005).div(1000); // 0.5% slippage
 
           const wethToken = IWETH__factory.connect(paymentInfo.token, owner.wallet);
           await wethToken.deposit({ value: paymentInfo.limitAmt });
@@ -306,14 +305,13 @@ if (process.env.INTEGRATIONTEST) {
         });
 
         it("Can issue set token from USDC", async () => {
+          const usdcEstimate = await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataUsdcToWeth);
           const paymentInfo: PaymentInfo = {
             token: addresses.tokens.USDC,
-            limitAmt: ether(0),
+            limitAmt: usdcEstimate.mul(1005).div(1000), // 0.5% slippage
             swapDataTokenToWeth: swapDataUsdcToWeth,
             swapDataWethToToken: swapDataWethToUsdc,
           };
-          const usdcEstimate = await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataUsdcToWeth);
-          paymentInfo.limitAmt = usdcEstimate.mul(1005).div(1000); // 0.5% slippage
 
           const usdcToken = IERC20__factory.connect(paymentInfo.token, owner.wallet);
           const whaleSigner = await impersonateAccount(addresses.whales.USDC);
@@ -363,14 +361,13 @@ if (process.env.INTEGRATIONTEST) {
           });
 
           it("Can redeem legacy set token for WETH", async () => {
+            const wethReceivedEstimate = await flashMintDex.callStatic.getRedeemExactSet(redeemParams, swapDataEmpty);
             const paymentInfo: PaymentInfo = {
               token: addresses.tokens.weth,
-              limitAmt: ether(0),
+              limitAmt: wethReceivedEstimate.mul(995).div(1000), // 0.5% slippage
               swapDataTokenToWeth: swapDataEmpty,
               swapDataWethToToken: swapDataEmpty,
             };
-            const wethReceivedEstimate = await flashMintDex.callStatic.getRedeemExactSet(redeemParams, swapDataEmpty);
-            paymentInfo.limitAmt = wethReceivedEstimate.mul(995).div(1000); // 0.5% slippage
             const wethToken = IWETH__factory.connect(paymentInfo.token, owner.wallet);
             const outputTokenBalanceBefore = await wethToken.balanceOf(owner.address);
             const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
@@ -382,14 +379,13 @@ if (process.env.INTEGRATIONTEST) {
           });
 
           it("Can redeem set token for USDC", async () => {
+            const usdcReceivedEstimate = await flashMintDex.callStatic.getRedeemExactSet(redeemParams, swapDataWethToUsdc);
             const paymentInfo: PaymentInfo = {
               token: addresses.tokens.USDC,
-              limitAmt: ether(0),
+              limitAmt: usdcReceivedEstimate.mul(995).div(1000), // 0.5% slippage
               swapDataTokenToWeth: swapDataUsdcToWeth,
               swapDataWethToToken: swapDataWethToUsdc,
             };
-            const usdcReceivedEstimate = await flashMintDex.callStatic.getRedeemExactSet(redeemParams, swapDataWethToUsdc);
-            paymentInfo.limitAmt = usdcReceivedEstimate.mul(995).div(1000); // 0.5% slippage
             const usdcToken = IERC20__factory.connect(paymentInfo.token, owner.wallet);
             const outputTokenBalanceBefore = await usdcToken.balanceOf(owner.address);
             const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
@@ -548,14 +544,14 @@ if (process.env.INTEGRATIONTEST) {
         });
 
         it("Can issue set token from WETH", async () => {
+          const wethRequiredEstimate = await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataEmpty);
           const paymentInfo: PaymentInfo = {
             token: addresses.tokens.weth,
-            limitAmt: ether(0),
+            limitAmt: wethRequiredEstimate.mul(1005).div(1000), // 0.5% slippage,
             swapDataTokenToWeth: swapDataEmpty,
             swapDataWethToToken: swapDataEmpty,
           };
-          const wethRequiredEstimate = await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataEmpty);
-          paymentInfo.limitAmt = wethRequiredEstimate.mul(1005).div(1000); // 0.5% slippage
+
           const wethToken = IWETH__factory.connect(paymentInfo.token, owner.wallet);
           await wethToken.deposit({ value: paymentInfo.limitAmt });
           wethToken.approve(flashMintDex.address, paymentInfo.limitAmt);
@@ -570,14 +566,13 @@ if (process.env.INTEGRATIONTEST) {
         });
 
         it("Can issue set token from USDC", async () => {
+          const usdcRequiredEstimate = await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataUsdcToWeth);
           const paymentInfo: PaymentInfo = {
             token: addresses.tokens.USDC,
-            limitAmt: ether(0),
+            limitAmt: usdcRequiredEstimate.mul(1005).div(1000), // 0.5% slippage
             swapDataTokenToWeth: swapDataUsdcToWeth,
             swapDataWethToToken: swapDataWethToUsdc,
           };
-          const usdcRequiredEstimate = await flashMintDex.callStatic.getIssueExactSet(issueParams, swapDataUsdcToWeth);
-          paymentInfo.limitAmt = usdcRequiredEstimate.mul(1005).div(1000); // 0.5% slippage
 
           const usdcToken = IERC20__factory.connect(paymentInfo.token, owner.wallet);
           const whaleSigner = await impersonateAccount(addresses.whales.USDC);
@@ -627,14 +622,14 @@ if (process.env.INTEGRATIONTEST) {
           });
 
           it("Can redeem set token for WETH", async () => {
+            const wethReceivedEstimate = await flashMintDex.callStatic.getRedeemExactSet(redeemParams, swapDataEmpty);
             const paymentInfo: PaymentInfo = {
               token: addresses.tokens.weth,
-              limitAmt: ether(0),
+              limitAmt:  wethReceivedEstimate.mul(995).div(1000), // 0.5% slippage
               swapDataTokenToWeth: swapDataEmpty,
               swapDataWethToToken: swapDataEmpty,
             };
-            const wethReceivedEstimate = await flashMintDex.callStatic.getRedeemExactSet(redeemParams, swapDataEmpty);
-            paymentInfo.limitAmt = wethReceivedEstimate.mul(995).div(1000); // 0.5% slippage
+
             const wethToken = IWETH__factory.connect(paymentInfo.token, owner.wallet);
             const outputTokenBalanceBefore = await wethToken.balanceOf(owner.address);
             const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
@@ -646,14 +641,14 @@ if (process.env.INTEGRATIONTEST) {
           });
 
           it("Can redeem set token for USDC", async () => {
+            const usdcReceivedEstimate = await flashMintDex.callStatic.getRedeemExactSet(redeemParams, swapDataWethToUsdc);
             const paymentInfo: PaymentInfo = {
               token: addresses.tokens.USDC,
-              limitAmt: ether(0),
+              limitAmt: usdcReceivedEstimate.mul(995).div(1000), // 0.5% slippage
               swapDataTokenToWeth: swapDataUsdcToWeth,
               swapDataWethToToken: swapDataWethToUsdc,
             };
-            const usdcReceivedEstimate = await flashMintDex.callStatic.getRedeemExactSet(redeemParams, swapDataWethToUsdc);
-            paymentInfo.limitAmt = usdcReceivedEstimate.mul(995).div(1000); // 0.5% slippage
+
             const usdcToken = IERC20__factory.connect(paymentInfo.token, owner.wallet);
             const outputTokenBalanceBefore = await usdcToken.balanceOf(owner.address);
             const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
