@@ -446,20 +446,18 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      * @return totalWethSpent        Total amount of WETH spent to buy components
      */
     function _buyComponentsWithWeth(IssueRedeemParams memory _issueParams) internal returns (uint256 totalWethSpent) {
-        (
-            address[] memory components, 
-            uint256[] memory componentUnits,
-            uint256[] memory wethCosts
-        ) = _getWethCostsPerComponent(_issueParams);
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(
+            _issueParams.issuanceModule,
+            _issueParams.isDebtIssuance,
+            _issueParams.setToken,
+            _issueParams.amountSetToken
+        );
+        require(components.length == _issueParams.componentSwapData.length, "FlashMint: INVALID NUMBER OF COMPONENTS IN SWAP DATA");
 
         totalWethSpent = 0;
-        for (uint256 i = 0; i < wethCosts.length; i++) {
-            if (components[i] == address(WETH)) {
-                totalWethSpent = totalWethSpent.add(wethCosts[i]);
-            } else {
-                uint256 wethSoldForComponent = dexAdapter.swapTokensForExactTokens(componentUnits[i], wethCosts[i], _issueParams.componentSwapData[i]);
-                totalWethSpent = totalWethSpent.add(wethSoldForComponent);
-            }
+        for (uint256 i = 0; i < components.length; i++) {
+            uint256 wethSold = dexAdapter.swapTokensForExactTokens(componentUnits[i], type(uint256).max, _issueParams.componentSwapData[i]);
+            totalWethSpent = totalWethSpent.add(wethSold);
         }
     }
 
@@ -514,26 +512,24 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      *
      * @param _redeemParams     Struct containing addresses, amounts, and swap data for issuance
      *
-     * @return totalWethBought  Total amount of WETH received after liquidating all SetToken components
+     * @return totalWethReceived  Total amount of WETH received after liquidating all SetToken components
      */
     function _sellComponentsForWeth(IssueRedeemParams memory _redeemParams)
         internal
-        returns (uint256 totalWethBought)
+        returns (uint256 totalWethReceived)
     {
-        (
-            address[] memory components, 
-            uint256[] memory componentUnits,
-            uint256[] memory wethReceived
-        ) = _getWethReceivedPerComponent(_redeemParams);
+        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(
+            _redeemParams.issuanceModule,
+            _redeemParams.isDebtIssuance,
+            _redeemParams.setToken,
+            _redeemParams.amountSetToken
+        );
+        require(components.length == _redeemParams.componentSwapData.length, "FlashMint: INVALID NUMBER OF COMPONENTS IN SWAP DATA");
 
-        totalWethBought = 0;
-        for (uint256 i = 0; i < wethReceived.length; i++) {
-            if (components[i] == address(WETH)) {
-                totalWethBought = totalWethBought.add(wethReceived[i]);
-            } else {
-                uint256 wethSpent = dexAdapter.swapExactTokensForTokens(componentUnits[i], wethReceived[i], _redeemParams.componentSwapData[i]);
-                totalWethBought = totalWethBought.add(wethSpent);
-            }
+        totalWethReceived = 0;
+        for (uint256 i = 0; i < components.length; i++) {
+            uint256 wethBought = dexAdapter.swapExactTokensForTokens(componentUnits[i], 0, _redeemParams.componentSwapData[i]);
+            totalWethReceived = totalWethReceived.add(wethBought);
         }
     }
 
