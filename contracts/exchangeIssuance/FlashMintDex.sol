@@ -259,8 +259,6 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
 
         uint256 ethUsedForIssuance = _issueExactSetFromWeth(_issueParams);
 
-        require(ethUsedForIssuance <= msg.value, "FlashMint: OVERSPENT ETH");
-
         uint256 ethReturned = msg.value.sub(ethUsedForIssuance);
         if (ethReturned > 0) {
             IWETH(WETH).withdraw(ethReturned);
@@ -456,6 +454,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
 
         totalWethSpent = 0;
         for (uint256 i = 0; i < components.length; i++) {
+            require(_issueParams.setToken.getExternalPositionModules(components[i]).length == 0, "FlashMint: EXTERNAL POSITION MODULES NOT SUPPORTED");
             uint256 wethSold = dexAdapter.swapTokensForExactTokens(componentUnits[i], type(uint256).max, _issueParams.componentSwapData[i]);
             totalWethSpent = totalWethSpent.add(wethSold);
         }
@@ -527,6 +526,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
 
         totalWethReceived = 0;
         for (uint256 i = 0; i < components.length; i++) {
+            require(_redeemParams.setToken.getExternalPositionModules(components[i]).length == 0, "FlashMint: EXTERNAL POSITION MODULES NOT SUPPORTED");
             uint256 wethBought = dexAdapter.swapExactTokensForTokens(componentUnits[i], 0, _redeemParams.componentSwapData[i]);
             totalWethReceived = totalWethReceived.add(wethBought);
         }

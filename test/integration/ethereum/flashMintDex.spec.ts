@@ -712,6 +712,13 @@ if (process.env.INTEGRATIONTEST) {
             await expect(
               flashMintDex.issueExactSetFromERC20(issueParams, paymentInfoNotEnoughUsdc),
             ).to.be.revertedWith("STF");
+
+            const wethToken = IWETH__factory.connect(addresses.tokens.weth, owner.wallet);
+            await wethToken.deposit({ value: ether(100) });
+            await wethToken.transfer(flashMintDex.address, ether(100));
+            await expect(
+              flashMintDex.issueExactSetFromERC20(issueParams, paymentInfoNotEnoughUsdc),
+            ).to.be.revertedWith("FlashMint: OVERSPENT WETH");
           });
 
           it("should revert when minimum ETH is not received during redemption", async () => {
