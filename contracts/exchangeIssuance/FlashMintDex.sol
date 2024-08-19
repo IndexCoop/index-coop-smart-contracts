@@ -34,6 +34,10 @@ import { DEXAdapterV2 } from "./DEXAdapterV2.sol";
 
 /**
  * @title FlashMintDex
+ * @author Index Cooperative
+ * @notice Part of a family of contracts that allows users to issue and redeem SetTokens with a single input/output token (ETH/ERC20).
+ * This contract supports SetTokens whose components have liquidity against WETH on the exchanges found in the DEXAdapterV2 library.
+ * The FlashMint SDK (https://github.com/IndexCoop/flash-mint-sdk) provides a unified interface for this and other FlashMint contracts.
  */
 contract FlashMintDex is Ownable, ReentrancyGuard {
     using DEXAdapterV2 for DEXAdapterV2.Addresses;
