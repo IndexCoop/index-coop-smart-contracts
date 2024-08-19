@@ -127,3 +127,9 @@ export interface AirdropSettings {
   airdropFee: BigNumber;
   anyoneAbsorb: boolean;
 }
+
+export interface WrapExecutionParams {
+  targetUnit: BigNumber;
+  wrapAdapterName: string;
+  wrapAdapterConfigData: Bytes;
+}
