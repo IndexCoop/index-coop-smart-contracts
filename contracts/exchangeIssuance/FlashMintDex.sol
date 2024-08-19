@@ -199,7 +199,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      * @param _issueParams                Struct containing addresses, amounts, and swap data for issuance
      * @param _swapDataInputTokenToWeth   Swap data to trade input token for WETH. Use empty swap data if input token is ETH or WETH.
      *
-     * @return totalEthNeeded  Amount of input tokens required to perfrom the issuance
+     * @return                            Amount of input tokens required to perform the issuance
      */
     function getIssueExactSet(
         IssueRedeemParams memory _issueParams,
@@ -208,13 +208,8 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         external
         returns (uint256)
     {
-        uint256 totalEthNeeded = 0;
-        (,, uint256[] memory wethCosts) = _getWethCostsPerComponent(_issueParams);
-
-        for (uint256 i = 0; i < wethCosts.length; i++) {
-            totalEthNeeded += wethCosts[i];
-        }
-        return dexAdapter.getAmountIn(_swapDataInputTokenToWeth, totalEthNeeded);
+        uint256 totalWethNeeded = _getWethCostsForIssue(_issueParams);
+        return dexAdapter.getAmountIn(_swapDataInputTokenToWeth, totalWethNeeded);
     }
 
     /**
@@ -226,7 +221,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      * @param _redeemParams                Struct containing addresses, amounts, and swap data for redemption
      * @param _swapDataWethToOutputToken   Swap data to trade WETH for output token. Use empty swap data if output token is ETH or WETH. 
      *
-     * @return                             the amount of output tokens expected after performing redemption
+     * @return                             Amount of output tokens expected after performing redemption
      */
     function getRedeemExactSet(
         IssueRedeemParams memory _redeemParams,
@@ -235,12 +230,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         external
         returns (uint256)
     {
-        uint256 totalWethReceived = 0;
-        (,, uint256[] memory wethReceived) = _getWethReceivedPerComponent(_redeemParams);
-
-        for (uint256 i = 0; i < wethReceived.length; i++) {
-            totalWethReceived += wethReceived[i];
-        }
+        uint256 totalWethReceived = _getWethReceivedForRedeem(_redeemParams);
         return dexAdapter.getAmountOut(_swapDataWethToOutputToken, totalWethReceived);
     }
 
@@ -468,15 +458,15 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     }
 
     /**
-     * Calculates the amount of WETH required to buy the components required for issuance.
+     * Calculates the amount of WETH required to buy all components required for issuance.
      *
-     * @param _issueParams  Struct containing addresses, amounts, and swap data for issuance
+     * @param _issueParams     Struct containing addresses, amounts, and swap data for issuance
      *
-     * @return              Tuple of component addresses, units required for issuance, and WETH costs
+     * @return totalWethCosts  Amount of WETH needed to swap into component units required for issuance
      */
-    function _getWethCostsPerComponent(IssueRedeemParams memory _issueParams)
+    function _getWethCostsForIssue(IssueRedeemParams memory _issueParams)
         internal
-        returns (address[] memory, uint256[] memory, uint256[] memory)
+        returns (uint256 totalWethCosts)
     {
         (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(
             _issueParams.issuanceModule,
@@ -487,18 +477,17 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
 
         require(components.length == _issueParams.componentSwapData.length, "FlashMint: INVALID NUMBER OF COMPONENTS IN SWAP DATA");
 
-        uint256[] memory wethCosts = new uint256[](components.length);
+        totalWethCosts = 0;
         for (uint256 i = 0; i < components.length; i++) {
             if (components[i] == address(WETH)) {
-                wethCosts[i] = componentUnits[i];
+                totalWethCosts += componentUnits[i];
             } else {
-                wethCosts[i] = dexAdapter.getAmountIn(
+                totalWethCosts += dexAdapter.getAmountIn(
                     _issueParams.componentSwapData[i],
                     componentUnits[i]
                 );
             }
         }
-        return (components, componentUnits, wethCosts);
     }
 
     /**
@@ -540,15 +529,15 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     }
 
     /**
-     * Calculates the amount of WETH received for selling off each component after redemption.
+     * Calculates the amount of WETH received for selling off all components after redemption.
      *
-     * @param _redeemParams     Struct containing addresses, amounts, and swap data for redemption
+     * @param _redeemParams       Struct containing addresses, amounts, and swap data for redemption
      *
-     * @return totalWethBought  Tuple of component addresses, units to sell, and WETH received
+     * @return totalWethReceived  Amount of WETH received after swapping all component tokens
      */
-    function _getWethReceivedPerComponent(IssueRedeemParams memory _redeemParams)
+    function _getWethReceivedForRedeem(IssueRedeemParams memory _redeemParams)
         internal
-        returns (address[] memory, uint256[] memory, uint256[] memory)
+        returns (uint256 totalWethReceived)
     {
         (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(
             _redeemParams.issuanceModule,
@@ -559,18 +548,17 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
 
         require(components.length == _redeemParams.componentSwapData.length, "FlashMint: INVALID NUMBER OF COMPONENTS IN SWAP DATA");
 
-        uint256[] memory wethReceived = new uint256[](components.length);
+        totalWethReceived = 0;
         for (uint256 i = 0; i < components.length; i++) {
             if (components[i] == address(WETH)) {
-                wethReceived[i] = componentUnits[i];
+                totalWethReceived += componentUnits[i];
             } else {
-                wethReceived[i] = dexAdapter.getAmountOut(
+                totalWethReceived += dexAdapter.getAmountOut(
                     _redeemParams.componentSwapData[i],
                     componentUnits[i]
                 );
             }
         }
-        return (components, componentUnits, wethReceived);
     }
 
     /**
