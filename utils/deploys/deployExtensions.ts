@@ -492,11 +492,10 @@ export default class DeployExtensions {
     uniswapV3QuoterAddress: Address,
     curveCalculatorAddress: Address,
     curveAddressProviderAddress: Address,
+    dexAdapterV2Address: Address,
     setControllerAddress: Address,
     indexControllerAddress: Address,
   ) {
-    const dexAdapter = await this.deployDEXAdapterV2();
-
     const linkId = convertLibraryNameToLinkId(
       "contracts/exchangeIssuance/DEXAdapterV2.sol:DEXAdapterV2",
     );
@@ -504,12 +503,11 @@ export default class DeployExtensions {
     return await new FlashMintDex__factory(
       // @ts-ignore
       {
-        [linkId]: dexAdapter.address,
+        [linkId]: dexAdapterV2Address,
       },
       // @ts-ignore
       this._deployerSigner,
     ).deploy(
-      wethAddress,
       setControllerAddress,
       indexControllerAddress,
       {

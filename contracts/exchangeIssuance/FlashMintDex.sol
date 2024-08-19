@@ -105,8 +105,14 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
          _;
     }
 
+    /**
+     * Initializes the contract with controller and DEXAdapterV2 library addresses.
+     *
+     * @param _setController    Address of the legacy Set Protocol controller contract
+     * @param _indexController  Address of the Index Coop controller contract
+     * @param _dexAddresses     Struct containing addresses for the DEXAdapterV2 library
+     */
     constructor(
-        address _weth,
         IController _setController,
         IController _indexController,
         DEXAdapterV2.Addresses memory _dexAddresses
@@ -116,7 +122,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         setController = _setController;
         indexController = _indexController;
         dexAdapter = _dexAddresses;
-        WETH = _weth;
+        WETH = _dexAddresses.weth;
     }
 
     /* ============ External Functions ============ */

@@ -84,6 +84,7 @@ export const PRODUCTION_ADDRESSES = {
         eEth1226: "0x7d372819240D14fB477f17b964f95F33BeB4c704",
       },
     },
+    dexAdapterV2: "0x88858930B3F1946A5C41a5deD7B5335431d5dE8D",
   },
   set: {
     controller: "0xa4c8d221d8BB851f83aadd0223a8900A6921A349",

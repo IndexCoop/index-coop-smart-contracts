@@ -126,6 +126,7 @@ if (process.env.INTEGRATIONTEST) {
           addresses.dexes.uniV3.quoter,
           addresses.dexes.curve.calculator,
           addresses.dexes.curve.addressProvider,
+          addresses.dexes.dexAdapterV2,
           addresses.set.controller,
           addresses.setFork.controller,
         );
