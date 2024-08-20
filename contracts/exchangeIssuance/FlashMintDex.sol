@@ -240,13 +240,15 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
 
     /**
     * Issues an exact amount of SetTokens for given amount of ETH.
-    * Any leftover ether is returned to the caller.
+    * Leftover ETH is returned to the caller if the amount is above _minEthRefund,
+    * otherwise it is kept by the contract in the form of WETH to save gas.
     *
-    * @param _issueParams           Struct containing addresses, amounts, and swap data for issuance
+    * @param _issueParams   Struct containing addresses, amounts, and swap data for issuance
+    * @param _minEthRefund  Minimum amount of unused ETH to be returned to the caller. Set to 0 to return any leftover amount.
     *
-    * @return ethSpent              Amount of ETH spent
+    * @return ethSpent      Amount of ETH spent
     */
-    function issueExactSetFromETH(IssueRedeemParams memory _issueParams)
+    function issueExactSetFromETH(IssueRedeemParams memory _issueParams, uint256 _minEthRefund)
         external
         payable
         isValidModuleAndSet(_issueParams.issuanceModule, address(_issueParams.setToken))
@@ -259,26 +261,28 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
 
         uint256 ethUsedForIssuance = _issueExactSetFromWeth(_issueParams);
 
-        uint256 ethReturned = msg.value.sub(ethUsedForIssuance);
-        if (ethReturned > 0) {
-            IWETH(WETH).withdraw(ethReturned);
-            payable(msg.sender).sendValue(ethReturned);
+        uint256 leftoverETH = msg.value.sub(ethUsedForIssuance);
+        if (leftoverETH > _minEthRefund) {
+            IWETH(WETH).withdraw(leftoverETH);
+            payable(msg.sender).sendValue(leftoverETH);
         }
-        ethSpent = msg.value.sub(ethReturned);
+        ethSpent = msg.value.sub(leftoverETH);
 
         emit FlashMint(msg.sender, _issueParams.setToken, IERC20(ETH_ADDRESS), ethSpent, _issueParams.amountSetToken);
     }
 
     /**
     * Issues an exact amount of SetTokens for given amount of input ERC20 tokens.
-    * Any leftover value is swapped back to the payment token and returned to the caller.
+    * Leftover funds are swapped back to the payment token and returned to the caller if the value is above _minRefundValueInWeth,
+    * otherwise the leftover funds are kept by the contract in the form of WETH to save gas.
     *
     * @param _issueParams           Struct containing addresses, amounts, and swap data for issuance
     * @param _paymentInfo           Struct containing input token address, max amount to spend, and swap data to trade for WETH
+    * @param _minRefundValueInWeth  Minimum value of leftover WETH to be swapped back to input token and returned to the caller. Set to 0 to return any leftover amount.
     *
     * @return paymentTokenSpent     Amount of input token spent
     */
-    function issueExactSetFromERC20(IssueRedeemParams memory _issueParams, PaymentInfo memory _paymentInfo)
+    function issueExactSetFromERC20(IssueRedeemParams memory _issueParams, PaymentInfo memory _paymentInfo, uint256 _minRefundValueInWeth)
         external
         isValidModuleAndSet(_issueParams.issuanceModule, address(_issueParams.setToken))
         nonReentrant
@@ -292,7 +296,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
         uint256 leftoverWeth = wethReceived.sub(wethSpent);
         uint256 paymentTokenReturned = 0;
 
-        if (leftoverWeth > 0) {
+        if (leftoverWeth > _minRefundValueInWeth) {
             paymentTokenReturned = _swapWethForPaymentToken(leftoverWeth, _paymentInfo.token, _paymentInfo.swapDataWethToToken);
             _paymentInfo.token.safeTransfer(msg.sender, paymentTokenReturned);
         }
