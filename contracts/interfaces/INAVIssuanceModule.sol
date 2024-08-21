@@ -37,4 +37,20 @@ interface INAVIssuanceModule {
         address _to
     ) 
         external;
+
+    function navIssuanceSettings(address)
+        external
+        view
+        returns (
+            address managerIssuanceHook,
+            address managerRedemptionHook,
+            address setValuer,
+            address feeRecipient,
+            uint256 maxManagerFee,
+            uint256 premiumPercentage,
+            uint256 maxPremiumPercentage,
+            uint256 minSetTokenSupply
+        );
+
+    function getReserveAssets(address _setToken) external view returns (address[] memory);
 }

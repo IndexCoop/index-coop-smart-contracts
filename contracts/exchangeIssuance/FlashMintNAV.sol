@@ -18,6 +18,7 @@ pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
@@ -25,6 +26,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import { INAVIssuanceModule } from "../interfaces/INAVIssuanceModule.sol";
+import { INAVIssuanceHook } from "../interfaces/INAVIssuanceHook.sol";
 import { ISetValuer } from "../interfaces/ISetValuer.sol";
 import { IController } from "../interfaces/IController.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
@@ -54,8 +56,9 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
 
     /* ============ State Variables ============ */
 
-    // address public immutable WETH;
+    address public immutable WETH;
     IController public immutable setController;
+    INAVIssuanceModule public immutable navIssuanceModule;
     DEXAdapterV2.Addresses public dexAdapter;
 
     /* ============ Structs ============ */
@@ -87,25 +90,25 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
 
     /* ============ Modifiers ============ */
 
-    modifier isValidPath(
-        address[] memory _path,
-        address _inputToken,
-        address _outputToken
-    )
-    {
-        if(_inputToken != _outputToken){
-            require(
-                _path[0] == _inputToken || (_inputToken == addresses.weth && _path[0] == DEXAdapterV2.ETH_ADDRESS),
-                "ExchangeIssuance: INPUT_TOKEN_NOT_IN_PATH"
-            );
-            require(
-                _path[_path.length-1] == _outputToken ||
-                (_outputToken == addresses.weth && _path[_path.length-1] == DEXAdapterV2.ETH_ADDRESS),
-                "ExchangeIssuance: OUTPUT_TOKEN_NOT_IN_PATH"
-            );
-        }
-        _;
-    }
+    // modifier isValidPath(
+    //     address[] memory _path,
+    //     address _inputToken,
+    //     address _outputToken
+    // )
+    // {
+    //     if(_inputToken != _outputToken){
+    //         require(
+    //             _path[0] == _inputToken || (_inputToken == addresses.weth && _path[0] == DEXAdapterV2.ETH_ADDRESS),
+    //             "ExchangeIssuance: INPUT_TOKEN_NOT_IN_PATH"
+    //         );
+    //         require(
+    //             _path[_path.length-1] == _outputToken ||
+    //             (_outputToken == addresses.weth && _path[_path.length-1] == DEXAdapterV2.ETH_ADDRESS),
+    //             "ExchangeIssuance: OUTPUT_TOKEN_NOT_IN_PATH"
+    //         );
+    //     }
+    //     _;
+    // }
 
     /**
      * Initializes the contract with controller, issuance module, and DEXAdapterV2 library addresses.
@@ -122,7 +125,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         public
     {
         setController = _setController;
-        _navIssuanceModule = _navIssuanceModule;
+        navIssuanceModule = _navIssuanceModule;
         dexAdapter = _dexAddresses;
         WETH = _dexAddresses.weth;
     }
@@ -182,7 +185,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
      *
      * @param _setToken          Address of the SetToken being initialized
      */
-    function approveSetToken(ISetToken _setToken) external {
+    function approveSetToken(address _setToken) external {
         address[] memory reserveAssets = navIssuanceModule.getReserveAssets(_setToken);
         for (uint256 i = 0; i < reserveAssets.length; i++) {
             approveReserveAsset(IERC20(reserveAssets[i]));
@@ -199,16 +202,16 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
      *
      * @return                        Amount of input tokens required to perform the issuance
      */
-    function getIssueExactSet(
-        IssueRedeemParams memory _issueParams,
-        DEXAdapterV2.SwapData memory _reserveAssetSwapData
-    )
-        external
-        returns (uint256)
-    {
-        uint256 totalWethNeeded = _getWethCostsForIssue(_issueParams);
-        return dexAdapter.getAmountIn(_swapDataInputTokenToWeth, totalWethNeeded);
-    }
+    // function getIssueExactSet(
+    //     IssueRedeemParams memory _issueParams,
+    //     DEXAdapterV2.SwapData memory _reserveAssetSwapData
+    // )
+    //     external
+    //     returns (uint256)
+    // {
+    //     uint256 totalWethNeeded = _getWethCostsForIssue(_issueParams);
+    //     return dexAdapter.getAmountIn(_swapDataInputTokenToWeth, totalWethNeeded);
+    // }
 
     /**
      * Gets the amount of specified payment token expected to be received after redeeming 
@@ -221,16 +224,16 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
      *
      * @return                       Amount of output tokens expected after performing redemption
      */
-    function getRedeemExactSet(
-        IssueRedeemParams memory _redeemParams,
-        DEXAdapterV2.SwapData memory _reserveAssetSwapData
-    )
-        external
-        returns (uint256)
-    {
-        uint256 reserveAssetReceived = _getReserveAssetReceivedForRedeem(_redeemParams);
-        return dexAdapter.getAmountOut(_reserveAssetSwapData, reserveAssetReceived);
-    }
+    // function getRedeemExactSet(
+    //     IssueRedeemParams memory _redeemParams,
+    //     DEXAdapterV2.SwapData memory _reserveAssetSwapData
+    // )
+    //     external
+    //     returns (uint256)
+    // {
+    //     uint256 reserveAssetReceived = _getReserveAssetReceivedForRedeem(_redeemParams);
+    //     return dexAdapter.getAmountOut(_reserveAssetSwapData, reserveAssetReceived);
+    // }
 
     /**
     * Issues an exact amount of SetTokens for given amount of ETH.
@@ -254,22 +257,22 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         require(msg.value > 0, "FlashMint: NO ETH SENT");
 
         //TODO calculate amount of WETH needed to issue set token
-        uint256 wethNeeded = _getInputTokenAmountForIssue(_setToken, _amountSetToken);
+        uint256 wethNeeded = _getInputTokenAmountForIssue(_setToken, _amountSetToken, _reserveAssetSwapData);
 
         IWETH(WETH).deposit{value: msg.value}();
 
         //TODO swap WETH to reserve asset using swapdata
 
-        uint256 ethUsedForIssuance = _issueExactSetFromReserve(_issueParams);
+        uint256 ethUsedForIssuance = _issue(_setToken, WETH, wethNeeded, _amountSetToken);
 
-        uint256 leftoverETH = msg.value.sub(ethUsedForIssuance);
-        if (leftoverETH > _minEthRefund) {
-            IWETH(WETH).withdraw(leftoverETH);
-            payable(msg.sender).sendValue(leftoverETH);
-        }
-        ethSpent = msg.value.sub(leftoverETH);
+        // uint256 leftoverETH = msg.value.sub(ethUsedForIssuance);
+        // if (leftoverETH > _minEthRefund) {
+        //     IWETH(WETH).withdraw(leftoverETH);
+        //     payable(msg.sender).sendValue(leftoverETH);
+        // }
+        // ethSpent = msg.value.sub(leftoverETH);
 
-        emit FlashMint(msg.sender, _issueParams.setToken, IERC20(ETH_ADDRESS), ethSpent, _issueParams.amountSetToken);
+        // emit FlashMint(msg.sender, _issueParams.setToken, IERC20(ETH_ADDRESS), ethSpent, _issueParams.amountSetToken);
     }
 
     /**
@@ -278,34 +281,32 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     * otherwise the leftover funds are kept by the contract in the form of WETH to save gas.
     *
     * @param _issueParams           Struct containing addresses, amounts, and swap data for issuance
-    * @param _paymentInfo           Struct containing input token address, max amount to spend, and swap data to trade for WETH
     * @param _minRefundValueInWeth  Minimum value of leftover WETH to be swapped back to input token and returned to the caller. Set to 0 to return any leftover amount.
     *
     * @return paymentTokenSpent     Amount of input token spent
     */
-    function issueExactSetFromERC20(IssueRedeemParams memory _issueParams, PaymentInfo memory _paymentInfo, uint256 _minRefundValueInWeth)
-        external
-        isValidModuleAndSet(_issueParams.issuanceModule, address(_issueParams.setToken))
-        nonReentrant
-        returns (uint256 paymentTokenSpent)
-    {
-        _paymentInfo.token.safeTransferFrom(msg.sender, address(this), _paymentInfo.limitAmt);
-        uint256 wethReceived = _swapPaymentTokenForWeth(_paymentInfo.token, _paymentInfo.limitAmt, _paymentInfo.swapDataTokenToWeth);
+    // function issueExactSetFromERC20(IssueRedeemParams memory _issueParams, uint256 _minRefundValueInWeth)
+    //     external
+    //     nonReentrant
+    //     returns (uint256 paymentTokenSpent)
+    // {
+    //     _paymentInfo.token.safeTransferFrom(msg.sender, address(this), _paymentInfo.limitAmt);
+    //     uint256 wethReceived = _swapPaymentTokenForWeth(_paymentInfo.token, _paymentInfo.limitAmt, _paymentInfo.swapDataTokenToWeth);
 
-        uint256 wethSpent = _issueExactSetFromWeth(_issueParams);
-        require(wethSpent <= wethReceived, "FlashMint: OVERSPENT WETH");
-        uint256 leftoverWeth = wethReceived.sub(wethSpent);
-        uint256 paymentTokenReturned = 0;
+    //     uint256 wethSpent = _issueExactSetFromWeth(_issueParams);
+    //     require(wethSpent <= wethReceived, "FlashMint: OVERSPENT WETH");
+    //     uint256 leftoverWeth = wethReceived.sub(wethSpent);
+    //     uint256 paymentTokenReturned = 0;
 
-        if (leftoverWeth > _minRefundValueInWeth) {
-            paymentTokenReturned = _swapWethForPaymentToken(leftoverWeth, _paymentInfo.token, _paymentInfo.swapDataWethToToken);
-            _paymentInfo.token.safeTransfer(msg.sender, paymentTokenReturned);
-        }
+    //     if (leftoverWeth > _minRefundValueInWeth) {
+    //         paymentTokenReturned = _swapWethForPaymentToken(leftoverWeth, _paymentInfo.token, _paymentInfo.swapDataWethToToken);
+    //         _paymentInfo.token.safeTransfer(msg.sender, paymentTokenReturned);
+    //     }
 
-        paymentTokenSpent = _paymentInfo.limitAmt.sub(paymentTokenReturned);
+    //     paymentTokenSpent = _paymentInfo.limitAmt.sub(paymentTokenReturned);
 
-        emit FlashMint(msg.sender, _issueParams.setToken, _paymentInfo.token, paymentTokenSpent, _issueParams.amountSetToken);
-    }
+    //     emit FlashMint(msg.sender, _issueParams.setToken, _paymentInfo.token, paymentTokenSpent, _issueParams.amountSetToken);
+    // }
 
     /**
      * Redeems an exact amount of SetTokens for ETH.
@@ -315,23 +316,22 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
      *
      * @return ethReceived      Amount of ETH received
      */
-    function redeemExactSetForETH(IssueRedeemParams memory _redeemParams, uint256 _minEthReceive)
-        external
-        isValidModuleAndSet(_redeemParams.issuanceModule, address(_redeemParams.setToken))
-        nonReentrant
-        returns (uint256 ethReceived)
-    {
-        _redeem(_redeemParams.setToken, _redeemParams.amountSetToken, _redeemParams.issuanceModule);
+    // function redeemExactSetForETH(IssueRedeemParams memory _redeemParams, uint256 _minEthReceive)
+    //     external
+    //     nonReentrant
+    //     returns (uint256 ethReceived)
+    // {
+    //     _redeem(_redeemParams.setToken, _redeemParams.amountSetToken, _redeemParams.issuanceModule);
 
-        ethReceived = _sellComponentsForWeth(_redeemParams);
-        require(ethReceived >= _minEthReceive, "FlashMint: INSUFFICIENT WETH RECEIVED");
+    //     ethReceived = _sellComponentsForWeth(_redeemParams);
+    //     require(ethReceived >= _minEthReceive, "FlashMint: INSUFFICIENT WETH RECEIVED");
 
-        IWETH(WETH).withdraw(ethReceived);
-        payable(msg.sender).sendValue(ethReceived);
+    //     IWETH(WETH).withdraw(ethReceived);
+    //     payable(msg.sender).sendValue(ethReceived);
 
-        emit FlashRedeem(msg.sender, _redeemParams.setToken, IERC20(ETH_ADDRESS), _redeemParams.amountSetToken, ethReceived);
-        return ethReceived;
-    }
+    //     emit FlashRedeem(msg.sender, _redeemParams.setToken, IERC20(ETH_ADDRESS), _redeemParams.amountSetToken, ethReceived);
+    //     return ethReceived;
+    // }
 
     /**
      * Redeems an exact amount of SetTokens for an ERC20 token.
@@ -341,22 +341,21 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
      *
      * @return outputTokenReceived      Amount of output token received
      */
-    function redeemExactSetForERC20(IssueRedeemParams memory _redeemParams, PaymentInfo memory _paymentInfo)
-        external
-        isValidModuleAndSet(_redeemParams.issuanceModule, address(_redeemParams.setToken))
-        nonReentrant
-        returns (uint256 outputTokenReceived)
-    {
-        _redeem(_redeemParams.setToken, _redeemParams.amountSetToken, _redeemParams.issuanceModule);
+    // function redeemExactSetForERC20(IssueRedeemParams memory _redeemParams)
+    //     external
+    //     nonReentrant
+    //     returns (uint256 outputTokenReceived)
+    // {
+    //     _redeem(_redeemParams.setToken, _redeemParams.amountSetToken, _redeemParams.issuanceModule);
 
-        uint256 wethReceived = _sellComponentsForWeth(_redeemParams);
-        outputTokenReceived = _swapWethForPaymentToken(wethReceived, _paymentInfo.token, _paymentInfo.swapDataWethToToken);
-        require(outputTokenReceived >= _paymentInfo.limitAmt, "FlashMint: INSUFFICIENT OUTPUT AMOUNT");
+    //     uint256 wethReceived = _sellComponentsForWeth(_redeemParams);
+    //     outputTokenReceived = _swapWethForPaymentToken(wethReceived, _paymentInfo.token, _paymentInfo.swapDataWethToToken);
+    //     require(outputTokenReceived >= _paymentInfo.limitAmt, "FlashMint: INSUFFICIENT OUTPUT AMOUNT");
 
-        _paymentInfo.token.safeTransfer(msg.sender, outputTokenReceived);
+    //     _paymentInfo.token.safeTransfer(msg.sender, outputTokenReceived);
 
-        emit FlashRedeem(msg.sender, _redeemParams.setToken, _paymentInfo.token, _redeemParams.amountSetToken, outputTokenReceived);
-    }
+    //     emit FlashRedeem(msg.sender, _redeemParams.setToken, _paymentInfo.token, _redeemParams.amountSetToken, outputTokenReceived);
+    // }
 
     /* ============ Internal Functions ============ */
 
@@ -403,31 +402,6 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     }
 
     /**
-     * Acquires SetToken components by executing swaps whose callata is passed in _componentSwapData.
-     * Acquired components are then used to issue the SetTokens.
-     *
-     * @param _issueParams          Struct containing addresses, amounts, and swap data for issuance
-     *
-     * @return totalWethSpent        Total amount of WETH spent to buy components
-     */
-    function _buyComponentsWithWeth(IssueRedeemParams memory _issueParams) internal returns (uint256 totalWethSpent) {
-        (address[] memory components, uint256[] memory componentUnits) = getRequiredIssuanceComponents(
-            _issueParams.issuanceModule,
-            _issueParams.isDebtIssuance,
-            _issueParams.setToken,
-            _issueParams.amountSetToken
-        );
-        require(components.length == _issueParams.componentSwapData.length, "FlashMint: INVALID NUMBER OF COMPONENTS IN SWAP DATA");
-
-        totalWethSpent = 0;
-        for (uint256 i = 0; i < components.length; i++) {
-            require(_issueParams.setToken.getExternalPositionModules(components[i]).length == 0, "FlashMint: EXTERNAL POSITION MODULES NOT SUPPORTED");
-            uint256 wethSold = dexAdapter.swapTokensForExactTokens(componentUnits[i], type(uint256).max, _issueParams.componentSwapData[i]);
-            totalWethSpent = totalWethSpent.add(wethSold);
-        }
-    }
-
-    /**
      * Calculates the amount of WETH required to buy all components required for issuance.
      *
      * @param _setToken     Address of the SetToken to be issued
@@ -436,17 +410,19 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
      *
      * @return              Amount of input token needed for issuance
      */
-    function _getInputTokenAmountForIssue(ISetToken _setToken, uint256 _amountSetToken, DEXAdapterV2.SwapData[] memory _reserveAssetSwapData)
+    function _getInputTokenAmountForIssue(ISetToken _setToken, uint256 _amountSetToken, DEXAdapterV2.SwapData memory _reserveAssetSwapData)
         internal
         returns (uint256)
     {
+        uint8 outIndex = uint8(_reserveAssetSwapData.path.length - 1);
+        address reserveAsset = _reserveAssetSwapData.path[outIndex];
 
         // Sync SetToken positions (in case of rebasing components, for example)
-        _callPreIssueHooks(_setToken, _reserveAsset, _reserveAssetQuantity, msg.sender, address(this));
+        _callPreIssueHooks(_setToken, reserveAsset, 0, msg.sender, address(this));
         // Get valuation of the SetToken with the quote asset as the reserve asset. Returns value in precise units (1e18)
-        uint256 setTokenValuation = _getSetValuer(_setToken).calculateSetTokenValuation(_setToken, _reserveAsset);
+        uint256 setTokenValuation = _getSetValuer(_setToken).calculateSetTokenValuation(_setToken, reserveAsset);
 
-        uint256 reserveAssetDecimals = IERC20(_reserveAsset).decimals();
+        uint256 reserveAssetDecimals = ERC20(reserveAsset).decimals();
         // TODO: Handle any issue premiums and fees
         uint256 reserveAssetNeeded = setTokenValuation.preciseMul(_amountSetToken).preciseDiv(10 ** reserveAssetDecimals);
 
@@ -460,117 +436,19 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
      * @param _setToken     Address of the SetToken to be redeemed
      * @param _amount       Amount of SetToken to be redeemed
      */
-    function _redeem(ISetToken _setToken, uint256 _amount, address _issuanceModule) internal returns (uint256) {
-        _setToken.safeTransferFrom(msg.sender, address(this), _amount);
-        IBasicIssuanceModule(_issuanceModule).redeem(_setToken, _amount, address(this));
-    }
-
-    /**
-     * Sells redeemed components for WETH.
-     *
-     * @param _redeemParams     Struct containing addresses, amounts, and swap data for issuance
-     *
-     * @return totalWethReceived  Total amount of WETH received after liquidating all SetToken components
-     */
-    function _sellComponentsForWeth(IssueRedeemParams memory _redeemParams)
-        internal
-        returns (uint256 totalWethReceived)
-    {
-        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(
-            _redeemParams.issuanceModule,
-            _redeemParams.isDebtIssuance,
-            _redeemParams.setToken,
-            _redeemParams.amountSetToken
-        );
-        require(components.length == _redeemParams.componentSwapData.length, "FlashMint: INVALID NUMBER OF COMPONENTS IN SWAP DATA");
-
-        totalWethReceived = 0;
-        for (uint256 i = 0; i < components.length; i++) {
-            require(_redeemParams.setToken.getExternalPositionModules(components[i]).length == 0, "FlashMint: EXTERNAL POSITION MODULES NOT SUPPORTED");
-            uint256 wethBought = dexAdapter.swapExactTokensForTokens(componentUnits[i], 0, _redeemParams.componentSwapData[i]);
-            totalWethReceived = totalWethReceived.add(wethBought);
-        }
-    }
-
-    /**
-     * Calculates the amount of WETH received for selling off all components after redemption.
-     *
-     * @param _redeemParams       Struct containing addresses, amounts, and swap data for redemption
-     *
-     * @return totalWethReceived  Amount of WETH received after swapping all component tokens
-     */
-    function _getWethReceivedForRedeem(IssueRedeemParams memory _redeemParams)
-        internal
-        returns (uint256 totalWethReceived)
-    {
-        (address[] memory components, uint256[] memory componentUnits) = getRequiredRedemptionComponents(
-            _redeemParams.issuanceModule,
-            _redeemParams.isDebtIssuance,
-            _redeemParams.setToken,
-            _redeemParams.amountSetToken
-        );
-
-        require(components.length == _redeemParams.componentSwapData.length, "FlashMint: INVALID NUMBER OF COMPONENTS IN SWAP DATA");
-
-        totalWethReceived = 0;
-        for (uint256 i = 0; i < components.length; i++) {
-            if (components[i] == address(WETH)) {
-                totalWethReceived += componentUnits[i];
-            } else {
-                totalWethReceived += dexAdapter.getAmountOut(
-                    _redeemParams.componentSwapData[i],
-                    componentUnits[i]
-                );
-            }
-        }
-    }
-
-    /**
-     * Returns component positions required for issuance 
-     *
-     * @param _issuanceModule    Address of issuance Module to use 
-     * @param _isDebtIssuance    Flag indicating wether given issuance module is a debt issuance module
-     * @param _setToken          Set token to issue
-     * @param _amountSetToken    Amount of set token to issue
-     */
-    function getRequiredIssuanceComponents(address _issuanceModule, bool _isDebtIssuance, ISetToken _setToken, uint256 _amountSetToken) public view returns(address[] memory components, uint256[] memory positions) {
-        if(_isDebtIssuance) { 
-            (components, positions, ) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentIssuanceUnits(_setToken, _amountSetToken);
-        }
-        else {
-            (components, positions) = IBasicIssuanceModule(_issuanceModule).getRequiredComponentUnitsForIssue(_setToken, _amountSetToken);
-        }
-    }
-
-    /**
-     * Returns component positions required for Redemption 
-     *
-     * @param _issuanceModule    Address of issuance Module to use 
-     * @param _isDebtIssuance    Flag indicating wether given issuance module is a debt issuance module
-     * @param _setToken          Set token to issue
-     * @param _amountSetToken    Amount of set token to issue
-     */
-    function getRequiredRedemptionComponents(address _issuanceModule, bool _isDebtIssuance, ISetToken _setToken, uint256 _amountSetToken) public view returns(address[] memory components, uint256[] memory positions) {
-        if(_isDebtIssuance) { 
-            (components, positions, ) = IDebtIssuanceModule(_issuanceModule).getRequiredComponentRedemptionUnits(_setToken, _amountSetToken);
-        }
-        else {
-            components = _setToken.getComponents();
-            positions = new uint256[](components.length);
-            for(uint256 i = 0; i < components.length; i++) {
-                uint256 unit = uint256(_setToken.getDefaultPositionRealUnit(components[i]));
-                positions[i] = unit.preciseMul(_amountSetToken);
-            }
-        }
-    }
+    // function _redeem(ISetToken _setToken, uint256 _amount, address _issuanceModule) internal returns (uint256) {
+    //     _setToken.safeTransferFrom(msg.sender, address(this), _amount);
+    //     navIssuanceModule.redeem(_setToken, _amount, address(this));
+    // }
 
     /**
      * If a custom set valuer has been configured, use it. Otherwise fetch the default one form the
      * controller.
      */
     function _getSetValuer(ISetToken _setToken) internal view returns (ISetValuer) {
-        ISetValuer customValuer =  navIssuanceSettings[_setToken].setValuer;
-        return address(customValuer) == address(0) ? controller.getSetValuer() : customValuer;
+        (,,address customValuer,,,,,) = navIssuanceModule.navIssuanceSettings(address(_setToken));
+        // TODO: Check if custom valuer is not set and use default valuer?
+        return ISetValuer(customValuer);
     }
 
     /**
@@ -586,9 +464,10 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     )
         internal
     {
-        INAVIssuanceHook preIssueHook = navIssuanceSettings[_setToken].managerIssuanceHook;
+        (address preIssueHook,,,,,,,) = navIssuanceModule.navIssuanceSettings(address(_setToken));
+        // INAVIssuanceHook preIssueHook = navIssuanceModule.navIssuanceSettings(_setToken).managerIssuanceHook;
         if (address(preIssueHook) != address(0)) {
-            preIssueHook.invokePreIssueHook(_setToken, _reserveAsset, _reserveAssetQuantity, _caller, _to);
+            INAVIssuanceHook(preIssueHook).invokePreIssueHook(_setToken, _reserveAsset, _reserveAssetQuantity, _caller, _to);
         }
     }
 
@@ -596,9 +475,10 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
      * If a pre-redeem hook has been configured, call the external-protocol contract.
      */
     function _callPreRedeemHooks(ISetToken _setToken, uint256 _setQuantity, address _caller, address _to) internal {
-        INAVIssuanceHook preRedeemHook = navIssuanceSettings[_setToken].managerRedemptionHook;
+        (,address preRedeemHook,,,,,,) = navIssuanceModule.navIssuanceSettings(address(_setToken));
+        // INAVIssuanceHook preRedeemHook = navIssuanceModule.navIssuanceSettings(_setToken).managerRedemptionHook;
         if (address(preRedeemHook) != address(0)) {
-            preRedeemHook.invokePreRedeemHook(_setToken, _setQuantity, _caller, _to);
+            INAVIssuanceHook(preRedeemHook).invokePreRedeemHook(_setToken, _setQuantity, _caller, _to);
         }
     }
 }
