@@ -62,8 +62,8 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
 
     /* ============ Structs ============ */
     struct IssueRedeemParams {
-        ISetToken setToken;                         // The address of the SetToken to be issued
-        uint256 amountSetToken;                     // The amount of SetTokens to issue
+        ISetToken setToken;                         // The address of the SetToken to be issued/redeemed
+        uint256 amountSetToken;                     // The amount of SetTokens to issue/redeem
         DEXAdapterV2.SwapData[] componentSwapData;  // The swap data from WETH to each component token
         address issuanceModule;                     // The address of the issuance module to be used
         bool isDebtIssuance;                        // A flag indicating whether the issuance module is a debt issuance module
