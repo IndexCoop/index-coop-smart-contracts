@@ -5,10 +5,10 @@ import { SetFixture } from "@utils/fixtures";
 import { SetToken } from "@utils/contracts/setV2";
 import {
   BaseManagerV2,
-  TargetWrapExtension,
+  TargetWeightWrapExtension,
   WrapAdapterMock,
 } from "@utils/contracts/index";
-import { Account, Address, WrapExecutionParams } from "@utils/types";
+import { Account, Address, TargetWeightWrapParams } from "@utils/types";
 import {
   addSnapshotBeforeRestoreAfterEach,
   ether,
@@ -17,21 +17,22 @@ import {
   getRandomAccount,
   getWaffleExpect,
 } from "@utils/index";
-import { ADDRESS_ZERO, EMPTY_BYTES, MAX_UINT_256 } from "@utils/constants";
+import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { BigNumber, ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
 
-describe.only("TargetWrapExtension", async () => {
+describe("TargetWeightWrapExtension", async () => {
   let owner: Account;
   let operator: Account;
+  let setValuer: Account;
 
   let deployer: DeployHelper;
   let setV2Setup: SetFixture;
 
   let setToken: SetToken;
   let baseManager: BaseManagerV2;
-  let targetWrapExtension: TargetWrapExtension;
+  let targetWeightWrapExtension: TargetWeightWrapExtension;
 
   let wrapAdapter: WrapAdapterMock;
   let wrapAdapterName: string;
@@ -40,6 +41,7 @@ describe.only("TargetWrapExtension", async () => {
     [
       owner,
       operator,
+      setValuer,
     ] = await getAccounts();
 
     deployer = new DeployHelper(owner.wallet);
@@ -85,18 +87,21 @@ describe.only("TargetWrapExtension", async () => {
   describe("#constructor", async () => {
     let subjectManager: Address;
     let subjectWrapModule: Address;
+    let subjectSetValuer: Address;
     let subjectIsRebalancing: boolean;
 
     beforeEach(async () => {
       subjectManager = baseManager.address;
       subjectWrapModule = setV2Setup.wrapModule.address;
+      subjectSetValuer = setValuer.address;
       subjectIsRebalancing = false;
     });
 
-    async function subject(): Promise<TargetWrapExtension> {
-      return await deployer.extensions.deployTargetWrapExtension(
+    async function subject(): Promise<TargetWeightWrapExtension> {
+      return await deployer.extensions.deployTargetWeightWrapExtension(
         subjectManager,
         subjectWrapModule,
+        subjectSetValuer,
         subjectIsRebalancing
       );
     }
@@ -122,6 +127,13 @@ describe.only("TargetWrapExtension", async () => {
       expect(wrapModule).to.eq(subjectWrapModule);
     });
 
+    it("should set the correct set valuer address", async () => {
+      const wrapExtension = await subject();
+
+      const setValuer = await wrapExtension.setValuer();
+      expect(setValuer).to.eq(subjectSetValuer);
+    });
+
     it("should set the correct rebalancing status", async () => {
       const wrapExtension = await subject();
 
@@ -130,15 +142,16 @@ describe.only("TargetWrapExtension", async () => {
     });
   });
 
-  context("when target wrap extension is deployed and module needs to be initialized", async () => {
+  context("when target weight wrap extension is deployed and module needs to be initialized", async () => {
     beforeEach(async () => {
-      targetWrapExtension = await deployer.extensions.deployTargetWrapExtension(
+      targetWeightWrapExtension = await deployer.extensions.deployTargetWeightWrapExtension(
         baseManager.address,
         setV2Setup.wrapModule.address,
+        setValuer.address,
         true
       );
 
-      await baseManager.connect(operator.wallet).addExtension(targetWrapExtension.address);
+      await baseManager.connect(operator.wallet).addExtension(targetWeightWrapExtension.address);
 
       // Transfer ownership to BaseManager
       await setToken.setManager(baseManager.address);
@@ -152,7 +165,7 @@ describe.only("TargetWrapExtension", async () => {
       });
 
       async function subject(): Promise<ContractTransaction> {
-        return await targetWrapExtension.connect(subjectCaller.wallet).initialize();
+        return await targetWeightWrapExtension.connect(subjectCaller.wallet).initialize();
       }
 
       it("should initialize WrapModule", async () => {
@@ -175,60 +188,60 @@ describe.only("TargetWrapExtension", async () => {
 
     context("when target wrap extension is deployed and initialized", async () => {
       beforeEach(async () => {
-        await targetWrapExtension.connect(operator.wallet).initialize();
+        await targetWeightWrapExtension.connect(operator.wallet).initialize();
       });
 
-      describe("#setTargets", async () => {
-        let subjectQuoteAsset: Address;
-        let subjectPositionMultiplier: BigNumber;
-        let subjectQuoteAssetTargetUnit: BigNumber;
-        let subjectComponents: Address[];
-        let subjectWrapParameters: WrapExecutionParams[];
+      describe("#setTargetWeights", async () => {
+        let subjectReserveAsset: Address;
+        let subjectMinReserveWeight: BigNumber;
+        let subjectMaxReserveWeight: BigNumber;
+        let subjectTargetAssets: Address[];
+        let subjectExecutionParams: TargetWeightWrapParams[];
         let subjectCaller: Account;
 
         beforeEach(async () => {
-          subjectQuoteAsset = setV2Setup.weth.address;
-          subjectPositionMultiplier = await setToken.positionMultiplier();
-          subjectQuoteAssetTargetUnit = ether(1);
-          subjectComponents = [wrapAdapter.address];
-          subjectWrapParameters = [
+          subjectReserveAsset = setV2Setup.weth.address;
+          subjectMinReserveWeight = ether(0.02);
+          subjectMaxReserveWeight = ether(0.07);
+          subjectTargetAssets = [wrapAdapter.address];
+          subjectExecutionParams = [
             {
-              targetUnit: ether(1),
+              minTargetWeight: ether(0.1),
+              maxTargetWeight: ether(0.2),
               wrapAdapterName: wrapAdapterName,
-              wrapAdapterConfigData: EMPTY_BYTES,
-            } as WrapExecutionParams,
+            } as TargetWeightWrapParams,
           ];
           subjectCaller = operator;
         });
 
         async function subject(): Promise<ContractTransaction> {
-          return await targetWrapExtension.connect(subjectCaller.wallet).setTargets(
-            subjectQuoteAsset,
-            subjectPositionMultiplier,
-            subjectQuoteAssetTargetUnit,
-            subjectComponents,
-            subjectWrapParameters
+          return await targetWeightWrapExtension.connect(subjectCaller.wallet).setTargetWeights(
+            subjectReserveAsset,
+            subjectMinReserveWeight,
+            subjectMaxReserveWeight,
+            subjectTargetAssets,
+            subjectExecutionParams
           );
         }
 
         it("should set the rebalanceInfo", async () => {
           await subject();
 
-          const rebalanceInfo = await targetWrapExtension.rebalanceInfo();
-          const rebalanceComponents = await targetWrapExtension.getRebalanceComponents();
-          expect(rebalanceInfo.quoteAsset).to.eq(subjectQuoteAsset);
-          expect(rebalanceInfo.positionMultiplier).to.eq(subjectPositionMultiplier);
-          expect(rebalanceInfo.quoteAssetTargetUnit).to.eq(subjectQuoteAssetTargetUnit);
-          expect(rebalanceComponents).to.deep.eq(subjectComponents);
+          const rebalanceInfo = await targetWeightWrapExtension.rebalanceInfo();
+          const targetAssets = await targetWeightWrapExtension.getTargetAssets();
+          expect(rebalanceInfo.reserveAsset).to.eq(subjectReserveAsset);
+          expect(rebalanceInfo.minReserveWeight).to.eq(subjectMinReserveWeight);
+          expect(rebalanceInfo.maxReserveWeight).to.eq(subjectMaxReserveWeight);
+          expect(targetAssets).to.deep.eq(subjectTargetAssets);
         });
 
-        it("should set the wrap parameters", async () => {
+        it("should set the target weight wrap parameters", async () => {
           await subject();
 
-          const wrapParameters = await targetWrapExtension.executionParams(subjectComponents[0]);
-          expect(wrapParameters.targetUnit).to.eq(subjectWrapParameters[0].targetUnit);
-          expect(wrapParameters.wrapAdapterName).to.eq(subjectWrapParameters[0].wrapAdapterName);
-          expect(wrapParameters.wrapAdapterConfigData).to.eq(subjectWrapParameters[0].wrapAdapterConfigData);
+          const executionParams = await targetWeightWrapExtension.executionParams(subjectTargetAssets[0]);
+          expect(executionParams.minTargetWeight).to.eq(subjectExecutionParams[0].minTargetWeight);
+          expect(executionParams.maxTargetWeight).to.eq(subjectExecutionParams[0].maxTargetWeight);
+          expect(executionParams.wrapAdapterName).to.eq(subjectExecutionParams[0].wrapAdapterName);
         });
 
         context("when the operator is not the caller", async () => {

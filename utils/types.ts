@@ -128,8 +128,8 @@ export interface AirdropSettings {
   anyoneAbsorb: boolean;
 }
 
-export interface WrapExecutionParams {
-  targetUnit: BigNumber;
+export interface TargetWeightWrapParams {
+  minTargetWeight: BigNumber;
+  maxTargetWeight: BigNumber;
   wrapAdapterName: string;
-  wrapAdapterConfigData: Bytes;
 }

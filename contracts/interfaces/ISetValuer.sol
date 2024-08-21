@@ -21,4 +21,5 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 
 interface ISetValuer {
     function calculateSetTokenValuation(ISetToken _setToken, address _quoteAsset) external view returns (uint256);
+    function calculateComponentValuation(ISetToken _setToken, address _component, address _quoteAsset) external view returns (uint256);
 }
