@@ -8,12 +8,17 @@ import {
   BasicIssuanceModule,
   CompoundLeverageModule,
   Controller,
+  CustomOracleNavIssuanceModule,
   DebtIssuanceModule,
+  DebtIssuanceModuleV3,
   GeneralIndexModule,
   GovernanceModule,
   IntegrationRegistry,
+  OracleMock,
+  PriceOracle,
   SetToken,
   SetTokenCreator,
+  SetValuer,
   SlippageIssuanceModule,
   StreamingFeeModule,
   WrapModule
@@ -43,11 +48,15 @@ export class SetFixture {
 
   public controller: Controller;
   public factory: SetTokenCreator;
+  public priceOracle: PriceOracle;
   public integrationRegistry: IntegrationRegistry;
+  public setValuer: SetValuer;
 
   public auctionModule: AuctionRebalanceModuleV1;
   public issuanceModule: BasicIssuanceModule;
+  public navIssuanceModule: CustomOracleNavIssuanceModule;
   public debtIssuanceModule: DebtIssuanceModule;
+  public debtIssuanceModuleV3: DebtIssuanceModuleV3;
   public streamingFeeModule: StreamingFeeModule;
   public compoundLeverageModule: CompoundLeverageModule;
   public governanceModule: GovernanceModule;
@@ -61,6 +70,16 @@ export class SetFixture {
   public wbtc: StandardTokenMock;
   public dai: StandardTokenMock;
   public usdt: StandardTokenMock;
+
+  public ETH_USD_Oracle: OracleMock;
+  public USD_USD_Oracle: OracleMock;
+  public BTC_USD_Oracle: OracleMock;
+  public DAI_USD_Oracle: OracleMock;
+
+  public component1Price: BigNumber;
+  public component2Price: BigNumber;
+  public component3Price: BigNumber;
+  public component4Price: BigNumber;
 
   constructor(provider: Web3Provider | JsonRpcProvider, ownerAddress: Address) {
     this._provider = provider;
@@ -77,6 +96,21 @@ export class SetFixture {
     this.integrationRegistry = await this._deployer.setV2.deployIntegrationRegistry(this.controller.address);
     this.factory = await this._deployer.setV2.deploySetTokenCreator(this.controller.address);
 
+    this.priceOracle = await this._deployer.setV2.deployPriceOracle(
+      this.controller.address,
+      this.usdc.address,
+      [],
+      [this.weth.address, this.usdc.address, this.wbtc.address, this.dai.address],
+      [this.usdc.address, this.usdc.address, this.usdc.address, this.usdc.address],
+      [
+        this.ETH_USD_Oracle.address,
+        this.USD_USD_Oracle.address,
+        this.BTC_USD_Oracle.address,
+        this.DAI_USD_Oracle.address,
+      ]
+    );
+    this.setValuer = await this._deployer.setV2.deploySetValuer(this.controller.address);
+
     this.auctionModule = await this._deployer.setV2.deployAuctionRebalanceModuleV1(this.controller.address);
     this.issuanceModule = await this._deployer.setV2.deployBasicIssuanceModule(this.controller.address);
     this.streamingFeeModule = await this._deployer.setV2.deployStreamingFeeModule(this.controller.address);
@@ -84,6 +118,8 @@ export class SetFixture {
     this.governanceModule = await this._deployer.setV2.deployGovernanceModule(this.controller.address);
     this.airdropModule = await this._deployer.setV2.deployAirdropModule(this.controller.address);
     this.slippageIssuanceModule = await this._deployer.setV2.deploySlippageIssuanceModule(this.controller.address);
+    this.navIssuanceModule = await this._deployer.setV2.deployCustomOracleNavIssuanceModule(this.controller.address, this.weth.address);
+    this.debtIssuanceModuleV3 = await this._deployer.setV2.deployDebtIssuanceModuleV3(this.controller.address, 10);
 
     await this.initializeStandardComponents();
 
@@ -107,13 +143,15 @@ export class SetFixture {
       this.airdropModule.address,
       this.wrapModule.address,
       this.slippageIssuanceModule.address,
+      this.navIssuanceModule.address,
+      this.debtIssuanceModuleV3.address,
     ];
 
     await this.controller.initialize(
       [this.factory.address], // Factories
       modules, // Modules
-      [this.integrationRegistry.address], // Resources
-      [0]
+      [this.integrationRegistry.address, this.priceOracle.address, this.setValuer.address], // Resources
+      [0, 1, 2]  // Resource IDs where IntegrationRegistry is 0, PriceOracle is 1, SetValuer is 2
     );
   }
 
@@ -123,6 +161,16 @@ export class SetFixture {
     this.wbtc = await this._deployer.setV2.deployTokenMock(this._ownerAddress, ether(100000), 8);
     this.dai = await this._deployer.setV2.deployTokenMock(this._ownerAddress, ether(1000000), 18);
     this.usdt = await this._deployer.setV2.deployTokenMock(this._ownerAddress, ether(100000), 6);
+
+    this.component1Price = ether(230);
+    this.component2Price = ether(1);
+    this.component3Price = ether(9000);
+    this.component4Price = ether(1);
+
+    this.ETH_USD_Oracle = await this._deployer.setV2.deployOracleMock(this.component1Price);
+    this.USD_USD_Oracle = await this._deployer.setV2.deployOracleMock(this.component2Price);
+    this.BTC_USD_Oracle = await this._deployer.setV2.deployOracleMock(this.component3Price);
+    this.DAI_USD_Oracle = await this._deployer.setV2.deployOracleMock(this.component4Price);
 
     await this.weth.deposit({ value: ether(200000) });
     await this.weth.approve(this.issuanceModule.address, ether(10000));
