@@ -16,6 +16,7 @@ import {
   ContractCallerMock,
   ClaimAdapterMock,
   ClaimModule,
+  CustomOracleNAVIssuanceModule,
   DebtIssuanceModule,
   DebtIssuanceModuleV2,
   GeneralIndexModule,
@@ -54,6 +55,7 @@ import { ComptrollerMock__factory } from "../../typechain/factories/ComptrollerM
 import { ContractCallerMock__factory } from "../../typechain/factories/ContractCallerMock__factory";
 import { ClaimAdapterMock__factory } from "../../typechain/factories/ClaimAdapterMock__factory";
 import { ClaimModule__factory } from "../../typechain/factories/ClaimModule__factory";
+import { CustomOracleNAVIssuanceModule__factory } from "../../typechain/factories/CustomOracleNAVIssuanceModule__factory";
 import { DebtIssuanceModule__factory } from "../../typechain/factories/DebtIssuanceModule__factory";
 import { DebtIssuanceModuleV2__factory } from "../../typechain/factories/DebtIssuanceModuleV2__factory";
 import { GeneralIndexModule__factory } from "../../typechain/factories/GeneralIndexModule__factory";
@@ -143,9 +145,9 @@ export default class DeploySetV2 {
     return await new DebtIssuanceModuleV2__factory(this._deployerSigner).deploy(controller);
   }
 
-  // public async deployNAVIssuanceModule(controller: Address): Promise<CustomOracleNAVIssuanceModule> {
-    // return await new CustomOracleNAVIssuanceModule__factory(this._deployerSigner).deploy(controller);
-  // }
+  public async deployNAVIssuanceModule(controller: Address, weth: Address): Promise<CustomOracleNAVIssuanceModule> {
+    return await new CustomOracleNAVIssuanceModule__factory(this._deployerSigner).deploy(controller, weth);
+  }
 
   public async deployStreamingFeeModule(controller: Address): Promise<StreamingFeeModule> {
     return await new StreamingFeeModule__factory(this._deployerSigner).deploy(controller);
