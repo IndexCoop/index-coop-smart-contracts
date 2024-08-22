@@ -133,3 +133,16 @@ export interface TargetWeightWrapParams {
   maxTargetWeight: BigNumber;
   wrapAdapterName: string;
 }
+
+export interface CustomOracleNAVIssuanceSettings {
+  managerIssuanceHook: Address;
+  managerRedemptionHook: Address;
+  setValuer: Address;
+  reserveAssets: Address[];
+  feeRecipient: Address;
+  managerFees: [BigNumber, BigNumber];
+  maxManagerFee: BigNumber;
+  premiumPercentage: BigNumber;
+  maxPremiumPercentage: BigNumber;
+  minSetTokenSupply: BigNumber;
+}

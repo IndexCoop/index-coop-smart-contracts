@@ -8,7 +8,7 @@ import {
   TargetWeightWrapExtension,
   WrapAdapterMock,
 } from "@utils/contracts/index";
-import { Account, Address, TargetWeightWrapParams } from "@utils/types";
+import { Account, Address, CustomOracleNAVIssuanceSettings, TargetWeightWrapParams } from "@utils/types";
 import {
   addSnapshotBeforeRestoreAfterEach,
   ether,
@@ -22,9 +22,10 @@ import { BigNumber, ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
 
-describe("TargetWeightWrapExtension", async () => {
+describe.only("TargetWeightWrapExtension", async () => {
   let owner: Account;
   let operator: Account;
+  let feeRecipient: Account;
 
   let deployer: DeployHelper;
   let setV2Setup: SetFixture;
@@ -40,6 +41,7 @@ describe("TargetWeightWrapExtension", async () => {
     [
       owner,
       operator,
+      feeRecipient,
     ] = await getAccounts();
 
     deployer = new DeployHelper(owner.wallet);
@@ -55,21 +57,43 @@ describe("TargetWeightWrapExtension", async () => {
       wrapAdapterName,
       wrapAdapter.address
     );
+    const preciseUnitOracle = await deployer.setV2.deployPreciseUnitOracle("Rebasing WETH Oracle");
+    await setV2Setup.priceOracle.addAdapter(preciseUnitOracle.address);
+    await setV2Setup.priceOracle.addPair(wrapAdapter.address, setV2Setup.weth.address, preciseUnitOracle.address);
 
     setToken = await setV2Setup.createSetToken(
       [setV2Setup.weth.address],
-      [ether(0.1)],
-      [setV2Setup.wrapModule.address, setV2Setup.issuanceModule.address]
+      [ether(1)],
+      [setV2Setup.wrapModule.address, setV2Setup.navIssuanceModule.address]
     );
 
-    await setV2Setup.issuanceModule.initialize(
+    const navIssuanceSettings = {
+      managerIssuanceHook: ADDRESS_ZERO,
+      managerRedemptionHook: ADDRESS_ZERO,
+      setValuer: ADDRESS_ZERO,
+      reserveAssets: [setV2Setup.weth.address],
+      feeRecipient: feeRecipient.address,
+      managerFees: [ether(0.001), ether(0.002)],
+      maxManagerFee: ether(0.02),
+      premiumPercentage: ether(0.01),
+      maxPremiumPercentage: ether(0.1),
+      minSetTokenSupply: ether(5),
+    } as CustomOracleNAVIssuanceSettings;
+
+    await setV2Setup.navIssuanceModule.initialize(
       setToken.address,
-      ADDRESS_ZERO
+      navIssuanceSettings
     );
 
     // Issue some set tokens
-    await setV2Setup.weth.approve(setV2Setup.issuanceModule.address, MAX_UINT_256);
-    await setV2Setup.issuanceModule.issue(setToken.address, ether(5), owner.address);
+    await setV2Setup.weth.approve(setV2Setup.navIssuanceModule.address, MAX_UINT_256);
+    await setV2Setup.navIssuanceModule.issue(
+      setToken.address,
+      setV2Setup.weth.address,
+      ether(1),
+      ether(0.99),
+      owner.address
+    );
 
     // Deploy BaseManager
     baseManager = await deployer.manager.deployBaseManagerV2(
