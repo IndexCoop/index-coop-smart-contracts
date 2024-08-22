@@ -25,7 +25,6 @@ const expect = getWaffleExpect();
 describe("TargetWeightWrapExtension", async () => {
   let owner: Account;
   let operator: Account;
-  let setValuer: Account;
 
   let deployer: DeployHelper;
   let setV2Setup: SetFixture;
@@ -41,7 +40,6 @@ describe("TargetWeightWrapExtension", async () => {
     [
       owner,
       operator,
-      setValuer,
     ] = await getAccounts();
 
     deployer = new DeployHelper(owner.wallet);
@@ -93,7 +91,7 @@ describe("TargetWeightWrapExtension", async () => {
     beforeEach(async () => {
       subjectManager = baseManager.address;
       subjectWrapModule = setV2Setup.wrapModule.address;
-      subjectSetValuer = setValuer.address;
+      subjectSetValuer = setV2Setup.setValuer.address;
       subjectIsRebalancing = false;
     });
 
@@ -147,7 +145,7 @@ describe("TargetWeightWrapExtension", async () => {
       targetWeightWrapExtension = await deployer.extensions.deployTargetWeightWrapExtension(
         baseManager.address,
         setV2Setup.wrapModule.address,
-        setValuer.address,
+        setV2Setup.setValuer.address,
         true
       );
 
