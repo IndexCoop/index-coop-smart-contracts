@@ -96,6 +96,17 @@ export class SetFixture {
     this.integrationRegistry = await this._deployer.setV2.deployIntegrationRegistry(this.controller.address);
     this.factory = await this._deployer.setV2.deploySetTokenCreator(this.controller.address);
 
+    this.auctionModule = await this._deployer.setV2.deployAuctionRebalanceModuleV1(this.controller.address);
+    this.issuanceModule = await this._deployer.setV2.deployBasicIssuanceModule(this.controller.address);
+    this.streamingFeeModule = await this._deployer.setV2.deployStreamingFeeModule(this.controller.address);
+    this.debtIssuanceModule = await this._deployer.setV2.deployDebtIssuanceModule(this.controller.address);
+    this.governanceModule = await this._deployer.setV2.deployGovernanceModule(this.controller.address);
+    this.airdropModule = await this._deployer.setV2.deployAirdropModule(this.controller.address);
+    this.slippageIssuanceModule = await this._deployer.setV2.deploySlippageIssuanceModule(this.controller.address);
+    this.debtIssuanceModuleV3 = await this._deployer.setV2.deployDebtIssuanceModuleV3(this.controller.address, 10);
+
+    await this.initializeStandardComponents();
+
     this.priceOracle = await this._deployer.setV2.deployPriceOracle(
       this.controller.address,
       this.usdc.address,
@@ -110,18 +121,7 @@ export class SetFixture {
       ]
     );
     this.setValuer = await this._deployer.setV2.deploySetValuer(this.controller.address);
-
-    this.auctionModule = await this._deployer.setV2.deployAuctionRebalanceModuleV1(this.controller.address);
-    this.issuanceModule = await this._deployer.setV2.deployBasicIssuanceModule(this.controller.address);
-    this.streamingFeeModule = await this._deployer.setV2.deployStreamingFeeModule(this.controller.address);
-    this.debtIssuanceModule = await this._deployer.setV2.deployDebtIssuanceModule(this.controller.address);
-    this.governanceModule = await this._deployer.setV2.deployGovernanceModule(this.controller.address);
-    this.airdropModule = await this._deployer.setV2.deployAirdropModule(this.controller.address);
-    this.slippageIssuanceModule = await this._deployer.setV2.deploySlippageIssuanceModule(this.controller.address);
     this.navIssuanceModule = await this._deployer.setV2.deployCustomOracleNavIssuanceModule(this.controller.address, this.weth.address);
-    this.debtIssuanceModuleV3 = await this._deployer.setV2.deployDebtIssuanceModuleV3(this.controller.address, 10);
-
-    await this.initializeStandardComponents();
 
     this.generalIndexModule = await this._deployer.setV2.deployGeneralIndexModule(
       this.controller.address,
