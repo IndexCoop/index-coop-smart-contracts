@@ -11,7 +11,8 @@
 //   SetToken__factory,
 //   SetTokenCreator,
 //   SetTokenCreator__factory,
-//   FlashMintDex,
+//   FlashMintNAV,
+//   IERC20,
 //   IERC20__factory,
 //   IWETH,
 //   IWETH__factory,
@@ -22,6 +23,7 @@
 // import { ADDRESS_ZERO } from "@utils/constants";
 // import { ether } from "@utils/index";
 // import { impersonateAccount } from "./utils";
+// import { SetFixture } from "@utils/fixtures";
 
 // const expect = getWaffleExpect();
 
@@ -40,22 +42,13 @@
 //   exchange: Exchange;
 // };
 
-// type IssueRedeemParams = {
-//   setToken: Address;
-//   amountSetToken: BigNumber;
-//   componentSwapData: SwapData[];
-//   issuanceModule: Address;
-//   isDebtIssuance: boolean;
-// };
-
-// type PaymentInfo = {
-//   token: Address;
-//   limitAmt: BigNumber;
-//   swapDataTokenToWeth: SwapData;
-//   swapDataWethToToken: SwapData;
-// };
-
 // const addresses = PRODUCTION_ADDRESSES;
+// const tokenAddresses = {
+//   aEthUSDC: "0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c",
+//   cUSDCv3: "0xc3d688B66703497DAA19211EEdff47f25384cdc3",
+//   aUSDC: "0xBcca60bB61934080951369a648Fb03DF4F96263C",
+//   gtUSDC: "0xdd0f28e19C1780eb6396170735D45153D261490d",
+// };
 
 // const swapDataEmpty = {
 //   exchange: Exchange.None,
@@ -82,38 +75,41 @@
 //   describe.only("FlashMintNAV - Integration Test", async () => {
 //     let owner: Account;
 //     let deployer: DeployHelper;
-//     let legacySetTokenCreator: SetTokenCreator;
 //     let setTokenCreator: SetTokenCreator;
-//     // let navIssuanceModule: INAVIssuanceModule;
+//     let navIssuanceModule: INAVIssuanceModule;
+//     let setV2Setup: SetFixture;
+//     let usdc_erc20: IERC20;
+//     let aEthUSDC_erc20: IERC20;
+//     let cUSDCv3_erc20: IERC20;
+//     let aUSDC_erc20: IERC20;
+//     let gtUSDC_erc20: IERC20;
+//     let flashMintNAV: FlashMintNAV;
 
-//     setBlockNumber(20385208, true);
+//     setBlockNumber(20585756, true);
 
 //     before(async () => {
 //       [owner] = await getAccounts();
 //       deployer = new DeployHelper(owner.wallet);
-//       legacySetTokenCreator = SetTokenCreator__factory.connect(
-//         addresses.set.setTokenCreator,
-//         owner.wallet,
-//       );
+//       setV2Setup = new SetFixture(ethers.provider, owner.address);
+//       setV2Setup.initialize();
+
+//       // Token setup
+//       usdc_erc20 = IERC20__factory.connect(addresses.tokens.USDC, owner.wallet);
+//       aEthUSDC_erc20 = IERC20__factory.connect(tokenAddresses.aEthUSDC, owner.wallet);
+//       cUSDCv3_erc20 = IERC20__factory.connect(tokenAddresses.cUSDCv3, owner.wallet);
+//       aUSDC_erc20 = IERC20__factory.connect(tokenAddresses.aUSDC, owner.wallet);
+//       gtUSDC_erc20 = IERC20__factory.connect(tokenAddresses.gtUSDC, owner.wallet);
 
 //       setTokenCreator = SetTokenCreator__factory.connect(
 //         addresses.setFork.setTokenCreator,
 //         owner.wallet,
 //       );
 
-//       legacyBasicIssuanceModule = IBasicIssuanceModule__factory.connect(
-//         addresses.set.basicIssuanceModule,
-//         owner.wallet,
-//       );
-
-//       debtIssuanceModule = IDebtIssuanceModule__factory.connect(
-//         addresses.setFork.debtIssuanceModuleV2,
-//         owner.wallet,
-//       );
+//       // navIssuanceModule = await new INAVIssuanceModule__factory().deploy(
 //     });
 
 //     context("When FlashMintDex contract is deployed", () => {
-//       let flashMintDex: FlashMintDex;
+
 
 //       before(async () => {
 //         flashMintDex = await deployer.extensions.deployFlashMintDex(

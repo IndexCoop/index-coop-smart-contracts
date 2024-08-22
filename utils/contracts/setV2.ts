@@ -11,6 +11,7 @@ export { ContractCallerMock } from "../../typechain/ContractCallerMock";
 export { ConstantPriceAdapter } from "../../typechain/ConstantPriceAdapter";
 export { ComptrollerMock } from "../../typechain/ComptrollerMock";
 export { CompoundLeverageModule } from "../../typechain/CompoundLeverageModule";
+export { CustomOracleNAVIssuanceModule } from "../../typechain/CustomOracleNAVIssuanceModule";
 export { DebtIssuanceModule } from "../../typechain/DebtIssuanceModule";
 export { DebtIssuanceModuleV2 } from "../../typechain/DebtIssuanceModuleV2";
 export { GeneralIndexModule } from "../../typechain/GeneralIndexModule";

@@ -143,6 +143,10 @@ export default class DeploySetV2 {
     return await new DebtIssuanceModuleV2__factory(this._deployerSigner).deploy(controller);
   }
 
+  // public async deployNAVIssuanceModule(controller: Address): Promise<CustomOracleNAVIssuanceModule> {
+    // return await new CustomOracleNAVIssuanceModule__factory(this._deployerSigner).deploy(controller);
+  // }
+
   public async deployStreamingFeeModule(controller: Address): Promise<StreamingFeeModule> {
     return await new StreamingFeeModule__factory(this._deployerSigner).deploy(controller);
   }

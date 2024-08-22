@@ -193,86 +193,37 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     }
 
     /**
-     * Gets the amount of input token required to issue a given quantity of set token with the provided issuance params.
-     * This function is not marked view, but should be static called from frontends.
-     * This constraint is due to the need to interact with the Uniswap V3 quoter contract
-     *
-     * @param _issueParams            Struct containing addresses, amounts, and swap data for issuance
-     * @param _reserveAssetSwapData   Swap data to trade input token for reserve asset. Use empty swap data if input token is the reserve asset.
-     *
-     * @return                        Amount of input tokens required to perform the issuance
-     */
-    // function getIssueExactSet(
-    //     IssueRedeemParams memory _issueParams,
-    //     DEXAdapterV2.SwapData memory _reserveAssetSwapData
-    // )
-    //     external
-    //     returns (uint256)
-    // {
-    //     uint256 totalWethNeeded = _getWethCostsForIssue(_issueParams);
-    //     return dexAdapter.getAmountIn(_swapDataInputTokenToWeth, totalWethNeeded);
-    // }
-
-    /**
-     * Gets the amount of specified payment token expected to be received after redeeming 
-     * a given quantity of set token with the provided redemption params.
-     * This function is not marked view, but should be static called from frontends.
-     * This constraint is due to the need to interact with the Uniswap V3 quoter contract
-     *
-     * @param _redeemParams          Struct containing addresses, amounts, and swap data for redemption
-     * @param _reserveAssetSwapData  Swap data to trade reserve asset for output token. Use empty swap data if output token is the reserve asset. 
-     *
-     * @return                       Amount of output tokens expected after performing redemption
-     */
-    // function getRedeemExactSet(
-    //     IssueRedeemParams memory _redeemParams,
-    //     DEXAdapterV2.SwapData memory _reserveAssetSwapData
-    // )
-    //     external
-    //     returns (uint256)
-    // {
-    //     uint256 reserveAssetReceived = _getReserveAssetReceivedForRedeem(_redeemParams);
-    //     return dexAdapter.getAmountOut(_reserveAssetSwapData, reserveAssetReceived);
-    // }
-
-    /**
-    * Issues an exact amount of SetTokens for given amount of ETH.
+    * Issues a minimum amount of SetTokens for an exact amount of ETH.
     *
-    * @param _setToken            Address of the SetToken to be issued
-    * @param _amountSetToken      Amount of SetTokens to be issued
-    * @param _reserveAssetSwapData Swap data to trade WETH for reserve asset
-    *
-    * @return                     Amount of ETH spent
+    * @param _setToken              Address of the SetToken to be issued
+    * @param _minSetTokenAmount     Amount of SetTokens to be issued
+    * @param _reserveAssetSwapData  Swap data to trade WETH for reserve asset
     */
-    function issueExactSetFromETH(
+    function issueSetFromExactETH(
         ISetToken _setToken,
-        uint256 _amountSetToken,
+        uint256 _minSetTokenAmount,
         DEXAdapterV2.SwapData memory _reserveAssetSwapData
     )
         external
         payable
         nonReentrant
-        returns (uint256)
     {
         require(msg.value > 0, "FlashMint: NO ETH SENT");
-
-        //TODO calculate amount of WETH needed to issue set token
-        uint256 wethNeeded = _getInputTokenAmountForIssue(_setToken, _amountSetToken, _reserveAssetSwapData);
-
         IWETH(WETH).deposit{value: msg.value}();
 
-        //TODO swap WETH to reserve asset using swapdata
+        uint256 reserveAssetReceived = dexAdapter.swapExactTokensForTokens(msg.value, 0, _reserveAssetSwapData);
+        uint256 setTokenBalanceBefore = _setToken.balanceOf(msg.sender);
 
-        uint256 ethUsedForIssuance = _issue(_setToken, WETH, wethNeeded, _amountSetToken);
+        INAVIssuanceModule(navIssuanceModule).issue(
+            _setToken,
+            WETH,
+            reserveAssetReceived,
+            _minSetTokenAmount,
+            msg.sender
+        );
 
-        // uint256 leftoverETH = msg.value.sub(ethUsedForIssuance);
-        // if (leftoverETH > _minEthRefund) {
-        //     IWETH(WETH).withdraw(leftoverETH);
-        //     payable(msg.sender).sendValue(leftoverETH);
-        // }
-        // ethSpent = msg.value.sub(leftoverETH);
-
-        // emit FlashMint(msg.sender, _issueParams.setToken, IERC20(ETH_ADDRESS), ethSpent, _issueParams.amountSetToken);
+        uint256 setTokenIssued = _setToken.balanceOf(msg.sender).sub(setTokenBalanceBefore);
+        emit FlashMint(msg.sender, _setToken, IERC20(ETH_ADDRESS), setTokenIssued, msg.value);
     }
 
     /**
@@ -306,31 +257,6 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     //     paymentTokenSpent = _paymentInfo.limitAmt.sub(paymentTokenReturned);
 
     //     emit FlashMint(msg.sender, _issueParams.setToken, _paymentInfo.token, paymentTokenSpent, _issueParams.amountSetToken);
-    // }
-
-    /**
-     * Redeems an exact amount of SetTokens for ETH.
-     * The SetToken must be approved by the sender to this contract.
-     *
-     * @param _redeemParams   Struct containing addresses, amounts, and swap data for issuance
-     *
-     * @return ethReceived      Amount of ETH received
-     */
-    // function redeemExactSetForETH(IssueRedeemParams memory _redeemParams, uint256 _minEthReceive)
-    //     external
-    //     nonReentrant
-    //     returns (uint256 ethReceived)
-    // {
-    //     _redeem(_redeemParams.setToken, _redeemParams.amountSetToken, _redeemParams.issuanceModule);
-
-    //     ethReceived = _sellComponentsForWeth(_redeemParams);
-    //     require(ethReceived >= _minEthReceive, "FlashMint: INSUFFICIENT WETH RECEIVED");
-
-    //     IWETH(WETH).withdraw(ethReceived);
-    //     payable(msg.sender).sendValue(ethReceived);
-
-    //     emit FlashRedeem(msg.sender, _redeemParams.setToken, IERC20(ETH_ADDRESS), _redeemParams.amountSetToken, ethReceived);
-    //     return ethReceived;
     // }
 
     /**
@@ -380,8 +306,6 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     * @param _reserveAsset Address of the reserve asset to be used for issuance
     * @param _reserveAssetQuantity Amount of reserve asset to be used for issuance
     * @param _minSetTokenReceiveQuantity Minimum amount of SetTokens to be received
-    *
-    * @return                       Amount of reserve asset used to buy components
     */
     function _issue(
       ISetToken _setToken,
@@ -390,7 +314,6 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
       uint256 _minSetTokenReceiveQuantity
     ) 
       internal
-      returns (uint256)
     {
         INAVIssuanceModule(navIssuanceModule).issue(
             _setToken,

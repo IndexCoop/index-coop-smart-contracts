@@ -8,6 +8,7 @@ export { BaseManager } from "../../typechain/BaseManager";
 export { BaseManagerV2 } from "../../typechain/BaseManagerV2";
 export { ChainlinkAggregatorV3Mock } from "../../typechain/ChainlinkAggregatorV3Mock";
 export { ConstantPriceAdapter } from "../../typechain/ConstantPriceAdapter";
+export { CustomOracleNAVIssuanceModule } from "../../typechain/CustomOracleNAVIssuanceModule";
 export { DebtIssuanceModule } from "../../typechain/DebtIssuanceModule";
 export { DebtIssuanceModuleV2 } from "../../typechain/DebtIssuanceModuleV2";
 export { BasicIssuanceModule } from "../../typechain/BasicIssuanceModule";
