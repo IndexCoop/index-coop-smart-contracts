@@ -91,7 +91,7 @@ if (process.env.INTEGRATIONTEST) {
     let aUSDC_erc20: IERC20;
     let gtUSDC_erc20: IERC20;
 
-    setBlockNumber(20585756, true);
+    setBlockNumber(20528609, true);
 
     before(async () => {
       [owner] = await getAccounts();
@@ -142,14 +142,14 @@ if (process.env.INTEGRATIONTEST) {
           ether(20),
         ],
         [
-          setV2Setup.debtIssuanceModule.address,
+          setV2Setup.debtIssuanceModuleV3.address,
           setV2Setup.rebasingComponentModule.address,
           setV2Setup.navIssuanceModule.address,
         ]
       );
 
       // Initialize Modules
-      await setV2Setup.debtIssuanceModule.initialize(
+      await setV2Setup.debtIssuanceModuleV3.initialize(
         setToken.address,
         ZERO,
         ZERO,
@@ -191,12 +191,12 @@ if (process.env.INTEGRATIONTEST) {
       await cUSDCv3_erc20.connect(wan_liang).transfer(owner.address, usdc(10000));
       await aUSDC_erc20.connect(mane_lee).transfer(owner.address, usdc(10000));
       await gtUSDC_erc20.connect(morpho_seeding).transfer(owner.address, ether(10000));
-      await usdc_erc20.connect(owner.wallet).approve(setV2Setup.debtIssuanceModule.address, MAX_UINT_256);
-      await aEthUSDC_erc20.connect(owner.wallet).approve(setV2Setup.debtIssuanceModule.address, MAX_UINT_256);
-      await cUSDCv3_erc20.connect(owner.wallet).approve(setV2Setup.debtIssuanceModule.address, MAX_UINT_256);
-      await aUSDC_erc20.connect(owner.wallet).approve(setV2Setup.debtIssuanceModule.address, MAX_UINT_256);
-      await gtUSDC_erc20.connect(owner.wallet).approve(setV2Setup.debtIssuanceModule.address, MAX_UINT_256);
-      // await setV2Setup.debtIssuanceModule.issue(setToken.address, ether(10), owner.address);
+      await usdc_erc20.connect(owner.wallet).approve(setV2Setup.debtIssuanceModuleV3.address, MAX_UINT_256);
+      await aEthUSDC_erc20.connect(owner.wallet).approve(setV2Setup.debtIssuanceModuleV3.address, MAX_UINT_256);
+      await cUSDCv3_erc20.connect(owner.wallet).approve(setV2Setup.debtIssuanceModuleV3.address, MAX_UINT_256);
+      await aUSDC_erc20.connect(owner.wallet).approve(setV2Setup.debtIssuanceModuleV3.address, MAX_UINT_256);
+      await gtUSDC_erc20.connect(owner.wallet).approve(setV2Setup.debtIssuanceModuleV3.address, MAX_UINT_256);
+      await setV2Setup.debtIssuanceModuleV3.connect(owner.wallet).issue(setToken.address, ether(1), owner.address);
 
       // Deploy FlashMintNAV
       flashMintNAV = await deployer.extensions.deployFlashMintNAV(
