@@ -401,7 +401,7 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      */
     function _validateOnlyAllowedRebalancer() internal {
         if (!isAnyoneAllowedToRebalance) {
-            require(msg.sender == manager.operator(), "Must be operator");
+            require(msg.sender == manager.operator(), "Must be allowed rebalancer");
         }
     }
 }

@@ -938,6 +938,27 @@ describe("TargetWeightWrapExtension", async () => {
               await expect(subject()).to.be.revertedWith("Reserve must be not be underweight after");
             });
           });
+
+          context("when the operator is not the caller and isAnyoneAllowedToRebalance is false", async () => {
+            beforeEach(async () => {
+              subjectCaller = await getRandomAccount();
+            });
+
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith("Must be allowed rebalancer");
+            });
+          });
+
+          context("when the operator is not the caller and isAnyoneAllowedToRebalance is true", async () => {
+            beforeEach(async () => {
+              await targetWeightWrapExtension.connect(operator.wallet).setIsAnyoneAllowedToRebalance(true);
+              subjectCaller = await getRandomAccount();
+            });
+
+            it("should not revert", async () => {
+              await expect(subject()).to.not.be.reverted;
+            });
+          });
         });
 
         describe("#unwrap", async () => {
@@ -1071,6 +1092,27 @@ describe("TargetWeightWrapExtension", async () => {
 
             it("should revert", async () => {
               await expect(subject()).to.be.revertedWith("Reserve must be not be overweight after");
+            });
+          });
+
+          context("when the operator is not the caller and isAnyoneAllowedToRebalance is false", async () => {
+            beforeEach(async () => {
+              subjectCaller = await getRandomAccount();
+            });
+
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith("Must be allowed rebalancer");
+            });
+          });
+
+          context("when the operator is not the caller and isAnyoneAllowedToRebalance is true", async () => {
+            beforeEach(async () => {
+              await targetWeightWrapExtension.connect(operator.wallet).setIsAnyoneAllowedToRebalance(true);
+              subjectCaller = await getRandomAccount();
+            });
+
+            it("should not revert", async () => {
+              await expect(subject()).to.not.be.reverted;
             });
           });
         });
