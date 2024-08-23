@@ -16,6 +16,7 @@ import {
   IntegrationRegistry,
   OracleMock,
   PriceOracle,
+  RebasingComponentModule,
   SetToken,
   SetTokenCreator,
   SetValuer,
@@ -64,6 +65,7 @@ export class SetFixture {
   public airdropModule: AirdropModule;
   public wrapModule: WrapModule;
   public slippageIssuanceModule: SlippageIssuanceModule;
+  public rebasingComponentModule: RebasingComponentModule;
 
   public weth: WETH9;
   public usdc: StandardTokenMock;
@@ -104,6 +106,7 @@ export class SetFixture {
     this.airdropModule = await this._deployer.setV2.deployAirdropModule(this.controller.address);
     this.slippageIssuanceModule = await this._deployer.setV2.deploySlippageIssuanceModule(this.controller.address);
     this.debtIssuanceModuleV3 = await this._deployer.setV2.deployDebtIssuanceModuleV3(this.controller.address, 10);
+    this.rebasingComponentModule = await this._deployer.setV2.deployRebasingComponentModule(this.controller.address);
 
     await this.initializeStandardComponents();
 
@@ -145,6 +148,7 @@ export class SetFixture {
       this.slippageIssuanceModule.address,
       this.navIssuanceModule.address,
       this.debtIssuanceModuleV3.address,
+      this.rebasingComponentModule.address,
     ];
 
     await this.controller.initialize(
