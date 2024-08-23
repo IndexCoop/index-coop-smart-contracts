@@ -16,15 +16,23 @@ import {
   ContractCallerMock,
   ClaimAdapterMock,
   ClaimModule,
+  CustomOracleNavIssuanceModule,
   DebtIssuanceModule,
   DebtIssuanceModuleV2,
+  DebtIssuanceModuleV3,
+  ERC4626Oracle,
   GeneralIndexModule,
   GovernanceModule,
   IntegrationRegistry,
+  OracleMock,
+  PreciseUnitOracle,
+  PriceOracle,
+  RebasingComponentModule,
   StreamingFeeModule,
   SetToken,
   TradeModule,
   SetTokenCreator,
+  SetValuer,
   SingleIndexModule,
   UniswapV2ExchangeAdapter,
   WrapModule,
@@ -54,15 +62,23 @@ import { ComptrollerMock__factory } from "../../typechain/factories/ComptrollerM
 import { ContractCallerMock__factory } from "../../typechain/factories/ContractCallerMock__factory";
 import { ClaimAdapterMock__factory } from "../../typechain/factories/ClaimAdapterMock__factory";
 import { ClaimModule__factory } from "../../typechain/factories/ClaimModule__factory";
+import { CustomOracleNavIssuanceModule__factory } from "../../typechain/factories/CustomOracleNavIssuanceModule__factory";
 import { DebtIssuanceModule__factory } from "../../typechain/factories/DebtIssuanceModule__factory";
 import { DebtIssuanceModuleV2__factory } from "../../typechain/factories/DebtIssuanceModuleV2__factory";
+import { DebtIssuanceModuleV3__factory } from "../../typechain/factories/DebtIssuanceModuleV3__factory";
+import { ERC4626Oracle__factory } from "../../typechain/factories/ERC4626Oracle__factory";
 import { GeneralIndexModule__factory } from "../../typechain/factories/GeneralIndexModule__factory";
 import { GovernanceModule__factory } from "../../typechain/factories/GovernanceModule__factory";
 import { IntegrationRegistry__factory } from "../../typechain/factories/IntegrationRegistry__factory";
+import { OracleMock__factory } from "../../typechain/factories/OracleMock__factory";
+import { PreciseUnitOracle__factory } from "../../typechain/factories/PreciseUnitOracle__factory";
+import { PriceOracle__factory } from "../../typechain/factories/PriceOracle__factory";
+import { RebasingComponentModule__factory } from "../../typechain/factories/RebasingComponentModule__factory";
 import { SingleIndexModule__factory } from "../../typechain/factories/SingleIndexModule__factory";
 import { StreamingFeeModule__factory } from "../../typechain/factories/StreamingFeeModule__factory";
 import { SetToken__factory } from "../../typechain/factories/SetToken__factory";
 import { SetTokenCreator__factory } from "../../typechain/factories/SetTokenCreator__factory";
+import { SetValuer__factory } from "../../typechain/factories/SetValuer__factory";
 import { StandardTokenMock__factory } from "../../typechain/factories/StandardTokenMock__factory";
 import { UniswapV2ExchangeAdapter__factory } from "../../typechain/factories/UniswapV2ExchangeAdapter__factory";
 import { WETH9__factory } from "../../typechain/factories/WETH9__factory";
@@ -326,5 +342,65 @@ export default class DeploySetV2 {
 
   public async deployTradeModule(controller: Address): Promise<TradeModule> {
     return await new TradeModule__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployCustomOracleNavIssuanceModule(
+    controller: Address,
+    weth: Address,
+  ): Promise<CustomOracleNavIssuanceModule> {
+    return await new CustomOracleNavIssuanceModule__factory(this._deployerSigner).deploy(
+      controller,
+      weth,
+    );
+  }
+
+  public async deployDebtIssuanceModuleV3(controller: Address, tokenTransferBuffer: BigNumberish): Promise<DebtIssuanceModuleV3> {
+    return await new DebtIssuanceModuleV3__factory(this._deployerSigner).deploy(controller, tokenTransferBuffer);
+  }
+
+  public async deployERC4626Oracle(
+    vault: Address,
+    underlyingFullUnit: BigNumber,
+    dataDescription: string): Promise<ERC4626Oracle> {
+    return await new ERC4626Oracle__factory(this._deployerSigner).deploy(vault, underlyingFullUnit, dataDescription);
+  }
+
+  public async deployOracleMock(initialValue: BigNumberish): Promise<OracleMock> {
+    return await new OracleMock__factory(this._deployerSigner).deploy(initialValue);
+  }
+
+  public async deployPreciseUnitOracle(
+    dataDescription: string): Promise<PreciseUnitOracle> {
+    return await new PreciseUnitOracle__factory(this._deployerSigner).deploy(dataDescription);
+  }
+
+  public async deployRebasingComponentModule(controller: Address): Promise<RebasingComponentModule> {
+    return await new RebasingComponentModule__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployPriceOracle(
+    controller: Address,
+    masterQuoteAsset: Address,
+    adapters: Address[],
+    assetOnes: Address[],
+    assetTwos: Address[],
+    oracles: Address[],
+  ): Promise<PriceOracle> {
+    return await new PriceOracle__factory(this._deployerSigner).deploy(
+      controller,
+      masterQuoteAsset,
+      adapters,
+      assetOnes,
+      assetTwos,
+      oracles,
+    );
+  }
+
+  public async getPriceOracle(priceOracleAddress: Address): Promise<PriceOracle> {
+    return await new PriceOracle__factory(this._deployerSigner).attach(priceOracleAddress);
+  }
+
+  public async deploySetValuer(controller: Address): Promise<SetValuer> {
+    return await new SetValuer__factory(this._deployerSigner).deploy(controller);
   }
 }
