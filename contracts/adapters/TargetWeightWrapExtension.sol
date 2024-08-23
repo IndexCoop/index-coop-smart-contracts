@@ -69,6 +69,7 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     /* ============ Events ============ */
 
     event AnyoneRebalanceUpdated(bool isAnyoneAllowedToRebalance);
+    event IsRebalancingUpdated(bool isRebalancing);
     event TargetsSet(
         address indexed reserveAsset,
         uint256 minReserveWeight,
@@ -106,18 +107,21 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      * @param _wrapModule Address of WrapModule for wrapping and unwrapping reserve asset
      * @param _setValuer Address of SetValuer for calculating valuations and weights
      * @param _isRebalancing Flag to indicate if rebalancing is initially enabled
+     * @param _isAnyoneAllowedToRebalance Flag to indicate if anyone can perform valid rebalances
      */
     constructor(
         IBaseManager _manager,
         IWrapModule _wrapModule,
         ISetValuer _setValuer,
-        bool _isRebalancing
+        bool _isRebalancing,
+        bool _isAnyoneAllowedToRebalance
     ) public BaseExtension(_manager) {
         manager = _manager;
         setToken = manager.setToken();
         wrapModule = _wrapModule;
         setValuer = _setValuer;
         isRebalancing = _isRebalancing;
+        isAnyoneAllowedToRebalance = _isAnyoneAllowedToRebalance;
     }
 
     /* ========== Rebalance Functions ========== */
@@ -172,7 +176,7 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         _unwrap(_targetAsset, _targetUnits);
 
         (uint256 targetAssetWeight, uint256 reserveWeight) = getTargetAssetAndReserveWeight(_targetAsset);
-        require(targetAssetWeight > executionParams[_targetAsset].minTargetWeight, "Target must be not be underweight after");
+        require(targetAssetWeight > executionParams[_targetAsset].minTargetWeight, "Target asset must be not be underweight after");
         require(reserveWeight < rebalanceInfo.maxReserveWeight, "Reserve must be not be overweight after");
     }
 
@@ -212,6 +216,26 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         }
 
         emit TargetsSet(_reserveAsset, _minReserveWeight, _maxReserveWeight, _targetAssets, _executionParams);
+    }
+
+    /**
+     * @notice Sets the flag to allow rebalances to be performed through this extension.
+     * @dev This function can only be called by the operator.
+     * @param _isRebalancing Flag to indicate if rebalancing can be performed through this extension by anyone.
+     */
+    function setIsRebalancing(bool _isRebalancing) external onlyOperator {
+        isRebalancing = _isRebalancing;
+        emit IsRebalancingUpdated(_isRebalancing);
+    }
+
+    /**
+     * @notice Sets the flag to allow anyone to perform valid rebalances through this extension.
+     * @dev This function can only be called by the operator.
+     * @param _isAnyoneAllowedToRebalance Flag to indicate if anyone can perform valid rebalances through this extension.
+     */
+    function setIsAnyoneAllowedToRebalance(bool _isAnyoneAllowedToRebalance) external onlyOperator {
+        isAnyoneAllowedToRebalance = _isAnyoneAllowedToRebalance;
+        emit AnyoneRebalanceUpdated(_isAnyoneAllowedToRebalance);
     }
 
     /**
