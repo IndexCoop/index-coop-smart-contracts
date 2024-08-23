@@ -105,7 +105,6 @@
 //         owner.wallet,
 //       );
 
-//       // navIssuanceModule = await new INAVIssuanceModule__factory(owner.wallet).deploy(
 //     });
 
 //     context("When FlashMintDex contract is deployed", () => {
