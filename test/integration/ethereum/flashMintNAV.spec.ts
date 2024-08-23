@@ -63,19 +63,19 @@ const whales = {
 //   pool: ADDRESS_ZERO,
 // };
 
-const swapDataUsdcToWeth = {
-  exchange: Exchange.UniV3,
-  fees: [500],
-  path: [addresses.tokens.USDC, addresses.tokens.weth],
-  pool: ADDRESS_ZERO,
-};
-
-// const swapDataWethToUsdc = {
+// const swapDataUsdcToWeth = {
 //   exchange: Exchange.UniV3,
 //   fees: [500],
-//   path: [addresses.tokens.weth, addresses.tokens.USDC],
+//   path: [addresses.tokens.USDC, addresses.tokens.weth],
 //   pool: ADDRESS_ZERO,
 // };
+
+const swapDataWethToUsdc = {
+  exchange: Exchange.UniV3,
+  fees: [500],
+  path: [addresses.tokens.weth, addresses.tokens.USDC],
+  pool: ADDRESS_ZERO,
+};
 
 if (process.env.INTEGRATIONTEST) {
   describe.only("FlashMintNAV - Integration Test", async () => {
@@ -99,7 +99,7 @@ if (process.env.INTEGRATIONTEST) {
       // Sytem setup
       deployer = new DeployHelper(owner.wallet);
       setV2Setup = new SetFixture(ethers.provider, owner.address);
-      setV2Setup.initialize();
+      await setV2Setup.initialize();
 
       // Token setup
       usdc_erc20 = IERC20__factory.connect(addresses.tokens.USDC, owner.wallet);
@@ -196,7 +196,7 @@ if (process.env.INTEGRATIONTEST) {
       await cUSDCv3_erc20.connect(owner.wallet).approve(setV2Setup.debtIssuanceModule.address, MAX_UINT_256);
       await aUSDC_erc20.connect(owner.wallet).approve(setV2Setup.debtIssuanceModule.address, MAX_UINT_256);
       await gtUSDC_erc20.connect(owner.wallet).approve(setV2Setup.debtIssuanceModule.address, MAX_UINT_256);
-      await setV2Setup.debtIssuanceModule.issue(setToken.address, ether(10), owner.address);
+      // await setV2Setup.debtIssuanceModule.issue(setToken.address, ether(10), owner.address);
 
       // Deploy FlashMintNAV
       flashMintNAV = await deployer.extensions.deployFlashMintNAV(
@@ -217,26 +217,31 @@ if (process.env.INTEGRATIONTEST) {
 
     describe("#issue", () => {
       let subjectSetToken: SetToken;
-      let subjectIssueQuantity: BigNumber;
-      let subjectMinNav: BigNumber;
+      let subjectMinSetTokenAmount: BigNumber;
+      let subjectEthQuantity: BigNumber;
       let subjectSwapData: SwapData;
 
       beforeEach(async () => {
         subjectSetToken = setToken;
-        subjectIssueQuantity = ether(1);
-        subjectMinNav = ether(1);
-        subjectSwapData = swapDataUsdcToWeth;
+        subjectMinSetTokenAmount = ether(1);
+        subjectEthQuantity = ether(1);
+        subjectSwapData = swapDataWethToUsdc;
       });
 
       async function subject(): Promise<any> {
-        return flashMintNAV.issue(subjectSetToken.address, subjectIssueQuantity, subjectMinNav, subjectSwapData);
+        return flashMintNAV.issueSetFromExactETH(
+          subjectSetToken.address,
+          subjectMinSetTokenAmount,
+          subjectSwapData,
+          { value: subjectEthQuantity }
+        );
       }
 
       it("should issue SetToken with USDC", async () => {
         const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
         await subject();
         const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
-        expect(setTokenBalanceAfter).to.gte(setTokenBalanceBefore.add(subjectIssueQuantity));
+        expect(setTokenBalanceAfter).to.gte(setTokenBalanceBefore.add(subjectMinSetTokenAmount));
       });
     });
   });
