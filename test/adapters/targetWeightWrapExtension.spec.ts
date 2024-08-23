@@ -18,10 +18,14 @@ import {
   getWaffleExpect,
   preciseDiv,
 } from "@utils/index";
-import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
+import { ADDRESS_ZERO, MAX_UINT_256, ZERO } from "@utils/constants";
 import { BigNumber, ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
+
+const INITIAL_WETH_UNITS = ether(0.5);
+const INITIAL_WRAPPED_UNITS = ether(0.5);
+const INITIAL_SUPPLY = ether(10);
 
 describe("TargetWeightWrapExtension", async () => {
   let owner: Account;
@@ -67,7 +71,7 @@ describe("TargetWeightWrapExtension", async () => {
 
     setToken = await setV2Setup.createSetToken(
       [setV2Setup.weth.address, wrapAdapter.address],
-      [ether(0.5), ether(0.5)],
+      [INITIAL_WETH_UNITS, INITIAL_WRAPPED_UNITS],
       [setV2Setup.wrapModule.address, setV2Setup.issuanceModule.address, setV2Setup.navIssuanceModule.address]
     );
 
@@ -96,10 +100,10 @@ describe("TargetWeightWrapExtension", async () => {
 
     // Basic issue some set tokens
     await setV2Setup.weth.approve(wrapAdapter.address, MAX_UINT_256);
-    await wrapAdapter.mint(setV2Setup.weth.address, ether(10));
+    await wrapAdapter.mint(setV2Setup.weth.address, INITIAL_SUPPLY);
     await wrapAdapter.approve(setV2Setup.issuanceModule.address, MAX_UINT_256);
     await setV2Setup.weth.approve(setV2Setup.issuanceModule.address, MAX_UINT_256);
-    await setV2Setup.issuanceModule.issue(setToken.address, ether(10), owner.address);
+    await setV2Setup.issuanceModule.issue(setToken.address, INITIAL_SUPPLY, owner.address);
 
     // Deploy BaseManager
     baseManager = await deployer.manager.deployBaseManagerV2(
@@ -466,6 +470,35 @@ describe("TargetWeightWrapExtension", async () => {
             const reserveValuation = await setToken.getDefaultPositionRealUnit(setV2Setup.weth.address);
             const actualReserveValuation = await subject();
             expect(actualReserveValuation).to.eq(reserveValuation);
+            expect(actualReserveValuation).to.eq(INITIAL_WETH_UNITS);
+          });
+
+          context("when a NAV issuance occurs", async () => {
+            beforeEach(async () => {
+              await setV2Setup.weth.approve(setV2Setup.navIssuanceModule.address, MAX_UINT_256);
+              await setV2Setup.navIssuanceModule.issue(setToken.address, setV2Setup.weth.address, INITIAL_SUPPLY, ZERO, owner.address);
+            });
+
+            it("should return the correct reserve valuation", async () => {
+              const reserveValuation = await setToken.getDefaultPositionRealUnit(setV2Setup.weth.address);
+              const actualReserveValuation = await subject();
+              expect(actualReserveValuation).to.eq(reserveValuation);
+              expect(actualReserveValuation).to.gt(INITIAL_WETH_UNITS);
+            });
+          });
+
+          context("when a NAV redemption occurs", async () => {
+            beforeEach(async () => {
+              await setToken.approve(setV2Setup.navIssuanceModule.address, MAX_UINT_256);
+              await setV2Setup.navIssuanceModule.redeem(setToken.address, setV2Setup.weth.address, preciseDiv(INITIAL_SUPPLY, ether(2)), ZERO, owner.address);
+            });
+
+            it("should return the correct reserve valuation", async () => {
+              const reserveValuation = await setToken.getDefaultPositionRealUnit(setV2Setup.weth.address);
+              const actualReserveValuation = await subject();
+              expect(actualReserveValuation).to.eq(reserveValuation);
+              expect(actualReserveValuation).to.lt(INITIAL_WETH_UNITS);
+            });
           });
         });
 
@@ -480,10 +513,38 @@ describe("TargetWeightWrapExtension", async () => {
             return await targetWeightWrapExtension.getTargetAssetValuation(subjectTargetAsset);
           }
 
-          it("should return the correct reserve valuation", async () => {
+          it("should return the correct target asset valuation", async () => {
             const targetValuation = await setToken.getDefaultPositionRealUnit(wrapAdapter.address);
             const actualTargetValuation = await subject();
             expect(actualTargetValuation).to.eq(targetValuation);
+          });
+
+          context("when a NAV issuance occurs", async () => {
+            beforeEach(async () => {
+              await setV2Setup.weth.approve(setV2Setup.navIssuanceModule.address, MAX_UINT_256);
+              await setV2Setup.navIssuanceModule.issue(setToken.address, setV2Setup.weth.address, INITIAL_SUPPLY, ZERO, owner.address);
+            });
+
+            it("should return the correct target asset valuation", async () => {
+              const targetValuation = await setToken.getDefaultPositionRealUnit(wrapAdapter.address);
+              const actualTargetValuation = await subject();
+              expect(actualTargetValuation).to.eq(targetValuation);
+              expect(actualTargetValuation).to.lt(INITIAL_WRAPPED_UNITS);
+            });
+          });
+
+          context("when a NAV redemption occurs", async () => {
+            beforeEach(async () => {
+              await setToken.approve(setV2Setup.navIssuanceModule.address, MAX_UINT_256);
+              await setV2Setup.navIssuanceModule.redeem(setToken.address, setV2Setup.weth.address, preciseDiv(INITIAL_SUPPLY, ether(2)), ZERO, owner.address);
+            });
+
+            it("should return the correct target asset valuation", async () => {
+              const targetValuation = await setToken.getDefaultPositionRealUnit(wrapAdapter.address);
+              const actualTargetValuation = await subject();
+              expect(actualTargetValuation).to.eq(targetValuation);
+              expect(actualTargetValuation).to.gt(INITIAL_WRAPPED_UNITS);
+            });
           });
         });
 
@@ -501,6 +562,42 @@ describe("TargetWeightWrapExtension", async () => {
 
             expect(actualTotalValuation).to.eq(totalValuation);
           });
+
+          context("when a NAV issuance occurs", async () => {
+            beforeEach(async () => {
+              await setV2Setup.weth.approve(setV2Setup.navIssuanceModule.address, MAX_UINT_256);
+              await setV2Setup.navIssuanceModule.issue(setToken.address, setV2Setup.weth.address, INITIAL_SUPPLY, ZERO, owner.address);
+            });
+
+            it("should return the correct total valuation", async () => {
+              const reserveValuation = await setToken.getDefaultPositionRealUnit(setV2Setup.weth.address);
+              const targetValuation = await setToken.getDefaultPositionRealUnit(wrapAdapter.address);
+              const totalValuation = reserveValuation.add(targetValuation);
+
+              const actualTotalValuation = await subject();
+
+              expect(actualTotalValuation).to.eq(totalValuation);
+              expect(actualTotalValuation).to.gte(INITIAL_WETH_UNITS.add(INITIAL_WRAPPED_UNITS));
+            });
+          });
+
+          context("when a NAV redemption occurs", async () => {
+            beforeEach(async () => {
+              await setToken.approve(setV2Setup.navIssuanceModule.address, MAX_UINT_256);
+              await setV2Setup.navIssuanceModule.redeem(setToken.address, setV2Setup.weth.address, preciseDiv(INITIAL_SUPPLY, ether(2)), ZERO, owner.address);
+            });
+
+            it("should return the correct total valuation", async () => {
+              const reserveValuation = await setToken.getDefaultPositionRealUnit(setV2Setup.weth.address);
+              const targetValuation = await setToken.getDefaultPositionRealUnit(wrapAdapter.address);
+              const totalValuation = reserveValuation.add(targetValuation);
+
+              const actualTotalValuation = await subject();
+
+              expect(actualTotalValuation).to.eq(totalValuation);
+              expect(actualTotalValuation).to.gte(INITIAL_WETH_UNITS.add(INITIAL_WRAPPED_UNITS));
+            });
+          });
         });
 
         describe("#getReserveWeight", async () => {
@@ -508,7 +605,7 @@ describe("TargetWeightWrapExtension", async () => {
             return await targetWeightWrapExtension.getReserveWeight();
           }
 
-          it("should return the correct weights", async () => {
+          it("should return the correct reserve weight", async () => {
             const reserveBalance = await setV2Setup.weth.balanceOf(setToken.address);
             const targetBalance = await wrapAdapter.balanceOf(setToken.address);
             const totalBalance = reserveBalance.add(targetBalance);
@@ -518,6 +615,46 @@ describe("TargetWeightWrapExtension", async () => {
             const actualReserveWeight = await subject();
 
             expect(actualReserveWeight).to.eq(reserveWeight);
+          });
+
+          context("when a NAV issuance occurs", async () => {
+            beforeEach(async () => {
+              await setV2Setup.weth.approve(setV2Setup.navIssuanceModule.address, MAX_UINT_256);
+              await setV2Setup.navIssuanceModule.issue(setToken.address, setV2Setup.weth.address, INITIAL_SUPPLY, ZERO, owner.address);
+            });
+
+            it("should return the correct reserve weight", async () => {
+              const reserveBalance = await setV2Setup.weth.balanceOf(setToken.address);
+              const targetBalance = await wrapAdapter.balanceOf(setToken.address);
+              const totalBalance = reserveBalance.add(targetBalance);
+
+              const reserveWeight = preciseDiv(reserveBalance, totalBalance);
+
+              const actualReserveWeight = await subject();
+
+              expect(actualReserveWeight).to.eq(reserveWeight);
+              expect(actualReserveWeight).to.be.gt(preciseDiv(INITIAL_WETH_UNITS, INITIAL_WETH_UNITS.add(INITIAL_WRAPPED_UNITS)));
+            });
+          });
+
+          context("when a NAV redemption occurs", async () => {
+            beforeEach(async () => {
+              await setToken.approve(setV2Setup.navIssuanceModule.address, MAX_UINT_256);
+              await setV2Setup.navIssuanceModule.redeem(setToken.address, setV2Setup.weth.address, preciseDiv(INITIAL_SUPPLY, ether(2)), ZERO, owner.address);
+            });
+
+            it("should return the correct reserve weight", async () => {
+              const reserveBalance = await setV2Setup.weth.balanceOf(setToken.address);
+              const targetBalance = await wrapAdapter.balanceOf(setToken.address);
+              const totalBalance = reserveBalance.add(targetBalance);
+
+              const reserveWeight = preciseDiv(reserveBalance, totalBalance);
+
+              const actualReserveWeight = await subject();
+
+              expect(actualReserveWeight).to.eq(reserveWeight);
+              expect(actualReserveWeight).to.be.lt(preciseDiv(INITIAL_WETH_UNITS, INITIAL_WETH_UNITS.add(INITIAL_WRAPPED_UNITS)));
+            });
           });
         });
 
@@ -532,7 +669,7 @@ describe("TargetWeightWrapExtension", async () => {
             return await targetWeightWrapExtension.getTargetAssetWeight(subjectTargetAsset);
           }
 
-          it("should return the correct weights", async () => {
+          it("should return the correct target asset weight", async () => {
             const reserveBalance = await setV2Setup.weth.balanceOf(setToken.address);
             const targetBalance = await wrapAdapter.balanceOf(setToken.address);
             const totalBalance = reserveBalance.add(targetBalance);
@@ -542,6 +679,46 @@ describe("TargetWeightWrapExtension", async () => {
             const actualTargetWeight = await subject();
 
             expect(actualTargetWeight).to.eq(targetWeight);
+          });
+
+          context("when a NAV issuance occurs", async () => {
+            beforeEach(async () => {
+              await setV2Setup.weth.approve(setV2Setup.navIssuanceModule.address, MAX_UINT_256);
+              await setV2Setup.navIssuanceModule.issue(setToken.address, setV2Setup.weth.address, INITIAL_SUPPLY, ZERO, owner.address);
+            });
+
+            it("should return the correct target asset weight", async () => {
+              const reserveBalance = await setV2Setup.weth.balanceOf(setToken.address);
+              const targetBalance = await wrapAdapter.balanceOf(setToken.address);
+              const totalBalance = reserveBalance.add(targetBalance);
+
+              const targetWeight = preciseDiv(targetBalance, totalBalance);
+
+              const actualTargetWeight = await subject();
+
+              expect(actualTargetWeight).to.eq(targetWeight);
+              expect(actualTargetWeight).to.be.lt(preciseDiv(INITIAL_WRAPPED_UNITS, INITIAL_WETH_UNITS.add(INITIAL_WRAPPED_UNITS)));
+            });
+          });
+
+          context("when a NAV redemption occurs", async () => {
+            beforeEach(async () => {
+              await setToken.approve(setV2Setup.navIssuanceModule.address, MAX_UINT_256);
+              await setV2Setup.navIssuanceModule.redeem(setToken.address, setV2Setup.weth.address, preciseDiv(INITIAL_SUPPLY, ether(2)), ZERO, owner.address);
+            });
+
+            it("should return the correct target asset weight", async () => {
+              const reserveBalance = await setV2Setup.weth.balanceOf(setToken.address);
+              const targetBalance = await wrapAdapter.balanceOf(setToken.address);
+              const totalBalance = reserveBalance.add(targetBalance);
+
+              const targetWeight = preciseDiv(targetBalance, totalBalance);
+
+              const actualTargetWeight = await subject();
+
+              expect(actualTargetWeight).to.eq(targetWeight);
+              expect(actualTargetWeight).to.be.gt(preciseDiv(INITIAL_WRAPPED_UNITS, INITIAL_WETH_UNITS.add(INITIAL_WRAPPED_UNITS)));
+            });
           });
         });
 
@@ -564,10 +741,56 @@ describe("TargetWeightWrapExtension", async () => {
             const reserveWeight = preciseDiv(reserveBalance, totalBalance);
             const targetWeight = preciseDiv(targetBalance, totalBalance);
 
-            const [actualReserveWeight, actualTargetWeight] = await subject();
+            const [actualTargetWeight, actualReserveWeight] = await subject();
 
             expect(actualReserveWeight).to.eq(reserveWeight);
             expect(actualTargetWeight).to.eq(targetWeight);
+          });
+
+          context("when a NAV issuance occurs", async () => {
+            beforeEach(async () => {
+              await setV2Setup.weth.approve(setV2Setup.navIssuanceModule.address, MAX_UINT_256);
+              await setV2Setup.navIssuanceModule.issue(setToken.address, setV2Setup.weth.address, INITIAL_SUPPLY, ZERO, owner.address);
+            });
+
+            it("should return the correct weights", async () => {
+              const reserveBalance = await setV2Setup.weth.balanceOf(setToken.address);
+              const targetBalance = await wrapAdapter.balanceOf(setToken.address);
+              const totalBalance = reserveBalance.add(targetBalance);
+
+              const reserveWeight = preciseDiv(reserveBalance, totalBalance);
+              const targetWeight = preciseDiv(targetBalance, totalBalance);
+
+              const [actualTargetWeight, actualReserveWeight] = await subject();
+
+              expect(actualReserveWeight).to.eq(reserveWeight);
+              expect(actualTargetWeight).to.eq(targetWeight);
+
+              expect(actualReserveWeight.sub(INITIAL_WETH_UNITS)).to.be.gte(actualTargetWeight.sub(INITIAL_WRAPPED_UNITS));
+            });
+          });
+
+          context("when a NAV redemption occurs", async () => {
+            beforeEach(async () => {
+              await setToken.approve(setV2Setup.navIssuanceModule.address, MAX_UINT_256);
+              await setV2Setup.navIssuanceModule.redeem(setToken.address, setV2Setup.weth.address, preciseDiv(INITIAL_SUPPLY, ether(2)), ZERO, owner.address);
+            });
+
+            it("should return the correct weights", async () => {
+              const reserveBalance = await setV2Setup.weth.balanceOf(setToken.address);
+              const targetBalance = await wrapAdapter.balanceOf(setToken.address);
+              const totalBalance = reserveBalance.add(targetBalance);
+
+              const reserveWeight = preciseDiv(reserveBalance, totalBalance);
+              const targetWeight = preciseDiv(targetBalance, totalBalance);
+
+              const [actualTargetWeight, actualReserveWeight] = await subject();
+
+              expect(actualReserveWeight).to.eq(reserveWeight);
+              expect(actualTargetWeight).to.eq(targetWeight);
+
+              expect(actualTargetWeight.sub(INITIAL_WRAPPED_UNITS)).to.be.gte(actualReserveWeight.sub(INITIAL_WETH_UNITS));
+            });
           });
         });
 
@@ -589,13 +812,7 @@ describe("TargetWeightWrapExtension", async () => {
 
           beforeEach(async () => {
             await setV2Setup.weth.approve(setV2Setup.navIssuanceModule.address, MAX_UINT_256);
-            await setV2Setup.navIssuanceModule.issue(
-              setToken.address,
-              setV2Setup.weth.address,
-              ether(10),
-              ether(0.99),
-              owner.address
-            );
+            await setV2Setup.navIssuanceModule.issue(setToken.address, setV2Setup.weth.address, INITIAL_SUPPLY, ZERO, owner.address);
 
             subjectTargetAsset = wrapAdapter.address;
             subjectReserveUnits = ether(0.25);
@@ -730,13 +947,7 @@ describe("TargetWeightWrapExtension", async () => {
 
           beforeEach(async () => {
             await setToken.approve(setV2Setup.navIssuanceModule.address, MAX_UINT_256);
-            await setV2Setup.navIssuanceModule.redeem(
-              setToken.address,
-              setV2Setup.weth.address,
-              ether(5),
-              ether(0.99),
-              owner.address
-            );
+            await setV2Setup.navIssuanceModule.redeem(setToken.address, setV2Setup.weth.address, preciseDiv(INITIAL_SUPPLY, ether(2)), ZERO, owner.address);
 
             subjectTargetAsset = wrapAdapter.address;
             subjectTargetUnits = ether(0.25);
