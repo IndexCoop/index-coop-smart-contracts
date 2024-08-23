@@ -88,28 +88,6 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         uint256 _amountOutputToken      // The amount of output tokens received by the recipient
     );
 
-    /* ============ Modifiers ============ */
-
-    // modifier isValidPath(
-    //     address[] memory _path,
-    //     address _inputToken,
-    //     address _outputToken
-    // )
-    // {
-    //     if(_inputToken != _outputToken){
-    //         require(
-    //             _path[0] == _inputToken || (_inputToken == addresses.weth && _path[0] == DEXAdapterV2.ETH_ADDRESS),
-    //             "ExchangeIssuance: INPUT_TOKEN_NOT_IN_PATH"
-    //         );
-    //         require(
-    //             _path[_path.length-1] == _outputToken ||
-    //             (_outputToken == addresses.weth && _path[_path.length-1] == DEXAdapterV2.ETH_ADDRESS),
-    //             "ExchangeIssuance: OUTPUT_TOKEN_NOT_IN_PATH"
-    //         );
-    //     }
-    //     _;
-    // }
-
     /**
      * Initializes the contract with controller, issuance module, and DEXAdapterV2 library addresses.
      *
@@ -211,6 +189,9 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         require(msg.value > 0, "FlashMint: NO ETH SENT");
         IWETH(WETH).deposit{value: msg.value}();
 
+        // TODO refactor into modifier
+        address reserveAsset = _reserveAssetSwapData.path[_reserveAssetSwapData.path.length - 1];
+        require(navIssuanceModule.isReserveAsset(_setToken, reserveAsset), "FLASHMINT: INVALID RESERVE ASSET");
         uint256 reserveAssetReceived = dexAdapter.swapExactTokensForTokens(msg.value, 0, _reserveAssetSwapData);
         uint256 setTokenBalanceBefore = _setToken.balanceOf(msg.sender);
 
@@ -333,24 +314,24 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
      *
      * @return              Amount of input token needed for issuance
      */
-    function _getInputTokenAmountForIssue(ISetToken _setToken, uint256 _amountSetToken, DEXAdapterV2.SwapData memory _reserveAssetSwapData)
-        internal
-        returns (uint256)
-    {
-        uint8 outIndex = uint8(_reserveAssetSwapData.path.length - 1);
-        address reserveAsset = _reserveAssetSwapData.path[outIndex];
+    // function _getInputTokenAmountForIssue(ISetToken _setToken, uint256 _amountSetToken, DEXAdapterV2.SwapData memory _reserveAssetSwapData)
+    //     internal
+    //     returns (uint256)
+    // {
+    //     uint8 outIndex = uint8(_reserveAssetSwapData.path.length - 1);
+    //     address reserveAsset = _reserveAssetSwapData.path[outIndex];
 
-        // Sync SetToken positions (in case of rebasing components, for example)
-        _callPreIssueHooks(_setToken, reserveAsset, 0, msg.sender, address(this));
-        // Get valuation of the SetToken with the quote asset as the reserve asset. Returns value in precise units (1e18)
-        uint256 setTokenValuation = _getSetValuer(_setToken).calculateSetTokenValuation(_setToken, reserveAsset);
+    //     // Sync SetToken positions (in case of rebasing components, for example)
+    //     _callPreIssueHooks(_setToken, reserveAsset, 0, msg.sender, address(this));
+    //     // Get valuation of the SetToken with the quote asset as the reserve asset. Returns value in precise units (1e18)
+    //     uint256 setTokenValuation = _getSetValuer(_setToken).calculateSetTokenValuation(_setToken, reserveAsset);
 
-        uint256 reserveAssetDecimals = ERC20(reserveAsset).decimals();
-        // TODO: Handle any issue premiums and fees
-        uint256 reserveAssetNeeded = setTokenValuation.preciseMul(_amountSetToken).preciseDiv(10 ** reserveAssetDecimals);
+    //     uint256 reserveAssetDecimals = ERC20(reserveAsset).decimals();
+    //     // TODO: Handle any issue premiums and fees
+    //     uint256 reserveAssetNeeded = setTokenValuation.preciseMul(_amountSetToken).preciseDiv(10 ** reserveAssetDecimals);
 
-        return dexAdapter.getAmountIn(_reserveAssetSwapData, reserveAssetNeeded);
-    }
+    //     return dexAdapter.getAmountIn(_reserveAssetSwapData, reserveAssetNeeded);
+    // }
 
     /**
      * Transfers given amount of set token from the sender and redeems it for underlying components.
@@ -368,40 +349,40 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
      * If a custom set valuer has been configured, use it. Otherwise fetch the default one form the
      * controller.
      */
-    function _getSetValuer(ISetToken _setToken) internal view returns (ISetValuer) {
-        (,,address customValuer,,,,,) = navIssuanceModule.navIssuanceSettings(address(_setToken));
-        // TODO: Check if custom valuer is not set and use default valuer?
-        return ISetValuer(customValuer);
-    }
+    // function _getSetValuer(ISetToken _setToken) internal view returns (ISetValuer) {
+    //     (,,address customValuer,,,,,) = navIssuanceModule.navIssuanceSettings(address(_setToken));
+    //     // TODO: Check if custom valuer is not set and use default valuer?
+    //     return ISetValuer(customValuer);
+    // }
 
     /**
      * If a pre-issue hook has been configured, call the external-protocol contract. Pre-issue hook logic
      * can contain arbitrary logic including validations, external function calls, etc.
      */
-    function _callPreIssueHooks(
-        ISetToken _setToken,
-        address _reserveAsset,
-        uint256 _reserveAssetQuantity,
-        address _caller,
-        address _to
-    )
-        internal
-    {
-        (address preIssueHook,,,,,,,) = navIssuanceModule.navIssuanceSettings(address(_setToken));
-        // INAVIssuanceHook preIssueHook = navIssuanceModule.navIssuanceSettings(_setToken).managerIssuanceHook;
-        if (address(preIssueHook) != address(0)) {
-            INAVIssuanceHook(preIssueHook).invokePreIssueHook(_setToken, _reserveAsset, _reserveAssetQuantity, _caller, _to);
-        }
-    }
+    // function _callPreIssueHooks(
+    //     ISetToken _setToken,
+    //     address _reserveAsset,
+    //     uint256 _reserveAssetQuantity,
+    //     address _caller,
+    //     address _to
+    // )
+    //     internal
+    // {
+    //     (address preIssueHook,,,,,,,) = navIssuanceModule.navIssuanceSettings(address(_setToken));
+    //     // INAVIssuanceHook preIssueHook = navIssuanceModule.navIssuanceSettings(_setToken).managerIssuanceHook;
+    //     if (address(preIssueHook) != address(0)) {
+    //         INAVIssuanceHook(preIssueHook).invokePreIssueHook(_setToken, _reserveAsset, _reserveAssetQuantity, _caller, _to);
+    //     }
+    // }
 
-    /**
-     * If a pre-redeem hook has been configured, call the external-protocol contract.
-     */
-    function _callPreRedeemHooks(ISetToken _setToken, uint256 _setQuantity, address _caller, address _to) internal {
-        (,address preRedeemHook,,,,,,) = navIssuanceModule.navIssuanceSettings(address(_setToken));
-        // INAVIssuanceHook preRedeemHook = navIssuanceModule.navIssuanceSettings(_setToken).managerRedemptionHook;
-        if (address(preRedeemHook) != address(0)) {
-            INAVIssuanceHook(preRedeemHook).invokePreRedeemHook(_setToken, _setQuantity, _caller, _to);
-        }
-    }
+    // /**
+    //  * If a pre-redeem hook has been configured, call the external-protocol contract.
+    //  */
+    // function _callPreRedeemHooks(ISetToken _setToken, uint256 _setQuantity, address _caller, address _to) internal {
+    //     (,address preRedeemHook,,,,,,) = navIssuanceModule.navIssuanceSettings(address(_setToken));
+    //     // INAVIssuanceHook preRedeemHook = navIssuanceModule.navIssuanceSettings(_setToken).managerRedemptionHook;
+    //     if (address(preRedeemHook) != address(0)) {
+    //         INAVIssuanceHook(preRedeemHook).invokePreRedeemHook(_setToken, _setQuantity, _caller, _to);
+    //     }
+    // }
 }
