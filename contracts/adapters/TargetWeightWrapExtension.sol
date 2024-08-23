@@ -31,6 +31,7 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { ISetValuer } from "../interfaces/ISetValuer.sol";
+import { IWETH } from "../interfaces/IWETH.sol";
 import { IWrapModule } from "../interfaces/IWrapModule.sol";
 
 /**
@@ -83,6 +84,7 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     ISetToken public immutable setToken;
     IWrapModule public immutable wrapModule;
     ISetValuer public immutable setValuer;
+    IWETH public immutable weth;
 
     /* ========== State Variables ========= */
 
@@ -106,6 +108,7 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      * @param _manager Address of Index Manager contract
      * @param _wrapModule Address of WrapModule for wrapping and unwrapping reserve asset
      * @param _setValuer Address of SetValuer for calculating valuations and weights
+     * @param _weth Address of WETH contract, used for valuation of the reserve when it is ETH
      * @param _isRebalancing Flag to indicate if rebalancing is initially enabled
      * @param _isAnyoneAllowedToRebalance Flag to indicate if anyone can perform valid rebalances
      */
@@ -113,6 +116,7 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         IBaseManager _manager,
         IWrapModule _wrapModule,
         ISetValuer _setValuer,
+        IWETH _weth,
         bool _isRebalancing,
         bool _isAnyoneAllowedToRebalance
     ) public BaseExtension(_manager) {
@@ -120,6 +124,7 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         setToken = manager.setToken();
         wrapModule = _wrapModule;
         setValuer = _setValuer;
+        weth = _weth;
         isRebalancing = _isRebalancing;
         isAnyoneAllowedToRebalance = _isAnyoneAllowedToRebalance;
     }
@@ -250,11 +255,20 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     /* ========== External Getters ========== */
 
     /**
+     * @notice Gets the address of the reserve asset used for valuation. WETH is used if the reserve asset is ETH, 
+     * otherwise the reserve asset is used.
+     */
+    function getValuationReserveAsset() public view returns(address) {
+        return rebalanceInfo.reserveAsset == ETH_ADDRESS ? address(weth) : rebalanceInfo.reserveAsset;
+    }
+
+    /**
      * @notice Gets the valuation of the reserve asset.
      * @return reserveValuation The valuation of the reserve asset.
      */
     function getReserveValuation() public view returns(uint256 reserveValuation) {
-        reserveValuation = setValuer.calculateComponentValuation(setToken, rebalanceInfo.reserveAsset, rebalanceInfo.reserveAsset);
+        address valuationReserveAsset = getValuationReserveAsset();
+        reserveValuation = setValuer.calculateComponentValuation(setToken, valuationReserveAsset, valuationReserveAsset);
     }
 
     /**
@@ -263,7 +277,7 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      * @return targetAssetValuation The valuation of the specified target asset.
      */
     function getTargetAssetValuation(address _targetAsset) public view returns(uint256 targetAssetValuation) {
-        targetAssetValuation = setValuer.calculateComponentValuation(setToken, _targetAsset, rebalanceInfo.reserveAsset);
+        targetAssetValuation = setValuer.calculateComponentValuation(setToken, _targetAsset, getValuationReserveAsset());
     }
 
     /**
@@ -271,7 +285,7 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      * @return totalValuation The total valuation of the SetToken.
      */
     function getTotalValuation() public view returns(uint256 totalValuation) {
-        totalValuation = setValuer.calculateSetTokenValuation(setToken, rebalanceInfo.reserveAsset);
+        totalValuation = setValuer.calculateSetTokenValuation(setToken, getValuationReserveAsset());
     }
 
     /**
@@ -308,7 +322,6 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         uint256 targetAssetValuation = getTargetAssetValuation(_targetAsset);
         uint256 reserveValuation = getReserveValuation();
         uint256 totalValuation = getTotalValuation();
-
         targetAssetWeight = targetAssetValuation.preciseDiv(totalValuation);
         reserveWeight = reserveValuation.preciseDiv(totalValuation);
     }
