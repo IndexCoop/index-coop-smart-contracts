@@ -655,8 +655,8 @@ export default class DeployExtensions {
     return await new WrapExtension__factory(this._deployerSigner).deploy(manager, wrapModule);
   }
 
-  public async deployTargetWeightWrapExtension(manager: Address, wrapModule: Address, setValuer: Address, weth: Address, isRebalancing: boolean, isAnyoneAllowedToRebalance: boolean): Promise<TargetWeightWrapExtension> {
-    return await new TargetWeightWrapExtension__factory(this._deployerSigner).deploy(manager, wrapModule, setValuer, weth, isRebalancing, isAnyoneAllowedToRebalance);
+  public async deployTargetWeightWrapExtension(manager: Address, wrapModule: Address, setValuer: Address, weth: Address, isAnyoneAllowedToRebalance: boolean): Promise<TargetWeightWrapExtension> {
+    return await new TargetWeightWrapExtension__factory(this._deployerSigner).deploy(manager, wrapModule, setValuer, weth, isAnyoneAllowedToRebalance);
   }
 
   public async deployMigrationExtension(

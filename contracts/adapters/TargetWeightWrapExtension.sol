@@ -70,7 +70,6 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     /* ============ Events ============ */
 
     event AnyoneRebalanceUpdated(bool isAnyoneAllowedToRebalance);
-    event IsRebalancingUpdated(bool isRebalancing);
     event TargetsSet(
         address indexed reserveAsset,
         uint256 minReserveWeight,
@@ -78,6 +77,7 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         address[] targetAssets,
         TargetWeightWrapParams[] executionParams
     );
+    event RebalanceSuspended();
 
     /* ========== Immutables ========= */
 
@@ -109,7 +109,6 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      * @param _wrapModule Address of WrapModule for wrapping and unwrapping reserve asset
      * @param _setValuer Address of SetValuer for calculating valuations and weights
      * @param _weth Address of WETH contract, used for valuation of the reserve when it is ETH
-     * @param _isRebalancing Flag to indicate if rebalancing is initially enabled
      * @param _isAnyoneAllowedToRebalance Flag to indicate if anyone can perform valid rebalances
      */
     constructor(
@@ -117,7 +116,6 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         IWrapModule _wrapModule,
         ISetValuer _setValuer,
         IWETH _weth,
-        bool _isRebalancing,
         bool _isAnyoneAllowedToRebalance
     ) public BaseExtension(_manager) {
         manager = _manager;
@@ -125,7 +123,6 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         wrapModule = _wrapModule;
         setValuer = _setValuer;
         weth = _weth;
-        isRebalancing = _isRebalancing;
         isAnyoneAllowedToRebalance = _isAnyoneAllowedToRebalance;
     }
 
@@ -209,6 +206,8 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     {
         require(_targetAssets.length == _executionParams.length, "Array lengths do not match");
 
+        isRebalancing = true;
+
         rebalanceInfo = RebalanceInfo({
             reserveAsset: _reserveAsset,
             minReserveWeight: _minReserveWeight,
@@ -224,13 +223,12 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     }
 
     /**
-     * @notice Sets the flag to allow rebalances to be performed through this extension.
+     * @notice Suspends rebalance until setTargetWeights is called again.
      * @dev This function can only be called by the operator.
-     * @param _isRebalancing Flag to indicate if rebalancing can be performed through this extension by anyone.
      */
-    function setIsRebalancing(bool _isRebalancing) external onlyOperator {
-        isRebalancing = _isRebalancing;
-        emit IsRebalancingUpdated(_isRebalancing);
+    function suspendRebalance() external onlyOperator {
+        isRebalancing = false;
+        emit RebalanceSuspended();
     }
 
     /**

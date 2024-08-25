@@ -121,7 +121,6 @@ describe("TargetWeightWrapExtension", async () => {
     let subjectWrapModule: Address;
     let subjectSetValuer: Address;
     let subjectWeth: Address;
-    let subjectIsRebalancing: boolean;
     let subjectIsAnyoneAllowedToRebalance: boolean;
 
     beforeEach(async () => {
@@ -129,7 +128,6 @@ describe("TargetWeightWrapExtension", async () => {
       subjectWrapModule = setV2Setup.wrapModule.address;
       subjectSetValuer = setV2Setup.setValuer.address;
       subjectWeth = setV2Setup.weth.address;
-      subjectIsRebalancing = false;
       subjectIsAnyoneAllowedToRebalance = false;
     });
 
@@ -139,7 +137,6 @@ describe("TargetWeightWrapExtension", async () => {
         subjectWrapModule,
         subjectSetValuer,
         subjectWeth,
-        subjectIsRebalancing,
         subjectIsAnyoneAllowedToRebalance
       );
     }
@@ -179,13 +176,6 @@ describe("TargetWeightWrapExtension", async () => {
       expect(weth).to.eq(subjectWeth);
     });
 
-    it("should set the correct rebalancing status", async () => {
-      const wrapExtension = await subject();
-
-      const isRebalancing = await wrapExtension.isRebalancing();
-      expect(isRebalancing).to.eq(subjectIsRebalancing);
-    });
-
     it("should set the correct rebalancing permissions", async () => {
       const wrapExtension = await subject();
 
@@ -201,7 +191,6 @@ describe("TargetWeightWrapExtension", async () => {
         setV2Setup.wrapModule.address,
         setV2Setup.setValuer.address,
         setV2Setup.weth.address,
-        true,
         false
       );
 
@@ -278,6 +267,11 @@ describe("TargetWeightWrapExtension", async () => {
           );
         }
 
+        it("should set isRebalancing to true", async () => {
+          await subject();
+          expect(await targetWeightWrapExtension.isRebalancing()).to.be.true;
+        });
+
         it("should set the rebalanceInfo", async () => {
           await subject();
 
@@ -309,37 +303,25 @@ describe("TargetWeightWrapExtension", async () => {
         });
       });
 
-      describe("#setIsRebalancing", () => {
+      describe("#suspendRebalance", () => {
         let subjectCaller: Account;
-        let subjectIsRebalancing: boolean;
 
         function subject() {
-          return targetWeightWrapExtension.connect(subjectCaller.wallet).setIsRebalancing(subjectIsRebalancing);
+          return targetWeightWrapExtension.connect(subjectCaller.wallet).suspendRebalance();
         }
         beforeEach(async () => {
           subjectCaller = operator;
         });
-        [true, false].forEach((isRebalancing: boolean) => {
-          describe(`when setting value to ${isRebalancing}`, () => {
-            beforeEach(async () => {
-              subjectIsRebalancing = isRebalancing;
-              await targetWeightWrapExtension
-                .connect(operator.wallet)
-                .setIsRebalancing(!isRebalancing);
-            });
 
-            it("should update isRebalancing correctly", async () => {
-              await subject();
-              const actualIsRebalancing = await targetWeightWrapExtension.isRebalancing();
-              expect(actualIsRebalancing).to.eq(subjectIsRebalancing);
-            });
-          });
+        it("should suspend the rebalance", async () => {
+          await subject();
+
+          expect(await targetWeightWrapExtension.isRebalancing()).to.be.false;
         });
 
         context("when the caller is not the operator", async () => {
           beforeEach(async () => {
             subjectCaller = feeRecipient;
-            subjectIsRebalancing = false;
           });
 
           it("should revert", async () => {
@@ -884,7 +866,7 @@ describe("TargetWeightWrapExtension", async () => {
 
           context("when isRebalancing is false", async () => {
             beforeEach(async () => {
-              await targetWeightWrapExtension.connect(operator.wallet).setIsRebalancing(false);
+              await targetWeightWrapExtension.connect(operator.wallet).suspendRebalance();
             });
 
             it("should revert", async () => {
@@ -1040,7 +1022,7 @@ describe("TargetWeightWrapExtension", async () => {
 
           context("when isRebalancing is false", async () => {
             beforeEach(async () => {
-              await targetWeightWrapExtension.connect(operator.wallet).setIsRebalancing(false);
+              await targetWeightWrapExtension.connect(operator.wallet).suspendRebalance();
             });
 
             it("should revert", async () => {

@@ -5,11 +5,13 @@ import { convertLibraryNameToLinkId } from "../common";
 import {
   AaveLeverageModule,
   AaveV2,
+  AaveV3WrapV2Adapter,
   AirdropModule,
   AuctionRebalanceModuleV1,
   BasicIssuanceModule,
   Compound,
   CompoundLeverageModule,
+  CompoundV3WrapV2Adapter,
   Controller,
   ConstantPriceAdapter,
   ComptrollerMock,
@@ -21,6 +23,7 @@ import {
   DebtIssuanceModuleV2,
   DebtIssuanceModuleV3,
   ERC4626Oracle,
+  ERC4626WrapV2Adapter,
   GeneralIndexModule,
   GovernanceModule,
   IntegrationRegistry,
@@ -50,6 +53,7 @@ import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
 import { AaveLeverageModule__factory } from "../../typechain/factories/AaveLeverageModule__factory";
 import { AaveV2__factory } from "../../typechain/factories/AaveV2__factory";
+import { AaveV3WrapV2Adapter__factory } from "../../typechain/factories/AaveV3WrapV2Adapter__factory";
 import { AirdropModule__factory } from "../../typechain/factories/AirdropModule__factory";
 import { AuctionRebalanceModuleV1__factory } from "../../typechain/factories/AuctionRebalanceModuleV1__factory";
 import { BasicIssuanceModule__factory } from "../../typechain/factories/BasicIssuanceModule__factory";
@@ -58,6 +62,7 @@ import { Controller__factory } from "../../typechain/factories/Controller__facto
 import { ConstantPriceAdapter__factory } from "../../typechain/factories/ConstantPriceAdapter__factory";
 import { Compound__factory } from "../../typechain/factories/Compound__factory";
 import { CompoundLeverageModule__factory } from "../../typechain/factories/CompoundLeverageModule__factory";
+import { CompoundV3WrapV2Adapter__factory } from "../../typechain/factories/CompoundV3WrapV2Adapter__factory";
 import { ComptrollerMock__factory } from "../../typechain/factories/ComptrollerMock__factory";
 import { ContractCallerMock__factory } from "../../typechain/factories/ContractCallerMock__factory";
 import { ClaimAdapterMock__factory } from "../../typechain/factories/ClaimAdapterMock__factory";
@@ -67,6 +72,7 @@ import { DebtIssuanceModule__factory } from "../../typechain/factories/DebtIssua
 import { DebtIssuanceModuleV2__factory } from "../../typechain/factories/DebtIssuanceModuleV2__factory";
 import { DebtIssuanceModuleV3__factory } from "../../typechain/factories/DebtIssuanceModuleV3__factory";
 import { ERC4626Oracle__factory } from "../../typechain/factories/ERC4626Oracle__factory";
+import { ERC4626WrapV2Adapter__factory } from "../../typechain/factories/ERC4626WrapV2Adapter__factory";
 import { GeneralIndexModule__factory } from "../../typechain/factories/GeneralIndexModule__factory";
 import { GovernanceModule__factory } from "../../typechain/factories/GovernanceModule__factory";
 import { IntegrationRegistry__factory } from "../../typechain/factories/IntegrationRegistry__factory";
@@ -402,5 +408,17 @@ export default class DeploySetV2 {
 
   public async deploySetValuer(controller: Address): Promise<SetValuer> {
     return await new SetValuer__factory(this._deployerSigner).deploy(controller);
+  }
+
+  public async deployCompoundV3WrapV2Adapter(comet: Address): Promise<CompoundV3WrapV2Adapter> {
+    return await new CompoundV3WrapV2Adapter__factory(this._deployerSigner).deploy(comet);
+  }
+
+  public async deployAaveV3WrapV2Adapter(pool: Address): Promise<AaveV3WrapV2Adapter> {
+    return await new AaveV3WrapV2Adapter__factory(this._deployerSigner).deploy(pool);
+  }
+
+  public async deployERC4626WrapV2Adapter(): Promise<ERC4626WrapV2Adapter> {
+    return await new ERC4626WrapV2Adapter__factory(this._deployerSigner).deploy();
   }
 }
