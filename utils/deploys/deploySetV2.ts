@@ -5,6 +5,7 @@ import { convertLibraryNameToLinkId } from "../common";
 import {
   AaveLeverageModule,
   AaveV2,
+  AaveV2WrapV2Adapter,
   AaveV3WrapV2Adapter,
   AirdropModule,
   AuctionRebalanceModuleV1,
@@ -53,6 +54,7 @@ import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
 import { AaveLeverageModule__factory } from "../../typechain/factories/AaveLeverageModule__factory";
 import { AaveV2__factory } from "../../typechain/factories/AaveV2__factory";
+import { AaveV2WrapV2Adapter__factory } from "../../typechain/factories/AaveV2WrapV2Adapter__factory";
 import { AaveV3WrapV2Adapter__factory } from "../../typechain/factories/AaveV3WrapV2Adapter__factory";
 import { AirdropModule__factory } from "../../typechain/factories/AirdropModule__factory";
 import { AuctionRebalanceModuleV1__factory } from "../../typechain/factories/AuctionRebalanceModuleV1__factory";
@@ -412,6 +414,10 @@ export default class DeploySetV2 {
 
   public async deployCompoundV3WrapV2Adapter(comet: Address): Promise<CompoundV3WrapV2Adapter> {
     return await new CompoundV3WrapV2Adapter__factory(this._deployerSigner).deploy(comet);
+  }
+
+  public async deployAaveV2WrapV2Adapter(lendingPool: Address): Promise<AaveV2WrapV2Adapter> {
+    return await new AaveV2WrapV2Adapter__factory(this._deployerSigner).deploy(lendingPool);
   }
 
   public async deployAaveV3WrapV2Adapter(pool: Address): Promise<AaveV3WrapV2Adapter> {

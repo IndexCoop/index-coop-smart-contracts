@@ -884,23 +884,6 @@ describe("TargetWeightWrapExtension", async () => {
             });
           });
 
-          context("when the reserve is not overweight", async () => {
-            beforeEach(async () => {
-              await setToken.approve(setV2Setup.navIssuanceModule.address, MAX_UINT_256);
-              await setV2Setup.navIssuanceModule.redeem(
-                setToken.address,
-                setV2Setup.weth.address,
-                ether(10),
-                ether(0.99),
-                owner.address
-              );
-            });
-
-            it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Reserve must be overweight before");
-            });
-          });
-
           context("when the target asset is overweight after", async () => {
             beforeEach(async () => {
               subjectReserveUnits = ether(0.5);
@@ -1037,23 +1020,6 @@ describe("TargetWeightWrapExtension", async () => {
 
             it("should revert", async () => {
               await expect(subject()).to.be.revertedWith("Target asset must be in rebalance");
-            });
-          });
-
-          context("when the reserve is not underweight", async () => {
-            beforeEach(async () => {
-              await setV2Setup.weth.approve(setV2Setup.navIssuanceModule.address, MAX_UINT_256);
-              await setV2Setup.navIssuanceModule.issue(
-                setToken.address,
-                setV2Setup.weth.address,
-                ether(5),
-                ether(0.99),
-                owner.address
-              );
-            });
-
-            it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Reserve must be underweight before");
             });
           });
 

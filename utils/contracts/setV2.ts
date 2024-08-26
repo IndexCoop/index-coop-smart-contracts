@@ -37,5 +37,6 @@ export { PriceOracle } from "../../typechain/PriceOracle";
 export { RebasingComponentModule } from "../../typechain/RebasingComponentModule";
 export { SetValuer } from "../../typechain/SetValuer";
 export { CompoundV3WrapV2Adapter } from "../../typechain/CompoundV3WrapV2Adapter";
+export { AaveV2WrapV2Adapter } from "../../typechain/AaveV2WrapV2Adapter";
 export { AaveV3WrapV2Adapter } from "../../typechain/AaveV3WrapV2Adapter";
 export { ERC4626WrapV2Adapter } from "../../typechain/ERC4626WrapV2Adapter";
