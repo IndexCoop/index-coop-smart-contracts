@@ -56,12 +56,12 @@ const whales = {
   morpho_seeding: "0x6ABfd6139c7C3CC270ee2Ce132E309F59cAaF6a2", // gtUSDC
 };
 
-// const swapDataEmpty = {
-//   exchange: Exchange.None,
-//   fees: [],
-//   path: [],
-//   pool: ADDRESS_ZERO,
-// };
+const swapDataEmpty = {
+  exchange: Exchange.None,
+  fees: [],
+  path: [],
+  pool: ADDRESS_ZERO,
+};
 
 // const swapDataUsdcToWeth = {
 //   exchange: Exchange.UniV3,
@@ -196,7 +196,7 @@ if (process.env.INTEGRATIONTEST) {
       await cUSDCv3_erc20.connect(owner.wallet).approve(setV2Setup.debtIssuanceModuleV3.address, MAX_UINT_256);
       await aUSDC_erc20.connect(owner.wallet).approve(setV2Setup.debtIssuanceModuleV3.address, MAX_UINT_256);
       await gtUSDC_erc20.connect(owner.wallet).approve(setV2Setup.debtIssuanceModuleV3.address, MAX_UINT_256);
-      await setV2Setup.debtIssuanceModuleV3.connect(owner.wallet).issue(setToken.address, ether(1), owner.address);
+      await setV2Setup.debtIssuanceModuleV3.connect(owner.wallet).issue(setToken.address, ether(10), owner.address);
 
       // Deploy FlashMintNAV
       flashMintNAV = await deployer.extensions.deployFlashMintNAV(
@@ -222,6 +222,7 @@ if (process.env.INTEGRATIONTEST) {
       let subjectSwapData: SwapData;
 
       beforeEach(async () => {
+        await flashMintNAV.approveSetToken(setToken.address);
         subjectSetToken = setToken;
         subjectMinSetTokenAmount = ether(1);
         subjectEthQuantity = ether(1);
@@ -237,9 +238,24 @@ if (process.env.INTEGRATIONTEST) {
         );
       }
 
-      it("should issue SetToken with USDC", async () => {
+      it("should issue SetToken with ETH", async () => {
+        console.log("set token supply before", (await setToken.totalSupply()).toString());
         const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
         await subject();
+        const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+        expect(setTokenBalanceAfter).to.gte(setTokenBalanceBefore.add(subjectMinSetTokenAmount));
+      });
+
+      it("should issue SetToken with USDC", async () => {
+        usdc_erc20.approve(flashMintNAV.address, usdc(1000));
+        const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+        await flashMintNAV.issueSetFromExactERC20(
+          setToken.address,
+          ether(1),
+          usdc_erc20.address,
+          usdc(102),
+          swapDataEmpty
+        );
         const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
         expect(setTokenBalanceAfter).to.gte(setTokenBalanceBefore.add(subjectMinSetTokenAmount));
       });

@@ -174,7 +174,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     * Issues a minimum amount of SetTokens for an exact amount of ETH.
     *
     * @param _setToken              Address of the SetToken to be issued
-    * @param _minSetTokenAmount     Amount of SetTokens to be issued
+    * @param _minSetTokenAmount     Minimum amount of SetTokens to be issued
     * @param _reserveAssetSwapData  Swap data to trade WETH for reserve asset
     */
     function issueSetFromExactETH(
@@ -197,7 +197,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
 
         INAVIssuanceModule(navIssuanceModule).issue(
             _setToken,
-            WETH,
+            reserveAsset,
             reserveAssetReceived,
             _minSetTokenAmount,
             msg.sender
@@ -208,37 +208,54 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     }
 
     /**
-    * Issues an exact amount of SetTokens for given amount of input ERC20 tokens.
-    * Leftover funds are swapped back to the payment token and returned to the caller if the value is above _minRefundValueInWeth,
-    * otherwise the leftover funds are kept by the contract in the form of WETH to save gas.
+    * Issues a minimum amount of SetTokens for an exact amount of ERC20.
     *
-    * @param _issueParams           Struct containing addresses, amounts, and swap data for issuance
-    * @param _minRefundValueInWeth  Minimum value of leftover WETH to be swapped back to input token and returned to the caller. Set to 0 to return any leftover amount.
-    *
-    * @return paymentTokenSpent     Amount of input token spent
+    * @param _setToken           Address of the SetToken to be issued
+    * @param _minSetTokenAmount  Minimum amount of SetTokens to be issued
+    * @param _inputToken         Address of input token for which to issue set tokens
+    * @param _inputTokenAmount   Amount of input token to spend
+    * 
+    * @param _reserveAssetSwapData  Swap data to trade input token for reserve asset
     */
-    // function issueExactSetFromERC20(IssueRedeemParams memory _issueParams, uint256 _minRefundValueInWeth)
-    //     external
-    //     nonReentrant
-    //     returns (uint256 paymentTokenSpent)
-    // {
-    //     _paymentInfo.token.safeTransferFrom(msg.sender, address(this), _paymentInfo.limitAmt);
-    //     uint256 wethReceived = _swapPaymentTokenForWeth(_paymentInfo.token, _paymentInfo.limitAmt, _paymentInfo.swapDataTokenToWeth);
+    function issueSetFromExactERC20(
+        ISetToken _setToken,
+        uint256 _minSetTokenAmount,
+        IERC20 _inputToken,
+        uint256 _inputTokenAmount,
+        DEXAdapterV2.SwapData memory _reserveAssetSwapData
+    )
+        external
+        payable
+        nonReentrant
+    {
+        address reserveAsset;
+        // TODO refactor into modifier
+        if (_reserveAssetSwapData.path.length > 0) {
+            reserveAsset = _reserveAssetSwapData.path[_reserveAssetSwapData.path.length - 1];
+        } else {
+            reserveAsset = address(_inputToken);
+        }
+        require(navIssuanceModule.isReserveAsset(_setToken, reserveAsset), "FLASHMINT: INVALID RESERVE ASSET");
 
-    //     uint256 wethSpent = _issueExactSetFromWeth(_issueParams);
-    //     require(wethSpent <= wethReceived, "FlashMint: OVERSPENT WETH");
-    //     uint256 leftoverWeth = wethReceived.sub(wethSpent);
-    //     uint256 paymentTokenReturned = 0;
+        _inputToken.safeTransferFrom(msg.sender, address(this), _inputTokenAmount);
+        uint256 reserveAssetReceived;
+        if (_inputToken == IERC20(reserveAsset)) {
+            reserveAssetReceived = _inputTokenAmount;
+        }
+        reserveAssetReceived = dexAdapter.swapExactTokensForTokens(_inputTokenAmount, 0, _reserveAssetSwapData);
+        uint256 setTokenBalanceBefore = _setToken.balanceOf(msg.sender);
 
-    //     if (leftoverWeth > _minRefundValueInWeth) {
-    //         paymentTokenReturned = _swapWethForPaymentToken(leftoverWeth, _paymentInfo.token, _paymentInfo.swapDataWethToToken);
-    //         _paymentInfo.token.safeTransfer(msg.sender, paymentTokenReturned);
-    //     }
+        INAVIssuanceModule(navIssuanceModule).issue(
+            _setToken,
+            reserveAsset,
+            reserveAssetReceived,
+            _minSetTokenAmount,
+            msg.sender
+        );
 
-    //     paymentTokenSpent = _paymentInfo.limitAmt.sub(paymentTokenReturned);
-
-    //     emit FlashMint(msg.sender, _issueParams.setToken, _paymentInfo.token, paymentTokenSpent, _issueParams.amountSetToken);
-    // }
+        uint256 setTokenIssued = _setToken.balanceOf(msg.sender).sub(setTokenBalanceBefore);
+        emit FlashMint(msg.sender, _setToken, IERC20(ETH_ADDRESS), setTokenIssued, _inputTokenAmount);
+    }
 
     /**
      * Redeems an exact amount of SetTokens for an ERC20 token.
