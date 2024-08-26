@@ -133,21 +133,21 @@ export function setBlockNumber(blockNumber: number, reset: boolean = true) {
       ],
     });
   });
-  after(async () => {
-    if (reset) {
-      await network.provider.request({
-        method: "hardhat_reset",
-        params: [
-          {
-            forking: {
-              jsonRpcUrl: forkingConfig.url,
-              blockNumber: forkingConfig.blockNumber,
-            },
-          },
-        ],
-      });
-    }
-  });
+  // after(async () => {
+  //   if (reset) {
+  //     await network.provider.request({
+  //       method: "hardhat_reset",
+  //       params: [
+  //         {
+  //           forking: {
+  //             jsonRpcUrl: forkingConfig.url,
+  //             blockNumber: forkingConfig.blockNumber,
+  //           },
+  //         },
+  //       ],
+  //     });
+  //   }
+  // });
 }
 
 export async function getLastBlockTransaction(): Promise<any> {

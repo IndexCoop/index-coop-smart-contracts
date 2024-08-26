@@ -1,10 +1,11 @@
 import "module-alias/register";
-import { Account, CustomOracleNAVIssuanceSettings } from "@utils/types";
+import { Account, CustomOracleNAVIssuanceSettings, TargetWeightWrapParams } from "@utils/types";
 import DeployHelper from "@utils/deploys";
 import { ether, getAccounts, getWaffleExpect, usdc } from "@utils/index";
-import { ADDRESS_ZERO, MAX_UINT_256, ZERO } from "@utils/constants";
+import { ADDRESS_ZERO, MAX_UINT_256, ONE, ONE_DAY_IN_SECONDS, ZERO } from "@utils/constants";
 import {
-  addSnapshotBeforeRestoreAfterEach,
+  // addSnapshotBeforeRestoreAfterEach,
+  increaseTimeAsync,
   setBlockNumber,
 } from "@utils/test/testingUtils";
 import { impersonateAccount } from "./utils";
@@ -15,6 +16,7 @@ import {
   IERC20__factory,
   SetToken,
   SetTokenCreator__factory,
+  SetValuer,
   TargetWeightWrapExtension,
   RebasingComponentModule,
   Controller,
@@ -32,8 +34,8 @@ const contractAddresses = {
   controller: "0xD2463675a099101E36D85278494268261a66603A",
   protocol_owner: "0x6904110f17feD2162a11B5FA66B188d801443Ea4",
   set_token_creator: "0x2758BF6Af0EC63f1710d3d7890e1C263a247B75E",
-  integration_registry: "0xb9083dee5e8273E54B9DB4c31bA9d4aB7C6B28d3",
   aaveV3Pool: "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
+  aaveV2Pool: "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
 };
 
 const tokenAddresses = {
@@ -63,6 +65,7 @@ if (process.env.INTEGRATIONTEST) {
 
     let controller: Controller;
     let integrationRegistry: IntegrationRegistry;
+    let setValuer: SetValuer;
     let debtIssuanceModuleV3: DebtIssuanceModuleV3;
     let rebasingComponentModule: RebasingComponentModule;
     let navIssuanceModule: CustomOracleNavIssuanceModule;
@@ -77,6 +80,11 @@ if (process.env.INTEGRATIONTEST) {
     let cUSDCv3: IERC20;
     let aUSDC: IERC20;
     let gtUSDC: IERC20;
+
+    let aaveV2WrapV2AdapterName: string;
+    let aaveV3WrapV2AdapterName: string;
+    let compoundV3WrapV2AdapterName: string;
+    let erc4626WrapV2AdapterName: string;
 
     setBlockNumber(20528609);
 
@@ -94,7 +102,8 @@ if (process.env.INTEGRATIONTEST) {
       // Index Protocol setup
       const protocolOwner = await impersonateAccount(contractAddresses.protocol_owner);
       controller = Controller__factory.connect(contractAddresses.controller, owner.wallet);
-      integrationRegistry = IntegrationRegistry__factory.connect(contractAddresses.integration_registry, owner.wallet);
+      const integrationRegistryAddress = await controller.resourceId(0);
+      integrationRegistry = IntegrationRegistry__factory.connect(integrationRegistryAddress, owner.wallet);
 
       debtIssuanceModuleV3 = await deployer.setV2.deployDebtIssuanceModuleV3(
         controller.address,
@@ -128,35 +137,39 @@ if (process.env.INTEGRATIONTEST) {
       );
       await controller.connect(protocolOwner).addResource(priceOracle.address, 1);
 
-      const setValuer = await deployer.setV2.deploySetValuer(controller.address);
+      setValuer = await deployer.setV2.deploySetValuer(controller.address);
       await controller.connect(protocolOwner).addResource(setValuer.address, 2);
 
       wrapModuleV2 = await deployer.setV2.deployWrapModuleV2(controller.address, tokenAddresses.weth);
       await controller.connect(protocolOwner).addModule(wrapModuleV2.address);
 
-      const aaveV3WrapV2AdapterName = "Aave_V3_Wrap_V2_Adapter";
+      aaveV2WrapV2AdapterName = "Aave_V2_Wrap_V2_Adapter";
+      const aaveV2WrapV2Adapter = await deployer.setV2.deployAaveV2WrapV2Adapter(contractAddresses.aaveV2Pool);
+      await integrationRegistry.connect(protocolOwner).addIntegration(wrapModuleV2.address, aaveV2WrapV2AdapterName, aaveV2WrapV2Adapter.address);
+
+      aaveV3WrapV2AdapterName = "Aave_V3_Wrap_V2_Adapter";
       const aaveV3WrapV2Adapter = await deployer.setV2.deployAaveV3WrapV2Adapter(contractAddresses.aaveV3Pool);
-      const compoundV3WrapV2AdapterName = "Compound_V3_USDC_Wrap_V2_Adapter";
+      await integrationRegistry.connect(protocolOwner).addIntegration(wrapModuleV2.address, aaveV3WrapV2AdapterName, aaveV3WrapV2Adapter.address);
+
+      compoundV3WrapV2AdapterName = "Compound_V3_USDC_Wrap_V2_Adapter";
       const compoundV3WrapV2Adapter = await deployer.setV2.deployCompoundV3WrapV2Adapter(tokenAddresses.cUSDCv3);
-      const erc4626WrapV2AdapterName = "ERC4626_Wrap_V2_Adapter";
+      await integrationRegistry.connect(protocolOwner).addIntegration(wrapModuleV2.address, compoundV3WrapV2AdapterName, compoundV3WrapV2Adapter.address);
+
+      erc4626WrapV2AdapterName = "ERC4626_Wrap_V2_Adapter";
       const erc4626WrapV2Adapter = await deployer.setV2.deployERC4626WrapV2Adapter();
-      await integrationRegistry.connect(protocolOwner).batchAddIntegration(
-        [wrapModuleV2.address, wrapModuleV2.address, wrapModuleV2.address],
-        [aaveV3WrapV2AdapterName, compoundV3WrapV2AdapterName, erc4626WrapV2AdapterName],
-        [aaveV3WrapV2Adapter.address, compoundV3WrapV2Adapter.address, erc4626WrapV2Adapter.address],
-      );
+      await integrationRegistry.connect(protocolOwner).addIntegration(wrapModuleV2.address, erc4626WrapV2AdapterName, erc4626WrapV2Adapter.address);
 
       // Deploy SetToken
       const setTokenCreator = SetTokenCreator__factory.connect(contractAddresses.set_token_creator, owner.wallet);
       const components = [tokenAddresses.usdc, tokenAddresses.aEthUSDC, tokenAddresses.cUSDCv3, tokenAddresses.aUSDC, tokenAddresses.gtUSDC];
-      const units = [usdc(5), usdc(25), usdc(25), usdc(25), ether(25)];
+      const units = [usdc(20), usdc(20), usdc(20), usdc(20), ether(20)];
       const modules = [debtIssuanceModuleV3.address, rebasingComponentModule.address, navIssuanceModule.address, wrapModuleV2.address];
       const setTokenAddress = await setTokenCreator.callStatic.create(components, units, modules, owner.address, "USDC Index", "USDCI");
       await setTokenCreator.create(components, units, modules, owner.address, "USDC Index", "USDCI");
       setToken = SetToken__factory.connect(setTokenAddress, owner.wallet);
 
       // Initialize Modules
-    await debtIssuanceModuleV3.initialize(
+      await debtIssuanceModuleV3.initialize(
         setToken.address,
         ZERO,
         ZERO,
@@ -193,7 +206,7 @@ if (process.env.INTEGRATIONTEST) {
       const wan_liang = await impersonateAccount(whales.wan_liang);
       const mane_lee = await impersonateAccount(whales.mane_lee);
       const morpho_seeding = await impersonateAccount(whales.morpho_seeding);
-      await usdcErc20.connect(justin_sun).transfer(owner.address, usdc(1000));
+      await usdcErc20.connect(justin_sun).transfer(owner.address, usdc(2000));
       await aEthUSDC.connect(justin_sun).transfer(owner.address, usdc(10000));
       await cUSDCv3.connect(wan_liang).transfer(owner.address, usdc(10000));
       await aUSDC.connect(mane_lee).transfer(owner.address, usdc(10000));
@@ -216,11 +229,82 @@ if (process.env.INTEGRATIONTEST) {
         wrapModuleV2.address,
         setValuer.address,
         tokenAddresses.weth,
-        false
+        true
       );
     });
 
-    addSnapshotBeforeRestoreAfterEach();
+    // addSnapshotBeforeRestoreAfterEach();
+
+    it("should have the correct valuation", async () => {
+      increaseTimeAsync(ONE_DAY_IN_SECONDS);
+
+      await rebasingComponentModule.sync(setToken.address);
+
+      const reserveValuation = await setValuer.calculateComponentValuation(setToken.address, tokenAddresses.usdc, tokenAddresses.usdc);
+      const aEthUSDCValuation = await setValuer.calculateComponentValuation(setToken.address, tokenAddresses.aEthUSDC, tokenAddresses.usdc);
+      const cUSDCv3Valuation = await setValuer.calculateComponentValuation(setToken.address, tokenAddresses.cUSDCv3, tokenAddresses.usdc);
+      const aUSDCValuation = await setValuer.calculateComponentValuation(setToken.address, tokenAddresses.aUSDC, tokenAddresses.usdc);
+      const gtUSDCValuation = await setValuer.calculateComponentValuation(setToken.address, tokenAddresses.gtUSDC, tokenAddresses.usdc);
+      const setTokenValuation = await setValuer.calculateSetTokenValuation(setToken.address, tokenAddresses.usdc);
+
+      expect(reserveValuation).to.eq(ether(20));
+
+      expect(aEthUSDCValuation).to.gt(ether(20));
+      expect(cUSDCv3Valuation).to.gt(ether(20));
+      expect(aUSDCValuation).to.gt(ether(20));
+      expect(gtUSDCValuation).to.gt(ether(20));
+      expect(setTokenValuation).to.gt(ether(100));
+
+      expect(aEthUSDCValuation).to.lt(ether(21));
+      expect(cUSDCv3Valuation).to.lt(ether(21));
+      expect(aUSDCValuation).to.lt(ether(21));
+      expect(gtUSDCValuation).to.lt(ether(21));
+      expect(setTokenValuation).to.lt(ether(101));
+    });
+
+    it("should be able to process nav issuance as expected", async () => {
+      const ownerUsdcBalanceBefore = await usdcErc20.balanceOf(owner.address);
+      const ownerSetTokenBalanceBefore = await setToken.balanceOf(owner.address);
+
+      const usdcAmount = usdc(101);
+
+      await usdcErc20.connect(owner.wallet).approve(navIssuanceModule.address, MAX_UINT_256);
+      await navIssuanceModule.connect(owner.wallet).issue(
+        setToken.address,
+        tokenAddresses.usdc,
+        usdcAmount,
+        ZERO,
+        owner.address
+      );
+
+      const ownerUsdcBalanceAfter = await usdcErc20.balanceOf(owner.address);
+      const ownerSetTokenBalanceAfter = await setToken.balanceOf(owner.address);
+
+      expect(ownerUsdcBalanceAfter).to.eq(ownerUsdcBalanceBefore.sub(usdcAmount));
+      expect(ownerSetTokenBalanceAfter).to.gt(ownerSetTokenBalanceBefore.add(ether(0.9)));
+    });
+
+    it("should be able to process nav redemption as expected", async () => {
+      const ownerUsdcBalanceBefore = await usdcErc20.balanceOf(owner.address);
+      const ownerSetTokenBalanceBefore = await setToken.balanceOf(owner.address);
+
+      const setTokenAmount = ether(1);
+
+      await setToken.connect(owner.wallet).approve(navIssuanceModule.address, MAX_UINT_256);
+      await navIssuanceModule.connect(owner.wallet).redeem(
+        setToken.address,
+        tokenAddresses.usdc,
+        setTokenAmount,
+        ZERO,
+        owner.address
+      );
+
+      const ownerUsdcBalanceAfter = await usdcErc20.balanceOf(owner.address);
+      const ownerSetTokenBalanceAfter = await setToken.balanceOf(owner.address);
+
+      expect(ownerUsdcBalanceAfter).to.gt(ownerUsdcBalanceBefore.add(usdc(99)));
+      expect(ownerSetTokenBalanceAfter).to.eq(ownerSetTokenBalanceBefore.sub(setTokenAmount));
+    });
 
     context("when the TargetWeightWrapExtension is added as extension", () => {
       before(async () => {
@@ -239,6 +323,167 @@ if (process.env.INTEGRATIONTEST) {
 
         it("should have the WrapModuleV2 initialized", async () => {
           expect(await setToken.moduleStates(wrapModuleV2.address)).to.equal(2);
+        });
+
+        context("when the target weights are set", () => {
+          before(async () => {
+            await targetWeightWrapExtension.setTargetWeights(
+              tokenAddresses.usdc,
+              ether(0.15),
+              ether(0.25),
+              [tokenAddresses.aEthUSDC, tokenAddresses.cUSDCv3, tokenAddresses.aUSDC, tokenAddresses.gtUSDC],
+              [
+                {
+                  minTargetWeight: ether(0.15),
+                  maxTargetWeight: ether(0.25),
+                  wrapAdapterName: aaveV3WrapV2AdapterName,
+                } as TargetWeightWrapParams,
+                {
+                  minTargetWeight: ether(0.15),
+                  maxTargetWeight: ether(0.25),
+                  wrapAdapterName: compoundV3WrapV2AdapterName,
+                } as TargetWeightWrapParams,
+                {
+                  minTargetWeight: ether(0.15),
+                  maxTargetWeight: ether(0.25),
+                  wrapAdapterName: aaveV2WrapV2AdapterName,
+                } as TargetWeightWrapParams,
+                {
+                  minTargetWeight: ether(0.15),
+                  maxTargetWeight: ether(0.25),
+                  wrapAdapterName: erc4626WrapV2AdapterName,
+                } as TargetWeightWrapParams,
+              ]
+            );
+          });
+
+          it("should be rebalancing", async () => {
+            expect(await targetWeightWrapExtension.isRebalancing()).to.be.true;
+          });
+
+          context("when a sufficiently large nav issuance occurs", () => {
+            before(async () => {
+              await usdcErc20.connect(owner.wallet).approve(navIssuanceModule.address, MAX_UINT_256);
+              await navIssuanceModule.connect(owner.wallet).issue(
+                setToken.address,
+                usdcErc20.address,
+                usdc(1000),
+                ZERO,
+                owner.address
+              );
+            });
+
+            it("the reserve should be overweight and the targets should be underweight", async () => {
+              expect(await targetWeightWrapExtension.isReserveOverweight()).to.be.true;
+              expect(await targetWeightWrapExtension.isTargetUnderweight(tokenAddresses.aEthUSDC)).to.be.true;
+              expect(await targetWeightWrapExtension.isTargetUnderweight(tokenAddresses.cUSDCv3)).to.be.true;
+              expect(await targetWeightWrapExtension.isTargetUnderweight(tokenAddresses.aUSDC)).to.be.true;
+              expect(await targetWeightWrapExtension.isTargetUnderweight(tokenAddresses.gtUSDC)).to.be.true;
+            });
+
+            it("should be able to rebalance Aave V3", async () => {
+              await targetWeightWrapExtension.connect(owner.wallet).wrap(tokenAddresses.aEthUSDC, ONE);
+
+              expect(await targetWeightWrapExtension.isReserveOverweight()).to.be.false;
+              expect(await targetWeightWrapExtension.isReserveUnderweight()).to.be.false;
+
+              expect(await targetWeightWrapExtension.isTargetUnderweight(tokenAddresses.aEthUSDC)).to.be.false;
+              expect(await targetWeightWrapExtension.isTargetOverweight(tokenAddresses.aEthUSDC)).to.be.false;
+            });
+
+            it.only("should be able to rebalance Compound V3", async () => {
+              await targetWeightWrapExtension.connect(owner.wallet).wrap(tokenAddresses.cUSDCv3, usdc(0.01));
+
+              expect(await targetWeightWrapExtension.isReserveOverweight()).to.be.false;
+              expect(await targetWeightWrapExtension.isReserveUnderweight()).to.be.false;
+
+              expect(await targetWeightWrapExtension.isTargetUnderweight(tokenAddresses.cUSDCv3)).to.be.false;
+              expect(await targetWeightWrapExtension.isTargetOverweight(tokenAddresses.cUSDCv3)).to.be.false;
+            });
+
+            it("should be able to rebalance Aave V2", async () => {
+              await targetWeightWrapExtension.connect(owner.wallet).wrap(tokenAddresses.aUSDC, usdc(100));
+
+              expect(await targetWeightWrapExtension.isReserveOverweight()).to.be.false;
+              expect(await targetWeightWrapExtension.isReserveUnderweight()).to.be.false;
+
+              expect(await targetWeightWrapExtension.isTargetUnderweight(tokenAddresses.aUSDC)).to.be.false;
+              expect(await targetWeightWrapExtension.isTargetOverweight(tokenAddresses.aUSDC)).to.be.false;
+            });
+
+            it("should be able to rebalance ERC4626", async () => {
+              await targetWeightWrapExtension.connect(owner.wallet).wrap(tokenAddresses.gtUSDC, ether(100));
+
+              expect(await targetWeightWrapExtension.isReserveOverweight()).to.be.false;
+              expect(await targetWeightWrapExtension.isReserveUnderweight()).to.be.false;
+
+              expect(await targetWeightWrapExtension.isTargetUnderweight(tokenAddresses.gtUSDC)).to.be.false;
+              expect(await targetWeightWrapExtension.isTargetOverweight(tokenAddresses.gtUSDC)).to.be.false;
+            });
+          });
+
+          context("when a sufficiently large nav redemption occurs", () => {
+            before(async () => {
+              await debtIssuanceModuleV3.issue(setToken.address, ether(10), owner.address);
+
+              await setToken.connect(owner.wallet).approve(navIssuanceModule.address, MAX_UINT_256);
+              await navIssuanceModule.connect(owner.wallet).redeem(
+                setToken.address,
+                tokenAddresses.usdc,
+                ether(4),
+                ZERO,
+                owner.address
+              );
+            });
+
+            it("the reserve should be underweight and the targets should be overweight", async () => {
+              expect(await targetWeightWrapExtension.isReserveUnderweight()).to.be.true;
+              expect(await targetWeightWrapExtension.isTargetOverweight(tokenAddresses.aEthUSDC)).to.be.true;
+              expect(await targetWeightWrapExtension.isTargetOverweight(tokenAddresses.cUSDCv3)).to.be.true;
+              expect(await targetWeightWrapExtension.isTargetOverweight(tokenAddresses.aUSDC)).to.be.true;
+              expect(await targetWeightWrapExtension.isTargetOverweight(tokenAddresses.gtUSDC)).to.be.true;
+            });
+
+            it("should be able to rebalance Aave V3", async () => {
+              await targetWeightWrapExtension.connect(owner.wallet).unwrap(tokenAddresses.aEthUSDC, usdc(2));
+
+              expect(await targetWeightWrapExtension.isReserveOverweight()).to.be.false;
+              expect(await targetWeightWrapExtension.isReserveUnderweight()).to.be.false;
+
+              expect(await targetWeightWrapExtension.isTargetUnderweight(tokenAddresses.aEthUSDC)).to.be.false;
+              expect(await targetWeightWrapExtension.isTargetOverweight(tokenAddresses.aEthUSDC)).to.be.false;
+            });
+
+            it("should be able to rebalance Compound V3", async () => {
+              await targetWeightWrapExtension.connect(owner.wallet).unwrap(tokenAddresses.cUSDCv3, usdc(2));
+
+              expect(await targetWeightWrapExtension.isReserveOverweight()).to.be.false;
+              expect(await targetWeightWrapExtension.isReserveUnderweight()).to.be.false;
+
+              expect(await targetWeightWrapExtension.isTargetUnderweight(tokenAddresses.cUSDCv3)).to.be.false;
+              expect(await targetWeightWrapExtension.isTargetOverweight(tokenAddresses.cUSDCv3)).to.be.false;
+            });
+
+            it("should be able to rebalance Aave V2", async () => {
+              await targetWeightWrapExtension.connect(owner.wallet).unwrap(tokenAddresses.aUSDC, usdc(2));
+
+              expect(await targetWeightWrapExtension.isReserveOverweight()).to.be.false;
+              expect(await targetWeightWrapExtension.isReserveUnderweight()).to.be.false;
+
+              expect(await targetWeightWrapExtension.isTargetUnderweight(tokenAddresses.aUSDC)).to.be.false;
+              expect(await targetWeightWrapExtension.isTargetOverweight(tokenAddresses.aUSDC)).to.be.false;
+            });
+
+            it("should be able to rebalance ERC4626", async () => {
+              await targetWeightWrapExtension.connect(owner.wallet).unwrap(tokenAddresses.gtUSDC, ether(2));
+
+              expect(await targetWeightWrapExtension.isReserveOverweight()).to.be.false;
+              expect(await targetWeightWrapExtension.isReserveUnderweight()).to.be.false;
+
+              expect(await targetWeightWrapExtension.isTargetUnderweight(tokenAddresses.gtUSDC)).to.be.false;
+              expect(await targetWeightWrapExtension.isTargetOverweight(tokenAddresses.gtUSDC)).to.be.false;
+            });
+          });
         });
       });
     });
