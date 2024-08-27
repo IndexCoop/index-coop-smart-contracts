@@ -296,6 +296,43 @@ if (process.env.INTEGRATIONTEST) {
         expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(subjectSetTokenAmount));
         expect(ethBalanceAfter).to.gte(ethBalanceBefore.add(subjectMinEthOutput));
       });
+
+      it("should redeem SetToken for USDC", async () => {
+        const setTokenAmount = ether(1);
+        const minUsdcReceived = usdc(100);
+        const usdcBalanceBefore = await usdc_erc20.balanceOf(owner.address);
+        const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+        await flashMintNAV.redeemExactSetForERC20(
+          setToken.address,
+          setTokenAmount,
+          usdc_erc20.address,
+          minUsdcReceived,
+          swapDataEmpty
+        );
+        const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+        const usdcBalanceAfter = await usdc_erc20.balanceOf(owner.address);
+        expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
+        expect(usdcBalanceAfter).to.gte(usdcBalanceBefore.add(minUsdcReceived));
+      });
+
+      it("should redeem SetToken for WETH", async () => {
+        const setTokenAmount = ether(1);
+        const minWethReceived = ether(0.01);
+        const wethToken = IERC20__factory.connect(addresses.tokens.weth, owner.wallet);
+        const wethBalanceBefore = await wethToken.balanceOf(owner.address);
+        const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+        await flashMintNAV.redeemExactSetForERC20(
+          setToken.address,
+          setTokenAmount,
+          addresses.tokens.weth,
+          minWethReceived,
+          swapDataUsdcToWeth
+        );
+        const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+        const wethBalanceAfter = await wethToken.balanceOf(owner.address);
+        expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
+        expect(wethBalanceAfter).to.gte(wethBalanceBefore.add(minWethReceived));
+      });
     });
   });
 }

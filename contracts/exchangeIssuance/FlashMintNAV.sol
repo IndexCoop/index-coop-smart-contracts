@@ -242,19 +242,20 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
      *
      * @param _setToken              Address of the SetToken to redeem
      * @param _setTokenAmount        Amount of SetTokens to redeem
-     * @param _minEthOutput          Minimum amount of ETH to be received by caller
+     * @param _minEthAmount          Minimum amount of ETH to be received by caller
      * @param _reserveAssetSwapData  Swap data to trade reserve asset for WETH
      */
     function redeemExactSetForETH(
         ISetToken _setToken,
         uint256 _setTokenAmount,
-        uint256 _minEthOutput,
+        uint256 _minEthAmount,
         DEXAdapterV2.SwapData memory _reserveAssetSwapData
     )
         external
         nonReentrant
     {
         address reserveAsset = _reserveAssetSwapData.path[0];
+        require(navIssuanceModule.isReserveAsset(_setToken, reserveAsset), "FLASHMINT: INVALID RESERVE ASSET");
         uint256 reserveAssetBalanceBefore = IERC20(reserveAsset).balanceOf(address(this));
         _setToken.safeTransferFrom(msg.sender, address(this), _setTokenAmount);
         navIssuanceModule.redeem(
@@ -267,12 +268,59 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
 
         uint256 reserveAssetReceived = IERC20(reserveAsset).balanceOf(address(this)).sub(reserveAssetBalanceBefore);
         uint256 wethReceived = dexAdapter.swapExactTokensForTokens(reserveAssetReceived, 0, _reserveAssetSwapData);
-        require(wethReceived >= _minEthOutput, "FlashMint: NOT ENOUGH ETH RECEIVED");
+        require(wethReceived >= _minEthAmount, "FlashMint: NOT ENOUGH ETH RECEIVED");
 
         IWETH(WETH).withdraw(wethReceived);
         payable(msg.sender).sendValue(wethReceived);
 
         emit FlashRedeem(msg.sender, _setToken, IERC20(ETH_ADDRESS), _setTokenAmount, wethReceived);
+    }
+
+    /**
+     * Redeems an exact amount of SetTokens for ETH.
+     * The SetToken must be approved by the sender to this contract.
+     *
+     * @param _setToken              Address of the SetToken to redeem
+     * @param _setTokenAmount        Amount of SetTokens to redeem
+     * @param _outputToken           Address of the token to be received by caller
+     * @param _minOutputTokenAmount  Minimum amount of output token to be received by caller
+     * @param _reserveAssetSwapData  Swap data to trade reserve asset for output token
+     */
+    function redeemExactSetForERC20(
+        ISetToken _setToken,
+        uint256 _setTokenAmount,
+        IERC20 _outputToken,
+        uint256 _minOutputTokenAmount,
+        DEXAdapterV2.SwapData memory _reserveAssetSwapData
+    )
+        external
+        nonReentrant
+    {
+        address reserveAsset;
+        if (_reserveAssetSwapData.path.length > 0) {
+            reserveAsset = _reserveAssetSwapData.path[0];
+        } else {
+            reserveAsset = address(_outputToken);
+        }
+        require(navIssuanceModule.isReserveAsset(_setToken, reserveAsset), "FLASHMINT: INVALID RESERVE ASSET");
+
+        uint256 reserveAssetBalanceBefore = IERC20(reserveAsset).balanceOf(address(this));
+        _setToken.safeTransferFrom(msg.sender, address(this), _setTokenAmount);
+        navIssuanceModule.redeem(
+            _setToken,
+            reserveAsset,
+            _setTokenAmount,
+            0,
+            address(this)
+        );
+
+        uint256 reserveAssetReceived = IERC20(reserveAsset).balanceOf(address(this)).sub(reserveAssetBalanceBefore);
+        uint256 outputTokenReceived = dexAdapter.swapExactTokensForTokens(reserveAssetReceived, 0, _reserveAssetSwapData);
+        require(outputTokenReceived >= _minOutputTokenAmount, "FlashMint: NOT ENOUGH OUTPUT TOKEN RECEIVED");
+
+        _outputToken.safeTransfer(msg.sender, outputTokenReceived);
+
+        emit FlashRedeem(msg.sender, _setToken, _outputToken, _setTokenAmount, outputTokenReceived);
     }
 
     /* ============ Internal Functions ============ */
