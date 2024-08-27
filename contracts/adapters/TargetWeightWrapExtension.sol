@@ -32,7 +32,7 @@ import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { ISetValuer } from "../interfaces/ISetValuer.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
-import { IWrapModule } from "../interfaces/IWrapModule.sol";
+import { IWrapModuleV2 } from "../interfaces/IWrapModuleV2.sol";
 
 /**
  * @title TargetWeightWrapExtension
@@ -82,7 +82,7 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     /* ========== Immutables ========= */
 
     ISetToken public immutable setToken;
-    IWrapModule public immutable wrapModule;
+    IWrapModuleV2 public immutable wrapModule;
     ISetValuer public immutable setValuer;
     IWETH public immutable weth;
 
@@ -113,7 +113,7 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      */
     constructor(
         IBaseManager _manager,
-        IWrapModule _wrapModule,
+        IWrapModuleV2 _wrapModule,
         ISetValuer _setValuer,
         IWETH _weth,
         bool _isAnyoneAllowedToRebalance
@@ -401,13 +401,15 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      * @param _reserveUnits The amount of the reserve asset to wrap.
      */
     function _wrap(address _targetAsset, uint256 _reserveUnits) internal {
+        bytes memory wrapData;
         if (rebalanceInfo.reserveAsset == ETH_ADDRESS) {
             bytes memory data = abi.encodeWithSelector(
                 wrapModule.wrapWithEther.selector,
                 setToken,
                 _targetAsset,
                 _reserveUnits,
-                executionParams[_targetAsset].wrapAdapterName
+                executionParams[_targetAsset].wrapAdapterName,
+                wrapData
             );
             invokeManager(address(wrapModule), data);
         } else {
@@ -417,7 +419,8 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
                 rebalanceInfo.reserveAsset,
                 _targetAsset,
                 _reserveUnits,
-                executionParams[_targetAsset].wrapAdapterName
+                executionParams[_targetAsset].wrapAdapterName,
+                wrapData
             );
             invokeManager(address(wrapModule), data);
         }
@@ -429,13 +432,15 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      * @param _targetUnits The amount of the target asset to unwrap.
      */
     function _unwrap(address _targetAsset, uint256 _targetUnits) internal {
+        bytes memory unwrapData;
         if (rebalanceInfo.reserveAsset == ETH_ADDRESS) {
             bytes memory data = abi.encodeWithSelector(
                 wrapModule.unwrapWithEther.selector,
                 setToken,
                 _targetAsset,
                 _targetUnits,
-                executionParams[_targetAsset].wrapAdapterName
+                executionParams[_targetAsset].wrapAdapterName,
+                unwrapData
             );
             invokeManager(address(wrapModule), data);
         } else {
@@ -445,7 +450,8 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
                 rebalanceInfo.reserveAsset,
                 _targetAsset,
                 _targetUnits,
-                executionParams[_targetAsset].wrapAdapterName
+                executionParams[_targetAsset].wrapAdapterName,
+                unwrapData
             );
             invokeManager(address(wrapModule), data);
         }
