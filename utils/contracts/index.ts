@@ -48,6 +48,7 @@ export { BatchTradeAdapterMock } from "../../typechain/BatchTradeAdapterMock";
 export { Vesting } from "../../typechain/Vesting";
 export { WETH9 } from "../../typechain/WETH9";
 export { WrapAdapterMock } from "../../typechain/WrapAdapterMock";
+export { WrapV2AdapterMock } from "../../typechain/WrapV2AdapterMock";
 export { WrapExtension } from "../../typechain/WrapExtension";
 export { TargetWeightWrapExtension } from "../../typechain/TargetWeightWrapExtension";
 export { WrappedfCashMock } from "../../typechain/WrappedfCashMock";

@@ -6,7 +6,7 @@ import { SetToken } from "@utils/contracts/setV2";
 import {
   BaseManagerV2,
   TargetWeightWrapExtension,
-  WrapAdapterMock,
+  WrapV2AdapterMock,
 } from "@utils/contracts/index";
 import { Account, Address, CustomOracleNAVIssuanceSettings, TargetWeightWrapParams } from "@utils/types";
 import {
@@ -18,7 +18,7 @@ import {
   getWaffleExpect,
   preciseDiv,
 } from "@utils/index";
-import { ADDRESS_ZERO, MAX_UINT_256, ZERO } from "@utils/constants";
+import { ADDRESS_ZERO, MAX_UINT_256, ZERO, ZERO_BYTES } from "@utils/constants";
 import { BigNumber, ContractTransaction } from "ethers";
 
 const expect = getWaffleExpect();
@@ -39,7 +39,7 @@ describe("TargetWeightWrapExtension", async () => {
   let baseManager: BaseManagerV2;
   let targetWeightWrapExtension: TargetWeightWrapExtension;
 
-  let wrapAdapter: WrapAdapterMock;
+  let wrapAdapter: WrapV2AdapterMock;
   let wrapAdapterName: string;
 
   before(async () => {
@@ -55,11 +55,10 @@ describe("TargetWeightWrapExtension", async () => {
     await setV2Setup.initialize();
 
     // setup mock wrap adapter
-    wrapAdapter = await deployer.mocks.deployWrapAdapterMock(owner.address, ether(1000));
-    await owner.wallet.sendTransaction({ to: wrapAdapter.address, value: ether(1000) });
+    wrapAdapter = await deployer.mocks.deployWrapV2AdapterMock();
     wrapAdapterName = "WRAP_ADAPTER";
     await setV2Setup.integrationRegistry.addIntegration(
-      setV2Setup.wrapModule.address,
+      setV2Setup.wrapModuleV2.address,
       wrapAdapterName,
       wrapAdapter.address
     );
@@ -72,7 +71,7 @@ describe("TargetWeightWrapExtension", async () => {
     setToken = await setV2Setup.createSetToken(
       [setV2Setup.weth.address, wrapAdapter.address],
       [INITIAL_WETH_UNITS, INITIAL_WRAPPED_UNITS],
-      [setV2Setup.wrapModule.address, setV2Setup.issuanceModule.address, setV2Setup.navIssuanceModule.address]
+      [setV2Setup.wrapModuleV2.address, setV2Setup.issuanceModule.address, setV2Setup.navIssuanceModule.address]
     );
 
     await setV2Setup.issuanceModule.initialize(
@@ -100,7 +99,7 @@ describe("TargetWeightWrapExtension", async () => {
 
     // Basic issue some set tokens
     await setV2Setup.weth.approve(wrapAdapter.address, MAX_UINT_256);
-    await wrapAdapter.mint(setV2Setup.weth.address, INITIAL_SUPPLY);
+    await wrapAdapter.deposit(setV2Setup.weth.address, INITIAL_SUPPLY);
     await wrapAdapter.approve(setV2Setup.issuanceModule.address, MAX_UINT_256);
     await setV2Setup.weth.approve(setV2Setup.issuanceModule.address, MAX_UINT_256);
     await setV2Setup.issuanceModule.issue(setToken.address, INITIAL_SUPPLY, owner.address);
@@ -120,14 +119,12 @@ describe("TargetWeightWrapExtension", async () => {
     let subjectManager: Address;
     let subjectWrapModule: Address;
     let subjectSetValuer: Address;
-    let subjectWeth: Address;
     let subjectIsAnyoneAllowedToRebalance: boolean;
 
     beforeEach(async () => {
       subjectManager = baseManager.address;
-      subjectWrapModule = setV2Setup.wrapModule.address;
+      subjectWrapModule = setV2Setup.wrapModuleV2.address;
       subjectSetValuer = setV2Setup.setValuer.address;
-      subjectWeth = setV2Setup.weth.address;
       subjectIsAnyoneAllowedToRebalance = false;
     });
 
@@ -136,7 +133,6 @@ describe("TargetWeightWrapExtension", async () => {
         subjectManager,
         subjectWrapModule,
         subjectSetValuer,
-        subjectWeth,
         subjectIsAnyoneAllowedToRebalance
       );
     }
@@ -169,13 +165,6 @@ describe("TargetWeightWrapExtension", async () => {
       expect(setValuer).to.eq(subjectSetValuer);
     });
 
-    it("should set the correct weth address", async () => {
-      const wrapExtension = await subject();
-
-      const weth = await wrapExtension.weth();
-      expect(weth).to.eq(subjectWeth);
-    });
-
     it("should set the correct rebalancing permissions", async () => {
       const wrapExtension = await subject();
 
@@ -188,9 +177,8 @@ describe("TargetWeightWrapExtension", async () => {
     beforeEach(async () => {
       targetWeightWrapExtension = await deployer.extensions.deployTargetWeightWrapExtension(
         baseManager.address,
-        setV2Setup.wrapModule.address,
+        setV2Setup.wrapModuleV2.address,
         setV2Setup.setValuer.address,
-        setV2Setup.weth.address,
         false
       );
 
@@ -214,7 +202,7 @@ describe("TargetWeightWrapExtension", async () => {
       it("should initialize WrapModule", async () => {
         await subject();
 
-        const isInitialized = await setToken.isInitializedModule(setV2Setup.wrapModule.address);
+        const isInitialized = await setToken.isInitializedModule(setV2Setup.wrapModuleV2.address);
         expect(isInitialized).to.be.true;
       });
 
@@ -252,6 +240,8 @@ describe("TargetWeightWrapExtension", async () => {
               minTargetWeight: ether(0.45),
               maxTargetWeight: ether(0.55),
               wrapAdapterName: wrapAdapterName,
+              wrapData: ZERO_BYTES,
+              unwrapData: ZERO_BYTES,
             } as TargetWeightWrapParams,
           ];
           subjectCaller = operator;
@@ -290,6 +280,8 @@ describe("TargetWeightWrapExtension", async () => {
           expect(executionParams.minTargetWeight).to.eq(subjectExecutionParams[0].minTargetWeight);
           expect(executionParams.maxTargetWeight).to.eq(subjectExecutionParams[0].maxTargetWeight);
           expect(executionParams.wrapAdapterName).to.eq(subjectExecutionParams[0].wrapAdapterName);
+          expect(executionParams.wrapData).to.eq(subjectExecutionParams[0].wrapData);
+          expect(executionParams.unwrapData).to.eq(subjectExecutionParams[0].unwrapData);
         });
 
         context("when the operator is not the caller", async () => {
@@ -381,66 +373,11 @@ describe("TargetWeightWrapExtension", async () => {
                 minTargetWeight: ether(0.40),
                 maxTargetWeight: ether(0.60),
                 wrapAdapterName: wrapAdapterName,
+                wrapData: ZERO_BYTES,
+                unwrapData: ZERO_BYTES,
               } as TargetWeightWrapParams,
             ]
           );
-        });
-
-        describe("#getValuationReserveAsset", async () => {
-          async function subject(): Promise<Address> {
-            return await targetWeightWrapExtension.getValuationReserveAsset();
-          }
-
-          it("should return the correct valuation reserve asset", async () => {
-            const actualValuationReserveAsset = await subject();
-            expect(actualValuationReserveAsset).to.eq(setV2Setup.weth.address);
-          });
-
-          context("when the underlying asset is Ether", async () => {
-            beforeEach(async () => {
-              await targetWeightWrapExtension.connect(operator.wallet).setTargetWeights(
-                await targetWeightWrapExtension.ETH_ADDRESS(),
-                ether(0.45),
-                ether(0.55),
-                [wrapAdapter.address],
-                [
-                  {
-                    minTargetWeight: ether(0.40),
-                    maxTargetWeight: ether(0.60),
-                    wrapAdapterName: wrapAdapterName,
-                  } as TargetWeightWrapParams,
-                ]
-              );
-            });
-
-            it("should return the weth as the valuation reserve asset", async () => {
-              const actualValuationReserveAsset = await subject();
-              expect(actualValuationReserveAsset).to.eq(setV2Setup.weth.address);
-            });
-          });
-
-          context("when the underlying asset is USDC", async () => {
-            beforeEach(async () => {
-              await targetWeightWrapExtension.connect(operator.wallet).setTargetWeights(
-                setV2Setup.usdc.address,
-                ether(0.45),
-                ether(0.55),
-                [wrapAdapter.address],
-                [
-                  {
-                    minTargetWeight: ether(0.40),
-                    maxTargetWeight: ether(0.60),
-                    wrapAdapterName: wrapAdapterName,
-                  } as TargetWeightWrapParams,
-                ]
-              );
-            });
-
-            it("should return the weth as the valuation reserve asset", async () => {
-              const actualValuationReserveAsset = await subject();
-              expect(actualValuationReserveAsset).to.eq(setV2Setup.usdc.address);
-            });
-          });
         });
 
         describe("#getReserveValuation", async () => {
@@ -827,43 +764,6 @@ describe("TargetWeightWrapExtension", async () => {
             expect(reservePositionUnitChange).to.be.lte(subjectReserveUnits.add(2));
           });
 
-          context("when the underlying asset is Ether", async () => {
-            beforeEach(async () => {
-              await targetWeightWrapExtension.connect(operator.wallet).setTargetWeights(
-                await targetWeightWrapExtension.ETH_ADDRESS(),
-                ether(0.45),
-                ether(0.55),
-                [wrapAdapter.address],
-                [
-                  {
-                    minTargetWeight: ether(0.40),
-                    maxTargetWeight: ether(0.60),
-                    wrapAdapterName: wrapAdapterName,
-                  } as TargetWeightWrapParams,
-                ]
-              );
-            });
-
-            it("should wrap the correct number of units", async () => {
-              const targetAssetPositionUnitsBefore = await setToken.getDefaultPositionRealUnit(subjectTargetAsset);
-              const reservePositionUnitsBefore = await setToken.getDefaultPositionRealUnit(setV2Setup.weth.address);
-
-              await subject();
-
-              const targetAssetPositionUnitsAfter = await setToken.getDefaultPositionRealUnit(subjectTargetAsset);
-              const reservePositionUnitsAfter = await setToken.getDefaultPositionRealUnit(setV2Setup.weth.address);
-
-              const targetAssetPositionUnitChange = targetAssetPositionUnitsAfter.sub(targetAssetPositionUnitsBefore);
-              const reservePositionUnitChange = reservePositionUnitsBefore.sub(reservePositionUnitsAfter);
-
-              // 2 wei tolerance
-              expect(targetAssetPositionUnitChange).to.be.gte(subjectReserveUnits.sub(2));
-              expect(targetAssetPositionUnitChange).to.be.lte(subjectReserveUnits.add(2));
-              expect(reservePositionUnitChange).to.be.gte(subjectReserveUnits.sub(2));
-              expect(reservePositionUnitChange).to.be.lte(subjectReserveUnits.add(2));
-            });
-          });
-
           context("when isRebalancing is false", async () => {
             beforeEach(async () => {
               await targetWeightWrapExtension.connect(operator.wallet).suspendRebalance();
@@ -964,43 +864,6 @@ describe("TargetWeightWrapExtension", async () => {
             expect(targetAssetPositionUnitChange).to.be.lte(subjectTargetUnits.add(2));
             expect(reservePositionUnitChange).to.be.gte(subjectTargetUnits.sub(2));
             expect(reservePositionUnitChange).to.be.lte(subjectTargetUnits.add(2));
-          });
-
-          context("when the underlying asset is Ether", async () => {
-            beforeEach(async () => {
-              await targetWeightWrapExtension.connect(operator.wallet).setTargetWeights(
-                await targetWeightWrapExtension.ETH_ADDRESS(),
-                ether(0.45),
-                ether(0.55),
-                [wrapAdapter.address],
-                [
-                  {
-                    minTargetWeight: ether(0.40),
-                    maxTargetWeight: ether(0.60),
-                    wrapAdapterName: wrapAdapterName,
-                  } as TargetWeightWrapParams,
-                ]
-              );
-            });
-
-            it("should unwrap the correct number of units", async () => {
-              const targetAssetPositionUnitsBefore = await setToken.getDefaultPositionRealUnit(subjectTargetAsset);
-              const reservePositionUnitsBefore = await setToken.getDefaultPositionRealUnit(setV2Setup.weth.address);
-
-              await subject();
-
-              const targetAssetPositionUnitsAfter = await setToken.getDefaultPositionRealUnit(subjectTargetAsset);
-              const reservePositionUnitsAfter = await setToken.getDefaultPositionRealUnit(setV2Setup.weth.address);
-
-              const targetAssetPositionUnitChange = targetAssetPositionUnitsBefore.sub(targetAssetPositionUnitsAfter);
-              const reservePositionUnitChange = reservePositionUnitsAfter.sub(reservePositionUnitsBefore);
-
-              // 2 wei tolerance
-              expect(targetAssetPositionUnitChange).to.be.gte(subjectTargetUnits.sub(2));
-              expect(targetAssetPositionUnitChange).to.be.lte(subjectTargetUnits.add(2));
-              expect(reservePositionUnitChange).to.be.gte(subjectTargetUnits.sub(2));
-              expect(reservePositionUnitChange).to.be.lte(subjectTargetUnits.add(2));
-            });
           });
 
           context("when isRebalancing is false", async () => {

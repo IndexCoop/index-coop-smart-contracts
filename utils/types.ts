@@ -132,6 +132,8 @@ export interface TargetWeightWrapParams {
   minTargetWeight: BigNumber;
   maxTargetWeight: BigNumber;
   wrapAdapterName: string;
+  wrapData: Bytes;
+  unwrapData: Bytes;
 }
 
 export interface CustomOracleNAVIssuanceSettings {

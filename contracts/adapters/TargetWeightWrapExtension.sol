@@ -31,14 +31,14 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { ISetValuer } from "../interfaces/ISetValuer.sol";
-import { IWETH } from "../interfaces/IWETH.sol";
-import { IWrapModule } from "../interfaces/IWrapModule.sol";
+import { IWrapModuleV2 } from "../interfaces/IWrapModuleV2.sol";
 
 /**
  * @title TargetWeightWrapExtension
  * @author Index Coop
  * @notice Extension contract that allows designated rebalancers to manage asset weights by wrapping a reserve asset into target assets when the reserve is overweight, 
  * and unwrapping target assets back into the reserve asset when the reserve is underweight. The contract enforces specified weight bounds for each target asset during rebalancing.
+ * @dev Meant for ERC20 reserve assets.
  */
 contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     using SafeCast for int256;
@@ -47,10 +47,6 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     using Math for uint256;
     using Position for uint256;
     using PreciseUnitMath for uint256;
-
-    /* ============ Constants ============== */
-
-    address constant public ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /* ============ Structs ============ */
 
@@ -65,6 +61,8 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         uint256 minTargetWeight;    // Minimum weight of the target asset (100% = 1e18)
         uint256 maxTargetWeight;    // Maximum weight of the target asset (100% = 1e18)
         string wrapAdapterName;     // Name of the wrap adapter to use
+        bytes wrapData;             // Wrap data to pass to the wrap
+        bytes unwrapData;           // Unwrap data to pass to the unwrap
     }
 
     /* ============ Events ============ */
@@ -82,9 +80,8 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     /* ========== Immutables ========= */
 
     ISetToken public immutable setToken;
-    IWrapModule public immutable wrapModule;
+    IWrapModuleV2 public immutable wrapModule;
     ISetValuer public immutable setValuer;
-    IWETH public immutable weth;
 
     /* ========== State Variables ========= */
 
@@ -106,23 +103,20 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     /**
      * @notice Initializes the extension with the required contracts and parameters.
      * @param _manager Address of Index Manager contract
-     * @param _wrapModule Address of WrapModule for wrapping and unwrapping reserve asset
+     * @param _wrapModule Address of IWrapModuleV2 for wrapping and unwrapping reserve asset
      * @param _setValuer Address of SetValuer for calculating valuations and weights
-     * @param _weth Address of WETH contract, used for valuation of the reserve when it is ETH
      * @param _isAnyoneAllowedToRebalance Flag to indicate if anyone can perform valid rebalances
      */
     constructor(
         IBaseManager _manager,
-        IWrapModule _wrapModule,
+        IWrapModuleV2 _wrapModule,
         ISetValuer _setValuer,
-        IWETH _weth,
         bool _isAnyoneAllowedToRebalance
     ) public BaseExtension(_manager) {
         manager = _manager;
         setToken = manager.setToken();
         wrapModule = _wrapModule;
         setValuer = _setValuer;
-        weth = _weth;
         isAnyoneAllowedToRebalance = _isAnyoneAllowedToRebalance;
     }
 
@@ -145,8 +139,18 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     {
         require(isRebalancing, "Rebalancing must be enabled");
         require(rebalanceInfo.targetAssets.contains(_targetAsset), "Target asset must be in rebalance");
+        require(isReserveOverweight(), "Reserve must be overweight");
 
-        _wrap(_targetAsset, _reserveUnits);
+        bytes memory data = abi.encodeWithSelector(
+            wrapModule.wrap.selector,
+            setToken,
+            rebalanceInfo.reserveAsset,
+            _targetAsset,
+            _reserveUnits,
+            executionParams[_targetAsset].wrapAdapterName,
+            executionParams[_targetAsset].wrapData
+        );
+        invokeManager(address(wrapModule), data);
 
         (uint256 targetAssetWeight, uint256 reserveWeight) = getTargetAssetAndReserveWeight(_targetAsset);
         require(targetAssetWeight < executionParams[_targetAsset].maxTargetWeight, "Target asset must be not be overweight after");
@@ -170,8 +174,18 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     {
         require(isRebalancing, "Rebalancing must be enabled");
         require(rebalanceInfo.targetAssets.contains(_targetAsset), "Target asset must be in rebalance");
+        require(isReserveUnderweight(), "Reserve must be underweight");
 
-        _unwrap(_targetAsset, _targetUnits);
+        bytes memory data = abi.encodeWithSelector(
+            wrapModule.unwrap.selector,
+            setToken,
+            rebalanceInfo.reserveAsset,
+            _targetAsset,
+            _targetUnits,
+            executionParams[_targetAsset].wrapAdapterName,
+            executionParams[_targetAsset].unwrapData
+        );
+        invokeManager(address(wrapModule), data);
 
         (uint256 targetAssetWeight, uint256 reserveWeight) = getTargetAssetAndReserveWeight(_targetAsset);
         require(targetAssetWeight > executionParams[_targetAsset].minTargetWeight, "Target asset must be not be underweight after");
@@ -249,20 +263,11 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     /* ========== External Getters ========== */
 
     /**
-     * @notice Gets the address of the reserve asset used for valuation. WETH is used if the reserve asset is ETH, 
-     * otherwise the reserve asset is used.
-     */
-    function getValuationReserveAsset() public view returns(address) {
-        return rebalanceInfo.reserveAsset == ETH_ADDRESS ? address(weth) : rebalanceInfo.reserveAsset;
-    }
-
-    /**
      * @notice Gets the valuation of the reserve asset.
      * @return reserveValuation The valuation of the reserve asset.
      */
     function getReserveValuation() public view returns(uint256 reserveValuation) {
-        address valuationReserveAsset = getValuationReserveAsset();
-        reserveValuation = setValuer.calculateComponentValuation(setToken, valuationReserveAsset, valuationReserveAsset);
+        reserveValuation = setValuer.calculateComponentValuation(setToken, rebalanceInfo.reserveAsset, rebalanceInfo.reserveAsset);
     }
 
     /**
@@ -271,7 +276,7 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      * @return targetAssetValuation The valuation of the specified target asset.
      */
     function getTargetAssetValuation(address _targetAsset) public view returns(uint256 targetAssetValuation) {
-        targetAssetValuation = setValuer.calculateComponentValuation(setToken, _targetAsset, getValuationReserveAsset());
+        targetAssetValuation = setValuer.calculateComponentValuation(setToken, _targetAsset, rebalanceInfo.reserveAsset);
     }
 
     /**
@@ -279,7 +284,7 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      * @return totalValuation The total valuation of the SetToken.
      */
     function getTotalValuation() public view returns(uint256 totalValuation) {
-        totalValuation = setValuer.calculateSetTokenValuation(setToken, getValuationReserveAsset());
+        totalValuation = setValuer.calculateSetTokenValuation(setToken, rebalanceInfo.reserveAsset);
     }
 
     /**
@@ -391,64 +396,6 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      */
     function getTargetAssets() external view returns(address[] memory) {
         return rebalanceInfo.targetAssets;
-    }
-
-    /* ========== Internal Functions ========== */
-
-    /**
-     * @notice Wraps the specified units of the reserve asset into the target asset.
-     * @param _targetAsset The address of the target asset to wrap into.
-     * @param _reserveUnits The amount of the reserve asset to wrap.
-     */
-    function _wrap(address _targetAsset, uint256 _reserveUnits) internal {
-        if (rebalanceInfo.reserveAsset == ETH_ADDRESS) {
-            bytes memory data = abi.encodeWithSelector(
-                wrapModule.wrapWithEther.selector,
-                setToken,
-                _targetAsset,
-                _reserveUnits,
-                executionParams[_targetAsset].wrapAdapterName
-            );
-            invokeManager(address(wrapModule), data);
-        } else {
-            bytes memory data = abi.encodeWithSelector(
-                wrapModule.wrap.selector,
-                setToken,
-                rebalanceInfo.reserveAsset,
-                _targetAsset,
-                _reserveUnits,
-                executionParams[_targetAsset].wrapAdapterName
-            );
-            invokeManager(address(wrapModule), data);
-        }
-    }
-
-    /**
-     * @notice Unwraps the specified units of the target asset into the reserve asset.
-     * @param _targetAsset The address of the target asset to unwrap from.
-     * @param _targetUnits The amount of the target asset to unwrap.
-     */
-    function _unwrap(address _targetAsset, uint256 _targetUnits) internal {
-        if (rebalanceInfo.reserveAsset == ETH_ADDRESS) {
-            bytes memory data = abi.encodeWithSelector(
-                wrapModule.unwrapWithEther.selector,
-                setToken,
-                _targetAsset,
-                _targetUnits,
-                executionParams[_targetAsset].wrapAdapterName
-            );
-            invokeManager(address(wrapModule), data);
-        } else {
-            bytes memory data = abi.encodeWithSelector(
-                wrapModule.unwrap.selector,
-                setToken,
-                rebalanceInfo.reserveAsset,
-                _targetAsset,
-                _targetUnits,
-                executionParams[_targetAsset].wrapAdapterName
-            );
-            invokeManager(address(wrapModule), data);
-        }
     }
 
     /* ============== Modifier Helpers ===============
