@@ -135,39 +135,19 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     /* ============ Public Functions ============ */
 
     /**
-     * Runs all the necessary approval functions required for a given ERC20 token.
-     * This function can be called when a new token is added to a SetToken during a
-     * rebalance.
-     *
-     * @param _token    Address of the token which needs approval
-     */
-    function approveReserveAsset(IERC20 _token) public {
-        _safeApprove(_token, address(navIssuanceModule), type(uint256).max);
-    }
-
-    /**
-     * Runs all the necessary approval functions required for a list of ERC20 tokens.
-     *
-     * @param _tokens    Addresses of the tokens which need approval
-     */
-    function approveReserveAssets(IERC20[] calldata _tokens) external {
-        for (uint256 i = 0; i < _tokens.length; i++) {
-            approveReserveAsset(_tokens[i]);
-        }
-    }
-
-    /**
-     * Runs all the necessary approval functions required before issuing
-     * or redeeming a SetToken. This function need to be called only once before the first time
-     * this smart contract is used on any particular SetToken.
+     * Runs all the necessary approval functions required before issuing or redeeming 
+     * a SetToken through the NAV Issuance Module. This function needs to be called
+     * before this smart contract is used with any particular SetToken, and again
+     * whenever a new reserve asset is added.
      *
      * @param _setToken          Address of the SetToken being initialized
      */
-    function approveSetToken(address _setToken) external {
-        address[] memory reserveAssets = navIssuanceModule.getReserveAssets(_setToken);
+    function approveSetToken(ISetToken _setToken) external {
+        address[] memory reserveAssets = navIssuanceModule.getReserveAssets(address(_setToken));
         for (uint256 i = 0; i < reserveAssets.length; i++) {
-            approveReserveAsset(IERC20(reserveAssets[i]));
+            _safeApprove(IERC20(reserveAssets[i]), address(navIssuanceModule), type(uint256).max);
         }
+        _safeApprove(IERC20(_setToken), address(navIssuanceModule), type(uint256).max);
     }
 
     /**
@@ -195,7 +175,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         uint256 reserveAssetReceived = dexAdapter.swapExactTokensForTokens(msg.value, 0, _reserveAssetSwapData);
         uint256 setTokenBalanceBefore = _setToken.balanceOf(msg.sender);
 
-        INAVIssuanceModule(navIssuanceModule).issue(
+        navIssuanceModule.issue(
             _setToken,
             reserveAsset,
             reserveAssetReceived,
@@ -210,9 +190,9 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     /**
     * Issues a minimum amount of SetTokens for an exact amount of ERC20.
     *
-    * @param _setToken           Address of the SetToken to be issued
-    * @param _minSetTokenAmount  Minimum amount of SetTokens to be issued
-    * @param _inputToken         Address of input token for which to issue set tokens
+    * @param _setToken           Address of the SetToken to issue
+    * @param _minSetTokenAmount  Minimum amount of SetTokens to issue
+    * @param _inputToken         Address of token used to pay for issuance
     * @param _inputTokenAmount   Amount of input token to spend
     * 
     * @param _reserveAssetSwapData  Swap data to trade input token for reserve asset
@@ -225,7 +205,6 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         DEXAdapterV2.SwapData memory _reserveAssetSwapData
     )
         external
-        payable
         nonReentrant
     {
         address reserveAsset;
@@ -245,7 +224,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         reserveAssetReceived = dexAdapter.swapExactTokensForTokens(_inputTokenAmount, 0, _reserveAssetSwapData);
         uint256 setTokenBalanceBefore = _setToken.balanceOf(msg.sender);
 
-        INAVIssuanceModule(navIssuanceModule).issue(
+        navIssuanceModule.issue(
             _setToken,
             reserveAsset,
             reserveAssetReceived,
@@ -258,28 +237,43 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     }
 
     /**
-     * Redeems an exact amount of SetTokens for an ERC20 token.
+     * Redeems an exact amount of SetTokens for ETH.
      * The SetToken must be approved by the sender to this contract.
      *
-     * @param _redeemParams             Struct containing token addresses, amounts, and swap data for issuance
-     *
-     * @return outputTokenReceived      Amount of output token received
+     * @param _setToken              Address of the SetToken to redeem
+     * @param _setTokenAmount        Amount of SetTokens to redeem
+     * @param _minEthOutput          Minimum amount of ETH to be received by caller
+     * @param _reserveAssetSwapData  Swap data to trade reserve asset for WETH
      */
-    // function redeemExactSetForERC20(IssueRedeemParams memory _redeemParams)
-    //     external
-    //     nonReentrant
-    //     returns (uint256 outputTokenReceived)
-    // {
-    //     _redeem(_redeemParams.setToken, _redeemParams.amountSetToken, _redeemParams.issuanceModule);
+    function redeemExactSetForETH(
+        ISetToken _setToken,
+        uint256 _setTokenAmount,
+        uint256 _minEthOutput,
+        DEXAdapterV2.SwapData memory _reserveAssetSwapData
+    )
+        external
+        nonReentrant
+    {
+        address reserveAsset = _reserveAssetSwapData.path[0];
+        uint256 reserveAssetBalanceBefore = IERC20(reserveAsset).balanceOf(address(this));
+        _setToken.safeTransferFrom(msg.sender, address(this), _setTokenAmount);
+        navIssuanceModule.redeem(
+            _setToken,
+            reserveAsset,
+            _setTokenAmount,
+            0,
+            address(this)
+        );
 
-    //     uint256 wethReceived = _sellComponentsForWeth(_redeemParams);
-    //     outputTokenReceived = _swapWethForPaymentToken(wethReceived, _paymentInfo.token, _paymentInfo.swapDataWethToToken);
-    //     require(outputTokenReceived >= _paymentInfo.limitAmt, "FlashMint: INSUFFICIENT OUTPUT AMOUNT");
+        uint256 reserveAssetReceived = IERC20(reserveAsset).balanceOf(address(this)).sub(reserveAssetBalanceBefore);
+        uint256 wethReceived = dexAdapter.swapExactTokensForTokens(reserveAssetReceived, 0, _reserveAssetSwapData);
+        require(wethReceived >= _minEthOutput, "FlashMint: NOT ENOUGH ETH RECEIVED");
 
-    //     _paymentInfo.token.safeTransfer(msg.sender, outputTokenReceived);
+        IWETH(WETH).withdraw(wethReceived);
+        payable(msg.sender).sendValue(wethReceived);
 
-    //     emit FlashRedeem(msg.sender, _redeemParams.setToken, _paymentInfo.token, _redeemParams.amountSetToken, outputTokenReceived);
-    // }
+        emit FlashRedeem(msg.sender, _setToken, IERC20(ETH_ADDRESS), _setTokenAmount, wethReceived);
+    }
 
     /* ============ Internal Functions ============ */
 
