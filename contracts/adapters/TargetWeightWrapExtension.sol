@@ -303,23 +303,6 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     }
 
     /**
-     * @notice Gets the reserve weight delta relative to the min and max reserve weights.
-     * @return reserveWeightDeltaLow The delta between the reserve weight and nearest boundary weight.
-     * @return reserveWeightDeltaHigh The delta between the reserve weight and the farthest boundary weight.
-     */
-    function getReserveWeightDelta() public view returns(uint256 reserveWeightDeltaLow, uint256 reserveWeightDeltaHigh) {
-        uint256 reserveWeight = getReserveWeight();
-        if (reserveWeight > rebalanceInfo.maxReserveWeight) {
-            reserveWeightDeltaLow = reserveWeight.sub(rebalanceInfo.maxReserveWeight);
-            reserveWeightDeltaHigh = reserveWeight.sub(rebalanceInfo.minReserveWeight);
-        }
-        if (reserveWeight < rebalanceInfo.minReserveWeight) {
-            reserveWeightDeltaLow = rebalanceInfo.minReserveWeight.sub(reserveWeight);
-            reserveWeightDeltaHigh = rebalanceInfo.maxReserveWeight.sub(reserveWeight);
-        }
-    }
-
-    /**
      * @notice Checks if the reserve asset is overweight.
      */
     function isReserveOverweight() public view returns(bool) {
@@ -331,24 +314,6 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      */
     function isReserveUnderweight() public view returns(bool) {
         return getReserveWeight() < rebalanceInfo.minReserveWeight;
-    }
-
-    /**
-     * @notice Gets the target weight delta relative to the min and max target weights.
-     * @param _targetAsset The address of the target asset.
-     * @return targetWeightDeltaLow The delta between the target weight and nearest boundary weight.
-     * @return targetWeightDeltaHigh The delta between the target weight and the farthest boundary weight.
-     */
-    function getTargetWeightDelta(address _targetAsset) public view returns (uint256 targetWeightDeltaLow, uint256 targetWeightDeltaHigh) {
-        uint256 targetWeight = getTargetAssetWeight(_targetAsset);
-        if (targetWeight > executionParams[_targetAsset].maxTargetWeight) {
-            targetWeightDeltaLow = targetWeight.sub(executionParams[_targetAsset].maxTargetWeight);
-            targetWeightDeltaHigh = targetWeight.sub(executionParams[_targetAsset].minTargetWeight);
-        }
-        if (targetWeight < executionParams[_targetAsset].minTargetWeight) {
-            targetWeightDeltaLow = executionParams[_targetAsset].minTargetWeight.sub(targetWeight);
-            targetWeightDeltaHigh = executionParams[_targetAsset].maxTargetWeight.sub(targetWeight);
-        }
     }
 
     /**
