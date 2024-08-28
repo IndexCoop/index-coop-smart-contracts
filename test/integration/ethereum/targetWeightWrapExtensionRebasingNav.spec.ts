@@ -56,7 +56,7 @@ const whales = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe("TargetWeightWrapExtension - RebasingComponentModule Nav Issuance Integration Test", async () => {
+  describe.only("TargetWeightWrapExtension - RebasingComponentModule Nav Issuance Integration Test", async () => {
     const TOKEN_TRANSFER_BUFFER = 10;
 
     let owner: Account;
@@ -365,7 +365,7 @@ if (process.env.INTEGRATIONTEST) {
           });
 
           it("should be rebalancing", async () => {
-            expect(await targetWeightWrapExtension.isRebalancing()).to.be.true;
+            expect(await targetWeightWrapExtension.isRebalancingActive()).to.be.true;
           });
 
           context("when a sufficiently large nav issuance occurs", () => {

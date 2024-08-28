@@ -119,13 +119,13 @@ describe("TargetWeightWrapExtension", async () => {
     let subjectManager: Address;
     let subjectWrapModule: Address;
     let subjectSetValuer: Address;
-    let subjectIsAnyoneAllowedToRebalance: boolean;
+    let subjectIsRebalanceOpen: boolean;
 
     beforeEach(async () => {
       subjectManager = baseManager.address;
       subjectWrapModule = setV2Setup.wrapModuleV2.address;
       subjectSetValuer = setV2Setup.setValuer.address;
-      subjectIsAnyoneAllowedToRebalance = false;
+      subjectIsRebalanceOpen = false;
     });
 
     async function subject(): Promise<TargetWeightWrapExtension> {
@@ -133,7 +133,7 @@ describe("TargetWeightWrapExtension", async () => {
         subjectManager,
         subjectWrapModule,
         subjectSetValuer,
-        subjectIsAnyoneAllowedToRebalance
+        subjectIsRebalanceOpen
       );
     }
 
@@ -168,8 +168,8 @@ describe("TargetWeightWrapExtension", async () => {
     it("should set the correct rebalancing permissions", async () => {
       const wrapExtension = await subject();
 
-      const isAnyoneAllowedToRebalance = await wrapExtension.isAnyoneAllowedToRebalance();
-      expect(isAnyoneAllowedToRebalance).to.eq(subjectIsAnyoneAllowedToRebalance);
+      const isRebalanceOpen = await wrapExtension.isRebalanceOpen();
+      expect(isRebalanceOpen).to.eq(subjectIsRebalanceOpen);
     });
   });
 
@@ -257,9 +257,9 @@ describe("TargetWeightWrapExtension", async () => {
           );
         }
 
-        it("should set isRebalancing to true", async () => {
+        it("should set isRebalancingActive to true", async () => {
           await subject();
-          expect(await targetWeightWrapExtension.isRebalancing()).to.be.true;
+          expect(await targetWeightWrapExtension.isRebalancingActive()).to.be.true;
         });
 
         it("should set the rebalanceInfo", async () => {
@@ -295,20 +295,20 @@ describe("TargetWeightWrapExtension", async () => {
         });
       });
 
-      describe("#suspendRebalance", () => {
+      describe("#pauseRebalance", () => {
         let subjectCaller: Account;
 
         function subject() {
-          return targetWeightWrapExtension.connect(subjectCaller.wallet).suspendRebalance();
+          return targetWeightWrapExtension.connect(subjectCaller.wallet).pauseRebalance();
         }
         beforeEach(async () => {
           subjectCaller = operator;
         });
 
-        it("should suspend the rebalance", async () => {
+        it("should pause the rebalance", async () => {
           await subject();
 
-          expect(await targetWeightWrapExtension.isRebalancing()).to.be.false;
+          expect(await targetWeightWrapExtension.isRebalancingActive()).to.be.false;
         });
 
         context("when the caller is not the operator", async () => {
@@ -322,29 +322,29 @@ describe("TargetWeightWrapExtension", async () => {
         });
       });
 
-      describe("#setIsAnyoneAllowedToRebalance", () => {
+      describe("#setIsRebalanceOpen", () => {
         let subjectCaller: Account;
-        let subjectIsAnyoneAllowedToRebalance: boolean;
+        let subjectIsRebalanceOpen: boolean;
 
         function subject() {
-          return targetWeightWrapExtension.connect(subjectCaller.wallet).setIsAnyoneAllowedToRebalance(subjectIsAnyoneAllowedToRebalance);
+          return targetWeightWrapExtension.connect(subjectCaller.wallet).setIsRebalanceOpen(subjectIsRebalanceOpen);
         }
         beforeEach(async () => {
           subjectCaller = operator;
         });
-        [true, false].forEach((isAnyoneAllowedToRebalance: boolean) => {
-          describe(`when setting value to ${isAnyoneAllowedToRebalance}`, () => {
+        [true, false].forEach((isRebalanceOpen: boolean) => {
+          describe(`when setting value to ${isRebalanceOpen}`, () => {
             beforeEach(async () => {
-              subjectIsAnyoneAllowedToRebalance = isAnyoneAllowedToRebalance;
+              subjectIsRebalanceOpen = isRebalanceOpen;
               await targetWeightWrapExtension
                 .connect(operator.wallet)
-                .setIsAnyoneAllowedToRebalance(!isAnyoneAllowedToRebalance);
+                .setIsRebalanceOpen(!isRebalanceOpen);
             });
 
-            it("should update isAnyoneAllowedToRebalance correctly", async () => {
+            it("should update isRebalanceOpen correctly", async () => {
               await subject();
-              const actualIsAnyoneAllowedToRebalance = await targetWeightWrapExtension.isAnyoneAllowedToRebalance();
-              expect(actualIsAnyoneAllowedToRebalance).to.eq(subjectIsAnyoneAllowedToRebalance);
+              const actualIsRebalanceOpen = await targetWeightWrapExtension.isRebalanceOpen();
+              expect(actualIsRebalanceOpen).to.eq(subjectIsRebalanceOpen);
             });
           });
         });
@@ -352,7 +352,7 @@ describe("TargetWeightWrapExtension", async () => {
         context("when the caller is not the operator", async () => {
           beforeEach(async () => {
             subjectCaller = feeRecipient;
-            subjectIsAnyoneAllowedToRebalance = false;
+            subjectIsRebalanceOpen = false;
           });
 
           it("should revert", async () => {
@@ -764,13 +764,13 @@ describe("TargetWeightWrapExtension", async () => {
             expect(reservePositionUnitChange).to.be.lte(subjectReserveUnits.add(2));
           });
 
-          context("when isRebalancing is false", async () => {
+          context("when isRebalancingActive is false", async () => {
             beforeEach(async () => {
-              await targetWeightWrapExtension.connect(operator.wallet).suspendRebalance();
+              await targetWeightWrapExtension.connect(operator.wallet).pauseRebalance();
             });
 
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Rebalancing must be enabled");
+              await expect(subject()).to.be.revertedWith("Rebalancing is not active");
             });
           });
 
@@ -780,7 +780,7 @@ describe("TargetWeightWrapExtension", async () => {
             });
 
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Target asset must be in rebalance");
+              await expect(subject()).to.be.revertedWith("Invalid target asset");
             });
           });
 
@@ -790,7 +790,7 @@ describe("TargetWeightWrapExtension", async () => {
             });
 
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Target asset must be not be overweight after");
+              await expect(subject()).to.be.revertedWith("Target asset overweight post-wrap");
             });
           });
 
@@ -800,11 +800,11 @@ describe("TargetWeightWrapExtension", async () => {
             });
 
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Reserve must be not be underweight after");
+              await expect(subject()).to.be.revertedWith("Reserve asset underweight post-wrap");
             });
           });
 
-          context("when the operator is not the caller and isAnyoneAllowedToRebalance is false", async () => {
+          context("when the operator is not the caller and isRebalanceOopen is false", async () => {
             beforeEach(async () => {
               subjectCaller = await getRandomAccount();
             });
@@ -814,9 +814,9 @@ describe("TargetWeightWrapExtension", async () => {
             });
           });
 
-          context("when the operator is not the caller and isAnyoneAllowedToRebalance is true", async () => {
+          context("when the operator is not the caller and isRebalanceOopen is true", async () => {
             beforeEach(async () => {
-              await targetWeightWrapExtension.connect(operator.wallet).setIsAnyoneAllowedToRebalance(true);
+              await targetWeightWrapExtension.connect(operator.wallet).setIsRebalanceOpen(true);
               subjectCaller = await getRandomAccount();
             });
 
@@ -866,13 +866,13 @@ describe("TargetWeightWrapExtension", async () => {
             expect(reservePositionUnitChange).to.be.lte(subjectTargetUnits.add(2));
           });
 
-          context("when isRebalancing is false", async () => {
+          context("when isRebalancingActive is false", async () => {
             beforeEach(async () => {
-              await targetWeightWrapExtension.connect(operator.wallet).suspendRebalance();
+              await targetWeightWrapExtension.connect(operator.wallet).pauseRebalance();
             });
 
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Rebalancing must be enabled");
+              await expect(subject()).to.be.revertedWith("Rebalancing is not active");
             });
           });
 
@@ -882,7 +882,7 @@ describe("TargetWeightWrapExtension", async () => {
             });
 
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Target asset must be in rebalance");
+              await expect(subject()).to.be.revertedWith("Invalid target asse");
             });
           });
 
@@ -892,7 +892,7 @@ describe("TargetWeightWrapExtension", async () => {
             });
 
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Target asset must be not be underweight after");
+              await expect(subject()).to.be.revertedWith("Target asset underweight post-unwrap");
             });
           });
 
@@ -902,11 +902,11 @@ describe("TargetWeightWrapExtension", async () => {
             });
 
             it("should revert", async () => {
-              await expect(subject()).to.be.revertedWith("Reserve must be not be overweight after");
+              await expect(subject()).to.be.revertedWith("Reserve asset overweight post-unwrap");
             });
           });
 
-          context("when the operator is not the caller and isAnyoneAllowedToRebalance is false", async () => {
+          context("when the operator is not the caller and isRebalanceOpen is false", async () => {
             beforeEach(async () => {
               subjectCaller = await getRandomAccount();
             });
@@ -916,9 +916,9 @@ describe("TargetWeightWrapExtension", async () => {
             });
           });
 
-          context("when the operator is not the caller and isAnyoneAllowedToRebalance is true", async () => {
+          context("when the operator is not the caller and isRebalanceOpen is true", async () => {
             beforeEach(async () => {
-              await targetWeightWrapExtension.connect(operator.wallet).setIsAnyoneAllowedToRebalance(true);
+              await targetWeightWrapExtension.connect(operator.wallet).setIsRebalanceOpen(true);
               subjectCaller = await getRandomAccount();
             });
 

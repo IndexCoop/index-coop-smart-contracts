@@ -36,9 +36,9 @@ import { IWrapModuleV2 } from "../interfaces/IWrapModuleV2.sol";
 /**
  * @title TargetWeightWrapExtension
  * @author Index Coop
- * @notice Extension contract that allows designated rebalancers to manage asset weights by wrapping a reserve asset into target assets when the reserve is overweight, 
- * and unwrapping target assets back into the reserve asset when the reserve is underweight. The contract enforces specified weight bounds for each target asset during rebalancing.
- * @dev Meant for ERC20 reserve assets.
+ * @notice Extension contract for managing asset weights by wrapping a reserve asset into target assets when overweight, 
+ * and unwrapping target assets back into the reserve asset when underweight. Enforces weight bounds during rebalancing.
+ * @dev Designed for ERC20 reserve assets.
  */
 contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     using SafeCast for int256;
@@ -54,20 +54,20 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         address reserveAsset;        // Address of the reserve asset
         uint256 minReserveWeight;    // Minimum weight of the reserve asset (100% = 1e18)
         uint256 maxReserveWeight;    // Maximum weight of the reserve asset (100% = 1e18)
-        address[] targetAssets;      // Array of target assets to wrap into and unwrap from
+        address[] targetAssets;      // Array of target assets to wrap/unwrap
     }
 
     struct TargetWeightWrapParams {
-        uint256 minTargetWeight;    // Minimum weight of the target asset (100% = 1e18)
-        uint256 maxTargetWeight;    // Maximum weight of the target asset (100% = 1e18)
-        string wrapAdapterName;     // Name of the wrap adapter to use
-        bytes wrapData;             // Wrap data to pass to the wrap
-        bytes unwrapData;           // Unwrap data to pass to the unwrap
+        uint256 minTargetWeight;     // Minimum weight of the target asset (100% = 1e18)
+        uint256 maxTargetWeight;     // Maximum weight of the target asset (100% = 1e18)
+        string wrapAdapterName;      // Name of the wrap adapter to use
+        bytes wrapData;              // Data for wrapping
+        bytes unwrapData;            // Data for unwrapping
     }
 
     /* ============ Events ============ */
 
-    event AnyoneRebalanceUpdated(bool isAnyoneAllowedToRebalance);
+    event RebalanceAccessUpdated(bool isRebalanceOpen);
     event TargetsSet(
         address indexed reserveAsset,
         uint256 minReserveWeight,
@@ -75,7 +75,7 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         address[] targetAssets,
         TargetWeightWrapParams[] executionParams
     );
-    event RebalanceSuspended();
+    event RebalancePaused();
 
     /* ========== Immutables ========= */
 
@@ -85,8 +85,8 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
 
     /* ========== State Variables ========= */
 
-    bool public isRebalancing;
-    bool public isAnyoneAllowedToRebalance;
+    bool public isRebalancingActive;
+    bool public isRebalanceOpen;
 
     mapping(address => TargetWeightWrapParams) public executionParams; 
     RebalanceInfo public rebalanceInfo;
@@ -105,25 +105,25 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      * @param _manager Address of Index Manager contract
      * @param _wrapModule Address of IWrapModuleV2 for wrapping and unwrapping reserve asset
      * @param _setValuer Address of SetValuer for calculating valuations and weights
-     * @param _isAnyoneAllowedToRebalance Flag to indicate if anyone can perform valid rebalances
+     * @param _isRebalanceOpen Flag indicating if anyone can rebalance
      */
     constructor(
         IBaseManager _manager,
         IWrapModuleV2 _wrapModule,
         ISetValuer _setValuer,
-        bool _isAnyoneAllowedToRebalance
+        bool _isRebalanceOpen
     ) public BaseExtension(_manager) {
         manager = _manager;
         setToken = manager.setToken();
         wrapModule = _wrapModule;
         setValuer = _setValuer;
-        isAnyoneAllowedToRebalance = _isAnyoneAllowedToRebalance;
+        isRebalanceOpen = _isRebalanceOpen;
     }
 
     /* ========== Rebalance Functions ========== */
 
     /**
-     * @notice Wraps units of the reserve asset into the target asset. 
+     * @notice Wraps reserve asset units into the target asset. 
      * @dev Must be called when the reserve asset is overweight, rebalancing is enabled, and the caller is an allowed rebalancer. 
      * Ensures that after wrapping, the target asset does not become overweight and the reserve asset does not become underweight.
      * @param _targetAsset Address of the target asset to wrap into.
@@ -137,9 +137,9 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         nonReentrant
         onlyAllowedRebalancer
     {
-        require(isRebalancing, "Rebalancing must be enabled");
-        require(rebalanceInfo.targetAssets.contains(_targetAsset), "Target asset must be in rebalance");
-        require(isReserveOverweight(), "Reserve must be overweight");
+        require(isRebalancingActive, "Rebalancing is not active");
+        require(rebalanceInfo.targetAssets.contains(_targetAsset), "Invalid target asset");
+        require(isReserveOverweight(), "Reserve asset is not overweight");
 
         bytes memory data = abi.encodeWithSelector(
             wrapModule.wrap.selector,
@@ -153,12 +153,12 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         invokeManager(address(wrapModule), data);
 
         (uint256 targetAssetWeight, uint256 reserveWeight) = getTargetAssetAndReserveWeight(_targetAsset);
-        require(targetAssetWeight < executionParams[_targetAsset].maxTargetWeight, "Target asset must be not be overweight after");
-        require(reserveWeight > rebalanceInfo.minReserveWeight, "Reserve must be not be underweight after");
+        require(targetAssetWeight < executionParams[_targetAsset].maxTargetWeight, "Target asset overweight post-wrap");
+        require(reserveWeight > rebalanceInfo.minReserveWeight, "Reserve asset underweight post-wrap");
     }
 
     /**
-     * @notice Unwraps units of the target asset into the reserve asset.
+     * @notice Unwraps target asset units into the reserve asset.
      * @dev Must be called when the reserve asset is underweight, rebalancing is enabled, and the caller is an allowed rebalancer.
      * Ensures that after unwrapping, the target asset does not become underweight and the reserve asset does not become overweight.
      * @param _targetAsset Address of target asset to unwrap from
@@ -172,9 +172,9 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         nonReentrant
         onlyAllowedRebalancer
     {
-        require(isRebalancing, "Rebalancing must be enabled");
-        require(rebalanceInfo.targetAssets.contains(_targetAsset), "Target asset must be in rebalance");
-        require(isReserveUnderweight(), "Reserve must be underweight");
+        require(isRebalancingActive, "Rebalancing is not active");
+        require(rebalanceInfo.targetAssets.contains(_targetAsset), "Invalid target asset");
+        require(isReserveUnderweight(), "Reserve asset is not underweight");
 
         bytes memory data = abi.encodeWithSelector(
             wrapModule.unwrap.selector,
@@ -188,15 +188,15 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         invokeManager(address(wrapModule), data);
 
         (uint256 targetAssetWeight, uint256 reserveWeight) = getTargetAssetAndReserveWeight(_targetAsset);
-        require(targetAssetWeight > executionParams[_targetAsset].minTargetWeight, "Target asset must be not be underweight after");
-        require(reserveWeight < rebalanceInfo.maxReserveWeight, "Reserve must be not be overweight after");
+        require(targetAssetWeight > executionParams[_targetAsset].minTargetWeight, "Target asset underweight post-unwrap");
+        require(reserveWeight < rebalanceInfo.maxReserveWeight, "Reserve asset overweight post-unwrap");
     }
 
     /* ========== Operator Functions ========== */
 
     /**
      * @notice Sets the reserve asset, target assets, and their associated execution parameters.
-     * @dev This function can only be called by the operator.
+     * @dev Only callable by the operator.
      * @dev The weights are percentages where 100% equals 1e18.
      * @param _reserveAsset Address of the reserve asset.
      * @param _minReserveWeight Minimum allowable weight of the reserve asset.
@@ -214,9 +214,9 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         external
         onlyOperator
     {
-        require(_targetAssets.length == _executionParams.length, "Array lengths do not match");
-
-        isRebalancing = true;
+        require(_targetAssets.length == _executionParams.length, "Mismatched array lengths");
+        require(_minReserveWeight <= _maxReserveWeight, "Invalid min reserve weight");
+        require(_maxReserveWeight <= PreciseUnitMath.preciseUnit(), "Invalid max reserve weight");
 
         rebalanceInfo = RebalanceInfo({
             reserveAsset: _reserveAsset,
@@ -226,29 +226,33 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         });
 
         for (uint256 i = 0; i < _targetAssets.length; i++) {
+            require(_executionParams[i].minTargetWeight <= _executionParams[i].maxTargetWeight, "Invalid min target weight");
+            require(_executionParams[i].maxTargetWeight <= PreciseUnitMath.preciseUnit(), "Invalid max target weight");
             executionParams[_targetAssets[i]] = _executionParams[i];
         }
+
+        isRebalancingActive = true;
 
         emit TargetsSet(_reserveAsset, _minReserveWeight, _maxReserveWeight, _targetAssets, _executionParams);
     }
 
     /**
-     * @notice Suspends rebalance until setTargetWeights is called again.
-     * @dev This function can only be called by the operator.
+     * @notice Pauses rebalancing until targets are reconfigured.
+     * @dev Only callable by the operator.
      */
-    function suspendRebalance() external onlyOperator {
-        isRebalancing = false;
-        emit RebalanceSuspended();
+    function pauseRebalance() external onlyOperator {
+        isRebalancingActive = false;
+        emit RebalancePaused();
     }
 
     /**
-     * @notice Sets the flag to allow anyone to perform valid rebalances through this extension.
+     * @notice Sets the flag to open or restrict rebalancing access through this extension.
      * @dev This function can only be called by the operator.
-     * @param _isAnyoneAllowedToRebalance Flag to indicate if anyone can perform valid rebalances through this extension.
+     * @param _isRebalanceOpen Flag to indicate if rebalancing is open to anyone.
      */
-    function setIsAnyoneAllowedToRebalance(bool _isAnyoneAllowedToRebalance) external onlyOperator {
-        isAnyoneAllowedToRebalance = _isAnyoneAllowedToRebalance;
-        emit AnyoneRebalanceUpdated(_isAnyoneAllowedToRebalance);
+    function setIsRebalanceOpen(bool _isRebalanceOpen) external onlyOperator {
+        isRebalanceOpen = _isRebalanceOpen;
+        emit RebalanceAccessUpdated(_isRebalanceOpen);
     }
 
     /**
@@ -403,10 +407,10 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      */
 
     /*
-     * Caller must be oeprator if isAnyoneAllowedToRebalance is false
+     * Caller must be oeprator if isRebalanceOpen is false
      */
     function _validateOnlyAllowedRebalancer() internal {
-        if (!isAnyoneAllowedToRebalance) {
+        if (!isRebalanceOpen) {
             require(msg.sender == manager.operator(), "Must be allowed rebalancer");
         }
     }
