@@ -724,6 +724,262 @@ describe("TargetWeightWrapExtension", async () => {
           });
         });
 
+        describe("#isReserveOverweight", async () => {
+          async function subject(): Promise<Boolean> {
+            return await targetWeightWrapExtension.isReserveOverweight();
+          }
+
+          it("should return false when the reserve is not overweight", async () => {
+            const actualIsReserveOverweight = await subject();
+            expect(actualIsReserveOverweight).to.be.false;
+          });
+
+          context("when the reserve weight is equal to the maxReserveWeight", async () => {
+            beforeEach(async () => {
+              await targetWeightWrapExtension.connect(operator.wallet).setTargetWeights(
+                setV2Setup.weth.address,
+                await targetWeightWrapExtension.getReserveWeight(),
+                await targetWeightWrapExtension.getReserveWeight(),
+                [wrapAdapter.address],
+                [
+                  {
+                    minTargetWeight: ether(0.40),
+                    maxTargetWeight: ether(0.60),
+                    wrapAdapterName: wrapAdapterName,
+                    wrapData: ZERO_BYTES,
+                    unwrapData: ZERO_BYTES,
+                  } as TargetWeightWrapParams,
+                ]
+              );
+            });
+
+            it("should return false", async () => {
+              const actualIsReserveOverweight = await subject();
+              expect(actualIsReserveOverweight).to.be.false;
+            });
+          });
+
+          context("when the reserve is overweight", async () => {
+            beforeEach(async () => {
+              await targetWeightWrapExtension.connect(operator.wallet).setTargetWeights(
+                setV2Setup.weth.address,
+                ZERO,
+                ZERO,
+                [wrapAdapter.address],
+                [
+                  {
+                    minTargetWeight: ether(0.40),
+                    maxTargetWeight: ether(0.60),
+                    wrapAdapterName: wrapAdapterName,
+                    wrapData: ZERO_BYTES,
+                    unwrapData: ZERO_BYTES,
+                  } as TargetWeightWrapParams,
+                ]
+              );
+            });
+
+            it("should return true", async () => {
+              const actualIsReserveOverweight = await subject();
+              expect(actualIsReserveOverweight).to.be.true;
+            });
+          });
+        });
+
+        describe("#isReserveUnderweight", async () => {
+          async function subject(): Promise<Boolean> {
+            return await targetWeightWrapExtension.isReserveUnderweight();
+          }
+
+          it("should return false when the reserve is not underweight", async () => {
+            const actualIsReserveUnderweight = await subject();
+            expect(actualIsReserveUnderweight).to.be.false;
+          });
+
+          context("when the reserve weight is equal to the minReserveWeight", async () => {
+            beforeEach(async () => {
+              await targetWeightWrapExtension.connect(operator.wallet).setTargetWeights(
+                setV2Setup.weth.address,
+                await targetWeightWrapExtension.getReserveWeight(),
+                await targetWeightWrapExtension.getReserveWeight(),
+                [wrapAdapter.address],
+                [
+                  {
+                    minTargetWeight: ether(0.40),
+                    maxTargetWeight: ether(0.60),
+                    wrapAdapterName: wrapAdapterName,
+                    wrapData: ZERO_BYTES,
+                    unwrapData: ZERO_BYTES,
+                  } as TargetWeightWrapParams,
+                ]
+              );
+            });
+
+            it("should return false", async () => {
+              const actualIsReserveUnderweight = await subject();
+            expect(actualIsReserveUnderweight).to.be.false;
+            });
+          });
+
+          context("when the reserve is underweight", async () => {
+            beforeEach(async () => {
+              await targetWeightWrapExtension.connect(operator.wallet).setTargetWeights(
+                setV2Setup.weth.address,
+                ether(1),
+                ether(1),
+                [wrapAdapter.address],
+                [
+                  {
+                    minTargetWeight: ether(0.40),
+                    maxTargetWeight: ether(0.60),
+                    wrapAdapterName: wrapAdapterName,
+                    wrapData: ZERO_BYTES,
+                    unwrapData: ZERO_BYTES,
+                  } as TargetWeightWrapParams,
+                ]
+              );
+            });
+
+            it("should return true", async () => {
+              const actualIsReserveUnderweight = await subject();
+            expect(actualIsReserveUnderweight).to.be.true;
+            });
+          });
+        });
+
+        describe("#isTargetOverweight", async () => {
+          let subjectTargetAsset: Address;
+
+          beforeEach(async () => {
+            subjectTargetAsset = wrapAdapter.address;
+          });
+
+          async function subject(): Promise<Boolean> {
+            return await targetWeightWrapExtension.isTargetOverweight(subjectTargetAsset);
+          }
+
+          it("should return false when the target is not overweight", async () => {
+            const actualIsTargetOverweight = await subject();
+            expect(actualIsTargetOverweight).to.be.false;
+          });
+
+          context("when the target weight is equal to the maxTargetWeight", async () => {
+            beforeEach(async () => {
+              await targetWeightWrapExtension.connect(operator.wallet).setTargetWeights(
+                setV2Setup.weth.address,
+                ether(0.45),
+                ether(0.55),
+                [wrapAdapter.address],
+                [
+                  {
+                    minTargetWeight: await targetWeightWrapExtension.getTargetAssetWeight(subjectTargetAsset),
+                    maxTargetWeight: await targetWeightWrapExtension.getTargetAssetWeight(subjectTargetAsset),
+                    wrapAdapterName: wrapAdapterName,
+                    wrapData: ZERO_BYTES,
+                    unwrapData: ZERO_BYTES,
+                  } as TargetWeightWrapParams,
+                ]
+              );
+            });
+
+            it("should return false", async () => {
+              const actualIsTargetOverweight = await subject();
+              expect(actualIsTargetOverweight).to.be.false;
+            });
+          });
+
+          context("when the target is overweight", async () => {
+            beforeEach(async () => {
+              await targetWeightWrapExtension.connect(operator.wallet).setTargetWeights(
+                setV2Setup.weth.address,
+                ether(0.45),
+                ether(0.55),
+                [wrapAdapter.address],
+                [
+                  {
+                    minTargetWeight: ZERO,
+                    maxTargetWeight: ZERO,
+                    wrapAdapterName: wrapAdapterName,
+                    wrapData: ZERO_BYTES,
+                    unwrapData: ZERO_BYTES,
+                  } as TargetWeightWrapParams,
+                ]
+              );
+            });
+
+            it("should return true", async () => {
+              const actualIsTargetOverweight = await subject();
+              expect(actualIsTargetOverweight).to.be.true;
+            });
+          });
+        });
+
+        describe("#isTargetUnderweight", async () => {
+          let subjectTargetAsset: Address;
+
+          beforeEach(async () => {
+            subjectTargetAsset = wrapAdapter.address;
+          });
+
+          async function subject(): Promise<Boolean> {
+            return await targetWeightWrapExtension.isTargetUnderweight(subjectTargetAsset);
+          }
+
+          it("should return false when the target is not underweight", async () => {
+            const actualIsTargetUnderweight = await subject();
+            expect(actualIsTargetUnderweight).to.be.false;
+          });
+
+          context("when the target weight is equal to the minTargetWeight", async () => {
+            beforeEach(async () => {
+              await targetWeightWrapExtension.connect(operator.wallet).setTargetWeights(
+                setV2Setup.weth.address,
+                ether(0.45),
+                ether(0.55),
+                [wrapAdapter.address],
+                [
+                  {
+                    minTargetWeight: await targetWeightWrapExtension.getTargetAssetWeight(subjectTargetAsset),
+                    maxTargetWeight: await targetWeightWrapExtension.getTargetAssetWeight(subjectTargetAsset),
+                    wrapAdapterName: wrapAdapterName,
+                    wrapData: ZERO_BYTES,
+                    unwrapData: ZERO_BYTES,
+                  } as TargetWeightWrapParams,
+                ]
+              );
+            });
+
+            it("should return false", async () => {
+              const actualIsTargetUnderweight = await subject();
+              expect(actualIsTargetUnderweight).to.be.false;
+            });
+          });
+
+          context("when the target is underweight", async () => {
+            beforeEach(async () => {
+              await targetWeightWrapExtension.connect(operator.wallet).setTargetWeights(
+                setV2Setup.weth.address,
+                ether(0.45),
+                ether(0.55),
+                [wrapAdapter.address],
+                [
+                  {
+                    minTargetWeight: ether(1),
+                    maxTargetWeight: ether(1),
+                    wrapAdapterName: wrapAdapterName,
+                    wrapData: ZERO_BYTES,
+                    unwrapData: ZERO_BYTES,
+                  } as TargetWeightWrapParams,
+                ]
+              );
+            });
+
+            it("should return true", async () => {
+              const actualIsTargetUnderweight = await subject();
+              expect(actualIsTargetUnderweight).to.be.true;
+            });
+          });
+        });
+
         describe("#wrap", async () => {
           let subjectTargetAsset: Address;
           let subjectReserveUnits: BigNumber;
@@ -762,6 +1018,37 @@ describe("TargetWeightWrapExtension", async () => {
             expect(targetAssetPositionUnitChange).to.be.lte(subjectReserveUnits.add(2));
             expect(reservePositionUnitChange).to.be.gte(subjectReserveUnits.sub(2));
             expect(reservePositionUnitChange).to.be.lte(subjectReserveUnits.add(2));
+          });
+
+          context("when fully allocating the reserve", async () => {
+            beforeEach(async () => {
+              await targetWeightWrapExtension.connect(operator.wallet).setTargetWeights(
+                setV2Setup.weth.address,
+                ether(0),
+                ether(1),
+                [wrapAdapter.address],
+                [
+                  {
+                    minTargetWeight: ether(0),
+                    maxTargetWeight: ether(1),
+                    wrapAdapterName: wrapAdapterName,
+                    wrapData: ZERO_BYTES,
+                    unwrapData: ZERO_BYTES,
+                  } as TargetWeightWrapParams,
+                ]
+              );
+
+              subjectTargetAsset = wrapAdapter.address;
+              subjectReserveUnits = await setToken.getDefaultPositionRealUnit(setV2Setup.weth.address);
+            });
+
+            it("should be able to remove the reserve asset from the SetToken", async () => {
+              expect(await setToken.isComponent(setV2Setup.weth.address)).to.be.true;
+
+              await subject();
+
+              expect(await setToken.isComponent(setV2Setup.weth.address)).to.be.false;
+            });
           });
 
           context("when isRebalancingActive is false", async () => {
@@ -864,6 +1151,37 @@ describe("TargetWeightWrapExtension", async () => {
             expect(targetAssetPositionUnitChange).to.be.lte(subjectTargetUnits.add(2));
             expect(reservePositionUnitChange).to.be.gte(subjectTargetUnits.sub(2));
             expect(reservePositionUnitChange).to.be.lte(subjectTargetUnits.add(2));
+          });
+
+          context("when removing a component", async () => {
+            beforeEach(async () => {
+              await targetWeightWrapExtension.connect(operator.wallet).setTargetWeights(
+                setV2Setup.weth.address,
+                ether(0.45),
+                ether(1),
+                [wrapAdapter.address],
+                [
+                  {
+                    minTargetWeight: ZERO,
+                    maxTargetWeight: ZERO,
+                    wrapAdapterName: wrapAdapterName,
+                    wrapData: ZERO_BYTES,
+                    unwrapData: ZERO_BYTES,
+                  } as TargetWeightWrapParams,
+                ]
+              );
+
+              subjectTargetAsset = wrapAdapter.address;
+              subjectTargetUnits = ether(1);
+            });
+
+            it("should be able to remove the component from the SetToken", async () => {
+              expect(await setToken.isComponent(wrapAdapter.address)).to.be.true;
+
+              await subject();
+
+              expect(await setToken.isComponent(wrapAdapter.address)).to.be.false;
+            });
           });
 
           context("when isRebalancingActive is false", async () => {

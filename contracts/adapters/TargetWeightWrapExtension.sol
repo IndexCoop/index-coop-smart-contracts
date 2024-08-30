@@ -139,7 +139,6 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     {
         require(isRebalancingActive, "Rebalancing is not active");
         require(rebalanceInfo.targetAssets.contains(_targetAsset), "Invalid target asset");
-        require(isReserveOverweight(), "Reserve asset is not overweight");
 
         bytes memory data = abi.encodeWithSelector(
             wrapModule.wrap.selector,
@@ -153,8 +152,8 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         invokeManager(address(wrapModule), data);
 
         (uint256 targetAssetWeight, uint256 reserveWeight) = getTargetAssetAndReserveWeight(_targetAsset);
-        require(targetAssetWeight < executionParams[_targetAsset].maxTargetWeight, "Target asset overweight post-wrap");
-        require(reserveWeight > rebalanceInfo.minReserveWeight, "Reserve asset underweight post-wrap");
+        require(targetAssetWeight <= executionParams[_targetAsset].maxTargetWeight, "Target asset overweight post-wrap");
+        require(reserveWeight >= rebalanceInfo.minReserveWeight, "Reserve asset underweight post-wrap");
     }
 
     /**
@@ -188,8 +187,8 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         invokeManager(address(wrapModule), data);
 
         (uint256 targetAssetWeight, uint256 reserveWeight) = getTargetAssetAndReserveWeight(_targetAsset);
-        require(targetAssetWeight > executionParams[_targetAsset].minTargetWeight, "Target asset underweight post-unwrap");
-        require(reserveWeight < rebalanceInfo.maxReserveWeight, "Reserve asset overweight post-unwrap");
+        require(targetAssetWeight >= executionParams[_targetAsset].minTargetWeight, "Target asset underweight post-unwrap");
+        require(reserveWeight <= rebalanceInfo.maxReserveWeight, "Reserve asset overweight post-unwrap");
     }
 
     /* ========== Operator Functions ========== */
@@ -271,7 +270,9 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      * @return reserveValuation The valuation of the reserve asset.
      */
     function getReserveValuation() public view returns(uint256 reserveValuation) {
-        reserveValuation = setValuer.calculateComponentValuation(setToken, rebalanceInfo.reserveAsset, rebalanceInfo.reserveAsset);
+        reserveValuation = setToken.isComponent(rebalanceInfo.reserveAsset)
+            ? setValuer.calculateComponentValuation(setToken, rebalanceInfo.reserveAsset, rebalanceInfo.reserveAsset)
+            : 0;
     }
 
     /**
@@ -280,7 +281,9 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      * @return targetAssetValuation The valuation of the specified target asset.
      */
     function getTargetAssetValuation(address _targetAsset) public view returns(uint256 targetAssetValuation) {
-        targetAssetValuation = setValuer.calculateComponentValuation(setToken, _targetAsset, rebalanceInfo.reserveAsset);
+        targetAssetValuation = setToken.isComponent(_targetAsset)
+            ? setValuer.calculateComponentValuation(setToken, _targetAsset, rebalanceInfo.reserveAsset)
+            : 0;
     }
 
     /**
@@ -300,36 +303,6 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         uint256 reserveValuation = getReserveValuation();
         uint256 totalValuation = getTotalValuation();
         reserveWeight = reserveValuation.preciseDiv(totalValuation);
-    }
-
-    /**
-     * @notice Checks if the reserve asset is overweight.
-     */
-    function isReserveOverweight() public view returns(bool) {
-        return getReserveWeight() > rebalanceInfo.maxReserveWeight;
-    }
-
-    /**
-     * @notice Checks if the reserve asset is underweight.
-     */
-    function isReserveUnderweight() public view returns(bool) {
-        return getReserveWeight() < rebalanceInfo.minReserveWeight;
-    }
-
-    /**
-     * @notice Checks if the target asset is overweight.
-     * @param _targetAsset The address of the target asset.
-     */
-    function isTargetOverweight(address _targetAsset) public view returns(bool) {
-        return getTargetAssetWeight(_targetAsset) > executionParams[_targetAsset].maxTargetWeight;
-    }
-
-    /**
-     * @notice Checks if the target asset is underweight.
-     * @param _targetAsset The address of the target asset.
-     */
-    function isTargetUnderweight(address _targetAsset) public view returns(bool) {
-        return getTargetAssetWeight(_targetAsset) < executionParams[_targetAsset].minTargetWeight;
     }
 
     /**
@@ -357,6 +330,36 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         uint256 totalValuation = getTotalValuation();
         targetAssetWeight = targetAssetValuation.preciseDiv(totalValuation);
         reserveWeight = reserveValuation.preciseDiv(totalValuation);
+    }
+
+        /**
+     * @notice Checks if the reserve asset is overweight.
+     */
+    function isReserveOverweight() public view returns(bool) {
+        return getReserveWeight() > rebalanceInfo.maxReserveWeight;
+    }
+
+    /**
+     * @notice Checks if the reserve asset is underweight.
+     */
+    function isReserveUnderweight() public view returns(bool) {
+        return getReserveWeight() < rebalanceInfo.minReserveWeight;
+    }
+
+    /**
+     * @notice Checks if the target asset is overweight.
+     * @param _targetAsset The address of the target asset.
+     */
+    function isTargetOverweight(address _targetAsset) public view returns(bool) {
+        return getTargetAssetWeight(_targetAsset) > executionParams[_targetAsset].maxTargetWeight;
+    }
+
+    /**
+     * @notice Checks if the target asset is underweight.
+     * @param _targetAsset The address of the target asset.
+     */
+    function isTargetUnderweight(address _targetAsset) public view returns(bool) {
+        return getTargetAssetWeight(_targetAsset) < executionParams[_targetAsset].minTargetWeight;
     }
 
     /**
