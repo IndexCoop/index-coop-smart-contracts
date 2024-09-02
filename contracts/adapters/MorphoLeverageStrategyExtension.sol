@@ -53,6 +53,8 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
     using SafeCast for int256;
     using StringArrayUtils for string[];
 
+    uint256 constant MORPHO_ORACLE_PRICE_SCALE = 1e36;
+
     /* ============ Enums ============ */
 
     enum ShouldRebalance {
@@ -68,10 +70,9 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
         uint256 collateralBalance;                      // Balance of underlying held in Morpho in base units (e.g. USDC 10e6)
         uint256 borrowBalance;                          // Balance of underlying borrowed from Morpho in base units
         uint256 collateralValue;                        // Valuation in USD adjusted for decimals in precise units (10e18)
-        uint256 borrowValue;                            // Valuation in USD adjusted for decimals in precise units (10e18)
         uint256 collateralPrice;                        // Price of collateral in precise units (10e18) from Chainlink
-        uint256 borrowPrice;                            // Price of borrow asset in precise units (10e18) from Chainlink
         uint256 setTotalSupply;                         // Total supply of SetToken
+        uint256 lltv;
     }
 
      struct LeverageInfo {
@@ -85,8 +86,6 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
     struct ContractSettings {
         ISetToken setToken;                             // Instance of leverage token
         IMorphoLeverageModule leverageModule;                 // Instance of Morpho leverage module
-        IERC20 targetCollateralAToken;                  // Instance of target collateral aToken asset
-        IERC20 targetBorrowDebtToken;                   // Instance of target borrow variable debt token asset
         address collateralAsset;                        // Address of underlying collateral
         address borrowAsset;                            // Address of underlying borrow asset
         uint256 collateralDecimalAdjustment;            // Decimal adjustment for chainlink oracle of the collateral asset. Equal to 28-collateralDecimals (10^18 * 10^18 / 10^decimals / 10^8)
@@ -595,7 +594,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
     function getCurrentLeverageRatio() public view returns(uint256) {
         ActionInfo memory currentLeverageInfo = _createActionInfo();
 
-        return _calculateCurrentLeverageRatio(currentLeverageInfo.collateralValue, currentLeverageInfo.borrowValue);
+        return _calculateCurrentLeverageRatio(currentLeverageInfo.collateralValue, currentLeverageInfo.borrowBalance);
     }
 
     /**
@@ -867,7 +866,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
         // Get current leverage ratio
         uint256 currentLeverageRatio = _calculateCurrentLeverageRatio(
             actionInfo.collateralValue,
-            actionInfo.borrowValue
+            actionInfo.borrowBalance
         );
 
         return LeverageInfo({
@@ -891,18 +890,15 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
         // This is so that when the underlying amount is multiplied by the received price, the collateral valuation is normalized to 36 decimals. 
         // To perform this adjustment, we multiply by 10^(36 - 8 - underlyingDecimals)
         IMorpho.MarketParams memory marketParams = strategy.leverageModule.marketParams(strategy.setToken);
-        uint256 collateralPrice = IMorphoOracle(marketParams.oracle).price();
+        rebalanceInfo.collateralPrice = IMorphoOracle(marketParams.oracle).price();
 
-        // TODO: Adjust to morpho logic where oracle returns price relative to loan token directly
-        // rebalanceInfo.collateralPrice = rawCollateralPrice.toUint256().mul(10 ** strategy.collateralDecimalAdjustment);
-        // uint256 rawBorrowPrice = strategy.borrowPriceOracle.latestAnswer();
-        // rebalanceInfo.borrowPrice = rawBorrowPrice.toUint256().mul(10 ** strategy.borrowDecimalAdjustment);
-
-        // rebalanceInfo.collateralBalance = strategy.targetCollateralAToken.balanceOf(address(strategy.setToken));
-        // rebalanceInfo.borrowBalance = strategy.targetBorrowDebtToken.balanceOf(address(strategy.setToken));
-        // rebalanceInfo.collateralValue = rebalanceInfo.collateralPrice.preciseMul(rebalanceInfo.collateralBalance);
-        // rebalanceInfo.borrowValue = rebalanceInfo.borrowPrice.preciseMul(rebalanceInfo.borrowBalance);
-        // rebalanceInfo.setTotalSupply = strategy.setToken.totalSupply();
+        (uint256 collateralBalance, uint256 borrowBalance,) = strategy.leverageModule.getCollateralAndBorrowBalances(strategy.setToken);
+        rebalanceInfo.collateralBalance = collateralBalance;
+        rebalanceInfo.borrowBalance = borrowBalance;
+        // TODO: Check if this is correct. (do we need decimal adjustment ? )
+        rebalanceInfo.collateralValue = rebalanceInfo.collateralPrice.preciseMul(rebalanceInfo.collateralBalance);
+        rebalanceInfo.setTotalSupply = strategy.setToken.totalSupply();
+        rebalanceInfo.lltv = marketParams.lltv;
 
         return rebalanceInfo;
     }
@@ -1014,19 +1010,20 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
     }
 
     /**
-     * Calculate the current leverage ratio given a valuation of the collateral and borrow asset, which is calculated as collateral USD valuation / SetToken USD valuation
+     * Calculate the current leverage ratio given a valuation of the collateral in terms of the borrow asset
+     * and the borrow balance
      *
      * return uint256            Current leverage ratio
      */
     function _calculateCurrentLeverageRatio(
         uint256 _collateralValue,
-        uint256 _borrowValue
+        uint256 _borrowBalance
     )
         internal
         pure
         returns(uint256)
     {
-        return _collateralValue.preciseDiv(_collateralValue.sub(_borrowValue));
+        return _collateralValue.preciseDiv(_collateralValue.sub(_borrowBalance));
     }
 
     /**
@@ -1097,32 +1094,25 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
      */
     function _calculateMaxBorrowCollateral(ActionInfo memory _actionInfo, bool _isLever) internal virtual view returns(uint256) {
         
-        // TODO: Find correct way to get this data on morpho
-        // Retrieve collateral factor and liquidation threshold for the collateral asset in precise units (1e16 = 1%)
-        // ( , uint256 maxLtvRaw, uint256 liquidationThresholdRaw, , , , , , ,) = strategy.morphoProtocolDataProvider.getReserveConfigurationData(address(strategy.collateralAsset));
-
-        // TODO: Remove dummy data once we have the correct data from morpho
-        uint256 maxLtvRaw = 0;
-        uint256 liquidationThresholdRaw = 0;
-
-        // Normalize LTV and liquidation threshold to precise units. LTV is measured in 4 decimals in Morpho which is why we must multiply by 1e14
-        // for example ETH has an LTV value of 8000 which represents 80%
-        if (_isLever) {
-            uint256 netBorrowLimit = _actionInfo.collateralValue
-                .preciseMul(maxLtvRaw.mul(10 ** 14))
+            // Note: netBorrowLimit should already by denominated in borrow asset units
+            // See: https://github.com/morpho-org/morpho-blue/blob/3f018087e024538486858e87499a10f6283a9528/src/Morpho.sol#L535
+            uint256 netBorrowLimit = _actionInfo.collateralBalance
+                // equivalent of mulDivDown
+                .mul(_actionInfo.collateralPrice).div(MORPHO_ORACLE_PRICE_SCALE)
+                // preciseMul = wMulDown
+                .preciseMul(_actionInfo.lltv)
+                // TODO: Check wether we still nedd to apply the unuitilized percentage
                 .preciseMul(PreciseUnitMath.preciseUnit().sub(execution.unutilizedLeveragePercentage));
-
+        if (_isLever) {
             return netBorrowLimit
-                .sub(_actionInfo.borrowValue)
+                .sub(_actionInfo.borrowBalance)
                 .preciseDiv(_actionInfo.collateralPrice);
         } else {
-            uint256 netRepayLimit = _actionInfo.collateralValue
-                .preciseMul(liquidationThresholdRaw.mul(10 ** 14))
-                .preciseMul(PreciseUnitMath.preciseUnit().sub(execution.unutilizedLeveragePercentage));
-
+            // TODO: Verify this repay limit
+            // Doesnt this mean that we cannot repay anything if our borrow values is equalt ot the limit?
             return _actionInfo.collateralBalance
-                .preciseMul(netRepayLimit.sub(_actionInfo.borrowValue))
-                .preciseDiv(netRepayLimit);
+                .preciseMul(netBorrowLimit.sub(_actionInfo.borrowBalance))
+                .preciseDiv(netBorrowLimit);
         }
     }
 
@@ -1133,7 +1123,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
      * return uint256           Position units to borrow
      */
     function _calculateBorrowUnits(uint256 _collateralRebalanceUnits, ActionInfo memory _actionInfo) internal pure returns (uint256) {
-        return _collateralRebalanceUnits.preciseMul(_actionInfo.collateralPrice).preciseDiv(_actionInfo.borrowPrice);
+        return _collateralRebalanceUnits.preciseMul(_actionInfo.collateralPrice);
     }
 
     /**
@@ -1155,7 +1145,6 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
     function _calculateMinRepayUnits(uint256 _collateralRebalanceUnits, uint256 _slippageTolerance, ActionInfo memory _actionInfo) internal virtual pure returns (uint256) {
         return _collateralRebalanceUnits
             .preciseMul(_actionInfo.collateralPrice)
-            .preciseDiv(_actionInfo.borrowPrice)
             .preciseMul(PreciseUnitMath.preciseUnit().sub(_slippageTolerance));
     }
 
