@@ -15,7 +15,7 @@ export const arbitrumForkingConfig = {
 
 export const mainnetForkingConfig = {
   url: "https://eth-mainnet.alchemyapi.io/v2/" + process.env.ALCHEMY_TOKEN,
-  blockNumber: process.env.LATESTBLOCK ? undefined : 19740000,
+  blockNumber: process.env.LATESTBLOCK ? undefined : 20660000,
 };
 
 export const forkingConfig =

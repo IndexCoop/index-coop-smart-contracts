@@ -38,6 +38,8 @@ import {
   AaveV3LeverageStrategyExtension,
   AaveV3LeverageStrategyExtension__factory,
   FlashMintLeveragedExtended__factory,
+  MorphoLeverageStrategyExtension,
+  MorphoLeverageStrategyExtension__factory,
 } from "../../typechain";
 import { AirdropExtension__factory } from "../../typechain/factories/AirdropExtension__factory";
 import { AuctionRebalanceExtension__factory } from "../../typechain/factories/AuctionRebalanceExtension__factory";
@@ -380,7 +382,7 @@ export default class DeployExtensions {
       setControllerAddress,
       debtIssuanceModuleAddress,
       stETHAddress,
-      curveStEthEthPoolAddress
+      curveStEthEthPoolAddress,
     );
   }
 
@@ -423,10 +425,9 @@ export default class DeployExtensions {
       setControllerAddress,
       debtIssuanceModuleAddress,
       stETHAddress,
-      curveStEthEthPoolAddress
+      curveStEthEthPoolAddress,
     );
   }
-
 
   public async deployExchangeIssuanceLeveragedForCompound(
     wethAddress: Address,
@@ -507,19 +508,15 @@ export default class DeployExtensions {
       },
       // @ts-ignore
       this._deployerSigner,
-    ).deploy(
-      setControllerAddress,
-      indexControllerAddress,
-      {
-        quickRouter: quickRouterAddress,
-        sushiRouter: sushiRouterAddress,
-        uniV3Router: uniV3RouterAddress,
-        uniV3Quoter: uniswapV3QuoterAddress,
-        curveAddressProvider: curveAddressProviderAddress,
-        curveCalculator: curveCalculatorAddress,
-        weth: wethAddress,
-      },
-    );
+    ).deploy(setControllerAddress, indexControllerAddress, {
+      quickRouter: quickRouterAddress,
+      sushiRouter: sushiRouterAddress,
+      uniV3Router: uniV3RouterAddress,
+      uniV3Quoter: uniswapV3QuoterAddress,
+      curveAddressProvider: curveAddressProviderAddress,
+      curveCalculator: curveCalculatorAddress,
+      weth: wethAddress,
+    });
   }
 
   public async deployFlashMintNotional(
@@ -646,6 +643,26 @@ export default class DeployExtensions {
       exchangeNames,
       exchangeSettings,
       lendingPoolAddressesProvider,
+    );
+  }
+
+  public async deployMorphoLeverageStrategyExtension(
+    manager: Address,
+    contractSettings: AaveContractSettings,
+    methdologySettings: MethodologySettings,
+    executionSettings: ExecutionSettings,
+    incentiveSettings: IncentiveSettings,
+    exchangeNames: string[],
+    exchangeSettings: ExchangeSettings[],
+  ): Promise<MorphoLeverageStrategyExtension> {
+    return await new MorphoLeverageStrategyExtension__factory(this._deployerSigner).deploy(
+      manager,
+      contractSettings,
+      methdologySettings,
+      executionSettings,
+      incentiveSettings,
+      exchangeNames,
+      exchangeSettings,
     );
   }
 

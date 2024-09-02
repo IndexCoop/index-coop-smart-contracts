@@ -88,8 +88,9 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
         IMorphoLeverageModule leverageModule;                 // Instance of Morpho leverage module
         address collateralAsset;                        // Address of underlying collateral
         address borrowAsset;                            // Address of underlying borrow asset
-        uint256 collateralDecimalAdjustment;            // Decimal adjustment for chainlink oracle of the collateral asset. Equal to 28-collateralDecimals (10^18 * 10^18 / 10^decimals / 10^8)
-        uint256 borrowDecimalAdjustment;                // Decimal adjustment for chainlink oracle of the borrowing asset. Equal to 28-borrowDecimals (10^18 * 10^18 / 10^decimals / 10^8)
+        // TODO: Verify that this is not needed anymore
+        // uint256 collateralDecimalAdjustment;            // Decimal adjustment for chainlink oracle of the collateral asset. Equal to 28-collateralDecimals (10^18 * 10^18 / 10^decimals / 10^8)
+        // uint256 borrowDecimalAdjustment;                // Decimal adjustment for chainlink oracle of the borrowing asset. Equal to 28-borrowDecimals (10^18 * 10^18 / 10^decimals / 10^8)
     }
 
     struct MethodologySettings {
@@ -184,15 +185,18 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
     /* ============ Modifiers ============ */
 
     /**
-     * Throws if rebalance is currently in TWAP`
+     * Throws if rebalance is currently in TWAP` can be overriden by the operator
      */
-    modifier noRebalanceInProgress() virtual {
-        require(twapLeverageRatio == 0, "Rebalance is currently in progress");
+    modifier noRebalanceInProgress() {
+        if(!overrideNoRebalanceInProgress) {
+            require(twapLeverageRatio == 0, "Rebalance is currently in progress");
+        }
         _;
     }
 
     /* ============ State Variables ============ */
 
+    bool public overrideNoRebalanceInProgress; // Manager controlled flag that allows bypassing the noRebalanceInProgress modifier
     ContractSettings internal strategy;                             // Struct of contracts used in the strategy (SetToken, price oracles, leverage module etc)
     MethodologySettings internal methodology;                       // Struct containing methodology parameters
     ExecutionSettings internal execution;                           // Struct containing execution parameters
@@ -242,6 +246,15 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
     }
 
     /* ============ External Functions ============ */
+
+    /**
+     * OPERATOR ONLY: Enable/Disable override of noRebalanceInProgress modifier
+     *
+     * @param _overrideNoRebalanceInProgress  Boolean indicating wether to enable / disable override
+     */
+    function setOverrideNoRebalanceInProgress(bool _overrideNoRebalanceInProgress) external onlyOperator {
+        overrideNoRebalanceInProgress = _overrideNoRebalanceInProgress;
+    }
 
     /**
      * OPERATOR ONLY: Engage to target leverage ratio for the first time. SetToken will borrow debt position from Morpho and trade for collateral asset. If target
