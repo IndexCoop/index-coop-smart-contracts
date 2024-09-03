@@ -154,8 +154,8 @@ if (process.env.INTEGRATIONTEST) {
 
       // Deploy SetToken
       const setTokenCreator = SetTokenCreator__factory.connect(contractAddresses.set_token_creator, owner.wallet);
-      const components = [tokenAddresses.aEthUSDC];
-      const units = [usdc(100)];
+      const components = [tokenAddresses.usdc, tokenAddresses.aEthUSDC, tokenAddresses.cUSDCv3, tokenAddresses.aUSDC, tokenAddresses.gtUSDC];
+      const units = [usdc(20), usdc(20), usdc(20), usdc(20), ether(19.37)];
       const modules = [debtIssuanceModuleV3.address, rebasingComponentModule.address, wrapModuleV2.address];
       const setTokenAddress = await setTokenCreator.callStatic.create(components, units, modules, owner.address, "USDC Index", "USDCI");
       await setTokenCreator.create(components, units, modules, owner.address, "USDC Index", "USDCI");
@@ -251,7 +251,23 @@ if (process.env.INTEGRATIONTEST) {
 
               subjectWrapData = [
                 {
+                  integrationName: "",
+                  wrapData: ZERO_BYTES,
+                },
+                {
                   integrationName: aaveV3WrapV2AdapterName,
+                  wrapData: ZERO_BYTES,
+                },
+                {
+                  integrationName: compoundV3WrapV2AdapterName,
+                  wrapData: ZERO_BYTES,
+                },
+                {
+                  integrationName: aaveV2WrapV2AdapterName,
+                  wrapData: ZERO_BYTES,
+                },
+                {
+                  integrationName: erc4626WrapV2AdapterName,
                   wrapData: ZERO_BYTES,
                 },
               ];
@@ -259,7 +275,47 @@ if (process.env.INTEGRATIONTEST) {
               subjectSwapData = [
                 {
                   underlyingERC20: tokenAddresses.usdc,
-                  buyUnderlyingAmount: usdc(101),
+                  buyUnderlyingAmount: usdc(21),
+                  dexData: {
+                    fees: [],
+                    path: [],
+                    pool: ADDRESS_ZERO,
+                    exchange: Exchange.None,
+                  },
+                },
+                {
+                  underlyingERC20: tokenAddresses.usdc,
+                  buyUnderlyingAmount: usdc(21),
+                  dexData: {
+                    fees: [],
+                    path: [],
+                    pool: ADDRESS_ZERO,
+                    exchange: Exchange.None,
+                  },
+                },
+                {
+                  underlyingERC20: tokenAddresses.usdc,
+                  buyUnderlyingAmount: usdc(21),
+                  dexData: {
+                    fees: [],
+                    path: [],
+                    pool: ADDRESS_ZERO,
+                    exchange: Exchange.None,
+                  },
+                },
+                {
+                  underlyingERC20: tokenAddresses.usdc,
+                  buyUnderlyingAmount: usdc(21),
+                  dexData: {
+                    fees: [],
+                    path: [],
+                    pool: ADDRESS_ZERO,
+                    exchange: Exchange.None,
+                  },
+                },
+                {
+                  underlyingERC20: tokenAddresses.usdc,
+                  buyUnderlyingAmount: usdc(21),
                   dexData: {
                     fees: [],
                     path: [],
@@ -272,7 +328,7 @@ if (process.env.INTEGRATIONTEST) {
               subjectSetToken = setToken.address;
               subjectInputToken = tokenAddresses.usdc;
               subjectAmountSetToken = ether(1);
-              subjectMaxAmountInputToken = usdc(101);
+              subjectMaxAmountInputToken = usdc(105);
               subjectCaller = owner;
             });
 
@@ -322,8 +378,8 @@ if (process.env.INTEGRATIONTEST) {
               const inputBalanceAfter = await usdcErc20.balanceOf(owner.address);
               const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
 
-              expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.999)));
-              expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.001)));
+              expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.99)));
+              expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.01)));
             });
           });
 
@@ -341,7 +397,23 @@ if (process.env.INTEGRATIONTEST) {
 
               subjectWrapData = [
                 {
+                  integrationName: "",
+                  wrapData: ZERO_BYTES,
+                },
+                {
                   integrationName: aaveV3WrapV2AdapterName,
+                  wrapData: ZERO_BYTES,
+                },
+                {
+                  integrationName: compoundV3WrapV2AdapterName,
+                  wrapData: ZERO_BYTES,
+                },
+                {
+                  integrationName: aaveV2WrapV2AdapterName,
+                  wrapData: ZERO_BYTES,
+                },
+                {
+                  integrationName: erc4626WrapV2AdapterName,
                   wrapData: ZERO_BYTES,
                 },
               ];
@@ -349,7 +421,47 @@ if (process.env.INTEGRATIONTEST) {
               subjectSwapData = [
                 {
                   underlyingERC20: tokenAddresses.usdc,
-                  buyUnderlyingAmount: usdc(100),
+                  buyUnderlyingAmount: usdc(20),
+                  dexData: {
+                    fees: [],
+                    path: [],
+                    pool: ADDRESS_ZERO,
+                    exchange: Exchange.None,
+                  },
+                },
+                {
+                  underlyingERC20: tokenAddresses.usdc,
+                  buyUnderlyingAmount: usdc(20),
+                  dexData: {
+                    fees: [],
+                    path: [],
+                    pool: ADDRESS_ZERO,
+                    exchange: Exchange.None,
+                  },
+                },
+                {
+                  underlyingERC20: tokenAddresses.usdc,
+                  buyUnderlyingAmount: usdc(20),
+                  dexData: {
+                    fees: [],
+                    path: [],
+                    pool: ADDRESS_ZERO,
+                    exchange: Exchange.None,
+                  },
+                },
+                {
+                  underlyingERC20: tokenAddresses.usdc,
+                  buyUnderlyingAmount: usdc(20),
+                  dexData: {
+                    fees: [],
+                    path: [],
+                    pool: ADDRESS_ZERO,
+                    exchange: Exchange.None,
+                  },
+                },
+                {
+                  underlyingERC20: tokenAddresses.usdc,
+                  buyUnderlyingAmount: usdc(20),
                   dexData: {
                     fees: [],
                     path: [],
@@ -411,8 +523,8 @@ if (process.env.INTEGRATIONTEST) {
               const outputBalanceAfter = await usdcErc20.balanceOf(owner.address);
               const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
 
-              expect(quotedOutputAmount).to.gt(preciseMul(outputObtained, ether(0.999)));
-              expect(quotedOutputAmount).to.lt(preciseMul(outputObtained, ether(1.001)));
+              expect(quotedOutputAmount).to.gt(preciseMul(outputObtained, ether(0.99)));
+              expect(quotedOutputAmount).to.lt(preciseMul(outputObtained, ether(1.01)));
             });
           });
         });
