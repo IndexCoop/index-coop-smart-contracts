@@ -61,15 +61,6 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     INAVIssuanceModule public immutable navIssuanceModule;
     DEXAdapterV2.Addresses public dexAdapter;
 
-    /* ============ Structs ============ */
-    struct IssueRedeemParams {
-        ISetToken setToken;                          // The address of the SetToken to be issued/redeemed
-        uint256 amountSetToken;                      // The amount of SetTokens to issue/redeem
-        uint256 limitAmt;                            // Max/min amount of payment token spent/received
-        DEXAdapterV2.SwapData reserveAssetSwapData;  // The swap data from payment token to reserve asset (or vice versa for redemption)
-        address issuanceModule;                      // The address of the NAV issuance module to be used
-    }
-
     /* ============ Events ============ */
 
     event FlashMint(
@@ -168,10 +159,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     {
         require(msg.value > 0, "FlashMint: NO ETH SENT");
         IWETH(WETH).deposit{value: msg.value}();
-
-        // TODO refactor into modifier
-        address reserveAsset = _reserveAssetSwapData.path[_reserveAssetSwapData.path.length - 1];
-        require(navIssuanceModule.isReserveAsset(_setToken, reserveAsset), "FLASHMINT: INVALID RESERVE ASSET");
+        address reserveAsset = _getAndValidateReserveAsset(_setToken, WETH, _reserveAssetSwapData.path, true);
         uint256 reserveAssetReceived = dexAdapter.swapExactTokensForTokens(msg.value, 0, _reserveAssetSwapData);
         uint256 setTokenBalanceBefore = _setToken.balanceOf(msg.sender);
 
@@ -207,21 +195,9 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         external
         nonReentrant
     {
-        address reserveAsset;
-        // TODO refactor into modifier
-        if (_reserveAssetSwapData.path.length > 0) {
-            reserveAsset = _reserveAssetSwapData.path[_reserveAssetSwapData.path.length - 1];
-        } else {
-            reserveAsset = address(_inputToken);
-        }
-        require(navIssuanceModule.isReserveAsset(_setToken, reserveAsset), "FLASHMINT: INVALID RESERVE ASSET");
-
+        address reserveAsset = _getAndValidateReserveAsset(_setToken, address(_inputToken), _reserveAssetSwapData.path, true);
         _inputToken.safeTransferFrom(msg.sender, address(this), _inputTokenAmount);
-        uint256 reserveAssetReceived;
-        if (_inputToken == IERC20(reserveAsset)) {
-            reserveAssetReceived = _inputTokenAmount;
-        }
-        reserveAssetReceived = dexAdapter.swapExactTokensForTokens(_inputTokenAmount, 0, _reserveAssetSwapData);
+        uint256 reserveAssetReceived = dexAdapter.swapExactTokensForTokens(_inputTokenAmount, 0, _reserveAssetSwapData);
         uint256 setTokenBalanceBefore = _setToken.balanceOf(msg.sender);
 
         navIssuanceModule.issue(
@@ -254,10 +230,10 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         external
         nonReentrant
     {
-        address reserveAsset = _reserveAssetSwapData.path[0];
-        require(navIssuanceModule.isReserveAsset(_setToken, reserveAsset), "FLASHMINT: INVALID RESERVE ASSET");
+        address reserveAsset = _getAndValidateReserveAsset(_setToken, WETH, _reserveAssetSwapData.path, false);
         uint256 reserveAssetBalanceBefore = IERC20(reserveAsset).balanceOf(address(this));
         _setToken.safeTransferFrom(msg.sender, address(this), _setTokenAmount);
+
         navIssuanceModule.redeem(
             _setToken,
             reserveAsset,
@@ -296,16 +272,10 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         external
         nonReentrant
     {
-        address reserveAsset;
-        if (_reserveAssetSwapData.path.length > 0) {
-            reserveAsset = _reserveAssetSwapData.path[0];
-        } else {
-            reserveAsset = address(_outputToken);
-        }
-        require(navIssuanceModule.isReserveAsset(_setToken, reserveAsset), "FLASHMINT: INVALID RESERVE ASSET");
-
+        address reserveAsset = _getAndValidateReserveAsset(_setToken, address(_outputToken), _reserveAssetSwapData.path, false);
         uint256 reserveAssetBalanceBefore = IERC20(reserveAsset).balanceOf(address(this));
         _setToken.safeTransferFrom(msg.sender, address(this), _setTokenAmount);
+
         navIssuanceModule.redeem(
             _setToken,
             reserveAsset,
@@ -324,6 +294,24 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     }
 
     /* ============ Internal Functions ============ */
+
+    function _getAndValidateReserveAsset(ISetToken _setToken, address _paymentToken, address[] memory _path, bool isIssuance) internal view returns(address) {
+        address reserveAsset;
+        if (_path.length > 0) {
+            if (isIssuance) {
+                require(_path[0] == _paymentToken, "FLASHMINT: FIRST ADDRESS IN SWAP PATH MUST BE INPUT TOKEN");
+                reserveAsset = _path[_path.length - 1];
+            } else {
+                require(_path[_path.length - 1] == address(_paymentToken), "FLASHMINT: LAST ADDRESS IN SWAP PATH MUST BE OUTPUT TOKEN");
+                reserveAsset = _path[0];
+            }
+
+        } else {
+            reserveAsset = address(_paymentToken);
+        }
+        require(navIssuanceModule.isReserveAsset(_setToken, reserveAsset), "FLASHMINT: INVALID RESERVE ASSET");
+        return reserveAsset;
+    }
 
     /**
      * Sets a max approval limit for an ERC20 token, provided the current allowance
