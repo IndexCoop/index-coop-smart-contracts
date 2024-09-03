@@ -40,6 +40,7 @@ import { IWrapModuleV2 } from "../interfaces/IWrapModuleV2.sol";
  * @notice Extension contract for managing asset weights by wrapping a reserve asset into target assets when overweight, 
  * and unwrapping target assets back into the reserve asset when underweight. Enforces weight bounds during rebalancing.
  * @dev Designed for ERC20 reserve assets.
+ * @dev Designed for wrap and unwrap operations with minimal slippage.
  */
 contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     using SafeCast for int256;
