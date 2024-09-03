@@ -29,6 +29,7 @@ import { BaseExtension } from "../lib/BaseExtension.sol";
 import { Position } from "../lib/Position.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
+import { IController } from "../interfaces/IController.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { ISetValuer } from "../interfaces/ISetValuer.sol";
 import { IWrapModuleV2 } from "../interfaces/IWrapModuleV2.sol";
@@ -76,14 +77,17 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         TargetWeightWrapParams[] executionParams
     );
     event RebalancePaused();
+    event WrapModuleUpdated(address indexed wrapModule);
+    event SetValuerUpdated(address indexed setValuer);
 
     /* ========== Immutables ========= */
 
     ISetToken public immutable setToken;
-    IWrapModuleV2 public immutable wrapModule;
-    ISetValuer public immutable setValuer;
 
     /* ========== State Variables ========= */
+
+    IWrapModuleV2 public wrapModule;
+    ISetValuer public setValuer;
 
     bool public isRebalancingActive;
     bool public isRebalanceOpen;
@@ -114,10 +118,14 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         bool _isRebalanceOpen
     ) public BaseExtension(_manager) {
         manager = _manager;
-        setToken = manager.setToken();
         wrapModule = _wrapModule;
         setValuer = _setValuer;
         isRebalanceOpen = _isRebalanceOpen;
+
+        ISetToken setToken_ = manager.setToken();
+        setToken = setToken_;
+        _setWrapModule(setToken_, _wrapModule);
+        _setSetValuer(setToken_, _setValuer);
     }
 
     /* ========== Rebalance Functions ========== */
@@ -255,6 +263,24 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     }
 
     /**
+     * @notice Sets the WrapModule contract used for wrapping and unwrapping assets.
+     * @dev This function can only be called by the operator.
+     * @param _wrapModule Address of the WrapModuleV2 contract.
+     */
+    function setWrapModule(IWrapModuleV2 _wrapModule) external onlyOperator {
+        _setWrapModule(setToken, _wrapModule);
+    }
+
+    /**
+     * @notice Sets the SetValuer contract used for calculating valuations and weights.
+     * @dev This function can only be called by the operator.
+     * @param _setValuer Address of the SetValuer contract.
+     */
+    function setSetValuer(ISetValuer _setValuer) external onlyOperator {
+        _setSetValuer(setToken, _setValuer);
+    }
+
+    /**
      * @notice Initializes the Set Token within the Wrap Module.
      * @dev This function can only be called by the operator.
      */
@@ -368,6 +394,30 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
      */
     function getTargetAssets() external view returns(address[] memory) {
         return rebalanceInfo.targetAssets;
+    }
+
+    /* ========== Internal Functions ========== */
+
+    /**
+     * Sets the WrapModuleV2 contract used for wrapping and unwrapping assets.
+     * @param _setToken Address of the SetToken contract.
+     * @param _wrapModule Address of the WrapModuleV2 contract.
+     */
+    function _setWrapModule(ISetToken _setToken, IWrapModuleV2 _wrapModule) internal {
+        require(_setToken.moduleStates(address(_wrapModule)) == ISetToken.ModuleState.PENDING, "WrapModuleV2 not pending");
+        wrapModule = _wrapModule;
+        emit WrapModuleUpdated(address(_wrapModule));
+    }
+
+    /**
+     * Sets the SetValuer contract used for calculating valuations and weights.
+     * @param _setToken Address of the SetToken contract.
+     * @param _setValuer Address of the SetValuer contract.
+     */
+    function _setSetValuer(ISetToken _setToken, ISetValuer _setValuer) internal {
+        require(IController(_setToken.controller()).isResource(address(_setValuer)), "SetValuer not approved by controller");
+        setValuer = _setValuer;
+        emit SetValuerUpdated(address(_setValuer));
     }
 
     /* ============== Modifier Helpers ===============

@@ -2,7 +2,7 @@ import "module-alias/register";
 
 import DeployHelper from "@utils/deploys";
 import { SetFixture } from "@utils/fixtures";
-import { SetToken } from "@utils/contracts/setV2";
+import { SetToken, WrapModuleV2 } from "@utils/contracts/setV2";
 import {
   BaseManagerV2,
   TargetWeightWrapExtension,
@@ -17,6 +17,7 @@ import {
   getRandomAccount,
   getWaffleExpect,
   preciseDiv,
+  getRandomAddress,
 } from "@utils/index";
 import { ADDRESS_ZERO, MAX_UINT_256, ZERO, ZERO_BYTES } from "@utils/constants";
 import { BigNumber, ContractTransaction } from "ethers";
@@ -353,6 +354,92 @@ describe("TargetWeightWrapExtension", async () => {
           beforeEach(async () => {
             subjectCaller = feeRecipient;
             subjectIsRebalanceOpen = false;
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("Must be operator");
+          });
+        });
+      });
+
+      describe("#setIsWrapModule", () => {
+        let subjectCaller: Account;
+        let subjectWrapModule: WrapModuleV2;
+
+        beforeEach(async () => {
+          subjectWrapModule = await deployer.setV2.deployWrapModuleV2(
+            setV2Setup.controller.address,
+            setV2Setup.weth.address,
+          );
+          await setV2Setup.controller.addModule(subjectWrapModule.address);
+          await baseManager.connect(operator.wallet).addModule(subjectWrapModule.address);
+          subjectCaller = operator;
+        });
+
+        function subject() {
+          return targetWeightWrapExtension.connect(subjectCaller.wallet).setWrapModule(subjectWrapModule.address);
+        }
+
+        it("should set the WrapModuleV2 correctly", async () => {
+          await subject();
+          expect(await targetWeightWrapExtension.wrapModule()).to.eq(subjectWrapModule.address);
+        });
+
+        context("when the module is not pending", async () => {
+          beforeEach(async () => {
+            subjectWrapModule = await deployer.setV2.deployWrapModuleV2(
+              setV2Setup.controller.address,
+              setV2Setup.weth.address,
+            );
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("WrapModuleV2 not pending");
+          });
+        });
+
+        context("when the caller is not the operator", async () => {
+          beforeEach(async () => {
+            subjectCaller = feeRecipient;
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("Must be operator");
+          });
+        });
+      });
+
+      describe("#setSetValuer", () => {
+        let subjectCaller: Account;
+        let subjectSetValuer: Address;
+
+        beforeEach(async () => {
+          subjectCaller = operator;
+          subjectSetValuer = setV2Setup.integrationRegistry.address;
+        });
+
+        function subject() {
+          return targetWeightWrapExtension.connect(subjectCaller.wallet).setSetValuer(subjectSetValuer);
+        }
+
+        it("should set the SetValuer correctly", async () => {
+          await subject();
+          expect(await targetWeightWrapExtension.setValuer()).to.eq(subjectSetValuer);
+        });
+
+        context("when the setValuer is not approved on the controller", async () => {
+          beforeEach(async () => {
+            subjectSetValuer = await getRandomAddress();
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("SetValuer not approved by controller");
+          });
+        });
+
+        context("when the caller is not the operator", async () => {
+          beforeEach(async () => {
+            subjectCaller = feeRecipient;
           });
 
           it("should revert", async () => {
