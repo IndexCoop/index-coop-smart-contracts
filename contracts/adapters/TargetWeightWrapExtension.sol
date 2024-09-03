@@ -90,10 +90,14 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
     IWrapModuleV2 public wrapModule;
     ISetValuer public setValuer;
 
+    // Flag indicating if target weights are set and wrap() and unwrap() can potentially be called 
     bool public isRebalancingActive;
+    // Flag indicating if wrap() and unwrap() can be called by anyone or only the operator
     bool public isRebalanceOpen;
 
-    mapping(address => TargetWeightWrapParams) public executionParams; 
+    // Mapping of target assets to their target weight wrap() and unwrap() execution parameters
+    mapping(address => TargetWeightWrapParams) public executionParams;
+    // Reserve asset execution parameters and target assets to rebalance
     RebalanceInfo public rebalanceInfo;
 
     /* ============ Modifiers ============ */
@@ -359,7 +363,7 @@ contract TargetWeightWrapExtension is BaseExtension, ReentrancyGuard {
         reserveWeight = reserveValuation.preciseDiv(totalValuation);
     }
 
-        /**
+    /**
      * @notice Checks if the reserve asset is overweight.
      */
     function isReserveOverweight() public view returns(bool) {
