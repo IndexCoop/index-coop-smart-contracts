@@ -20,6 +20,7 @@ interface IController {
     function isModule(address _module) external view returns(bool);
     function isSet(address _setToken) external view returns(bool);
     function isSystemContract(address _contractAddress) external view returns (bool);
+    function isResource(address _resource) external view returns(bool);
     function resourceId(uint256 _id) external view returns(address);
     function owner() external view returns(address);
     function addFactory(address _factory) external;
