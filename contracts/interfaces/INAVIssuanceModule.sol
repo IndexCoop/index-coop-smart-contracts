@@ -1,5 +1,5 @@
 /*
-    Copyright 2020 Set Labs Inc.
+    Copyright 2024 Index Coop
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -26,8 +26,7 @@ interface INAVIssuanceModule {
         uint256 _reserveAssetQuantity,
         uint256 _minSetTokenReceiveQuantity,
         address _to
-    ) 
-        external;
+    ) external;
     
     function redeem(
         ISetToken _setToken,
@@ -35,16 +34,24 @@ interface INAVIssuanceModule {
         uint256 _setTokenQuantity,
         uint256 _minReserveReceiveQuantity,
         address _to
-    ) 
-        external;
+    ) external;
 
     function isReserveAsset(
         ISetToken _setToken,
         address _asset
-    ) 
-        external
-        view
-        returns(bool);
+    ) external view returns(bool);
 
     function getReserveAssets(address _setToken) external view returns (address[] memory);
+
+    function getExpectedSetTokenIssueQuantity(
+        ISetToken _setToken,
+        address _reserveAsset,
+        uint256 _reserveAssetQuantity
+    ) external view returns (uint256);
+
+    function getExpectedReserveRedeemQuantity(
+        ISetToken _setToken,
+        address _reserveAsset,
+        uint256 _setTokenQuantity
+    ) external view returns (uint256);
 }

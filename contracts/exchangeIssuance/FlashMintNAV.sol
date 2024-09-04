@@ -102,7 +102,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     /* ============ External Functions ============ */
 
     /**
-     * Withdraw slippage to selected address
+     * Withdraw tokens to selected address if they end up in the contract
      *
      * @param _tokens    Addresses of tokens to withdraw, specifiy ETH_ADDRESS to withdraw ETH
      * @param _to        Address to send the tokens to
@@ -139,6 +139,69 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
             _safeApprove(IERC20(reserveAssets[i]), address(navIssuanceModule), type(uint256).max);
         }
         _safeApprove(IERC20(_setToken), address(navIssuanceModule), type(uint256).max);
+    }
+
+    /**
+     * Gets the amount of Set Token expected to be issued given an exact quantity of input token.
+     * This function is not marked view, but should be static called from frontends.
+     * This constraint is due to the need to interact with the Uniswap V3 quoter contract
+    *
+    * @param _setToken              Address of the Set Token to be issued
+    * @param _ethAmount             Amount of ETH to be spent
+    * @param _reserveAssetSwapData  Swap data to trade WETH for reserve asset. Use empty swap data if input token is the reserve asset.
+    * 
+    * @return                       Amount of SetTokens expected to be issued
+    */
+    function getIssueSetFromExactETH(
+        ISetToken _setToken,
+        uint256 _ethAmount,
+        DEXAdapterV2.SwapData memory _reserveAssetSwapData
+    )
+        external
+        returns (uint256)
+    {
+        // require(msg.value > 0, "FlashMint: NO ETH SENT");
+        // IWETH(WETH).deposit{value: msg.value}();
+        address reserveAsset = _getAndValidateReserveAsset(_setToken, WETH, _reserveAssetSwapData.path, true);
+        // uint256 reserveAssetReceived = dexAdapter.swapExactTokensForTokens(_ethAmount, 0, _reserveAssetSwapData);
+        uint256 reserveAssetReceived = dexAdapter.getAmountOut(_reserveAssetSwapData, _ethAmount);
+        // uint256 setTokenBalanceBefore = _setToken.balanceOf(msg.sender);
+
+        return navIssuanceModule.getExpectedSetTokenIssueQuantity(
+            _setToken,
+            reserveAsset,
+            reserveAssetReceived
+        );
+
+    }
+
+    /**
+     * Gets the amount of output token expected to be received after redeeming a given quantity of Set Token.
+     * This function is not marked view, but should be static called from frontends.
+     * This constraint is due to the need to interact with the Uniswap V3 quoter contract
+     *
+    * @param _setToken              Address of the Set Token to be redeemed
+    * @param _setTokenAmount        Amount of Set Token to be redeemed
+    * @param _reserveAssetSwapData  Swap data to trade reserve asset for WETH
+    * 
+    * @return                       Amount of SetTokens expected to be issued
+    */
+    function getRedeemExactSet(
+        ISetToken _setToken,
+        uint256 _setTokenAmount,
+        DEXAdapterV2.SwapData memory _reserveAssetSwapData
+    )
+        external
+        returns (uint256)
+    {
+        address reserveAsset = _getAndValidateReserveAsset(_setToken, WETH, _reserveAssetSwapData.path, true);
+        uint256 reserveAssetReceived = navIssuanceModule.getExpectedReserveRedeemQuantity(
+            _setToken,
+            reserveAsset,
+            _setTokenAmount
+        );
+
+        return dexAdapter.getAmountOut(_reserveAssetSwapData, reserveAssetReceived);
     }
 
     /**
@@ -182,7 +245,6 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     * @param _minSetTokenAmount  Minimum amount of SetTokens to issue
     * @param _inputToken         Address of token used to pay for issuance
     * @param _inputTokenAmount   Amount of input token to spend
-    * 
     * @param _reserveAssetSwapData  Swap data to trade input token for reserve asset
     */
     function issueSetFromExactERC20(

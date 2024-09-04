@@ -228,18 +228,32 @@ if (process.env.INTEGRATIONTEST) {
         subjectSwapData = swapDataWethToUsdc;
       });
 
-      async function subject(): Promise<any> {
-        return flashMintNAV.issueSetFromExactETH(
+      // async function subject(): Promise<any> {
+      //   return flashMintNAV.issueSetFromExactETH(
+      //     setToken.address,
+      //     subjectMinSetTokenAmount,
+      //     subjectSwapData,
+      //     { value: subjectEthQuantity }
+      //   );
+      // }
+
+      it("should estimate the amount of SetToken issued for a given amount of ETH", async () => {
+        const setTokenAmount = await flashMintNAV.callstatic.getIssueSetFromExactETH(
+          setToken.address,
+          subjectEthQuantity,
+          subjectSwapData
+        );
+        expect(setTokenAmount).to.gte(ether(30));
+      });
+
+      it("should issue SetToken with ETH", async () => {
+        const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+        await flashMintNAV.issueSetFromExactETH(
           setToken.address,
           subjectMinSetTokenAmount,
           subjectSwapData,
           { value: subjectEthQuantity }
         );
-      }
-
-      it("should issue SetToken with ETH", async () => {
-        const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
-        await subject();
         const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
         expect(setTokenBalanceAfter).to.gte(setTokenBalanceBefore.add(subjectMinSetTokenAmount));
       });
@@ -286,6 +300,15 @@ if (process.env.INTEGRATIONTEST) {
           subjectSwapData
         );
       }
+
+      it("can estimate the output token received after redeeming a given amount of Set Token", async () => {
+        const setTokenAmount = await flashMintNAV.callstatic.getRedeemExactSet(
+          setToken.address,
+          subjectSetTokenAmount,
+          subjectSwapData
+        );
+        expect(setTokenAmount).to.gte(ether(30));
+      });
 
       it("should redeem SetToken for ETH", async () => {
         const ethBalanceBefore = await owner.wallet.getBalance();
