@@ -43,6 +43,9 @@ import { PreciseUnitMath } from "../../../lib/PreciseUnitMath.sol";
  * integration registry.
  *
  * Some examples of wrap actions include wrapping, DAI to cDAI (Compound) or Dai to aDai (AAVE).
+ * 
+ * CHANGELOG:
+ * - 8/7/24: Grant and revoke max approval when unwrapping
  */
 contract WrapModuleV2 is ModuleBase, ReentrancyGuard {
     using SafeCast for int256;
@@ -407,8 +410,8 @@ contract WrapModuleV2 is ModuleBase, ReentrancyGuard {
         uint256 notionalWrappedToken = _setToken.totalSupply().getDefaultTotalNotional(_wrappedTokenUnits);
         IWrapV2Adapter wrapAdapter = IWrapV2Adapter(getAndValidateAdapter(_integrationName));
 
-        // Approve wrapped token for spending in case protocols require approvals to transfer wrapped tokens
-        _setToken.invokeApprove(_wrappedToken, wrapAdapter.getSpenderAddress(_underlyingToken, _wrappedToken), notionalWrappedToken);
+        // Max approve wrapped token for spending in case protocols require approvals to transfer wrapped tokens
+        _setToken.invokeApprove(_wrappedToken, wrapAdapter.getSpenderAddress(_underlyingToken, _wrappedToken), type(uint256).max);
 
         // Get function call data and invoke on SetToken
         _createUnwrapDataAndInvoke(
@@ -423,6 +426,9 @@ contract WrapModuleV2 is ModuleBase, ReentrancyGuard {
         if (_usesEther) {
             _setToken.invokeWrapWETH(address(weth), address(_setToken).balance);
         }
+
+        // Revoke wrapped token max approval for spending 
+        _setToken.invokeApprove(_wrappedToken, wrapAdapter.getSpenderAddress(_underlyingToken, _wrappedToken), 0);
 
         (
             uint256 postActionUnderlyingNotional,

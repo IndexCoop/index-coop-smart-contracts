@@ -127,3 +127,24 @@ export interface AirdropSettings {
   airdropFee: BigNumber;
   anyoneAbsorb: boolean;
 }
+
+export interface TargetWeightWrapParams {
+  minTargetWeight: BigNumber;
+  maxTargetWeight: BigNumber;
+  wrapAdapterName: string;
+  wrapData: Bytes;
+  unwrapData: Bytes;
+}
+
+export interface CustomOracleNAVIssuanceSettings {
+  managerIssuanceHook: Address;
+  managerRedemptionHook: Address;
+  setValuer: Address;
+  reserveAssets: Address[];
+  feeRecipient: Address;
+  managerFees: [BigNumber, BigNumber];
+  maxManagerFee: BigNumber;
+  premiumPercentage: BigNumber;
+  maxPremiumPercentage: BigNumber;
+  minSetTokenSupply: BigNumber;
+}

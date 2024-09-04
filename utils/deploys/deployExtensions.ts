@@ -30,6 +30,7 @@ import {
   OptimisticAuctionRebalanceExtensionV1,
   StreamingFeeSplitExtension,
   WrapExtension,
+  TargetWeightWrapExtension,
 } from "../contracts/index";
 import { convertLibraryNameToLinkId } from "../common";
 
@@ -67,6 +68,7 @@ import { OptimisticAuctionRebalanceExtensionV1__factory } from "../../typechain/
 import { StakeWiseReinvestmentExtension__factory } from "../../typechain/factories/StakeWiseReinvestmentExtension__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 import { WrapExtension__factory } from "../../typechain/factories/WrapExtension__factory";
+import { TargetWeightWrapExtension__factory } from "../../typechain/factories/TargetWeightWrapExtension__factory";
 
 export default class DeployExtensions {
   private _deployerSigner: Signer;
@@ -651,6 +653,10 @@ export default class DeployExtensions {
 
   public async deployWrapExtension(manager: Address, wrapModule: Address): Promise<WrapExtension> {
     return await new WrapExtension__factory(this._deployerSigner).deploy(manager, wrapModule);
+  }
+
+  public async deployTargetWeightWrapExtension(manager: Address, wrapModule: Address, setValuer: Address, isAnyoneAllowedToRebalance: boolean): Promise<TargetWeightWrapExtension> {
+    return await new TargetWeightWrapExtension__factory(this._deployerSigner).deploy(manager, wrapModule, setValuer, isAnyoneAllowedToRebalance);
   }
 
   public async deployMigrationExtension(
