@@ -35,6 +35,7 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { StringArrayUtils } from "../lib/StringArrayUtils.sol";
 
 
+
 /**
  * @title MorphoLeverageStrategyExtension
  * @author Index Coop
@@ -264,8 +265,9 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
      * @param _exchangeName     the exchange used for trading
      */
     function engage(string memory _exchangeName) external onlyOperator {
-        ActionInfo memory engageInfo = _createActionInfo();
+        _enterCollateralPosition();
 
+        ActionInfo memory engageInfo = _createActionInfo();
         require(engageInfo.setTotalSupply > 0, "SetToken must have > 0 supply");
         require(engageInfo.collateralBalance > 0, "Collateral balance must be > 0");
         require(engageInfo.borrowBalance == 0, "Debt must be 0");
@@ -283,6 +285,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
             uint256 chunkRebalanceNotional,
             uint256 totalRebalanceNotional
         ) = _calculateChunkRebalanceNotional(leverageInfo, methodology.targetLeverageRatio, true);
+
 
         _lever(leverageInfo, chunkRebalanceNotional);
 
@@ -749,6 +752,18 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
 
     /* ============ Internal Functions ============ */
 
+
+    function _enterCollateralPosition()
+        internal
+    {
+        bytes memory enterPositionCallData = abi.encodeWithSignature(
+            "enterCollateralPosition(address)",
+            address(strategy.setToken)
+        );
+
+        invokeManager(address(strategy.leverageModule), enterPositionCallData);
+    }
+
     /**
      * Calculate notional rebalance quantity, whether to chunk rebalance based on max trade size and max borrow and invoke lever on MorphoLeverageModule
      *
@@ -766,10 +781,8 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
         uint256 minReceiveCollateralUnits = _calculateMinCollateralReceiveUnits(collateralRebalanceUnits, _leverageInfo.slippageTolerance);
 
         bytes memory leverCallData = abi.encodeWithSignature(
-            "lever(address,address,address,uint256,uint256,string,bytes)",
+            "lever(address,uint256,uint256,string,bytes)",
             address(strategy.setToken),
-            strategy.borrowAsset,
-            strategy.collateralAsset,
             borrowUnits,
             minReceiveCollateralUnits,
             _leverageInfo.exchangeName,
@@ -793,10 +806,8 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
         uint256 minRepayUnits = _calculateMinRepayUnits(collateralRebalanceUnits, _leverageInfo.slippageTolerance, _leverageInfo.action);
 
         bytes memory deleverCallData = abi.encodeWithSignature(
-            "delever(address,address,address,uint256,uint256,string,bytes)",
+            "delever(address,uint256,uint256,string,bytes)",
             address(strategy.setToken),
-            strategy.collateralAsset,
-            strategy.borrowAsset,
             collateralRebalanceUnits,
             minRepayUnits,
             _leverageInfo.exchangeName,
@@ -1119,7 +1130,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
         if (_isLever) {
             return netBorrowLimit
                 .sub(_actionInfo.borrowBalance)
-                .preciseDiv(_actionInfo.collateralPrice);
+                .mul(MORPHO_ORACLE_PRICE_SCALE).div(_actionInfo.collateralPrice);
         } else {
             // TODO: Verify this repay limit
             // Doesnt this mean that we cannot repay anything if our borrow values is equalt ot the limit?
@@ -1136,7 +1147,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
      * return uint256           Position units to borrow
      */
     function _calculateBorrowUnits(uint256 _collateralRebalanceUnits, ActionInfo memory _actionInfo) internal pure returns (uint256) {
-        return _collateralRebalanceUnits.preciseMul(_actionInfo.collateralPrice);
+        return _collateralRebalanceUnits.mul(_actionInfo.collateralPrice).div(MORPHO_ORACLE_PRICE_SCALE);
     }
 
     /**
