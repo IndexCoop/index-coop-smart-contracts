@@ -147,7 +147,6 @@ if (process.env.INTEGRATIONTEST) {
     let exchangeSettings: ExchangeSettings;
     let customTargetLeverageRatio: any;
     let customMinLeverageRatio: any;
-    let customATokenCollateralAddress: any;
 
     let leverageStrategyExtension: AaveV3LeverageStrategyExtension;
     let baseManagerV2: BaseManager;
