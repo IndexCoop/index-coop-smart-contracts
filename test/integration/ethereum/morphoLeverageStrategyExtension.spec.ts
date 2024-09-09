@@ -14,6 +14,7 @@ import { impersonateAccount, setBalance } from "../../../utils/test/testingUtils
 import { ADDRESS_ZERO, EMPTY_BYTES, ZERO, MAX_UINT_256 } from "@utils/constants";
 import { BaseManager } from "@utils/contracts/index";
 import {
+  ChainlinkAggregatorV3Mock,
   ContractCallerMock,
   MorphoLeverageModule,
   MorphoLeverageStrategyExtension,
@@ -33,6 +34,8 @@ import {
   IERC20,
   IERC20__factory,
   TradeAdapterMock,
+  IChainlinkEACAggregatorProxy,
+  IChainlinkEACAggregatorProxy__factory,
 } from "../../../typechain";
 import DeployHelper from "@utils/deploys";
 import {
@@ -48,6 +51,7 @@ import {
   calculateNewLeverageRatio,
 } from "@utils/index";
 import { convertPositionToNotional } from "@utils/test";
+import { formatEther } from "ethers/lib/utils";
 
 const expect = getWaffleExpect();
 
@@ -60,6 +64,8 @@ const contractAddresses = {
   uniswapV3Router: "0xe6382D2D44402Bad8a03F11170032aBCF1Df1102",
   wethDaiPool: "0x60594a405d53811d3bc4766596efd80fd545a270",
   morpho: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
+  // Note: This is the ultimate source for the current eth price for the morpho oracle
+  chainlinkUsdcEthOracleProxy: "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4",
 };
 
 const tokenAddresses = {
@@ -106,6 +112,9 @@ if (process.env.INTEGRATIONTEST) {
     let customTargetLeverageRatio: any;
     let customMinLeverageRatio: any;
     let morpho: IMorpho;
+    let usdcEthOracleProxy: IChainlinkEACAggregatorProxy;
+
+    let usdcEthOrackeMock: ChainlinkAggregatorV3Mock;
 
     let strategy: any;
     let methodology: MethodologySettings;
@@ -114,6 +123,7 @@ if (process.env.INTEGRATIONTEST) {
     const exchangeName = "MockTradeAdapter";
     const exchangeName2 = "MockTradeAdapter2";
     let exchangeSettings: ExchangeSettings;
+    let initialCollateralPriceInverted: BigNumber;
 
     let leverageStrategyExtension: MorphoLeverageStrategyExtension;
     let baseManagerV2: BaseManager;
@@ -122,6 +132,22 @@ if (process.env.INTEGRATIONTEST) {
     before(async () => {
       [owner, methodologist] = await getAccounts();
       deployer = new DeployHelper(owner.wallet);
+
+      usdcEthOrackeMock = await deployer.mocks.deployChainlinkAggregatorMock();
+      usdcEthOracleProxy = IChainlinkEACAggregatorProxy__factory.connect(
+        contractAddresses.chainlinkUsdcEthOracleProxy,
+        owner.wallet,
+      );
+      initialCollateralPriceInverted = await usdcEthOracleProxy.latestAnswer();
+      console.log("Current usdc/eth price", initialCollateralPriceInverted.toString());
+      usdcEthOrackeMock.setPrice(initialCollateralPriceInverted);
+
+      const oracleOwner = await usdcEthOracleProxy.owner();
+      await setBalance(oracleOwner, ether(10000));
+      usdcEthOracleProxy = usdcEthOracleProxy.connect(await impersonateAccount(oracleOwner));
+      console.log("proposing mock oracle");
+      await usdcEthOracleProxy.proposeAggregator(usdcEthOrackeMock.address);
+      await usdcEthOracleProxy.confirmAggregator(usdcEthOrackeMock.address);
 
       morphoLeverageModule = await deployer.setV2.deployMorphoLeverageModule(
         contractAddresses.controller,
@@ -226,37 +252,34 @@ if (process.env.INTEGRATIONTEST) {
         .div(totalSharesAdjusted);
     };
 
-    async function checkSetComponentsAgainstMorphoPosition() {
-      await morpho.accrueInterest(wstethUsdcMarketParams);
-      const currentPositions = await setToken.getPositions();
-      const initialSetTokenSupply = await setToken.totalSupply();
+    async function getBorrowAndCollateralBalances() {
       const [supplyShares, borrowShares, collateral] = await morpho.position(
         marketId,
         setToken.address,
       );
-      console.log("collateral", collateral.toString());
+      const collateralTokenBalance = await wsteth.balanceOf(setToken.address);
+      const collateralTotalBalance = collateralTokenBalance.add(collateral);
+      const [, , totalBorrowAssets, totalBorrowShares, ,] = await morpho.market(marketId);
+      const borrowAssets = sharesToAssetsUp(borrowShares, totalBorrowAssets, totalBorrowShares);
+      return { collateralTotalBalance, borrowAssets };
+    }
+
+    async function checkSetComponentsAgainstMorphoPosition() {
+      await morpho.accrueInterest(wstethUsdcMarketParams);
+      const currentPositions = await setToken.getPositions();
+      const initialSetTokenSupply = await setToken.totalSupply();
       const collateralNotional = await convertPositionToNotional(
         currentPositions[0].unit,
         setToken,
       );
-      console.log("collateralNotional", collateralNotional.toString());
-      const collateralTokenBalance = await wsteth.balanceOf(setToken.address);
-      console.log("collateralTokenBalance", collateralTokenBalance.toString());
-      console.log("collateral", collateral.toString());
-      const collateralTotalBalance = collateralTokenBalance.add(collateral);
+
+      const { collateralTotalBalance, borrowAssets } = await getBorrowAndCollateralBalances();
+
       expect(collateralNotional).to.lte(collateralTotalBalance);
       // Maximum rounding error when converting position to notional
       expect(collateralNotional).to.gt(
         collateralTotalBalance.sub(initialSetTokenSupply.div(ether(1))),
       );
-
-      const [, , totalBorrowAssets, totalBorrowShares, ,] = await morpho.market(marketId);
-      console.log("totalBorrowAssets", totalBorrowAssets.toString());
-      const borrowAssets = sharesToAssetsUp(borrowShares, totalBorrowAssets, totalBorrowShares);
-      console.log("borrowAssets", borrowAssets.toString());
-
-      const borrowTokenBalance = await usdc.balanceOf(setToken.address);
-      console.log("borrowTokenBalance", borrowTokenBalance.toString());
       if (borrowAssets.gt(0)) {
         const borrowNotional = await convertPositionToNotional(currentPositions[1].unit, setToken);
         // TODO: Review that this error margin is correct / expected
@@ -1133,7 +1156,7 @@ if (process.env.INTEGRATIONTEST) {
           await leverageStrategyExtension.setMethodologySettings(newMethodology);
           destinationTokenQuantity = ether(0.5);
           await increaseTimeAsync(BigNumber.from(100000));
-          // await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(11).div(10));
+
           await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
         });
       });
@@ -1142,7 +1165,12 @@ if (process.env.INTEGRATIONTEST) {
         cacheBeforeEach(async () => {
           destinationTokenQuantity = ether(0.1);
           await increaseTimeAsync(BigNumber.from(100000));
-          // await chainlinkCollateralPriceMock.setPrice(initialCollateralPrice.mul(11).div(10));
+          const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+          console.log("initialCollateralPrice", formatEther(initialCollateralPrice));
+          console.log("currentPriceReported", (await morphoOracle.price()).toString());
+          const newCollateralPrice = initialCollateralPrice.mul(11).div(10);
+          usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+          console.log("currentPriceReported after", (await morphoOracle.price()).toString());
           await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
         });
 
@@ -1180,21 +1208,25 @@ if (process.env.INTEGRATIONTEST) {
           const initialPositions = await setToken.getPositions();
 
           await subject();
+          await morphoLeverageModule.sync(setToken.address);
 
           // wsteth position is increased
           const currentPositions = await setToken.getPositions();
           const newFirstPosition = (await setToken.getPositions())[0];
 
-          // Get expected aTokens position units;
+          // Get expected collateral token position units;
           const expectedFirstPositionUnit = initialPositions[0].unit.add(destinationTokenQuantity);
+          console.log("expectedFirstPositionUnit", expectedFirstPositionUnit.toString());
+          console.log("newFirstPositionUnit", newFirstPosition.unit.toString());
+          console.log("iniitalFirstPositionUnit", initialPositions[0].unit.toString());
 
           expect(initialPositions.length).to.eq(2);
           expect(currentPositions.length).to.eq(2);
           expect(newFirstPosition.component).to.eq(wsteth.address);
-          expect(newFirstPosition.positionState).to.eq(0); // Default
+          expect(newFirstPosition.positionState).to.eq(1); // Default
           expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
           expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
-          expect(newFirstPosition.module).to.eq(ADDRESS_ZERO);
+          expect(newFirstPosition.module).to.eq(morphoLeverageModule.address);
         });
 
         it("should update the borrow position on the SetToken correctly", async () => {
@@ -1279,10 +1311,10 @@ if (process.env.INTEGRATIONTEST) {
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
             expect(newFirstPosition.component).to.eq(wsteth.address);
-            expect(newFirstPosition.positionState).to.eq(0); // Default
+            expect(newFirstPosition.positionState).to.eq(1); // External
             expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
             expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
-            expect(newFirstPosition.module).to.eq(ADDRESS_ZERO);
+            expect(newFirstPosition.module).to.eq(morphoLeverageModule.address);
           });
 
           it("should update the borrow position on the SetToken correctly", async () => {
@@ -1373,10 +1405,10 @@ if (process.env.INTEGRATIONTEST) {
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
             expect(newFirstPosition.component).to.eq(wsteth.address);
-            expect(newFirstPosition.positionState).to.eq(0); // Default
+            expect(newFirstPosition.positionState).to.eq(1); // External
             expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
             expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
-            expect(newFirstPosition.module).to.eq(ADDRESS_ZERO);
+            expect(newFirstPosition.module).to.eq(morphoLeverageModule.address);
           });
 
           it("should update the borrow position on the SetToken correctly", async () => {
@@ -1550,7 +1582,7 @@ if (process.env.INTEGRATIONTEST) {
           const initialPositions = await setToken.getPositions();
           const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
 
-          const previousATokenBalance = await wsteth.balanceOf(setToken.address);
+          const { collateralTotalBalance } = await getBorrowAndCollateralBalances();
 
           await subject();
 
@@ -1569,7 +1601,7 @@ if (process.env.INTEGRATIONTEST) {
           const expectedCollateralAssetsRedeemed = calculateCollateralRebalanceUnits(
             currentLeverageRatio,
             expectedNewLeverageRatio,
-            previousATokenBalance,
+            collateralTotalBalance,
             ether(1), // Total supply
           );
 
@@ -1580,10 +1612,10 @@ if (process.env.INTEGRATIONTEST) {
           expect(initialPositions.length).to.eq(2);
           expect(currentPositions.length).to.eq(2);
           expect(newFirstPosition.component).to.eq(wsteth.address);
-          expect(newFirstPosition.positionState).to.eq(0); // Default
+          expect(newFirstPosition.positionState).to.eq(1); // External
           expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
           expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
-          expect(newFirstPosition.module).to.eq(ADDRESS_ZERO);
+          expect(newFirstPosition.module).to.eq(morphoLeverageModule.address);
         });
 
         it("should update the borrow position on the SetToken correctly", async () => {
@@ -1653,7 +1685,7 @@ if (process.env.INTEGRATIONTEST) {
             const initialPositions = await setToken.getPositions();
             const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
 
-            const previousATokenBalance = await wsteth.balanceOf(setToken.address);
+            const { collateralTotalBalance } = await getBorrowAndCollateralBalances();
 
             await subject();
 
@@ -1672,7 +1704,7 @@ if (process.env.INTEGRATIONTEST) {
             const expectedCollateralAssetsRedeemed = calculateCollateralRebalanceUnits(
               currentLeverageRatio,
               expectedNewLeverageRatio,
-              previousATokenBalance,
+              collateralTotalBalance,
               ether(1), // Total supply
             );
 
@@ -1683,10 +1715,10 @@ if (process.env.INTEGRATIONTEST) {
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
             expect(newFirstPosition.component).to.eq(wsteth.address);
-            expect(newFirstPosition.positionState).to.eq(0); // Default
+            expect(newFirstPosition.positionState).to.eq(1); // External
             expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
             expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
-            expect(newFirstPosition.module).to.eq(ADDRESS_ZERO);
+            expect(newFirstPosition.module).to.eq(morphoLeverageModule.address);
           });
 
           it("should update the borrow position on the SetToken correctly", async () => {
@@ -1783,10 +1815,10 @@ if (process.env.INTEGRATIONTEST) {
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
             expect(newFirstPosition.component).to.eq(wsteth.address);
-            expect(newFirstPosition.positionState).to.eq(0); // Default
+            expect(newFirstPosition.positionState).to.eq(1); // External
             expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
             expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
-            expect(newFirstPosition.module).to.eq(ADDRESS_ZERO);
+            expect(newFirstPosition.module).to.eq(morphoLeverageModule.address);
           });
 
           it("should update the borrow position on the SetToken correctly", async () => {
