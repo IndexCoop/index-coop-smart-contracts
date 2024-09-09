@@ -1047,7 +1047,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
         pure
         returns(uint256)
     {
-        return _collateralValue.preciseDiv(_collateralValue.sub(_borrowBalance));
+        return _collateralValue.preciseDiv(_collateralValue.sub(_borrowBalance.mul(1e18)));
     }
 
     /**
@@ -1168,7 +1168,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
      */
     function _calculateMinRepayUnits(uint256 _collateralRebalanceUnits, uint256 _slippageTolerance, ActionInfo memory _actionInfo) internal virtual pure returns (uint256) {
         return _collateralRebalanceUnits
-            .preciseMul(_actionInfo.collateralPrice)
+            .mul(_actionInfo.collateralPrice).div(MORPHO_ORACLE_PRICE_SCALE)
             .preciseMul(PreciseUnitMath.preciseUnit().sub(_slippageTolerance));
     }
 
