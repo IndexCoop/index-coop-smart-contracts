@@ -302,7 +302,7 @@ if (process.env.INTEGRATIONTEST) {
       }
 
       it("can estimate the amount of output token received for redeeming a given amount of Set Token", async () => {
-        const setTokenAmount = await flashMintNAV.getRedeemExactSet( // Try non-static call for debugging
+        const setTokenAmount = await flashMintNAV.callStatic.getRedeemExactSet(
           setToken.address,
           subjectSetTokenAmount,
           subjectSwapData
