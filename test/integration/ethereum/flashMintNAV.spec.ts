@@ -238,7 +238,7 @@ if (process.env.INTEGRATIONTEST) {
       // }
 
       it("can estimate the amount of SetToken issued for a given amount of ETH", async () => {
-        const setTokenAmount = await flashMintNAV.callstatic.getIssueSetFromExactETH(
+        const setTokenAmount = await flashMintNAV.callStatic.getIssueSetFromExactETH(
           setToken.address,
           subjectEthQuantity,
           subjectSwapData
