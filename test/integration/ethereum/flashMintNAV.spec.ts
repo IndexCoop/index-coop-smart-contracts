@@ -237,7 +237,7 @@ if (process.env.INTEGRATIONTEST) {
       //   );
       // }
 
-      it("should estimate the amount of SetToken issued for a given amount of ETH", async () => {
+      it("can estimate the amount of SetToken issued for a given amount of ETH", async () => {
         const setTokenAmount = await flashMintNAV.callstatic.getIssueSetFromExactETH(
           setToken.address,
           subjectEthQuantity,
@@ -301,8 +301,8 @@ if (process.env.INTEGRATIONTEST) {
         );
       }
 
-      it("can estimate the output token received after redeeming a given amount of Set Token", async () => {
-        const setTokenAmount = await flashMintNAV.callstatic.getRedeemExactSet(
+      it("can estimate the amount of output token received for redeeming a given amount of Set Token", async () => {
+        const setTokenAmount = await flashMintNAV.getRedeemExactSet( // Try non-static call for debugging
           setToken.address,
           subjectSetTokenAmount,
           subjectSwapData

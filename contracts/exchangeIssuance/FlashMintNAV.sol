@@ -194,7 +194,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         external
         returns (uint256)
     {
-        address reserveAsset = _getAndValidateReserveAsset(_setToken, WETH, _reserveAssetSwapData.path, true);
+        address reserveAsset = _getAndValidateReserveAsset(_setToken, WETH, _reserveAssetSwapData.path, false);
         uint256 reserveAssetReceived = navIssuanceModule.getExpectedReserveRedeemQuantity(
             _setToken,
             reserveAsset,
