@@ -38,8 +38,10 @@ import { DEXAdapterV2 } from "./DEXAdapterV2.sol";
  * @title FlashMintNAV
  * @author Index Cooperative
  * @notice Part of a family of contracts that allows users to issue and redeem SetTokens with a single input/output token (ETH/ERC20).
- * [TODO]
- * The FlashMint SDK (https://github.com/IndexCoop/flash-mint-sdk) provides a unified interface for this and other FlashMint contracts.
+ * This contract supports SetTokens that use the NAV Issuance Module with a reserve asset that has liquidity on the exchanges found in the DEXAdapterV2 library.
+ * It allows the caller to perform a DEX swap and issue or redeem SetTokens in a single transaction, and does not depend on the use of off-chain APIs for swap quotes.
+ *
+ * See the FlashMint SDK for integrating any FlashMint contract (https://github.com/IndexCoop/flash-mint-sdk).
  */
 contract FlashMintNAV is Ownable, ReentrancyGuard {
     using DEXAdapterV2 for DEXAdapterV2.Addresses;
