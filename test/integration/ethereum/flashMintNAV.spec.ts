@@ -243,7 +243,7 @@ if (process.env.INTEGRATIONTEST) {
           subjectEthQuantity,
           subjectSwapData
         );
-        expect(setTokenAmount).to.gte(ether(30));
+        expect(setTokenAmount).to.eq(BigNumber.from("25460056235206711599"));
       });
 
       it("should issue SetToken with ETH", async () => {
@@ -307,7 +307,7 @@ if (process.env.INTEGRATIONTEST) {
           subjectSetTokenAmount,
           subjectSwapData
         );
-        expect(setTokenAmount).to.gte(ether(30));
+        expect(setTokenAmount).to.eq(BigNumber.from("38342064691937290"));
       });
 
       it("should redeem SetToken for ETH", async () => {
