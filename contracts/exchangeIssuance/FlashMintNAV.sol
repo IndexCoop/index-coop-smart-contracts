@@ -160,12 +160,8 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         external
         returns (uint256)
     {
-        // require(msg.value > 0, "FlashMint: NO ETH SENT");
-        // IWETH(WETH).deposit{value: msg.value}();
         address reserveAsset = _getAndValidateReserveAsset(_setToken, WETH, _reserveAssetSwapData.path, true);
-        // uint256 reserveAssetReceived = dexAdapter.swapExactTokensForTokens(_ethAmount, 0, _reserveAssetSwapData);
         uint256 reserveAssetReceived = dexAdapter.getAmountOut(_reserveAssetSwapData, _ethAmount);
-        // uint256 setTokenBalanceBefore = _setToken.balanceOf(msg.sender);
 
         return navIssuanceModule.getExpectedSetTokenIssueQuantity(
             _setToken,
@@ -184,7 +180,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     * @param _setTokenAmount        Amount of Set Token to be redeemed
     * @param _reserveAssetSwapData  Swap data to trade reserve asset for WETH
     * 
-    * @return                       Amount of SetTokens expected to be issued
+    * @return                       Amount of output tokens expected to be sent to caller
     */
     function getRedeemExactSet(
         ISetToken _setToken,
@@ -241,11 +237,11 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     /**
     * Issues a minimum amount of SetTokens for an exact amount of ERC20.
     *
-    * @param _setToken           Address of the SetToken to issue
-    * @param _minSetTokenAmount  Minimum amount of SetTokens to issue
-    * @param _inputToken         Address of token used to pay for issuance
-    * @param _inputTokenAmount   Amount of input token to spend
-    * @param _reserveAssetSwapData  Swap data to trade input token for reserve asset
+    * @param _setToken              Address of the SetToken to issue
+    * @param _minSetTokenAmount     Minimum amount of SetTokens to issue
+    * @param _inputToken            Address of token used to pay for issuance
+    * @param _inputTokenAmount      Amount of input token to spend
+    * @param _reserveAssetSwapData  Swap data to trade input token for reserve asset. Can use empty swap data if input token is reserve asset.
     */
     function issueSetFromExactERC20(
         ISetToken _setToken,
@@ -322,7 +318,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
      * @param _setTokenAmount        Amount of SetTokens to redeem
      * @param _outputToken           Address of the token to be received by caller
      * @param _minOutputTokenAmount  Minimum amount of output token to be received by caller
-     * @param _reserveAssetSwapData  Swap data to trade reserve asset for output token
+     * @param _reserveAssetSwapData  Swap data to trade reserve asset for output token. Can use empty swap data if output token is reserve asset.
      */
     function redeemExactSetForERC20(
         ISetToken _setToken,
@@ -357,17 +353,33 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
 
     /* ============ Internal Functions ============ */
 
-    function _getAndValidateReserveAsset(ISetToken _setToken, address _paymentToken, address[] memory _path, bool isIssuance) internal view returns(address) {
+    /**
+     * Validates the reserve asset and swap path for issuance or redemption.
+     *
+     * @param _setToken      Address of SetToken being issued or redeemed
+     * @param _paymentToken  Address of input token if issuance, or output token if redemption
+     * @param _path          Array of token addresses representing the swap path
+     * @param _isIssuance    bool indicating issuance or redemption
+     */
+    function _getAndValidateReserveAsset(
+        ISetToken _setToken,
+        address _paymentToken,
+        address[] memory _path,
+        bool _isIssuance
+    )
+        internal
+        view
+        returns(address)
+    {
         address reserveAsset;
         if (_path.length > 0) {
-            if (isIssuance) {
+            if (_isIssuance) {
                 require(_path[0] == _paymentToken, "FLASHMINT: FIRST ADDRESS IN SWAP PATH MUST BE INPUT TOKEN");
                 reserveAsset = _path[_path.length - 1];
             } else {
                 require(_path[_path.length - 1] == address(_paymentToken), "FLASHMINT: LAST ADDRESS IN SWAP PATH MUST BE OUTPUT TOKEN");
                 reserveAsset = _path[0];
             }
-
         } else {
             reserveAsset = address(_paymentToken);
         }
