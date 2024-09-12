@@ -149,50 +149,54 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
      * This constraint is due to the need to interact with the Uniswap V3 quoter contract
     *
     * @param _setToken              Address of the Set Token to be issued
-    * @param _ethAmount             Amount of ETH to be spent
-    * @param _reserveAssetSwapData  Swap data to trade WETH for reserve asset. Use empty swap data if input token is the reserve asset.
+    * @param _inputToken            Address of the token used to pay for issuance. Use WETH address if input token is ETH.
+    * @param _inputTokenAmount      Exact amount of input token to spend
+    * @param _reserveAssetSwapData  Swap data to trade input token for reserve asset. Use empty swap data if input token is the reserve asset.
     * 
     * @return                       Amount of SetTokens expected to be issued
     */
-    function getIssueSetFromExactETH(
+    function getIssueAmount(
         ISetToken _setToken,
-        uint256 _ethAmount,
+        address _inputToken,
+        uint256 _inputTokenAmount,
         DEXAdapterV2.SwapData memory _reserveAssetSwapData
     )
         external
         returns (uint256)
     {
-        address reserveAsset = _getAndValidateReserveAsset(_setToken, WETH, _reserveAssetSwapData.path, true);
-        uint256 reserveAssetReceived = dexAdapter.getAmountOut(_reserveAssetSwapData, _ethAmount);
+        address reserveAsset = _getAndValidateReserveAsset(_setToken, _inputToken, _reserveAssetSwapData.path, true);
+        uint256 reserveAssetReceived = dexAdapter.getAmountOut(_reserveAssetSwapData, _inputTokenAmount);
 
         return navIssuanceModule.getExpectedSetTokenIssueQuantity(
             _setToken,
             reserveAsset,
             reserveAssetReceived
         );
-
     }
 
     /**
-     * Gets the amount of output token expected to be received after redeeming a given quantity of Set Token.
+     * Gets the amount of output token expected to be received after redeeming a given quantity of Set Token
+     * for reserve asset and then swapping the reserve asset for output token.
      * This function is not marked view, but should be static called from frontends.
      * This constraint is due to the need to interact with the Uniswap V3 quoter contract
      *
     * @param _setToken              Address of the Set Token to be redeemed
     * @param _setTokenAmount        Amount of Set Token to be redeemed
-    * @param _reserveAssetSwapData  Swap data to trade reserve asset for WETH
+    * @param _outputToken           Address of the token to send to caller after redemption
+    * @param _reserveAssetSwapData  Swap data to trade reserve asset for output token
     * 
     * @return                       Amount of output tokens expected to be sent to caller
     */
-    function getRedeemExactSet(
+    function getRedeemAmountOut(
         ISetToken _setToken,
         uint256 _setTokenAmount,
+        address _outputToken,
         DEXAdapterV2.SwapData memory _reserveAssetSwapData
     )
         external
         returns (uint256)
     {
-        address reserveAsset = _getAndValidateReserveAsset(_setToken, WETH, _reserveAssetSwapData.path, false);
+        address reserveAsset = _getAndValidateReserveAsset(_setToken, _outputToken, _reserveAssetSwapData.path, false);
         uint256 reserveAssetReceived = navIssuanceModule.getExpectedReserveRedeemQuantity(
             _setToken,
             reserveAsset,

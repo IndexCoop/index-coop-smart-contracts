@@ -12,8 +12,7 @@ import {
   FlashMintNAV,
   IERC20,
   IERC20__factory,
-  // INAVIssuanceModule__factory,
-  // RebasingComponentModule,
+  IWETH__factory,
 } from "../../../typechain";
 import { PRODUCTION_ADDRESSES } from "./addresses";
 import { ADDRESS_ZERO, MAX_UINT_256, ZERO } from "@utils/constants";
@@ -219,17 +218,11 @@ if (process.env.INTEGRATIONTEST) {
 
     describe("#issue", () => {
       const ethAmountIn = ether(1);
-      // const subjectSwapData: SwapData;
-
-      // before(async () => {
-      //   // subjectMinSetTokenAmount = ether(1);
-      //   subjectEthQuantity = ether(1);
-      //   subjectSwapData = swapDataWethToUsdc;
-      // });
 
       it("can estimate the amount of SetToken issued for a given amount of ETH", async () => {
-        const setTokenAmount = await flashMintNAV.callStatic.getIssueSetFromExactETH(
+        const setTokenAmount = await flashMintNAV.callStatic.getIssueAmount(
           setToken.address,
+          addresses.tokens.weth,
           ethAmountIn,
           swapDataWethToUsdc
         );
@@ -237,8 +230,9 @@ if (process.env.INTEGRATIONTEST) {
       });
 
       it("should issue SetToken with ETH", async () => {
-        const setTokenOutEstimate = await flashMintNAV.callStatic.getIssueSetFromExactETH(
+        const setTokenOutEstimate = await flashMintNAV.callStatic.getIssueAmount(
           setToken.address,
+          addresses.tokens.weth,
           ethAmountIn,
           swapDataWethToUsdc
         );
@@ -255,26 +249,95 @@ if (process.env.INTEGRATIONTEST) {
       });
 
       it("should issue SetToken with WETH", async () => {
-        // TODO: Implement
+        const setTokenOutEstimate = await flashMintNAV.callStatic.getIssueAmount(
+          setToken.address,
+          addresses.tokens.weth,
+          ethAmountIn,
+          swapDataWethToUsdc
+        );
+        const minSetTokenOut = setTokenOutEstimate.mul(995).div(1000); // 0.5% slippage
+        const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+
+        const wethToken = IWETH__factory.connect(addresses.tokens.weth, owner.wallet);
+        await wethToken.deposit({ value: ethAmountIn });
+        wethToken.approve(flashMintNAV.address, ethAmountIn);
+
+        await flashMintNAV.issueSetFromExactERC20(
+          setToken.address,
+          minSetTokenOut,
+          addresses.tokens.weth,
+          ethAmountIn,
+          swapDataWethToUsdc
+        );
+        const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+        expect(setTokenBalanceAfter).to.gte(setTokenBalanceBefore.add(minSetTokenOut));
       });
 
       it("should issue SetToken with USDC (reserve asset)", async () => {
-        // TODO: Use getter function to find minSetTokenAmount
-        usdc_erc20.approve(flashMintNAV.address, usdc(1000));
+        const usdcAmountIn = usdc(100);
+        usdc_erc20.approve(flashMintNAV.address, usdcAmountIn);
+
+        const setTokenOutEstimate = await flashMintNAV.callStatic.getIssueAmount(
+          setToken.address,
+          usdc_erc20.address,
+          usdcAmountIn,
+          swapDataEmpty
+        );
+        const minSetTokenOut = setTokenOutEstimate.mul(995).div(1000); // 0.5% slippage
         const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
         await flashMintNAV.issueSetFromExactERC20(
           setToken.address,
-          ether(1),
+          minSetTokenOut,
           usdc_erc20.address,
-          usdc(102),
+          usdcAmountIn,
           swapDataEmpty
         );
         const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
-        expect(setTokenBalanceAfter).to.gte(setTokenBalanceBefore.add(subjectMinSetTokenAmount));
+        expect(setTokenBalanceAfter).to.gte(setTokenBalanceBefore.add(minSetTokenOut));
+      });
+
+      it("should issue SetToken with DAI", async () => {
+        // TODO: Implement
+      });
+
+      it("should issue SetToken with USDT", async () => {
+        // TODO: Implement
+      });
+
+      it("issueSetFromExactETH should revert if less than minSetTokenAmount received", async () => {
+        await expect(
+          flashMintNAV.issueSetFromExactETH(
+            setToken.address,
+            ethAmountIn,
+            swapDataWethToUsdc,
+            { value: ether(0.01) }
+          )
+        ).to.be.revertedWith("Must be greater than min SetToken");
+      });
+
+      it("issueSetFromExactERC20 should revert if less than minSetTokenAmount received", async () => {
+        const usdcAmountIn = usdc(100);
+        usdc_erc20.approve(flashMintNAV.address, usdcAmountIn);
+
+        const setTokenOutEstimate = await flashMintNAV.callStatic.getIssueAmount(
+          setToken.address,
+          usdc_erc20.address,
+          usdcAmountIn,
+          swapDataEmpty
+        );
+        const minSetTokenOut = setTokenOutEstimate.mul(1005).div(1000); // 0.5% too high
+        await expect(
+          flashMintNAV.issueSetFromExactERC20(
+            setToken.address,
+            minSetTokenOut,
+            usdc_erc20.address,
+            usdcAmountIn,
+            swapDataEmpty
+          )
+        ).to.be.revertedWith("Must be greater than min SetToken");
       });
     });
 
-    // TODO: Test revert when receiving less than minSetTokenAmount
     describe("#redeem", () => {
       let subjectSetTokenAmount: BigNumber;
       let subjectMinEthOutput: BigNumber;
@@ -304,9 +367,10 @@ if (process.env.INTEGRATIONTEST) {
       }
 
       it("can estimate the amount of output token received for redeeming a given amount of Set Token", async () => {
-        const setTokenAmount = await flashMintNAV.callStatic.getRedeemExactSet(
+        const setTokenAmount = await flashMintNAV.callStatic.getRedeemAmountOut(
           setToken.address,
           subjectSetTokenAmount,
+          addresses.tokens.weth,
           subjectSwapData
         );
         expect(setTokenAmount).to.eq(BigNumber.from("38342064691937290"));
