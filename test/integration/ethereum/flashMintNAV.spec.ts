@@ -53,6 +53,8 @@ const whales = {
   wan_liang: "0xCcb12611039c7CD321c0F23043c841F1d97287A5", // cUSDCv3
   mane_lee: "0xBF370B6E9d97D928497C2f2d72FD74f4D9ca5825", // aUSDC
   morpho_seeding: "0x6ABfd6139c7C3CC270ee2Ce132E309F59cAaF6a2", // gtUSDC
+  dai: "0x3B5fb9d9da3546e9CE6E5AA3CCEca14C8D20041e",
+  usdt: "0xEEA81C4416d71CeF071224611359F6F99A4c4294",
 };
 
 const swapDataEmpty = {
@@ -238,6 +240,7 @@ if (process.env.INTEGRATIONTEST) {
         );
         const minSetTokenOut = setTokenOutEstimate.mul(995).div(1000); // 0.5% slippage
         const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+
         await flashMintNAV.issueSetFromExactETH(
           setToken.address,
           minSetTokenOut,
@@ -257,10 +260,9 @@ if (process.env.INTEGRATIONTEST) {
         );
         const minSetTokenOut = setTokenOutEstimate.mul(995).div(1000); // 0.5% slippage
         const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
-
         const wethToken = IWETH__factory.connect(addresses.tokens.weth, owner.wallet);
         await wethToken.deposit({ value: ethAmountIn });
-        wethToken.approve(flashMintNAV.address, ethAmountIn);
+        await wethToken.approve(flashMintNAV.address, ethAmountIn);
 
         await flashMintNAV.issueSetFromExactERC20(
           setToken.address,
@@ -275,8 +277,8 @@ if (process.env.INTEGRATIONTEST) {
 
       it("should issue SetToken with USDC (reserve asset)", async () => {
         const usdcAmountIn = usdc(100);
-        usdc_erc20.approve(flashMintNAV.address, usdcAmountIn);
 
+        await usdc_erc20.approve(flashMintNAV.address, usdcAmountIn);
         const setTokenOutEstimate = await flashMintNAV.callStatic.getIssueAmount(
           setToken.address,
           usdc_erc20.address,
@@ -285,6 +287,7 @@ if (process.env.INTEGRATIONTEST) {
         );
         const minSetTokenOut = setTokenOutEstimate.mul(995).div(1000); // 0.5% slippage
         const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+
         await flashMintNAV.issueSetFromExactERC20(
           setToken.address,
           minSetTokenOut,
@@ -297,11 +300,69 @@ if (process.env.INTEGRATIONTEST) {
       });
 
       it("should issue SetToken with DAI", async () => {
-        // TODO: Implement
+        const daiAmountIn = ether(1000);
+        const swapDataDaiToUsdc = {
+          exchange: Exchange.UniV3,
+          fees: [100],
+          path: [addresses.tokens.dai, addresses.tokens.USDC],
+          pool: ADDRESS_ZERO,
+        };
+
+        const daiWhale = await impersonateAccount(whales.dai);
+        const daiToken = IERC20__factory.connect(addresses.tokens.dai, owner.wallet);
+        await daiToken.connect(daiWhale).transfer(owner.address, daiAmountIn);
+        await daiToken.approve(flashMintNAV.address, daiAmountIn);
+        const setTokenOutEstimate = await flashMintNAV.callStatic.getIssueAmount(
+          setToken.address,
+          daiToken.address,
+          daiAmountIn,
+          swapDataDaiToUsdc
+        );
+        const minSetTokenOut = setTokenOutEstimate.mul(995).div(1000); // 0.5% slippage
+        const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+
+        await flashMintNAV.issueSetFromExactERC20(
+          setToken.address,
+          minSetTokenOut,
+          daiToken.address,
+          daiAmountIn,
+          swapDataDaiToUsdc
+        );
+        const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+        expect(setTokenBalanceAfter).to.gte(setTokenBalanceBefore.add(minSetTokenOut));
       });
 
       it("should issue SetToken with USDT", async () => {
-        // TODO: Implement
+        const usdtAmountIn = usdc(1000); // USDT and USDC both have 6 decimals
+        const swapDataUsdtToUsdc = {
+          exchange: Exchange.UniV3,
+          fees: [100],
+          path: [addresses.tokens.usdt, addresses.tokens.USDC],
+          pool: ADDRESS_ZERO,
+        };
+
+        const usdtWhale = await impersonateAccount(whales.usdt);
+        const usdtToken = IERC20__factory.connect(addresses.tokens.usdt, owner.wallet);
+        await usdtToken.connect(usdtWhale).transfer(owner.address, usdtAmountIn);
+        await usdtToken.approve(flashMintNAV.address, usdtAmountIn);
+        const setTokenOutEstimate = await flashMintNAV.callStatic.getIssueAmount(
+          setToken.address,
+          usdtToken.address,
+          usdtAmountIn,
+          swapDataUsdtToUsdc
+        );
+        const minSetTokenOut = setTokenOutEstimate.mul(995).div(1000); // 0.5% slippage
+        const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+
+        await flashMintNAV.issueSetFromExactERC20(
+          setToken.address,
+          minSetTokenOut,
+          usdtToken.address,
+          usdtAmountIn,
+          swapDataUsdtToUsdc
+        );
+        const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
+        expect(setTokenBalanceAfter).to.gte(setTokenBalanceBefore.add(minSetTokenOut));
       });
 
       it("issueSetFromExactETH should revert if less than minSetTokenAmount received", async () => {
