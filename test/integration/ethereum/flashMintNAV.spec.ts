@@ -148,7 +148,6 @@ if (process.env.INTEGRATIONTEST) {
           setV2Setup.navIssuanceModule.address,
         ]
       );
-      await setToken.approve(flashMintNAV.address, MAX_UINT_256);
 
       // Initialize Modules
       await setV2Setup.debtIssuanceModuleV3.initialize(
@@ -215,6 +214,7 @@ if (process.env.INTEGRATIONTEST) {
       );
 
       await flashMintNAV.approveSetToken(setToken.address);
+      await setToken.connect(owner.wallet).approve(flashMintNAV.address, MAX_UINT_256);
     });
 
     addSnapshotBeforeRestoreAfterEach();
@@ -367,12 +367,13 @@ if (process.env.INTEGRATIONTEST) {
       });
 
       it("issueSetFromExactETH should revert if less than minSetTokenAmount received", async () => {
+        const notEnoughETH = ether(0.01);
         await expect(
           flashMintNAV.issueSetFromExactETH(
             setToken.address,
             ethAmountIn,
             swapDataWethToUsdc,
-            { value: ether(0.01) }
+            { value: notEnoughETH }
           )
         ).to.be.revertedWith("Must be greater than min SetToken");
       });
@@ -400,7 +401,7 @@ if (process.env.INTEGRATIONTEST) {
       });
     });
 
-    describe.only("#redeem", () => {
+    describe("#redeem", () => {
       const setTokenRedeemAmount = ether(23);
       const ethAmountIn = ether(1);
 
@@ -411,7 +412,6 @@ if (process.env.INTEGRATIONTEST) {
           swapDataWethToUsdc,
           { value: ethAmountIn }
         );
-
       });
 
       it("can estimate the amount of output token received for redeeming a given amount of Set Token", async () => {
@@ -419,9 +419,9 @@ if (process.env.INTEGRATIONTEST) {
           setToken.address,
           setTokenRedeemAmount,
           addresses.tokens.weth,
-          swapDataWethToUsdc
+          swapDataUsdcToWeth
         );
-        expect(outputTokenAmount).to.eq(BigNumber.from("38342064691937290"));
+        expect(outputTokenAmount).to.eq(BigNumber.from("881862431628006214"));
       });
 
       it("should redeem SetToken for ETH", async () => {
@@ -429,62 +429,108 @@ if (process.env.INTEGRATIONTEST) {
           setToken.address,
           setTokenRedeemAmount,
           addresses.tokens.weth,
-          swapDataWethToUsdc
+          swapDataUsdcToWeth
         );
-        const minOutputAmout = outputAmountEstimate.mul(995).div(1000); // 0.5% slippage
-        const ethBalanceBefore = await owner.wallet.getBalance();
-
+        const minOutputAmount = outputAmountEstimate.mul(995).div(1000); // 0.5% slippage
         const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+
         await flashMintNAV.redeemExactSetForETH(
           setToken.address,
           setTokenRedeemAmount,
-          minOutputAmout,
-          swapDataWethToUsdc
+          minOutputAmount,
+          swapDataUsdcToWeth
         );
         const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
         const ethBalanceAfter = await owner.wallet.getBalance();
         expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenRedeemAmount));
-        expect(ethBalanceAfter).to.gte(ethBalanceBefore.add(minOutputAmout));
+        expect(ethBalanceAfter).to.gte(ethAmountIn.add(minOutputAmount));
       });
 
-      it("should redeem SetToken for USDC", async () => {
-        const setTokenAmount = ether(1);
-        const minUsdcReceived = usdc(100);
+      it("should redeem SetToken for USDC (reserve asset)", async () => {
+        const outputAmountEstimate = await flashMintNAV.callStatic.getRedeemAmountOut(
+          setToken.address,
+          setTokenRedeemAmount,
+          usdc_erc20.address,
+          swapDataEmpty
+        );
+        const minOutputAmount = outputAmountEstimate.mul(995).div(1000); // 0.5% slippage
         const usdcBalanceBefore = await usdc_erc20.balanceOf(owner.address);
         const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+
         await flashMintNAV.redeemExactSetForERC20(
           setToken.address,
-          setTokenAmount,
+          setTokenRedeemAmount,
           usdc_erc20.address,
-          minUsdcReceived,
+          minOutputAmount,
           swapDataEmpty
         );
         const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
         const usdcBalanceAfter = await usdc_erc20.balanceOf(owner.address);
-        expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
-        expect(usdcBalanceAfter).to.gte(usdcBalanceBefore.add(minUsdcReceived));
+        expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenRedeemAmount));
+        expect(usdcBalanceAfter).to.gte(usdcBalanceBefore.add(minOutputAmount));
       });
 
       it("should redeem SetToken for WETH", async () => {
-        const setTokenAmount = ether(1);
-        const minWethReceived = ether(0.01);
+        const outputAmountEstimate = await flashMintNAV.callStatic.getRedeemAmountOut(
+          setToken.address,
+          setTokenRedeemAmount,
+          addresses.tokens.weth,
+          swapDataUsdcToWeth
+        );
+        const minOutputAmount = outputAmountEstimate.mul(995).div(1000); // 0.5% slippage
         const wethToken = IERC20__factory.connect(addresses.tokens.weth, owner.wallet);
         const wethBalanceBefore = await wethToken.balanceOf(owner.address);
         const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
+
         await flashMintNAV.redeemExactSetForERC20(
           setToken.address,
-          setTokenAmount,
+          setTokenRedeemAmount,
           addresses.tokens.weth,
-          minWethReceived,
+          minOutputAmount,
           swapDataUsdcToWeth
         );
         const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
         const wethBalanceAfter = await wethToken.balanceOf(owner.address);
-        expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenAmount));
-        expect(wethBalanceAfter).to.gte(wethBalanceBefore.add(minWethReceived));
+        expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenRedeemAmount));
+        expect(wethBalanceAfter).to.gte(wethBalanceBefore.add(minOutputAmount));
+      });
+
+      it("redeemExactSetForETH should revert if less than minEthAmount received", async () => {
+        const ethOutEstimate = await flashMintNAV.callStatic.getRedeemAmountOut(
+          setToken.address,
+          setTokenRedeemAmount,
+          addresses.tokens.weth,
+          swapDataUsdcToWeth
+        );
+        const minEthAmount = ethOutEstimate.mul(1005).div(1000); // 0.5% too high
+        await expect(
+          flashMintNAV.redeemExactSetForETH(
+            setToken.address,
+            setTokenRedeemAmount,
+            minEthAmount,
+            swapDataUsdcToWeth
+          )
+        ).to.be.revertedWith("FlashMint: NOT ENOUGH ETH RECEIVED");
+      });
+
+      it("redeemExactSetForERC20 should revert if less than minOutputTokenAmount received", async () => {
+        const outputAmountEstimate = await flashMintNAV.callStatic.getRedeemAmountOut(
+          setToken.address,
+          setTokenRedeemAmount,
+          usdc_erc20.address,
+          swapDataEmpty
+        );
+        const minOutputAmount = outputAmountEstimate.mul(1005).div(1000); // 0.5% too high
+        await expect(
+          flashMintNAV.redeemExactSetForERC20(
+            setToken.address,
+            setTokenRedeemAmount,
+            usdc_erc20.address,
+            minOutputAmount,
+            swapDataEmpty
+          )
+        ).to.be.revertedWith("FlashMint: NOT ENOUGH OUTPUT TOKEN RECEIVED");
       });
     });
-
-    // TODO: Test revert when receiving less than minOutputTokenAmount
   });
 }
