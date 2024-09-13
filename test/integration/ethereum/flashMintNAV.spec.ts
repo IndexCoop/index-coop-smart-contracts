@@ -57,14 +57,14 @@ const whales = {
   usdt: "0xEEA81C4416d71CeF071224611359F6F99A4c4294",
 };
 
-const swapDataEmpty = {
+const swapDataEmpty: SwapData = {
   exchange: Exchange.None,
   fees: [],
   path: [],
   pool: ADDRESS_ZERO,
 };
 
-const swapDataUsdcToWeth = {
+const swapDataUsdcToWeth: SwapData = {
   exchange: Exchange.UniV3,
   fees: [500],
   path: [addresses.tokens.USDC, addresses.tokens.weth],
@@ -148,6 +148,7 @@ if (process.env.INTEGRATIONTEST) {
           setV2Setup.navIssuanceModule.address,
         ]
       );
+      await setToken.approve(flashMintNAV.address, MAX_UINT_256);
 
       // Initialize Modules
       await setV2Setup.debtIssuanceModuleV3.initialize(
@@ -301,7 +302,7 @@ if (process.env.INTEGRATIONTEST) {
 
       it("should issue SetToken with DAI", async () => {
         const daiAmountIn = ether(1000);
-        const swapDataDaiToUsdc = {
+        const swapDataDaiToUsdc: SwapData = {
           exchange: Exchange.UniV3,
           fees: [100],
           path: [addresses.tokens.dai, addresses.tokens.USDC],
@@ -334,7 +335,7 @@ if (process.env.INTEGRATIONTEST) {
 
       it("should issue SetToken with USDT", async () => {
         const usdtAmountIn = usdc(1000); // USDT and USDC both have 6 decimals
-        const swapDataUsdtToUsdc = {
+        const swapDataUsdtToUsdc: SwapData = {
           exchange: Exchange.UniV3,
           fees: [100],
           path: [addresses.tokens.usdt, addresses.tokens.USDC],
@@ -399,52 +400,51 @@ if (process.env.INTEGRATIONTEST) {
       });
     });
 
-    describe("#redeem", () => {
-      let subjectSetTokenAmount: BigNumber;
-      let subjectMinEthOutput: BigNumber;
-      let subjectSwapData: SwapData;
+    describe.only("#redeem", () => {
+      const setTokenRedeemAmount = ether(23);
+      const ethAmountIn = ether(1);
 
       beforeEach(async () => {
-        subjectSetTokenAmount = ether(1);
-        subjectMinEthOutput = ether(0.01);
-        subjectSwapData = swapDataUsdcToWeth;
-        await flashMintNAV.approveSetToken(setToken.address);
         await flashMintNAV.issueSetFromExactETH(
           setToken.address,
-          subjectSetTokenAmount,
+          setTokenRedeemAmount,
           swapDataWethToUsdc,
-          { value: ether(1) } // TODO: Make more exact
+          { value: ethAmountIn }
         );
-        await setToken.approve(flashMintNAV.address, subjectSetTokenAmount);
+
       });
 
-      async function subject(): Promise<any> {
-        return flashMintNAV.redeemExactSetForETH(
-          setToken.address,
-          subjectSetTokenAmount,
-          subjectMinEthOutput,
-          subjectSwapData
-        );
-      }
-
       it("can estimate the amount of output token received for redeeming a given amount of Set Token", async () => {
-        const setTokenAmount = await flashMintNAV.callStatic.getRedeemAmountOut(
+        const outputTokenAmount = await flashMintNAV.callStatic.getRedeemAmountOut(
           setToken.address,
-          subjectSetTokenAmount,
+          setTokenRedeemAmount,
           addresses.tokens.weth,
-          subjectSwapData
+          swapDataWethToUsdc
         );
-        expect(setTokenAmount).to.eq(BigNumber.from("38342064691937290"));
+        expect(outputTokenAmount).to.eq(BigNumber.from("38342064691937290"));
       });
 
       it("should redeem SetToken for ETH", async () => {
+        const outputAmountEstimate = await flashMintNAV.callStatic.getRedeemAmountOut(
+          setToken.address,
+          setTokenRedeemAmount,
+          addresses.tokens.weth,
+          swapDataWethToUsdc
+        );
+        const minOutputAmout = outputAmountEstimate.mul(995).div(1000); // 0.5% slippage
         const ethBalanceBefore = await owner.wallet.getBalance();
+
         const setTokenBalanceBefore = await setToken.balanceOf(owner.address);
-        await subject();
+        await flashMintNAV.redeemExactSetForETH(
+          setToken.address,
+          setTokenRedeemAmount,
+          minOutputAmout,
+          swapDataWethToUsdc
+        );
         const setTokenBalanceAfter = await setToken.balanceOf(owner.address);
         const ethBalanceAfter = await owner.wallet.getBalance();
-        expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(subjectSetTokenAmount));
-        expect(ethBalanceAfter).to.gte(ethBalanceBefore.add(subjectMinEthOutput));
+        expect(setTokenBalanceAfter).to.eq(setTokenBalanceBefore.sub(setTokenRedeemAmount));
+        expect(ethBalanceAfter).to.gte(ethBalanceBefore.add(minOutputAmout));
       });
 
       it("should redeem SetToken for USDC", async () => {
