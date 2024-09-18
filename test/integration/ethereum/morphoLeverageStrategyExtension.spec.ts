@@ -4750,5 +4750,509 @@ if (process.env.INTEGRATIONTEST) {
         });
       });
     });
+    describe("#shouldRebalanceWithBounds", async () => {
+      let subjectMinLeverageRatio: BigNumber;
+      let subjectMaxLeverageRatio: BigNumber;
+
+      cacheBeforeEach(async () => {
+        await initializeRootScopeContracts();
+
+        // Approve tokens to issuance module and call issue
+        await wsteth.approve(debtIssuanceModule.address, ether(1000));
+
+        // Issue 1 SetToken
+        const issueQuantity = ether(1);
+        await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
+
+        await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
+
+        // Add allowed trader
+        await leverageStrategyExtension.updateCallerStatus([owner.address], [true]);
+
+        // Engage to initial leverage
+        await leverageStrategyExtension.engage(exchangeName);
+        await increaseTimeAsync(BigNumber.from(100000));
+        await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
+
+        await leverageStrategyExtension.iterateRebalance(exchangeName);
+      });
+
+      beforeEach(() => {
+        subjectMinLeverageRatio = ether(1.6);
+        subjectMaxLeverageRatio = ether(2.4);
+      });
+
+      async function subject(): Promise<[string[], number[]]> {
+        return leverageStrategyExtension.shouldRebalanceWithBounds(
+          subjectMinLeverageRatio,
+          subjectMaxLeverageRatio,
+        );
+      }
+
+      context("when in the midst of a TWAP rebalance", async () => {
+        beforeEach(async () => {
+          // Withdraw balance of usdc from exchange contract from engage
+          await tradeAdapterMock.withdraw(usdc.address);
+
+          // > Max trade size
+          const newExchangeSettings: ExchangeSettings = {
+            twapMaxTradeSize: ether(0.001),
+            incentivizedTwapMaxTradeSize: exchangeSettings.incentivizedTwapMaxTradeSize,
+            exchangeLastTradeTimestamp: exchangeSettings.exchangeLastTradeTimestamp,
+            leverExchangeData: EMPTY_BYTES,
+            deleverExchangeData: EMPTY_BYTES,
+          };
+          await leverageStrategyExtension.updateEnabledExchange(exchangeName, newExchangeSettings);
+
+          // Set up new rebalance TWAP
+          const sendQuantity = BigNumber.from(5 * 10 ** 6);
+          await usdc.transfer(tradeAdapterMock.address, sendQuantity);
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(99).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+          await increaseTimeAsync(BigNumber.from(100000));
+          await leverageStrategyExtension.rebalance(exchangeName);
+        });
+
+        describe("when above incentivized leverage ratio and incentivized TWAP cooldown has elapsed", async () => {
+          beforeEach(async () => {
+            // Set to above incentivized ratio
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(80).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+            await increaseTimeAsync(BigNumber.from(100));
+          });
+
+          it("should return ripcord", async () => {
+            const [exchangeNamesArray, shouldRebalanceArray] = await subject();
+
+            expect(exchangeNamesArray[0]).to.eq(exchangeName);
+            expect(shouldRebalanceArray[0]).to.eq(THREE);
+          });
+        });
+
+        describe("when below incentivized leverage ratio and regular TWAP cooldown has elapsed", async () => {
+          beforeEach(async () => {
+            // Set to below incentivized ratio
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(90).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+            await increaseTimeAsync(BigNumber.from(4000));
+          });
+
+          it("should return iterate rebalance", async () => {
+            const [exchangeNamesArray, shouldRebalanceArray] = await subject();
+
+            expect(exchangeNamesArray[0]).to.eq(exchangeName);
+            expect(shouldRebalanceArray[0]).to.eq(TWO);
+          });
+        });
+
+        describe("when above incentivized leverage ratio and incentivized TWAP cooldown has NOT elapsed", async () => {
+          beforeEach(async () => {
+            // Set to above incentivized ratio
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(80).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+          });
+
+          it("should not rebalance", async () => {
+            const [exchangeNamesArray, shouldRebalanceArray] = await subject();
+
+            expect(exchangeNamesArray[0]).to.eq(exchangeName);
+            expect(shouldRebalanceArray[0]).to.eq(ZERO);
+          });
+        });
+
+        describe("when below incentivized leverage ratio and regular TWAP cooldown has NOT elapsed", async () => {
+          beforeEach(async () => {
+            // Set to above incentivized ratio
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(90).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+          });
+
+          it("should not rebalance", async () => {
+            const [exchangeNamesArray, shouldRebalanceArray] = await subject();
+
+            expect(exchangeNamesArray[0]).to.eq(exchangeName);
+            expect(shouldRebalanceArray[0]).to.eq(ZERO);
+          });
+        });
+      });
+
+      context("when not in a TWAP rebalance", async () => {
+        describe("when above incentivized leverage ratio and cooldown period has elapsed", async () => {
+          beforeEach(async () => {
+            // Set to above incentivized ratio
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(80).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+            await increaseTimeAsync(BigNumber.from(100));
+          });
+
+          it("should return ripcord", async () => {
+            const [exchangeNamesArray, shouldRebalanceArray] = await subject();
+
+            expect(exchangeNamesArray[0]).to.eq(exchangeName);
+            expect(shouldRebalanceArray[0]).to.eq(THREE);
+          });
+        });
+
+        describe("when between max and min leverage ratio and rebalance interval has elapsed", async () => {
+          beforeEach(async () => {
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(99).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+            await increaseTimeAsync(BigNumber.from(100000));
+          });
+
+          it("should return rebalance", async () => {
+            const [exchangeNamesArray, shouldRebalanceArray] = await subject();
+
+            expect(exchangeNamesArray[0]).to.eq(exchangeName);
+            expect(shouldRebalanceArray[0]).to.eq(ONE);
+          });
+        });
+
+        describe("when above max leverage ratio but below incentivized leverage ratio", async () => {
+          beforeEach(async () => {
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(85).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+          });
+
+          it("should return rebalance", async () => {
+            const [exchangeNamesArray, shouldRebalanceArray] = await subject();
+
+            expect(exchangeNamesArray[0]).to.eq(exchangeName);
+            expect(shouldRebalanceArray[0]).to.eq(ONE);
+          });
+        });
+
+        describe("when below min leverage ratio", async () => {
+          beforeEach(async () => {
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(140).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+          });
+
+          it("should return rebalance", async () => {
+            const [exchangeNamesArray, shouldRebalanceArray] = await subject();
+
+            expect(exchangeNamesArray[0]).to.eq(exchangeName);
+            expect(shouldRebalanceArray[0]).to.eq(ONE);
+          });
+        });
+
+        describe("when above incentivized leverage ratio and incentivized TWAP cooldown has NOT elapsed", async () => {
+          beforeEach(async () => {
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(80).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+          });
+
+          it("should not rebalance", async () => {
+            const [exchangeNamesArray, shouldRebalanceArray] = await subject();
+
+            expect(exchangeNamesArray[0]).to.eq(exchangeName);
+            expect(shouldRebalanceArray[0]).to.eq(ZERO);
+          });
+        });
+
+        describe("when between max and min leverage ratio and rebalance interval has NOT elapsed", async () => {
+          beforeEach(async () => {
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(99).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+          });
+
+          it("should not rebalance", async () => {
+            const [exchangeNamesArray, shouldRebalanceArray] = await subject();
+
+            expect(exchangeNamesArray[0]).to.eq(exchangeName);
+            expect(shouldRebalanceArray[0]).to.eq(ZERO);
+          });
+        });
+
+        describe("when custom min leverage ratio is above methodology min leverage ratio", async () => {
+          beforeEach(async () => {
+            subjectMinLeverageRatio = ether(1.9);
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("Custom bounds must be valid");
+          });
+        });
+
+        describe("when custom max leverage ratio is below methodology max leverage ratio", async () => {
+          beforeEach(async () => {
+            subjectMinLeverageRatio = ether(2.2);
+          });
+
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("Custom bounds must be valid");
+          });
+        });
+      });
+    });
+    describe("#getChunkRebalanceNotional", async () => {
+      cacheBeforeEach(async () => {
+        await initializeRootScopeContracts();
+
+        // Approve tokens to issuance module and call issue
+        await wsteth.approve(debtIssuanceModule.address, ether(1000));
+
+        // Issue 1 SetToken
+        const issueQuantity = ether(1);
+        await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address);
+
+        await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
+
+        // Add allowed trader
+        await leverageStrategyExtension.updateCallerStatus([owner.address], [true]);
+
+        // Add second exchange
+        const exchangeSettings2 = exchangeSettings;
+        exchangeSettings2.twapMaxTradeSize = ether(1);
+        exchangeSettings2.incentivizedTwapMaxTradeSize = ether(2);
+        await leverageStrategyExtension.addEnabledExchange(exchangeName2, exchangeSettings2);
+
+        // Engage to initial leverage
+        await leverageStrategyExtension.engage(exchangeName);
+        await increaseTimeAsync(BigNumber.from(100000));
+        await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
+
+        await leverageStrategyExtension.iterateRebalance(exchangeName);
+      });
+
+      async function subject(): Promise<[BigNumber[], Address, Address]> {
+        return await leverageStrategyExtension.getChunkRebalanceNotional([
+          exchangeName,
+          exchangeName2,
+        ]);
+      }
+
+      context("when in the midst of a TWAP rebalance", async () => {
+        beforeEach(async () => {
+          // Withdraw balance of usdc from exchange contract from engage
+          await tradeAdapterMock.withdraw(usdc.address);
+
+          // > Max trade size
+          const newExchangeSettings: ExchangeSettings = {
+            twapMaxTradeSize: ether(0.001),
+            incentivizedTwapMaxTradeSize: ether(0.002),
+            exchangeLastTradeTimestamp: exchangeSettings.exchangeLastTradeTimestamp,
+            leverExchangeData: EMPTY_BYTES,
+            deleverExchangeData: EMPTY_BYTES,
+          };
+          await leverageStrategyExtension.updateEnabledExchange(exchangeName, newExchangeSettings);
+
+          // Set up new rebalance TWAP
+          const sendQuantity = BigNumber.from(5 * 10 ** 6);
+          await usdc.transfer(tradeAdapterMock.address, sendQuantity);
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(99).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+          await increaseTimeAsync(BigNumber.from(100000));
+          await leverageStrategyExtension.rebalance(exchangeName);
+        });
+
+        describe("when above incentivized leverage ratio", async () => {
+          beforeEach(async () => {
+            // Set to above incentivized ratio
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(80).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+          });
+
+          it("should return correct total rebalance size and isLever boolean", async () => {
+            const [chunkRebalances, sellAsset, buyAsset] = await subject();
+
+            const newLeverageRatio = methodology.maxLeverageRatio;
+            const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
+            const expectedTotalRebalance = await calculateTotalRebalanceNotionalAaveV3(
+              setToken,
+              wsteth,
+              currentLeverageRatio,
+              newLeverageRatio,
+            );
+
+            expect(sellAsset).to.eq(strategy.collateralAsset);
+            expect(buyAsset).to.eq(strategy.borrowAsset);
+            expect(chunkRebalances[0]).to.eq(ether(0.002));
+            expect(chunkRebalances[1]).to.eq(expectedTotalRebalance);
+          });
+        });
+
+        describe("when below incentivized leverage ratio", async () => {
+          beforeEach(async () => {
+            // Set to below incentivized ratio
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(90).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+          });
+
+          it("should return correct total rebalance size and isLever boolean", async () => {
+            const [chunkRebalances, sellAsset, buyAsset] = await subject();
+
+            const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
+            const newLeverageRatio = await leverageStrategyExtension.twapLeverageRatio();
+            const expectedTotalRebalance = await calculateTotalRebalanceNotionalAaveV3(
+              setToken,
+              wsteth,
+              currentLeverageRatio,
+              newLeverageRatio,
+            );
+
+            expect(sellAsset).to.eq(strategy.collateralAsset);
+            expect(buyAsset).to.eq(strategy.borrowAsset);
+            expect(chunkRebalances[0]).to.eq(ether(0.001));
+            expect(chunkRebalances[1]).to.eq(expectedTotalRebalance);
+          });
+        });
+      });
+
+      context("when not in a TWAP rebalance", async () => {
+        beforeEach(async () => {
+          const exchangeSettings2 = exchangeSettings;
+          exchangeSettings2.twapMaxTradeSize = ether(0.001);
+          exchangeSettings2.incentivizedTwapMaxTradeSize = ether(0.002);
+          await leverageStrategyExtension.updateEnabledExchange(exchangeName2, exchangeSettings2);
+        });
+
+        describe("when above incentivized leverage ratio", async () => {
+          beforeEach(async () => {
+            // Set to above incentivized ratio
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(80).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+          });
+
+          it("should return correct total rebalance size and isLever boolean", async () => {
+            const [chunkRebalances, sellAsset, buyAsset] = await subject();
+
+            const newLeverageRatio = methodology.maxLeverageRatio;
+            const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
+            const expectedTotalRebalance = await calculateTotalRebalanceNotionalAaveV3(
+              setToken,
+              wsteth,
+              currentLeverageRatio,
+              newLeverageRatio,
+            );
+
+            expect(sellAsset).to.eq(strategy.collateralAsset);
+            expect(buyAsset).to.eq(strategy.borrowAsset);
+            expect(chunkRebalances[0]).to.eq(expectedTotalRebalance);
+            expect(chunkRebalances[1]).to.eq(ether(0.002));
+          });
+        });
+
+        describe("when between max and min leverage ratio", async () => {
+          beforeEach(async () => {
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(99).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+          });
+
+          it("should return correct total rebalance size and isLever boolean", async () => {
+            const [chunkRebalances, sellAsset, buyAsset] = await subject();
+
+            const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
+            const newLeverageRatio = calculateNewLeverageRatio(
+              currentLeverageRatio,
+              methodology.targetLeverageRatio,
+              methodology.minLeverageRatio,
+              methodology.maxLeverageRatio,
+              methodology.recenteringSpeed,
+            );
+            const expectedTotalRebalance = await calculateTotalRebalanceNotionalAaveV3(
+              setToken,
+              wsteth,
+              currentLeverageRatio,
+              newLeverageRatio,
+            );
+
+            expect(sellAsset).to.eq(strategy.collateralAsset);
+            expect(buyAsset).to.eq(strategy.borrowAsset);
+            expect(chunkRebalances[0]).to.eq(expectedTotalRebalance);
+            expect(chunkRebalances[1]).to.eq(ether(0.001));
+          });
+        });
+
+        describe("when above max leverage ratio but below incentivized leverage ratio", async () => {
+          beforeEach(async () => {
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(85).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+          });
+
+          it("should return correct total rebalance size and isLever boolean", async () => {
+            const [chunkRebalances, sellAsset, buyAsset] = await subject();
+
+            const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
+            const newLeverageRatio = calculateNewLeverageRatio(
+              currentLeverageRatio,
+              methodology.targetLeverageRatio,
+              methodology.minLeverageRatio,
+              methodology.maxLeverageRatio,
+              methodology.recenteringSpeed,
+            );
+            const expectedTotalRebalance = await calculateTotalRebalanceNotionalAaveV3(
+              setToken,
+              wsteth,
+              currentLeverageRatio,
+              newLeverageRatio,
+            );
+
+            expect(sellAsset).to.eq(strategy.collateralAsset);
+            expect(buyAsset).to.eq(strategy.borrowAsset);
+            expect(chunkRebalances[0]).to.eq(expectedTotalRebalance);
+            expect(chunkRebalances[1]).to.eq(ether(0.001));
+          });
+        });
+
+        describe("when below min leverage ratio", async () => {
+          beforeEach(async () => {
+            const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
+            const newCollateralPrice = initialCollateralPrice.mul(140).div(100);
+            await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
+          });
+
+          it("should return correct total rebalance size and isLever boolean", async () => {
+            const [chunkRebalances, sellAsset, buyAsset] = await subject();
+
+            const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
+            const newLeverageRatio = calculateNewLeverageRatio(
+              currentLeverageRatio,
+              methodology.targetLeverageRatio,
+              methodology.minLeverageRatio,
+              methodology.maxLeverageRatio,
+              methodology.recenteringSpeed,
+            );
+            const totalCollateralRebalance = await calculateTotalRebalanceNotionalAaveV3(
+              setToken,
+              wsteth,
+              currentLeverageRatio,
+              newLeverageRatio,
+            );
+            // Multiply collateral by conversion rate
+            const currentCollateralPrice = (await chainlinkCollateralPriceMock.latestAnswer()).mul(
+              10 ** 10,
+            );
+            const currentBorrowPrice = (await chainlinkBorrowPriceMock.latestAnswer()).mul(
+              10 ** 10,
+            );
+            const priceRatio = preciseDiv(currentCollateralPrice, currentBorrowPrice);
+            const expectedTotalRebalance = preciseMul(totalCollateralRebalance, priceRatio);
+
+            expect(sellAsset).to.eq(strategy.borrowAsset);
+            expect(buyAsset).to.eq(strategy.collateralAsset);
+            expect(chunkRebalances[0]).to.eq(expectedTotalRebalance);
+            expect(chunkRebalances[1]).to.eq(preciseMul(ether(0.001), priceRatio));
+          });
+        });
+      });
+    });
   });
 }
