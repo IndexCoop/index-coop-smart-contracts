@@ -949,6 +949,10 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
             _methodology.recenteringSpeed <= PreciseUnitMath.preciseUnit() && _methodology.recenteringSpeed > 0,
             "Must be valid recentering speed"
         );
+        require(
+            _methodology.targetLeverageRatio >= 1 ether,
+            "Target leverage ratio must be >= 1e18"
+        );
         require (
             _execution.unutilizedLeveragePercentage <= PreciseUnitMath.preciseUnit(),
             "Unutilized leverage must be <100%"
