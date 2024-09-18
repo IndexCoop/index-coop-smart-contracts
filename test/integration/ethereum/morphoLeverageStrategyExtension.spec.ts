@@ -11,7 +11,7 @@ import {
   ExchangeSettings,
 } from "@utils/types";
 import { impersonateAccount, setBalance } from "../../../utils/test/testingUtils";
-import { ADDRESS_ZERO, EMPTY_BYTES, ZERO, MAX_UINT_256 } from "@utils/constants";
+import { ADDRESS_ZERO, EMPTY_BYTES, ZERO } from "@utils/constants";
 import { BaseManager } from "@utils/contracts/index";
 import {
   ChainlinkAggregatorV3Mock,
@@ -56,7 +56,6 @@ import {
   calculateMaxRedeemForDeleverToZero,
 } from "@utils/index";
 import { convertPositionToNotional } from "@utils/test";
-import { formatEther } from "ethers/lib/utils";
 
 const expect = getWaffleExpect();
 
@@ -147,13 +146,11 @@ if (process.env.INTEGRATIONTEST) {
         owner.wallet,
       );
       initialCollateralPriceInverted = await usdcEthOracleProxy.latestAnswer();
-      console.log("Current usdc/eth price", initialCollateralPriceInverted.toString());
       usdcEthOrackeMock.setPrice(initialCollateralPriceInverted);
 
       const oracleOwner = await usdcEthOracleProxy.owner();
       await setBalance(oracleOwner, ether(10000));
       usdcEthOracleProxy = usdcEthOracleProxy.connect(await impersonateAccount(oracleOwner));
-      console.log("proposing mock oracle");
       await usdcEthOracleProxy.proposeAggregator(usdcEthOrackeMock.address);
       await usdcEthOracleProxy.confirmAggregator(usdcEthOrackeMock.address);
 
@@ -172,7 +169,6 @@ if (process.env.INTEGRATIONTEST) {
       manager = owner.address;
       usdc = IERC20__factory.connect(tokenAddresses.usdc, owner.wallet);
       const usdcWhaleBalance = await usdc.balanceOf(whales.usdc);
-      console.log("usdc whale balance", usdcWhaleBalance.toString());
       await usdc
         .connect(await impersonateAccount(whales.usdc))
         .transfer(owner.address, usdcWhaleBalance);
@@ -180,13 +176,11 @@ if (process.env.INTEGRATIONTEST) {
       // whale needs eth for the transfer.
       await network.provider.send("hardhat_setBalance", [whales.wsteth, ether(10).toHexString()]);
       const wstethWhaleBalance = await wsteth.balanceOf(whales.wsteth);
-      console.log("wsteth whale balance", wstethWhaleBalance.toString());
       await wsteth
         .connect(await impersonateAccount(whales.wsteth))
         .transfer(owner.address, wstethWhaleBalance);
 
       morphoOracle = IMorphoOracle__factory.connect(wstethUsdcMarketParams.oracle, owner.wallet);
-      console.log("Current oracle price", (await morphoOracle.price()).toString());
       integrationRegistry = IntegrationRegistry__factory.connect(
         contractAddresses.integrationRegistry,
         owner.wallet,
@@ -253,9 +247,6 @@ if (process.env.INTEGRATIONTEST) {
         ),
         ether(1).sub(execution.unutilizedLeveragePercentage),
       );
-      console.log("netBorrowLimit", netBorrowLimit.toString());
-      console.log("collateralBalance", collateralBalance.toString());
-      console.log("borrowBalance", borrowBalance.toString());
       return preciseDiv(
         preciseMul(collateralBalance, netBorrowLimit.sub(borrowBalance)),
         netBorrowLimit,
@@ -266,7 +257,7 @@ if (process.env.INTEGRATIONTEST) {
       const [, borrowShares, collateral] = await morpho.position(marketId, setToken.address);
       const collateralTokenBalance = await wsteth.balanceOf(setToken.address);
       const collateralTotalBalance = collateralTokenBalance.add(collateral);
-      const [, , totalBorrowAssets, totalBorrowShares, ,] = await morpho.market(marketId);
+      const [, , totalBorrowAssets, totalBorrowShares, , ] = await morpho.market(marketId);
       const borrowAssets = sharesToAssetsUp(borrowShares, totalBorrowAssets, totalBorrowShares);
       return { collateralTotalBalance, borrowAssets };
     }
@@ -318,7 +309,6 @@ if (process.env.INTEGRATIONTEST) {
     }
 
     const initializeRootScopeContracts = async () => {
-      console.log("initializeRootScopeContracts");
       if (!(await controller.isModule(morphoLeverageModule.address))) {
         await controller.addModule(morphoLeverageModule.address);
         tradeAdapterMock = await deployer.mocks.deployTradeAdapterMock();
@@ -727,9 +717,7 @@ if (process.env.INTEGRATIONTEST) {
           let issueQuantity: BigNumber;
 
           const intializeContracts = async () => {
-            console.log("Initializing  Root Scope Contracts");
             await initializeRootScopeContracts();
-            console.log("Done");
 
             await wsteth.approve(debtIssuanceModule.address, ether(1000));
             // await usdc.approve(debtIssuanceModule.address, ether(1000));
@@ -737,15 +725,10 @@ if (process.env.INTEGRATIONTEST) {
             // Issue 1 SetToken
             issueQuantity = ether(1);
 
-            let setSupply = await setToken.totalSupply();
-            console.log("Set supply", setSupply.toString());
             await morphoLeverageModule.sync(setToken.address, { gasLimit: 10000000 });
-            console.log("issuing some tokens");
-            console.log("wsteth balance", (await wsteth.balanceOf(owner.address)).toString());
             await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address, {
               gasLimit: 10000000,
             });
-            console.log("Done issuing tokens");
 
             destinationTokenQuantity = ether(0.5);
             await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
@@ -1136,14 +1119,6 @@ if (process.env.INTEGRATIONTEST) {
             (await leverageStrategyExtension.twapLeverageRatio()).gt(0) &&
             iteration < maxIteration
           ) {
-            console.log("iteration:", iteration);
-            console.log(
-              "leverageRatio",
-              (await leverageStrategyExtension.getCurrentLeverageRatio()).toString(),
-            );
-            console.log("positions:", await setToken.getPositions());
-            const twapLeverageRatio = await leverageStrategyExtension.twapLeverageRatio();
-            console.log("twapLeverageRatio:", twapLeverageRatio.toString());
             await increaseTimeAsync(BigNumber.from(100000));
             await wsteth.transfer(tradeAdapterMock.address, ether(0.5));
             await leverageStrategyExtension.iterateRebalance(subjectExchangeName);
@@ -1191,11 +1166,8 @@ if (process.env.INTEGRATIONTEST) {
           destinationTokenQuantity = ether(0.1);
           await increaseTimeAsync(BigNumber.from(100000));
           const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
-          console.log("initialCollateralPrice", formatEther(initialCollateralPrice));
-          console.log("currentPriceReported", (await morphoOracle.price()).toString());
           const newCollateralPrice = initialCollateralPrice.mul(11).div(10);
           usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
-          console.log("currentPriceReported after", (await morphoOracle.price()).toString());
           await wsteth.transfer(tradeAdapterMock.address, destinationTokenQuantity);
         });
 
@@ -1241,9 +1213,6 @@ if (process.env.INTEGRATIONTEST) {
 
           // Get expected collateral token position units;
           const expectedFirstPositionUnit = initialPositions[0].unit.add(destinationTokenQuantity);
-          console.log("expectedFirstPositionUnit", expectedFirstPositionUnit.toString());
-          console.log("newFirstPositionUnit", newFirstPosition.unit.toString());
-          console.log("iniitalFirstPositionUnit", initialPositions[0].unit.toString());
 
           expect(initialPositions.length).to.eq(2);
           expect(currentPositions.length).to.eq(2);
@@ -1581,10 +1550,6 @@ if (process.env.INTEGRATIONTEST) {
           await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
           sendQuantity = BigNumber.from(100 * 10 ** 6);
           await usdc.transfer(tradeAdapterMock.address, sendQuantity);
-          console.log(
-            "currentLeverageRatio",
-            (await leverageStrategyExtension.getCurrentLeverageRatio()).toString(),
-          );
         });
 
         beforeEach(() => {
@@ -1682,23 +1647,11 @@ if (process.env.INTEGRATIONTEST) {
         describe("when rebalance interval has not elapsed above max leverage ratio and lower than max trade size", async () => {
           let sendQuantity: BigNumber;
           cacheBeforeEach(async () => {
-            console.log(
-              "currentLeverageRatio before first rebalance",
-              (await leverageStrategyExtension.getCurrentLeverageRatio()).toString(),
-            );
             await leverageStrategyExtension.connect(owner.wallet).rebalance(subjectExchangeName);
-            console.log(
-              "currentLeverageRatio before price change",
-              (await leverageStrategyExtension.getCurrentLeverageRatio()).toString(),
-            );
             // ~2.4x leverage
             const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
             const newCollateralPrice = initialCollateralPrice.mul(85).div(100);
             await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
-            console.log(
-              "currentLeverageRatio",
-              (await leverageStrategyExtension.getCurrentLeverageRatio()).toString(),
-            );
             const newExchangeSettings: ExchangeSettings = {
               twapMaxTradeSize: ether(1.9),
               incentivizedTwapMaxTradeSize: exchangeSettings.incentivizedTwapMaxTradeSize,
@@ -1808,10 +1761,6 @@ if (process.env.INTEGRATIONTEST) {
             const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
             const newCollateralPrice = initialCollateralPrice.mul(85).div(100);
             await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
-            console.log(
-              "currentLeverageRatio",
-              (await leverageStrategyExtension.getCurrentLeverageRatio()).toString(),
-            );
 
             // > Max trade size
             newTWAPMaxTradeSize = ether(0.01);
@@ -1951,10 +1900,6 @@ if (process.env.INTEGRATIONTEST) {
               const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
               const newCollateralPrice = initialCollateralPrice.mul(82).div(100);
               await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
-              console.log(
-                "currentLeverageRatio",
-                (await leverageStrategyExtension.getCurrentLeverageRatio()).toString(),
-              );
 
               await subject();
               const timestamp2 = await getLastBlockTimestamp();
@@ -2738,16 +2683,11 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("When borrowValue > collateralValue * liquidationThreshold * (1 - unutilizedLeveragPercentage)", () => {
           beforeEach(async () => {
-            console.log(
-              "leverageRatio before",
-              (await leverageStrategyExtension.getCurrentLeverageRatio()).toString(),
-            );
             const { collateralTotalBalance, borrowAssets } = await getBorrowAndCollateralBalances();
             const collateralPrice = await morphoOracle.price();
             const executionSettings = await leverageStrategyExtension.getExecution();
             const unutilizedLeveragePercentage = executionSettings.unutilizedLeveragePercentage;
             const collateralValue = preciseMul(collateralPrice, collateralTotalBalance);
-            console.log("collateralValue", collateralValue.toString());
             const collateralFactor = preciseMul(
               wstethUsdcMarketParams.lltv,
               ether(1).sub(unutilizedLeveragePercentage),
@@ -2755,32 +2695,21 @@ if (process.env.INTEGRATIONTEST) {
             const borrowBalanceThreshold = preciseMul(collateralValue, collateralFactor).div(
               ether(1),
             );
-            console.log("borrowBalanceThreshold", borrowBalanceThreshold.toString());
-            console.log("borrowAssets", borrowAssets.toString());
 
             const relativeIncrease = borrowBalanceThreshold.mul(1000).div(borrowAssets);
-            console.log("relativeIncrease", relativeIncrease.toString());
             const currentUsdcEthPrice = await usdcEthOrackeMock.latestAnswer();
-            console.log("currentUsdcEthPrice", currentUsdcEthPrice.toString());
             const currentWstethPrice = await morphoOracle.price();
             const implicitWstethEthPrice = currentWstethPrice
               .mul(currentUsdcEthPrice)
               .div(ether(1))
               .div(ether(1));
-            console.log("implicitWstethEthPrice", implicitWstethEthPrice.toString());
             const relativeIncreaseUsdcEthPrice = relativeIncrease
               .mul(10 ** 6)
               .div(implicitWstethEthPrice);
-            console.log("relativeIncreaseUsdcEthPrice", relativeIncreaseUsdcEthPrice.toString());
             const newUsdcEthPrice = currentUsdcEthPrice
               .mul(relativeIncreaseUsdcEthPrice.add(1))
               .div(1000);
-            console.log("newUsdcEthPrice", currentUsdcEthPrice.toString());
             await usdcEthOrackeMock.setPrice(newUsdcEthPrice);
-            console.log(
-              "leverageRatio after",
-              (await leverageStrategyExtension.getCurrentLeverageRatio()).toString(),
-            );
           });
 
           it("should set the global last trade timestamp", async () => {
@@ -2820,8 +2749,6 @@ if (process.env.INTEGRATIONTEST) {
 
         it("should update the collateral position on the SetToken correctly", async () => {
           const initialPositions = await setToken.getPositions();
-          const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
-          console.log("currentLeverageRatio", currentLeverageRatio.toString());
 
           // const { collateralTotalBalance } = await getBorrowAndCollateralBalances();
 
@@ -3197,25 +3124,13 @@ if (process.env.INTEGRATIONTEST) {
 
           // Start TWAP rebalance
           await leverageStrategyExtension.rebalance(subjectExchangeName);
-          console.log(
-            "twapLeverageRatio",
-            (await leverageStrategyExtension.twapLeverageRatio()).toString(),
-          );
           await increaseTimeAsync(BigNumber.from(100));
           await usdc.transfer(tradeAdapterMock.address, sendTokenQuantity);
 
           // Set to above incentivized ratio
-          console.log(
-            "leverageRatio before",
-            (await leverageStrategyExtension.getCurrentLeverageRatio()).toString(),
-          );
           initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
           newCollateralPrice = initialCollateralPrice.mul(50).div(100);
           await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
-          console.log(
-            "leverageRatio after",
-            (await leverageStrategyExtension.getCurrentLeverageRatio()).toString(),
-          );
         });
 
         async function subject(): Promise<any> {
@@ -3552,13 +3467,11 @@ if (process.env.INTEGRATIONTEST) {
             const currentPositions = await setToken.getPositions();
             const newFirstPosition = (await setToken.getPositions())[0];
 
-            console.log("calculatingMaxBorrowForDeleverV3");
             const maxRedeemCollateral = calculateMaxBorrowForDeleverV3(
               previousCollateralBalance,
               collateralPrice,
               previousBorrowBalance,
             );
-            console.log("done");
 
             const expectedFirstPositionUnit = initialPositions[0].unit.sub(maxRedeemCollateral);
 
@@ -3623,7 +3536,7 @@ if (process.env.INTEGRATIONTEST) {
 
             const { borrowAssets } = await getBorrowAndCollateralBalances();
             // Transfer more than the borrow balance to the exchange
-            await usdc.transfer(tradeAdapterMock.address, borrowAssets.add(1000000000));
+            await usdc.transfer(tradeAdapterMock.address, borrowAssets.add(1_000_000));
             subjectCaller = owner;
           });
 
@@ -3699,9 +3612,9 @@ if (process.env.INTEGRATIONTEST) {
             // The usdc position is positive and represents equity
             const newSecondPosition = (await setToken.getPositions())[1];
             expect(newSecondPosition.component).to.eq(usdc.address);
-            expect(newSecondPosition.positionState).to.eq(1); // External
+            expect(newSecondPosition.positionState).to.eq(0); // Default
             expect(BigNumber.from(newSecondPosition.unit)).to.gt(ZERO);
-            expect(newSecondPosition.module).to.eq(morphoLeverageModule.address);
+            expect(newSecondPosition.module).to.eq(ADDRESS_ZERO);
           });
         },
       );

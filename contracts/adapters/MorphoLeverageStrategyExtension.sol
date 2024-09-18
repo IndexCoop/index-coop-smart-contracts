@@ -832,10 +832,8 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
             .preciseDiv(_leverageInfo.action.setTotalSupply);
 
         bytes memory deleverToZeroBorrowBalanceCallData = abi.encodeWithSignature(
-            "deleverToZeroBorrowBalance(address,address,address,uint256,string,bytes)",
+            "deleverToZeroBorrowBalance(address,uint256,string,bytes)",
             address(strategy.setToken),
-            strategy.collateralAsset,
-            strategy.borrowAsset,
             maxCollateralRebalanceUnits,
             _leverageInfo.exchangeName,
             exchangeSettings[_leverageInfo.exchangeName].deleverExchangeData
