@@ -26,7 +26,6 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import { INAVIssuanceModule } from "../interfaces/INAVIssuanceModule.sol";
-import { INAVIssuanceHook } from "../interfaces/INAVIssuanceHook.sol";
 import { ISetValuer } from "../interfaces/ISetValuer.sol";
 import { IController } from "../interfaces/IController.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
@@ -125,8 +124,6 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         // required for weth.withdraw() to work properly
         require(msg.sender == WETH, "FlashMint: DIRECT DEPOSITS NOT ALLOWED");
     }
-
-    /* ============ Public Functions ============ */
 
     /**
      * Runs all the necessary approval functions required before issuing or redeeming 
