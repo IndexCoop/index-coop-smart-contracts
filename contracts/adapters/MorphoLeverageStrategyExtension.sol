@@ -1099,21 +1099,19 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
      * assets deposited in lending protocols for borrowing.
      *
      * For lever, max borrow is calculated as:
-     * (Net borrow limit in USD - existing borrow value in USD) / collateral asset price adjusted for decimals
+     * (Net borrow limit  - existing borrow balance) / collateral price in borrow asset units
      *
      * For delever, max repay is calculated as:
-     * Collateral balance in base units * (net borrow limit in USD - existing borrow value in USD) / net borrow limit in USD
+     * Collateral balance  * (net borrow limit - existing borrow balance) / net borrow limit 
      *
-     * Net borrow limit for levering is calculated as:
-     * The collateral value in USD * Morpho collateral factor * (1 - unutilized leverage %)
-     *
-     * Net repay limit for delevering is calculated as:
-     * The collateral value in USD * Morpho liquiditon threshold * (1 - unutilized leverage %)
+     * Net borrow limit is calculated as:
+     * Collateral Balance  * Collateral Price in Borrow units *  morpho LLTV * (1 - unutilized leverage %)
      *
      * return uint256          Max borrow notional denominated in collateral asset
      */
     function _calculateMaxBorrowCollateral(ActionInfo memory _actionInfo, bool _isLever) internal virtual view returns(uint256) {
         
+        // Note NetBorrow Limit is already denominated in borrow asset
         uint256 netBorrowLimit = _actionInfo.collateralBalance
             .mul(_actionInfo.collateralPrice).div(MORPHO_ORACLE_PRICE_SCALE)
             .preciseMul(_actionInfo.lltv)
