@@ -72,6 +72,8 @@ interface ISetToken is IERC20 {
 
     /* ============ Functions ============ */
 
+    function controller() external view returns (address);
+
     function addComponent(address _component) external;
     function removeComponent(address _component) external;
     function editDefaultPositionUnit(address _component, int256 _realUnit) external;

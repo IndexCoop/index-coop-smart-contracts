@@ -33,8 +33,6 @@ import { IWrapModuleV2} from "../interfaces/IWrapModuleV2.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { DEXAdapter } from "./DEXAdapter.sol";
 
-import "hardhat/console.sol";
-
 /**
  * @title FlashMintWrapped
  *

@@ -22,7 +22,8 @@ import {
   SetValuer,
   SlippageIssuanceModule,
   StreamingFeeModule,
-  WrapModule
+  WrapModule,
+  WrapModuleV2,
 } from "../contracts/setV2";
 import { WETH9, StandardTokenMock } from "../contracts/index";
 import DeployHelper from "../deploys";
@@ -64,6 +65,7 @@ export class SetFixture {
   public generalIndexModule: GeneralIndexModule;
   public airdropModule: AirdropModule;
   public wrapModule: WrapModule;
+  public wrapModuleV2: WrapModuleV2;
   public slippageIssuanceModule: SlippageIssuanceModule;
   public rebasingComponentModule: RebasingComponentModule;
 
@@ -108,6 +110,7 @@ export class SetFixture {
     this.debtIssuanceModuleV3 = await this._deployer.setV2.deployDebtIssuanceModuleV3(this.controller.address, 10);
     this.rebasingComponentModule = await this._deployer.setV2.deployRebasingComponentModule(this.controller.address);
 
+
     await this.initializeStandardComponents();
 
     this.priceOracle = await this._deployer.setV2.deployPriceOracle(
@@ -136,6 +139,11 @@ export class SetFixture {
       this.weth.address
     );
 
+    this.wrapModuleV2 = await this._deployer.setV2.deployWrapModuleV2(
+      this.controller.address,
+      this.weth.address
+    );
+
     const modules = [
       this.auctionModule.address,
       this.issuanceModule.address,
@@ -145,6 +153,7 @@ export class SetFixture {
       this.generalIndexModule.address,
       this.airdropModule.address,
       this.wrapModule.address,
+      this.wrapModuleV2.address,
       this.slippageIssuanceModule.address,
       this.navIssuanceModule.address,
       this.debtIssuanceModuleV3.address,

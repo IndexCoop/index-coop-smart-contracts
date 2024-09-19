@@ -128,6 +128,14 @@ export interface AirdropSettings {
   anyoneAbsorb: boolean;
 }
 
+export interface TargetWeightWrapParams {
+  minTargetWeight: BigNumber;
+  maxTargetWeight: BigNumber;
+  wrapAdapterName: string;
+  wrapData: Bytes;
+  unwrapData: Bytes;
+}
+
 export interface CustomOracleNAVIssuanceSettings {
   managerIssuanceHook: Address;
   managerRedemptionHook: Address;
@@ -140,4 +148,3 @@ export interface CustomOracleNAVIssuanceSettings {
   maxPremiumPercentage: BigNumber;
   minSetTokenSupply: BigNumber;
 }
-
