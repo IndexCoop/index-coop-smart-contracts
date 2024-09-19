@@ -70,7 +70,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
     struct ActionInfo {
         uint256 collateralBalance;                      // Balance of underlying held in Morpho in base units (e.g. USDC 10e6)
         uint256 borrowBalance;                          // Balance of underlying borrowed from Morpho in base units
-        uint256 collateralValue;                        // Valuation relative to the borrow asset
+        uint256 collateralValue;                        // Valuation of collateral in borrow asset base units
         uint256 collateralPrice;                        // Price of collateral relative to borrow asset as returned by morpho oracle
         uint256 setTotalSupply;                         // Total supply of SetToken
         uint256 lltv;
@@ -911,7 +911,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
         (uint256 collateralBalance, uint256 borrowBalance,) = strategy.leverageModule.getCollateralAndBorrowBalances(strategy.setToken);
         rebalanceInfo.collateralBalance = collateralBalance;
         rebalanceInfo.borrowBalance = borrowBalance;
-        rebalanceInfo.collateralValue = rebalanceInfo.collateralPrice.preciseMul(rebalanceInfo.collateralBalance);
+        rebalanceInfo.collateralValue = rebalanceInfo.collateralPrice.mul(rebalanceInfo.collateralBalance).div(MORPHO_ORACLE_PRICE_SCALE);
         rebalanceInfo.setTotalSupply = strategy.setToken.totalSupply();
         rebalanceInfo.lltv = marketParams.lltv;
 
@@ -1042,7 +1042,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
         pure
         returns(uint256)
     {
-        return _collateralValue.preciseDiv(_collateralValue.sub(_borrowBalance.mul(1e18)));
+        return _collateralValue.preciseDiv(_collateralValue.sub(_borrowBalance));
     }
 
     /**
