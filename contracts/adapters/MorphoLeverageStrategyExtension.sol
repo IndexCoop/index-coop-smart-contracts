@@ -599,8 +599,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
     /* ============ External Getter Functions ============ */
 
     /**
-     * Get current leverage ratio. Current leverage ratio is defined as the USD value of the collateral divided by the USD value of the SetToken. Prices for collateral
-     * and borrow asset are retrieved from the Chainlink Price Oracle.
+     * Get current leverage ratio. Current leverage ratio is defined as the Collateral Value (relative to borrow asset as per morpho oracle) divided by the borrow balance.
      *
      * return currentLeverageRatio         Current leverage ratio in precise units (10e18)
      */
@@ -1121,9 +1120,6 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
                 .sub(_actionInfo.borrowBalance)
                 .mul(MORPHO_ORACLE_PRICE_SCALE).div(_actionInfo.collateralPrice);
         } else {
-            // This is done to prevent repaying when it would be less advantageous compared to getting liquidated
-            // TODO: Verify with Morpho at what stage this is the case on Morpho
-            // TODO: Review if we want to keep this limit in general (or just set it to the entire collateralBalance)
             return _actionInfo.collateralBalance
                 .preciseMul(netBorrowLimit.sub(_actionInfo.borrowBalance))
                 .preciseDiv(netBorrowLimit);
@@ -1152,7 +1148,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
 
     /**
      * Derive the min repay units from collateral units for delever. Units are calculated as target collateral rebalance units multiplied by slippage tolerance
-     * and pair price (collateral oracle price / borrow oracle price). Output is measured in borrow unit decimals.
+     * and collateral price (in borrow units). Output is measured in borrow unit decimals.
      *
      * return uint256           Min position units to repay in borrow asset
      */
