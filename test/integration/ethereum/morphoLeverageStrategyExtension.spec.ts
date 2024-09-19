@@ -837,16 +837,29 @@ if (process.env.INTEGRATIONTEST) {
               await expect(subject()).to.emit(leverageStrategyExtension, "Engaged");
             });
 
-            // TODO: Check how to test this
-            // describe("when borrow balance is not 0", async () => {
-            //   beforeEach(async () => {
-            //     await subject();
-            //   });
+            describe("when borrow balance is not 0", async () => {
+              beforeEach(async () => {
+                const setTokenSigner = await impersonateAccount(setToken.address);
+                await setBalance(setToken.address, ether(1));
+                await wsteth.transfer(setToken.address, ether(1));
+                await wsteth.connect(setTokenSigner).approve(morpho.address, ether(1));
+                await morpho
+                  .connect(setTokenSigner)
+                  .supplyCollateral(
+                    wstethUsdcMarketParams,
+                    ether(1),
+                    setToken.address,
+                    EMPTY_BYTES,
+                  );
+                await morpho
+                  .connect(setTokenSigner)
+                  .borrow(wstethUsdcMarketParams, 1_000_000, 0, setToken.address, setToken.address);
+              });
 
-            //   it("should revert", async () => {
-            //     await expect(subject()).to.be.revertedWith("Debt must be 0");
-            //   });
-            // });
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith("Debt must be 0");
+              });
+            });
 
             describe("when SetToken has 0 supply", async () => {
               beforeEach(async () => {
@@ -869,19 +882,6 @@ if (process.env.INTEGRATIONTEST) {
               });
             });
           });
-
-          // TODO: Check how to test this (set supply > 0 but collateral balance is 0)
-          // describe("when collateral balance is zero", async () => {
-          //   beforeEach(async () => {
-          //     // Set collateral asset to cWETH with 0 balance
-          //     // await intializeContracts();
-          //     // initializeSubjectVariables();
-          //   });
-
-          //   it("should revert", async () => {
-          //     await expect(subject()).to.be.revertedWith("Collateral balance is 0");
-          //   });
-          // });
         },
       );
 
@@ -1482,20 +1482,20 @@ if (process.env.INTEGRATIONTEST) {
 
         describe("when borrow balance is 0", async () => {
           beforeEach(async () => {
-            // Repay entire borrow balance of usdc on behalf of SetToken
-            // TODO: Figure out how to do this on morpho
-            // await usdc.approve(lendingPool.address, MAX_UINT_256);
-            // await lendingPool.repay(
-            //   usdc.address,
-            //   await usdcVariableDebtToken.balanceOf(setToken.address),
-            //   2,
-            //   setToken.address,
-            // );
+            await usdc.approve(morpho.address, 10_000 * 10 ** 6);
+            const position = await morpho.position(marketId, setToken.address);
+            await morpho.repay(
+              wstethUsdcMarketParams,
+              0,
+              position.borrowShares,
+              setToken.address,
+              EMPTY_BYTES,
+            );
           });
 
-          // it("should revert", async () => {
-          //   await expect(subject()).to.be.revertedWith("STH");
-          // });
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("Borrow balance must exist");
+          });
         });
 
         describe("when caller is not an allowed trader", async () => {
@@ -2341,25 +2341,20 @@ if (process.env.INTEGRATIONTEST) {
           });
 
           describe("when borrow balance is 0", async () => {
-            // beforeEach(async () => {
-            //   // TODO Figure out how to do on morpho
-            //   // Repay entire balance of usdc on behalf of SetToken
-            //   await usdc.approve(lendingPool.address, MAX_UINT_256);
-            //   await lendingPool.repay(
-            //     usdc.address,
-            //     await usdcVariableDebtToken.balanceOf(setToken.address),
-            //     2,
-            //     setToken.address,
-            //   );
-            //   let debtBalanceAfter = await usdcVariableDebtToken.balanceOf(setToken.address);
-            //   while (debtBalanceAfter.gt(ZERO)) {
-            //     await lendingPool.repay(usdc.address, debtBalanceAfter, 2, setToken.address);
-            //     debtBalanceAfter = await usdcVariableDebtToken.balanceOf(setToken.address);
-            //   }
-            // });
-            // it("should revert", async () => {
-            //   await expect(subject()).to.be.revertedWith("Borrow balance must exist");
-            // });
+            beforeEach(async () => {
+              await usdc.approve(morpho.address, 10_000 * 10 ** 6);
+              const position = await morpho.position(marketId, setToken.address);
+              await morpho.repay(
+                wstethUsdcMarketParams,
+                0,
+                position.borrowShares,
+                setToken.address,
+                EMPTY_BYTES,
+              );
+            });
+            it("should revert", async () => {
+              await expect(subject()).to.be.revertedWith("Borrow balance must exist");
+            });
           });
 
           describe("when caller is not an allowed trader", async () => {
@@ -2678,7 +2673,7 @@ if (process.env.INTEGRATIONTEST) {
           const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
           const newCollateralPrice = initialCollateralPrice.mul(8).div(10);
           await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
-          sendQuantity = BigNumber.from(1000 * 10 ** 6);
+          sendQuantity = BigNumber.from(2000 * 10 ** 6);
           await usdc.transfer(tradeAdapterMock.address, sendQuantity);
 
           transferredEth = ether(1);
@@ -2763,7 +2758,8 @@ if (process.env.INTEGRATIONTEST) {
         it("should update the collateral position on the SetToken correctly", async () => {
           const initialPositions = await setToken.getPositions();
 
-          // const { collateralTotalBalance } = await getBorrowAndCollateralBalances();
+          const { collateralTotalBalance } = await getBorrowAndCollateralBalances();
+          const currentLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
 
           await subject();
 
@@ -2771,34 +2767,31 @@ if (process.env.INTEGRATIONTEST) {
           const currentPositions = await setToken.getPositions();
           const newFirstPosition = (await setToken.getPositions())[0];
 
-          // TODO: Review how to adjust this calculation
-          // const expectedNewLeverageRatio = calculateNewLeverageRatio(
-          //   currentLeverageRatio,
-          //   methodology.targetLeverageRatio,
-          //   methodology.minLeverageRatio,
-          //   methodology.maxLeverageRatio,
-          //   methodology.recenteringSpeed,
-          // );
+          const expectedNewLeverageRatio = calculateNewLeverageRatio(
+            currentLeverageRatio,
+            methodology.targetLeverageRatio,
+            methodology.minLeverageRatio,
+            methodology.maxLeverageRatio,
+            methodology.recenteringSpeed,
+          );
 
-          // const newLeverageRatio = await leverageStrategyExtension.getCurrentLeverageRatio();
           // Get expected wsteth redeemed
-          // TODO: Review how to adjust this calculation
-          // const expectedCollateralAssetsRedeemed = calculateCollateralRebalanceUnits(
-          //   currentLeverageRatio,
-          //   newLeverageRatio,
-          //   collateralTotalBalance,
-          //   ether(1), // Total supply
-          // );
-          // const expectedFirstPositionUnit = initialPositions[0].unit.sub(
-          //   expectedCollateralAssetsRedeemed,
-          // );
+          const expectedCollateralAssetsRedeemed = calculateCollateralRebalanceUnits(
+            currentLeverageRatio,
+            expectedNewLeverageRatio,
+            collateralTotalBalance,
+            ether(1), // Total supply
+          );
+          const expectedFirstPositionUnit = initialPositions[0].unit.sub(
+            expectedCollateralAssetsRedeemed,
+          );
 
           expect(initialPositions.length).to.eq(2);
           expect(currentPositions.length).to.eq(2);
           expect(newFirstPosition.component).to.eq(wsteth.address);
           expect(newFirstPosition.positionState).to.eq(1); // External
-          // expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
-          // expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
+          expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
+          expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
           expect(newFirstPosition.module).to.eq(morphoLeverageModule.address);
         });
 
@@ -2918,7 +2911,7 @@ if (process.env.INTEGRATIONTEST) {
             beforeEach(async () => {
               await subject();
               const initialCollateralPrice = ether(1).div(initialCollateralPriceInverted);
-              const newCollateralPrice = initialCollateralPrice.mul(4).div(10);
+              const newCollateralPrice = initialCollateralPrice.mul(2).div(10);
               await usdcEthOrackeMock.setPrice(ether(1).div(newCollateralPrice));
             });
 
@@ -2957,38 +2950,23 @@ if (process.env.INTEGRATIONTEST) {
           it("should update the collateral position on the SetToken correctly", async () => {
             const initialPositions = await setToken.getPositions();
 
-            // Get max borrow
-            // const previousCollateralBalance = await wsteth.balanceOf(setToken.address);
-
-            // const previousBorrowBalance = await usdcVariableDebtToken.balanceOf(setToken.address);
-
-            // const collateralPrice = (await chainlinkCollateralPriceMock.latestAnswer()).mul(
-            //   10 ** 10,
-            // );
-            // const borrowPrice = (await chainlinkBorrowPriceMock.latestAnswer()).mul(10 ** 10);
-            // const reserveConfig = await protocolDataProvider.getReserveConfigurationData(
-            //   wsteth.address,
-            // );
-            // const collateralFactor = reserveConfig.liquidationThreshold.mul(
-            //   BigNumber.from(10).pow(14),
-            // );
-
+            const {
+              collateralTotalBalance: previousCollateralBalance,
+              borrowAssets: previousBorrowBalance,
+            } = await getBorrowAndCollateralBalances();
             await subject();
 
             // wsteth position is decreased
             const currentPositions = await setToken.getPositions();
             const newFirstPosition = (await setToken.getPositions())[0];
 
-            // const maxRedeemCollateral = calculateMaxBorrowForDeleverV3(
-            //   previousCollateralBalance,
-            //   collateralFactor,
-            //   collateralPrice,
-            //   borrowPrice,
-            //   previousBorrowBalance,
-            // );
+            const collateralPrice = await morphoOracle.price();
+            const maxRedeemCollateral = calculateMaxBorrowForDeleverV3(
+              previousCollateralBalance,
+              collateralPrice,
+              previousBorrowBalance,
+            );
 
-            // TODO: Adjust to calculate maxRedeemCollateral
-            const maxRedeemCollateral = 0;
             const expectedFirstPositionUnit = initialPositions[0].unit.sub(maxRedeemCollateral);
             console.log("expectedFirstPositionUnit", expectedFirstPositionUnit.toString());
 
@@ -2996,8 +2974,8 @@ if (process.env.INTEGRATIONTEST) {
             expect(currentPositions.length).to.eq(2);
             expect(newFirstPosition.component).to.eq(wsteth.address);
             expect(newFirstPosition.positionState).to.eq(1); // External
-            // expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
-            // expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
+            expect(newFirstPosition.unit).to.lt(expectedFirstPositionUnit.mul(1001).div(1000));
+            expect(newFirstPosition.unit).to.gt(expectedFirstPositionUnit.mul(999).div(1000));
             expect(newFirstPosition.module).to.eq(morphoLeverageModule.address);
           });
 
@@ -3031,25 +3009,20 @@ if (process.env.INTEGRATIONTEST) {
         });
 
         describe("when borrow balance is 0", async () => {
-          // TODO: Repay debt on morpho on behalf of the contract
-          // beforeEach(async () => {
-          //   // Repay entire balance of usdc on behalf of SetToken
-          //   await usdc.approve(lendingPool.address, MAX_UINT_256);
-          //   await lendingPool.repay(
-          //     usdc.address,
-          //     await usdcVariableDebtToken.balanceOf(setToken.address),
-          //     2,
-          //     setToken.address,
-          //   );
-          //   let debtBalanceAfter = await usdcVariableDebtToken.balanceOf(setToken.address);
-          //   while (debtBalanceAfter.gt(0)) {
-          //     await lendingPool.repay(usdc.address, debtBalanceAfter, 2, setToken.address);
-          //     debtBalanceAfter = await usdcVariableDebtToken.balanceOf(setToken.address);
-          //   }
-          // });
-          // it("should revert", async () => {
-          //   await expect(subject()).to.be.revertedWith("Borrow balance must exist");
-          // });
+          beforeEach(async () => {
+            await usdc.approve(morpho.address, 10_000 * 10 ** 6);
+            const position = await morpho.position(marketId, setToken.address);
+            await morpho.repay(
+              wstethUsdcMarketParams,
+              0,
+              position.borrowShares,
+              setToken.address,
+              EMPTY_BYTES,
+            );
+          });
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("Borrow balance must exist");
+          });
         });
 
         describe("when caller is a contract", async () => {
@@ -3238,23 +3211,22 @@ if (process.env.INTEGRATIONTEST) {
       });
 
       context("when not engaged", async () => {
-        // async function subject(): Promise<any> {
-        //   return leverageStrategyExtension.ripcord(subjectExchangeName);
-        // }
-        // TODO: Check how to test this
-        // describe("when collateral balance is zero", async () => {
-        //   beforeEach(async () => {
-        //     ifEngaged = false;
-        //     await intializeContracts();
-        //     initializeSubjectVariables();
-        //   });
-        //   after(async () => {
-        //     ifEngaged = true;
-        //   });
-        //   it("should revert", async () => {
-        //     await expect(subject()).to.be.revertedWith("Collateral balance must be > 0");
-        //   });
-        // });
+        async function subject(): Promise<any> {
+          return leverageStrategyExtension.ripcord(subjectExchangeName);
+        }
+        describe("when collateral balance is zero", async () => {
+          beforeEach(async () => {
+            ifEngaged = false;
+            await intializeContracts();
+            initializeSubjectVariables();
+          });
+          after(async () => {
+            ifEngaged = true;
+          });
+          it("should revert", async () => {
+            await expect(subject()).to.be.revertedWith("Collateral balance must be > 0");
+          });
+        });
       });
     });
 
@@ -3353,13 +3325,19 @@ if (process.env.INTEGRATIONTEST) {
 
             describe("when borrow balance is 0", async () => {
               beforeEach(async () => {
-                // TODO: Repay on set tokens behalf with morpho
-                // Repay entire balance of usdc on behalf of SetToken
+                await usdc.approve(morpho.address, 10_000 * 10 ** 6);
+                const position = await morpho.position(marketId, setToken.address);
+                await morpho.repay(
+                  wstethUsdcMarketParams,
+                  0,
+                  position.borrowShares,
+                  setToken.address,
+                  EMPTY_BYTES,
+                );
               });
-
-              // it("should revert", async () => {
-              //   await expect(subject()).to.be.revertedWith("Borrow balance must exist");
-              // });
+              it("should revert", async () => {
+                await expect(subject()).to.be.revertedWith("Borrow balance must exist");
+              });
             });
 
             // TODO: Review (see above)
