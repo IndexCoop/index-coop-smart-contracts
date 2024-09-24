@@ -56,11 +56,14 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     // Placeholder address to identify ETH where it is treated as if it was an ERC20 token
     address constant public ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-    /* ============ State Variables ============ */
+    /* ============ Immutables ============ */
 
     address public immutable WETH;
     IController public immutable setController;
     INAVIssuanceModule public immutable navIssuanceModule;
+
+    /* ============ State Variables ============ */
+
     DEXAdapterV2.Addresses public dexAdapter;
 
     /* ============ Events ============ */
