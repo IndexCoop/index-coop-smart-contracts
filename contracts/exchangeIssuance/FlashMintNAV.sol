@@ -56,11 +56,14 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     // Placeholder address to identify ETH where it is treated as if it was an ERC20 token
     address constant public ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
-    /* ============ State Variables ============ */
+    /* ============ Immutables ============ */
 
     address public immutable WETH;
     IController public immutable setController;
     INAVIssuanceModule public immutable navIssuanceModule;
+
+    /* ============ State Variables ============ */
+
     DEXAdapterV2.Addresses public dexAdapter;
 
     /* ============ Events ============ */
@@ -109,12 +112,14 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
      * @param _tokens    Addresses of tokens to withdraw, specifiy ETH_ADDRESS to withdraw ETH
      * @param _to        Address to send the tokens to
      */
-    function withdrawTokens(IERC20[] calldata _tokens, address payable _to) external onlyOwner payable {
-        for(uint256 i = 0; i < _tokens.length; i++) {
-            if(address(_tokens[i]) == ETH_ADDRESS){
+    function withdrawTokens(
+        IERC20[] calldata _tokens,
+        address payable _to
+    ) external payable onlyOwner {
+        for (uint256 i = 0; i < _tokens.length; i++) {
+            if (address(_tokens[i]) == DEXAdapterV2.ETH_ADDRESS) {
                 _to.sendValue(address(this).balance);
-            }
-            else{
+            } else {
                 _tokens[i].safeTransfer(_to, _tokens[i].balanceOf(address(this)));
             }
         }
