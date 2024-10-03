@@ -81,7 +81,7 @@ const swapDataWethToUsdc = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe.only("FlashMintDex - Integration Test", async () => {
+  describe("FlashMintDex - Integration Test", async () => {
     let owner: Account;
     let deployer: DeployHelper;
     let legacySetTokenCreator: SetTokenCreator;

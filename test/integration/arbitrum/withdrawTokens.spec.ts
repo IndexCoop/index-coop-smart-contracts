@@ -4,7 +4,7 @@ import { impersonateAccount, setBlockNumber } from "@utils/test/testingUtils";
 import { WithdrawTokens__factory } from "../../../typechain";
 
 if (process.env.INTEGRATIONTEST) {
-  describe.only("WithdrawTokens", function () {
+  describe("WithdrawTokens", function () {
     const deployerAddress = "0x37e6365d4f6aE378467b0e24c9065Ce5f06D70bF";
     let deployerSigner: Signer;
 
