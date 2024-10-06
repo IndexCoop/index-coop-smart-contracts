@@ -738,7 +738,6 @@ if (process.env.INTEGRATIONTEST) {
             // Issue 1 SetToken
             issueQuantity = ether(1);
 
-            await morphoLeverageModule.sync(setToken.address, { gasLimit: 10000000 });
             await debtIssuanceModule.issue(setToken.address, issueQuantity, owner.address, {
               gasLimit: 10000000,
             });
