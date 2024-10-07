@@ -73,7 +73,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
         uint256 collateralValue;                        // Valuation of collateral in borrow asset base units
         uint256 collateralPrice;                        // Price of collateral relative to borrow asset as returned by morpho oracle
         uint256 setTotalSupply;                         // Total supply of SetToken
-        uint256 lltv;
+        uint256 lltv;                                   // Liquidation loan to value ratio of the morpho market
     }
 
      struct LeverageInfo {
@@ -86,7 +86,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
 
     struct ContractSettings {
         ISetToken setToken;                             // Instance of leverage token
-        IMorphoLeverageModule leverageModule;                 // Instance of Morpho leverage module
+        IMorphoLeverageModule leverageModule;           // Instance of Morpho leverage module
         address collateralAsset;                        // Address of underlying collateral
         address borrowAsset;                            // Address of underlying borrow asset
     }
@@ -122,7 +122,12 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
 
     /* ============ Events ============ */
 
-    event Engaged(uint256 _currentLeverageRatio, uint256 _newLeverageRatio, uint256 _chunkRebalanceNotional, uint256 _totalRebalanceNotional);
+    event Engaged(
+        uint256 _currentLeverageRatio,
+        uint256 _newLeverageRatio,
+        uint256 _chunkRebalanceNotional,
+        uint256 _totalRebalanceNotional
+    );
     event Rebalanced(
         uint256 _currentLeverageRatio,
         uint256 _newLeverageRatio,
@@ -141,7 +146,12 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
         uint256 _rebalanceNotional,
         uint256 _etherIncentive
     );
-    event Disengaged(uint256 _currentLeverageRatio, uint256 _newLeverageRatio, uint256 _chunkRebalanceNotional, uint256 _totalRebalanceNotional);
+    event Disengaged(
+        uint256 _currentLeverageRatio,
+        uint256 _newLeverageRatio,
+        uint256 _chunkRebalanceNotional,
+        uint256 _totalRebalanceNotional
+    );
     event MethodologySettingsUpdated(
         uint256 _targetLeverageRatio,
         uint256 _minLeverageRatio,
