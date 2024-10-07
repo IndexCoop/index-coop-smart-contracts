@@ -17,4 +17,5 @@ export {
   mineBlockAsync,
   cacheBeforeEach,
   getTxFee,
+    convertPositionToNotional,
 } from "./testingUtils";

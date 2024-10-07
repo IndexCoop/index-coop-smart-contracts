@@ -8,6 +8,9 @@ import { BigNumber, ContractTransaction, Signer } from "ethers";
 import { JsonRpcProvider } from "@ethersproject/providers";
 import { Blockchain } from "../common";
 import { forkingConfig } from "../config";
+import {
+  SetToken,
+} from "../../typechain";
 
 const provider = ethers.provider;
 // const blockchain = new Blockchain(provider);
@@ -152,4 +155,11 @@ export function setBlockNumber(blockNumber: number, reset: boolean = true) {
 
 export async function getLastBlockTransaction(): Promise<any> {
   return (await provider.getBlockWithTransactions("latest")).transactions[0];
+}
+
+export async function convertPositionToNotional(
+  positionAmount: BigNumber,
+  setToken: SetToken,
+): Promise<BigNumber> {
+  return positionAmount.mul(await setToken.totalSupply()).div(BigNumber.from(10).pow(18));
 }

@@ -49,6 +49,10 @@ import {
   AaveV3LeverageModule__factory,
   AaveV3,
   AaveV3__factory,
+  Morpho,
+  Morpho__factory,
+  MorphoLeverageModule,
+  MorphoLeverageModule__factory,
 } from "../../typechain";
 import { WETH9, StandardTokenMock } from "../contracts/index";
 import { ether } from "../common";
@@ -261,6 +265,10 @@ export default class DeploySetV2 {
     return await new AaveV3__factory(this._deployerSigner).deploy();
   }
 
+  public async deployMorphoLib(): Promise<Morpho> {
+    return await new Morpho__factory(this._deployerSigner).deploy();
+  }
+
   public async deployAaveLeverageModule(
     controller: string,
     lendingPoolAddressesProvider: string,
@@ -302,11 +310,33 @@ export default class DeploySetV2 {
     ).deploy(controller, lendingPoolAddressesProvider);
   }
 
+  public async deployMorphoLeverageModule(
+    controller: string,
+    morpho: string,
+  ): Promise<MorphoLeverageModule> {
+    const morphoLib = await this.deployMorphoLib();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/protocol/integration/lib/Morpho.sol:Morpho",
+    );
+
+    return await new MorphoLeverageModule__factory(
+      // @ts-ignore
+      {
+        [linkId]: morphoLib.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(controller, morpho);
+  }
+
   public async deployAirdropModule(controller: Address): Promise<AirdropModule> {
     return await new AirdropModule__factory(this._deployerSigner).deploy(controller);
   }
 
-  public async deployAuctionRebalanceModuleV1(controller: Address): Promise<AuctionRebalanceModuleV1> {
+  public async deployAuctionRebalanceModuleV1(
+    controller: Address,
+  ): Promise<AuctionRebalanceModuleV1> {
     return await new AuctionRebalanceModuleV1__factory(this._deployerSigner).deploy(controller);
   }
 
@@ -362,27 +392,39 @@ export default class DeploySetV2 {
     );
   }
 
-  public async deployDebtIssuanceModuleV3(controller: Address, tokenTransferBuffer: BigNumberish): Promise<DebtIssuanceModuleV3> {
-    return await new DebtIssuanceModuleV3__factory(this._deployerSigner).deploy(controller, tokenTransferBuffer);
+  public async deployDebtIssuanceModuleV3(
+    controller: Address,
+    tokenTransferBuffer: BigNumberish,
+  ): Promise<DebtIssuanceModuleV3> {
+    return await new DebtIssuanceModuleV3__factory(this._deployerSigner).deploy(
+      controller,
+      tokenTransferBuffer,
+    );
   }
 
   public async deployERC4626Oracle(
     vault: Address,
     underlyingFullUnit: BigNumber,
-    dataDescription: string): Promise<ERC4626Oracle> {
-    return await new ERC4626Oracle__factory(this._deployerSigner).deploy(vault, underlyingFullUnit, dataDescription);
+    dataDescription: string,
+  ): Promise<ERC4626Oracle> {
+    return await new ERC4626Oracle__factory(this._deployerSigner).deploy(
+      vault,
+      underlyingFullUnit,
+      dataDescription,
+    );
   }
 
   public async deployOracleMock(initialValue: BigNumberish): Promise<OracleMock> {
     return await new OracleMock__factory(this._deployerSigner).deploy(initialValue);
   }
 
-  public async deployPreciseUnitOracle(
-    dataDescription: string): Promise<PreciseUnitOracle> {
+  public async deployPreciseUnitOracle(dataDescription: string): Promise<PreciseUnitOracle> {
     return await new PreciseUnitOracle__factory(this._deployerSigner).deploy(dataDescription);
   }
 
-  public async deployRebasingComponentModule(controller: Address): Promise<RebasingComponentModule> {
+  public async deployRebasingComponentModule(
+    controller: Address,
+  ): Promise<RebasingComponentModule> {
     return await new RebasingComponentModule__factory(this._deployerSigner).deploy(controller);
   }
 
