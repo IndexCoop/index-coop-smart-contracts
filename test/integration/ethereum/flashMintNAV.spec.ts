@@ -78,7 +78,7 @@ const swapDataWethToUsdc = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe.only("FlashMintNAV - Integration Test", async () => {
+  describe("FlashMintNAV - Integration Test", async () => {
     let owner: Account;
     let deployer: DeployHelper;
     let setV2Setup: SetFixture;

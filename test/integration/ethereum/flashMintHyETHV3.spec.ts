@@ -13,7 +13,7 @@ import {
   SetToken__factory,
   SetTokenCreator,
   SetTokenCreator__factory,
-  FlashMintHyETHV2,
+  FlashMintHyETHV3,
   IPendlePrincipalToken__factory,
   IERC20,
   IWETH,
@@ -50,7 +50,7 @@ const NO_OP_SWAP_DATA: SwapData = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe.only("FlashMintHyETHV2 - Integration Test", async () => {
+  describe.only("FlashMintHyETHV3 - Integration Test", async () => {
     const addresses = PRODUCTION_ADDRESSES;
     let owner: Account;
     let deployer: DeployHelper;
@@ -59,7 +59,7 @@ if (process.env.INTEGRATIONTEST) {
     let debtIssuanceModule: IDebtIssuanceModule;
 
     // const collateralTokenAddress = addresses.tokens.stEth;
-    setBlockNumber(20030042, true);
+    setBlockNumber(20930000, true);
 
     before(async () => {
       [owner] = await getAccounts();
@@ -75,9 +75,9 @@ if (process.env.INTEGRATIONTEST) {
     });
 
     context("When exchange issuance is deployed", () => {
-      let flashMintHyETH: FlashMintHyETHV2;
+      let flashMintHyETH: FlashMintHyETHV3;
       before(async () => {
-        flashMintHyETH = await deployer.extensions.deployFlashMintHyETHV2(
+        flashMintHyETH = await deployer.extensions.deployFlashMintHyETHV3(
           addresses.tokens.weth,
           addresses.dexes.uniV2.router,
           addresses.dexes.sushiswap.router,
@@ -131,22 +131,19 @@ if (process.env.INTEGRATIONTEST) {
         const components = [
           addresses.tokens.instadappEthV2,
           addresses.tokens.pendleEzEth1226,
-          addresses.tokens.pendleEEth0926,
           addresses.tokens.pendleEEth1226,
           addresses.tokens.morphoRe7WETH,
           addresses.tokens.USDC,
         ];
         const positions = [
-          ethers.utils.parseEther("0.16"),
-          ethers.utils.parseEther("0.16"),
-          ethers.utils.parseEther("0.16"),
-          ethers.utils.parseEther("0.16"),
-          ethers.utils.parseEther("0.16"),
+          ethers.utils.parseEther("0.17"),
+          ethers.utils.parseEther("0.17"),
+          ethers.utils.parseEther("0.17"),
+          ethers.utils.parseEther("0.17"),
           usdc(600),
         ];
 
         const componentSwapDataIssue = [
-          NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
@@ -160,7 +157,6 @@ if (process.env.INTEGRATIONTEST) {
         ];
 
         const componentSwapDataRedeem = [
-          NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,

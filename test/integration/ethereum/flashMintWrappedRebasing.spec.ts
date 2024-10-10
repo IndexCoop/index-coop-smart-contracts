@@ -79,7 +79,7 @@ const whales = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe.only("FlashMintWrapped - RebasingComponentModule Integration Test", async () => {
+  describe("FlashMintWrapped - RebasingComponentModule Integration Test", async () => {
     const TOKEN_TRANSFER_BUFFER = 10;
     const addresses = PRODUCTION_ADDRESSES;
 

@@ -51,6 +51,7 @@ import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeI
 import { ExchangeIssuanceLeveraged__factory } from "../../typechain/factories/ExchangeIssuanceLeveraged__factory";
 import { FlashMintHyETH__factory } from "../../typechain/factories/FlashMintHyETH__factory";
 import { FlashMintHyETHV2__factory } from "../../typechain/factories/FlashMintHyETHV2__factory";
+import { FlashMintHyETHV3__factory } from "../../typechain/factories/FlashMintHyETHV3__factory";
 import { FlashMintLeveraged__factory } from "../../typechain/factories/FlashMintLeveraged__factory";
 import { FlashMintNotional__factory } from "../../typechain/factories/FlashMintNotional__factory";
 import { FlashMintLeveragedForCompound__factory } from "../../typechain/factories/FlashMintLeveragedForCompound__factory";
@@ -343,6 +344,49 @@ export default class DeployExtensions {
       aaveLeveragedModuleAddress,
       aaveAddressProviderAddress,
       BalancerV2VaultAddress,
+    );
+  }
+
+  public async deployFlashMintHyETHV3(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+    setControllerAddress: Address,
+    debtIssuanceModuleAddress: Address,
+    stETHAddress: Address,
+    curveStEthEthPoolAddress: Address,
+  ) {
+    const dexAdapter = await this.deployDEXAdapterV2();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapterV2.sol:DEXAdapterV2",
+    );
+
+    return await new FlashMintHyETHV3__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      {
+        quickRouter: quickRouterAddress,
+        sushiRouter: sushiRouterAddress,
+        uniV3Router: uniV3RouterAddress,
+        uniV3Quoter: uniswapV3QuoterAddress,
+        curveAddressProvider: curveAddressProviderAddress,
+        curveCalculator: curveCalculatorAddress,
+        weth: wethAddress,
+      },
+      setControllerAddress,
+      debtIssuanceModuleAddress,
+      stETHAddress,
+      curveStEthEthPoolAddress,
     );
   }
 

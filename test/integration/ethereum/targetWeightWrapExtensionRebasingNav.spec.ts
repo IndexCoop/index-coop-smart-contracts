@@ -56,7 +56,7 @@ const whales = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe.only("TargetWeightWrapExtension - RebasingComponentModule Nav Issuance Integration Test", async () => {
+  describe("TargetWeightWrapExtension - RebasingComponentModule Nav Issuance Integration Test", async () => {
     const TOKEN_TRANSFER_BUFFER = 10;
 
     let owner: Account;
