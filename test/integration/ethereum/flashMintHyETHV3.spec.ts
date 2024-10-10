@@ -39,6 +39,7 @@ type SwapData = {
   path: Address[];
   fees: number[];
   pool: Address;
+  poolIds: utils.BytesLike[];
   exchange: Exchange;
 };
 
@@ -46,11 +47,12 @@ const NO_OP_SWAP_DATA: SwapData = {
   path: [],
   fees: [],
   pool: ADDRESS_ZERO,
+  poolIds: [],
   exchange: Exchange.None,
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe.only("FlashMintHyETHV3 - Integration Test", async () => {
+  describe("FlashMintHyETHV3 - Integration Test", async () => {
     const addresses = PRODUCTION_ADDRESSES;
     let owner: Account;
     let deployer: DeployHelper;
@@ -85,6 +87,7 @@ if (process.env.INTEGRATIONTEST) {
           addresses.dexes.uniV3.quoter,
           addresses.dexes.curve.calculator,
           addresses.dexes.curve.addressProvider,
+          addresses.dexes.balancerv2.vault,
           addresses.setFork.controller,
           addresses.setFork.debtIssuanceModuleV2,
           addresses.tokens.stEth,
@@ -131,15 +134,17 @@ if (process.env.INTEGRATIONTEST) {
         const components = [
           addresses.tokens.instadappEthV2,
           addresses.tokens.pendleEzEth1226,
+          addresses.tokens.pendleAgEth1226,
           addresses.tokens.pendleEEth1226,
           addresses.tokens.morphoRe7WETH,
           addresses.tokens.USDC,
         ];
         const positions = [
-          ethers.utils.parseEther("0.17"),
-          ethers.utils.parseEther("0.17"),
-          ethers.utils.parseEther("0.17"),
-          ethers.utils.parseEther("0.17"),
+          ethers.utils.parseEther("0.16"),
+          ethers.utils.parseEther("0.16"),
+          ethers.utils.parseEther("0.16"),
+          ethers.utils.parseEther("0.16"),
+          ethers.utils.parseEther("0.16"),
           usdc(600),
         ];
 
@@ -153,6 +158,7 @@ if (process.env.INTEGRATIONTEST) {
             fees: [500],
             path: [addresses.tokens.weth, addresses.tokens.USDC],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           },
         ];
 
@@ -166,6 +172,7 @@ if (process.env.INTEGRATIONTEST) {
             fees: [500],
             path: [ addresses.tokens.USDC, addresses.tokens.weth],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           },
         ];
 
@@ -205,6 +212,7 @@ if (process.env.INTEGRATIONTEST) {
             path: [addresses.tokens.stEth, ETH_ADDRESS],
             fees: [],
             pool: addresses.dexes.curve.pools.stEthEth,
+            poolIds: [],
             exchange: 4,
           });
 
@@ -240,6 +248,7 @@ if (process.env.INTEGRATIONTEST) {
             path: [addresses.tokens.ezEth, addresses.tokens.weth],
             fees: [100],
             pool: ADDRESS_ZERO,
+            poolIds: [],
             exchange: 3,
           });
 
@@ -266,6 +275,7 @@ if (process.env.INTEGRATIONTEST) {
             path: [addresses.tokens.weEth, addresses.tokens.weth],
             fees: [500],
             pool: ADDRESS_ZERO,
+            poolIds: [],
             exchange: 3,
           });
 
@@ -292,6 +302,7 @@ if (process.env.INTEGRATIONTEST) {
             path: [addresses.tokens.weEth, addresses.tokens.weth],
             fees: [500],
             pool: ADDRESS_ZERO,
+            poolIds: [],
             exchange: 3,
           });
         });
@@ -319,12 +330,14 @@ if (process.env.INTEGRATIONTEST) {
                   path: [addresses.tokens.weth, ETH_ADDRESS],
                   fees: [],
                   pool: ADDRESS_ZERO,
+                  poolIds: [],
                   exchange: 0,
                 };
                 swapDataEthToInputToken = {
                   path: [ETH_ADDRESS, addresses.tokens.weth],
                   fees: [],
                   pool: ADDRESS_ZERO,
+                  poolIds: [],
                   exchange: 0,
                 };
               }
@@ -335,12 +348,14 @@ if (process.env.INTEGRATIONTEST) {
                   path: [addresses.tokens.USDC, addresses.tokens.weth],
                   fees: [500],
                   pool: ADDRESS_ZERO,
+                  poolIds: [],
                   exchange: Exchange.UniV3,
                 };
                 swapDataEthToInputToken = {
                   path: [addresses.tokens.weth, addresses.tokens.USDC],
                   fees: [500],
                   pool: ADDRESS_ZERO,
+                  poolIds: [],
                   exchange: Exchange.UniV3,
                 };
               }

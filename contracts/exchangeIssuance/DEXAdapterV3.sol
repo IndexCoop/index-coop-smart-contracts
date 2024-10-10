@@ -62,9 +62,9 @@ library DEXAdapterV3 {
         address uniV3Quoter;
         address curveAddressProvider;
         address curveCalculator;
+        address balV2Vault;
         // Wrapped native token (WMATIC on polygon)
         address weth;
-        address balancerVault;
     }
 
     struct SwapData {
@@ -131,7 +131,7 @@ library DEXAdapterV3 {
                 _amountIn,
                 _minAmountOut,
                 _swapData.poolIds,
-                IVault(_addresses.balancerVault)
+                IVault(_addresses.balV2Vault)
             );
         } else {
             return _swapExactTokensForTokensUniV2(
@@ -191,7 +191,7 @@ library DEXAdapterV3 {
                 _amountOut,
                 _maxAmountIn,
                 _swapData.poolIds,
-                IVault(_addresses.balancerVault)
+                IVault(_addresses.balV2Vault)
             );
         } else {
             return _swapTokensForExactTokensUniV2(
@@ -1006,7 +1006,7 @@ library DEXAdapterV3 {
         private
         returns (uint256 amountOut)
     {
-        IVault _vault = IVault(_addresses.balancerVault);
+        IVault _vault = IVault(_addresses.balV2Vault);
 
         // Build the assets array (unique tokens in the path)
         address[] memory assets = _getAssets(_swapData.path);
@@ -1060,7 +1060,7 @@ library DEXAdapterV3 {
         private
         returns (uint256 amountIn)
     {
-        IVault _vault = IVault(_addresses.balancerVault);
+        IVault _vault = IVault(_addresses.balV2Vault);
 
         // Build the assets array (unique tokens in the path)
         address[] memory assets = _getAssets(_swapData.path);

@@ -46,6 +46,7 @@ import { AirdropExtension__factory } from "../../typechain/factories/AirdropExte
 import { AuctionRebalanceExtension__factory } from "../../typechain/factories/AuctionRebalanceExtension__factory";
 import { DEXAdapter__factory } from "../../typechain/factories/DEXAdapter__factory";
 import { DEXAdapterV2__factory } from "../../typechain/factories/DEXAdapterV2__factory";
+import { DEXAdapterV3__factory } from "../../typechain/factories/DEXAdapterV3__factory";
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { ExchangeIssuanceLeveraged__factory } from "../../typechain/factories/ExchangeIssuanceLeveraged__factory";
@@ -217,6 +218,10 @@ export default class DeployExtensions {
     return await new DEXAdapterV2__factory(this._deployerSigner).deploy();
   }
 
+  public async deployDEXAdapterV3(): Promise<DEXAdapterV2> {
+    return await new DEXAdapterV3__factory(this._deployerSigner).deploy();
+  }
+
   public async deployExchangeIssuanceLeveraged(
     wethAddress: Address,
     quickRouterAddress: Address,
@@ -355,15 +360,16 @@ export default class DeployExtensions {
     uniswapV3QuoterAddress: Address,
     curveCalculatorAddress: Address,
     curveAddressProviderAddress: Address,
+    balV2VaultAddress: Address,
     setControllerAddress: Address,
     debtIssuanceModuleAddress: Address,
     stETHAddress: Address,
     curveStEthEthPoolAddress: Address,
   ) {
-    const dexAdapter = await this.deployDEXAdapterV2();
+    const dexAdapter = await this.deployDEXAdapterV3();
 
     const linkId = convertLibraryNameToLinkId(
-      "contracts/exchangeIssuance/DEXAdapterV2.sol:DEXAdapterV2",
+      "contracts/exchangeIssuance/DEXAdapterV3.sol:DEXAdapterV3",
     );
 
     return await new FlashMintHyETHV3__factory(
@@ -381,6 +387,7 @@ export default class DeployExtensions {
         uniV3Quoter: uniswapV3QuoterAddress,
         curveAddressProvider: curveAddressProviderAddress,
         curveCalculator: curveCalculatorAddress,
+        balV2Vault: balV2VaultAddress,
         weth: wethAddress,
       },
       setControllerAddress,
