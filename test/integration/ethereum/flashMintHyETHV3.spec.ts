@@ -33,6 +33,7 @@ enum Exchange {
   Quickswap,
   UniV3,
   Curve,
+  BalancerV2,
 }
 
 type SwapData = {
@@ -52,7 +53,7 @@ const NO_OP_SWAP_DATA: SwapData = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe("FlashMintHyETHV3 - Integration Test", async () => {
+  describe.only("FlashMintHyETHV3 - Integration Test", async () => {
     const addresses = PRODUCTION_ADDRESSES;
     let owner: Account;
     let deployer: DeployHelper;
@@ -61,7 +62,7 @@ if (process.env.INTEGRATIONTEST) {
     let debtIssuanceModule: IDebtIssuanceModule;
 
     // const collateralTokenAddress = addresses.tokens.stEth;
-    setBlockNumber(20930000, true);
+    setBlockNumber(20930000, false);
 
     before(async () => {
       [owner] = await getAccounts();
@@ -134,9 +135,9 @@ if (process.env.INTEGRATIONTEST) {
         const components = [
           addresses.tokens.instadappEthV2,
           addresses.tokens.pendleEzEth1226,
-          addresses.tokens.pendleAgEth1226,
           addresses.tokens.pendleEEth1226,
           addresses.tokens.morphoRe7WETH,
+          addresses.tokens.pendleAgEth1226,
           addresses.tokens.USDC,
         ];
         const positions = [
@@ -166,7 +167,16 @@ if (process.env.INTEGRATIONTEST) {
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
-          NO_OP_SWAP_DATA,
+          {
+            exchange: Exchange.BalancerV2,
+            fees: [],
+            path: [addresses.tokens.agEth, addresses.tokens.rsEth, addresses.tokens.weth],
+            pool: ADDRESS_ZERO,
+            poolIds: [
+              "0xf1bbc5d95cd5ae25af9916b8a193748572050eb00000000000000000000006bc",
+              "0x58aadfb1afac0ad7fca1148f3cde6aedf5236b6d00000000000000000000067f",
+            ],
+          },
           {
             exchange: Exchange.UniV3,
             fees: [500],
@@ -248,18 +258,26 @@ if (process.env.INTEGRATIONTEST) {
             owner.wallet,
           );
           const agEth1226SyToken = await agEth1226PendleToken.SY();
+          await flashMintHyETH.approveToken(
+            agEth1226SyToken,
+            addresses.dexes.pendle.markets.agEth1226,
+            MAX_UINT_256,
+          );
           await flashMintHyETH.setPendleMarket(
             addresses.tokens.pendleAgEth1226,
             agEth1226SyToken,
             addresses.tokens.agEth,
             addresses.dexes.pendle.markets.agEth1226,
-            ethers.utils.parseEther("1.0005"),
+            ethers.utils.parseEther("1.0250"),
           );
           await flashMintHyETH.setSwapData(addresses.tokens.agEth, ADDRESS_ZERO, {
-            path: [addresses.tokens.agEth, addresses.tokens.weth],
+            path: [addresses.tokens.agEth, addresses.tokens.rsEth, addresses.tokens.weth],
             fees: [],
             pool: ADDRESS_ZERO,
-            poolIds: [],
+            poolIds: [
+              "0xf1bbc5d95cd5ae25af9916b8a193748572050eb00000000000000000000006bc",
+              "0x58aadfb1afac0ad7fca1148f3cde6aedf5236b6d00000000000000000000067f",
+            ],
             exchange: 5,
           });
           // ezETH -> weth pool: https://etherscan.io/address/0xbe80225f09645f172b079394312220637c440a63#code
@@ -313,9 +331,9 @@ if (process.env.INTEGRATIONTEST) {
 
         ["eth", "weth", "USDC"].forEach((inputTokenName: keyof typeof addresses.tokens | "eth") => {
           describe(`When inputToken is ${inputTokenName}`, () => {
-            const ethIn = ether(1001);
+            const ethIn = ether(2);
             const maxAmountIn = inputTokenName == "USDC" ? usdc(4000000) : ethIn;
-            const setTokenAmount = ether(1000);
+            const setTokenAmount = ether(1);
             let inputToken: IERC20 | IWETH;
             let swapDataInputTokenToEth: SwapData;
             let swapDataEthToInputToken: SwapData;
