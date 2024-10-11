@@ -375,7 +375,8 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
             // Special handling for agETH
             if (marketData.underlying == address(agETH)) {
                 rsEthAdapter.getRSETHWithETH{value: ethAmount}("");
-                marketData.sy.deposit(address(this), address(agETH), ethAmount, 0);
+                uint256 agEthAmount = agETH.balanceOf(address(this));
+                marketData.sy.deposit(address(this), address(agETH), agEthAmount, 0);
             } else {
                 marketData.sy.deposit{ value: ethAmount }(msg.sender, address(0), ethAmount, 0);
             }

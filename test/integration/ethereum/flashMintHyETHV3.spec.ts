@@ -265,12 +265,17 @@ if (process.env.INTEGRATIONTEST) {
             addresses.dexes.pendle.markets.agEth1226,
             MAX_UINT_256,
           );
+          await flashMintHyETH.approveToken(
+            addresses.tokens.agEth,
+            agEth1226SyToken,
+            MAX_UINT_256,
+          );
           await flashMintHyETH.setPendleMarket(
             addresses.tokens.pendleAgEth1226,
             agEth1226SyToken,
             addresses.tokens.agEth,
             addresses.dexes.pendle.markets.agEth1226,
-            ethers.utils.parseEther("1.0250"),
+            ethers.utils.parseEther("1.0005"),
           );
           await flashMintHyETH.setSwapData(addresses.tokens.agEth, ADDRESS_ZERO, {
             path: [addresses.tokens.agEth, addresses.tokens.rsEth, addresses.tokens.weth],
