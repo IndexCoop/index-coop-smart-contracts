@@ -243,6 +243,25 @@ if (process.env.INTEGRATIONTEST) {
             addresses.dexes.pendle.markets.ezEth1226,
             ethers.utils.parseEther("1.0005"),
           );
+          const agEth1226PendleToken = IPendlePrincipalToken__factory.connect(
+            addresses.tokens.pendleAgEth1226,
+            owner.wallet,
+          );
+          const agEth1226SyToken = await agEth1226PendleToken.SY();
+          await flashMintHyETH.setPendleMarket(
+            addresses.tokens.pendleAgEth1226,
+            agEth1226SyToken,
+            addresses.tokens.agEth,
+            addresses.dexes.pendle.markets.agEth1226,
+            ethers.utils.parseEther("1.0005"),
+          );
+          await flashMintHyETH.setSwapData(addresses.tokens.agEth, ADDRESS_ZERO, {
+            path: [addresses.tokens.agEth, addresses.tokens.weth],
+            fees: [],
+            pool: ADDRESS_ZERO,
+            poolIds: [],
+            exchange: 5,
+          });
           // ezETH -> weth pool: https://etherscan.io/address/0xbe80225f09645f172b079394312220637c440a63#code
           await flashMintHyETH.setSwapData(addresses.tokens.ezEth, ADDRESS_ZERO, {
             path: [addresses.tokens.ezEth, addresses.tokens.weth],
@@ -252,24 +271,6 @@ if (process.env.INTEGRATIONTEST) {
             exchange: 3,
           });
 
-          const pendleEEth0926PendleToken = IPendlePrincipalToken__factory.connect(
-            addresses.tokens.pendleEEth0926,
-            owner.wallet,
-          );
-          await flashMintHyETH.approveSetToken(setToken.address);
-          const pendleEEth0926SyToken = await pendleEEth0926PendleToken.SY();
-          await flashMintHyETH.approveToken(
-            pendleEEth0926SyToken,
-            addresses.dexes.pendle.markets.eEth0926,
-            MAX_UINT_256,
-          );
-          await flashMintHyETH.setPendleMarket(
-            addresses.tokens.pendleEEth0926,
-            pendleEEth0926SyToken,
-            addresses.tokens.weEth,
-            addresses.dexes.pendle.markets.eEth0926,
-            ethers.utils.parseEther("1.0005"),
-          );
           // weETH -> weth pool: https://etherscan.io/address/0x7a415b19932c0105c82fdb6b720bb01b0cc2cae3
           await flashMintHyETH.setSwapData(addresses.tokens.weEth, ADDRESS_ZERO, {
             path: [addresses.tokens.weEth, addresses.tokens.weth],
