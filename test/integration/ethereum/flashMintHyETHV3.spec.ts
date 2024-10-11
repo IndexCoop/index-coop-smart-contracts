@@ -154,6 +154,7 @@ if (process.env.INTEGRATIONTEST) {
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
+          NO_OP_SWAP_DATA,
           {
             exchange: Exchange.UniV3,
             fees: [500],
@@ -164,6 +165,7 @@ if (process.env.INTEGRATIONTEST) {
         ];
 
         const componentSwapDataRedeem = [
+          NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
