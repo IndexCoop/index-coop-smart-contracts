@@ -169,20 +169,11 @@ if (process.env.INTEGRATIONTEST) {
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
-          {
-            exchange: Exchange.BalancerV2,
-            fees: [],
-            path: [addresses.tokens.agEth, addresses.tokens.rsEth, addresses.tokens.weth],
-            pool: ADDRESS_ZERO,
-            poolIds: [
-              "0xf1bbc5d95cd5ae25af9916b8a193748572050eb00000000000000000000006bc",
-              "0x58aadfb1afac0ad7fca1148f3cde6aedf5236b6d00000000000000000000067f",
-            ],
-          },
+          NO_OP_SWAP_DATA,
           {
             exchange: Exchange.UniV3,
             fees: [500],
-            path: [ addresses.tokens.USDC, addresses.tokens.weth],
+            path: [addresses.tokens.USDC, addresses.tokens.weth],
             pool: ADDRESS_ZERO,
             poolIds: [],
           },
@@ -227,15 +218,22 @@ if (process.env.INTEGRATIONTEST) {
             poolIds: [],
             exchange: 4,
           });
+          await flashMintHyETH.setSwapData(addresses.tokens.agEth, ADDRESS_ZERO, {
+            exchange: Exchange.BalancerV2,
+            fees: [],
+            path: [addresses.tokens.agEth, addresses.tokens.rsEth, addresses.tokens.weth],
+            pool: ADDRESS_ZERO,
+            poolIds: [
+              "0xf1bbc5d95cd5ae25af9916b8a193748572050eb00000000000000000000006bc",
+              "0x58aadfb1afac0ad7fca1148f3cde6aedf5236b6d00000000000000000000067f",
+            ],
+          });
 
-          await flashMintHyETH.setERC4626Component(
-            addresses.tokens.morphoRe7WETH,
-            true
-          );
+          await flashMintHyETH.setERC4626Component(addresses.tokens.morphoRe7WETH, true);
           await flashMintHyETH.approveToken(
             addresses.tokens.weth,
             addresses.tokens.morphoRe7WETH,
-            MAX_UINT_256
+            MAX_UINT_256,
           );
           const ezEth1226PendleToken = IPendlePrincipalToken__factory.connect(
             addresses.tokens.pendleEzEth1226,
@@ -265,11 +263,7 @@ if (process.env.INTEGRATIONTEST) {
             addresses.dexes.pendle.markets.agEth1226,
             MAX_UINT_256,
           );
-          await flashMintHyETH.approveToken(
-            addresses.tokens.agEth,
-            agEth1226SyToken,
-            MAX_UINT_256,
-          );
+          await flashMintHyETH.approveToken(addresses.tokens.agEth, agEth1226SyToken, MAX_UINT_256);
           await flashMintHyETH.setPendleMarket(
             addresses.tokens.pendleAgEth1226,
             agEth1226SyToken,
@@ -338,8 +332,8 @@ if (process.env.INTEGRATIONTEST) {
 
         ["eth", "weth", "USDC"].forEach((inputTokenName: keyof typeof addresses.tokens | "eth") => {
           describe(`When inputToken is ${inputTokenName}`, () => {
-            const ethIn = ether(2);
-            const maxAmountIn = inputTokenName == "USDC" ? usdc(4000000) : ethIn;
+            const ethIn = ether(1.2);
+            const maxAmountIn = inputTokenName == "USDC" ? usdc(2700) : ethIn;
             const setTokenAmount = ether(1);
             let inputToken: IERC20 | IWETH;
             let swapDataInputTokenToEth: SwapData;
