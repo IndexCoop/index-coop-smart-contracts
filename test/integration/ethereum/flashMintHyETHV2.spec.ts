@@ -50,7 +50,7 @@ const NO_OP_SWAP_DATA: SwapData = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe.only("FlashMintHyETHV2 - Integration Test", async () => {
+  describe("FlashMintHyETHV2 - Integration Test", async () => {
     const addresses = PRODUCTION_ADDRESSES;
     let owner: Account;
     let deployer: DeployHelper;

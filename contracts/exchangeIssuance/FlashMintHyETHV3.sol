@@ -35,13 +35,13 @@ import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { DEXAdapterV2 } from "./DEXAdapterV2.sol";
+import { DEXAdapterV3 } from "./DEXAdapterV3.sol";
 
 /**
  * @title FlashMintHyETHV3
  */
 contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
-    using DEXAdapterV2 for DEXAdapterV2.Addresses;
+    using DEXAdapterV3 for DEXAdapterV3.Addresses;
     using Address for address payable;
     using Address for address;
     using SafeMath for uint256;
@@ -71,12 +71,12 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
     IDebtIssuanceModule public immutable issuanceModule; // interface is compatible with DebtIssuanceModuleV2
     mapping(IPendlePrincipalToken => IPendleMarketV3) public pendleMarkets;
     mapping(IPendleMarketV3 => PendleMarketData) public pendleMarketData;
-    mapping(address => mapping(address => DEXAdapterV2.SwapData)) public swapData;
+    mapping(address => mapping(address => DEXAdapterV3.SwapData)) public swapData;
     mapping(address => bool) public erc4626Components;
 
     /* ============ State Variables ============ */
 
-    DEXAdapterV2.Addresses public dexAdapter;
+    DEXAdapterV3.Addresses public dexAdapter;
 
     /* ============ Events ============ */
 
@@ -123,13 +123,13 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
         if (_inputToken != _outputToken) {
             require(
                 _path[0] == _inputToken ||
-                    (_inputToken == dexAdapter.weth && _path[0] == DEXAdapterV2.ETH_ADDRESS),
+                    (_inputToken == dexAdapter.weth && _path[0] == DEXAdapterV3.ETH_ADDRESS),
                 "FlashMint: INPUT_TOKEN_NOT_IN_PATH"
             );
             require(
                 _path[_path.length - 1] == _outputToken ||
                     (_outputToken == dexAdapter.weth &&
-                        _path[_path.length - 1] == DEXAdapterV2.ETH_ADDRESS),
+                        _path[_path.length - 1] == DEXAdapterV3.ETH_ADDRESS),
                 "FlashMint: OUTPUT_TOKEN_NOT_IN_PATH"
             );
         }
@@ -139,7 +139,7 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
     /* ========== Constructor ========== */
 
     constructor(
-        DEXAdapterV2.Addresses memory _dexAddresses,
+        DEXAdapterV3.Addresses memory _dexAddresses,
         IController _setController,
         IDebtIssuanceModule _issuanceModule,
         IStETH _stETH,
@@ -157,7 +157,7 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
 
     /**
      * Runs all the necessary approval functions required before issuing
-     * or redeeming a SetToken. This function need to be called only once before the first time
+     * or redeeming a SetToken. This function needs to be called only once before the first time
      * this smart contract is used on any particular SetToken.
      *
      * @param _setToken          Address of the SetToken being initialized
@@ -170,9 +170,8 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
         _setToken.approve(address(issuanceModule), MAX_UINT256);
     }
 
-
     /**
-     * Issue exact amout of SetToken from ETH
+     * Issue exact amount of SetToken from ETH
      *
      * @param _setToken     Address of the SetToken to issue
      * @param _amountSetToken   Amount of SetToken to issue
@@ -180,7 +179,7 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
     function issueExactSetFromETH(
         ISetToken _setToken,
         uint256 _amountSetToken,
-        DEXAdapterV2.SwapData[] memory _swapDataEthToComponent
+        DEXAdapterV3.SwapData[] memory _swapDataEthToComponent
     ) external payable nonReentrant returns (uint256) {
         uint256 ethSpent = _issueExactSetFromEth(_setToken, _amountSetToken, _swapDataEthToComponent);
         msg.sender.sendValue(msg.value.sub(ethSpent));
@@ -188,7 +187,7 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
     }
 
     /**
-     * Issue exact amout of SetToken from ERC20 token
+     * Issue exact amount of SetToken from ERC20 token
      *
      * @param _setToken     Address of the SetToken to issue
      * @param _amountSetToken   Amount of SetToken to issue
@@ -202,9 +201,9 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
         uint256 _amountSetToken,
         IERC20 _inputToken,
         uint256 _maxInputTokenAmount,
-        DEXAdapterV2.SwapData memory _swapDataInputTokenToEth,
-        DEXAdapterV2.SwapData memory _swapDataEthToInputToken,
-        DEXAdapterV2.SwapData[] memory _swapDataEthToComponent
+        DEXAdapterV3.SwapData memory _swapDataInputTokenToEth,
+        DEXAdapterV3.SwapData memory _swapDataEthToInputToken,
+        DEXAdapterV3.SwapData[] memory _swapDataEthToComponent
     ) external payable nonReentrant returns (uint256) {
         _inputToken.safeTransferFrom(msg.sender, address(this), _maxInputTokenAmount);
 
@@ -223,13 +222,13 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
      * @param _setToken         Address of the SetToken to redeem
      * @param _amountSetToken   Amount of SetToken to redeem
      * @param _minETHOut        Minimum amount of ETH to receive (tx will revert if actual amount is less)
-     * @param _swapDataComponentToEth Swap data from component to ETH (for non standard components)
+     * @param _swapDataComponentToEth Swap data from component to ETH (for non-standard components)
      */
     function redeemExactSetForETH(
         ISetToken _setToken,
         uint256 _amountSetToken,
         uint256 _minETHOut,
-        DEXAdapterV2.SwapData[] memory _swapDataComponentToEth
+        DEXAdapterV3.SwapData[] memory _swapDataComponentToEth
     ) external payable nonReentrant returns (uint256) {
         uint256 ethObtained = _redeemExactSetForETH(_setToken, _amountSetToken, _minETHOut, _swapDataComponentToEth);
         require(ethObtained >= _minETHOut, "FlashMint: INSUFFICIENT_OUTPUT");
@@ -245,15 +244,15 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
      * @param _outputToken      Address of the output token
      * @param _minOutputTokenAmount  Minimum amount of output token to receive (tx will revert if actual amount is less)
      * @param _swapDataEthToOutputToken Swap data from ETH to output token
-     * @param _swapDataComponentToEth Swap data from component to ETH (for non standard components)
+     * @param _swapDataComponentToEth Swap data from component to ETH (for non-standard components)
      */
     function redeemExactSetForERC20(
         ISetToken _setToken,
         uint256 _amountSetToken,
         IERC20 _outputToken,
         uint256 _minOutputTokenAmount,
-        DEXAdapterV2.SwapData memory _swapDataEthToOutputToken,
-        DEXAdapterV2.SwapData[] memory _swapDataComponentToEth
+        DEXAdapterV3.SwapData memory _swapDataEthToOutputToken,
+        DEXAdapterV3.SwapData[] memory _swapDataComponentToEth
     ) external payable nonReentrant returns (uint256) {
         uint256 ethObtained = _redeemExactSetForETH(_setToken, _amountSetToken, 0, _swapDataComponentToEth);
         uint256 outputTokenAmount = _swapFromEthToToken(_outputToken, ethObtained, _swapDataEthToOutputToken);
@@ -261,7 +260,6 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
         _outputToken.safeTransfer(msg.sender, outputTokenAmount);
         return outputTokenAmount;
     }
-
 
     receive() external payable {}
 
@@ -294,7 +292,7 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
     /**
      * Withdraw slippage to selected address
      *
-     * @param _tokens    Addresses of tokens to withdraw, specifiy ETH_ADDRESS to withdraw ETH
+     * @param _tokens    Addresses of tokens to withdraw, specify ETH_ADDRESS to withdraw ETH
      * @param _to        Address to send the tokens to
      */
     function withdrawTokens(
@@ -302,7 +300,7 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
         address payable _to
     ) external payable onlyOwner {
         for (uint256 i = 0; i < _tokens.length; i++) {
-            if (address(_tokens[i]) == DEXAdapterV2.ETH_ADDRESS) {
+            if (address(_tokens[i]) == DEXAdapterV3.ETH_ADDRESS) {
                 _to.sendValue(address(this).balance);
             } else {
                 _tokens[i].safeTransfer(_to, _tokens[i].balanceOf(address(this)));
@@ -310,18 +308,17 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
         }
     }
 
-
     /**
      * Set swap data for specific token pair
      *
-     * @param _inputToken     Address of the input token 
+     * @param _inputToken     Address of the input token
      * @param _outputToken    Address of the output token
      * @param _swapData       Swap data for the token pair describing DEX / route
      */
     function setSwapData(
         address _inputToken,
         address _outputToken,
-        DEXAdapterV2.SwapData memory _swapData
+        DEXAdapterV3.SwapData memory _swapData
     ) external onlyOwner {
         swapData[_inputToken][_outputToken] = _swapData;
     }
@@ -367,7 +364,7 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
         } else if (_syToAccount < 0) {
             uint256 syAmount = uint256(-_syToAccount);
 
-            // Withdraw necessary ETH, if deposit size is enough to move the oracle, then the exchange rate will not be 
+            // Withdraw necessary ETH, if deposit size is enough to move the oracle, then the exchange rate will not be
             // valid for computing the amount of ETH to withdraw, so increase by exchangeRateFactor
             uint256 ethAmount = syAmount.mul(marketData.sy.exchangeRate()).div(1 ether);
             uint256 syAmountPreview = marketData.sy.previewDeposit(address(0), ethAmount);
@@ -378,15 +375,16 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
             // Special handling for agETH
             if (marketData.underlying == address(agETH)) {
                 rsEthAdapter.getRSETHWithETH{value: ethAmount}("");
-                marketData.sy.deposit(address(this), address(agETH), ethAmount, 0);
+                uint256 agEthAmount = agETH.balanceOf(address(this));
+                marketData.sy.deposit(address(this), address(agETH), agEthAmount, 0);
             } else {
-                marketData.sy.deposit{ value: ethAmount }(msg.sender, address(0), ethAmount, 0);
+                marketData.sy.deposit{ value: ethAmount }(address(this), address(0), ethAmount, 0);
             }
+            marketData.sy.transfer(msg.sender, syAmount);
         } else {
             revert("Invalid callback");
         }
     }
-
 
     /* ============ Internal ============ */
 
@@ -397,7 +395,7 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
     function _issueExactSetFromEth(
         ISetToken _setToken,
         uint256 _amountSetToken,
-        DEXAdapterV2.SwapData[] memory _swapDataEthToComponent
+        DEXAdapterV3.SwapData[] memory _swapDataEthToComponent
     ) internal returns (uint256) {
         (address[] memory components, uint256[] memory positions, ) = IDebtIssuanceModule(
             issuanceModule
@@ -418,7 +416,7 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
         ISetToken _setToken,
         uint256 _amountSetToken,
         uint256 _minETHOut,
-        DEXAdapterV2.SwapData[] memory _swapDataComponentToEth
+        DEXAdapterV3.SwapData[] memory _swapDataComponentToEth
     ) internal returns (uint256) {
         uint256 ethBalanceBefore = address(this).balance;
 
@@ -442,9 +440,9 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
     function _depositIntoComponent(
         address _component,
         uint256 _amount,
-        DEXAdapterV2.SwapData memory _swapData
+        DEXAdapterV3.SwapData memory _swapData
     ) internal {
-        if(_swapData.exchange != DEXAdapterV2.Exchange.None) {
+        if(_swapData.exchange != DEXAdapterV3.Exchange.None) {
             _swapEthForExactToken(_component, _amount, _swapData);
             return;
         }
@@ -468,7 +466,7 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
         if (erc4626Components[_component]) {
             uint256 assetAmount = IERC4626(_component).previewMint(_amount);
             address asset = IERC4626(_component).asset();
-            _swapEthForExactToken(asset, assetAmount, swapData[DEXAdapterV2.ETH_ADDRESS][asset]);
+            _swapEthForExactToken(asset, assetAmount, swapData[DEXAdapterV3.ETH_ADDRESS][asset]);
             IERC4626(_component).mint(_amount, address(this));
             return;
         }
@@ -482,12 +480,12 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
     function _withdrawFromComponent(
         address _component,
         uint256 _amount,
-        DEXAdapterV2.SwapData memory _swapData
+        DEXAdapterV3.SwapData memory _swapData
     ) internal {
-        if(_swapData.exchange != DEXAdapterV2.Exchange.None) {
+        if(_swapData.exchange != DEXAdapterV3.Exchange.None) {
             require(_swapData.path.length > 1, "zero length swap path");
             require(_swapData.path[0] == _component, "Invalid input token");
-            require(_swapData.path[_swapData.path.length - 1] == DEXAdapterV2.ETH_ADDRESS || _swapData.path[_swapData.path.length - 1] == dexAdapter.weth, "Invalid output token");
+            require(_swapData.path[_swapData.path.length - 1] == DEXAdapterV3.ETH_ADDRESS || _swapData.path[_swapData.path.length - 1] == dexAdapter.weth, "Invalid output token");
             uint256 ethReceived = dexAdapter.swapExactTokensForTokens(_amount, 0, _swapData);
             if(_swapData.path[_swapData.path.length - 1] == dexAdapter.weth) {
                 IWETH(dexAdapter.weth).withdraw(ethReceived);
@@ -514,7 +512,7 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
         if (erc4626Components[_component]) {
             address asset = IERC4626(_component).asset();
             uint256 assetAmount = IERC4626(_component).redeem(_amount, address(this), address(this));
-            _swapExactTokenForEth(IERC20(asset), assetAmount, swapData[asset][DEXAdapterV2.ETH_ADDRESS]);
+            _swapExactTokenForEth(IERC20(asset), assetAmount, swapData[asset][DEXAdapterV3.ETH_ADDRESS]);
             return;
         }
         revert("Missing Swapdata for non-standard component");
@@ -539,8 +537,8 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Withdraw steth from instadapp vault and  then swap to eth
-     * @dev Requries the respective swap data (stETH -> ETH) to be set
+     * @dev Withdraw steth from instadapp vault and then swap to eth
+     * @dev Requires the respective swap data (stETH -> ETH) to be set
      *
      */
     function _withdrawFromInstadapp(IERC4626 _vault, uint256 _amount) internal {
@@ -568,7 +566,7 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Initiate deposit into pendle by swapping pt for sy
+     * @dev Initiate deposit into Pendle by swapping pt for sy
      * @dev Deposit from eth to sy is done in swapCallback
      */
     function _depositIntoPendle(
@@ -638,7 +636,7 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
     function _swapFromEthToToken(
         IERC20 _outputToken,
         uint256 _ethAmount,
-        DEXAdapterV2.SwapData memory _swapDataEthToOutputToken
+        DEXAdapterV3.SwapData memory _swapDataEthToOutputToken
     ) internal returns(uint256 outputTokenAmount) {
         if(address(_outputToken) == address(dexAdapter.weth)) {
            outputTokenAmount = _ethAmount;
@@ -661,7 +659,7 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
     function _swapExactTokenForEth(
         IERC20 _inputToken,
         uint256 _inputTokenAmount,
-        DEXAdapterV2.SwapData memory _swapDataInputTokenToEth
+        DEXAdapterV3.SwapData memory _swapDataInputTokenToEth
     ) internal returns (uint256 ethAmount) {
         if(address(_inputToken) == dexAdapter.weth) {
            ethAmount = _inputTokenAmount;
@@ -678,14 +676,14 @@ contract FlashMintHyETHV3 is Ownable, ReentrancyGuard {
         }
     }
 
-    function _swapEthForExactToken(address _token, uint256 _amount, DEXAdapterV2.SwapData memory _swapData) internal {
+    function _swapEthForExactToken(address _token, uint256 _amount, DEXAdapterV3.SwapData memory _swapData) internal {
         if(_token == dexAdapter.weth) {
            IWETH(dexAdapter.weth).deposit{value: _amount}();
            return;
         } 
 
         require(_swapData.path.length > 1, "zero length swap path");
-        require(_swapData.path[0] == DEXAdapterV2.ETH_ADDRESS || _swapData.path[0] == dexAdapter.weth, "Invalid input token");
+        require(_swapData.path[0] == DEXAdapterV3.ETH_ADDRESS || _swapData.path[0] == dexAdapter.weth, "Invalid input token");
         require(_swapData.path[_swapData.path.length - 1] == _token, "Invalid output token");
         if(_swapData.path[0] == dexAdapter.weth) {
             uint256 balanceBefore = IWETH(dexAdapter.weth).balanceOf(address(this));

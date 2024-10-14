@@ -33,12 +33,14 @@ enum Exchange {
   Quickswap,
   UniV3,
   Curve,
+  BalancerV2,
 }
 
 type SwapData = {
   path: Address[];
   fees: number[];
   pool: Address;
+  poolIds: utils.BytesLike[];
   exchange: Exchange;
 };
 
@@ -46,6 +48,7 @@ const NO_OP_SWAP_DATA: SwapData = {
   path: [],
   fees: [],
   pool: ADDRESS_ZERO,
+  poolIds: [],
   exchange: Exchange.None,
 };
 
@@ -59,7 +62,7 @@ if (process.env.INTEGRATIONTEST) {
     let debtIssuanceModule: IDebtIssuanceModule;
 
     // const collateralTokenAddress = addresses.tokens.stEth;
-    setBlockNumber(20930000, true);
+    setBlockNumber(20930000, false);
 
     before(async () => {
       [owner] = await getAccounts();
@@ -85,6 +88,7 @@ if (process.env.INTEGRATIONTEST) {
           addresses.dexes.uniV3.quoter,
           addresses.dexes.curve.calculator,
           addresses.dexes.curve.addressProvider,
+          addresses.dexes.balancerv2.vault,
           addresses.setFork.controller,
           addresses.setFork.debtIssuanceModuleV2,
           addresses.tokens.stEth,
@@ -133,17 +137,20 @@ if (process.env.INTEGRATIONTEST) {
           addresses.tokens.pendleEzEth1226,
           addresses.tokens.pendleEEth1226,
           addresses.tokens.morphoRe7WETH,
+          addresses.tokens.pendleAgEth1226,
           addresses.tokens.USDC,
         ];
         const positions = [
-          ethers.utils.parseEther("0.17"),
-          ethers.utils.parseEther("0.17"),
-          ethers.utils.parseEther("0.17"),
-          ethers.utils.parseEther("0.17"),
+          ethers.utils.parseEther("0.16"),
+          ethers.utils.parseEther("0.16"),
+          ethers.utils.parseEther("0.16"),
+          ethers.utils.parseEther("0.16"),
+          ethers.utils.parseEther("0.16"),
           usdc(600),
         ];
 
         const componentSwapDataIssue = [
+          NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
@@ -153,6 +160,7 @@ if (process.env.INTEGRATIONTEST) {
             fees: [500],
             path: [addresses.tokens.weth, addresses.tokens.USDC],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           },
         ];
 
@@ -161,11 +169,13 @@ if (process.env.INTEGRATIONTEST) {
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
           NO_OP_SWAP_DATA,
+          NO_OP_SWAP_DATA,
           {
             exchange: Exchange.UniV3,
             fees: [500],
-            path: [ addresses.tokens.USDC, addresses.tokens.weth],
+            path: [addresses.tokens.USDC, addresses.tokens.weth],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           },
         ];
 
@@ -205,17 +215,25 @@ if (process.env.INTEGRATIONTEST) {
             path: [addresses.tokens.stEth, ETH_ADDRESS],
             fees: [],
             pool: addresses.dexes.curve.pools.stEthEth,
+            poolIds: [],
             exchange: 4,
           });
+          await flashMintHyETH.setSwapData(addresses.tokens.agEth, ADDRESS_ZERO, {
+            exchange: Exchange.BalancerV2,
+            fees: [],
+            path: [addresses.tokens.agEth, addresses.tokens.rsEth, addresses.tokens.weth],
+            pool: ADDRESS_ZERO,
+            poolIds: [
+              "0xf1bbc5d95cd5ae25af9916b8a193748572050eb00000000000000000000006bc",
+              "0x58aadfb1afac0ad7fca1148f3cde6aedf5236b6d00000000000000000000067f",
+            ],
+          });
 
-          await flashMintHyETH.setERC4626Component(
-            addresses.tokens.morphoRe7WETH,
-            true
-          );
+          await flashMintHyETH.setERC4626Component(addresses.tokens.morphoRe7WETH, true);
           await flashMintHyETH.approveToken(
             addresses.tokens.weth,
             addresses.tokens.morphoRe7WETH,
-            MAX_UINT_256
+            MAX_UINT_256,
           );
           const ezEth1226PendleToken = IPendlePrincipalToken__factory.connect(
             addresses.tokens.pendleEzEth1226,
@@ -235,37 +253,49 @@ if (process.env.INTEGRATIONTEST) {
             addresses.dexes.pendle.markets.ezEth1226,
             ethers.utils.parseEther("1.0005"),
           );
+          const agEth1226PendleToken = IPendlePrincipalToken__factory.connect(
+            addresses.tokens.pendleAgEth1226,
+            owner.wallet,
+          );
+          const agEth1226SyToken = await agEth1226PendleToken.SY();
+          await flashMintHyETH.approveToken(
+            agEth1226SyToken,
+            addresses.dexes.pendle.markets.agEth1226,
+            MAX_UINT_256,
+          );
+          await flashMintHyETH.approveToken(addresses.tokens.agEth, agEth1226SyToken, MAX_UINT_256);
+          await flashMintHyETH.setPendleMarket(
+            addresses.tokens.pendleAgEth1226,
+            agEth1226SyToken,
+            addresses.tokens.agEth,
+            addresses.dexes.pendle.markets.agEth1226,
+            ethers.utils.parseEther("1.0005"),
+          );
+          await flashMintHyETH.setSwapData(addresses.tokens.agEth, ADDRESS_ZERO, {
+            path: [addresses.tokens.agEth, addresses.tokens.rsEth, addresses.tokens.weth],
+            fees: [],
+            pool: ADDRESS_ZERO,
+            poolIds: [
+              "0xf1bbc5d95cd5ae25af9916b8a193748572050eb00000000000000000000006bc",
+              "0x58aadfb1afac0ad7fca1148f3cde6aedf5236b6d00000000000000000000067f",
+            ],
+            exchange: 5,
+          });
           // ezETH -> weth pool: https://etherscan.io/address/0xbe80225f09645f172b079394312220637c440a63#code
           await flashMintHyETH.setSwapData(addresses.tokens.ezEth, ADDRESS_ZERO, {
             path: [addresses.tokens.ezEth, addresses.tokens.weth],
             fees: [100],
             pool: ADDRESS_ZERO,
+            poolIds: [],
             exchange: 3,
           });
 
-          const pendleEEth0926PendleToken = IPendlePrincipalToken__factory.connect(
-            addresses.tokens.pendleEEth0926,
-            owner.wallet,
-          );
-          await flashMintHyETH.approveSetToken(setToken.address);
-          const pendleEEth0926SyToken = await pendleEEth0926PendleToken.SY();
-          await flashMintHyETH.approveToken(
-            pendleEEth0926SyToken,
-            addresses.dexes.pendle.markets.eEth0926,
-            MAX_UINT_256,
-          );
-          await flashMintHyETH.setPendleMarket(
-            addresses.tokens.pendleEEth0926,
-            pendleEEth0926SyToken,
-            addresses.tokens.weEth,
-            addresses.dexes.pendle.markets.eEth0926,
-            ethers.utils.parseEther("1.0005"),
-          );
           // weETH -> weth pool: https://etherscan.io/address/0x7a415b19932c0105c82fdb6b720bb01b0cc2cae3
           await flashMintHyETH.setSwapData(addresses.tokens.weEth, ADDRESS_ZERO, {
             path: [addresses.tokens.weEth, addresses.tokens.weth],
             fees: [500],
             pool: ADDRESS_ZERO,
+            poolIds: [],
             exchange: 3,
           });
 
@@ -292,6 +322,7 @@ if (process.env.INTEGRATIONTEST) {
             path: [addresses.tokens.weEth, addresses.tokens.weth],
             fees: [500],
             pool: ADDRESS_ZERO,
+            poolIds: [],
             exchange: 3,
           });
         });
@@ -301,9 +332,9 @@ if (process.env.INTEGRATIONTEST) {
 
         ["eth", "weth", "USDC"].forEach((inputTokenName: keyof typeof addresses.tokens | "eth") => {
           describe(`When inputToken is ${inputTokenName}`, () => {
-            const ethIn = ether(1001);
-            const maxAmountIn = inputTokenName == "USDC" ? usdc(4000000) : ethIn;
-            const setTokenAmount = ether(1000);
+            const ethIn = ether(1.2);
+            const maxAmountIn = inputTokenName == "USDC" ? usdc(2700) : ethIn;
+            const setTokenAmount = ether(1);
             let inputToken: IERC20 | IWETH;
             let swapDataInputTokenToEth: SwapData;
             let swapDataEthToInputToken: SwapData;
@@ -319,12 +350,14 @@ if (process.env.INTEGRATIONTEST) {
                   path: [addresses.tokens.weth, ETH_ADDRESS],
                   fees: [],
                   pool: ADDRESS_ZERO,
+                  poolIds: [],
                   exchange: 0,
                 };
                 swapDataEthToInputToken = {
                   path: [ETH_ADDRESS, addresses.tokens.weth],
                   fees: [],
                   pool: ADDRESS_ZERO,
+                  poolIds: [],
                   exchange: 0,
                 };
               }
@@ -335,12 +368,14 @@ if (process.env.INTEGRATIONTEST) {
                   path: [addresses.tokens.USDC, addresses.tokens.weth],
                   fees: [500],
                   pool: ADDRESS_ZERO,
+                  poolIds: [],
                   exchange: Exchange.UniV3,
                 };
                 swapDataEthToInputToken = {
                   path: [addresses.tokens.weth, addresses.tokens.USDC],
                   fees: [500],
                   pool: ADDRESS_ZERO,
+                  poolIds: [],
                   exchange: Exchange.UniV3,
                 };
               }
