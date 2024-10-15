@@ -31,7 +31,7 @@ import { ISetToken} from "../interfaces/ISetToken.sol";
 import { IWETH} from "../interfaces/IWETH.sol";
 import { IWrapModuleV2} from "../interfaces/IWrapModuleV2.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { DEXAdapter } from "./DEXAdapter.sol";
+import { DEXAdapterV3 } from "./DEXAdapterV3.sol";
 
 /**
  * @title FlashMintWrapped
@@ -53,7 +53,7 @@ import { DEXAdapter } from "./DEXAdapter.sol";
  * Set components at index 1 = cDAI; then -> ComponentSwapData[1].underlyingERC20 = DAI; (wrapping will happen)
  */
 contract FlashMintWrapped is Ownable, ReentrancyGuard {
-  using DEXAdapter for DEXAdapter.Addresses;
+  using DEXAdapterV3 for DEXAdapterV3.Addresses;
   using Address for address payable;
   using Address for address;
   using SafeMath for uint256;
@@ -65,8 +65,8 @@ contract FlashMintWrapped is Ownable, ReentrancyGuard {
   struct ComponentSwapData {
     // unwrapped token version, e.g. DAI
     address underlyingERC20;
-    // swap data for DEX operation: fees, path, etc. see DEXAdapter.SwapData
-    DEXAdapter.SwapData dexData;
+    // swap data for DEX operation: fees, path, etc. see DEXAdapterV3.SwapData
+    DEXAdapterV3.SwapData dexData;
     // ONLY relevant for issue, not used for redeem:
     // amount that has to be bought of the unwrapped token version (to cover required wrapped component amounts for issuance)
     // this amount has to be computed beforehand through the exchange rate of wrapped Component <> unwrappedComponent
@@ -92,7 +92,7 @@ contract FlashMintWrapped is Ownable, ReentrancyGuard {
 
   /* ============ State Variables ============ */
 
-  DEXAdapter.Addresses public dexAdapter;
+  DEXAdapterV3.Addresses public dexAdapter;
 
   /* ============ Events ============ */
 
@@ -139,12 +139,12 @@ contract FlashMintWrapped is Ownable, ReentrancyGuard {
     if (_inputToken != _outputToken) {
       require(
         _path[0] == _inputToken ||
-          (_inputToken == dexAdapter.weth && _path[0] == DEXAdapter.ETH_ADDRESS),
+          (_inputToken == dexAdapter.weth && _path[0] == DEXAdapterV3.ETH_ADDRESS),
         "FlashMint: INPUT_TOKEN_NOT_IN_PATH"
       );
       require(
         _path[_path.length - 1] == _outputToken ||
-          (_outputToken == dexAdapter.weth && _path[_path.length - 1] == DEXAdapter.ETH_ADDRESS),
+          (_outputToken == dexAdapter.weth && _path[_path.length - 1] == DEXAdapterV3.ETH_ADDRESS),
         "FlashMint: OUTPUT_TOKEN_NOT_IN_PATH"
       );
     }
@@ -162,7 +162,7 @@ contract FlashMintWrapped is Ownable, ReentrancyGuard {
    * @param _wrapModule                WrapModuleV2 used to obtain a valid wrap adapter
    */
   constructor(
-    DEXAdapter.Addresses memory _dexAddresses,
+    DEXAdapterV3.Addresses memory _dexAddresses,
     IController _setController,
     IDebtIssuanceModule _issuanceModule,
     address _wrapModule
@@ -187,7 +187,7 @@ contract FlashMintWrapped is Ownable, ReentrancyGuard {
   */
   function withdrawTokens(IERC20[] calldata _tokens, address payable _to) external onlyOwner payable {
       for(uint256 i = 0; i < _tokens.length; i++) {
-          if(address(_tokens[i]) == DEXAdapter.ETH_ADDRESS){
+          if(address(_tokens[i]) == DEXAdapterV3.ETH_ADDRESS){
               _to.sendValue(address(this).balance);
           }
           else{
@@ -206,7 +206,7 @@ contract FlashMintWrapped is Ownable, ReentrancyGuard {
   function approveSetToken(ISetToken _setToken) external isSetToken(_setToken) {
     address[] memory _components = _setToken.getComponents();
     for (uint256 i = 0; i < _components.length; ++i) {
-      DEXAdapter._safeApprove(IERC20(_components[i]), address(issuanceModule), MAX_UINT256);
+      DEXAdapterV3._safeApprove(IERC20(_components[i]), address(issuanceModule), MAX_UINT256);
     }
   }
 
@@ -503,7 +503,7 @@ contract FlashMintWrapped is Ownable, ReentrancyGuard {
     emit FlashMint(
       msg.sender,
       _setToken,
-      _issueFromETH ? IERC20(DEXAdapter.ETH_ADDRESS) : _inputToken,
+      _issueFromETH ? IERC20(DEXAdapterV3.ETH_ADDRESS) : _inputToken,
       spentInputTokenAmount,
       _amountSetToken
     );
@@ -567,7 +567,7 @@ contract FlashMintWrapped is Ownable, ReentrancyGuard {
     emit FlashRedeem(
       msg.sender,
       _setToken,
-      _redeemToETH ? IERC20(DEXAdapter.ETH_ADDRESS) : _outputToken,
+      _redeemToETH ? IERC20(DEXAdapterV3.ETH_ADDRESS) : _outputToken,
       _amountSetToken,
       totalOutputTokenObtained
     );
@@ -796,7 +796,7 @@ contract FlashMintWrapped is Ownable, ReentrancyGuard {
    * @param _outputToken          Output token that will be bought
    * @param _amount               Amount that will be bought
    * @param _maxAmountIn          Maximum aount of input token that can be spent
-   * @param _swapDexData          DEXAdapter.SwapData with path, fees, etc. for inputToken -> outputToken swap
+   * @param _swapDexData          DEXAdapterV3.SwapData with path, fees, etc. for inputToken -> outputToken swap
    *
    * @return Amount of spent _inputToken
    */
@@ -805,7 +805,7 @@ contract FlashMintWrapped is Ownable, ReentrancyGuard {
     IERC20 _outputToken,
     uint256 _amount,
     uint256 _maxAmountIn,
-    DEXAdapter.SwapData calldata _swapDexData
+    DEXAdapterV3.SwapData calldata _swapDexData
   )
     internal
     isValidPath(_swapDexData.path, address(_inputToken), address(_outputToken))
@@ -822,7 +822,7 @@ contract FlashMintWrapped is Ownable, ReentrancyGuard {
    * @param _inputToken           Input token that will be sold
    * @param _outputToken          Output token that will be bought
    * @param _amount               Amount that will be sold
-   * @param _swapDexData          DEXAdapter.SwapData with path, fees, etc. for inputToken -> outputToken swap
+   * @param _swapDexData          DEXAdapterV3.SwapData with path, fees, etc. for inputToken -> outputToken swap
    *
    * @return amount of received _outputToken
    */
@@ -830,7 +830,7 @@ contract FlashMintWrapped is Ownable, ReentrancyGuard {
     IERC20 _inputToken,
     IERC20 _outputToken,
     uint256 _amount,
-    DEXAdapter.SwapData calldata _swapDexData
+    DEXAdapterV3.SwapData calldata _swapDexData
   )
     internal
     isValidPath(_swapDexData.path, address(_inputToken), address(_outputToken))
@@ -881,7 +881,7 @@ contract FlashMintWrapped is Ownable, ReentrancyGuard {
       );
 
     // 3. approve token transfer from this to _wrapCallTarget
-    DEXAdapter._safeApprove(
+    DEXAdapterV3._safeApprove(
       IERC20(_underlyingToken),
       _wrapCallTarget,
       _wrapAmount

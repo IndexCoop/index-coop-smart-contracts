@@ -30,7 +30,7 @@ import { IController } from "../interfaces/IController.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
-import { DEXAdapterV2 } from "./DEXAdapterV2.sol";
+import { DEXAdapterV3 } from "./DEXAdapterV3.sol";
 
 /**
  * @title FlashMintDex
@@ -41,7 +41,7 @@ import { DEXAdapterV2 } from "./DEXAdapterV2.sol";
  * The FlashMint SDK (https://github.com/IndexCoop/flash-mint-sdk) provides a unified interface for this and other FlashMint contracts.
  */
 contract FlashMintDex is Ownable, ReentrancyGuard {
-    using DEXAdapterV2 for DEXAdapterV2.Addresses;
+    using DEXAdapterV3 for DEXAdapterV3.Addresses;
     using Address for address payable;
     using SafeMath for uint256;
     using PreciseUnitMath for uint256;
@@ -58,13 +58,13 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     address public immutable WETH;
     IController public immutable setController;
     IController public immutable indexController;
-    DEXAdapterV2.Addresses public dexAdapter;
+    DEXAdapterV3.Addresses public dexAdapter;
 
     /* ============ Structs ============ */
     struct IssueRedeemParams {
         ISetToken setToken;                         // The address of the SetToken to be issued/redeemed
         uint256 amountSetToken;                     // The amount of SetTokens to issue/redeem
-        DEXAdapterV2.SwapData[] componentSwapData;  // The swap data from WETH to each component token
+        DEXAdapterV3.SwapData[] componentSwapData;  // The swap data from WETH to each component token
         address issuanceModule;                     // The address of the issuance module to be used
         bool isDebtIssuance;                        // A flag indicating whether the issuance module is a debt issuance module
     }
@@ -72,8 +72,8 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     struct PaymentInfo {
         IERC20 token;                               // The address of the input/output token for issuance/redemption
         uint256 limitAmt;                           // Max/min amount of payment token spent/received
-        DEXAdapterV2.SwapData swapDataTokenToWeth;  // The swap data from payment token to WETH
-        DEXAdapterV2.SwapData swapDataWethToToken;  // The swap data from WETH back to payment token
+        DEXAdapterV3.SwapData swapDataTokenToWeth;  // The swap data from payment token to WETH
+        DEXAdapterV3.SwapData swapDataWethToToken;  // The swap data from WETH back to payment token
     }
 
     /* ============ Events ============ */
@@ -120,7 +120,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     constructor(
         IController _setController,
         IController _indexController,
-        DEXAdapterV2.Addresses memory _dexAddresses
+        DEXAdapterV3.Addresses memory _dexAddresses
     )
         public
     {
@@ -208,7 +208,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      */
     function getIssueExactSet(
         IssueRedeemParams memory _issueParams,
-        DEXAdapterV2.SwapData memory _swapDataInputTokenToWeth
+        DEXAdapterV3.SwapData memory _swapDataInputTokenToWeth
     )
         external
         returns (uint256)
@@ -230,7 +230,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      */
     function getRedeemExactSet(
         IssueRedeemParams memory _redeemParams,
-        DEXAdapterV2.SwapData memory _swapDataWethToOutputToken
+        DEXAdapterV3.SwapData memory _swapDataWethToOutputToken
     )
         external
         returns (uint256)
@@ -375,7 +375,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     }
 
     /**
-     * Swaps a given amount of an ERC20 token for WETH using the DEXAdapter.
+     * Swaps a given amount of an ERC20 token for WETH using the DEXAdapterV3.
      *
      * @param _paymentToken        Address of the ERC20 payment token
      * @param _paymentTokenAmount  Amount of payment token to swap
@@ -386,7 +386,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     function _swapPaymentTokenForWeth(
         IERC20 _paymentToken,
         uint256 _paymentTokenAmount,
-        DEXAdapterV2.SwapData memory _swapData
+        DEXAdapterV3.SwapData memory _swapData
     )
         internal 
         returns (uint256 amountWethOut)
@@ -403,7 +403,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
     }
 
     /**
-     * Swaps a given amount of an WETH for ERC20 using the DEXAdapter.
+     * Swaps a given amount of an WETH for ERC20 using the DEXAdapterV3.
      *
      * @param _wethAmount       Amount of WETH to swap for input token
      * @param _paymentToken     Address of the input token
@@ -411,7 +411,7 @@ contract FlashMintDex is Ownable, ReentrancyGuard {
      *
      * @return amountOut        Amount of ERC20 received after the swap
      */
-    function _swapWethForPaymentToken(uint256 _wethAmount, IERC20 _paymentToken, DEXAdapterV2.SwapData memory _swapData)
+    function _swapWethForPaymentToken(uint256 _wethAmount, IERC20 _paymentToken, DEXAdapterV3.SwapData memory _swapData)
         internal 
         returns (uint256 amountOut)
     {

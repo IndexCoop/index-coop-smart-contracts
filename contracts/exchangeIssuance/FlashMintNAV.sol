@@ -31,7 +31,7 @@ import { IController } from "../interfaces/IController.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
-import { DEXAdapterV2 } from "./DEXAdapterV2.sol";
+import { DEXAdapterV3 } from "./DEXAdapterV3.sol";
 
 /**
  * @title FlashMintNAV
@@ -39,12 +39,12 @@ import { DEXAdapterV2 } from "./DEXAdapterV2.sol";
  * @notice Part of a family of FlashMint contracts that allows users to issue and redeem SetTokens with a single input/output token (ETH/ERC20).
  * Allows the caller to combine a DEX swap and a SetToken issuance or redemption in a single transaction.
  * Supports SetTokens that use a NAV Issuance Module, and does not require use of off-chain APIs for swap quotes.
- * The SetToken must be configured with a reserve asset that has liquidity on the exchanges supported by the DEXAdapterV2 library.
+ * The SetToken must be configured with a reserve asset that has liquidity on the exchanges supported by the DEXAdapterV3 library.
  *
  * See the FlashMint SDK for integrating any FlashMint contract (https://github.com/IndexCoop/flash-mint-sdk).
  */
 contract FlashMintNAV is Ownable, ReentrancyGuard {
-    using DEXAdapterV2 for DEXAdapterV2.Addresses;
+    using DEXAdapterV3 for DEXAdapterV3.Addresses;
     using Address for address payable;
     using SafeMath for uint256;
     using PreciseUnitMath for uint256;
@@ -64,7 +64,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
 
     /* ============ State Variables ============ */
 
-    DEXAdapterV2.Addresses public dexAdapter;
+    DEXAdapterV3.Addresses public dexAdapter;
 
     /* ============ Events ============ */
 
@@ -85,16 +85,16 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     );
 
     /**
-     * Initializes the contract with controller, issuance module, and DEXAdapterV2 library addresses.
+     * Initializes the contract with controller, issuance module, and DEXAdapterV3 library addresses.
      *
      * @param _setController     Address of the protocol controller contract
      * @param _navIssuanceModule NAV Issuance Module used to issue and redeem SetTokens
-     * @param _dexAddresses      Struct containing addresses for the DEXAdapterV2 library
+     * @param _dexAddresses      Struct containing addresses for the DEXAdapterV3 library
      */
     constructor(
         IController _setController,
         INAVIssuanceModule _navIssuanceModule,
-        DEXAdapterV2.Addresses memory _dexAddresses
+        DEXAdapterV3.Addresses memory _dexAddresses
     )
         public
     {
@@ -117,7 +117,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         address payable _to
     ) external payable onlyOwner {
         for (uint256 i = 0; i < _tokens.length; i++) {
-            if (address(_tokens[i]) == DEXAdapterV2.ETH_ADDRESS) {
+            if (address(_tokens[i]) == DEXAdapterV3.ETH_ADDRESS) {
                 _to.sendValue(address(this).balance);
             } else {
                 _tokens[i].safeTransfer(_to, _tokens[i].balanceOf(address(this)));
@@ -162,7 +162,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         ISetToken _setToken,
         address _inputToken,
         uint256 _inputTokenAmount,
-        DEXAdapterV2.SwapData memory _reserveAssetSwapData
+        DEXAdapterV3.SwapData memory _reserveAssetSwapData
     )
         external
         returns (uint256)
@@ -194,7 +194,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         ISetToken _setToken,
         uint256 _setTokenAmount,
         address _outputToken,
-        DEXAdapterV2.SwapData memory _reserveAssetSwapData
+        DEXAdapterV3.SwapData memory _reserveAssetSwapData
     )
         external
         returns (uint256)
@@ -219,7 +219,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
     function issueSetFromExactETH(
         ISetToken _setToken,
         uint256 _minSetTokenAmount,
-        DEXAdapterV2.SwapData memory _reserveAssetSwapData
+        DEXAdapterV3.SwapData memory _reserveAssetSwapData
     )
         external
         payable
@@ -257,7 +257,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         uint256 _minSetTokenAmount,
         IERC20 _inputToken,
         uint256 _inputTokenAmount,
-        DEXAdapterV2.SwapData memory _reserveAssetSwapData
+        DEXAdapterV3.SwapData memory _reserveAssetSwapData
     )
         external
         nonReentrant
@@ -292,7 +292,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         ISetToken _setToken,
         uint256 _setTokenAmount,
         uint256 _minEthAmount,
-        DEXAdapterV2.SwapData memory _reserveAssetSwapData
+        DEXAdapterV3.SwapData memory _reserveAssetSwapData
     )
         external
         nonReentrant
@@ -334,7 +334,7 @@ contract FlashMintNAV is Ownable, ReentrancyGuard {
         uint256 _setTokenAmount,
         IERC20 _outputToken,
         uint256 _minOutputTokenAmount,
-        DEXAdapterV2.SwapData memory _reserveAssetSwapData
+        DEXAdapterV3.SwapData memory _reserveAssetSwapData
     )
         external
         nonReentrant

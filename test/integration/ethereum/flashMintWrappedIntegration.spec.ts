@@ -38,6 +38,7 @@ type SwapData = {
   path: Address[];
   fees: number[];
   pool: Address;
+  poolIds: utils.BytesLike[];
   exchange: Exchange;
 };
 
@@ -116,6 +117,7 @@ class TestHelper {
               : [inputToken, addresses.tokens.weth, addresses.tokens.dai],
           fees: inputToken === addresses.dexes.curve.ethAddress ? [500] : [500, 500], // not needed for sushi
           pool: ADDRESS_ZERO,
+          poolIds: [],
         },
       },
       {
@@ -129,6 +131,7 @@ class TestHelper {
               : [inputToken, addresses.tokens.weth, addresses.tokens.USDC],
           fees: inputToken === addresses.dexes.curve.ethAddress ? [500] : [500, 500], // not needed for sushi
           pool: ADDRESS_ZERO,
+          poolIds: [],
         },
       },
     ];
@@ -162,6 +165,7 @@ class TestHelper {
               : [addresses.tokens.dai, addresses.tokens.weth, outputToken],
           fees: outputToken === addresses.tokens.weth ? [500] : [500, 500], // not used for sushi
           pool: ADDRESS_ZERO,
+          poolIds: [],
         },
       },
       {
@@ -175,6 +179,7 @@ class TestHelper {
               : [addresses.tokens.USDC, addresses.tokens.weth, outputToken],
           fees: outputToken === addresses.tokens.weth ? [500] : [500, 500], // not used for sushi
           pool: ADDRESS_ZERO,
+          poolIds: [],
         },
       },
     ];
@@ -275,7 +280,7 @@ class TestHelper {
 }
 
 if (process.env.INTEGRATIONTEST) {
-  describe("FlashMintWrapped - Integration Test", async () => {
+  describe.only("FlashMintWrapped - Integration Test", async () => {
     let owner: Account;
     let deployer: DeployHelper;
     let setToken: StandardTokenMock;
@@ -338,6 +343,7 @@ if (process.env.INTEGRATIONTEST) {
           addresses.dexes.uniV3.quoter,
           addresses.dexes.curve.addressProvider,
           addresses.dexes.curve.calculator,
+          addresses.dexes.balancerv2.vault,
           setV2Setup.controller.address,
           setV2Setup.debtIssuanceModule.address,
           setV2Setup.wrapModule.address,
