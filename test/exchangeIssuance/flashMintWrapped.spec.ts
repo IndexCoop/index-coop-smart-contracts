@@ -15,7 +15,7 @@ import {
 import DeployHelper from "@utils/deploys";
 import { usdc, UnitsUtils } from "@utils/common/unitsUtils";
 import { SetFixture, UniswapFixture, UniswapV3Fixture } from "@utils/fixtures";
-import { BigNumber } from "ethers";
+import { BigNumber, utils } from "ethers";
 import { StandardTokenMock, WETH9 } from "@utils/contracts/index";
 import { getTxFee } from "@utils/test";
 import { ethers } from "hardhat";
@@ -41,6 +41,7 @@ type SwapData = {
   path: Address[];
   fees: number[];
   pool: Address;
+  poolIds: utils.BytesLike[];
   exchange: Exchange;
 };
 
@@ -335,6 +336,7 @@ class TestHelper {
       this.uniswapV3.quoter.address,
       ADDRESS_ZERO, // curveCalculatorAddress
       ADDRESS_ZERO, // curveAddressProviderAddress
+      ADDRESS_ZERO, // balV2VaultAddress
       this.controllerAddress,
       this.issuanceModule.address,
       this.setV2Setup.wrapModule.address,
@@ -415,6 +417,7 @@ class TestHelper {
               : [inputToken, this.setV2Setup.weth.address, this.setV2Setup.dai.address],
           fees: inputToken === this.setV2Setup.weth.address ? [3000] : [3000, 3000],
           pool: ADDRESS_ZERO,
+          poolIds: [],
         },
       },
       {
@@ -430,6 +433,7 @@ class TestHelper {
               : [inputToken, this.setV2Setup.weth.address, this.setV2Setup.usdc.address],
           fees: inputToken === this.setV2Setup.weth.address ? [3000] : [3000, 3000],
           pool: ADDRESS_ZERO,
+          poolIds: [],
         },
       },
       {
@@ -444,6 +448,7 @@ class TestHelper {
               : [inputToken, this.setV2Setup.weth.address, this.setV2Setup.usdt.address],
           fees: inputToken === this.setV2Setup.weth.address ? [3000] : [3000, 3000],
           pool: ADDRESS_ZERO,
+          poolIds: [],
         },
       },
     ];
@@ -515,6 +520,7 @@ class TestHelper {
               : [this.setV2Setup.dai.address, this.setV2Setup.weth.address, outputToken],
           fees: outputToken === this.setV2Setup.weth.address ? [3000] : [3000, 3000],
           pool: ADDRESS_ZERO,
+          poolIds: [],
         },
       },
       {
@@ -528,6 +534,7 @@ class TestHelper {
               : [this.setV2Setup.usdc.address, this.setV2Setup.weth.address, outputToken],
           fees: outputToken === this.setV2Setup.weth.address ? [3000] : [3000, 3000],
           pool: ADDRESS_ZERO,
+          poolIds: [],
         },
       },
       {
@@ -541,6 +548,7 @@ class TestHelper {
               : [this.setV2Setup.usdt.address, this.setV2Setup.weth.address, outputToken],
           fees: outputToken === this.setV2Setup.weth.address ? [3000] : [3000, 3000],
           pool: ADDRESS_ZERO,
+          poolIds: [],
         },
       },
     ];

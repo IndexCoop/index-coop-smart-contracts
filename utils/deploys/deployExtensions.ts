@@ -14,6 +14,7 @@ import {
   AuctionRebalanceExtension,
   DEXAdapter,
   DEXAdapterV2,
+  DEXAdapterV3,
   ExchangeIssuance,
   ExchangeIssuanceV2,
   ExchangeIssuanceLeveraged,
@@ -218,7 +219,7 @@ export default class DeployExtensions {
     return await new DEXAdapterV2__factory(this._deployerSigner).deploy();
   }
 
-  public async deployDEXAdapterV3(): Promise<DEXAdapterV2> {
+  public async deployDEXAdapterV3(): Promise<DEXAdapterV3> {
     return await new DEXAdapterV3__factory(this._deployerSigner).deploy();
   }
 
@@ -548,18 +549,20 @@ export default class DeployExtensions {
     uniswapV3QuoterAddress: Address,
     curveCalculatorAddress: Address,
     curveAddressProviderAddress: Address,
-    dexAdapterV2Address: Address,
+    balV2VaultAddress: Address,
     setControllerAddress: Address,
     indexControllerAddress: Address,
   ) {
+    const dexAdapter = await this.deployDEXAdapterV3();
+
     const linkId = convertLibraryNameToLinkId(
-      "contracts/exchangeIssuance/DEXAdapterV2.sol:DEXAdapterV2",
+      "contracts/exchangeIssuance/DEXAdapterV3.sol:DEXAdapterV3",
     );
 
     return await new FlashMintDex__factory(
       // @ts-ignore
       {
-        [linkId]: dexAdapterV2Address,
+        [linkId]: dexAdapter.address,
       },
       // @ts-ignore
       this._deployerSigner,
@@ -570,6 +573,7 @@ export default class DeployExtensions {
       uniV3Quoter: uniswapV3QuoterAddress,
       curveAddressProvider: curveAddressProviderAddress,
       curveCalculator: curveCalculatorAddress,
+      balV2Vault: balV2VaultAddress,
       weth: wethAddress,
     });
   }
@@ -582,18 +586,20 @@ export default class DeployExtensions {
     uniswapV3QuoterAddress: Address,
     curveCalculatorAddress: Address,
     curveAddressProviderAddress: Address,
-    dexAdapterV2Address: Address,
+    balV2VaultAddress: Address,
     indexControllerAddress: Address,
     navIssuanceModuleAddress: Address
   ) {
+    const dexAdapter = await this.deployDEXAdapterV3();
+
     const linkId = convertLibraryNameToLinkId(
-      "contracts/exchangeIssuance/DEXAdapterV2.sol:DEXAdapterV2",
+      "contracts/exchangeIssuance/DEXAdapterV3.sol:DEXAdapterV3",
     );
 
     return await new FlashMintNAV__factory(
       // @ts-ignore
       {
-        [linkId]: dexAdapterV2Address,
+        [linkId]: dexAdapter.address,
       },
       // @ts-ignore
       this._deployerSigner,
@@ -607,6 +613,7 @@ export default class DeployExtensions {
         uniV3Quoter: uniswapV3QuoterAddress,
         curveAddressProvider: curveAddressProviderAddress,
         curveCalculator: curveCalculatorAddress,
+        balV2Vault: balV2VaultAddress,
         weth: wethAddress,
       },
     );
@@ -801,14 +808,15 @@ export default class DeployExtensions {
     uniswapV3QuoterAddress: Address,
     curveCalculatorAddress: Address,
     curveAddressProviderAddress: Address,
+    balV2VaultAddress: Address,
     setControllerAddress: Address,
     issuanceModuleAddress: Address,
     wrapModuleAddress: Address,
   ): Promise<FlashMintWrapped> {
-    const dexAdapter = await this.deployDEXAdapter();
+    const dexAdapter = await this.deployDEXAdapterV3();
 
     const linkId = convertLibraryNameToLinkId(
-      "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
+      "contracts/exchangeIssuance/DEXAdapterV3.sol:DEXAdapterV3",
     );
 
     return await new FlashMintWrapped__factory(
@@ -826,6 +834,7 @@ export default class DeployExtensions {
         uniV3Quoter: uniswapV3QuoterAddress,
         curveAddressProvider: curveAddressProviderAddress,
         curveCalculator: curveCalculatorAddress,
+        balV2Vault: balV2VaultAddress,
         weth: wethAddress,
       },
       setControllerAddress,

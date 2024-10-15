@@ -39,6 +39,7 @@ type SwapData = {
   path: Address[];
   fees: number[];
   pool: Address;
+  poolIds: utils.BytesLike[];
   exchange: Exchange;
 };
 
@@ -64,6 +65,7 @@ const swapDataEmpty = {
   fees: [],
   path: [],
   pool: ADDRESS_ZERO,
+  poolIds: [],
 };
 
 const swapDataUsdcToWeth = {
@@ -71,6 +73,7 @@ const swapDataUsdcToWeth = {
   fees: [500],
   path: [addresses.tokens.USDC, addresses.tokens.weth],
   pool: ADDRESS_ZERO,
+  poolIds: [],
 };
 
 const swapDataWethToUsdc = {
@@ -78,10 +81,11 @@ const swapDataWethToUsdc = {
   fees: [500],
   path: [addresses.tokens.weth, addresses.tokens.USDC],
   pool: ADDRESS_ZERO,
+  poolIds: [],
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe("FlashMintDex - Integration Test", async () => {
+  describe.only("FlashMintDex - Integration Test", async () => {
     let owner: Account;
     let deployer: DeployHelper;
     let legacySetTokenCreator: SetTokenCreator;
@@ -127,7 +131,7 @@ if (process.env.INTEGRATIONTEST) {
           addresses.dexes.uniV3.quoter,
           addresses.dexes.curve.calculator,
           addresses.dexes.curve.addressProvider,
-          addresses.dexes.dexAdapterV2,
+          addresses.dexes.balancerv2.vault,
           addresses.set.controller,
           addresses.setFork.controller,
         );
@@ -200,18 +204,21 @@ if (process.env.INTEGRATIONTEST) {
             fees: [3000],
             path: [addresses.tokens.weth, addresses.tokens.wbtc],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           },
           {
             exchange: Exchange.UniV3,
             fees: [500],
             path: [addresses.tokens.weth, addresses.tokens.weth],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           },
           {
             exchange: Exchange.UniV3,
             fees: [3000],
             path: [addresses.tokens.weth, addresses.tokens.dpi],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           },
         ];
 
@@ -426,24 +433,28 @@ if (process.env.INTEGRATIONTEST) {
             fees: [100],
             path: [addresses.tokens.weth, addresses.tokens.wstEth],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           },
           {
             exchange: Exchange.UniV3,
             fees: [100],
             path: [addresses.tokens.weth, addresses.tokens.rETH],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           },
           {
             exchange: Exchange.UniV3,
             fees: [500],
             path: [addresses.tokens.weth, addresses.tokens.swETH],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           },
           {
             exchange: Exchange.Sushiswap,
             fees: [],
             path: [addresses.tokens.weth, addresses.tokens.comp],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           },
         ];
 
@@ -453,24 +464,28 @@ if (process.env.INTEGRATIONTEST) {
             fees: [100],
             path: [addresses.tokens.wstEth, addresses.tokens.weth],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           },
           {
             exchange: Exchange.UniV3,
             fees: [100],
             path: [addresses.tokens.rETH, addresses.tokens.weth],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           },
           {
             exchange: Exchange.UniV3,
             fees: [500],
             path: [addresses.tokens.swETH, addresses.tokens.weth],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           },
           {
             exchange: Exchange.Sushiswap,
             fees: [],
             path: [addresses.tokens.comp, addresses.tokens.weth],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           },
         ];
 
@@ -757,6 +772,7 @@ if (process.env.INTEGRATIONTEST) {
               fees: [100],
               path: [addresses.tokens.weth, addresses.tokens.comp],
               pool: ADDRESS_ZERO,
+              poolIds: [],
             };
 
             invalidIssueParams.componentSwapData = [invalidSwapData];

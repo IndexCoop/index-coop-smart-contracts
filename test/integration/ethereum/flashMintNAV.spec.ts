@@ -32,6 +32,7 @@ type SwapData = {
   path: Address[];
   fees: number[];
   pool: Address;
+  poolIds: string[];
   exchange: Exchange;
 };
 
@@ -61,6 +62,7 @@ const swapDataEmpty: SwapData = {
   fees: [],
   path: [],
   pool: ADDRESS_ZERO,
+  poolIds: [],
 };
 
 const swapDataUsdcToWeth: SwapData = {
@@ -68,6 +70,7 @@ const swapDataUsdcToWeth: SwapData = {
   fees: [500],
   path: [addresses.tokens.USDC, addresses.tokens.weth],
   pool: ADDRESS_ZERO,
+  poolIds: [],
 };
 
 const swapDataWethToUsdc = {
@@ -75,10 +78,11 @@ const swapDataWethToUsdc = {
   fees: [500],
   path: [addresses.tokens.weth, addresses.tokens.USDC],
   pool: ADDRESS_ZERO,
+  poolIds: [],
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe("FlashMintNAV - Integration Test", async () => {
+  describe.only("FlashMintNAV - Integration Test", async () => {
     let owner: Account;
     let deployer: DeployHelper;
     let setV2Setup: SetFixture;
@@ -207,7 +211,7 @@ if (process.env.INTEGRATIONTEST) {
         addresses.dexes.uniV3.quoter,
         addresses.dexes.curve.calculator,
         addresses.dexes.curve.addressProvider,
-        addresses.dexes.dexAdapterV2,
+        addresses.dexes.balancerv2.vault,
         addresses.setFork.controller,
         setV2Setup.navIssuanceModule.address,
       );
@@ -338,6 +342,7 @@ if (process.env.INTEGRATIONTEST) {
             fees: [100],
             path: [addresses.tokens.dai, addresses.tokens.USDC],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           };
 
           await getInputTokens();
@@ -359,6 +364,7 @@ if (process.env.INTEGRATIONTEST) {
             fees: [100],
             path: [addresses.tokens.usdt, addresses.tokens.USDC],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           };
 
           await getInputTokens();
@@ -500,6 +506,7 @@ if (process.env.INTEGRATIONTEST) {
             fees: [100],
             path: [addresses.tokens.USDC, addresses.tokens.dai],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           };
 
           const outputAmountEstimate = await subjectQuote();
@@ -522,6 +529,7 @@ if (process.env.INTEGRATIONTEST) {
             fees: [100],
             path: [addresses.tokens.USDC, addresses.tokens.usdt],
             pool: ADDRESS_ZERO,
+            poolIds: [],
           };
 
           const outputAmountEstimate = await subjectQuote();

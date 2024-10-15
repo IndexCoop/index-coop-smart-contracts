@@ -39,6 +39,7 @@ type SwapData = {
   path: Address[];
   fees: number[];
   pool: Address;
+  poolIds: utils.BytesLike[];
   exchange: Exchange;
 };
 
@@ -79,7 +80,7 @@ const whales = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe("FlashMintWrapped - RebasingComponentModule Integration Test", async () => {
+  describe.only("FlashMintWrapped - RebasingComponentModule Integration Test", async () => {
     const TOKEN_TRANSFER_BUFFER = 10;
     const addresses = PRODUCTION_ADDRESSES;
 
@@ -208,6 +209,7 @@ if (process.env.INTEGRATIONTEST) {
           addresses.dexes.uniV3.quoter,
           addresses.dexes.curve.calculator,
           addresses.dexes.curve.addressProvider,
+          addresses.dexes.balancerv2.vault,
           controller.address,
           debtIssuanceModuleV3.address,
           wrapModuleV2.address,
@@ -280,6 +282,7 @@ if (process.env.INTEGRATIONTEST) {
                     fees: [],
                     path: [],
                     pool: ADDRESS_ZERO,
+                    poolIds: [],
                     exchange: Exchange.None,
                   },
                 },
@@ -290,6 +293,7 @@ if (process.env.INTEGRATIONTEST) {
                     fees: [],
                     path: [],
                     pool: ADDRESS_ZERO,
+                    poolIds: [],
                     exchange: Exchange.None,
                   },
                 },
@@ -300,6 +304,7 @@ if (process.env.INTEGRATIONTEST) {
                     fees: [],
                     path: [],
                     pool: ADDRESS_ZERO,
+                    poolIds: [],
                     exchange: Exchange.None,
                   },
                 },
@@ -310,6 +315,7 @@ if (process.env.INTEGRATIONTEST) {
                     fees: [],
                     path: [],
                     pool: ADDRESS_ZERO,
+                    poolIds: [],
                     exchange: Exchange.None,
                   },
                 },
@@ -320,6 +326,7 @@ if (process.env.INTEGRATIONTEST) {
                     fees: [],
                     path: [],
                     pool: ADDRESS_ZERO,
+                    poolIds: [],
                     exchange: Exchange.None,
                   },
                 },
@@ -426,6 +433,7 @@ if (process.env.INTEGRATIONTEST) {
                     fees: [],
                     path: [],
                     pool: ADDRESS_ZERO,
+                    poolIds: [],
                     exchange: Exchange.None,
                   },
                 },
@@ -436,6 +444,7 @@ if (process.env.INTEGRATIONTEST) {
                     fees: [],
                     path: [],
                     pool: ADDRESS_ZERO,
+                    poolIds: [],
                     exchange: Exchange.None,
                   },
                 },
@@ -446,6 +455,7 @@ if (process.env.INTEGRATIONTEST) {
                     fees: [],
                     path: [],
                     pool: ADDRESS_ZERO,
+                    poolIds: [],
                     exchange: Exchange.None,
                   },
                 },
@@ -456,6 +466,7 @@ if (process.env.INTEGRATIONTEST) {
                     fees: [],
                     path: [],
                     pool: ADDRESS_ZERO,
+                    poolIds: [],
                     exchange: Exchange.None,
                   },
                 },
@@ -466,6 +477,7 @@ if (process.env.INTEGRATIONTEST) {
                     fees: [],
                     path: [],
                     pool: ADDRESS_ZERO,
+                    poolIds: [],
                     exchange: Exchange.None,
                   },
                 },
