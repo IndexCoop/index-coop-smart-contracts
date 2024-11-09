@@ -189,6 +189,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
     event ExchangeRemoved(
         string _exchangeName
     );
+    event CollateralWithdrawn();
 
     /* ============ Modifiers ============ */
 
@@ -455,6 +456,16 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
             chunkRebalanceNotional,
             totalRebalanceNotional
         );
+    }
+
+    /**
+     * OPERATOR ONLY: Withdraw all collateral from morpho
+     * 
+     * Note: Can only be executed after fully deleveraging / disengaging the strategy. Will revert otherwise.
+     */
+    function exitCollateralPosition() external onlyOperator {
+        _exitCollateralPosition();
+        emit CollateralWithdrawn();
     }
 
     /**
@@ -768,6 +779,17 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
         );
 
         invokeManager(address(strategy.leverageModule), enterPositionCallData);
+    }
+
+    function _exitCollateralPosition()
+        internal
+    {
+        bytes memory exitPositionCallData = abi.encodeWithSignature(
+            "exitCollateralPosition(address)",
+            address(strategy.setToken)
+        );
+
+        invokeManager(address(strategy.leverageModule), exitPositionCallData);
     }
 
     /**
