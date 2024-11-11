@@ -601,7 +601,8 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
      * OPERATOR ONLY: Withdraw entire balance of ETH in this contract to operator. Rebalance must not be in progress
      */
     function withdrawEtherBalance() external onlyOperator noRebalanceInProgress {
-        msg.sender.transfer(address(this).balance);
+        (bool success, ) = msg.sender.call{value: address(this).balance}("");
+        require(success, "Ether transfer failed");
     }
 
     receive() external payable {}
