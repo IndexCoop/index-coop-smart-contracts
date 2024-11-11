@@ -73,6 +73,7 @@ export interface MethodologySettings {
 
 export interface ExecutionSettings {
   unutilizedLeveragePercentage: BigNumber;
+  unutilizedLeveragePercentageDelever: BigNumber;
   twapCooldownPeriod: BigNumber;
   slippageTolerance: BigNumber;
 }
