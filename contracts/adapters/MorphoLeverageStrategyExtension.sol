@@ -1123,10 +1123,11 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
         // Note NetBorrow Limit is already denominated in borrow asset
         uint256 netBorrowLimit = _actionInfo.collateralBalance
             .mul(_actionInfo.collateralPrice).div(MORPHO_ORACLE_PRICE_SCALE)
-            .preciseMul(_actionInfo.lltv)
-            .preciseMul(PreciseUnitMath.preciseUnit().sub(execution.unutilizedLeveragePercentage));
+            .preciseMul(_actionInfo.lltv);
+
         if (_isLever) {
             return netBorrowLimit
+                .preciseMul(PreciseUnitMath.preciseUnit().sub(execution.unutilizedLeveragePercentage))
                 .sub(_actionInfo.borrowBalance)
                 .mul(MORPHO_ORACLE_PRICE_SCALE).div(_actionInfo.collateralPrice);
         } else {
