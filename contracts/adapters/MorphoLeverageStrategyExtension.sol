@@ -101,6 +101,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
 
     struct ExecutionSettings {
         uint256 unutilizedLeveragePercentage;            // Percent of max borrow left unutilized in precise units (1% = 10e16)
+        uint256 unutilizedLeveragePercentageDelever;     // Percent of max borrow left unutilized when delevering
         uint256 slippageTolerance;                       // % in precise units to price min token receive amount from trade quantities
         uint256 twapCooldownPeriod;                      // Cooldown period required since last trade timestamp in seconds
     }
@@ -161,6 +162,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
     );
     event ExecutionSettingsUpdated(
         uint256 _unutilizedLeveragePercentage,
+        uint256 _unutilizedLeveragePercentageDelever,
         uint256 _twapCooldownPeriod,
         uint256 _slippageTolerance
     );
@@ -490,6 +492,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
 
         emit ExecutionSettingsUpdated(
             execution.unutilizedLeveragePercentage,
+            execution.unutilizedLeveragePercentageDelever,
             execution.twapCooldownPeriod,
             execution.slippageTolerance
         );
@@ -961,6 +964,10 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
             "Unutilized leverage must be <100%"
         );
         require (
+            _execution.unutilizedLeveragePercentageDelever <= PreciseUnitMath.preciseUnit(),
+            "Unutilized leverage on delever must be <100%"
+        );
+        require (
             _execution.slippageTolerance <= PreciseUnitMath.preciseUnit(),
             "Slippage tolerance must be <100%"
         );
@@ -1132,6 +1139,7 @@ contract MorphoLeverageStrategyExtension is BaseExtension {
                 .mul(MORPHO_ORACLE_PRICE_SCALE).div(_actionInfo.collateralPrice);
         } else {
             return _actionInfo.collateralBalance
+                .preciseMul(PreciseUnitMath.preciseUnit().sub(execution.unutilizedLeveragePercentageDelever))
                 .preciseMul(netBorrowLimit.sub(_actionInfo.borrowBalance))
                 .preciseDiv(netBorrowLimit);
         }

@@ -385,6 +385,7 @@ if (process.env.INTEGRATIONTEST) {
       const rebalanceInterval = BigNumber.from(86400);
 
       const unutilizedLeveragePercentage = ether(0.01);
+      const unutilizedLeveragePercentageDelever = ZERO;
       const twapMaxTradeSize = ether(0.5);
       const twapCooldownPeriod = BigNumber.from(3000);
       const slippageTolerance = ether(0.01);
@@ -412,6 +413,7 @@ if (process.env.INTEGRATIONTEST) {
       };
       execution = {
         unutilizedLeveragePercentage: unutilizedLeveragePercentage,
+        unutilizedLeveragePercentageDelever: unutilizedLeveragePercentageDelever,
         twapCooldownPeriod: twapCooldownPeriod,
         slippageTolerance: slippageTolerance,
       };
@@ -473,6 +475,7 @@ if (process.env.INTEGRATIONTEST) {
         };
         subjectExecutionSettings = {
           unutilizedLeveragePercentage: ether(0.01),
+          unutilizedLeveragePercentageDelever: ZERO,
           twapCooldownPeriod: BigNumber.from(120),
           slippageTolerance: ether(0.01),
         };
@@ -552,6 +555,9 @@ if (process.env.INTEGRATIONTEST) {
 
         expect(execution.unutilizedLeveragePercentage).to.eq(
           subjectExecutionSettings.unutilizedLeveragePercentage,
+        );
+        expect(execution.unutilizedLeveragePercentageDelever).to.eq(
+          subjectExecutionSettings.unutilizedLeveragePercentageDelever
         );
         expect(execution.twapCooldownPeriod).to.eq(subjectExecutionSettings.twapCooldownPeriod);
         expect(execution.slippageTolerance).to.eq(subjectExecutionSettings.slippageTolerance);
@@ -647,6 +653,16 @@ if (process.env.INTEGRATIONTEST) {
 
         it("should revert", async () => {
           await expect(subject()).to.be.revertedWith("Unutilized leverage must be <100%");
+        });
+      });
+
+      describe("when unutilizedLeveragePercentageDelever is >100%", async () => {
+        beforeEach(async () => {
+          subjectExecutionSettings.unutilizedLeveragePercentageDelever = ether(1.1);
+        });
+
+        it("should revert", async () => {
+          await expect(subject()).to.be.revertedWith("Unutilized leverage on delever must be <100%");
         });
       });
 
@@ -2967,7 +2983,6 @@ if (process.env.INTEGRATIONTEST) {
             );
 
             const expectedFirstPositionUnit = initialPositions[0].unit.sub(maxRedeemCollateral);
-            console.log("expectedFirstPositionUnit", expectedFirstPositionUnit.toString());
 
             expect(initialPositions.length).to.eq(2);
             expect(currentPositions.length).to.eq(2);
@@ -3430,6 +3445,7 @@ if (process.env.INTEGRATIONTEST) {
             const oldExecution = await leverageStrategyExtension.getExecution();
             const newExecution: ExecutionSettings = {
               unutilizedLeveragePercentage: oldExecution.unutilizedLeveragePercentage,
+              unutilizedLeveragePercentageDelever: ZERO,
               twapCooldownPeriod: oldExecution.twapCooldownPeriod,
               slippageTolerance: ether(0.05),
             };
@@ -3851,6 +3867,7 @@ if (process.env.INTEGRATIONTEST) {
       const initializeSubjectVariables = () => {
         subjectExecutionSettings = {
           unutilizedLeveragePercentage: ether(0.05),
+          unutilizedLeveragePercentageDelever: ZERO,
           twapCooldownPeriod: BigNumber.from(360),
           slippageTolerance: ether(0.02),
         };
@@ -3872,6 +3889,9 @@ if (process.env.INTEGRATIONTEST) {
           expect(execution.unutilizedLeveragePercentage).to.eq(
             subjectExecutionSettings.unutilizedLeveragePercentage,
           );
+          expect(execution.unutilizedLeveragePercentageDelever).to.eq(
+            subjectExecutionSettings.unutilizedLeveragePercentageDelever,
+          );
           expect(execution.twapCooldownPeriod).to.eq(subjectExecutionSettings.twapCooldownPeriod);
           expect(execution.slippageTolerance).to.eq(subjectExecutionSettings.slippageTolerance);
         });
@@ -3881,6 +3901,7 @@ if (process.env.INTEGRATIONTEST) {
             .to.emit(leverageStrategyExtension, "ExecutionSettingsUpdated")
             .withArgs(
               subjectExecutionSettings.unutilizedLeveragePercentage,
+              subjectExecutionSettings.unutilizedLeveragePercentageDelever,
               subjectExecutionSettings.twapCooldownPeriod,
               subjectExecutionSettings.slippageTolerance,
             );
