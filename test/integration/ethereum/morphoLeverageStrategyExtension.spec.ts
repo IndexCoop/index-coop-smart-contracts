@@ -270,7 +270,7 @@ if (process.env.INTEGRATIONTEST) {
       const [, borrowShares, collateral] = await morpho.position(marketId, setToken.address);
       const collateralTokenBalance = await wsteth.balanceOf(setToken.address);
       const collateralTotalBalance = collateralTokenBalance.add(collateral);
-      const [, , totalBorrowAssets, totalBorrowShares, , ] = await morpho.market(marketId);
+      const [, , totalBorrowAssets, totalBorrowShares, ,] = await morpho.market(marketId);
       const borrowAssets = sharesToAssetsUp(borrowShares, totalBorrowAssets, totalBorrowShares);
       return { collateralTotalBalance, borrowAssets };
     }
@@ -3621,6 +3621,22 @@ if (process.env.INTEGRATIONTEST) {
             expect(newSecondPosition.positionState).to.eq(0); // Default
             expect(BigNumber.from(newSecondPosition.unit)).to.gt(ZERO);
             expect(newSecondPosition.module).to.eq(ADDRESS_ZERO);
+          });
+
+          it("can run exitCollateralPosition afterwards", async () => {
+            await subject();
+
+            const [, , collateralBefore] = await morpho.position(marketId, setToken.address);
+            await leverageStrategyExtension.exitCollateralPosition();
+            const [, , collateralAfter] = await morpho.position(marketId, setToken.address);
+            expect(await wsteth.balanceOf(setToken.address)).to.eq(collateralBefore);
+            expect(collateralAfter).to.eq(ZERO);
+          });
+
+          it("can't run exitCollateralPosition without disengaging", async () => {
+            await expect(leverageStrategyExtension.exitCollateralPosition()).to.be.revertedWith(
+              "Borrow balance must be 0",
+            );
           });
         },
       );
