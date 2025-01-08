@@ -1,5 +1,5 @@
 /*
-    Copyright 2022 Index Cooperative.
+    Copyright 2024 Index Cooperative.
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
 
 import { BaseExtension } from "../lib/BaseExtension.sol";
-import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IAirdropModule } from "../interfaces/IAirdropModule.sol";
@@ -74,18 +73,12 @@ contract ReinvestmentExtensionV1 is BaseExtension {
 
     /* ============ External Functions ============ */
 
-    function addAirdrop(address _token) external onlyOperator {
-        invokeManager(
-            address(airdropModule),
-            abi.encodeWithSignature("addAirdrop(address,address)", setToken, _token)
-        );
-    }
-
-    function initializeTradeModule() external onlyOperator {
-        bytes memory tradeModuleData = abi.encodeWithSelector(tradeModule.initialize.selector, setToken);
-        invokeManager(address(tradeModule), tradeModuleData);
-    }
-
+    /**
+     * APPROVED_CALLER ONLY: Absorbs airdropped tokens and trades them for WETH
+     * 
+     * @param _rewardToken          Address of reward token to reinvest
+     * @param _minReceiveQuantity   Minimum amount of WETH to receive
+     */
     function reinvest(
         address _rewardToken,
         uint256 _minReceiveQuantity
@@ -112,6 +105,14 @@ contract ReinvestmentExtensionV1 is BaseExtension {
         invokeManager(address(tradeModule), tradeCallData);
     }
 
+    /**
+     * OPERATOR ONLY: Wraps WETH into target wrapped token
+     * 
+     * @param _wrappedToken         Address of wrapped token
+     * @param _underlyingUnits      Units of WETH to wrap
+     * @param _integrationName      Name of wrap module integration
+     * @param _wrapData            Encoded wrap data
+     */
     function wrap(
         address _wrappedToken,
         uint256 _underlyingUnits,
@@ -130,10 +131,58 @@ contract ReinvestmentExtensionV1 is BaseExtension {
         invokeManager(address(wrapModule), wrapCallData);
     }
 
+    /**
+     * OPERATOR ONLY: Adds new token to airdrop list
+     * 
+     * @param _token    Address of token to add to airdrop list
+     */
+    function addAirdrop(address _token) external onlyOperator {
+        invokeManager(
+            address(airdropModule),
+            abi.encodeWithSignature("addAirdrop(address,address)", setToken, _token)
+        );
+    }
+
+    /**
+     * APPROVED_CALLER ONLY: Updates execution settings for a reward token
+     * 
+     * @param _rewardToken    Address of reward token
+     * @param _settings       New execution settings
+     */
     function updateExecutionSettings(
         address _rewardToken,
         ExecutionSettings memory _settings
     ) external onlyAllowedCaller(msg.sender) {
         settings[_rewardToken] = _settings;
+    }
+
+    /**
+     * OPERATOR ONLY: Initializes the AirdropModule
+     * 
+     * @param _airdropSettings    Airdrop module initialization settings
+     */
+    function initializeAirdropModule(IAirdropModule.AirdropSettings memory _airdropSettings) external onlyOperator {
+        bytes memory callData = abi.encodeWithSelector(
+            airdropModule.initialize.selector,
+            setToken,
+            _airdropSettings
+        );
+        invokeManager(address(airdropModule), callData);
+    }
+
+    /**
+     * OPERATOR ONLY: Initializes the TradeModule
+     */
+    function initializeTradeModule() external onlyOperator {
+        bytes memory tradeModuleData = abi.encodeWithSelector(tradeModule.initialize.selector, setToken);
+        invokeManager(address(tradeModule), tradeModuleData);
+    }
+
+    /**
+     * OPERATOR ONLY: Initializes the WrapModule
+     */
+    function initializeWrapModule() external onlyOperator {
+        bytes memory wrapModuleData = abi.encodeWithSelector(wrapModule.initialize.selector, setToken);
+        invokeManager(address(wrapModule), wrapModuleData);
     }
 }
