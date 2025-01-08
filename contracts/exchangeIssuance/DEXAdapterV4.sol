@@ -39,7 +39,7 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
  *
  * Same as DEXAdapterV2 but adds BalancerV2 support
  */
-library DEXAdapterV3 {
+library DEXAdapterV4 {
     using SafeERC20 for IERC20;
     using PreciseUnitMath for uint256;
     using SafeMath for uint256;
