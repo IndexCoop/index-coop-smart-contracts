@@ -34,10 +34,10 @@ import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 
 
 /**
- * @title DEXAdapterV3
+ * @title DEXAdapterV4
  * @author Index Coop
  *
- * Same as DEXAdapterV2 but adds BalancerV2 support
+ * Same as DEXAdapterV3 but adds Aerodrome support
  */
 library DEXAdapterV4 {
     using SafeERC20 for IERC20;
