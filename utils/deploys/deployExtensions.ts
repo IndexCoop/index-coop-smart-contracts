@@ -40,8 +40,12 @@ import {
   AaveV3LeverageStrategyExtension,
   AaveV3LeverageStrategyExtension__factory,
   FlashMintLeveragedExtended__factory,
+  FlashMintLeveragedExtendedAerodrome__factory,
+  FlashMintLeveragedAerodrome__factory,
   MorphoLeverageStrategyExtension,
   MorphoLeverageStrategyExtension__factory,
+  DEXAdapterV4,
+  DEXAdapterV4__factory,
 } from "../../typechain";
 import { AirdropExtension__factory } from "../../typechain/factories/AirdropExtension__factory";
 import { AuctionRebalanceExtension__factory } from "../../typechain/factories/AuctionRebalanceExtension__factory";
@@ -223,6 +227,10 @@ export default class DeployExtensions {
     return await new DEXAdapterV3__factory(this._deployerSigner).deploy();
   }
 
+  public async deployDEXAdapterV4(): Promise<DEXAdapterV4> {
+    return await new DEXAdapterV4__factory(this._deployerSigner).deploy();
+  }
+
   public async deployExchangeIssuanceLeveraged(
     wethAddress: Address,
     quickRouterAddress: Address,
@@ -264,6 +272,137 @@ export default class DeployExtensions {
     );
   }
 
+  public async deployFlashMintLeveragedAerodrome(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+    aaveLeveragedModuleAddress: Address,
+    aaveAddressProviderAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+    BalancerV2VaultAddress: Address,
+    aerodromeRouterAddress: Address,
+    aerodromeFactoryAddress: Address,
+  ) {
+    console.log("Deploying FlashMintLeveragedAerodrome", {
+      wethAddress,
+      quickRouterAddress,
+      sushiRouterAddress,
+      uniV3RouterAddress,
+      uniswapV3QuoterAddress,
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      aaveLeveragedModuleAddress,
+      aaveAddressProviderAddress,
+      curveCalculatorAddress,
+      curveAddressProviderAddress,
+      BalancerV2VaultAddress,
+      aerodromeRouterAddress,
+      aerodromeFactoryAddress,
+    });
+    const dexAdapter = await this.deployDEXAdapterV4();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapterV4.sol:DEXAdapterV4",
+    );
+
+    return await new FlashMintLeveragedAerodrome__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      {
+        quickRouter: quickRouterAddress,
+        sushiRouter: sushiRouterAddress,
+        uniV3Router: uniV3RouterAddress,
+        uniV3Quoter: uniswapV3QuoterAddress,
+        curveAddressProvider: curveAddressProviderAddress,
+        curveCalculator: curveCalculatorAddress,
+        aerodromeRouter: aerodromeRouterAddress,
+        aerodromeFactory: aerodromeFactoryAddress,
+        balV2Vault: BalancerV2VaultAddress,
+        weth: wethAddress,
+      },
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      aaveLeveragedModuleAddress,
+      aaveAddressProviderAddress,
+      BalancerV2VaultAddress,
+    );
+  }
+
+  public async deployFlashMintLeveragedExtendedAerodrome(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+    aaveLeveragedModuleAddress: Address,
+    aaveAddressProviderAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+    BalancerV2VaultAddress: Address,
+    aerodromeRouterAddress: Address,
+    aerodromeFactoryAddress: Address,
+  ) {
+    console.log("Deploying FlashMintLeveragedExtendedAerodrome", {
+      wethAddress,
+      quickRouterAddress,
+      sushiRouterAddress,
+      uniV3RouterAddress,
+      uniswapV3QuoterAddress,
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      aaveLeveragedModuleAddress,
+      aaveAddressProviderAddress,
+      curveCalculatorAddress,
+      curveAddressProviderAddress,
+      BalancerV2VaultAddress,
+      aerodromeRouterAddress,
+      aerodromeFactoryAddress,
+    });
+    const dexAdapter = await this.deployDEXAdapterV4();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapterV4.sol:DEXAdapterV4",
+    );
+
+    return await new FlashMintLeveragedExtendedAerodrome__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      {
+        quickRouter: quickRouterAddress,
+        sushiRouter: sushiRouterAddress,
+        uniV3Router: uniV3RouterAddress,
+        uniV3Quoter: uniswapV3QuoterAddress,
+        curveAddressProvider: curveAddressProviderAddress,
+        curveCalculator: curveCalculatorAddress,
+        aerodromeRouter: aerodromeRouterAddress,
+        aerodromeFactory: aerodromeFactoryAddress,
+        balV2Vault: BalancerV2VaultAddress,
+        weth: wethAddress,
+      },
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      aaveLeveragedModuleAddress,
+      aaveAddressProviderAddress,
+      BalancerV2VaultAddress,
+    );
+  }
   public async deployFlashMintLeveragedExtended(
     wethAddress: Address,
     quickRouterAddress: Address,
@@ -588,7 +727,7 @@ export default class DeployExtensions {
     curveAddressProviderAddress: Address,
     balV2VaultAddress: Address,
     indexControllerAddress: Address,
-    navIssuanceModuleAddress: Address
+    navIssuanceModuleAddress: Address,
   ) {
     const dexAdapter = await this.deployDEXAdapterV3();
 
@@ -603,20 +742,16 @@ export default class DeployExtensions {
       },
       // @ts-ignore
       this._deployerSigner,
-    ).deploy(
-      indexControllerAddress,
-      navIssuanceModuleAddress,
-      {
-        quickRouter: quickRouterAddress,
-        sushiRouter: sushiRouterAddress,
-        uniV3Router: uniV3RouterAddress,
-        uniV3Quoter: uniswapV3QuoterAddress,
-        curveAddressProvider: curveAddressProviderAddress,
-        curveCalculator: curveCalculatorAddress,
-        balV2Vault: balV2VaultAddress,
-        weth: wethAddress,
-      },
-    );
+    ).deploy(indexControllerAddress, navIssuanceModuleAddress, {
+      quickRouter: quickRouterAddress,
+      sushiRouter: sushiRouterAddress,
+      uniV3Router: uniV3RouterAddress,
+      uniV3Quoter: uniswapV3QuoterAddress,
+      curveAddressProvider: curveAddressProviderAddress,
+      curveCalculator: curveCalculatorAddress,
+      balV2Vault: balV2VaultAddress,
+      weth: wethAddress,
+    });
   }
 
   public async deployFlashMintNotional(
@@ -770,8 +905,18 @@ export default class DeployExtensions {
     return await new WrapExtension__factory(this._deployerSigner).deploy(manager, wrapModule);
   }
 
-  public async deployTargetWeightWrapExtension(manager: Address, wrapModule: Address, setValuer: Address, isAnyoneAllowedToRebalance: boolean): Promise<TargetWeightWrapExtension> {
-    return await new TargetWeightWrapExtension__factory(this._deployerSigner).deploy(manager, wrapModule, setValuer, isAnyoneAllowedToRebalance);
+  public async deployTargetWeightWrapExtension(
+    manager: Address,
+    wrapModule: Address,
+    setValuer: Address,
+    isAnyoneAllowedToRebalance: boolean,
+  ): Promise<TargetWeightWrapExtension> {
+    return await new TargetWeightWrapExtension__factory(this._deployerSigner).deploy(
+      manager,
+      wrapModule,
+      setValuer,
+      isAnyoneAllowedToRebalance,
+    );
   }
 
   public async deployMigrationExtension(
