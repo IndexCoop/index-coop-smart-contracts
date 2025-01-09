@@ -7,6 +7,7 @@ import {
   IncentiveSettings,
   ExchangeSettings,
   AaveContractSettings,
+  ReinvestmentExchangeSettings,
 } from "../types";
 import {
   AaveLeverageStrategyExtension,
@@ -32,6 +33,7 @@ import {
   StreamingFeeSplitExtension,
   WrapExtension,
   TargetWeightWrapExtension,
+  ReinvestmentExtensionV1,
 } from "../contracts/index";
 import { convertLibraryNameToLinkId } from "../common";
 
@@ -72,6 +74,7 @@ import { FixedRebalanceExtension__factory } from "../../typechain/factories/Fixe
 import { MigrationExtension__factory } from "../../typechain/factories/MigrationExtension__factory";
 import { OptimisticAuctionRebalanceExtensionV1__factory } from "../../typechain/factories/OptimisticAuctionRebalanceExtensionV1__factory";
 import { StakeWiseReinvestmentExtension__factory } from "../../typechain/factories/StakeWiseReinvestmentExtension__factory";
+import { ReinvestmentExtensionV1__factory } from "../../typechain/factories/ReinvestmentExtensionV1__factory";
 import { StreamingFeeSplitExtension__factory } from "../../typechain/factories/StreamingFeeSplitExtension__factory";
 import { WrapExtension__factory } from "../../typechain/factories/WrapExtension__factory";
 import { TargetWeightWrapExtension__factory } from "../../typechain/factories/TargetWeightWrapExtension__factory";
@@ -881,5 +884,18 @@ export default class DeployExtensions {
       useAssetAllowlist,
       allowedAssets,
     });
+  }
+
+  public async deployReinvestmentExtensionV1(
+    manager: Address,
+    weth: Address,
+    airdropModule: Address,
+    tradeModule: Address,
+    wrapModule: Address,
+    initialRewardTokens: Address[],
+    initialExchangeSettings: ReinvestmentExchangeSettings[],
+    initialWrapPairs: Address[][],
+  ): Promise<ReinvestmentExtensionV1> {
+    return await new ReinvestmentExtensionV1__factory(this._deployerSigner).deploy(manager, weth, airdropModule, tradeModule, wrapModule, initialRewardTokens, initialExchangeSettings, initialWrapPairs);
   }
 }

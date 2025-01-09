@@ -36,6 +36,7 @@ export { MasterChefMock } from "../../typechain/MasterChefMock";
 export { MerkleDistributor } from "../../typechain/MerkleDistributor";
 export { MutualUpgradeMock } from "../../typechain/MutualUpgradeMock";
 export { NotionalTradeModuleMock } from "../../typechain/NotionalTradeModuleMock";
+export { ReinvestmentExtensionV1 } from "../../typechain/ReinvestmentExtensionV1";
 export { RewardsDistributionRecipient } from "../../typechain/RewardsDistributionRecipient";
 export { StakingRewards } from "../../typechain/StakingRewards";
 export { StakingRewardsV2 } from "../../typechain/StakingRewardsV2";
