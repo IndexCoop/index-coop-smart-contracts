@@ -40,7 +40,7 @@ contract ReinvestmentExtensionV1 is BaseExtension {
 
     /* ========== Structs ================= */
 
-    struct ExecutionSettings {
+    struct ExchangeSettings {
         string exchangeName;
         bytes exchangeCallData;
     }
@@ -53,7 +53,8 @@ contract ReinvestmentExtensionV1 is BaseExtension {
     ITradeModule public immutable tradeModule;
     IWrapModuleV2 public immutable wrapModule;
 
-    mapping(address => ExecutionSettings) public settings;
+    mapping(address => ExchangeSettings) public exchangeSettings;
+    mapping(address => mapping(address => bool)) public approvedWrapPairs;
 
     /* ============  Constructor ============ */ 
 
@@ -62,13 +63,32 @@ contract ReinvestmentExtensionV1 is BaseExtension {
         address _weth,
         IAirdropModule _airdropModule,
         ITradeModule _tradeModule,
-        IWrapModuleV2 _wrapModule
+        IWrapModuleV2 _wrapModule,
+        address[] memory _initialRewardTokens,
+        ExchangeSettings[] memory _initialExchangeSettings,
+        address[][] memory _initialWrapPairs
     ) public BaseExtension(_manager) {
+        require(_weth != address(0), "Invalid WETH address");
+        
         setToken = _manager.setToken();
         WETH = _weth;
         airdropModule = _airdropModule;
         tradeModule = _tradeModule;
         wrapModule = _wrapModule;
+
+        require(_initialRewardTokens.length == _initialExchangeSettings.length, "Arrays length mismatch");
+        
+        for (uint256 i = 0; i < _initialRewardTokens.length; i++) {
+            require(_initialRewardTokens[i] != address(0), "Invalid reward token");
+            exchangeSettings[_initialRewardTokens[i]] = _initialExchangeSettings[i];
+        }
+
+        for (uint256 i = 0; i < _initialWrapPairs.length; i++) {
+            address underlyingToken = _initialWrapPairs[i][0];
+            address wrappedToken = _initialWrapPairs[i][1];
+            require(underlyingToken != address(0) && wrappedToken != address(0), "Invalid token address");
+            approvedWrapPairs[underlyingToken][wrappedToken] = true;
+        }
     }
 
     /* ============ External Functions ============ */
@@ -95,34 +115,39 @@ contract ReinvestmentExtensionV1 is BaseExtension {
         bytes memory tradeCallData = abi.encodeWithSelector(
             ITradeModule.trade.selector,
             setToken,
-            settings[_rewardToken].exchangeName,
+            exchangeSettings[_rewardToken].exchangeName,
             _rewardToken,
             rewardUnits,
             WETH,
             _minReceiveQuantity,
-            settings[_rewardToken].exchangeCallData
+            exchangeSettings[_rewardToken].exchangeCallData
         );
         invokeManager(address(tradeModule), tradeCallData);
     }
 
     /**
-     * OPERATOR ONLY: Wraps WETH into target wrapped token
+     * OPERATOR ONLY: Wraps underlying token into target wrapped token
      * 
+     * @param _underlyingToken      Address of underlying token
      * @param _wrappedToken         Address of wrapped token
-     * @param _underlyingUnits      Units of WETH to wrap
+     * @param _underlyingUnits      Units of underlying token to wrap
      * @param _integrationName      Name of wrap module integration
      * @param _wrapData            Encoded wrap data
      */
     function wrap(
+        address _underlyingToken,
         address _wrappedToken,
         uint256 _underlyingUnits,
         string calldata _integrationName,
         bytes memory _wrapData
-    ) external onlyOperator {
+    ) external onlyAllowedCaller(msg.sender) {
+        require(_underlyingUnits > 0, "Invalid units");
+        require(approvedWrapPairs[_underlyingToken][_wrappedToken], "Unapproved wrap pair");
+        
         bytes memory wrapCallData = abi.encodeWithSelector(
             wrapModule.wrap.selector,
             setToken,
-            WETH,
+            _underlyingToken,
             _wrappedToken,
             _underlyingUnits,
             _integrationName,
@@ -144,16 +169,38 @@ contract ReinvestmentExtensionV1 is BaseExtension {
     }
 
     /**
-     * APPROVED_CALLER ONLY: Updates execution settings for a reward token
-     * 
-     * @param _rewardToken    Address of reward token
-     * @param _settings       New execution settings
+     * OPERATOR ONLY: Updates exchange settings for a reward token
      */
-    function updateExecutionSettings(
+    function updateExchangeSettings(
         address _rewardToken,
-        ExecutionSettings memory _settings
-    ) external onlyAllowedCaller(msg.sender) {
-        settings[_rewardToken] = _settings;
+        ExchangeSettings memory _settings
+    ) external onlyOperator {
+        require(_rewardToken != address(0), "Invalid reward token");
+        exchangeSettings[_rewardToken] = _settings;
+    }
+
+    /**
+     * OPERATOR ONLY: Adds an approved wrap pair
+     * 
+     * @param _underlyingToken    Address of underlying token
+     * @param _wrappedToken       Address of wrapped token
+     */
+    function addWrapPair(address _underlyingToken, address _wrappedToken) external onlyOperator {
+        require(_underlyingToken != address(0) && _wrappedToken != address(0), "Invalid token address");
+        require(!approvedWrapPairs[_underlyingToken][_wrappedToken], "Pair already exists");
+        approvedWrapPairs[_underlyingToken][_wrappedToken] = true;
+    }
+
+    /**
+     * OPERATOR ONLY: Removes an approved wrap pair
+     * 
+     * @param _underlyingToken    Address of underlying token
+     * @param _wrappedToken       Address of wrapped token
+     */
+    function removeWrapPair(address _underlyingToken, address _wrappedToken) external onlyOperator {
+        require(_underlyingToken != address(0) && _wrappedToken != address(0), "Invalid token address");
+        require(approvedWrapPairs[_underlyingToken][_wrappedToken], "Pair does not exist");
+        approvedWrapPairs[_underlyingToken][_wrappedToken] = false;
     }
 
     /**

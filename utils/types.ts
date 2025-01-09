@@ -148,3 +148,8 @@ export interface CustomOracleNAVIssuanceSettings {
   maxPremiumPercentage: BigNumber;
   minSetTokenSupply: BigNumber;
 }
+
+export interface ReinvestmentExchangeSettings {
+  exchangeName: string;
+  exchangeCallData: Bytes;
+}

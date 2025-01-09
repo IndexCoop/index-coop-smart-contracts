@@ -1,7 +1,7 @@
 import "module-alias/register";
 
 import { BigNumber } from "ethers";
-import { Address, Account } from "@utils/types";
+import { Address, Account, ReinvestmentExchangeSettings } from "@utils/types";
 import { ADDRESS_ZERO, EMPTY_BYTES, MAX_UINT_256, ZERO } from "@utils/constants";
 import {
   ReinvestmentExtensionV1,
@@ -94,11 +94,7 @@ describe("ReinvestmentExtensionV1", () => {
       ]
     );
 
-    await setV2Setup.issuanceModule.initialize(
-      setToken.address,
-      ADDRESS_ZERO
-    );
-
+    await setV2Setup.issuanceModule.initialize(setToken.address, ADDRESS_ZERO);
     await setV2Setup.weth.approve(setV2Setup.issuanceModule.address, MAX_UINT_256);
     await setV2Setup.issuanceModule.issue(setToken.address, ether(5), owner.address);
 
@@ -109,12 +105,22 @@ describe("ReinvestmentExtensionV1", () => {
     );
     await baseManagerV2.connect(methodologist.wallet).authorizeInitialization();
 
+    const initialRewardTokens = [rewardToken];
+    const initialExchangeSettings: ReinvestmentExchangeSettings[] = [{
+      exchangeName: tradeAdapterName,
+      exchangeCallData: EMPTY_BYTES,
+    }];
+    const initialWrapPairs = [[weth, wrapAdapter.address]];
+
     reinvestmentExtension = await deployer.extensions.deployReinvestmentExtensionV1(
       baseManagerV2.address,
       weth,
       setV2Setup.airdropModule.address,
       tradeModule.address,
-      wrapModule.address
+      wrapModule.address,
+      initialRewardTokens,
+      initialExchangeSettings,
+      initialWrapPairs
     );
 
     await baseManagerV2.connect(operator.wallet).addExtension(reinvestmentExtension.address);
@@ -124,31 +130,32 @@ describe("ReinvestmentExtensionV1", () => {
 
     await setV2Setup.weth.transfer(tradeMock.address, ether(10));
     await setV2Setup.wbtc.transfer(tradeMock.address, bitcoin(10));
-
-    await reinvestmentExtension.connect(operator.wallet).updateExecutionSettings(
-      rewardToken,
-      {
-        exchangeName: tradeAdapterName,
-        exchangeCallData: EMPTY_BYTES,
-      }
-    );
   });
 
   addSnapshotBeforeRestoreAfterEach();
 
   describe("#constructor", () => {
     let subjectManager: Address;
+    let subjectWeth: Address;
     let subjectAirdropModule: Address;
     let subjectTradeModule: Address;
     let subjectWrapModule: Address;
-    let subjectWeth: Address;
+    let subjectInitialRewardTokens: Address[];
+    let subjectInitialExchangeSettings: any[];
+    let subjectInitialWrapPairs: Address[][];
 
     beforeEach(async () => {
       subjectManager = baseManagerV2.address;
+      subjectWeth = weth;
       subjectAirdropModule = setV2Setup.airdropModule.address;
       subjectTradeModule = tradeModule.address;
       subjectWrapModule = wrapModule.address;
-      subjectWeth = weth;
+      subjectInitialRewardTokens = [rewardToken];
+      subjectInitialExchangeSettings = [{
+        exchangeName: tradeAdapterName,
+        exchangeCallData: EMPTY_BYTES,
+      }];
+      subjectInitialWrapPairs = [[weth, wrapAdapter.address]];
     });
 
     async function subject(): Promise<ReinvestmentExtensionV1> {
@@ -157,38 +164,76 @@ describe("ReinvestmentExtensionV1", () => {
         subjectWeth,
         subjectAirdropModule,
         subjectTradeModule,
-        subjectWrapModule
+        subjectWrapModule,
+        subjectInitialRewardTokens,
+        subjectInitialExchangeSettings,
+        subjectInitialWrapPairs
       );
     }
 
-    it("should set the correct manager address", async () => {
+    it("should set the correct state variables", async () => {
       const extension = await subject();
-      const manager = await extension.manager();
-      expect(manager).to.eq(subjectManager);
+
+      expect(await extension.manager()).to.eq(subjectManager);
+      expect(await extension.WETH()).to.eq(subjectWeth);
+      expect(await extension.airdropModule()).to.eq(subjectAirdropModule);
+      expect(await extension.tradeModule()).to.eq(subjectTradeModule);
+      expect(await extension.wrapModule()).to.eq(subjectWrapModule);
     });
 
-    it("should set the correct airdrop module address", async () => {
+    it("should set the initial exchange settings", async () => {
       const extension = await subject();
-      const airdropModule = await extension.airdropModule();
-      expect(airdropModule).to.eq(subjectAirdropModule);
+
+      const exchangeSettings = await extension.exchangeSettings(rewardToken);
+      expect(exchangeSettings.exchangeName).to.eq(tradeAdapterName);
+      expect(exchangeSettings.exchangeCallData).to.eq(EMPTY_BYTES);
     });
 
-    it("should set the correct trade module address", async () => {
+    it("should set the initial wrap pairs", async () => {
       const extension = await subject();
-      const tradeModule = await extension.tradeModule();
-      expect(tradeModule).to.eq(subjectTradeModule);
+
+      const isApproved = await extension.approvedWrapPairs(weth, wrapAdapter.address);
+      expect(isApproved).to.be.true;
     });
 
-    it("should set the correct wrap module address", async () => {
-      const extension = await subject();
-      const wrapModule = await extension.wrapModule();
-      expect(wrapModule).to.eq(subjectWrapModule);
+    describe("when WETH address is zero", () => {
+      beforeEach(async () => {
+        subjectWeth = ADDRESS_ZERO;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Invalid WETH address");
+      });
     });
 
-    it("should set the correct WETH address", async () => {
-      const extension = await subject();
-      const wethAddress = await extension.WETH();
-      expect(wethAddress).to.eq(subjectWeth);
+    describe("when arrays length mismatch", () => {
+      beforeEach(async () => {
+        subjectInitialExchangeSettings = [];
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Arrays length mismatch");
+      });
+    });
+
+    describe("when reward token is zero address", () => {
+      beforeEach(async () => {
+        subjectInitialRewardTokens = [ADDRESS_ZERO];
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Invalid reward token");
+      });
+    });
+
+    describe("when wrap pair contains zero address", () => {
+      beforeEach(async () => {
+        subjectInitialWrapPairs = [[ADDRESS_ZERO, wrapAdapter.address]];
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Invalid token address");
+      });
     });
   });
 
@@ -254,6 +299,7 @@ describe("ReinvestmentExtensionV1", () => {
   });
 
   describe("#wrap", () => {
+    let subjectUnderlyingToken: Address;
     let subjectWrappedToken: Address;
     let subjectUnderlyingUnits: BigNumber;
     let subjectIntegrationName: string;
@@ -266,6 +312,7 @@ describe("ReinvestmentExtensionV1", () => {
       await setV2Setup.weth.transfer(setToken.address, ether(1));
       await setV2Setup.weth.transfer(wrapAdapter.address, ether(10));
 
+      subjectUnderlyingToken = weth;
       subjectWrappedToken = wrapAdapter.address;
       subjectUnderlyingUnits = ether(0.1);
       subjectIntegrationName = wrapAdapterName;
@@ -275,6 +322,7 @@ describe("ReinvestmentExtensionV1", () => {
 
     async function subject(): Promise<ContractTransaction> {
       return reinvestmentExtension.connect(subjectCaller.wallet).wrap(
+        subjectUnderlyingToken,
         subjectWrappedToken,
         subjectUnderlyingUnits,
         subjectIntegrationName,
@@ -295,18 +343,38 @@ describe("ReinvestmentExtensionV1", () => {
       expect(postWrapUnderlyingBalance).to.eq(preWrapUnderlyingBalance.sub(subjectUnderlyingUnits));
     });
 
-    describe("when caller is not operator", () => {
+    describe("when underlying units is zero", () => {
+      beforeEach(async () => {
+        subjectUnderlyingUnits = ZERO;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Invalid units");
+      });
+    });
+
+    describe("when caller is not allowed", () => {
       beforeEach(async () => {
         subjectCaller = await getRandomAccount();
       });
 
       it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Must be operator");
+        await expect(subject()).to.be.revertedWith("Address not permitted to call");
+      });
+    });
+
+    describe("when wrap pair is not approved", () => {
+      beforeEach(async () => {
+        await reinvestmentExtension.connect(operator.wallet).removeWrapPair(subjectUnderlyingToken, subjectWrappedToken);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Unapproved wrap pair");
       });
     });
   });
 
-  describe("#updateExecutionSettings", () => {
+  describe("#updateExchangeSettings", () => {
     let subjectRewardToken: Address;
     let subjectSettings: {
       exchangeName: string;
@@ -326,24 +394,152 @@ describe("ReinvestmentExtensionV1", () => {
     async function subject(): Promise<ContractTransaction> {
       return reinvestmentExtension
         .connect(subjectCaller.wallet)
-        .updateExecutionSettings(subjectRewardToken, subjectSettings);
+        .updateExchangeSettings(subjectRewardToken, subjectSettings);
     }
 
-    it("should update the execution settings", async () => {
+    it("should update the exchange settings", async () => {
       await subject();
 
-      const newSettings = await reinvestmentExtension.settings(subjectRewardToken);
+      const newSettings = await reinvestmentExtension.exchangeSettings(subjectRewardToken);
       expect(newSettings.exchangeName).to.eq(subjectSettings.exchangeName);
       expect(newSettings.exchangeCallData).to.eq(subjectSettings.exchangeCallData);
     });
 
-    describe("when caller is not allowed", () => {
+    describe("when reward token is zero address", () => {
+      beforeEach(async () => {
+        subjectRewardToken = ADDRESS_ZERO;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Invalid reward token");
+      });
+    });
+
+    describe("when caller is not operator", () => {
       beforeEach(async () => {
         subjectCaller = await getRandomAccount();
       });
 
       it("should revert", async () => {
-        await expect(subject()).to.be.revertedWith("Address not permitted to call");
+        await expect(subject()).to.be.revertedWith("Must be operator");
+      });
+    });
+  });
+
+  describe("#addWrapPair", () => {
+    let subjectUnderlyingToken: Address;
+    let subjectWrappedToken: Address;
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      subjectUnderlyingToken = setV2Setup.usdc.address;
+      subjectWrappedToken = wrapAdapter.address;
+      subjectCaller = operator;
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return reinvestmentExtension
+        .connect(subjectCaller.wallet)
+        .addWrapPair(subjectUnderlyingToken, subjectWrappedToken);
+    }
+
+    it("should add the wrap pair", async () => {
+      await subject();
+
+      const isApproved = await reinvestmentExtension.approvedWrapPairs(
+        subjectUnderlyingToken,
+        subjectWrappedToken
+      );
+      expect(isApproved).to.be.true;
+    });
+
+    describe("when pair already exists", () => {
+      beforeEach(async () => {
+        await reinvestmentExtension
+          .connect(operator.wallet)
+          .addWrapPair(subjectUnderlyingToken, subjectWrappedToken);
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Pair already exists");
+      });
+    });
+
+    describe("when token addresses are invalid", () => {
+      beforeEach(async () => {
+        subjectUnderlyingToken = ADDRESS_ZERO;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Invalid token address");
+      });
+    });
+
+    describe("when caller is not operator", () => {
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be operator");
+      });
+    });
+  });
+
+  describe("#removeWrapPair", () => {
+    let subjectUnderlyingToken: Address;
+    let subjectWrappedToken: Address;
+    let subjectCaller: Account;
+
+    beforeEach(async () => {
+      subjectUnderlyingToken = weth;
+      subjectWrappedToken = wrapAdapter.address;
+      subjectCaller = operator;
+    });
+
+    async function subject(): Promise<ContractTransaction> {
+      return reinvestmentExtension
+        .connect(subjectCaller.wallet)
+        .removeWrapPair(subjectUnderlyingToken, subjectWrappedToken);
+    }
+
+    it("should remove the wrap pair", async () => {
+      await subject();
+
+      const isApproved = await reinvestmentExtension.approvedWrapPairs(
+        subjectUnderlyingToken,
+        subjectWrappedToken
+      );
+      expect(isApproved).to.be.false;
+    });
+
+    describe("when pair does not exist", () => {
+      beforeEach(async () => {
+        subjectUnderlyingToken = setV2Setup.usdc.address;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Pair does not exist");
+      });
+    });
+
+    describe("when token addresses are invalid", () => {
+      beforeEach(async () => {
+        subjectUnderlyingToken = ADDRESS_ZERO;
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Invalid token address");
+      });
+    });
+
+    describe("when caller is not operator", () => {
+      beforeEach(async () => {
+        subjectCaller = await getRandomAccount();
+      });
+
+      it("should revert", async () => {
+        await expect(subject()).to.be.revertedWith("Must be operator");
       });
     });
   });

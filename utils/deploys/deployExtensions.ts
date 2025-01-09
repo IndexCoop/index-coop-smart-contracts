@@ -7,6 +7,7 @@ import {
   IncentiveSettings,
   ExchangeSettings,
   AaveContractSettings,
+  ReinvestmentExchangeSettings,
 } from "../types";
 import {
   AaveLeverageStrategyExtension,
@@ -891,7 +892,10 @@ export default class DeployExtensions {
     airdropModule: Address,
     tradeModule: Address,
     wrapModule: Address,
+    initialRewardTokens: Address[],
+    initialExchangeSettings: ReinvestmentExchangeSettings[],
+    initialWrapPairs: Address[][],
   ): Promise<ReinvestmentExtensionV1> {
-    return await new ReinvestmentExtensionV1__factory(this._deployerSigner).deploy(manager, weth, airdropModule, tradeModule, wrapModule);
+    return await new ReinvestmentExtensionV1__factory(this._deployerSigner).deploy(manager, weth, airdropModule, tradeModule, wrapModule, initialRewardTokens, initialExchangeSettings, initialWrapPairs);
   }
 }
