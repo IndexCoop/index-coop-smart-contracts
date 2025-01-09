@@ -200,7 +200,7 @@ contract ReinvestmentExtensionV1 is BaseExtension {
     function removeWrapPair(address _underlyingToken, address _wrappedToken) external onlyOperator {
         require(_underlyingToken != address(0) && _wrappedToken != address(0), "Invalid token address");
         require(approvedWrapPairs[_underlyingToken][_wrappedToken], "Pair does not exist");
-        approvedWrapPairs[_underlyingToken][_wrappedToken] = false;
+        delete approvedWrapPairs[_underlyingToken][_wrappedToken];
     }
 
     /**
