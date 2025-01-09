@@ -2,17 +2,11 @@ import "module-alias/register";
 import { Account, Address } from "@utils/types";
 import DeployHelper from "@utils/deploys";
 import { getAccounts, getWaffleExpect, preciseMul } from "@utils/index";
-import { impersonateAccount, setBlockNumber, setBalance } from "@utils/test/testingUtils";
+import { impersonateAccount, setBlockNumber } from "@utils/test/testingUtils";
 import { ethers } from "hardhat";
-import { BigNumber, utils } from "ethers";
+import { BigNumber, BytesLike, utils } from "ethers";
 import { FlashMintLeveragedAerodrome } from "../../../typechain";
-import {
-  IWETH,
-  StandardTokenMock,
-  IDebtIssuanceModule,
-  IERC20__factory,
-  IERC20,
-} from "../../../typechain";
+import { IWETH, StandardTokenMock, IERC20 } from "../../../typechain";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { ether } from "@utils/index";
 
@@ -20,16 +14,19 @@ const expect = getWaffleExpect();
 
 enum Exchange {
   None,
-  Sushiswap,
   Quickswap,
+  Sushiswap,
   UniV3,
   Curve,
+  BalancerV2,
+  Aerodrome,
 }
 
 type SwapData = {
   path: Address[];
   fees: number[];
   pool: Address;
+  poolIds: BytesLike[];
   exchange: Exchange;
 };
 
@@ -39,6 +36,7 @@ if (process.env.INTEGRATIONTEST) {
     let deployer: DeployHelper;
     let setToken: StandardTokenMock;
     let cbbtc: IERC20;
+    const usdcAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
     const wethAddress = "0x4200000000000000000000000000000000000006";
     const cbbtcAddress = "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf";
     const btc3XAddress = "0x1F4609133b6dAcc88f2fa85c2d26635554685699";
@@ -48,8 +46,10 @@ if (process.env.INTEGRATIONTEST) {
     const aaveV3LeverageModuleAddress = "0xC06a6E4d9D5FF9d64BD19fc243aD9B6E5a672699";
     const aerodromeRouterAddress = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43";
     const aerodromeFactoryAdddress = "0x420DD381b31aEf6683db6B902084cB0FFECe40Da";
+    const cbbtcWhale = "0x40EbC1Ac8d4Fedd2E144b75fe9C0420BE82750c6";
+    const balancerV2VaultAddress = "0xBA12222222228d8Ba445958a75a0704d566BF2C8";
 
-    // setBlockNumber(24770000);
+    setBlockNumber(24770000, false);
 
     before(async () => {
       [owner] = await getAccounts();
@@ -60,7 +60,7 @@ if (process.env.INTEGRATIONTEST) {
         btc3XAddress,
       )) as StandardTokenMock;
 
-      cbbtc = (await ethers.getContractAt("IERC20", wethAddress)) as IWETH;
+      cbbtc = (await ethers.getContractAt("IERC20", cbbtcAddress)) as IERC20;
     });
 
     context("When exchange issuance is deployed", () => {
@@ -78,10 +78,12 @@ if (process.env.INTEGRATIONTEST) {
           lendingPoolAddress,
           ADDRESS_ZERO,
           ADDRESS_ZERO, // TODO: Check if there is curve calculator deployed on arbi
-          ADDRESS_ZERO,
+          balancerV2VaultAddress,
           aerodromeRouterAddress,
           aerodromeFactoryAdddress,
         );
+
+        await flashMintLeveraged.connect(owner.wallet).approveSetToken(btc3XAddress);
       });
 
       it("weth address is set correctly", async () => {
@@ -90,9 +92,7 @@ if (process.env.INTEGRATIONTEST) {
       });
 
       it("controller address is set correctly", async () => {
-        expect(await flashMintLeveraged.setController()).to.eq(
-          controllerAddress,
-        );
+        expect(await flashMintLeveraged.setController()).to.eq(controllerAddress);
       });
 
       it("debt issuance module address is set correctly", async () => {
@@ -107,7 +107,6 @@ if (process.env.INTEGRATIONTEST) {
         let collateralATokenAddress: Address;
         let collateralTokenAddress: Address;
         let debtTokenAddress: Address;
-        let aweth: IERC20;
         before(async () => {
           await flashMintLeveraged.approveSetToken(setToken.address);
 
@@ -133,531 +132,258 @@ if (process.env.INTEGRATIONTEST) {
 
         it("should adjust collateral a token allowance correctly", async () => {
           expect(
-            await collateralAToken.allowance(
-              flashMintLeveraged.address,
-              debtIssuanceModuleAddress,
-            ),
+            await collateralAToken.allowance(flashMintLeveraged.address, debtIssuanceModuleAddress),
           ).to.equal(MAX_UINT_256);
         });
         it("should adjust debt token allowance correctly", async () => {
           expect(
-            await debtToken.allowance(
-              flashMintLeveraged.address,
-              debtIssuanceModuleAddress,
-            ),
+            await debtToken.allowance(flashMintLeveraged.address, debtIssuanceModuleAddress),
           ).to.equal(MAX_UINT_256);
         });
 
-        ["USDC", "ETH"].forEach((inputTokenName) => {
-          // describe(`When input/output token is ${inputTokenName}`, () => {
-          //   let amountIn: BigNumber;
-          //   before(async () => {
-          //     amountIn = ether(0.4);
-          //     if (inputTokenName === "USDC") {
-          //       amountIn = utils.parseUnits("2500", 6);
-          //       usdc
-          //         .connect(await impersonateAccount(addresses.whales.USDC))
-          //         .transfer(owner.address, utils.parseUnits("10000", 6));
-          //     }
-          //     // This is done to avoid flaky "Invalid transfer in, results in undercollateralization" error
-          //     // See: https://github.com/IndexCoop/index-protocol/blob/1a587d93d273d9004d03f1235c395f6f7cd147dc/test/protocol/modules/v1/debtIssuanceModuleV3.spec.ts#L730
-          //     // TODO: Review if we have to do this in production.
-          //     await aweth.transfer(setToken.address, ether(0.000001));
-          //   });
+        ["collateralToken"].forEach(inputTokenName => {
+          describe(`When input/output token is ${inputTokenName}`, () => {
+            let amountIn: BigNumber;
+            before(async () => {
+              amountIn = ether(0.4);
+              if (inputTokenName === "collateralToken") {
+                amountIn = utils.parseUnits("0.1", 8);
+                cbbtc
+                  .connect(await impersonateAccount(cbbtcWhale))
+                  .transfer(owner.address, utils.parseUnits("0.1", 8));
+              }
+            });
 
-          //   describe(
-          //     inputTokenName === "ETH" ? "issueExactSetFromETH" : "#issueExactSetFromERC20",
-          //     () => {
-          //       let subjectSetAmount: BigNumber;
-          //       let swapDataDebtToCollateral: SwapData;
-          //       let swapDataInputToken: SwapData;
+            describe(
+              inputTokenName === "ETH" ? "issueExactSetFromETH" : "#issueExactSetFromERC20",
+              () => {
+                let subjectSetAmount: BigNumber;
+                let swapDataDebtToCollateral: SwapData;
+                let swapDataInputToken: SwapData;
 
-          //       let inputToken: StandardTokenMock | IWETH | IERC20;
+                let inputToken: StandardTokenMock | IWETH | IERC20;
 
-          //       let subjectSetToken: Address;
-          //       let subjectMaxAmountIn: BigNumber;
-          //       let subjectInputToken: Address;
-          //       let setBalancebefore: BigNumber;
-          //       let inputBalanceBefore: BigNumber;
-          //       let quotedInputAmount: BigNumber;
+                let subjectSetToken: Address;
+                let subjectMaxAmountIn: BigNumber;
+                let subjectInputToken: Address;
+                let setBalancebefore: BigNumber;
+                let inputBalanceBefore: BigNumber;
+                let quotedInputAmount: BigNumber;
 
-          //       before(async () => {
-          //         subjectSetAmount = ether(1);
-          //         swapDataDebtToCollateral = {
-          //           path: [addresses.tokens.USDC, addresses.tokens.weth],
-          //           fees: [500],
-          //           pool: ADDRESS_ZERO,
-          //           exchange: Exchange.UniV3,
-          //         };
+                before(async () => {
+                  subjectSetAmount = ether(1);
+                  swapDataDebtToCollateral = {
+                    path: [usdcAddress, cbbtcAddress],
+                    fees: [500],
+                    pool: ADDRESS_ZERO,
+                    poolIds: [],
+                    exchange: Exchange.Aerodrome,
+                  };
 
-          //         swapDataInputToken = {
-          //           path: [],
-          //           fees: [],
-          //           pool: ADDRESS_ZERO,
-          //           exchange: Exchange.None,
-          //         };
+                  swapDataInputToken = {
+                    path: [],
+                    fees: [],
+                    pool: ADDRESS_ZERO,
 
-          //         if (inputTokenName === "collateralToken") {
-          //           inputToken = weth;
-          //         }
-          //         if (inputTokenName === "USDC") {
-          //           inputToken = usdc;
-          //           swapDataInputToken = swapDataDebtToCollateral;
-          //         }
+                    poolIds: [],
+                    exchange: Exchange.None,
+                  };
 
-          //         let inputTokenBalance: BigNumber;
-          //         if (inputTokenName === "ETH") {
-          //           subjectMaxAmountIn = amountIn;
-          //         } else {
-          //           inputTokenBalance = await inputToken.balanceOf(owner.address);
-          //           subjectMaxAmountIn = inputTokenBalance;
-          //           await inputToken.approve(flashMintLeveraged.address, subjectMaxAmountIn);
-          //           subjectInputToken = inputToken.address;
-          //         }
-          //         subjectSetToken = setToken.address;
-          //         setBalancebefore = await setToken.balanceOf(owner.address);
-          //         inputBalanceBefore =
-          //           inputTokenName === "ETH"
-          //             ? await owner.wallet.getBalance()
-          //             : await inputToken.balanceOf(owner.address);
-          //         quotedInputAmount = await subjectQuote();
-          //         await subject();
-          //       });
+                  if (inputTokenName === "collateralToken") {
+                    inputToken = cbbtc;
+                  }
 
-          //       async function subject() {
-          //         if (inputTokenName === "ETH") {
-          //           return flashMintLeveraged.issueExactSetFromETH(
-          //             subjectSetToken,
-          //             subjectSetAmount,
-          //             swapDataDebtToCollateral,
-          //             swapDataInputToken,
-          //             { value: subjectMaxAmountIn },
-          //           );
-          //         }
-          //         return flashMintLeveraged.issueExactSetFromERC20(
-          //           subjectSetToken,
-          //           subjectSetAmount,
-          //           subjectInputToken,
-          //           subjectMaxAmountIn,
-          //           swapDataDebtToCollateral,
-          //           swapDataInputToken,
-          //         );
-          //       }
+                  let inputTokenBalance: BigNumber;
+                  if (inputTokenName === "ETH") {
+                    subjectMaxAmountIn = amountIn;
+                  } else {
+                    inputTokenBalance = await inputToken.balanceOf(owner.address);
+                    subjectMaxAmountIn = inputTokenBalance;
+                    await inputToken.approve(flashMintLeveraged.address, subjectMaxAmountIn);
+                    subjectInputToken = inputToken.address;
+                  }
+                  subjectSetToken = setToken.address;
+                  setBalancebefore = await setToken.balanceOf(owner.address);
+                  inputBalanceBefore =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await inputToken.balanceOf(owner.address);
+                  quotedInputAmount = await subjectQuote();
+                  await subject();
+                });
 
-          //       async function subjectQuote() {
-          //         return flashMintLeveraged.callStatic.getIssueExactSet(
-          //           subjectSetToken,
-          //           subjectSetAmount,
-          //           swapDataDebtToCollateral,
-          //           swapDataInputToken,
-          //         );
-          //       }
+                async function subject() {
+                  if (inputTokenName === "ETH") {
+                    return flashMintLeveraged.issueExactSetFromETH(
+                      subjectSetToken,
+                      subjectSetAmount,
+                      swapDataDebtToCollateral,
+                      swapDataInputToken,
+                      { value: subjectMaxAmountIn },
+                    );
+                  }
+                  return flashMintLeveraged.issueExactSetFromERC20(
+                    subjectSetToken,
+                    subjectSetAmount,
+                    subjectInputToken,
+                    subjectMaxAmountIn,
+                    swapDataDebtToCollateral,
+                    swapDataInputToken,
+                  );
+                }
 
-          //       it("should issue the correct amount of tokens", async () => {
-          //         const setBalanceAfter = await setToken.balanceOf(owner.address);
-          //         const setObtained = setBalanceAfter.sub(setBalancebefore);
-          //         expect(setObtained).to.eq(subjectSetAmount);
-          //       });
+                async function subjectQuote() {
+                  return flashMintLeveraged.callStatic.getIssueExactSet(
+                    subjectSetToken,
+                    subjectSetAmount,
+                    subjectMaxAmountIn,
+                    swapDataDebtToCollateral,
+                    swapDataInputToken,
+                  );
+                }
 
-          //       it("should spend less than specified max amount", async () => {
-          //         const inputBalanceAfter =
-          //           inputTokenName === "ETH"
-          //             ? await owner.wallet.getBalance()
-          //             : await inputToken.balanceOf(owner.address);
-          //         const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
-          //         expect(inputSpent).to.be.gt(0);
-          //         expect(inputSpent).to.be.lte(subjectMaxAmountIn);
-          //       });
+                it("should issue the correct amount of tokens", async () => {
+                  const setBalanceAfter = await setToken.balanceOf(owner.address);
+                  const setObtained = setBalanceAfter.sub(setBalancebefore);
+                  expect(setObtained).to.eq(subjectSetAmount);
+                });
 
-          //       it("should quote the correct input amount", async () => {
-          //         const inputBalanceAfter =
-          //           inputTokenName === "ETH"
-          //             ? await owner.wallet.getBalance()
-          //             : await inputToken.balanceOf(owner.address);
-          //         const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
+                it("should spend less than specified max amount", async () => {
+                  const inputBalanceAfter =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await inputToken.balanceOf(owner.address);
+                  const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
+                  expect(inputSpent).to.be.gt(0);
+                  expect(inputSpent).to.be.lte(subjectMaxAmountIn);
+                });
 
-          //         expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.99)));
-          //         expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.01)));
-          //       });
-          //     },
-          //   );
+                it("should quote the correct input amount", async () => {
+                  const inputBalanceAfter =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await inputToken.balanceOf(owner.address);
+                  const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
 
-          //   describe(
-          //     inputTokenName === "ETH" ? "issueSetFromExactETH" : "#issueSetFromExactERC20",
-          //     () => {
-          //       let swapDataDebtToCollateral: SwapData;
-          //       let swapDataInputTokenToCollateral: SwapData;
-          //       let swapDataInputTokenToETH: SwapData;
+                  expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.99)));
+                  expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.01)));
+                });
+              },
+            );
 
-          //       let inputToken: IERC20 | IWETH;
-          //       let subjectMinSetAmount: BigNumber;
+            describe(
+              inputTokenName === "ETH" ? "redeemExactSetForETH" : "#redeemExactSetForERC20",
+              () => {
+                let swapDataCollateralToDebt: SwapData;
+                let swapDataOutputToken: SwapData;
 
-          //       let subjectSetToken: Address;
-          //       let subjectAmountIn: BigNumber;
-          //       let subjectInputToken: Address;
-          //       let subjectPriceEstimateInflater: BigNumber;
-          //       let subjectMaxDust: BigNumber;
+                let outputToken: IERC20 | IWETH;
 
-          //       let setBalancebefore: BigNumber;
-          //       let ethBalanceBefore: BigNumber;
-          //       let gasCosts: BigNumber;
-          //       let inputBalanceBefore: BigNumber;
+                let subjectSetToken: Address;
+                let subjectSetAmount: BigNumber;
+                let subjectMinAmountOut: BigNumber;
+                let subjectOutputToken: Address;
+                let setBalanceBefore: BigNumber;
+                let outputBalanceBefore: BigNumber;
+                let outputAmountQuote: BigNumber;
 
-          //       before(async () => {
-          //         swapDataDebtToCollateral = {
-          //           path: [addresses.tokens.USDC, addresses.tokens.weth],
-          //           fees: [500],
-          //           pool: ADDRESS_ZERO,
-          //           exchange: Exchange.UniV3,
-          //         };
+                async function subject() {
+                  if (inputTokenName === "ETH") {
+                    return flashMintLeveraged.redeemExactSetForETH(
+                      subjectSetToken,
+                      subjectSetAmount,
+                      subjectMinAmountOut,
+                      swapDataCollateralToDebt,
+                      swapDataOutputToken,
+                    );
+                  }
+                  return flashMintLeveraged.redeemExactSetForERC20(
+                    subjectSetToken,
+                    subjectSetAmount,
+                    subjectOutputToken,
+                    subjectMinAmountOut,
+                    swapDataCollateralToDebt,
+                    swapDataOutputToken,
+                  );
+                }
 
-          //         swapDataInputTokenToCollateral = {
-          //           path: [],
-          //           fees: [],
-          //           pool: ADDRESS_ZERO,
-          //           exchange: Exchange.None,
-          //         };
+                async function subjectQuote(): Promise<BigNumber> {
+                  return flashMintLeveraged.callStatic.getRedeemExactSet(
+                    subjectSetToken,
+                    subjectSetAmount,
+                    swapDataCollateralToDebt,
+                    swapDataOutputToken,
+                  );
+                }
 
-          //         subjectPriceEstimateInflater = ether(0.9);
+                before(async () => {
+                  subjectSetAmount = ether(1);
+                  swapDataCollateralToDebt = {
+                    path: [collateralTokenAddress, usdcAddress],
+                    fees: [500],
+                    pool: ADDRESS_ZERO,
+                    poolIds: [],
+                    exchange: Exchange.Aerodrome,
+                  };
+                  swapDataOutputToken = {
+                    path: [],
+                    fees: [],
+                    pool: ADDRESS_ZERO,
+                    poolIds: [],
+                    exchange: Exchange.None,
+                  };
 
-          //         if (inputTokenName === "collateralToken") {
-          //           inputToken = weth;
-          //           // await weth.deposit({ value: amountIn });
-          //         }
-          //         if (inputTokenName === "USDC") {
-          //           inputToken = usdc;
-          //           swapDataInputTokenToCollateral = swapDataDebtToCollateral;
-          //         }
+                  if (inputTokenName === "collateralToken") {
+                    outputToken = cbbtc;
+                  }
 
-          //         subjectAmountIn = amountIn;
-          //         if (inputTokenName !== "ETH") {
-          //           await inputToken.approve(flashMintLeveraged.address, MAX_UINT_256);
-          //           subjectInputToken = inputToken.address;
-          //         }
-          //         subjectMaxDust = subjectAmountIn.div(1000);
-          //         subjectMinSetAmount = ether(1);
-          //         subjectSetToken = setToken.address;
-          //         swapDataInputTokenToETH = swapDataInputTokenToCollateral; // Assumes Collateral Token is WETH
-          //         setBalancebefore = await setToken.balanceOf(owner.address);
-          //         ethBalanceBefore = await owner.wallet.getBalance();
-          //         inputBalanceBefore =
-          //           inputTokenName === "ETH"
-          //             ? await owner.wallet.getBalance()
-          //             : await inputToken.balanceOf(owner.address);
-          //         const tx = await subject();
-          //         const receipt = await tx.wait();
-          //         gasCosts = receipt.gasUsed.mul(tx.gasPrice);
-          //       });
+                  subjectMinAmountOut =
+                    inputTokenName === "collateralToken"
+                      ? utils.parseUnits("0.009", 8)
+                      : ether(0.25);
+                  subjectSetToken = setToken.address;
+                  await setToken.approve(flashMintLeveraged.address, subjectSetAmount);
 
-          //       async function subject() {
-          //         if (inputTokenName === "ETH") {
-          //           return flashMintLeveraged.issueSetFromExactETH(
-          //             subjectSetToken,
-          //             subjectMinSetAmount,
-          //             swapDataDebtToCollateral,
-          //             swapDataInputTokenToCollateral,
-          //             subjectPriceEstimateInflater,
-          //             subjectMaxDust,
-          //             { value: subjectAmountIn },
-          //           );
-          //         }
-          //         return flashMintLeveraged.issueSetFromExactERC20(
-          //           subjectSetToken,
-          //           subjectMinSetAmount,
-          //           subjectInputToken,
-          //           subjectAmountIn,
-          //           swapDataDebtToCollateral,
-          //           swapDataInputTokenToCollateral,
-          //           swapDataInputTokenToETH,
-          //           subjectPriceEstimateInflater,
-          //           subjectMaxDust,
-          //         );
-          //       }
+                  if (inputTokenName !== "ETH") {
+                    subjectOutputToken = outputToken.address;
+                  }
+                  setBalanceBefore = await setToken.balanceOf(owner.address);
+                  outputBalanceBefore =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await outputToken.balanceOf(owner.address);
+                  outputAmountQuote = await subjectQuote();
+                  await subject();
+                });
 
-          //       it("should issue at least minSetAmount of set tokens", async () => {
-          //         const setBalanceAfter = await setToken.balanceOf(owner.address);
-          //         const setObtained = setBalanceAfter.sub(setBalancebefore);
-          //         expect(setObtained).to.gte(subjectMinSetAmount);
-          //       });
+                it("should redeem the correct amount of tokens", async () => {
+                  const setBalanceAfter = await setToken.balanceOf(owner.address);
+                  const setRedeemed = setBalanceBefore.sub(setBalanceAfter);
+                  expect(setRedeemed).to.eq(subjectSetAmount);
+                });
 
-          //       if (inputTokenName !== "ETH") {
-          //         it("should give gas rebaste", async () => {
-          //           const ethBalanceAfter = await owner.wallet.getBalance();
-          //           expect(ethBalanceBefore.sub(ethBalanceAfter)).to.lt(gasCosts);
-          //         });
-          //       }
+                it("should return at least the specified minimum of output tokens", async () => {
+                  const outputBalanceAfter =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await outputToken.balanceOf(owner.address);
+                  const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
+                  expect(outputObtained.gte(subjectMinAmountOut)).to.be.true;
+                });
 
-          //       it("should spend exactly inputAmount", async () => {
-          //         const inputBalanceAfter =
-          //           inputTokenName === "ETH"
-          //             ? await owner.wallet.getBalance()
-          //             : await inputToken.balanceOf(owner.address);
-          //         let inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
-          //         expect(inputSpent).to.gt(BigNumber.from(0));
-          //         if (inputTokenName === "ETH") {
-          //           inputSpent = inputSpent.sub(gasCosts);
-          //           expect(inputSpent).to.gte(subjectAmountIn.sub(subjectMaxDust));
-          //           expect(inputSpent).to.lte(subjectAmountIn);
-          //         } else {
-          //           expect(inputSpent).to.eq(subjectAmountIn);
-          //         }
-          //       });
-          //     },
-          //   );
-          //   describe(
-          //     inputTokenName === "ETH" ? "redeemSetForExactETH" : "#redeemSetForExactERC20",
-          //     () => {
-          //       let swapDataCollateralToDebt: SwapData;
-          //       let swapDataOutputToken: SwapData;
-          //       let swapDataDebtToCollateral: SwapData;
-          //       let swapDataInputToken: SwapData;
-          //       let swapDataOutputTokenToETH: SwapData;
+                it("should quote the correct output amount", async () => {
+                  const outputBalanceAfter =
+                    inputTokenName === "ETH"
+                      ? await owner.wallet.getBalance()
+                      : await outputToken.balanceOf(owner.address);
+                  const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
 
-          //       let outputToken: IERC20 | IWETH;
-
-          //       let subjectSetToken: Address;
-          //       let subjectMaxSetAmount: BigNumber;
-          //       let subjectAmountOut: BigNumber;
-          //       let subjectOutputToken: Address;
-          //       let subjectPriceEstimateInflater: BigNumber;
-          //       let subjectMaxDust: BigNumber;
-          //       let setBalanceBefore: BigNumber;
-          //       let ethBalanceBefore: BigNumber;
-          //       let outputBalanceBefore: BigNumber;
-          //       let gasCosts: BigNumber;
-
-          //       async function subject() {
-          //         if (inputTokenName === "ETH") {
-          //           return flashMintLeveraged.redeemSetForExactETH(
-          //             subjectSetToken,
-          //             subjectMaxSetAmount,
-          //             subjectAmountOut,
-          //             swapDataCollateralToDebt,
-          //             swapDataOutputToken,
-          //             swapDataDebtToCollateral,
-          //             swapDataInputToken,
-          //             subjectPriceEstimateInflater,
-          //             subjectMaxDust,
-          //           );
-          //         }
-          //         return flashMintLeveraged.redeemSetForExactERC20(
-          //           subjectSetToken,
-          //           subjectMaxSetAmount,
-          //           subjectOutputToken,
-          //           subjectAmountOut,
-          //           swapDataCollateralToDebt,
-          //           swapDataOutputToken,
-          //           swapDataDebtToCollateral,
-          //           swapDataInputToken,
-          //           swapDataOutputTokenToETH,
-          //           subjectPriceEstimateInflater,
-          //           subjectMaxDust,
-          //         );
-          //       }
-
-          //       before(async () => {
-          //         subjectPriceEstimateInflater = ether(0.9);
-          //         subjectMaxSetAmount = ether(1);
-          //         subjectAmountOut =
-          //           inputTokenName === "USDC" ? utils.parseUnits("800", 6) : ether(0.25);
-          //         subjectMaxDust = subjectAmountOut.div(1000);
-          //         swapDataCollateralToDebt = {
-          //           path: [collateralTokenAddress, addresses.tokens.USDC],
-          //           fees: [500],
-          //           pool: ADDRESS_ZERO,
-          //           exchange: Exchange.UniV3,
-          //         };
-          //         swapDataDebtToCollateral = {
-          //           path: [addresses.tokens.USDC, collateralTokenAddress],
-          //           fees: [500],
-          //           pool: ADDRESS_ZERO,
-          //           exchange: Exchange.UniV3,
-          //         };
-
-          //         swapDataOutputToken = {
-          //           path: [],
-          //           fees: [],
-          //           pool: ADDRESS_ZERO,
-          //           exchange: Exchange.None,
-          //         };
-          //         swapDataInputToken = {
-          //           path: [],
-          //           fees: [],
-          //           pool: ADDRESS_ZERO,
-          //           exchange: Exchange.None,
-          //         };
-
-          //         if (inputTokenName === "collateralToken") {
-          //           outputToken = weth;
-          //         }
-          //         if (inputTokenName === "USDC") {
-          //           outputToken = usdc;
-          //           swapDataOutputToken = swapDataCollateralToDebt;
-          //           swapDataInputToken = swapDataDebtToCollateral;
-          //         }
-
-          //         swapDataOutputTokenToETH = swapDataInputToken; // Assumes Collateral Token is WETH
-
-          //         subjectSetToken = setToken.address;
-          //         await setToken.approve(flashMintLeveraged.address, subjectMaxSetAmount);
-
-          //         if (inputTokenName !== "ETH") {
-          //           subjectOutputToken = outputToken.address;
-          //         }
-          //         setBalanceBefore = await setToken.balanceOf(owner.address);
-          //         ethBalanceBefore = await owner.wallet.getBalance();
-          //         outputBalanceBefore =
-          //           inputTokenName === "ETH"
-          //             ? await owner.wallet.getBalance()
-          //             : await outputToken.balanceOf(owner.address);
-
-          //         const tx = await subject();
-          //         const receipt = await tx.wait();
-          //         gasCosts = receipt.gasUsed.mul(tx.gasPrice);
-          //       });
-
-          //       it("should redeem at most subjectMaxSetAmount", async () => {
-          //         const setBalanceAfter = await setToken.balanceOf(owner.address);
-          //         const setRedeemed = setBalanceBefore.sub(setBalanceAfter);
-          //         expect(setRedeemed).to.lte(subjectMaxSetAmount);
-          //       });
-
-          //       if (inputTokenName !== "ETH") {
-          //         it("should give gas rebaste", async () => {
-          //           const ethBalanceAfter = await owner.wallet.getBalance();
-          //           expect(ethBalanceBefore.sub(ethBalanceAfter)).to.lt(gasCosts);
-          //         });
-          //       }
-
-          //       it("should return exactly specified of output tokens", async () => {
-          //         const outputBalanceAfter =
-          //           inputTokenName === "ETH"
-          //             ? await owner.wallet.getBalance()
-          //             : await outputToken.balanceOf(owner.address);
-          //         let outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
-          //         if (inputTokenName === "ETH") {
-          //           outputObtained = outputObtained.add(gasCosts);
-          //           expect(outputObtained).to.gte(subjectAmountOut);
-          //           expect(outputObtained).to.lte(subjectAmountOut.add(subjectMaxDust));
-          //         } else {
-          //           expect(outputObtained).to.eq(subjectAmountOut);
-          //         }
-          //       });
-          //     },
-          //   );
-          //   describe(
-          //     inputTokenName === "ETH" ? "redeemExactSetForETH" : "#redeemExactSetForERC20",
-          //     () => {
-          //       let swapDataCollateralToDebt: SwapData;
-          //       let swapDataOutputToken: SwapData;
-
-          //       let outputToken: IERC20 | IWETH;
-
-          //       let subjectSetToken: Address;
-          //       let subjectSetAmount: BigNumber;
-          //       let subjectMinAmountOut: BigNumber;
-          //       let subjectOutputToken: Address;
-          //       let setBalanceBefore: BigNumber;
-          //       let outputBalanceBefore: BigNumber;
-          //       let outputAmountQuote: BigNumber;
-
-          //       async function subject() {
-          //         if (inputTokenName === "ETH") {
-          //           return flashMintLeveraged.redeemExactSetForETH(
-          //             subjectSetToken,
-          //             subjectSetAmount,
-          //             subjectMinAmountOut,
-          //             swapDataCollateralToDebt,
-          //             swapDataOutputToken,
-          //           );
-          //         }
-          //         return flashMintLeveraged.redeemExactSetForERC20(
-          //           subjectSetToken,
-          //           subjectSetAmount,
-          //           subjectOutputToken,
-          //           subjectMinAmountOut,
-          //           swapDataCollateralToDebt,
-          //           swapDataOutputToken,
-          //         );
-          //       }
-
-          //       async function subjectQuote(): Promise<BigNumber> {
-          //         return flashMintLeveraged.callStatic.getRedeemExactSet(
-          //           subjectSetToken,
-          //           subjectSetAmount,
-          //           swapDataCollateralToDebt,
-          //           swapDataOutputToken,
-          //         );
-          //       }
-
-          //       before(async () => {
-          //         subjectSetAmount = ether(1);
-          //         swapDataCollateralToDebt = {
-          //           path: [collateralTokenAddress, addresses.tokens.USDC],
-          //           fees: [500],
-          //           pool: ADDRESS_ZERO,
-          //           exchange: Exchange.UniV3,
-          //         };
-          //         swapDataOutputToken = {
-          //           path: [],
-          //           fees: [],
-          //           pool: ADDRESS_ZERO,
-          //           exchange: Exchange.None,
-          //         };
-
-          //         if (inputTokenName === "collateralToken") {
-          //           outputToken = weth;
-          //         }
-          //         if (inputTokenName === "USDC") {
-          //           outputToken = usdc;
-          //           swapDataOutputToken = swapDataCollateralToDebt;
-          //         }
-
-          //         subjectMinAmountOut =
-          //           inputTokenName === "USDC" ? utils.parseUnits("800", 6) : ether(0.25);
-          //         subjectSetToken = setToken.address;
-          //         await setToken.approve(flashMintLeveraged.address, subjectSetAmount);
-
-          //         if (inputTokenName !== "ETH") {
-          //           subjectOutputToken = outputToken.address;
-          //         }
-          //         setBalanceBefore = await setToken.balanceOf(owner.address);
-          //         outputBalanceBefore =
-          //           inputTokenName === "ETH"
-          //             ? await owner.wallet.getBalance()
-          //             : await outputToken.balanceOf(owner.address);
-          //         outputAmountQuote = await subjectQuote();
-          //         await subject();
-          //       });
-
-          //       it("should redeem the correct amount of tokens", async () => {
-          //         const setBalanceAfter = await setToken.balanceOf(owner.address);
-          //         const setRedeemed = setBalanceBefore.sub(setBalanceAfter);
-          //         expect(setRedeemed).to.eq(subjectSetAmount);
-          //       });
-
-          //       it("should return at least the specified minimum of output tokens", async () => {
-          //         const outputBalanceAfter =
-          //           inputTokenName === "ETH"
-          //             ? await owner.wallet.getBalance()
-          //             : await outputToken.balanceOf(owner.address);
-          //         const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
-          //         expect(outputObtained.gte(subjectMinAmountOut)).to.be.true;
-          //       });
-
-          //       it("should quote the correct output amount", async () => {
-          //         const outputBalanceAfter =
-          //           inputTokenName === "ETH"
-          //             ? await owner.wallet.getBalance()
-          //             : await outputToken.balanceOf(owner.address);
-          //         const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
-
-          //         expect(outputAmountQuote).to.gt(preciseMul(outputObtained, ether(0.99)));
-          //         expect(outputAmountQuote).to.lt(preciseMul(outputObtained, ether(1.01)));
-          //       });
-          //     },
-          //   );
-          // });
+                  expect(outputAmountQuote).to.gt(preciseMul(outputObtained, ether(0.99)));
+                  expect(outputAmountQuote).to.lt(preciseMul(outputObtained, ether(1.01)));
+                });
+              },
+            );
+          });
         });
       });
     });

@@ -215,6 +215,7 @@ contract FlashMintLeveragedAerodrome is ReentrancyGuard, IFlashLoanRecipient{
      *
      * @param _setToken                     the set token to issue
      * @param _setAmount                    amount of set tokens
+     * @param _maxAmountInputToken          maximum amount of input token to spend
      * @param _swapDataDebtForCollateral    swap data for the debt to collateral swap
      * @param _swapDataInputToken           swap data for the input token to collateral swap
      *
@@ -223,6 +224,7 @@ contract FlashMintLeveragedAerodrome is ReentrancyGuard, IFlashLoanRecipient{
     function getIssueExactSet(
         ISetToken _setToken,
         uint256 _setAmount,
+        uint256 _maxAmountInputToken,
         DEXAdapterV4.SwapData memory _swapDataDebtForCollateral,
         DEXAdapterV4.SwapData memory _swapDataInputToken
     )
@@ -234,7 +236,7 @@ contract FlashMintLeveragedAerodrome is ReentrancyGuard, IFlashLoanRecipient{
         uint256 collateralOwed = issueInfo.collateralAmount.preciseMul(1.0009 ether);
         uint256 borrowSaleProceeds = DEXAdapterV4.getAmountOut(addresses, _swapDataDebtForCollateral, issueInfo.debtAmount);
         collateralOwed = collateralOwed.sub(borrowSaleProceeds);
-        return DEXAdapterV4.getAmountIn(addresses, _swapDataInputToken, collateralOwed);
+        return DEXAdapterV4.getAmountIn(addresses, _swapDataInputToken, collateralOwed, _maxAmountInputToken);
     }
 
     /**
@@ -264,7 +266,7 @@ contract FlashMintLeveragedAerodrome is ReentrancyGuard, IFlashLoanRecipient{
         aaveLeverageModule.sync(_setToken);
         LeveragedTokenData memory redeemInfo = _getLeveragedTokenData(_setToken, _setAmount, false);
         uint256 debtOwed = redeemInfo.debtAmount.preciseMul(1.0009 ether);
-        uint256 debtPurchaseCost = DEXAdapterV4.getAmountIn(addresses, _swapDataCollateralForDebt, debtOwed);
+        uint256 debtPurchaseCost = DEXAdapterV4.getAmountIn(addresses, _swapDataCollateralForDebt, debtOwed, redeemInfo.collateralAmount);
         uint256 extraCollateral = redeemInfo.collateralAmount.sub(debtPurchaseCost);
         return DEXAdapterV4.getAmountOut(addresses, _swapDataOutputToken, extraCollateral);
     }

@@ -243,7 +243,10 @@ library DEXAdapterV4 {
             return _amountIn;
         }
 
-        if (_swapData.exchange == Exchange.UniV3) {
+        if (_swapData.exchange == Exchange.Aerodrome) {
+            return _getAmountOutAerodrome(_swapData, _addresses, _amountIn);
+        }
+        else if (_swapData.exchange == Exchange.UniV3) {
             return _getAmountOutUniV3(_swapData, _addresses.uniV3Quoter, _amountIn);
         } else if (_swapData.exchange == Exchange.Curve) {
             (int128 i, int128 j) = _getCoinIndices(
@@ -280,7 +283,8 @@ library DEXAdapterV4 {
     function getAmountIn(
         Addresses memory _addresses,
         SwapData memory _swapData,
-        uint256 _amountOut
+        uint256 _amountOut,
+        uint256 _maxAmountIn
     )
         external
         returns (uint256)
@@ -289,7 +293,9 @@ library DEXAdapterV4 {
             return _amountOut;
         }
 
-        if (_swapData.exchange == Exchange.UniV3) {
+        if (_swapData.exchange == Exchange.Aerodrome) {
+            return _getAmountInAerodrome(_swapData, _addresses, _amountOut, _maxAmountIn);
+        } else if (_swapData.exchange == Exchange.UniV3) {
             return _getAmountInUniV3(_swapData, _addresses.uniV3Quoter, _amountOut);
         } else if (_swapData.exchange == Exchange.Curve) {
             (int128 i, int128 j) = _getCoinIndices(
@@ -522,6 +528,21 @@ library DEXAdapterV4 {
 
         return _maxAmountIn.sub(swappedBackAmountIn);
     }
+
+    function _quoteAerodrome(
+        uint256 _amountIn,
+        address _from,
+        address _to,
+        Addresses memory _addresses
+    )
+        private
+        returns (uint256 amountOut)
+    {
+        IAerodromeRouter.Route[] memory routes = new IAerodromeRouter.Route[](1);
+        routes[0] = IAerodromeRouter.Route(_from, _to, false, _addresses.aerodromeFactory);
+        _safeApprove(IERC20(_from), _addresses.aerodromeRouter, _amountIn);
+        return IAerodromeRouter(_addresses.aerodromeRouter).getAmountsOut(_amountIn, routes)[1];
+    }
     
     function _exchangeAerodrome(
         uint256 _amountIn,
@@ -535,13 +556,14 @@ library DEXAdapterV4 {
     {
         IAerodromeRouter.Route[] memory routes = new IAerodromeRouter.Route[](1);
         routes[0] = IAerodromeRouter.Route(_from, _to, false, _addresses.aerodromeFactory);
+        _safeApprove(IERC20(_from), _addresses.aerodromeRouter, _amountIn);
         return IAerodromeRouter(_addresses.aerodromeRouter).swapExactTokensForTokens(
             _amountIn,
             _minAmountOut,
             routes,
             address(this),
             block.timestamp
-        )[0];
+        )[1];
     }
     function _exchangeCurve(
         int128 _i,
@@ -829,6 +851,54 @@ library DEXAdapterV4 {
         returns (uint256)
     {
         return _router.getAmountsIn(_amountOut, _swapData.path)[0];
+    }
+
+    /**
+     * Gets the output amount of a token swap on Uniswap V3.
+     *
+     * @param _swapData     the swap parameters
+     * @param _addresses    Struct containing relevant smart contract addresses.
+     * @param _amountIn     the input amount of the trade
+     *
+     * @return              the output amount of the swap
+     */
+
+    function _getAmountOutAerodrome(
+        SwapData memory _swapData,
+        Addresses memory _addresses,
+        uint256 _amountIn
+    )
+        private
+        returns (uint256)
+    {
+        require(_swapData.path.length == 2, "ExchangeIssuance: AERODROME_WRONG_PATH_LENGTH");
+        return _quoteAerodrome(_amountIn, _swapData.path[0], _swapData.path[1], _addresses);
+    }
+
+    /**
+     * Gets the input amount of a fixed output swap on Aerodrome
+     *
+     * @param _swapData     the swap parameters
+     * @param _addresses    Struct containing relevant smart contract addresses.
+     * @param _amountOut    the output amount of the swap
+     * @param _amountOut    the output amount of the swap
+     *
+     * @return              the input amount of the swap
+     */
+    function _getAmountInAerodrome(
+        SwapData memory _swapData,
+        Addresses memory _addresses,
+        uint256 _amountOut,
+        uint256 _maxAmountIn
+    )
+        private
+        returns (uint256)
+    {
+        require(_swapData.path.length == 2, "ExchangeIssuance: AERODROME_WRONG_PATH_LENGTH");
+        uint256 firstAmountOut = _quoteAerodrome(_maxAmountIn, _swapData.path[0], _swapData.path[1], _addresses);
+        // Note: Probably inaccurate since the state of the underlying liquidity would change from the first swap, which is not accounted for here
+        uint256 amountSwappedBack = _quoteAerodrome(firstAmountOut - _amountOut, _swapData.path[1], _swapData.path[0], _addresses);
+        return _maxAmountIn - amountSwappedBack;
     }
 
     /**

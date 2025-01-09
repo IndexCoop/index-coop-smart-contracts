@@ -50,7 +50,7 @@
     "test:integration:optimism": "find test/integration/optimism -type f -name '*.spec.ts'  | xargs yarn run test:integration",
     "test:integration:ethereum": "find test/integration/ethereum -type f -name '*.spec.ts'  | xargs yarn run test:integration",
     "test:integration:arbitrum": "find test/integration/arbitrum -type f -name '*.spec.ts'  | xargs yarn run test:integration",
-    "test:integration:base": "find test/integration/base -type f -name '*.spec.ts'  | xargs yarn run test:integration",
+    "test:integration:base": "INTEGRATIONTEST=true NETWORK=base VERBOSE=true yarn run test test/integration/base/*",
     "test:clean": "yarn clean && yarn build && yarn test",
     "transpile": "tsc",
     "transpile-dist": "tsc -p tsconfig.dist.json",
