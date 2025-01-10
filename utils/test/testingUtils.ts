@@ -8,9 +8,7 @@ import { BigNumber, ContractTransaction, Signer } from "ethers";
 import { JsonRpcProvider } from "@ethersproject/providers";
 import { Blockchain } from "../common";
 import { forkingConfig } from "../config";
-import {
-  SetToken,
-} from "../../typechain";
+import { SetToken } from "../../typechain";
 
 const provider = ethers.provider;
 // const blockchain = new Blockchain(provider);
@@ -48,7 +46,7 @@ export function cacheBeforeEach(initializer: Mocha.AsyncFunc): void {
   let initialized = false;
   const blockchain = new Blockchain(provider);
 
-  beforeEach(async function() {
+  beforeEach(async function () {
     if (!initialized) {
       await initializer.call(this);
       SNAPSHOTS.push(await blockchain.saveSnapshotAsync());
@@ -60,7 +58,7 @@ export function cacheBeforeEach(initializer: Mocha.AsyncFunc): void {
     }
   });
 
-  after(async function() {
+  after(async function () {
     if (initialized) {
       SNAPSHOTS.pop();
     }
@@ -102,7 +100,7 @@ export const expectThrowsAsync = async (method: Promise<any>, errorMessage: stri
   try {
     await method;
   } catch (err) {
-    error = (err as unknown) as Error;
+    error = err as unknown as Error;
   }
   expect(error).to.be.an("Error");
   if (errorMessage) {
@@ -119,11 +117,15 @@ export async function impersonateAccount(address: string): Promise<Signer> {
 }
 
 export const setBalance = async (account: string, balance: BigNumber): Promise<void> => {
-    await provider.send("hardhat_setBalance", [account, balance.toHexString().replace("0x0", "0x")]);
+  await provider.send("hardhat_setBalance", [account, balance.toHexString().replace("0x0", "0x")]);
 };
 
 export function setBlockNumber(blockNumber: number, reset: boolean = true) {
   before(async () => {
+    console.log("Setting block number to", {
+      jsonRpcUrl: forkingConfig.url,
+      blockNumber,
+    });
     await network.provider.request({
       method: "hardhat_reset",
       params: [
