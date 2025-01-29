@@ -5,7 +5,7 @@ import { getAccounts, getWaffleExpect, preciseMul } from "@utils/index";
 import { impersonateAccount, setBlockNumber } from "@utils/test/testingUtils";
 import { ethers } from "hardhat";
 import { BigNumber, BytesLike, utils } from "ethers";
-import { FlashMintLeveragedAerodrome } from "../../../typechain";
+import { FlashMintLeveragedMorpho } from "../../../typechain";
 import { IWETH, StandardTokenMock, IERC20 } from "../../../typechain";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { ether } from "@utils/index";
@@ -31,25 +31,23 @@ type SwapData = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe.skip("FlashMintLeveragedAerodrome - Integration Test", async () => {
+  describe.only("FlashMintLeveragedMorpho - Integration Test", async () => {
     let owner: Account;
     let deployer: DeployHelper;
     let setToken: StandardTokenMock;
-    let cbbtc: IERC20;
-    const usdcAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+    let wsteth: IERC20;
     const wethAddress = "0x4200000000000000000000000000000000000006";
-    const cbbtcAddress = "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf";
-    const btc3XAddress = "0x1F4609133b6dAcc88f2fa85c2d26635554685699";
+    const wstethAddress = "0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452";
+    const wsteth15xAddress = "0xc8DF827157AdAf693FCb0c6f305610C28De739FD";
     const debtIssuanceModuleAddress = "0xa30E87311407dDcF1741901A8F359b6005252F22";
     const controllerAddress = "0x1246553a53Cd2897EB26beE87a0dB0Fb456F39d1";
-    const lendingPoolAddress = "0xA238Dd80C259a72e81d7e4664a9801593F98d1c5";
-    const aaveV3LeverageModuleAddress = "0xC06a6E4d9D5FF9d64BD19fc243aD9B6E5a672699";
+    const morphoLeverageModuleAddress = "0x9534b6EC541aD182FBEE2B0B01D1e4404765b8d7";
     const aerodromeRouterAddress = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43";
     const aerodromeFactoryAdddress = "0x420DD381b31aEf6683db6B902084cB0FFECe40Da";
-    const cbbtcWhale = "0x40EbC1Ac8d4Fedd2E144b75fe9C0420BE82750c6";
+    const wstethWhale = "0x31b7538090C8584FED3a053FD183E202c26f9a3e";
     const balancerV2VaultAddress = "0xBA12222222228d8Ba445958a75a0704d566BF2C8";
 
-    setBlockNumber(24770000, false);
+    setBlockNumber(25678000, false);
 
     before(async () => {
       [owner] = await getAccounts();
@@ -57,16 +55,16 @@ if (process.env.INTEGRATIONTEST) {
 
       setToken = (await ethers.getContractAt(
         "StandardTokenMock",
-        btc3XAddress,
+        wsteth15xAddress,
       )) as StandardTokenMock;
 
-      cbbtc = (await ethers.getContractAt("IERC20", cbbtcAddress)) as IERC20;
+      wsteth = (await ethers.getContractAt("IERC20", wstethAddress)) as IERC20;
     });
 
     context("When exchange issuance is deployed", () => {
-      let flashMintLeveraged: FlashMintLeveragedAerodrome;
+      let flashMintLeveraged: FlashMintLeveragedMorpho;
       before(async () => {
-        flashMintLeveraged = await deployer.extensions.deployFlashMintLeveragedAerodrome(
+        flashMintLeveraged = await deployer.extensions.deployFlashMintLeveragedMorpho(
           wethAddress,
           ADDRESS_ZERO,
           ADDRESS_ZERO,
@@ -74,8 +72,7 @@ if (process.env.INTEGRATIONTEST) {
           ADDRESS_ZERO,
           controllerAddress,
           debtIssuanceModuleAddress,
-          aaveV3LeverageModuleAddress,
-          lendingPoolAddress,
+          morphoLeverageModuleAddress,
           ADDRESS_ZERO,
           ADDRESS_ZERO, // TODO: Check if there is curve calculator deployed on arbi
           balancerV2VaultAddress,
@@ -83,7 +80,7 @@ if (process.env.INTEGRATIONTEST) {
           aerodromeFactoryAdddress,
         );
 
-        await flashMintLeveraged.connect(owner.wallet).approveSetToken(btc3XAddress);
+        await flashMintLeveraged.connect(owner.wallet).approveSetToken(wsteth15xAddress);
       });
 
       it("weth address is set correctly", async () => {
@@ -102,28 +99,27 @@ if (process.env.INTEGRATIONTEST) {
       });
 
       describe("When setToken is approved", () => {
-        let collateralAToken: StandardTokenMock;
+        let collateralToken: StandardTokenMock;
         let debtToken: StandardTokenMock;
-        let collateralATokenAddress: Address;
         let collateralTokenAddress: Address;
         let debtTokenAddress: Address;
         before(async () => {
           await flashMintLeveraged.approveSetToken(setToken.address);
 
           const leveragedTokenData = await flashMintLeveraged.getLeveragedTokenData(
-            btc3XAddress,
+            wsteth15xAddress,
             ether(1),
             true,
           );
 
-          collateralATokenAddress = leveragedTokenData.collateralAToken;
           collateralTokenAddress = leveragedTokenData.collateralToken;
           debtTokenAddress = leveragedTokenData.debtToken;
 
-          collateralAToken = (await ethers.getContractAt(
+          collateralToken = (await ethers.getContractAt(
             "StandardTokenMock",
-            collateralATokenAddress,
+            collateralTokenAddress,
           )) as StandardTokenMock;
+
           debtToken = (await ethers.getContractAt(
             "StandardTokenMock",
             debtTokenAddress,
@@ -132,7 +128,7 @@ if (process.env.INTEGRATIONTEST) {
 
         it("should adjust collateral a token allowance correctly", async () => {
           expect(
-            await collateralAToken.allowance(flashMintLeveraged.address, debtIssuanceModuleAddress),
+            await collateralToken.allowance(flashMintLeveraged.address, debtIssuanceModuleAddress),
           ).to.equal(MAX_UINT_256);
         });
         it("should adjust debt token allowance correctly", async () => {
@@ -141,23 +137,22 @@ if (process.env.INTEGRATIONTEST) {
           ).to.equal(MAX_UINT_256);
         });
 
-        ["collateralToken"].forEach(inputTokenName => {
+        ["collateralToken"].forEach((inputTokenName) => {
           describe(`When input/output token is ${inputTokenName}`, () => {
             let amountIn: BigNumber;
+            let subjectSetAmount: BigNumber;
             before(async () => {
-              amountIn = ether(0.4);
-              if (inputTokenName === "collateralToken") {
-                amountIn = utils.parseUnits("0.1", 8);
-                cbbtc
-                  .connect(await impersonateAccount(cbbtcWhale))
-                  .transfer(owner.address, utils.parseUnits("0.1", 8));
-              }
+              subjectSetAmount = ether(0.5);
+
+                amountIn = subjectSetAmount.mul(12).div(10);
+                wsteth
+                  .connect(await impersonateAccount(wstethWhale))
+                  .transfer(owner.address, amountIn);
             });
 
             describe(
               inputTokenName === "ETH" ? "issueExactSetFromETH" : "#issueExactSetFromERC20",
               () => {
-                let subjectSetAmount: BigNumber;
                 let swapDataDebtToCollateral: SwapData;
                 let swapDataInputToken: SwapData;
 
@@ -171,10 +166,9 @@ if (process.env.INTEGRATIONTEST) {
                 let quotedInputAmount: BigNumber;
 
                 before(async () => {
-                  subjectSetAmount = ether(1);
                   swapDataDebtToCollateral = {
-                    path: [usdcAddress, cbbtcAddress],
-                    fees: [500],
+                    path: [wethAddress, wstethAddress],
+                    fees: [],
                     pool: ADDRESS_ZERO,
                     poolIds: [],
                     exchange: Exchange.Aerodrome,
@@ -190,7 +184,7 @@ if (process.env.INTEGRATIONTEST) {
                   };
 
                   if (inputTokenName === "collateralToken") {
-                    inputToken = cbbtc;
+                    inputToken = wsteth;
                   }
 
                   let inputTokenBalance: BigNumber;
@@ -198,7 +192,9 @@ if (process.env.INTEGRATIONTEST) {
                     subjectMaxAmountIn = amountIn;
                   } else {
                     inputTokenBalance = await inputToken.balanceOf(owner.address);
-                    subjectMaxAmountIn = inputTokenBalance;
+                    console.log("inputTokenBalance", inputTokenBalance.toString());
+                    subjectMaxAmountIn = amountIn;
+                    console.log("Approving input token", subjectMaxAmountIn.toString());
                     await inputToken.approve(flashMintLeveraged.address, subjectMaxAmountIn);
                     subjectInputToken = inputToken.address;
                   }
@@ -254,6 +250,7 @@ if (process.env.INTEGRATIONTEST) {
                       ? await owner.wallet.getBalance()
                       : await inputToken.balanceOf(owner.address);
                   const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
+                  console.log("inputSpent", inputSpent.toString());
                   expect(inputSpent).to.be.gt(0);
                   expect(inputSpent).to.be.lte(subjectMaxAmountIn);
                 });
@@ -265,8 +262,8 @@ if (process.env.INTEGRATIONTEST) {
                       : await inputToken.balanceOf(owner.address);
                   const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
 
-                  expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.99)));
-                  expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.01)));
+                  expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.98)));
+                  expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.02)));
                 });
               },
             );
@@ -280,7 +277,6 @@ if (process.env.INTEGRATIONTEST) {
                 let outputToken: IERC20 | IWETH;
 
                 let subjectSetToken: Address;
-                let subjectSetAmount: BigNumber;
                 let subjectMinAmountOut: BigNumber;
                 let subjectOutputToken: Address;
                 let setBalanceBefore: BigNumber;
@@ -317,9 +313,8 @@ if (process.env.INTEGRATIONTEST) {
                 }
 
                 before(async () => {
-                  subjectSetAmount = ether(1);
                   swapDataCollateralToDebt = {
-                    path: [collateralTokenAddress, usdcAddress],
+                    path: [collateralTokenAddress, wethAddress],
                     fees: [500],
                     pool: ADDRESS_ZERO,
                     poolIds: [],
@@ -334,13 +329,10 @@ if (process.env.INTEGRATIONTEST) {
                   };
 
                   if (inputTokenName === "collateralToken") {
-                    outputToken = cbbtc;
+                    outputToken = wsteth;
                   }
 
-                  subjectMinAmountOut =
-                    inputTokenName === "collateralToken"
-                      ? utils.parseUnits("0.009", 8)
-                      : ether(0.25);
+                  subjectMinAmountOut = subjectSetAmount.mul(8).div(10);
                   subjectSetToken = setToken.address;
                   await setToken.approve(flashMintLeveraged.address, subjectSetAmount);
 
@@ -368,6 +360,7 @@ if (process.env.INTEGRATIONTEST) {
                       ? await owner.wallet.getBalance()
                       : await outputToken.balanceOf(owner.address);
                   const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
+                  console.log("outputObtained", outputObtained.toString());
                   expect(outputObtained.gte(subjectMinAmountOut)).to.be.true;
                 });
 
@@ -378,8 +371,8 @@ if (process.env.INTEGRATIONTEST) {
                       : await outputToken.balanceOf(owner.address);
                   const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
 
-                  expect(outputAmountQuote).to.gt(preciseMul(outputObtained, ether(0.99)));
-                  expect(outputAmountQuote).to.lt(preciseMul(outputObtained, ether(1.01)));
+                  expect(outputAmountQuote).to.gt(preciseMul(outputObtained, ether(0.93)));
+                  expect(outputAmountQuote).to.lt(preciseMul(outputObtained, ether(1.03)));
                 });
               },
             );

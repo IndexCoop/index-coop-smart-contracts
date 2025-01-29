@@ -43,6 +43,7 @@ import {
   AaveV3LeverageStrategyExtension__factory,
   FlashMintLeveragedExtended__factory,
   FlashMintLeveragedAerodrome__factory,
+  FlashMintLeveragedMorpho__factory,
   MorphoLeverageStrategyExtension,
   MorphoLeverageStrategyExtension__factory,
   DEXAdapterV4,
@@ -336,6 +337,69 @@ export default class DeployExtensions {
       basicIssuanceModuleAddress,
       aaveLeveragedModuleAddress,
       aaveAddressProviderAddress,
+      BalancerV2VaultAddress,
+    );
+  }
+
+  public async deployFlashMintLeveragedMorpho(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+    morphoLeveragedModuleAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+    BalancerV2VaultAddress: Address,
+    aerodromeRouterAddress: Address,
+    aerodromeFactoryAddress: Address,
+  ) {
+    console.log("Deploying FlashMintLeveragedMorpho", {
+      wethAddress,
+      quickRouterAddress,
+      sushiRouterAddress,
+      uniV3RouterAddress,
+      uniswapV3QuoterAddress,
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      morphoLeveragedModuleAddress,
+      curveCalculatorAddress,
+      curveAddressProviderAddress,
+      BalancerV2VaultAddress,
+      aerodromeRouterAddress,
+      aerodromeFactoryAddress,
+    });
+    const dexAdapter = await this.deployDEXAdapterV4();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapterV4.sol:DEXAdapterV4",
+    );
+
+    return await new FlashMintLeveragedMorpho__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      {
+        quickRouter: quickRouterAddress,
+        sushiRouter: sushiRouterAddress,
+        uniV3Router: uniV3RouterAddress,
+        uniV3Quoter: uniswapV3QuoterAddress,
+        curveAddressProvider: curveAddressProviderAddress,
+        curveCalculator: curveCalculatorAddress,
+        aerodromeRouter: aerodromeRouterAddress,
+        aerodromeFactory: aerodromeFactoryAddress,
+        balV2Vault: BalancerV2VaultAddress,
+        weth: wethAddress,
+      },
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      morphoLeveragedModuleAddress,
       BalancerV2VaultAddress,
     );
   }
