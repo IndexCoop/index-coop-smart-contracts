@@ -45,7 +45,7 @@ if (process.env.INTEGRATIONTEST) {
     const aerodromeRouterAddress = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43";
     const aerodromeFactoryAdddress = "0x420DD381b31aEf6683db6B902084cB0FFECe40Da";
     const wstethWhale = "0x31b7538090C8584FED3a053FD183E202c26f9a3e";
-    const balancerV2VaultAddress = "0xBA12222222228d8Ba445958a75a0704d566BF2C8";
+    const morphoAddress = "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb";
 
     setBlockNumber(25678000, false);
 
@@ -75,7 +75,7 @@ if (process.env.INTEGRATIONTEST) {
           morphoLeverageModuleAddress,
           ADDRESS_ZERO,
           ADDRESS_ZERO, // TODO: Check if there is curve calculator deployed on arbi
-          balancerV2VaultAddress,
+          morphoAddress,
           aerodromeRouterAddress,
           aerodromeFactoryAdddress,
         );
@@ -137,7 +137,7 @@ if (process.env.INTEGRATIONTEST) {
           ).to.equal(MAX_UINT_256);
         });
 
-        ["collateralToken"].forEach((inputTokenName) => {
+        ["collateralToken"].forEach(inputTokenName => {
           describe(`When input/output token is ${inputTokenName}`, () => {
             let amountIn: BigNumber;
             let subjectSetAmount: BigNumber;

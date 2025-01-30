@@ -31,8 +31,7 @@ import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { UniSushiV2Library } from "../../external/contracts/UniSushiV2Library.sol";
 import { DEXAdapterV4 } from "./DEXAdapterV4.sol";
-import {IVault, IFlashLoanRecipient} from "../interfaces/external/balancer-v2/IVault.sol";
-import {IPool} from "../interfaces/IPool.sol";
+import {IMorpho} from "../interfaces/IMorpho.sol";
 
 
 /**
@@ -41,11 +40,11 @@ import {IPool} from "../interfaces/IPool.sol";
  *
  * Contract for issuing and redeeming a leveraged Set Token
  * Supports all tokens with one morpho collateral Position and one debt position
- * Both the collateral as well as the debt token have to be available for flashloan from balancer and be 
+ * Both the collateral as well as the debt token have to be available for flashloan from morpho and be 
  * tradeable against each other on Sushi / Quickswap
  * Uses DexAdapterV4 for Aerodrome Support
  */
-contract FlashMintLeveragedMorpho is ReentrancyGuard, IFlashLoanRecipient{
+contract FlashMintLeveragedMorpho is ReentrancyGuard {
 
     using DEXAdapterV4 for DEXAdapterV4.Addresses;
     using Address for address payable;
@@ -87,8 +86,8 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard, IFlashLoanRecipient{
     IController public immutable setController;
     IDebtIssuanceModule public immutable debtIssuanceModule;
     IMorphoLeverageModule public immutable morphoLeverageModule;
+    IMorpho public immutable morpho;
     DEXAdapterV4.Addresses public addresses;
-    IVault public immutable balancerV2Vault;
     address private flashLoanBenefactor;
 
     /* ============ Events ============ */
@@ -111,11 +110,6 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard, IFlashLoanRecipient{
 
     /* ============ Modifiers ============ */
  
-     modifier onlyBalancerV2Vault() {
-         require(msg.sender == address(balancerV2Vault), "ExchangeIssuance: BalancerV2 Vault ONLY");
-         _;
-    }
-
     modifier isValidPath(
         address[] memory _path,
         address _inputToken,
@@ -146,14 +140,14 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard, IFlashLoanRecipient{
     * @param _setController         SetToken controller used to verify a given token is a set
     * @param _debtIssuanceModule    DebtIssuanceModule used to issue and redeem tokens
     * @param _morphoLeverageModule    MorphoLeverageModule to sync before every issuance / redemption
-    * @param _vault                 Balancer Vault to flashloan from
+    * @param _morpho                 Morpho contract to call for flashloan
     */
     constructor(
         DEXAdapterV4.Addresses memory _addresses,
         IController _setController,
         IDebtIssuanceModule _debtIssuanceModule,
         IMorphoLeverageModule _morphoLeverageModule,
-        address _vault
+        IMorpho _morpho
     )
         public
     {
@@ -161,7 +155,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard, IFlashLoanRecipient{
         debtIssuanceModule = _debtIssuanceModule;
         morphoLeverageModule = _morphoLeverageModule;
         addresses = _addresses;
-        balancerV2Vault = IVault(_vault);
+        morpho = _morpho;
     }
 
     /* ============ External Functions ============ */
@@ -387,42 +381,24 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard, IFlashLoanRecipient{
         );
     }
 
-     /**
-     * This is the callback function that will be called by the Balancerv2 Pool after flashloaned tokens have been sent
-     * to this contract.
-     * After exiting this function the Vault enforces that we transfer back the loaned tokens + interest. If that check fails
-     * the whole transaction gets reverted
+    /**
+      * Callback function called by Morpho after flashloan has been requested
      *
-     * @param tokens     Addresses of all assets that were borrowed
-     * @param amounts    Amounts that were borrowed
-     * @param feeAmounts   Interest to be paid on top of borrowed amount
-     * @param userData     Encoded bytestring of other parameters from the original contract call to be used downstream
-     * 
+     * @param assets    Amount of tokens loaned / to be repayed
+     * @param data      Encoded data containing the original sender and leveraged token data
      */
-    function receiveFlashLoan(
-        IERC20[] memory tokens,
-        uint256[] memory amounts,
-        uint256[] memory feeAmounts,
-        bytes memory userData
-    )
-        external
-        override
-        onlyBalancerV2Vault
-    {
-
-        DecodedParams memory decodedParams = abi.decode(userData, (DecodedParams));
+    function onMorphoFlashLoan(uint256 assets, bytes calldata data) external {
+        require(msg.sender == address(morpho));
+        DecodedParams memory decodedParams = abi.decode(data, (DecodedParams));
         require(flashLoanBenefactor == decodedParams.originalSender, "Flashloan not initiated by this contract");
 
         if(decodedParams.isIssuance){
-            _performIssuance(address(tokens[0]), amounts[0], feeAmounts[0], decodedParams);
+            _performIssuance(decodedParams.leveragedTokenData.debtToken, assets, decodedParams);
+            IERC20(decodedParams.leveragedTokenData.collateralToken).approve(address(morpho), assets);
         } else {
-            _performRedemption(address(tokens[0]), amounts[0], feeAmounts[0], decodedParams);
+            _performRedemption(decodedParams.leveragedTokenData.debtToken, assets, decodedParams);
+            IERC20(decodedParams.leveragedTokenData.debtToken).approve(address(morpho), assets);
         }
-
-         for(uint256 i = 0; i < tokens.length; i++) {
-                tokens[i].safeTransfer(address(balancerV2Vault), amounts[i]+ feeAmounts[i]);
-        }
-
     }
 
     /**
@@ -458,13 +434,11 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard, IFlashLoanRecipient{
      *
      * @param _collateralToken            Address of the underlying collateral token that was loaned
      * @param _collateralTokenAmountNet   Amount of collateral token that was received as flashloan
-     * @param _premium                    Premium / Interest that has to be returned to the lending pool on top of the loaned amount
      * @param _decodedParams              Struct containing token addresses / amounts to perform issuance
      */
     function _performIssuance(
         address _collateralToken,
         uint256 _collateralTokenAmountNet,
-        uint256 _premium,
         DecodedParams memory _decodedParams
     ) 
     internal 
@@ -473,7 +447,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard, IFlashLoanRecipient{
         // Obtain necessary collateral tokens to repay flashloan 
         uint amountInputTokenSpent = _obtainCollateralTokens(
             _collateralToken,
-            _collateralTokenAmountNet + _premium,
+            _collateralTokenAmountNet,
             _decodedParams
         );
         require(amountInputTokenSpent <= _decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
@@ -484,13 +458,11 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard, IFlashLoanRecipient{
      *
      * @param _debtToken           Address of the debt token that was loaned
      * @param _debtTokenAmountNet  Amount of debt token that was received as flashloan
-     * @param _premium             Premium / Interest that has to be returned to the lending pool on top of the loaned amount
      * @param _decodedParams       Struct containing token addresses / amounts to perform redemption
      */
     function _performRedemption(
         address _debtToken,
         uint256 _debtTokenAmountNet,
-        uint256 _premium,
         DecodedParams memory _decodedParams
     ) 
     internal 
@@ -503,7 +475,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard, IFlashLoanRecipient{
         );
         // Obtain debt tokens required to repay flashloan by swapping the underlying collateral tokens obtained in withdraw step
         uint256 collateralTokenSpent = _swapCollateralForDebtToken(
-            _debtTokenAmountNet + _premium,
+            _debtTokenAmountNet,
             _debtToken,
             _decodedParams.leveragedTokenData.collateralAmount,
             _decodedParams.leveragedTokenData.collateralToken,
@@ -610,11 +582,6 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard, IFlashLoanRecipient{
         morphoLeverageModule.sync(_setToken);
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, true);
 
-        address[] memory assets = new address[](1);
-        assets[0] = leveragedTokenData.collateralToken;
-        uint[] memory amounts =  new uint[](1);
-        amounts[0] = leveragedTokenData.collateralAmount;
-
         bytes memory params = abi.encode(
             DecodedParams(
                 _setToken,
@@ -629,7 +596,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard, IFlashLoanRecipient{
            )
         );
 
-        _flashloan(assets, amounts, params);
+        _flashloan(leveragedTokenData.collateralToken, leveragedTokenData.collateralAmount, params);
 
     }
 
@@ -656,11 +623,6 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard, IFlashLoanRecipient{
         morphoLeverageModule.sync(_setToken);
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, false);
 
-        address[] memory assets = new address[](1);
-        assets[0] = leveragedTokenData.debtToken;
-        uint[] memory amounts =  new uint[](1);
-        amounts[0] = leveragedTokenData.debtAmount;
-
         bytes memory params = abi.encode(
             DecodedParams(
                 _setToken,
@@ -675,7 +637,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard, IFlashLoanRecipient{
             )
         );
 
-        _flashloan(assets, amounts, params);
+        _flashloan(leveragedTokenData.debtToken, leveragedTokenData.debtAmount, params);
 
     }
 
@@ -1158,20 +1120,20 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard, IFlashLoanRecipient{
     /**
      * Triggers the flashloan from the BalancerV2 Vault
      *
-     * @param assets         Addresses of tokens to loan 
-     * @param amounts        Amounts to loan
+     * @param token          Address of the token to loan
+     * @param amount         Amount to loan
      * @param params         Encoded memory to forward to the executeOperation method
      */
     function _flashloan(
-        address[] memory assets,
-        uint256[] memory amounts,
+        address token,
+        uint256 amount,
         bytes memory params
     )
     internal
     {
         require(flashLoanBenefactor == address(0), "Flashloan already taken");
         flashLoanBenefactor = msg.sender;
-        balancerV2Vault.flashLoan(this, assets, amounts, params);
+        morpho.flashLoan(token, amount, params);
         flashLoanBenefactor = address(0);
     }
 

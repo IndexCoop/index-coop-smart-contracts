@@ -352,7 +352,7 @@ export default class DeployExtensions {
     morphoLeveragedModuleAddress: Address,
     curveCalculatorAddress: Address,
     curveAddressProviderAddress: Address,
-    BalancerV2VaultAddress: Address,
+    morphoAddress: Address,
     aerodromeRouterAddress: Address,
     aerodromeFactoryAddress: Address,
   ) {
@@ -367,7 +367,7 @@ export default class DeployExtensions {
       morphoLeveragedModuleAddress,
       curveCalculatorAddress,
       curveAddressProviderAddress,
-      BalancerV2VaultAddress,
+      BalancerV2VaultAddress: morphoAddress,
       aerodromeRouterAddress,
       aerodromeFactoryAddress,
     });
@@ -394,13 +394,13 @@ export default class DeployExtensions {
         curveCalculator: curveCalculatorAddress,
         aerodromeRouter: aerodromeRouterAddress,
         aerodromeFactory: aerodromeFactoryAddress,
-        balV2Vault: BalancerV2VaultAddress,
+        balV2Vault: morphoAddress,
         weth: wethAddress,
       },
       setControllerAddress,
       basicIssuanceModuleAddress,
       morphoLeveragedModuleAddress,
-      BalancerV2VaultAddress,
+      morphoAddress,
     );
   }
 
