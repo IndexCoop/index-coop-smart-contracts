@@ -92,6 +92,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
 
     /* ============ Events ============ */
 
+    // TODO: Emit the events
     event FlashMint(
         address indexed _recipient,     // The recipient address of the issued SetTokens
         ISetToken indexed _setToken,    // The issued SetToken
@@ -393,7 +394,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         require(flashLoanBenefactor == decodedParams.originalSender, "Flashloan not initiated by this contract");
 
         if(decodedParams.isIssuance){
-            _performIssuance(decodedParams.leveragedTokenData.debtToken, assets, decodedParams);
+            _performIssuance(decodedParams.leveragedTokenData.collateralToken, assets, decodedParams);
             IERC20(decodedParams.leveragedTokenData.collateralToken).approve(address(morpho), assets);
         } else {
             _performRedemption(decodedParams.leveragedTokenData.debtToken, assets, decodedParams);
@@ -692,7 +693,6 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
                 _swapData
             );
         }
-        emit FlashMint(_originalSender, _setToken, _outputToken, _setAmount, outputAmount);
         return outputAmount;
     }
 
@@ -835,13 +835,6 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
                 _decodedParams.paymentTokenSwapData
             );
         }
-        emit FlashRedeem(
-            _decodedParams.originalSender,
-            _decodedParams.setToken,
-            _decodedParams.paymentToken,
-            amountInputToken,
-            _decodedParams.setAmount
-        );
         return amountInputToken;
     }
 
