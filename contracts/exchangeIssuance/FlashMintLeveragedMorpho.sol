@@ -90,7 +90,6 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
 
     /* ============ Events ============ */
 
-    // TODO: Emit the events
     event FlashMint(
         address indexed _recipient,     // The recipient address of the issued SetTokens
         ISetToken indexed _setToken,    // The issued SetToken
@@ -450,6 +449,13 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
             _decodedParams
         );
         require(amountInputTokenSpent <= _decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
+        emit FlashMint(
+            _decodedParams.originalSender,
+            _decodedParams.setToken,
+            _decodedParams.paymentToken,
+            amountInputTokenSpent,
+            _decodedParams.setAmount
+        );
     }
 
     /**
@@ -493,6 +499,13 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
             _decodedParams.paymentTokenSwapData
         );
         require(amountOutputToken >= _decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+        emit FlashRedeem(
+            _decodedParams.originalSender,
+            _decodedParams.setToken,
+            _decodedParams.paymentToken,
+            amountOutputToken,
+            _decodedParams.setAmount
+        );
     }
 
 

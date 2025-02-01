@@ -395,6 +395,18 @@ library DEXAdapterV5 {
         return _router.swapTokensForExactTokens(_amountOut, _maxAmountIn, _path, address(this), block.timestamp)[0];
     }
 
+    /**
+     *  Execute exact output swap via Aerodrome Slipstream
+     *
+     * @param _path         List of token address to swap via. (the first element being the input toen)
+     * @param _tickSpacing  List of tick Spacing identifying the pools to swap via.
+     *                      (_tickSpacing[0] refers to pool between _path[0] and _path[1])
+     * @param _amountOut    The amount of output token required
+     * @param _maxAmountIn  Maximum amount of input token to be spent
+     * @param _aerodromeSlipstreamRouter  Address of the Aerodrome Slipstream router
+     *
+     * @return amountIn    The amount of input tokens spent
+     */
     function _swapTokensForExactTokensAerodromeSlipstream(
         address[] memory _path,
         int24[] memory _tickSpacing,
@@ -801,6 +813,18 @@ library DEXAdapterV5 {
         return (i, j);
     }
 
+    /**
+     *  Execute exact input swap via Aerodrome Slipstream
+     *
+     * @param _path         List of token address to swap via. 
+     * @param _tickSpacing  List of fee levels identifying the pools to swap via.
+     *                      (_tickSpacing[0] refers to pool between _path[0] and _path[1])
+     * @param _amountIn     The amount of input token to be spent
+     * @param _minAmountOut Minimum amount of output token to receive
+     * @param _aerodromeRouter  Address of the Aerodrome Slipstream router
+     *
+     * @return amountOut    The amount of output token obtained
+     */
     function _swapExactTokensForTokensAerodromeSlipstream(
         address[] memory _path,
         int24[] memory _tickSpacing,
@@ -818,7 +842,6 @@ library DEXAdapterV5 {
                 IAerodromeSlipstreamRouter.ExactInputSingleParams({
                     tokenIn: _path[0],
                     tokenOut: _path[1],
-                    // TODO: Get tick spacing
                     tickSpacing: _tickSpacing[0],
                     recipient: address(this),
                     deadline: block.timestamp,
@@ -1012,6 +1035,15 @@ library DEXAdapterV5 {
         return _maxAmountIn - amountSwappedBack;
     }
 
+    /**
+     * Gets the output amount of a token swap on Aerodrome  Slipstream.
+     *
+     * @param _swapData     the swap parameters
+     * @param _quoter       the aerodrome slipstream quoter
+     * @param _amountIn     the input amount of the trade
+     *
+     * @return              the output amount of the swap
+     */
     function _getAmountOutAerodromeSlipstream(
         SwapData memory _swapData,
         address _quoter,
@@ -1034,7 +1066,6 @@ library DEXAdapterV5 {
      *
      * @return              the output amount of the swap
      */
-
     function _getAmountOutUniV3(
         SwapData memory _swapData,
         address _quoter,
@@ -1047,6 +1078,15 @@ library DEXAdapterV5 {
         return IQuoter(_quoter).quoteExactInput(path, _amountIn);
     }
 
+    /**
+     * Gets the input amount of a token swap on AerodromeSlipstream.
+     *
+     * @param _swapData     the swap parameters
+     * @param _quoter       the aerodrome quoter
+     * @param _amountOut    the output amount of the trade
+     *
+     * @return              the input amount of the swap
+     */
     function _getAmountInAerodromeSlipstream(
         SwapData memory _swapData,
         address _quoter,
@@ -1081,6 +1121,18 @@ library DEXAdapterV5 {
         return IQuoter(_quoter).quoteExactOutput(path, _amountOut);
     }
 
+    /**
+     * Encode path / tickSpacking to bytes in the format expected by Aerodrome Slipstream router
+     * @dev Same as _encodePathV3 but with tickSpacing instead of fees
+     *
+     * @param _path          List of token address to swap via (starting with input token)
+     * @param _tickSpacing   List of tick spacing identifying the pools to swap via.
+     *                       (_tickSpacing[0] refers to pool between _path[0] and _path[1])
+     * @param _reverseOrder  Boolean indicating if path needs to be reversed to start with output token.
+     *                       (which is the case for exact output swap)
+     *
+     * @return encodedPath   Encoded path to be forwared to Aerodrome Slipstream router
+     */
     function _encodePathSlipstream(
         address[] memory _path,
         int24[] memory _tickSpacing,
