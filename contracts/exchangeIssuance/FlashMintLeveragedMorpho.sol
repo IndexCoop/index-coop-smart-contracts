@@ -30,7 +30,7 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { UniSushiV2Library } from "../../external/contracts/UniSushiV2Library.sol";
-import { DEXAdapterV4 } from "./DEXAdapterV4.sol";
+import { DEXAdapterV5 } from "./DEXAdapterV5.sol";
 import {IMorpho} from "../interfaces/IMorpho.sol";
 
 
@@ -42,11 +42,11 @@ import {IMorpho} from "../interfaces/IMorpho.sol";
  * Supports all tokens with one morpho collateral Position and one debt position
  * Both the collateral as well as the debt token have to be available for flashloan from morpho and be 
  * tradeable against each other on Sushi / Quickswap
- * Uses DexAdapterV4 for Aerodrome Support
+ * Uses DexAdapterV5 for Aerodrome Support
  */
 contract FlashMintLeveragedMorpho is ReentrancyGuard {
 
-    using DEXAdapterV4 for DEXAdapterV4.Addresses;
+    using DEXAdapterV5 for DEXAdapterV5.Addresses;
     using Address for address payable;
     using SafeMath for uint256;
     using PreciseUnitMath for uint256;
@@ -72,8 +72,8 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         address paymentToken;
         uint256 limitAmount;
         LeveragedTokenData leveragedTokenData;
-        DEXAdapterV4.SwapData collateralAndDebtSwapData;
-        DEXAdapterV4.SwapData paymentTokenSwapData;    
+        DEXAdapterV5.SwapData collateralAndDebtSwapData;
+        DEXAdapterV5.SwapData paymentTokenSwapData;    
     }
 
     /* ============ Constants ============= */
@@ -87,7 +87,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
     IDebtIssuanceModule public immutable debtIssuanceModule;
     IMorphoLeverageModule public immutable morphoLeverageModule;
     IMorpho public immutable morpho;
-    DEXAdapterV4.Addresses public addresses;
+    DEXAdapterV5.Addresses public addresses;
     address private flashLoanBenefactor;
 
     /* ============ Events ============ */
@@ -119,12 +119,12 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
     {
         if(_inputToken != _outputToken){
             require(
-                _path[0] == _inputToken || (_inputToken == addresses.weth && _path[0] == DEXAdapterV4.ETH_ADDRESS),
+                _path[0] == _inputToken || (_inputToken == addresses.weth && _path[0] == DEXAdapterV5.ETH_ADDRESS),
                 "ExchangeIssuance: INPUT_TOKEN_NOT_IN_PATH"
             );
             require(
                 _path[_path.length-1] == _outputToken ||
-                (_outputToken == addresses.weth && _path[_path.length-1] == DEXAdapterV4.ETH_ADDRESS),
+                (_outputToken == addresses.weth && _path[_path.length-1] == DEXAdapterV5.ETH_ADDRESS),
                 "ExchangeIssuance: OUTPUT_TOKEN_NOT_IN_PATH"
             );
         }
@@ -144,7 +144,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
     * @param _morpho                 Morpho contract to call for flashloan
     */
     constructor(
-        DEXAdapterV4.Addresses memory _addresses,
+        DEXAdapterV5.Addresses memory _addresses,
         IController _setController,
         IDebtIssuanceModule _debtIssuanceModule,
         IMorphoLeverageModule _morphoLeverageModule,
@@ -213,8 +213,8 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         ISetToken _setToken,
         uint256 _setAmount,
         uint256 _maxAmountInputToken,
-        DEXAdapterV4.SwapData memory _swapDataDebtForCollateral,
-        DEXAdapterV4.SwapData memory _swapDataInputToken
+        DEXAdapterV5.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapterV5.SwapData memory _swapDataInputToken
     )
         external
         returns (uint256)
@@ -222,9 +222,9 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         morphoLeverageModule.sync(_setToken);
         LeveragedTokenData memory issueInfo = _getLeveragedTokenData(_setToken, _setAmount, true);        
         uint256 collateralOwed = issueInfo.collateralAmount.preciseMul(1.0009 ether);
-        uint256 borrowSaleProceeds = DEXAdapterV4.getAmountOut(addresses, _swapDataDebtForCollateral, issueInfo.debtAmount);
+        uint256 borrowSaleProceeds = DEXAdapterV5.getAmountOut(addresses, _swapDataDebtForCollateral, issueInfo.debtAmount);
         collateralOwed = collateralOwed.sub(borrowSaleProceeds);
-        return DEXAdapterV4.getAmountIn(addresses, _swapDataInputToken, collateralOwed, _maxAmountInputToken);
+        return DEXAdapterV5.getAmountIn(addresses, _swapDataInputToken, collateralOwed, _maxAmountInputToken);
     }
 
     /**
@@ -245,8 +245,8 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
     function getRedeemExactSet(
         ISetToken _setToken,
         uint256 _setAmount,
-        DEXAdapterV4.SwapData memory _swapDataCollateralForDebt,
-        DEXAdapterV4.SwapData memory _swapDataOutputToken
+        DEXAdapterV5.SwapData memory _swapDataCollateralForDebt,
+        DEXAdapterV5.SwapData memory _swapDataOutputToken
     )
         external
         returns (uint256)
@@ -254,9 +254,9 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         morphoLeverageModule.sync(_setToken);
         LeveragedTokenData memory redeemInfo = _getLeveragedTokenData(_setToken, _setAmount, false);
         uint256 debtOwed = redeemInfo.debtAmount.preciseMul(1.0009 ether);
-        uint256 debtPurchaseCost = DEXAdapterV4.getAmountIn(addresses, _swapDataCollateralForDebt, debtOwed, redeemInfo.collateralAmount);
+        uint256 debtPurchaseCost = DEXAdapterV5.getAmountIn(addresses, _swapDataCollateralForDebt, debtOwed, redeemInfo.collateralAmount);
         uint256 extraCollateral = redeemInfo.collateralAmount.sub(debtPurchaseCost);
-        return DEXAdapterV4.getAmountOut(addresses, _swapDataOutputToken, extraCollateral);
+        return DEXAdapterV5.getAmountOut(addresses, _swapDataOutputToken, extraCollateral);
     }
 
     /**
@@ -272,8 +272,8 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         ISetToken _setToken,
         uint256 _setAmount,
         uint256 _minAmountOutputToken,
-        DEXAdapterV4.SwapData memory _swapDataCollateralForDebt,
-        DEXAdapterV4.SwapData memory _swapDataOutputToken
+        DEXAdapterV5.SwapData memory _swapDataCollateralForDebt,
+        DEXAdapterV5.SwapData memory _swapDataOutputToken
     )
         external
         virtual
@@ -282,7 +282,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         _initiateRedemption(
             _setToken,
             _setAmount,
-            DEXAdapterV4.ETH_ADDRESS,
+            DEXAdapterV5.ETH_ADDRESS,
             _minAmountOutputToken,
             _swapDataCollateralForDebt,
             _swapDataOutputToken
@@ -304,8 +304,8 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         uint256 _setAmount,
         address _outputToken,
         uint256 _minAmountOutputToken,
-        DEXAdapterV4.SwapData memory _swapDataCollateralForDebt,
-        DEXAdapterV4.SwapData memory _swapDataOutputToken
+        DEXAdapterV5.SwapData memory _swapDataCollateralForDebt,
+        DEXAdapterV5.SwapData memory _swapDataOutputToken
     )
         external
         virtual
@@ -336,8 +336,8 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         uint256 _setAmount,
         address _inputToken,
         uint256 _maxAmountInputToken,
-        DEXAdapterV4.SwapData memory _swapDataDebtForCollateral,
-        DEXAdapterV4.SwapData memory _swapDataInputToken
+        DEXAdapterV5.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapterV5.SwapData memory _swapDataInputToken
     )
         external
         virtual
@@ -364,8 +364,8 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
     function issueExactSetFromETH(
         ISetToken _setToken,
         uint256 _setAmount,
-        DEXAdapterV4.SwapData memory _swapDataDebtForCollateral,
-        DEXAdapterV4.SwapData memory _swapDataInputToken
+        DEXAdapterV5.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapterV5.SwapData memory _swapDataInputToken
     )
         external
         virtual
@@ -375,7 +375,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         _initiateIssuance(
             _setToken,
             _setAmount,
-            DEXAdapterV4.ETH_ADDRESS,
+            DEXAdapterV5.ETH_ADDRESS,
             msg.value,
             _swapDataDebtForCollateral,
             _swapDataInputToken
@@ -575,8 +575,8 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         uint256 _setAmount,
         address _inputToken,
         uint256 _maxAmountInputToken,
-        DEXAdapterV4.SwapData memory _swapDataDebtForCollateral,
-        DEXAdapterV4.SwapData memory _swapDataInputToken
+        DEXAdapterV5.SwapData memory _swapDataDebtForCollateral,
+        DEXAdapterV5.SwapData memory _swapDataInputToken
     )
         internal
     {
@@ -616,8 +616,8 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         uint256 _setAmount,
         address  _outputToken,
         uint256 _minAmountOutputToken,
-        DEXAdapterV4.SwapData memory _swapDataCollateralForDebt,
-        DEXAdapterV4.SwapData memory _swapDataOutputToken
+        DEXAdapterV5.SwapData memory _swapDataCollateralForDebt,
+        DEXAdapterV5.SwapData memory _swapDataOutputToken
     )
         internal
     {
@@ -667,7 +667,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         uint256 _minAmountOutputToken,
         address _collateralToken,
         uint256 _collateralAmount,
-        DEXAdapterV4.SwapData memory _swapData
+        DEXAdapterV5.SwapData memory _swapData
     )
         internal
         returns (uint256)
@@ -675,7 +675,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         require(_collateralAmount >= _collateralTokenSpent, "ExchangeIssuance: OVERSPENT COLLATERAL TOKEN");
         uint256 amountToReturn = _collateralAmount.sub(_collateralTokenSpent);
         uint256 outputAmount;
-        if(_outputToken == DEXAdapterV4.ETH_ADDRESS){
+        if(_outputToken == DEXAdapterV5.ETH_ADDRESS){
             outputAmount = _liquidateCollateralTokensForETH(
                 _collateralToken,
                 amountToReturn,
@@ -731,7 +731,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         address _originalSender,
         IERC20 _outputToken,
         uint256 _minAmountOutputToken,
-        DEXAdapterV4.SwapData memory _swapData
+        DEXAdapterV5.SwapData memory _swapData
     )
         internal
         virtual
@@ -768,7 +768,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         uint256 _collateralRemaining,
         address _originalSender,
         uint256 _minAmountOutputToken,
-        DEXAdapterV4.SwapData memory _swapData
+        DEXAdapterV5.SwapData memory _swapData
     )
         internal
         virtual
@@ -817,7 +817,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         uint collateralTokenShortfall = _amountRequired.sub(collateralTokenObtained) + ROUNDING_ERROR_MARGIN;
         uint amountInputToken;
 
-        if(_decodedParams.paymentToken == DEXAdapterV4.ETH_ADDRESS){
+        if(_decodedParams.paymentToken == DEXAdapterV5.ETH_ADDRESS){
             amountInputToken = _makeUpShortfallWithETH(
                 _collateralToken,
                 collateralTokenShortfall,
@@ -900,7 +900,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         address _originalSender,
         IERC20 _inputToken,
         uint256 _maxAmountInputToken,
-        DEXAdapterV4.SwapData memory _swapData
+        DEXAdapterV5.SwapData memory _swapData
     )
         internal
         virtual
@@ -940,7 +940,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         uint256 _collateralTokenShortfall,
         address _originalSender,
         uint256 _maxAmountEth,
-        DEXAdapterV4.SwapData memory _swapData
+        DEXAdapterV5.SwapData memory _swapData
 
     )
         internal
@@ -979,7 +979,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         address _collateralToken,
         address _debtToken,
         uint256 _debtAmount,
-        DEXAdapterV4.SwapData memory _swapData
+        DEXAdapterV5.SwapData memory _swapData
     )
         internal
         isValidPath(_swapData.path, _debtToken, _collateralToken)
@@ -1010,7 +1010,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         address _debtToken,
         uint256 _collateralAmount,
         address _collateralToken,
-        DEXAdapterV4.SwapData memory _swapData
+        DEXAdapterV5.SwapData memory _swapData
     )
         internal
         isValidPath(_swapData.path, _collateralToken, _debtToken)
@@ -1040,7 +1040,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         uint256 _amountRequired,
         address _inputToken,
         uint256 _maxAmountInputToken,
-        DEXAdapterV4.SwapData memory _swapData
+        DEXAdapterV5.SwapData memory _swapData
     )
         internal
         isValidPath(
@@ -1076,7 +1076,7 @@ contract FlashMintLeveragedMorpho is ReentrancyGuard {
         uint256 _collateralTokenAmount,
         address _outputToken,
         uint256 _minAmountOutputToken,
-        DEXAdapterV4.SwapData memory _swapData
+        DEXAdapterV5.SwapData memory _swapData
     )
         internal
         isValidPath(_swapData.path, _collateralToken, _outputToken)

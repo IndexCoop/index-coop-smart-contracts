@@ -20,11 +20,13 @@ enum Exchange {
   Curve,
   BalancerV2,
   Aerodrome,
+   AerodromeSlipstream,
 }
 
 type SwapData = {
   path: Address[];
   fees: number[];
+  tickSpacing: number[];
   pool: Address;
   poolIds: BytesLike[];
   exchange: Exchange;
@@ -44,6 +46,8 @@ if (process.env.INTEGRATIONTEST) {
     const morphoLeverageModuleAddress = "0x9534b6EC541aD182FBEE2B0B01D1e4404765b8d7";
     const aerodromeRouterAddress = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43";
     const aerodromeFactoryAdddress = "0x420DD381b31aEf6683db6B902084cB0FFECe40Da";
+    const aerodromeSlipstreamRouterAddress = "0xBE6D8f0d05cC4be24d5167a3eF062215bE6D18a5";
+    const aerodromeSlipstreamQuoterAddress = "0x254cF9E1E6e233aa1AC962CB9B05b2cfeAaE15b0";
     const wstethWhale = "0x31b7538090C8584FED3a053FD183E202c26f9a3e";
     const morphoAddress = "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb";
 
@@ -78,6 +82,8 @@ if (process.env.INTEGRATIONTEST) {
           morphoAddress,
           aerodromeRouterAddress,
           aerodromeFactoryAdddress,
+          aerodromeSlipstreamRouterAddress,
+          aerodromeSlipstreamQuoterAddress,
         );
 
         await flashMintLeveraged.connect(owner.wallet).approveSetToken(wsteth15xAddress);
@@ -141,13 +147,14 @@ if (process.env.INTEGRATIONTEST) {
           describe(`When input/output token is ${inputTokenName}`, () => {
             let amountIn: BigNumber;
             let subjectSetAmount: BigNumber;
-            // Note: This crazy slippage tolerance is due to there not being enough liquidity on Aerodrome (v2) for the swap
-            // TODO: Switch to Aerodrome Slipstream
-            const slippageTolerancePercent  = 250;
+            const slippageTolerancePercentIssue = 0;
+            // Note: This difference is likely due to wsteth15x not being at 1 eth nav anymore
+            // TODO: verify
+            const slippageTolerancePercentRedeem = 30;
             before(async () => {
-                subjectSetAmount = ether(5);
+                subjectSetAmount = ether(20);
 
-                amountIn = subjectSetAmount.mul(100 + slippageTolerancePercent).div(100);
+                amountIn = subjectSetAmount.mul(100 + slippageTolerancePercentIssue).div(100);
                 wsteth
                   .connect(await impersonateAccount(wstethWhale))
                   .transfer(owner.address, amountIn);
@@ -172,16 +179,17 @@ if (process.env.INTEGRATIONTEST) {
                   swapDataDebtToCollateral = {
                     path: [wethAddress, wstethAddress],
                     fees: [],
+                    tickSpacing: [1],
                     pool: ADDRESS_ZERO,
                     poolIds: [],
-                    exchange: Exchange.Aerodrome,
+                    exchange: Exchange.AerodromeSlipstream,
                   };
 
                   swapDataInputToken = {
                     path: [],
                     fees: [],
+                    tickSpacing: [],
                     pool: ADDRESS_ZERO,
-
                     poolIds: [],
                     exchange: Exchange.None,
                   };
@@ -318,14 +326,16 @@ if (process.env.INTEGRATIONTEST) {
                 before(async () => {
                   swapDataCollateralToDebt = {
                     path: [collateralTokenAddress, wethAddress],
-                    fees: [500],
+                    fees: [],
+                    tickSpacing: [1],
                     pool: ADDRESS_ZERO,
                     poolIds: [],
-                    exchange: Exchange.Aerodrome,
+                    exchange: Exchange.AerodromeSlipstream,
                   };
                   swapDataOutputToken = {
                     path: [],
                     fees: [],
+                    tickSpacing: [],
                     pool: ADDRESS_ZERO,
                     poolIds: [],
                     exchange: Exchange.None,
@@ -335,7 +345,7 @@ if (process.env.INTEGRATIONTEST) {
                     outputToken = wsteth;
                   }
 
-                  subjectMinAmountOut = subjectSetAmount.mul(100).div(100 + slippageTolerancePercent);
+                  subjectMinAmountOut = subjectSetAmount.mul(100).div(100 + slippageTolerancePercentRedeem);
                   subjectSetToken = setToken.address;
                   await setToken.approve(flashMintLeveraged.address, subjectSetAmount);
 

@@ -48,6 +48,8 @@ import {
   MorphoLeverageStrategyExtension__factory,
   DEXAdapterV4,
   DEXAdapterV4__factory,
+  DEXAdapterV5__factory,
+  DEXAdapterV5,
 } from "../../typechain";
 import { AirdropExtension__factory } from "../../typechain/factories/AirdropExtension__factory";
 import { AuctionRebalanceExtension__factory } from "../../typechain/factories/AuctionRebalanceExtension__factory";
@@ -234,6 +236,10 @@ export default class DeployExtensions {
     return await new DEXAdapterV4__factory(this._deployerSigner).deploy();
   }
 
+  public async deployDEXAdapterV5(): Promise<DEXAdapterV5> {
+    return await new DEXAdapterV5__factory(this._deployerSigner).deploy();
+  }
+
   public async deployExchangeIssuanceLeveraged(
     wethAddress: Address,
     quickRouterAddress: Address,
@@ -355,6 +361,8 @@ export default class DeployExtensions {
     morphoAddress: Address,
     aerodromeRouterAddress: Address,
     aerodromeFactoryAddress: Address,
+    aerodromeSlipstreamRouterAddress: Address,
+    aerodromeSlipstreamQuoterAddress: Address,
   ) {
     console.log("Deploying FlashMintLeveragedMorpho", {
       wethAddress,
@@ -370,11 +378,14 @@ export default class DeployExtensions {
       BalancerV2VaultAddress: morphoAddress,
       aerodromeRouterAddress,
       aerodromeFactoryAddress,
+      aerodromeSlipstreamRouterAddress,
+      aerodromeSlipstreamQuoterAddress,
     });
-    const dexAdapter = await this.deployDEXAdapterV4();
+    const dexAdapter = await this.deployDEXAdapterV5();
+      console.log("dexAdapter", dexAdapter.address);
 
     const linkId = convertLibraryNameToLinkId(
-      "contracts/exchangeIssuance/DEXAdapterV4.sol:DEXAdapterV4",
+      "contracts/exchangeIssuance/DEXAdapterV5.sol:DEXAdapterV5",
     );
 
     return await new FlashMintLeveragedMorpho__factory(
@@ -396,6 +407,8 @@ export default class DeployExtensions {
         aerodromeFactory: aerodromeFactoryAddress,
         balV2Vault: morphoAddress,
         weth: wethAddress,
+        aerodromeSlipstreamRouter: aerodromeSlipstreamRouterAddress,
+        aerodromeSlipstreamQuoter: aerodromeSlipstreamQuoterAddress,
       },
       setControllerAddress,
       basicIssuanceModuleAddress,
@@ -1039,6 +1052,15 @@ export default class DeployExtensions {
     initialExchangeSettings: ReinvestmentExchangeSettings[],
     initialWrapPairs: Address[][],
   ): Promise<ReinvestmentExtensionV1> {
-    return await new ReinvestmentExtensionV1__factory(this._deployerSigner).deploy(manager, weth, airdropModule, tradeModule, wrapModule, initialRewardTokens, initialExchangeSettings, initialWrapPairs);
+    return await new ReinvestmentExtensionV1__factory(this._deployerSigner).deploy(
+      manager,
+      weth,
+      airdropModule,
+      tradeModule,
+      wrapModule,
+      initialRewardTokens,
+      initialExchangeSettings,
+      initialWrapPairs,
+    );
   }
 }
