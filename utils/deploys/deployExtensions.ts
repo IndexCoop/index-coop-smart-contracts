@@ -43,10 +43,13 @@ import {
   AaveV3LeverageStrategyExtension__factory,
   FlashMintLeveragedExtended__factory,
   FlashMintLeveragedAerodrome__factory,
+  FlashMintLeveragedMorpho__factory,
   MorphoLeverageStrategyExtension,
   MorphoLeverageStrategyExtension__factory,
   DEXAdapterV4,
   DEXAdapterV4__factory,
+  DEXAdapterV5__factory,
+  DEXAdapterV5,
 } from "../../typechain";
 import { AirdropExtension__factory } from "../../typechain/factories/AirdropExtension__factory";
 import { AuctionRebalanceExtension__factory } from "../../typechain/factories/AuctionRebalanceExtension__factory";
@@ -233,6 +236,10 @@ export default class DeployExtensions {
     return await new DEXAdapterV4__factory(this._deployerSigner).deploy();
   }
 
+  public async deployDEXAdapterV5(): Promise<DEXAdapterV5> {
+    return await new DEXAdapterV5__factory(this._deployerSigner).deploy();
+  }
+
   public async deployExchangeIssuanceLeveraged(
     wethAddress: Address,
     quickRouterAddress: Address,
@@ -337,6 +344,76 @@ export default class DeployExtensions {
       aaveLeveragedModuleAddress,
       aaveAddressProviderAddress,
       BalancerV2VaultAddress,
+    );
+  }
+
+  public async deployFlashMintLeveragedMorpho(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+    morphoLeveragedModuleAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+    morphoAddress: Address,
+    aerodromeRouterAddress: Address,
+    aerodromeFactoryAddress: Address,
+    aerodromeSlipstreamRouterAddress: Address,
+    aerodromeSlipstreamQuoterAddress: Address,
+  ) {
+    console.log("Deploying FlashMintLeveragedMorpho", {
+      wethAddress,
+      quickRouterAddress,
+      sushiRouterAddress,
+      uniV3RouterAddress,
+      uniswapV3QuoterAddress,
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      morphoLeveragedModuleAddress,
+      curveCalculatorAddress,
+      curveAddressProviderAddress,
+      BalancerV2VaultAddress: morphoAddress,
+      aerodromeRouterAddress,
+      aerodromeFactoryAddress,
+      aerodromeSlipstreamRouterAddress,
+      aerodromeSlipstreamQuoterAddress,
+    });
+    const dexAdapter = await this.deployDEXAdapterV5();
+      console.log("dexAdapter", dexAdapter.address);
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapterV5.sol:DEXAdapterV5",
+    );
+
+    return await new FlashMintLeveragedMorpho__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      {
+        quickRouter: quickRouterAddress,
+        sushiRouter: sushiRouterAddress,
+        uniV3Router: uniV3RouterAddress,
+        uniV3Quoter: uniswapV3QuoterAddress,
+        curveAddressProvider: curveAddressProviderAddress,
+        curveCalculator: curveCalculatorAddress,
+        aerodromeRouter: aerodromeRouterAddress,
+        aerodromeFactory: aerodromeFactoryAddress,
+        balV2Vault: morphoAddress,
+        weth: wethAddress,
+        aerodromeSlipstreamRouter: aerodromeSlipstreamRouterAddress,
+        aerodromeSlipstreamQuoter: aerodromeSlipstreamQuoterAddress,
+      },
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      morphoLeveragedModuleAddress,
+      morphoAddress,
     );
   }
 
@@ -975,6 +1052,15 @@ export default class DeployExtensions {
     initialExchangeSettings: ReinvestmentExchangeSettings[],
     initialWrapPairs: Address[][],
   ): Promise<ReinvestmentExtensionV1> {
-    return await new ReinvestmentExtensionV1__factory(this._deployerSigner).deploy(manager, weth, airdropModule, tradeModule, wrapModule, initialRewardTokens, initialExchangeSettings, initialWrapPairs);
+    return await new ReinvestmentExtensionV1__factory(this._deployerSigner).deploy(
+      manager,
+      weth,
+      airdropModule,
+      tradeModule,
+      wrapModule,
+      initialRewardTokens,
+      initialExchangeSettings,
+      initialWrapPairs,
+    );
   }
 }
