@@ -51,7 +51,7 @@ if (process.env.INTEGRATIONTEST) {
     const wstethWhale = "0x31b7538090C8584FED3a053FD183E202c26f9a3e";
     const morphoAddress = "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb";
 
-    setBlockNumber(25678000, false);
+    setBlockNumber(26958000, false);
 
     before(async () => {
       [owner] = await getAccounts();
