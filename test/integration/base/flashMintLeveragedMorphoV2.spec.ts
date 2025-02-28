@@ -5,7 +5,7 @@ import { getAccounts, getWaffleExpect, preciseMul } from "@utils/index";
 import { impersonateAccount, setBlockNumber } from "@utils/test/testingUtils";
 import { ethers } from "hardhat";
 import { BigNumber, BytesLike, utils } from "ethers";
-import { FlashMintLeveragedMorpho } from "../../../typechain";
+import { FlashMintLeveragedMorphoV2 } from "../../../typechain";
 import { IWETH, StandardTokenMock, IERC20 } from "../../../typechain";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { ether } from "@utils/index";
@@ -33,11 +33,12 @@ type SwapData = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe.skip("FlashMintLeveragedMorpho - Integration Test", async () => {
+  describe.only("FlashMintLeveragedMorphoV2 - Integration Test", async () => {
     let owner: Account;
     let deployer: DeployHelper;
     let setToken: StandardTokenMock;
     let wsteth: IERC20;
+    // let weth: IWETH;
     const wethAddress = "0x4200000000000000000000000000000000000006";
     const wstethAddress = "0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452";
     const wsteth15xAddress = "0xc8DF827157AdAf693FCb0c6f305610C28De739FD";
@@ -51,7 +52,7 @@ if (process.env.INTEGRATIONTEST) {
     const wstethWhale = "0x31b7538090C8584FED3a053FD183E202c26f9a3e";
     const morphoAddress = "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb";
 
-    // Test will fail for wsteth15x due to debt token dust
+
     setBlockNumber(26958000, false);
 
     before(async () => {
@@ -64,12 +65,13 @@ if (process.env.INTEGRATIONTEST) {
       )) as StandardTokenMock;
 
       wsteth = (await ethers.getContractAt("IERC20", wstethAddress)) as IERC20;
+      // weth = (await ethers.getContractAt("IWETH", wethAddress)) as IWETH;
     });
 
     context("When exchange issuance is deployed", () => {
-      let flashMintLeveraged: FlashMintLeveragedMorpho;
+      let flashMintLeveraged: FlashMintLeveragedMorphoV2;
       before(async () => {
-        flashMintLeveraged = await deployer.extensions.deployFlashMintLeveragedMorpho(
+        flashMintLeveraged = await deployer.extensions.deployFlashMintLeveragedMorphoV2(
           wethAddress,
           ADDRESS_ZERO,
           ADDRESS_ZERO,
@@ -79,13 +81,17 @@ if (process.env.INTEGRATIONTEST) {
           debtIssuanceModuleAddress,
           morphoLeverageModuleAddress,
           ADDRESS_ZERO,
-          ADDRESS_ZERO, // TODO: Check if there is curve calculator deployed on arbi
+          ADDRESS_ZERO,
           morphoAddress,
           aerodromeRouterAddress,
           aerodromeFactoryAdddress,
           aerodromeSlipstreamRouterAddress,
           aerodromeSlipstreamQuoterAddress,
         );
+
+        // const dustAllowance = BigNumber.from(10000);
+        // await weth.deposit({ value: dustAllowance });
+        // await weth.transfer(flashMintLeveraged.address, dustAllowance);
 
         await flashMintLeveraged.connect(owner.wallet).approveSetToken(wsteth15xAddress);
       });
@@ -153,12 +159,14 @@ if (process.env.INTEGRATIONTEST) {
             // TODO: verify
             const slippageTolerancePercentRedeem = 30;
             before(async () => {
-                subjectSetAmount = ether(20);
+                subjectSetAmount = ether(1);
 
                 amountIn = subjectSetAmount.mul(100 + slippageTolerancePercentIssue).div(100);
-                wsteth
+                await wsteth
                   .connect(await impersonateAccount(wstethWhale))
                   .transfer(owner.address, amountIn);
+                console.log("owner address", owner.address);
+                console.log("wsteth balance", await wsteth.balanceOf(owner.address));
             });
 
             describe(

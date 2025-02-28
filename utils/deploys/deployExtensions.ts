@@ -44,6 +44,7 @@ import {
   FlashMintLeveragedExtended__factory,
   FlashMintLeveragedAerodrome__factory,
   FlashMintLeveragedMorpho__factory,
+  FlashMintLeveragedMorphoV2__factory,
   FlashMintLeveragedMorphoAaveLM__factory,
   MorphoLeverageStrategyExtension,
   MorphoLeverageStrategyExtension__factory,
@@ -420,6 +421,77 @@ export default class DeployExtensions {
       aaveLendingPoolAddress,
     );
   }
+
+  public async deployFlashMintLeveragedMorphoV2(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+    morphoLeveragedModuleAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+    morphoAddress: Address,
+    aerodromeRouterAddress: Address,
+    aerodromeFactoryAddress: Address,
+    aerodromeSlipstreamRouterAddress: Address,
+    aerodromeSlipstreamQuoterAddress: Address,
+  ) {
+    console.log("Deploying FlashMintLeveragedMorphoV2", {
+      wethAddress,
+      quickRouterAddress,
+      sushiRouterAddress,
+      uniV3RouterAddress,
+      uniswapV3QuoterAddress,
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      morphoLeveragedModuleAddress,
+      curveCalculatorAddress,
+      curveAddressProviderAddress,
+      BalancerV2VaultAddress: morphoAddress,
+      aerodromeRouterAddress,
+      aerodromeFactoryAddress,
+      aerodromeSlipstreamRouterAddress,
+      aerodromeSlipstreamQuoterAddress,
+    });
+    const dexAdapter = await this.deployDEXAdapterV5();
+    console.log("dexAdapter", dexAdapter.address);
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapterV5.sol:DEXAdapterV5",
+    );
+
+    return await new FlashMintLeveragedMorphoV2__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      {
+        quickRouter: quickRouterAddress,
+        sushiRouter: sushiRouterAddress,
+        uniV3Router: uniV3RouterAddress,
+        uniV3Quoter: uniswapV3QuoterAddress,
+        curveAddressProvider: curveAddressProviderAddress,
+        curveCalculator: curveCalculatorAddress,
+        aerodromeRouter: aerodromeRouterAddress,
+        aerodromeFactory: aerodromeFactoryAddress,
+        balV2Vault: morphoAddress,
+        weth: wethAddress,
+        aerodromeSlipstreamRouter: aerodromeSlipstreamRouterAddress,
+        aerodromeSlipstreamQuoter: aerodromeSlipstreamQuoterAddress,
+      },
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      morphoLeveragedModuleAddress,
+      morphoAddress,
+    );
+  }
+
 
   public async deployFlashMintLeveragedMorpho(
     wethAddress: Address,
