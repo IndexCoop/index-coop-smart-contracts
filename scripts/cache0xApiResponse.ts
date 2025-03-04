@@ -39,7 +39,7 @@ function readJsonCache(): any {
 
 function writeJsonCache(jsonData: any) {
   try {
-    fs.writeFileSync(filePath, JSON.stringify(jsonData, null, 2), "utf8");
+    fs.writeFileSync(filePath, JSON.stringify(jsonData, undefined, 2), "utf8");
     console.log(`Data saved to ${filePath}`);
   } catch (error) {
     console.error("Error writing cache file:", error);
@@ -74,7 +74,7 @@ function getCachedResponse(
       }
     }
   }
-  return null;
+  return undefined;
 }
 
 async function getZeroExResponse(

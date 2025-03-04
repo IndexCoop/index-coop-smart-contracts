@@ -1,7 +1,7 @@
 import "module-alias/register";
 import { Account, Address } from "@utils/types";
 import DeployHelper from "@utils/deploys";
-import { getAccounts, getWaffleExpect, preciseMul } from "@utils/index";
+import { getAccounts, getWaffleExpect } from "@utils/index";
 import { impersonateAccount, setBlockNumber } from "@utils/test/testingUtils";
 import { ethers } from "hardhat";
 import { BigNumber, BytesLike, utils } from "ethers";
@@ -19,7 +19,7 @@ if (process.env.INTEGRATIONTEST) {
     let deployer: DeployHelper;
     let setToken: StandardTokenMock;
     let wsteth: IERC20;
-    // let weth: IWETH;
+    let weth: IWETH;
     const wethAddress = "0x4200000000000000000000000000000000000006";
     const wstethAddress = "0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452";
     const wsteth15xAddress = "0xc8DF827157AdAf693FCb0c6f305610C28De739FD";
@@ -45,7 +45,7 @@ if (process.env.INTEGRATIONTEST) {
       )) as StandardTokenMock;
 
       wsteth = (await ethers.getContractAt("IERC20", wstethAddress)) as IERC20;
-      // weth = (await ethers.getContractAt("IWETH", wethAddress)) as IWETH;
+      weth = (await ethers.getContractAt("IWETH", wethAddress)) as IWETH;
     });
 
     context("When exchange issuance is deployed", () => {
@@ -116,7 +116,7 @@ if (process.env.INTEGRATIONTEST) {
           ).to.equal(MAX_UINT_256);
         });
 
-        ["collateralToken"].forEach((inputTokenName) => {
+        ["collateralToken"].forEach(inputTokenName => {
           describe(`When input/output token is ${inputTokenName}`, () => {
             let amountIn: BigNumber;
             let subjectSetAmount: BigNumber;
@@ -139,7 +139,7 @@ if (process.env.INTEGRATIONTEST) {
               inputTokenName === "ETH" ? "issueExactSetFromETH" : "#issueExactSetFromERC20",
               () => {
                 let swapDataDebtToCollateral: BytesLike = ethers.constants.HashZero;
-                let swapDataInputToken: BytesLike = ethers.constants.HashZero;
+                const swapDataInputToken: BytesLike = ethers.constants.HashZero;
 
                 let inputToken: StandardTokenMock | IWETH | IERC20;
 
@@ -148,7 +148,7 @@ if (process.env.INTEGRATIONTEST) {
                 let subjectInputToken: Address;
                 let setBalancebefore: BigNumber;
                 let inputBalanceBefore: BigNumber;
-                let quotedInputAmount: BigNumber;
+                // let quotedInputAmount: BigNumber;
 
                 before(async () => {
                   if (inputTokenName === "collateralToken") {
@@ -173,7 +173,6 @@ if (process.env.INTEGRATIONTEST) {
                       ? await owner.wallet.getBalance()
                       : await inputToken.balanceOf(owner.address);
                   // quotedInputAmount = await subjectQuote();
-                  //
                   const leveragedTokenData =
                     await flashMintLeveraged.callStatic.getLeveragedTokenData(
                       subjectSetToken,
@@ -253,14 +252,14 @@ if (process.env.INTEGRATIONTEST) {
                 });
 
                 it.skip("should quote the correct input amount", async () => {
-                  const inputBalanceAfter =
-                    inputTokenName === "ETH"
-                      ? await owner.wallet.getBalance()
-                      : await inputToken.balanceOf(owner.address);
-                  const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
+                  // const inputBalanceAfter =
+                  //   inputTokenName === "ETH"
+                  //     ? await owner.wallet.getBalance()
+                  //     : await inputToken.balanceOf(owner.address);
+                  // const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
 
-                  expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.98)));
-                  expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.02)));
+                  // expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.98)));
+                  // expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.02)));
                 });
               },
             );
@@ -269,7 +268,7 @@ if (process.env.INTEGRATIONTEST) {
               inputTokenName === "ETH" ? "redeemExactSetForETH" : "#redeemExactSetForERC20",
               () => {
                 let swapDataCollateralToDebt: BytesLike;
-                let swapDataOutputToken: BytesLike = ethers.constants.HashZero;
+                const swapDataOutputToken: BytesLike = ethers.constants.HashZero;
 
                 let outputToken: IERC20 | IWETH;
 
@@ -278,7 +277,7 @@ if (process.env.INTEGRATIONTEST) {
                 let subjectOutputToken: Address;
                 let setBalanceBefore: BigNumber;
                 let outputBalanceBefore: BigNumber;
-                let outputAmountQuote: BigNumber;
+                // let outputAmountQuote: BigNumber;
 
                 async function subject() {
                   if (inputTokenName === "ETH") {
@@ -311,7 +310,9 @@ if (process.env.INTEGRATIONTEST) {
 
                 before(async () => {
                   if (inputTokenName === "collateralToken") {
-                    outputToken = wsteth;
+                    // NOTE: We are actually using debt instead of collateral token as output here
+                    // This way we can just sell the entire contract balance in collateral tokens to debt token
+                    outputToken = weth;
                   }
 
                   subjectMinAmountOut = subjectSetAmount
@@ -329,7 +330,7 @@ if (process.env.INTEGRATIONTEST) {
                       ? await owner.wallet.getBalance()
                       : await outputToken.balanceOf(owner.address);
                   // outputAmountQuote = await subjectQuote();
-                    //
+                  //
                   const leveragedTokenData =
                     await flashMintLeveraged.callStatic.getLeveragedTokenData(
                       subjectSetToken,
@@ -337,7 +338,6 @@ if (process.env.INTEGRATIONTEST) {
                       true,
                     );
                   console.log("leveragedTokenData", leveragedTokenData);
-                    
                   // Round up to this number of wei;
                   const roundingFactor = ethers.utils.parseEther("0.01");
                   const roundedCollateralAmount = leveragedTokenData.collateralAmount
@@ -377,14 +377,14 @@ if (process.env.INTEGRATIONTEST) {
                   expect(outputObtained.gte(subjectMinAmountOut)).to.be.true;
                 });
 
-                it("should quote the correct output amount", async () => {
-                  const outputBalanceAfter =
-                    inputTokenName === "ETH"
-                      ? await owner.wallet.getBalance()
-                      : await outputToken.balanceOf(owner.address);
-                  const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
+                // TODO: Reactivate after reimplementing quote function
+                it.skip("should quote the correct output amount", async () => {
+                  // const outputBalanceAfter =
+                  //   inputTokenName === "ETH"
+                  //     ? await owner.wallet.getBalance()
+                  //     : await outputToken.balanceOf(owner.address);
+                  // const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
 
-                  // TODO: Readjust tolerance after adjusting to Aerodrome Slipstream
                   // expect(outputAmountQuote).to.gt(preciseMul(outputObtained, ether(0.5)));
                   // expect(outputAmountQuote).to.lt(preciseMul(outputObtained, ether(1.03)));
                 });

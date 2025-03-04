@@ -394,22 +394,20 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         );
         // Obtain debt tokens required to repay flashloan by swapping the underlying collateral tokens obtained in withdraw step
         uint256 collateralTokenSpent = _swapCollateralForDebtToken(
-            _debtTokenAmountNet,
             _debtToken,
             _decodedParams.leveragedTokenData.collateralAmount,
             _decodedParams.leveragedTokenData.collateralToken,
             _decodedParams.collateralAndDebtSwapData
         );
         // Liquidate remaining collateral tokens for the payment token specified by user
-        uint256 amountOutputToken = _liquidateCollateralTokens(
-            collateralTokenSpent,
+        uint256 amountOutputToken = _liquidateDebtTokens(
+            _debtTokenAmountNet,
             _decodedParams.setToken,
             _decodedParams.setAmount,
             _decodedParams.originalSender,
             _decodedParams.paymentToken,
             _decodedParams.limitAmount,
-            _decodedParams.leveragedTokenData.collateralToken,
-            _decodedParams.leveragedTokenData.collateralAmount  - 2*ROUNDING_ERROR_MARGIN,
+            _decodedParams.leveragedTokenData.debtToken,
             _decodedParams.paymentTokenSwapData
         );
         require(amountOutputToken >= _decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
@@ -567,91 +565,86 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
     }
 
     /**
-     * Gets rid of the obtained collateral tokens from redemption by either sending them to the user
+     * Gets rid of the obtained debt tokens from redemption by either sending them to the user
      * directly or converting them to the payment token and sending those out.
      *
-     * @param _collateralTokenSpent    Amount of collateral token spent to obtain the debt token required for redemption
+     * @param _owedDebtAmount          Amount of debt token needed to repay flashloan
      * @param _setToken                Address of the SetToken to be issued
      * @param _setAmount               Amount of SetTokens to issue
      * @param _originalSender          Address of the user who initiated the redemption
      * @param _outputToken             Address of token to return to the user
-     * @param _collateralToken         Address of the collateral token to sell
-     * @param _collateralAmount        Amount of collateral token to sell
+     * @param _debtToken         Address of the debt token to sell
      * @param _minAmountOutputToken    Minimum amount of output token to return to the user
      * @param _swapData                Struct containing path and fee data for swap
      *
      * @return Amount of output token returned to the user
      */
-    function _liquidateCollateralTokens(
-        uint256 _collateralTokenSpent,
+    function _liquidateDebtTokens(
+        uint256 _owedDebtAmount,
         ISetToken _setToken,
         uint256 _setAmount,
         address _originalSender,
         address _outputToken,
         uint256 _minAmountOutputToken,
-        address _collateralToken,
-        uint256 _collateralAmount,
+        address _debtToken,
         bytes memory _swapData
     )
         internal
         returns (uint256)
     {
-        require(_collateralAmount >= _collateralTokenSpent, "ExchangeIssuance: OVERSPENT COLLATERAL TOKEN");
-        uint256 amountToReturn = _collateralAmount.sub(_collateralTokenSpent);
-        uint256 outputAmount;
+        uint256 debtAmount = IERC20(_debtToken).balanceOf(address(this)).sub(_owedDebtAmount);
         if(_outputToken == ETH_ADDRESS){
-            outputAmount = _liquidateCollateralTokensForETH(
-                _collateralToken,
-                amountToReturn,
+            return _liquidateDebtTokensForETH(
+                _debtToken,
+                debtAmount,
                 _originalSender,
                 _minAmountOutputToken,
                 _swapData
             );
         } else {
-            outputAmount = _liquidateCollateralTokensForERC20(
-                _collateralToken,
-                amountToReturn,
+            return _liquidateDebtTokensForERC20(
+                _debtToken,
+                debtAmount,
                 _originalSender,
                 IERC20(_outputToken),
                 _minAmountOutputToken,
                 _swapData
             );
         }
-        return outputAmount;
     }
 
     /**
-     * Returns the collateralToken directly to the user
+     * Returns the debtToken directly to the user
      *
-     * @param _collateralToken       Address of the the collateral token
-     * @param _collateralRemaining   Amount of the collateral token remaining after buying required debt tokens
+     * @param _debtToken             Address of the the debt token
+     * @param _debtRemaining         Amount of debt token remaining after repaying flashloan
      * @param _originalSender        Address of the original sender to return the tokens to
      */
-    function _returnCollateralTokensToSender(
-        address _collateralToken,
-        uint256 _collateralRemaining,
+    function _returnDebtTokensToSender(
+        address _debtToken,
+        uint256 _debtRemaining,
         address _originalSender
     )
         internal
     {
-        IERC20(_collateralToken).transfer(_originalSender, _collateralRemaining);
+        IERC20(_debtToken).transfer(_originalSender, _debtRemaining);
     }
 
     /**
-     * Sells the collateral tokens for the selected output ERC20 and returns that to the user
+     * Sells the debt tokens for the selected output ERC20 and returns that to the user
      *
-     * @param _collateralToken       Address of the collateral token
-     * @param _collateralRemaining   Amount of the collateral token remaining after buying required debt tokens
+     * @param _debtToken             Address of the debt token
+     * @param _debtRemaining         Amount of debt token remaining after repaying the flashloan
      * @param _originalSender        Address of the original sender to return the tokens to
      * @param _outputToken           Address of token to return to the user
      * @param _minAmountOutputToken  Minimum amount of output token to return to the user
-     * @param _swapData              Data (token path and fee levels) describing the swap path from Collateral Token to Output token
+     * @param _swapData              Data (token path and fee levels) describing the swap path from Debt Token to Output token
      *
      * @return Amount of output token returned to the user
      */
-    function _liquidateCollateralTokensForERC20(
-        address _collateralToken,
-        uint256 _collateralRemaining,
+    function _liquidateDebtTokensForERC20(
+        address _debtToken,
+        uint256 _debtRemaining,
         address _originalSender,
         IERC20 _outputToken,
         uint256 _minAmountOutputToken,
@@ -661,13 +654,13 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         virtual
         returns (uint256)
     {
-        if(address(_outputToken) == _collateralToken){
-            _returnCollateralTokensToSender(_collateralToken, _collateralRemaining, _originalSender);
-            return _collateralRemaining;
+        if(address(_outputToken) == _debtToken){
+            _returnDebtTokensToSender(_debtToken, _debtRemaining, _originalSender);
+            return _debtRemaining;
         }
-        uint256 outputTokenAmount = _swapCollateralForOutputToken(
-            _collateralToken,
-            _collateralRemaining,
+        uint256 outputTokenAmount = _swapDebtForOutputToken(
+            _debtToken,
+            _debtRemaining,
             address(_outputToken),
             _minAmountOutputToken,
             _swapData
@@ -677,19 +670,19 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
     }
 
     /**
-     * Sells the remaining collateral tokens for weth, withdraws that and returns native eth to the user
+     * Sells the remaining debt tokens for weth, withdraws that and returns native eth to the user
      *
-     * @param _collateralToken            Address of the collateral token
-     * @param _collateralRemaining        Amount of the collateral token remaining after buying required debt tokens
+     * @param _debtToken                  Address of the debt token
+     * @param _debtRemaining              Amount of the debt token remaining after repaying the flashloan
      * @param _originalSender             Address of the original sender to return the eth to
      * @param _minAmountOutputToken       Minimum amount of output token to return to user
-     * @param _swapData                   Data (token path and fee levels) describing the swap path from Collateral Token to eth
+     * @param _swapData                   Data (token path and fee levels) describing the swap path from Debt Token to eth
      *
      * @return Amount of eth returned to the user
      */
-    function _liquidateCollateralTokensForETH(
-        address _collateralToken,
-        uint256 _collateralRemaining,
+    function _liquidateDebtTokensForETH(
+        address _debtToken,
+        uint256 _debtRemaining,
         address _originalSender,
         uint256 _minAmountOutputToken,
         bytes memory _swapData
@@ -902,7 +895,6 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
     /**
      * Acquires debt tokens needed for flashloan repayment by swapping a portion of the collateral tokens obtained from redemption
      *
-     * @param _debtAmount             Amount of debt token to buy
      * @param _debtToken              Address of debt token
      * @param _collateralAmount       Amount of collateral token available to spend / used as maxAmountIn parameter
      * @param _collateralToken        Address of collateral token
@@ -911,7 +903,6 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
      * @return Amount of collateral token spent
      */
     function _swapCollateralForDebtToken(
-        uint256 _debtAmount,
         address _debtToken,
         uint256 _collateralAmount,
         address _collateralToken,
@@ -957,20 +948,20 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
 
 
     /**
-     * Swaps the collateral tokens obtained from redemption for the selected output token
+     * Swaps the debt tokens obtained from redemption for the selected output token
      * If both tokens are the same, does nothing
      *
-     * @param _collateralToken        Address of collateral token
-     * @param _collateralTokenAmount  Amount of colalteral token to swap
+     * @param _debtToken              Address of debt token
+     * @param _debtTokenAmount        Amount of colalteral token to swap
      * @param _outputToken            Address of the ERC20 token to swap into
      * @param _minAmountOutputToken   Minimum amount of output token to return to the user
      * @param _swapData               Data (token addresses and fee levels) describing the swap path
      *
      * @return Amount of output token obtained
      */
-    function _swapCollateralForOutputToken(
-        address _collateralToken,
-        uint256 _collateralTokenAmount,
+    function _swapDebtForOutputToken(
+        address _debtToken,
+        uint256 _debtTokenAmount,
         address _outputToken,
         uint256 _minAmountOutputToken,
         bytes memory _swapData
@@ -978,9 +969,9 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         internal
         returns (uint256)
     {
-        if(_collateralToken == _outputToken) return _collateralTokenAmount;
+        if(_debtToken == _outputToken) return _debtTokenAmount;
         uint256 outputTokenBalanceBefore = IERC20(_outputToken).balanceOf(address(this));
-        IERC20(_collateralToken).approve(swapTarget, IERC20(_collateralToken).balanceOf(address(this)));
+        IERC20(_debtToken).approve(swapTarget, IERC20(_debtToken).balanceOf(address(this)));
         _fillQuote(_swapData);
         return IERC20(_outputToken).balanceOf(address(this)).sub(outputTokenBalanceBefore);
     }
