@@ -141,6 +141,386 @@
               },
               "zid": "0x37bf43fa9cf11b0cbb488498"
             }
+          },
+          "27134967": {
+            "price": {
+              "blockNumber": "27134959",
+              "buyAmount": "2068972635",
+              "buyToken": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+              "fees": {
+                "integratorFee": null,
+                "zeroExFee": {
+                  "amount": "3108545",
+                  "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                  "type": "volume"
+                },
+                "gasFee": null
+              },
+              "gas": "255470",
+              "gasPrice": "3794024",
+              "issues": {
+                "allowance": {
+                  "actual": "0",
+                  "spender": "0x0000000000001ff3684f28c67538d4d072c22734"
+                },
+                "balance": {
+                  "token": "0x4200000000000000000000000000000000000006",
+                  "actual": "194",
+                  "expected": "1000000000000000000"
+                },
+                "simulationIncomplete": false,
+                "invalidSourcesPassed": []
+              },
+              "liquidityAvailable": true,
+              "minBuyAmount": "2048280300",
+              "route": {
+                "fills": [
+                  {
+                    "from": "0x4200000000000000000000000000000000000006",
+                    "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                    "source": "BaseX",
+                    "proportionBps": "10000"
+                  }
+                ],
+                "tokens": [
+                  {
+                    "address": "0x4200000000000000000000000000000000000006",
+                    "symbol": "WETH"
+                  },
+                  {
+                    "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                    "symbol": "USDC"
+                  }
+                ]
+              },
+              "sellAmount": "1000000000000000000",
+              "sellToken": "0x4200000000000000000000000000000000000006",
+              "tokenMetadata": {
+                "buyToken": {
+                  "buyTaxBps": "0",
+                  "sellTaxBps": "0"
+                },
+                "sellToken": {
+                  "buyTaxBps": "0",
+                  "sellTaxBps": "0"
+                }
+              },
+              "totalNetworkFee": "3247985598785",
+              "zid": "0x5758ed546bbb892e820c574d"
+            }
+          },
+          "27135242": {
+            "price": {
+              "blockNumber": "27135242",
+              "buyAmount": "2055791010",
+              "buyToken": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+              "fees": {
+                "integratorFee": null,
+                "zeroExFee": {
+                  "amount": "3088287",
+                  "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                  "type": "volume"
+                },
+                "gasFee": null
+              },
+              "gas": "2541619",
+              "gasPrice": "4638475",
+              "issues": {
+                "allowance": {
+                  "actual": "0",
+                  "spender": "0x0000000000001ff3684f28c67538d4d072c22734"
+                },
+                "balance": {
+                  "token": "0x4200000000000000000000000000000000000006",
+                  "actual": "194",
+                  "expected": "1000000000000000000"
+                },
+                "simulationIncomplete": false,
+                "invalidSourcesPassed": []
+              },
+              "liquidityAvailable": true,
+              "minBuyAmount": "2035232100",
+              "route": {
+                "fills": [
+                  {
+                    "from": "0x4200000000000000000000000000000000000006",
+                    "to": "0xb170000aeefa790fa61d6e837d1035906839a3c8",
+                    "source": "Pinto",
+                    "proportionBps": "749"
+                  },
+                  {
+                    "from": "0x4200000000000000000000000000000000000006",
+                    "to": "0xb79dd08ea68a908a97220c76d19a6aa9cbde4376",
+                    "source": "Aerodrome_V3",
+                    "proportionBps": "2499"
+                  },
+                  {
+                    "from": "0x4200000000000000000000000000000000000006",
+                    "to": "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf",
+                    "source": "Uniswap_V3",
+                    "proportionBps": "1508"
+                  },
+                  {
+                    "from": "0x4200000000000000000000000000000000000006",
+                    "to": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+                    "source": "Uniswap_V3",
+                    "proportionBps": "499"
+                  },
+                  {
+                    "from": "0x4200000000000000000000000000000000000006",
+                    "to": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+                    "source": "PancakeSwap_V3",
+                    "proportionBps": "1249"
+                  },
+                  {
+                    "from": "0x4200000000000000000000000000000000000006",
+                    "to": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+                    "source": "Synthswap_V3",
+                    "proportionBps": "992"
+                  },
+                  {
+                    "from": "0x4200000000000000000000000000000000000006",
+                    "to": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+                    "source": "SushiSwap_V3",
+                    "proportionBps": "250"
+                  },
+                  {
+                    "from": "0x4200000000000000000000000000000000000006",
+                    "to": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+                    "source": "IziSwap",
+                    "proportionBps": "499"
+                  },
+                  {
+                    "from": "0x4200000000000000000000000000000000000006",
+                    "to": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+                    "source": "AlienBase_V2",
+                    "proportionBps": "499"
+                  },
+                  {
+                    "from": "0x4200000000000000000000000000000000000006",
+                    "to": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+                    "source": "Aerodrome_V2",
+                    "proportionBps": "250"
+                  },
+                  {
+                    "from": "0x4200000000000000000000000000000000000006",
+                    "to": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+                    "source": "Thick",
+                    "proportionBps": "1000"
+                  },
+                  {
+                    "from": "0xb79dd08ea68a908a97220c76d19a6aa9cbde4376",
+                    "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                    "source": "Maverick_V2",
+                    "proportionBps": "2499"
+                  },
+                  {
+                    "from": "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf",
+                    "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                    "source": "Uniswap_V4",
+                    "proportionBps": "453"
+                  },
+                  {
+                    "from": "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf",
+                    "to": "0xb170000aeefa790fa61d6e837d1035906839a3c8",
+                    "source": "Pinto",
+                    "proportionBps": "1055"
+                  },
+                  {
+                    "from": "0xb170000aeefa790fa61d6e837d1035906839a3c8",
+                    "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                    "source": "Pinto",
+                    "proportionBps": "1804"
+                  },
+                  {
+                    "from": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+                    "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                    "source": "Maverick",
+                    "proportionBps": "2037"
+                  },
+                  {
+                    "from": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+                    "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                    "source": "Maverick_V2",
+                    "proportionBps": "3205"
+                  }
+                ],
+                "tokens": [
+                  {
+                    "address": "0x4200000000000000000000000000000000000006",
+                    "symbol": "WETH"
+                  },
+                  {
+                    "address": "0xb79dd08ea68a908a97220c76d19a6aa9cbde4376",
+                    "symbol": "USD+"
+                  },
+                  {
+                    "address": "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf",
+                    "symbol": "cbBTC"
+                  },
+                  {
+                    "address": "0xb170000aeefa790fa61d6e837d1035906839a3c8",
+                    "symbol": "PINTO"
+                  },
+                  {
+                    "address": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+                    "symbol": "USDbC"
+                  },
+                  {
+                    "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                    "symbol": "USDC"
+                  }
+                ]
+              },
+              "sellAmount": "1000000000000000000",
+              "sellToken": "0x4200000000000000000000000000000000000006",
+              "tokenMetadata": {
+                "buyToken": {
+                  "buyTaxBps": "0",
+                  "sellTaxBps": "0"
+                },
+                "sellToken": {
+                  "buyTaxBps": "0",
+                  "sellTaxBps": "0"
+                }
+              },
+              "totalNetworkFee": "17094560804674",
+              "zid": "0x988218919750a6fc61a7338e"
+            }
+          },
+          "27135253": {
+            "price": {
+              "blockNumber": "27135253",
+              "buyAmount": "2056926999",
+              "buyToken": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+              "fees": {
+                "integratorFee": null,
+                "zeroExFee": {
+                  "amount": "3090026",
+                  "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                  "type": "volume"
+                },
+                "gasFee": null
+              },
+              "gas": "354278",
+              "gasPrice": "3883113",
+              "issues": {
+                "allowance": {
+                  "actual": "0",
+                  "spender": "0x0000000000001ff3684f28c67538d4d072c22734"
+                },
+                "balance": {
+                  "token": "0x4200000000000000000000000000000000000006",
+                  "actual": "194",
+                  "expected": "1000000000000000000"
+                },
+                "simulationIncomplete": false,
+                "invalidSourcesPassed": []
+              },
+              "liquidityAvailable": true,
+              "minBuyAmount": "2036350800",
+              "route": {
+                "fills": [
+                  {
+                    "from": "0x4200000000000000000000000000000000000006",
+                    "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                    "source": "PancakeSwap_V3",
+                    "proportionBps": "10000"
+                  }
+                ],
+                "tokens": [
+                  {
+                    "address": "0x4200000000000000000000000000000000000006",
+                    "symbol": "WETH"
+                  },
+                  {
+                    "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                    "symbol": "USDC"
+                  }
+                ]
+              },
+              "sellAmount": "1000000000000000000",
+              "sellToken": "0x4200000000000000000000000000000000000006",
+              "tokenMetadata": {
+                "buyToken": {
+                  "buyTaxBps": "0",
+                  "sellTaxBps": "0"
+                },
+                "sellToken": {
+                  "buyTaxBps": "0",
+                  "sellTaxBps": "0"
+                }
+              },
+              "totalNetworkFee": "2583547471846",
+              "zid": "0x6838e4894b0e71c6329e45df"
+            }
+          },
+          "27135284": {
+            "price": {
+              "blockNumber": "27135285",
+              "buyAmount": "2056105568",
+              "buyToken": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+              "fees": {
+                "integratorFee": null,
+                "zeroExFee": {
+                  "amount": "3088792",
+                  "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                  "type": "volume"
+                },
+                "gasFee": null
+              },
+              "gas": "337651",
+              "gasPrice": "3789298",
+              "issues": {
+                "allowance": {
+                  "actual": "0",
+                  "spender": "0x0000000000001ff3684f28c67538d4d072c22734"
+                },
+                "balance": {
+                  "token": "0x4200000000000000000000000000000000000006",
+                  "actual": "194",
+                  "expected": "1000000000000000000"
+                },
+                "simulationIncomplete": false,
+                "invalidSourcesPassed": []
+              },
+              "liquidityAvailable": true,
+              "minBuyAmount": "2035539000",
+              "route": {
+                "fills": [
+                  {
+                    "from": "0x4200000000000000000000000000000000000006",
+                    "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                    "source": "Aerodrome_V3",
+                    "proportionBps": "10000"
+                  }
+                ],
+                "tokens": [
+                  {
+                    "address": "0x4200000000000000000000000000000000000006",
+                    "symbol": "WETH"
+                  },
+                  {
+                    "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                    "symbol": "USDC"
+                  }
+                ]
+              },
+              "sellAmount": "1000000000000000000",
+              "sellToken": "0x4200000000000000000000000000000000000006",
+              "tokenMetadata": {
+                "buyToken": {
+                  "buyTaxBps": "0",
+                  "sellTaxBps": "0"
+                },
+                "sellToken": {
+                  "buyTaxBps": "0",
+                  "sellTaxBps": "0"
+                }
+              },
+              "totalNetworkFee": "2690953101532",
+              "zid": "0xfecbef08ad355044e1b30c7b"
+            }
           }
         }
       }
