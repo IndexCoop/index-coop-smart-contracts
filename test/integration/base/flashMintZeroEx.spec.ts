@@ -9,6 +9,7 @@ import { FlashMintLeveragedZeroEx } from "../../../typechain";
 import { IWETH, StandardTokenMock, IERC20 } from "../../../typechain";
 import { MAX_UINT_256 } from "@utils/constants";
 import { ether } from "@utils/index";
+import { fetchZeroExData } from "../../../scripts/cache0xApiResponse";
 
 const expect = getWaffleExpect();
 
@@ -28,8 +29,9 @@ if (process.env.INTEGRATIONTEST) {
     const wstethWhale = "0x31b7538090C8584FED3a053FD183E202c26f9a3e";
     const morphoAddress = "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb";
     const zeroExRouterAddress = "0x0000000000001fF3684f28c67538d4D072C22734";
+    const forkBlockNumber = 27136315;
 
-    setBlockNumber(26958000, false);
+    setBlockNumber(forkBlockNumber, false);
 
     before(async () => {
       [owner] = await getAccounts();
@@ -169,6 +171,36 @@ if (process.env.INTEGRATIONTEST) {
                       ? await owner.wallet.getBalance()
                       : await inputToken.balanceOf(owner.address);
                   // quotedInputAmount = await subjectQuote();
+                  //
+                  const leveragedTokenData =
+                    await flashMintLeveraged.callStatic.getLeveragedTokenData(
+                      subjectSetToken,
+                      subjectSetAmount,
+                      true,
+                    );
+                  console.log("leveragedTokenData", leveragedTokenData);
+                  const blockRange = 10000;
+                  const chainId = 8453;
+
+                  // Round up to this number of wei;
+                  const roundingFactor = ethers.utils.parseEther("0.01");
+                  const roundedDebtAmount = leveragedTokenData.debtAmount
+                    .div(roundingFactor)
+                    .add(1)
+                    .mul(roundingFactor);
+                  const zeroExResponse = await fetchZeroExData(
+                    leveragedTokenData.debtToken,
+                    leveragedTokenData.collateralToken,
+                    roundedDebtAmount,
+                    blockRange,
+                    flashMintLeveraged.address,
+                    true,
+                    forkBlockNumber,
+                    chainId,
+                  );
+                  console.log("zeroExResponse");
+                  swapDataDebtToCollateral = zeroExResponse.transaction.data;
+                  console.log("swapDataDebtToCollateral", swapDataDebtToCollateral);
                   await subject();
                 });
 
@@ -235,7 +267,7 @@ if (process.env.INTEGRATIONTEST) {
             describe(
               inputTokenName === "ETH" ? "redeemExactSetForETH" : "#redeemExactSetForERC20",
               () => {
-                let swapDataCollateralToDebt: BytesLike = ethers.constants.HashZero;
+                let swapDataCollateralToDebt: BytesLike;
                 let swapDataOutputToken: BytesLike = ethers.constants.HashZero;
 
                 let outputToken: IERC20 | IWETH;
@@ -295,12 +327,6 @@ if (process.env.INTEGRATIONTEST) {
                     inputTokenName === "ETH"
                       ? await owner.wallet.getBalance()
                       : await outputToken.balanceOf(owner.address);
-                  const leveragedTokenData = await flashMintLeveraged.callStatic.getLeveragedTokenData(
-                    subjectSetToken,
-                    subjectSetAmount,
-                    true,
-                  );
-                  console.log("leveragedTokenData", leveragedTokenData);
                   // outputAmountQuote = await subjectQuote();
                   await subject();
                 });

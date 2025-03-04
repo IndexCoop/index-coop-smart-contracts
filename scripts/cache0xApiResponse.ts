@@ -53,7 +53,7 @@ function getCachedResponse(
   sellAmount: BigNumber,
   blockNumber: number,
   blockRange: number,
-  isQuote: boolean
+  isQuote: boolean,
 ): any | null {
   const cache = readJsonCache();
   const key = isQuote ? "quote" : "price";
@@ -83,7 +83,7 @@ async function getZeroExResponse(
   buyToken: string,
   sellAmount: BigNumber,
   taker: string,
-  isQuote: boolean = false
+  isQuote: boolean = false,
 ): Promise<any> {
   const priceParams = new URLSearchParams({
     chainId: chainId.toString(),
@@ -96,7 +96,7 @@ async function getZeroExResponse(
   console.log("Fetching data with params:", priceParams.toString());
 
   const headers = {
-    "0x-api-key": zeroExApiKey, 
+    "0x-api-key": zeroExApiKey,
     "0x-version": "v2",
   };
 
@@ -112,9 +112,8 @@ function saveToJsonFile(
   sellToken: string,
   buyToken: string,
   sellAmount: BigNumber,
-  blockNumber: number,
   data: any,
-  isQuote: boolean
+  isQuote: boolean,
 ) {
   let jsonData = readJsonCache();
 
@@ -124,7 +123,7 @@ function saveToJsonFile(
   if (!jsonData[chainId][sellToken][buyToken][sellAmount.toString()])
     jsonData[chainId][sellToken][buyToken][sellAmount.toString()] = {};
 
-  jsonData[chainId][sellToken][buyToken][sellAmount.toString()][blockNumber] = {
+  jsonData[chainId][sellToken][buyToken][sellAmount.toString()][data.blockNumber] = {
     [isQuote ? "quote" : "price"]: data,
   };
 
@@ -140,6 +139,7 @@ function saveToJsonFile(
  * @param blockRange - The max block difference to use cached data.
  * @param flashMintAddress - The taker address.
  * @param isQuote - Whether to fetch a quote or a price.
+ * @param blockNumber - block number for which to check the range
  * @returns Cached or fresh response from 0x API.
  */
 export async function fetchZeroExData(
@@ -148,16 +148,19 @@ export async function fetchZeroExData(
   sellAmount: BigNumber,
   blockRange: number,
   flashMintAddress: string,
-  isQuote: boolean
+  isQuote: boolean,
+  blockNumber: number,
+  chainId: number,
 ) {
-  const chainId = await getChainId();
-  console.log("Chain ID:", chainId);
-  const blockNumber = await latestBlock();
-  console.log("Block Number:", blockNumber);
-
   // Check cache for a response within the acceptable range
   const cachedResponse = getCachedResponse(
-    chainId, sellToken, buyToken, sellAmount, blockNumber, blockRange, isQuote
+    chainId,
+    sellToken,
+    buyToken,
+    sellAmount,
+    blockNumber,
+    blockRange,
+    isQuote,
   );
   if (cachedResponse) {
     return cachedResponse;
@@ -165,12 +168,17 @@ export async function fetchZeroExData(
 
   // Fetch new data from API
   const priceResponse = await getZeroExResponse(
-    chainId, sellToken, buyToken, sellAmount, flashMintAddress, isQuote
+    chainId,
+    sellToken,
+    buyToken,
+    sellAmount,
+    flashMintAddress,
+    isQuote,
   );
-  console.log("Fetched Data:", priceResponse);
+  // console.log("Fetched Data:", priceResponse);
 
   // Save response to file
-  saveToJsonFile(chainId, sellToken, buyToken, sellAmount, blockNumber, priceResponse, isQuote);
+  saveToJsonFile(chainId, sellToken, buyToken, sellAmount, priceResponse, isQuote);
 
   return priceResponse;
 }
@@ -183,8 +191,21 @@ async function main() {
   const blockRange = 1; // Blocks within which cache is valid
   const flashMintAddress = "0xE6c18c4C9FC6909EDa546649EBE33A8159256CBE";
   const isQuote = false;
+  const blockNumber = await latestBlock();
+  console.log("Block Number:", blockNumber);
+  const chainId = await getChainId();
+  console.log("Chain ID:", chainId);
 
-  const result = await fetchZeroExData(sellToken, buyToken, sellAmount, blockRange, flashMintAddress, isQuote);
+  const result = await fetchZeroExData(
+    sellToken,
+    buyToken,
+    sellAmount,
+    blockRange,
+    flashMintAddress,
+    isQuote,
+    blockNumber,
+    chainId,
+  );
   console.log("Final result:", result);
 }
 
