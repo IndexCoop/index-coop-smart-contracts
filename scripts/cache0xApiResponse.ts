@@ -85,12 +85,14 @@ async function getZeroExResponse(
   taker: string,
   isQuote: boolean = false,
 ): Promise<any> {
+  // TODO: Add param selling whole contract balance
   const priceParams = new URLSearchParams({
     chainId: chainId.toString(),
     sellToken,
     buyToken,
     sellAmount: sellAmount.toString(),
     taker,
+    sellEntireBalance: "true"
   });
 
   console.log("Fetching data with params:", priceParams.toString());

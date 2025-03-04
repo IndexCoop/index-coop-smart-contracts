@@ -29,7 +29,7 @@ if (process.env.INTEGRATIONTEST) {
     const wstethWhale = "0x31b7538090C8584FED3a053FD183E202c26f9a3e";
     const morphoAddress = "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb";
     const zeroExRouterAddress = "0x0000000000001fF3684f28c67538d4D072C22734";
-    const forkBlockNumber = 27136315;
+    const forkBlockNumber = 27141539;
 
     setBlockNumber(forkBlockNumber, false);
 
@@ -123,7 +123,7 @@ if (process.env.INTEGRATIONTEST) {
             // TODO: verify
             const slippageTolerancePercentRedeem = 30;
             before(async () => {
-              subjectSetAmount = ether(1);
+              subjectSetAmount = ether(0.1);
 
               amountIn = subjectSetAmount.mul(100 + slippageTolerancePercentIssue).div(100);
               await wsteth
@@ -179,7 +179,7 @@ if (process.env.INTEGRATIONTEST) {
                       true,
                     );
                   console.log("leveragedTokenData", leveragedTokenData);
-                  const blockRange = 10000;
+                  const blockRange = 10;
                   const chainId = 8453;
 
                   // Round up to this number of wei;
@@ -211,7 +211,7 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSetAmount,
                       swapDataDebtToCollateral,
                       swapDataInputToken,
-                      { value: subjectMaxAmountIn },
+                      { value: subjectMaxAmountIn, gasLimit: 3_000_000 },
                     );
                   }
                   return flashMintLeveraged.issueExactSetFromERC20(
@@ -221,6 +221,7 @@ if (process.env.INTEGRATIONTEST) {
                     subjectMaxAmountIn,
                     swapDataDebtToCollateral,
                     swapDataInputToken,
+                    { gasLimit: 3_000_000 },
                   );
                 }
 

@@ -894,6 +894,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         returns (uint256)
     {
         uint256 collateralBalanceBefore = IERC20(_collateralToken).balanceOf(address(this));
+        IERC20(_debtToken).approve(swapTarget, IERC20(_debtToken).balanceOf(address(this)));
         _fillQuote(_swapData);
         return IERC20(_collateralToken).balanceOf(address(this)).sub(collateralBalanceBefore);
     }
@@ -920,6 +921,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         returns (uint256)
     {
         uint256 collateralBalanceBefore = IERC20(_collateralToken).balanceOf(address(this));
+        IERC20(_collateralToken).approve(swapTarget, collateralBalanceBefore);
          _fillQuote(_swapData);
          return collateralBalanceBefore.sub(IERC20(_collateralToken).balanceOf(address(this)));
     }
@@ -948,6 +950,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
     {
         if(_collateralToken == _inputToken) return _amountRequired;
         uint256 inputTokenBalanceBefore = IERC20(_inputToken).balanceOf(address(this));
+        IERC20(_inputToken).approve(swapTarget, inputTokenBalanceBefore);
         _fillQuote(_swapData);
         return inputTokenBalanceBefore.sub(IERC20(_inputToken).balanceOf(address(this)));
     }
@@ -977,6 +980,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
     {
         if(_collateralToken == _outputToken) return _collateralTokenAmount;
         uint256 outputTokenBalanceBefore = IERC20(_outputToken).balanceOf(address(this));
+        IERC20(_collateralToken).approve(swapTarget, IERC20(_collateralToken).balanceOf(address(this)));
         _fillQuote(_swapData);
         return IERC20(_outputToken).balanceOf(address(this)).sub(outputTokenBalanceBefore);
     }
