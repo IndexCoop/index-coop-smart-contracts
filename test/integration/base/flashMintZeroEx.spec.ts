@@ -4,10 +4,10 @@ import DeployHelper from "@utils/deploys";
 import { getAccounts, getWaffleExpect, preciseMul } from "@utils/index";
 import { impersonateAccount, setBlockNumber } from "@utils/test/testingUtils";
 import { ethers } from "hardhat";
-import { BigNumber, Bytes, BytesLike, utils } from "ethers";
+import { BigNumber, BytesLike, utils } from "ethers";
 import { FlashMintLeveragedZeroEx } from "../../../typechain";
 import { IWETH, StandardTokenMock, IERC20 } from "../../../typechain";
-import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
+import { MAX_UINT_256 } from "@utils/constants";
 import { ether } from "@utils/index";
 
 const expect = getWaffleExpect();
@@ -28,7 +28,6 @@ if (process.env.INTEGRATIONTEST) {
     const wstethWhale = "0x31b7538090C8584FED3a053FD183E202c26f9a3e";
     const morphoAddress = "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb";
     const zeroExRouterAddress = "0x0000000000001fF3684f28c67538d4D072C22734";
-
 
     setBlockNumber(26958000, false);
 
@@ -64,7 +63,6 @@ if (process.env.INTEGRATIONTEST) {
         await flashMintLeveraged.connect(owner.wallet).approveSetToken(wsteth15xAddress);
       });
 
-
       it("controller address is set correctly", async () => {
         expect(await flashMintLeveraged.setController()).to.eq(controllerAddress);
       });
@@ -83,7 +81,7 @@ if (process.env.INTEGRATIONTEST) {
         before(async () => {
           await flashMintLeveraged.approveSetToken(setToken.address);
 
-          const leveragedTokenData = await flashMintLeveraged.getLeveragedTokenData(
+          const leveragedTokenData = await flashMintLeveraged.callStatic.getLeveragedTokenData(
             wsteth15xAddress,
             ether(1),
             true,
@@ -114,7 +112,7 @@ if (process.env.INTEGRATIONTEST) {
           ).to.equal(MAX_UINT_256);
         });
 
-        ["collateralToken"].forEach(inputTokenName => {
+        ["collateralToken"].forEach((inputTokenName) => {
           describe(`When input/output token is ${inputTokenName}`, () => {
             let amountIn: BigNumber;
             let subjectSetAmount: BigNumber;
@@ -123,14 +121,14 @@ if (process.env.INTEGRATIONTEST) {
             // TODO: verify
             const slippageTolerancePercentRedeem = 30;
             before(async () => {
-                subjectSetAmount = ether(1);
+              subjectSetAmount = ether(1);
 
-                amountIn = subjectSetAmount.mul(100 + slippageTolerancePercentIssue).div(100);
-                await wsteth
-                  .connect(await impersonateAccount(wstethWhale))
-                  .transfer(owner.address, amountIn);
-                console.log("owner address", owner.address);
-                console.log("wsteth balance", await wsteth.balanceOf(owner.address));
+              amountIn = subjectSetAmount.mul(100 + slippageTolerancePercentIssue).div(100);
+              await wsteth
+                .connect(await impersonateAccount(wstethWhale))
+                .transfer(owner.address, amountIn);
+              console.log("owner address", owner.address);
+              console.log("wsteth balance", await wsteth.balanceOf(owner.address));
             });
 
             describe(
@@ -283,7 +281,9 @@ if (process.env.INTEGRATIONTEST) {
                     outputToken = wsteth;
                   }
 
-                  subjectMinAmountOut = subjectSetAmount.mul(100).div(100 + slippageTolerancePercentRedeem);
+                  subjectMinAmountOut = subjectSetAmount
+                    .mul(100)
+                    .div(100 + slippageTolerancePercentRedeem);
                   subjectSetToken = setToken.address;
                   await setToken.approve(flashMintLeveraged.address, subjectSetAmount);
 
@@ -295,6 +295,12 @@ if (process.env.INTEGRATIONTEST) {
                     inputTokenName === "ETH"
                       ? await owner.wallet.getBalance()
                       : await outputToken.balanceOf(owner.address);
+                  const leveragedTokenData = await flashMintLeveraged.callStatic.getLeveragedTokenData(
+                    subjectSetToken,
+                    subjectSetAmount,
+                    true,
+                  );
+                  console.log("leveragedTokenData", leveragedTokenData);
                   // outputAmountQuote = await subjectQuote();
                   await subject();
                 });
@@ -322,7 +328,7 @@ if (process.env.INTEGRATIONTEST) {
                       : await outputToken.balanceOf(owner.address);
                   const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
 
-                    // TODO: Readjust tolerance after adjusting to Aerodrome Slipstream
+                  // TODO: Readjust tolerance after adjusting to Aerodrome Slipstream
                   // expect(outputAmountQuote).to.gt(preciseMul(outputObtained, ether(0.5)));
                   // expect(outputAmountQuote).to.lt(preciseMul(outputObtained, ether(1.03)));
                 });

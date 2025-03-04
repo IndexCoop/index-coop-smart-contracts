@@ -153,9 +153,9 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         bool _isIssuance
     )
         external 
-        view
         returns (LeveragedTokenData memory)
     {
+        morphoLeverageModule.sync(_setToken);
         return _getLeveragedTokenData(_setToken, _setAmount, _isIssuance);
     }
 
