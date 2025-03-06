@@ -120,6 +120,7 @@ if (process.env.INTEGRATIONTEST) {
             let amountIn: BigNumber;
             let subjectSetAmount: BigNumber;
             const slippageTolerancePercentIssue = 0;
+            let gasCosts: BigNumber;
             // Note: This difference is likely due to wsteth15x not being at 1 eth nav anymore
             // TODO: verify
             const slippageTolerancePercentRedeem = 30;
@@ -145,7 +146,6 @@ if (process.env.INTEGRATIONTEST) {
                 let subjectInputToken: Address;
                 let setBalancebefore: BigNumber;
                 let inputBalanceBefore: BigNumber;
-                let gasCosts: BigNumber;
                 // let quotedInputAmount: BigNumber;
 
                 before(async () => {
@@ -368,7 +368,12 @@ if (process.env.INTEGRATIONTEST) {
                   );
 
                   swapDataCollateralToDebt = zeroExResponse.transaction.data;
-                  await subject();
+
+                  const tx = await subject();
+                  // console.log("tx", tx);
+                  const receipt = await tx.wait();
+                  // console.log("receipt", receipt);
+                  gasCosts = receipt.gasUsed.mul(tx.gasPrice);
                 });
 
                 it("should redeem the correct amount of tokens", async () => {
@@ -382,9 +387,12 @@ if (process.env.INTEGRATIONTEST) {
                     inputTokenName === "ETH"
                       ? await owner.wallet.getBalance()
                       : await outputToken.balanceOf(owner.address);
-                  const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
+                  let outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
+                    if (inputTokenName === "ETH") {
+                        outputObtained = outputObtained.add(gasCosts);
+                    }
                   console.log("outputObtained", outputObtained.toString());
-                  expect(outputObtained.gte(subjectMinAmountOut)).to.be.true;
+                  expect(outputObtained).to.be.gte(subjectMinAmountOut);
                 });
 
                 // TODO: Reactivate after reimplementing quote function

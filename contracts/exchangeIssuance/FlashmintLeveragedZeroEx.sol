@@ -71,6 +71,11 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         bytes paymentTokenSwapData;    
     }
 
+    struct TokenBalance {
+        IERC20 token;
+        uint256 balance;
+    }
+
     /* ============ Constants ============= */
 
     uint256 constant private MAX_UINT256 = type(uint256).max;
@@ -187,6 +192,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         external
         virtual
         nonReentrant
+        returns(uint256[] memory)
     {
         _initiateRedemption(
             _setToken,
@@ -219,6 +225,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         external
         virtual
         nonReentrant
+        returns(uint256[] memory)
     {
         _initiateRedemption(
             _setToken,
@@ -251,6 +258,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         external
         virtual
         nonReentrant
+        returns(uint256[] memory)
     {
         _initiateIssuance(
             _setToken,
@@ -280,6 +288,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         virtual
         payable
         nonReentrant
+        returns(uint256[] memory)
     {
         _initiateIssuance(
             _setToken,
@@ -339,6 +348,58 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
 
     /* ============ Internal Functions ============ */
 
+    function _getTokenBalances(address _paymentToken, LeveragedTokenData memory leveragedTokenData)
+    internal
+    returns (uint256[] memory tokenBalances)
+    {
+        bool isPaymentTokenDistinct = _paymentToken != leveragedTokenData.collateralToken && _paymentToken != leveragedTokenData.debtToken;
+        tokenBalances = isPaymentTokenDistinct ? new uint256[](3) : new uint256[](2);
+        tokenBalances[0] = IERC20(leveragedTokenData.collateralToken).balanceOf(address(this));
+        tokenBalances[1] = IERC20(leveragedTokenData.debtToken).balanceOf(address(this));
+        if (isPaymentTokenDistinct) {
+            if(_paymentToken == ETH_ADDRESS) {
+                tokenBalances[2] = address(this).balance;
+            } else {
+                tokenBalances[2] = IERC20(_paymentToken).balanceOf(address(this));
+            }
+        }
+    }
+
+    function _returnExcessTokenBalances(uint256[] memory balancesBefore, address _paymentToken, LeveragedTokenData memory leveragedTokenData) 
+    internal
+    returns(uint256[] memory amountsReturned)
+    {
+        amountsReturned = new uint256[](balancesBefore.length);
+        uint256 collateralTokenBalance = IERC20(leveragedTokenData.collateralToken).balanceOf(address(this));
+        if(collateralTokenBalance > balancesBefore[0]) {
+            amountsReturned[0] = collateralTokenBalance - balancesBefore[0];
+            IERC20(leveragedTokenData.collateralToken).safeTransfer(msg.sender, amountsReturned[0]);
+        }
+
+        uint256 debtTokenBalance = IERC20(leveragedTokenData.debtToken).balanceOf(address(this));
+        if(debtTokenBalance > balancesBefore[1]) {
+            amountsReturned[1] = debtTokenBalance - balancesBefore[1];
+            IERC20(leveragedTokenData.debtToken).safeTransfer(msg.sender, amountsReturned[1]);
+        }
+
+        if(balancesBefore.length > 2) {
+            if(_paymentToken == ETH_ADDRESS) {
+                uint256 paymentTokenBalance = weth.balanceOf(address(this));
+                if(paymentTokenBalance > balancesBefore[2]) {
+                    amountsReturned[2] = paymentTokenBalance - balancesBefore[2];
+                    weth.withdraw(amountsReturned[2]);
+                    msg.sender.sendValue(amountsReturned[2]);
+                }
+            } else {
+                uint256 paymentTokenBalance = IERC20(_paymentToken).balanceOf(address(this));
+                if(paymentTokenBalance > balancesBefore[2]) {
+                    amountsReturned[2] = paymentTokenBalance - balancesBefore[2];
+                    IERC20(_paymentToken).transfer(msg.sender, amountsReturned[2]);
+                }
+            }
+        }
+    }
+
     /**
      * Performs all the necessary steps for issuance using the collateral tokens obtained in the flashloan
      *
@@ -363,6 +424,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         } else {
             inputToken = _decodedParams.paymentToken;
             // Security Assumption: No one can manipulate Morpho such that this original sender is not the original sender of the transaction
+            // Alternatively: 
             IERC20(inputToken).transferFrom(_decodedParams.originalSender, address(this), _decodedParams.limitAmount);
         }
         _executeSwapData(
@@ -488,9 +550,11 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         bytes memory _swapDataInputToken
     )
         internal
+        returns(uint256[] memory)
     {
         morphoLeverageModule.sync(_setToken);
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, true);
+        uint256[] memory tokenBalances = _getTokenBalances(_inputToken, leveragedTokenData);
 
         bytes memory params = abi.encode(
             DecodedParams(
@@ -508,18 +572,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
 
         _flashloan(leveragedTokenData.collateralToken, leveragedTokenData.collateralAmount, params);
 
-        // Transfer to the user full contract balance of input, collateral and debt tokens
-        // TODO: Check if we need to have additional protection against people using this to drain leftover tokens
-        if(_inputToken == ETH_ADDRESS) {
-            uint256 wethAmount = weth.balanceOf(address(this));
-            weth.withdraw(wethAmount);
-            msg.sender.sendValue(wethAmount);
-        } else {
-            IERC20(_inputToken).transfer(msg.sender, IERC20(_inputToken).balanceOf(address(this)));
-        }
-        IERC20(leveragedTokenData.collateralToken).transfer(msg.sender, IERC20(leveragedTokenData.collateralToken).balanceOf(address(this)));
-        IERC20(leveragedTokenData.debtToken).transfer(msg.sender, IERC20(leveragedTokenData.debtToken).balanceOf(address(this)));
-
+        return _returnExcessTokenBalances(tokenBalances, _inputToken, leveragedTokenData);
     }
 
     /**
@@ -541,10 +594,12 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         bytes memory _swapDataOutputToken
     )
         internal
+        returns(uint256[] memory returnedAmounts)
     {
         _setToken.safeTransferFrom(msg.sender, address(this), _setAmount);
         morphoLeverageModule.sync(_setToken);
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, false);
+        uint256[] memory tokenBalances = _getTokenBalances(_outputToken, leveragedTokenData);
 
         bytes memory params = abi.encode(
             DecodedParams(
@@ -562,16 +617,16 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
 
         _flashloan(leveragedTokenData.debtToken, leveragedTokenData.debtAmount, params);
 
-        // TODO: Check if we need to have additional protection against people using this to drain leftover tokens
-        if(_outputToken == ETH_ADDRESS) {
-            uint256 wethAmount = weth.balanceOf(address(this));
-            weth.withdraw(wethAmount);
-            msg.sender.sendValue(wethAmount);
-        } else {
-            IERC20(_outputToken).transfer(msg.sender, IERC20(_outputToken).balanceOf(address(this)));
-        }
-        IERC20(leveragedTokenData.collateralToken).transfer(msg.sender, IERC20(leveragedTokenData.collateralToken).balanceOf(address(this)));
-        IERC20(leveragedTokenData.debtToken).transfer(msg.sender, IERC20(leveragedTokenData.debtToken).balanceOf(address(this)));
+        returnedAmounts = _returnExcessTokenBalances(tokenBalances, _outputToken, leveragedTokenData);
+
+        require(
+            (_outputToken == leveragedTokenData.collateralToken && returnedAmounts[0] >= _minAmountOutputToken) 
+            ||
+            (_outputToken == leveragedTokenData.debtToken && returnedAmounts[1] >= _minAmountOutputToken) 
+            ||
+            (returnedAmounts[2] >= _minAmountOutputToken),
+            "INSUFFICIENT OUTPUT AMOUNT"
+        );
     }
 
 
