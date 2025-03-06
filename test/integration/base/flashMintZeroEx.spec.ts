@@ -29,7 +29,7 @@ if (process.env.INTEGRATIONTEST) {
     const wstethWhale = "0x31b7538090C8584FED3a053FD183E202c26f9a3e";
     const morphoAddress = "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb";
     const zeroExRouterAddress = "0x0000000000001fF3684f28c67538d4D072C22734";
-    const forkBlockNumber = 27142076;
+    const forkBlockNumber = 27222056;
     const blockRange = 100;
     const chainId = 8453;
 
@@ -59,10 +59,6 @@ if (process.env.INTEGRATIONTEST) {
           wethAddress,
           zeroExRouterAddress,
         );
-
-        // const dustAllowance = BigNumber.from(10000);
-        // await weth.deposit({ value: dustAllowance });
-        // await weth.transfer(flashMintLeveraged.address, dustAllowance);
 
         await flashMintLeveraged.connect(owner.wallet).approveSetToken(wsteth15xAddress);
       });
@@ -116,7 +112,10 @@ if (process.env.INTEGRATIONTEST) {
           ).to.equal(MAX_UINT_256);
         });
 
-        ["collateralToken"].forEach(inputTokenName => {
+        [
+          "collateralToken",
+          "ETH",
+        ].forEach(inputTokenName => {
           describe(`When input/output token is ${inputTokenName}`, () => {
             let amountIn: BigNumber;
             let subjectSetAmount: BigNumber;
@@ -131,15 +130,13 @@ if (process.env.INTEGRATIONTEST) {
               await wsteth
                 .connect(await impersonateAccount(wstethWhale))
                 .transfer(owner.address, amountIn);
-              console.log("owner address", owner.address);
-              console.log("wsteth balance", await wsteth.balanceOf(owner.address));
             });
 
             describe(
               inputTokenName === "ETH" ? "issueExactSetFromETH" : "#issueExactSetFromERC20",
               () => {
                 let swapDataDebtToCollateral: BytesLike = ethers.constants.HashZero;
-                const swapDataInputToken: BytesLike = ethers.constants.HashZero;
+                let swapDataInputToken: BytesLike = ethers.constants.HashZero;
 
                 let inputToken: StandardTokenMock | IWETH | IERC20;
 
@@ -148,6 +145,7 @@ if (process.env.INTEGRATIONTEST) {
                 let subjectInputToken: Address;
                 let setBalancebefore: BigNumber;
                 let inputBalanceBefore: BigNumber;
+                let gasCosts: BigNumber;
                 // let quotedInputAmount: BigNumber;
 
                 before(async () => {
@@ -155,14 +153,10 @@ if (process.env.INTEGRATIONTEST) {
                     inputToken = wsteth;
                   }
 
-                  let inputTokenBalance: BigNumber;
                   if (inputTokenName === "ETH") {
                     subjectMaxAmountIn = amountIn;
                   } else {
-                    inputTokenBalance = await inputToken.balanceOf(owner.address);
-                    console.log("inputTokenBalance", inputTokenBalance.toString());
                     subjectMaxAmountIn = amountIn;
-                    console.log("Approving input token", subjectMaxAmountIn.toString());
                     await inputToken.approve(flashMintLeveraged.address, subjectMaxAmountIn);
                     subjectInputToken = inputToken.address;
                   }
@@ -179,7 +173,6 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSetAmount,
                       true,
                     );
-                  console.log("leveragedTokenData", leveragedTokenData);
 
                   // Round up to this number of wei;
                   const roundingFactor = ethers.utils.parseEther("0.01");
@@ -197,10 +190,29 @@ if (process.env.INTEGRATIONTEST) {
                     forkBlockNumber,
                     chainId,
                   );
-                  console.log("zeroExResponse");
                   swapDataDebtToCollateral = zeroExResponse.transaction.data;
-                  console.log("swapDataDebtToCollateral", swapDataDebtToCollateral);
-                  await subject();
+
+                  if (inputTokenName === "ETH") {
+                    const zeroExResponse = await fetchZeroExData(
+                      weth.address,
+                      leveragedTokenData.collateralToken,
+                      // Swap full input amount into collateral
+                      // Note: Means the user will get no eth back but instead the excess wsteth
+                      subjectMaxAmountIn,
+                      blockRange,
+                      flashMintLeveraged.address,
+                      true,
+                      forkBlockNumber,
+                      chainId,
+                    );
+                    swapDataInputToken = zeroExResponse.transaction.data;
+                  }
+
+                  const tx = await subject();
+                  // console.log("tx", tx);
+                  const receipt = await tx.wait();
+                  // console.log("receipt", receipt);
+                  gasCosts = receipt.gasUsed.mul(tx.gasPrice);
                 });
 
                 async function subject() {
@@ -245,8 +257,10 @@ if (process.env.INTEGRATIONTEST) {
                     inputTokenName === "ETH"
                       ? await owner.wallet.getBalance()
                       : await inputToken.balanceOf(owner.address);
-                  const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
-                  console.log("inputSpent", inputSpent.toString());
+                  let inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
+                  if (inputTokenName === "ETH") {
+                    inputSpent = inputSpent.sub(gasCosts);
+                  }
                   expect(inputSpent).to.be.gt(0);
                   expect(inputSpent).to.be.lte(subjectMaxAmountIn);
                 });
@@ -257,7 +271,6 @@ if (process.env.INTEGRATIONTEST) {
                   //     ? await owner.wallet.getBalance()
                   //     : await inputToken.balanceOf(owner.address);
                   // const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
-
                   // expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.98)));
                   // expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.02)));
                 });
@@ -337,7 +350,6 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSetAmount,
                       true,
                     );
-                  console.log("leveragedTokenData", leveragedTokenData);
                   // Round up to this number of wei;
                   const roundingFactor = ethers.utils.parseEther("0.01");
                   const roundedCollateralAmount = leveragedTokenData.collateralAmount
@@ -354,10 +366,8 @@ if (process.env.INTEGRATIONTEST) {
                     forkBlockNumber,
                     chainId,
                   );
-                  console.log("zeroExResponse");
 
                   swapDataCollateralToDebt = zeroExResponse.transaction.data;
-                  console.log("swapDataCollateralToDebt", swapDataCollateralToDebt);
                   await subject();
                 });
 
@@ -384,7 +394,6 @@ if (process.env.INTEGRATIONTEST) {
                   //     ? await owner.wallet.getBalance()
                   //     : await outputToken.balanceOf(owner.address);
                   // const outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
-
                   // expect(outputAmountQuote).to.gt(preciseMul(outputObtained, ether(0.5)));
                   // expect(outputAmountQuote).to.lt(preciseMul(outputObtained, ether(1.03)));
                 });

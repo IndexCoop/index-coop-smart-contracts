@@ -355,10 +355,21 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
             _decodedParams.leveragedTokenData.debtToken,
             _decodedParams.collateralAndDebtSwapData
         );
+
+        address inputToken;
+        if(_decodedParams.paymentToken == ETH_ADDRESS) {
+            weth.deposit{value: _decodedParams.limitAmount}();
+            inputToken = address(weth);
+        } else {
+            inputToken = _decodedParams.paymentToken;
+            // Security Assumption: No one can manipulate Morpho such that this original sender is not the original sender of the transaction
+            IERC20(inputToken).transferFrom(_decodedParams.originalSender, address(this), _decodedParams.limitAmount);
+        }
         _executeSwapData(
-            _decodedParams.paymentToken,
+            inputToken,
             _decodedParams.paymentTokenSwapData
         );
+
         emit FlashMint(
             _decodedParams.originalSender,
             _decodedParams.setToken,
@@ -478,7 +489,6 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
     )
         internal
     {
-        IERC20(_inputToken).transferFrom(msg.sender, address(this), _maxAmountInputToken);
         morphoLeverageModule.sync(_setToken);
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, true);
 
@@ -500,7 +510,13 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
 
         // Transfer to the user full contract balance of input, collateral and debt tokens
         // TODO: Check if we need to have additional protection against people using this to drain leftover tokens
-        IERC20(_inputToken).transfer(msg.sender, IERC20(_inputToken).balanceOf(address(this)));
+        if(_inputToken == ETH_ADDRESS) {
+            uint256 wethAmount = weth.balanceOf(address(this));
+            weth.withdraw(wethAmount);
+            msg.sender.sendValue(wethAmount);
+        } else {
+            IERC20(_inputToken).transfer(msg.sender, IERC20(_inputToken).balanceOf(address(this)));
+        }
         IERC20(leveragedTokenData.collateralToken).transfer(msg.sender, IERC20(leveragedTokenData.collateralToken).balanceOf(address(this)));
         IERC20(leveragedTokenData.debtToken).transfer(msg.sender, IERC20(leveragedTokenData.debtToken).balanceOf(address(this)));
 
@@ -547,7 +563,13 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         _flashloan(leveragedTokenData.debtToken, leveragedTokenData.debtAmount, params);
 
         // TODO: Check if we need to have additional protection against people using this to drain leftover tokens
-        IERC20(_outputToken).transfer(msg.sender, IERC20(_outputToken).balanceOf(address(this)));
+        if(_outputToken == ETH_ADDRESS) {
+            uint256 wethAmount = weth.balanceOf(address(this));
+            weth.withdraw(wethAmount);
+            msg.sender.sendValue(wethAmount);
+        } else {
+            IERC20(_outputToken).transfer(msg.sender, IERC20(_outputToken).balanceOf(address(this)));
+        }
         IERC20(leveragedTokenData.collateralToken).transfer(msg.sender, IERC20(leveragedTokenData.collateralToken).balanceOf(address(this)));
         IERC20(leveragedTokenData.debtToken).transfer(msg.sender, IERC20(leveragedTokenData.debtToken).balanceOf(address(this)));
     }

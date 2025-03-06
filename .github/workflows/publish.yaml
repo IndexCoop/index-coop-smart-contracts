@@ -41,7 +41,7 @@ jobs:
         run: yarn
       - name: chain
         run: yarn chain:fork:base &
-      - name: build
+      - name: test
         run: yarn test:integration:base
 
 
