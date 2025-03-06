@@ -12,6 +12,12 @@ import { ether } from "@utils/index";
 import { fetchZeroExData } from "../../../scripts/cache0xApiResponse";
 
 const expect = getWaffleExpect();
+type SwapData = { swapTarget: string; callData: BytesLike };
+
+const NOOP_SWAPDATA = {
+  swapTarget: ethers.constants.AddressZero,
+  callData: ethers.constants.HashZero,
+};
 
 if (process.env.INTEGRATIONTEST) {
   describe.only("FlashMintLeveragedZeroEx - Integration Test", async () => {
@@ -133,8 +139,8 @@ if (process.env.INTEGRATIONTEST) {
             describe(
               inputTokenName === "ETH" ? "issueExactSetFromETH" : "#issueExactSetFromERC20",
               () => {
-                let swapDataDebtToCollateral: BytesLike = ethers.constants.HashZero;
-                let swapDataInputToken: BytesLike = ethers.constants.HashZero;
+                let swapDataDebtToCollateral: SwapData = NOOP_SWAPDATA;
+                let swapDataInputToken: SwapData = NOOP_SWAPDATA;
 
                 let inputToken: StandardTokenMock | IWETH | IERC20;
 
@@ -187,7 +193,10 @@ if (process.env.INTEGRATIONTEST) {
                     forkBlockNumber,
                     chainId,
                   );
-                  swapDataDebtToCollateral = zeroExResponse.transaction.data;
+                  swapDataDebtToCollateral = {
+                    swapTarget: zeroExResponse.transaction.to,
+                    callData: zeroExResponse.transaction.data,
+                  };
 
                   if (inputTokenName === "ETH") {
                     const zeroExResponse = await fetchZeroExData(
@@ -202,7 +211,10 @@ if (process.env.INTEGRATIONTEST) {
                       forkBlockNumber,
                       chainId,
                     );
-                    swapDataInputToken = zeroExResponse.transaction.data;
+                    swapDataInputToken = {
+                      swapTarget: zeroExResponse.transaction.to,
+                      callData: zeroExResponse.transaction.data,
+                    };
                   }
 
                   const tx = await subject();
@@ -278,7 +290,7 @@ if (process.env.INTEGRATIONTEST) {
               inputTokenName === "ETH" ? "redeemExactSetForETH" : "#redeemExactSetForERC20",
               () => {
                 let swapDataCollateralToDebt: BytesLike;
-                const swapDataOutputToken: BytesLike = ethers.constants.HashZero;
+                const swapDataOutputToken: BytesLike = NOOP_SWAPDATA;
 
                 let outputToken: IERC20 | IWETH;
 
@@ -364,7 +376,10 @@ if (process.env.INTEGRATIONTEST) {
                     chainId,
                   );
 
-                  swapDataCollateralToDebt = zeroExResponse.transaction.data;
+                  swapDataCollateralToDebt = {
+                    swapTarget: zeroExResponse.transaction.to,
+                    callData: zeroExResponse.transaction.data,
+                  };
 
                   // if (inputTokenName === "ETH") {
                   //   const expectedReceivedAmount = BigNumber.from(zeroExResponse.buyAmount);

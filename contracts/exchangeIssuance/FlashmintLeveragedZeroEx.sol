@@ -29,6 +29,7 @@ import { ISetToken } from "../interfaces/ISetToken.sol";
 import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { IMorpho } from "../interfaces/IMorpho.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 
 /**
@@ -40,7 +41,7 @@ import { IMorpho } from "../interfaces/IMorpho.sol";
  * Both the collateral as well as the debt token have to be available for flashloan from morpho and be 
  * tradeable against each other on 0x
  */
-contract FlashMintLeveragedZeroEx is ReentrancyGuard {
+contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
 
     using Address for address payable;
     using SafeMath for uint256;
@@ -57,6 +58,11 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         uint256 debtAmount;
     }
 
+    struct SwapData {
+        address swapTarget;
+        bytes callData;
+    }
+
 
 
     struct DecodedParams {
@@ -67,8 +73,8 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         address paymentToken;
         uint256 limitAmount;
         LeveragedTokenData leveragedTokenData;
-        bytes collateralAndDebtSwapData;
-        bytes paymentTokenSwapData;    
+        SwapData collateralAndDebtSwapData;
+        SwapData paymentTokenSwapData;    
     }
 
     struct TokenBalance {
@@ -91,7 +97,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
     IWETH public immutable weth;
     address private flashLoanBenefactor;
     // TODO: Add support for multiple routers supplied by the user
-    address public swapTarget;
+    mapping(address => bool) public swapTargetWhitelist;
 
     /* ============ Events ============ */
 
@@ -136,10 +142,33 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         morphoLeverageModule = _morphoLeverageModule;
         morpho = _morpho;
         weth = _weth;
-        swapTarget = _swapTarget;
+        swapTargetWhitelist[_swapTarget] = true;
     }
 
     /* ============ External Functions ============ */
+
+    function setSwapTargetWhitelist(
+        address _swapTarget,
+        bool _isAllowed
+    )
+        external 
+        onlyOwner
+    {
+        swapTargetWhitelist[_swapTarget] = _isAllowed;
+    }
+
+    function withdrawToken(
+        IERC20 token
+    )
+        external 
+        onlyOwner
+    {
+        if(address(token) == address(0)) {
+            msg.sender.sendValue(address(this).balance);
+        } else {
+            token.safeTransfer(msg.sender, token.balanceOf(address(this)));
+        }
+    }
 
     /**
      * Returns the collateral / debt token addresses and amounts for a leveraged index 
@@ -186,8 +215,8 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         ISetToken _setToken,
         uint256 _setAmount,
         uint256 _minAmountOutputToken,
-        bytes memory _swapDataCollateralForDebt,
-        bytes memory _swapDataOutputToken
+        SwapData memory _swapDataCollateralForDebt,
+        SwapData memory _swapDataOutputToken
     )
         external
         virtual
@@ -219,8 +248,8 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         uint256 _setAmount,
         address _outputToken,
         uint256 _minAmountOutputToken,
-        bytes memory _swapDataCollateralForDebt,
-        bytes memory _swapDataOutputToken
+        SwapData memory _swapDataCollateralForDebt,
+        SwapData memory _swapDataOutputToken
     )
         external
         virtual
@@ -252,8 +281,8 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         uint256 _setAmount,
         address _inputToken,
         uint256 _maxAmountInputToken,
-        bytes memory _swapDataDebtForCollateral,
-        bytes memory _swapDataInputToken
+        SwapData memory _swapDataDebtForCollateral,
+        SwapData memory _swapDataInputToken
     )
         external
         virtual
@@ -281,8 +310,8 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
     function issueExactSetFromETH(
         ISetToken _setToken,
         uint256 _setAmount,
-        bytes memory _swapDataDebtForCollateral,
-        bytes memory _swapDataInputToken
+        SwapData memory _swapDataDebtForCollateral,
+        SwapData memory _swapDataInputToken
     )
         external
         virtual
@@ -383,7 +412,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
                 uint256 paymentTokenBalance = IERC20(_paymentToken).balanceOf(address(this));
                 if(paymentTokenBalance > balancesBefore[2]) {
                     amountsReturned[2] = paymentTokenBalance - balancesBefore[2];
-                    IERC20(_paymentToken).transfer(msg.sender, amountsReturned[2]);
+                    IERC20(_paymentToken).safeTransfer(msg.sender, amountsReturned[2]);
                 }
             }
         }
@@ -437,7 +466,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
             inputToken = _decodedParams.paymentToken;
             // Security Assumption: No one can manipulate Morpho such that this original sender is not the original sender of the transaction
             // Alternatively: 
-            IERC20(inputToken).transferFrom(_decodedParams.originalSender, address(this), _decodedParams.limitAmount);
+            IERC20(inputToken).safeTransferFrom(_decodedParams.originalSender, address(this), _decodedParams.limitAmount);
         }
         _executeSwapData(
             inputToken,
@@ -558,8 +587,8 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         uint256 _setAmount,
         address _inputToken,
         uint256 _maxAmountInputToken,
-        bytes memory _swapDataDebtForCollateral,
-        bytes memory _swapDataInputToken
+        SwapData memory _swapDataDebtForCollateral,
+        SwapData memory _swapDataInputToken
     )
         internal
         returns(uint256[] memory)
@@ -602,8 +631,8 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         uint256 _setAmount,
         address  _outputToken,
         uint256 _minAmountOutputToken,
-        bytes memory _swapDataCollateralForDebt,
-        bytes memory _swapDataOutputToken
+        SwapData memory _swapDataCollateralForDebt,
+        SwapData memory _swapDataOutputToken
     )
         internal
         returns(uint256[] memory returnedAmounts)
@@ -651,29 +680,14 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
      */
     function _executeSwapData(
         address _inputToken,
-        bytes memory _swapData
+        SwapData memory _swapData
     )
         internal
     {
-        if(_isValidSwapData(_swapData)){
-            IERC20(_inputToken).approve(swapTarget, IERC20(_inputToken).balanceOf(address(this)));
+        if(_swapData.swapTarget != address(0)){
+            IERC20(_inputToken).approve(_swapData.swapTarget, IERC20(_inputToken).balanceOf(address(this)));
             _fillQuote(_swapData);
         }
-    }
-
-    function _isValidSwapData(bytes memory _swapData) public pure returns (bool) {
-        if(_swapData.length < 4) {
-            return false;
-        }
-        bytes4 result;
-        assembly {
-            result := mload(add(_swapData, 32)) // Load first 32 bytes, but we only take the first 4
-        }
-        if(result == bytes4(0)){
-            return false;
-        }
-
-        return true;
     }
 
     /**
@@ -683,12 +697,13 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
      *
      */
     function _fillQuote(
-        bytes memory _quote
+        SwapData memory _quote
     )
         internal
     {
 
-        (bool success, bytes memory returndata) = swapTarget.call(_quote);
+        require(swapTargetWhitelist[_quote.swapTarget], "swapTarget not whitelisted");
+        (bool success, bytes memory returndata) = _quote.swapTarget.call(_quote.callData);
 
         // Forwarding errors including new custom errors
         // Taken from: https://ethereum.stackexchange.com/a/111187/73805
