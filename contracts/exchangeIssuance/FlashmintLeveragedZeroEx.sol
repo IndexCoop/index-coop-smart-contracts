@@ -94,7 +94,6 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         address indexed _recipient,     // The recipient address of the issued SetTokens
         ISetToken indexed _setToken,    // The issued SetToken
         address indexed _inputToken,    // The address of the input asset(ERC20/ETH) used to issue the SetTokens
-        uint256 _amountInputToken,      // The amount of input tokens used for issuance
         uint256 _amountSetIssued        // The amount of SetTokens received by the recipient
     );
 
@@ -102,8 +101,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         address indexed _recipient,     // The recipient address which redeemed the SetTokens
         ISetToken indexed _setToken,    // The redeemed SetToken
         address indexed _outputToken,   // The address of output asset(ERC20/ETH) received by the recipient
-        uint256 _amountSetRedeemed,     // The amount of SetTokens redeemed for output tokens
-        uint256 _amountOutputToken      // The amount of output tokens received by the recipient
+        uint256 _amountSetRedeemed     // The amount of SetTokens redeemed for output tokens
     );
 
     /* ============ Constructor ============ */
@@ -305,10 +303,10 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         require(flashLoanBenefactor == decodedParams.originalSender, "Flashloan not initiated by this contract");
 
         if(decodedParams.isIssuance){
-            _performIssuance(decodedParams.leveragedTokenData.collateralToken, assets, decodedParams);
+            _performIssuance(decodedParams);
             IERC20(decodedParams.leveragedTokenData.collateralToken).approve(address(morpho), assets);
         } else {
-            _performRedemption(decodedParams.leveragedTokenData.debtToken, assets, decodedParams);
+            _performRedemption(decodedParams);
             IERC20(decodedParams.leveragedTokenData.debtToken).approve(address(morpho), assets);
         }
     }
@@ -344,30 +342,27 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
     /**
      * Performs all the necessary steps for issuance using the collateral tokens obtained in the flashloan
      *
-     * @param _collateralToken            Address of the underlying collateral token that was loaned
-     * @param _collateralTokenAmountNet   Amount of collateral token that was received as flashloan
      * @param _decodedParams              Struct containing token addresses / amounts to perform issuance
      */
     function _performIssuance(
-        address _collateralToken,
-        uint256 _collateralTokenAmountNet,
         DecodedParams memory _decodedParams
     ) 
     internal 
     {
-        _issueSet(_decodedParams.setToken, _decodedParams.setAmount, _decodedParams.originalSender);
+        debtIssuanceModule.issue(_decodedParams.setToken, _decodedParams.setAmount, _decodedParams.originalSender);
         // Obtain necessary collateral tokens to repay flashloan 
-        uint amountInputTokenSpent = _obtainCollateralTokens(
-            _collateralToken,
-            _collateralTokenAmountNet,
-            _decodedParams
+        _executeSwapData(
+            _decodedParams.leveragedTokenData.debtToken,
+            _decodedParams.collateralAndDebtSwapData
         );
-        require(amountInputTokenSpent <= _decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT INPUT AMOUNT");
+        _executeSwapData(
+            _decodedParams.paymentToken,
+            _decodedParams.paymentTokenSwapData
+        );
         emit FlashMint(
             _decodedParams.originalSender,
             _decodedParams.setToken,
             _decodedParams.paymentToken,
-            amountInputTokenSpent,
             _decodedParams.setAmount
         );
     }
@@ -375,47 +370,28 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
     /**
      * Performs all the necessary steps for redemption using the debt tokens obtained in the flashloan
      *
-     * @param _debtToken           Address of the debt token that was loaned
-     * @param _debtTokenAmountNet  Amount of debt token that was received as flashloan
      * @param _decodedParams       Struct containing token addresses / amounts to perform redemption
      */
     function _performRedemption(
-        address _debtToken,
-        uint256 _debtTokenAmountNet,
         DecodedParams memory _decodedParams
     ) 
     internal 
     {
-        // Redeem set using debt tokens obtained from flashloan
-        _redeemSet(
-            _decodedParams.setToken,
-            _decodedParams.setAmount,
-            _decodedParams.originalSender
-        );
-        // Obtain debt tokens required to repay flashloan by swapping the underlying collateral tokens obtained in withdraw step
-        uint256 collateralTokenSpent = _swapCollateralForDebtToken(
-            _debtToken,
-            _decodedParams.leveragedTokenData.collateralAmount,
+        debtIssuanceModule.redeem(_decodedParams.setToken, _decodedParams.setAmount, address(this));
+        // Swap Collateral for Debt Tokens
+        _executeSwapData(
             _decodedParams.leveragedTokenData.collateralToken,
             _decodedParams.collateralAndDebtSwapData
         );
-        // Liquidate remaining collateral tokens for the payment token specified by user
-        uint256 amountOutputToken = _liquidateDebtTokens(
-            _debtTokenAmountNet,
-            _decodedParams.setToken,
-            _decodedParams.setAmount,
-            _decodedParams.originalSender,
-            _decodedParams.paymentToken,
-            _decodedParams.limitAmount,
+        // Swap Debt tokens for Payment token
+        _executeSwapData(
             _decodedParams.leveragedTokenData.debtToken,
             _decodedParams.paymentTokenSwapData
         );
-        require(amountOutputToken >= _decodedParams.limitAmount, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
         emit FlashRedeem(
             _decodedParams.originalSender,
             _decodedParams.setToken,
             _decodedParams.paymentToken,
-            amountOutputToken,
             _decodedParams.setAmount
         );
     }
@@ -502,6 +478,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
     )
         internal
     {
+        IERC20(_inputToken).transferFrom(msg.sender, address(this), _maxAmountInputToken);
         morphoLeverageModule.sync(_setToken);
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, true);
 
@@ -520,6 +497,12 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         );
 
         _flashloan(leveragedTokenData.collateralToken, leveragedTokenData.collateralAmount, params);
+
+        // Transfer to the user full contract balance of input, collateral and debt tokens
+        // TODO: Check if we need to have additional protection against people using this to drain leftover tokens
+        IERC20(_inputToken).transfer(msg.sender, IERC20(_inputToken).balanceOf(address(this)));
+        IERC20(leveragedTokenData.collateralToken).transfer(msg.sender, IERC20(leveragedTokenData.collateralToken).balanceOf(address(this)));
+        IERC20(leveragedTokenData.debtToken).transfer(msg.sender, IERC20(leveragedTokenData.debtToken).balanceOf(address(this)));
 
     }
 
@@ -543,6 +526,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
     )
         internal
     {
+        _setToken.safeTransferFrom(msg.sender, address(this), _setAmount);
         morphoLeverageModule.sync(_setToken);
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, false);
 
@@ -562,418 +546,45 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
 
         _flashloan(leveragedTokenData.debtToken, leveragedTokenData.debtAmount, params);
 
+        // TODO: Check if we need to have additional protection against people using this to drain leftover tokens
+        IERC20(_outputToken).transfer(msg.sender, IERC20(_outputToken).balanceOf(address(this)));
+        IERC20(leveragedTokenData.collateralToken).transfer(msg.sender, IERC20(leveragedTokenData.collateralToken).balanceOf(address(this)));
+        IERC20(leveragedTokenData.debtToken).transfer(msg.sender, IERC20(leveragedTokenData.debtToken).balanceOf(address(this)));
     }
 
-    /**
-     * Gets rid of the obtained debt tokens from redemption by either sending them to the user
-     * directly or converting them to the payment token and sending those out.
-     *
-     * @param _owedDebtAmount          Amount of debt token needed to repay flashloan
-     * @param _setToken                Address of the SetToken to be issued
-     * @param _setAmount               Amount of SetTokens to issue
-     * @param _originalSender          Address of the user who initiated the redemption
-     * @param _outputToken             Address of token to return to the user
-     * @param _debtToken         Address of the debt token to sell
-     * @param _minAmountOutputToken    Minimum amount of output token to return to the user
-     * @param _swapData                Struct containing path and fee data for swap
-     *
-     * @return Amount of output token returned to the user
-     */
-    function _liquidateDebtTokens(
-        uint256 _owedDebtAmount,
-        ISetToken _setToken,
-        uint256 _setAmount,
-        address _originalSender,
-        address _outputToken,
-        uint256 _minAmountOutputToken,
-        address _debtToken,
-        bytes memory _swapData
-    )
-        internal
-        returns (uint256)
-    {
-        uint256 debtAmount = IERC20(_debtToken).balanceOf(address(this)).sub(_owedDebtAmount);
-        if(_outputToken == ETH_ADDRESS){
-            return _liquidateDebtTokensForETH(
-                _debtToken,
-                debtAmount,
-                _originalSender,
-                _minAmountOutputToken,
-                _swapData
-            );
-        } else {
-            return _liquidateDebtTokensForERC20(
-                _debtToken,
-                debtAmount,
-                _originalSender,
-                IERC20(_outputToken),
-                _minAmountOutputToken,
-                _swapData
-            );
-        }
-    }
-
-    /**
-     * Returns the debtToken directly to the user
-     *
-     * @param _debtToken             Address of the the debt token
-     * @param _debtRemaining         Amount of debt token remaining after repaying flashloan
-     * @param _originalSender        Address of the original sender to return the tokens to
-     */
-    function _returnDebtTokensToSender(
-        address _debtToken,
-        uint256 _debtRemaining,
-        address _originalSender
-    )
-        internal
-    {
-        IERC20(_debtToken).transfer(_originalSender, _debtRemaining);
-    }
-
-    /**
-     * Sells the debt tokens for the selected output ERC20 and returns that to the user
-     *
-     * @param _debtToken             Address of the debt token
-     * @param _debtRemaining         Amount of debt token remaining after repaying the flashloan
-     * @param _originalSender        Address of the original sender to return the tokens to
-     * @param _outputToken           Address of token to return to the user
-     * @param _minAmountOutputToken  Minimum amount of output token to return to the user
-     * @param _swapData              Data (token path and fee levels) describing the swap path from Debt Token to Output token
-     *
-     * @return Amount of output token returned to the user
-     */
-    function _liquidateDebtTokensForERC20(
-        address _debtToken,
-        uint256 _debtRemaining,
-        address _originalSender,
-        IERC20 _outputToken,
-        uint256 _minAmountOutputToken,
-        bytes memory _swapData
-    )
-        internal
-        virtual
-        returns (uint256)
-    {
-        if(address(_outputToken) == _debtToken){
-            _returnDebtTokensToSender(_debtToken, _debtRemaining, _originalSender);
-            return _debtRemaining;
-        }
-        uint256 outputTokenAmount = _swapDebtForOutputToken(
-            _debtToken,
-            _debtRemaining,
-            address(_outputToken),
-            _minAmountOutputToken,
-            _swapData
-        );
-        _outputToken.transfer(_originalSender, outputTokenAmount);
-        return outputTokenAmount;
-    }
-
-    /**
-     * Sells the remaining debt tokens for weth, withdraws that and returns native eth to the user
-     *
-     * @param _debtToken                  Address of the debt token
-     * @param _debtRemaining              Amount of the debt token remaining after repaying the flashloan
-     * @param _originalSender             Address of the original sender to return the eth to
-     * @param _minAmountOutputToken       Minimum amount of output token to return to user
-     * @param _swapData                   Data (token path and fee levels) describing the swap path from Debt Token to eth
-     *
-     * @return Amount of eth returned to the user
-     */
-    function _liquidateDebtTokensForETH(
-        address _debtToken,
-        uint256 _debtRemaining,
-        address _originalSender,
-        uint256 _minAmountOutputToken,
-        bytes memory _swapData
-    )
-        internal
-        virtual
-        returns(uint256)
-    {
-        _fillQuote(_swapData);
-        // Doublec check this is ok
-        uint256 wethBalance = weth.balanceOf(address(this));
-        if (wethBalance > 0) {
-            weth.withdraw(wethBalance);
-        }
-        uint256 ethAmount = address(this).balance;
-        (payable(_originalSender)).sendValue(ethAmount);
-        return ethAmount;
-    }
-
-    /**
-     * Obtains the tokens necessary to return the flashloan by swapping the debt tokens obtained
-     * from issuance and making up the shortfall using the users funds.
-     *
-     * @param _collateralToken       collateral token to obtain
-     * @param _amountRequired        Amount of collateralToken required to repay the flashloan
-     * @param _decodedParams         Struct containing decoded data from original call passed through via flashloan
-     *
-     * @return Amount of input token spent
-     */
-    function _obtainCollateralTokens(
-        address _collateralToken,
-        uint256 _amountRequired,
-        DecodedParams memory _decodedParams
-    )
-        internal
-        returns (uint256)
-    {
-        uint collateralTokenObtained =  _swapDebtForCollateralToken(
-            _collateralToken,
-            _decodedParams.leveragedTokenData.debtToken,
-            _decodedParams.leveragedTokenData.debtAmount,
-            _decodedParams.collateralAndDebtSwapData
-        );
-
-        uint collateralTokenShortfall = _amountRequired.sub(collateralTokenObtained) + ROUNDING_ERROR_MARGIN;
-        uint amountInputToken;
-
-        if(_decodedParams.paymentToken == ETH_ADDRESS){
-            amountInputToken = _makeUpShortfallWithETH(
-                _collateralToken,
-                collateralTokenShortfall,
-                _decodedParams.originalSender,
-                _decodedParams.limitAmount,
-                _decodedParams.paymentTokenSwapData
-            );
-        } else {
-            amountInputToken = _makeUpShortfallWithERC20(
-                _collateralToken,
-                collateralTokenShortfall,
-                _decodedParams.originalSender,
-                IERC20(_decodedParams.paymentToken),
-                _decodedParams.limitAmount,
-                _decodedParams.paymentTokenSwapData
-            );
-        }
-        return amountInputToken;
-    }
-
-    /**
-     * Issues set token using the previously obtained collateral token
-     * Results in debt token being returned to the contract
-     *
-     * @param _setToken         Address of the SetToken to be issued
-     * @param _setAmount        Amount of SetTokens to issue
-     * @param _originalSender   Adress that initiated the token issuance, which will receive the set tokens
-     */
-    function _issueSet(ISetToken _setToken, uint256 _setAmount, address _originalSender) internal {
-        debtIssuanceModule.issue(_setToken, _setAmount, _originalSender);
-    }
-
-    /**
-     * Redeems set token using the previously obtained debt token
-     * Results in collateral token being returned to the contract
-     *
-     * @param _setToken         Address of the SetToken to be redeemed
-     * @param _setAmount        Amount of SetTokens to redeem
-     * @param _originalSender   Adress that initiated the token redemption which is the source of the set tokens to be redeemed
-     */
-    function _redeemSet(ISetToken _setToken, uint256 _setAmount, address _originalSender) internal {
-        _setToken.safeTransferFrom(_originalSender, address(this), _setAmount);
-        debtIssuanceModule.redeem(_setToken, _setAmount, address(this));
-    }
-
-    /**
-     * Transfers the shortfall between the amount of tokens required to return flashloan and what was obtained
-     * from swapping the debt tokens from the users address
-     *
-     * @param _token                 Address of the token to transfer from user
-     * @param _shortfall             Collateral token shortfall required to return the flashloan
-     * @param _originalSender        Adress that initiated the token issuance, which is the adresss form which to transfer the tokens
-     */
-    function _transferShortfallFromSender(
-        address _token,
-        uint256 _shortfall,
-        address _originalSender
-    )
-        internal
-    {
-        if(_shortfall>0){ 
-            IERC20(_token).safeTransferFrom(_originalSender, address(this), _shortfall);
-        }
-    }
-
-    /**
-     * Makes up the collateral token shortfall with user specified ERC20 token
-     *
-     * @param _collateralToken             Address of the collateral token
-     * @param _collateralTokenShortfall    Shortfall of collateral token that was not covered by selling the debt tokens
-     * @param _originalSender              Address of the original sender to return the tokens to
-     * @param _inputToken                  Input token to pay with
-     * @param _maxAmountInputToken         Maximum amount of input token to spend
-     *
-     * @return Amount of input token spent
-     */
-    function _makeUpShortfallWithERC20(
-        address _collateralToken,
-        uint256 _collateralTokenShortfall,
-        address _originalSender,
-        IERC20 _inputToken,
-        uint256 _maxAmountInputToken,
-        bytes memory _swapData
-    )
-        internal
-        virtual
-        returns (uint256)
-    {
-        if(address(_inputToken) == _collateralToken){
-            _transferShortfallFromSender(_collateralToken, _collateralTokenShortfall, _originalSender);
-            return _collateralTokenShortfall;
-        } else {
-            _inputToken.transferFrom(_originalSender, address(this), _maxAmountInputToken);
-            _fillQuote(_swapData);
-            uint256 inputTokenBalance = _inputToken.balanceOf(address(this));
-            if(inputTokenBalance > 0){
-                _inputToken.transfer(_originalSender, inputTokenBalance);
-            }
-            return _maxAmountInputToken.sub(inputTokenBalance);
-        }
-    }
-
-    /**
-     * Makes up the collateral token shortfall with native eth
-     *
-     * @param _collateralToken             Address of the collateral token
-     * @param _collateralTokenShortfall    Shortfall of collateral token that was not covered by selling the debt tokens
-     * @param _originalSender              Address of the original sender to return the tokens to
-     * @param _maxAmountEth                Maximum amount of eth to pay
-     *
-     * @return Amount of eth spent
-     */
-    function _makeUpShortfallWithETH(
-        address _collateralToken,
-        uint256 _collateralTokenShortfall,
-        address _originalSender,
-        uint256 _maxAmountEth,
-        bytes memory _swapData
-
-    )
-        internal
-        virtual
-        returns(uint256)
-    {
-        weth.deposit{value: _maxAmountEth}();
-
-        _fillQuote(_swapData);
-
-        uint256 wethBalance = weth.balanceOf(address(this));
-        if(wethBalance > 0){
-            weth.withdraw(wethBalance);
-            (payable(_originalSender)).sendValue(wethBalance);
-        }
-        return _maxAmountEth.sub(wethBalance);
-    }
 
     /**
      * Swaps the debt tokens obtained from issuance for the collateral
      *
-     * @param _collateralToken            Address of the collateral token buy
-     * @param _debtToken                  Address of the debt token to sell
-     * @param _debtAmount                 Amount of debt token to sell
+     * @param _inputToken                 Input token to be approved for this swap
      * @param _swapData                   Struct containing path and fee data for swap
      *
-     * @return Amount of collateral token obtained
      */
-    function _swapDebtForCollateralToken(
-        address _collateralToken,
-        address _debtToken,
-        uint256 _debtAmount,
-        bytes memory _swapData
-    )
-        internal
-        returns (uint256)
-    {
-        uint256 collateralBalanceBefore = IERC20(_collateralToken).balanceOf(address(this));
-        IERC20(_debtToken).approve(swapTarget, IERC20(_debtToken).balanceOf(address(this)));
-        _fillQuote(_swapData);
-        return IERC20(_collateralToken).balanceOf(address(this)).sub(collateralBalanceBefore);
-    }
-
-    /**
-     * Acquires debt tokens needed for flashloan repayment by swapping a portion of the collateral tokens obtained from redemption
-     *
-     * @param _debtToken              Address of debt token
-     * @param _collateralAmount       Amount of collateral token available to spend / used as maxAmountIn parameter
-     * @param _collateralToken        Address of collateral token
-     * @param _swapData               Struct containing path and fee data for swap
-     *
-     * @return Amount of collateral token spent
-     */
-    function _swapCollateralForDebtToken(
-        address _debtToken,
-        uint256 _collateralAmount,
-        address _collateralToken,
-        bytes memory _swapData
-    )
-        internal
-        returns (uint256)
-    {
-        uint256 collateralBalanceBefore = IERC20(_collateralToken).balanceOf(address(this));
-        IERC20(_collateralToken).approve(swapTarget, collateralBalanceBefore);
-         _fillQuote(_swapData);
-         return collateralBalanceBefore.sub(IERC20(_collateralToken).balanceOf(address(this)));
-    }
-
-    /**
-     * Acquires the required amount of collateral tokens by swapping the input tokens
-     * Does nothing if collateral and input token are indentical
-     *
-     * @param _collateralToken       Address of collateral token
-     * @param _amountRequired        Remaining amount of collateral token required to repay flashloan, after having swapped debt tokens for collateral
-     * @param _inputToken            Address of input token to swap
-     * @param _maxAmountInputToken   Maximum amount of input token to spend
-     * @param _swapData              Data (token addresses and fee levels) describing the swap path
-     *
-     * @return Amount of input token spent
-     */
-    function _swapInputForCollateralToken(
-        address _collateralToken,
-        uint256 _amountRequired,
+    function _executeSwapData(
         address _inputToken,
-        uint256 _maxAmountInputToken,
         bytes memory _swapData
     )
         internal
-        returns (uint256)
     {
-        if(_collateralToken == _inputToken) return _amountRequired;
-        uint256 inputTokenBalanceBefore = IERC20(_inputToken).balanceOf(address(this));
-        IERC20(_inputToken).approve(swapTarget, inputTokenBalanceBefore);
-        _fillQuote(_swapData);
-        return inputTokenBalanceBefore.sub(IERC20(_inputToken).balanceOf(address(this)));
+        if(_isValidSwapData(_swapData)){
+            IERC20(_inputToken).approve(swapTarget, IERC20(_inputToken).balanceOf(address(this)));
+            _fillQuote(_swapData);
+        }
     }
 
+    function _isValidSwapData(bytes memory _swapData) public pure returns (bool) {
+        if(_swapData.length < 4) {
+            return false;
+        }
+        bytes4 result;
+        assembly {
+            result := mload(add(_swapData, 32)) // Load first 32 bytes, but we only take the first 4
+        }
+        if(result == bytes4(0)){
+            return false;
+        }
 
-    /**
-     * Swaps the debt tokens obtained from redemption for the selected output token
-     * If both tokens are the same, does nothing
-     *
-     * @param _debtToken              Address of debt token
-     * @param _debtTokenAmount        Amount of colalteral token to swap
-     * @param _outputToken            Address of the ERC20 token to swap into
-     * @param _minAmountOutputToken   Minimum amount of output token to return to the user
-     * @param _swapData               Data (token addresses and fee levels) describing the swap path
-     *
-     * @return Amount of output token obtained
-     */
-    function _swapDebtForOutputToken(
-        address _debtToken,
-        uint256 _debtTokenAmount,
-        address _outputToken,
-        uint256 _minAmountOutputToken,
-        bytes memory _swapData
-    )
-        internal
-        returns (uint256)
-    {
-        if(_debtToken == _outputToken) return _debtTokenAmount;
-        uint256 outputTokenBalanceBefore = IERC20(_outputToken).balanceOf(address(this));
-        IERC20(_debtToken).approve(swapTarget, IERC20(_debtToken).balanceOf(address(this)));
-        _fillQuote(_swapData);
-        return IERC20(_outputToken).balanceOf(address(this)).sub(outputTokenBalanceBefore);
+        return true;
     }
 
     /**
@@ -1042,15 +653,5 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
         flashLoanBenefactor = address(0);
     }
 
-    /**
-     * Redeems a given amount of SetToken.
-     *
-     * @param _setToken     Address of the SetToken to be redeemed
-     * @param _amount       Amount of SetToken to be redeemed
-     */
-    function _redeemExactSet(ISetToken _setToken, uint256 _amount) internal returns (uint256) {
-        _setToken.safeTransferFrom(msg.sender, address(this), _amount);
-        debtIssuanceModule.redeem(_setToken, _amount, address(this));
-    }
     receive() external payable {}
 }
