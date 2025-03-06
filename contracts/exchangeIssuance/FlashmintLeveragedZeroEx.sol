@@ -30,6 +30,8 @@ import { IWETH } from "../interfaces/IWETH.sol";
 import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
 import { IMorpho } from "../interfaces/IMorpho.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { IAToken } from "../interfaces/IAToken.sol";
+import {IPool} from "../interfaces/IPool.sol";
 
 
 /**
@@ -67,6 +69,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
 
     struct DecodedParams {
         ISetToken setToken;
+        bool isAave;
         uint256 setAmount;
         address originalSender;
         bool isIssuance;
@@ -93,8 +96,10 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
     IController public immutable setController;
     IDebtIssuanceModule public immutable debtIssuanceModule;
     IMorphoLeverageModule public immutable morphoLeverageModule;
+    IMorphoLeverageModule public immutable aaveLeverageModule;
     IMorpho public immutable morpho;
     IWETH public immutable weth;
+    IPool public immutable aavePool;
     address private flashLoanBenefactor;
     // TODO: Add support for multiple routers supplied by the user
     mapping(address => bool) public swapTargetWhitelist;
@@ -123,6 +128,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
     * @param _setController         SetToken controller used to verify a given token is a set
     * @param _debtIssuanceModule    DebtIssuanceModule used to issue and redeem tokens
     * @param _morphoLeverageModule    MorphoLeverageModule to sync before every issuance / redemption
+    * @param _aaveLeverageModule    AaveLeverageModule to sync before every issuance / redemption
     * @param _morpho                 Morpho contract to call for flashloan
     * @param _weth                   WETH contract to deposit and withdraw eth
     * @param _swapTarget             Address of the 0x router to use for swaps
@@ -131,7 +137,9 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
         IController _setController,
         IDebtIssuanceModule _debtIssuanceModule,
         IMorphoLeverageModule _morphoLeverageModule,
+        IMorphoLeverageModule _aaveLeverageModule,
         IMorpho _morpho,
+        IPool _aavePool,
         IWETH _weth,
         address _swapTarget
     )
@@ -140,7 +148,9 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
         setController = _setController;
         debtIssuanceModule = _debtIssuanceModule;
         morphoLeverageModule = _morphoLeverageModule;
+        aaveLeverageModule = _aaveLeverageModule;
         morpho = _morpho;
+        aavePool = _aavePool;
         weth = _weth;
         swapTargetWhitelist[_swapTarget] = true;
     }
@@ -176,19 +186,21 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
      * @param _setToken              Address of the SetToken to be issued / redeemed
      * @param _setAmount             Amount of SetTokens to issue / redeem
      * @param _isIssuance            Boolean indicating if the SetToken is to be issued or redeemed
+     * @param _isAave                Boolean indicating wether given leveraged token is based on aave leverage module (or morpho)
      *
      * @return Struct containing the collateral / debt token addresses and amounts
      */
     function getLeveragedTokenData(
         ISetToken _setToken,
         uint256 _setAmount,
-        bool _isIssuance
+        bool _isIssuance,
+        bool _isAave
     )
         external 
         returns (LeveragedTokenData memory)
     {
-        morphoLeverageModule.sync(_setToken);
-        return _getLeveragedTokenData(_setToken, _setAmount, _isIssuance);
+        _syncLeverageModule(_isAave, _setToken);
+        return _getLeveragedTokenData(_setToken, _setAmount, _isIssuance, _isAave);
     }
 
     /**
@@ -210,13 +222,15 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
      * @param _minAmountOutputToken       Minimum amount of ETH to send to the user
      * @param _swapDataCollateralForDebt  Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
      * @param _swapDataOutputToken        Data (token path and fee levels) describing the swap from Collateral Token to Eth
+     * @param _isAave                     Boolean indicating wether given token is based on aave or morpho leverage module
      */
     function redeemExactSetForETH(
         ISetToken _setToken,
         uint256 _setAmount,
         uint256 _minAmountOutputToken,
         SwapData memory _swapDataCollateralForDebt,
-        SwapData memory _swapDataOutputToken
+        SwapData memory _swapDataOutputToken,
+        bool _isAave
     )
         external
         virtual
@@ -229,7 +243,8 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
             ETH_ADDRESS,
             _minAmountOutputToken,
             _swapDataCollateralForDebt,
-            _swapDataOutputToken
+            _swapDataOutputToken,
+            _isAave
         );
     }
 
@@ -242,6 +257,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
      * @param _minAmountOutputToken       Minimum amount of output token to send to the user
      * @param _swapDataCollateralForDebt  Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
      * @param _swapDataOutputToken        Data (token path and fee levels) describing the swap from Collateral Token to Output token
+     * @param _isAave                     Boolean indicating wether given token is based on aave or morpho leverage module
      */
     function redeemExactSetForERC20(
         ISetToken _setToken,
@@ -249,7 +265,8 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
         address _outputToken,
         uint256 _minAmountOutputToken,
         SwapData memory _swapDataCollateralForDebt,
-        SwapData memory _swapDataOutputToken
+        SwapData memory _swapDataOutputToken,
+        bool _isAave
     )
         external
         virtual
@@ -262,7 +279,8 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
             _outputToken,
             _minAmountOutputToken,
             _swapDataCollateralForDebt,
-            _swapDataOutputToken
+            _swapDataOutputToken,
+            _isAave
         );
     }
 
@@ -275,6 +293,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
      * @param _maxAmountInputToken          Maximum amount of input token to spend
      * @param _swapDataDebtForCollateral    Data (token addresses and fee levels) to describe the swap path from Debt to collateral token
      * @param _swapDataInputToken           Data (token addresses and fee levels) to describe the swap path from input to collateral token
+     * @param _isAave                     Boolean indicating wether given token is based on aave or morpho leverage module
      */
     function issueExactSetFromERC20(
         ISetToken _setToken,
@@ -282,7 +301,8 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
         address _inputToken,
         uint256 _maxAmountInputToken,
         SwapData memory _swapDataDebtForCollateral,
-        SwapData memory _swapDataInputToken
+        SwapData memory _swapDataInputToken,
+        bool _isAave
     )
         external
         virtual
@@ -295,7 +315,8 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
             _inputToken,
             _maxAmountInputToken,
             _swapDataDebtForCollateral,
-            _swapDataInputToken
+            _swapDataInputToken,
+            _isAave
         );
     }
 
@@ -306,12 +327,14 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
      * @param _setAmount                    Amount to issue
      * @param _swapDataDebtForCollateral    Data (token addresses and fee levels) to describe the swap path from Debt to collateral token
      * @param _swapDataInputToken           Data (token addresses and fee levels) to describe the swap path from eth to collateral token
+     * @param _isAave                     Boolean indicating wether given token is based on aave or morpho leverage module
      */
     function issueExactSetFromETH(
         ISetToken _setToken,
         uint256 _setAmount,
         SwapData memory _swapDataDebtForCollateral,
-        SwapData memory _swapDataInputToken
+        SwapData memory _swapDataInputToken,
+        bool _isAave
     )
         external
         virtual
@@ -325,7 +348,8 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
             ETH_ADDRESS,
             msg.value,
             _swapDataDebtForCollateral,
-            _swapDataInputToken
+            _swapDataInputToken,
+            _isAave
         );
     }
 
@@ -366,9 +390,10 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
      * this smart contract is used on any particular SetToken.
      *
      * @param _setToken    Address of the SetToken being initialized
+     * @param _isAave      Boolean indicating wether leverage token is based on aave leverage module
      */
-    function approveSetToken(ISetToken _setToken) external {
-        LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, 1 ether, true);
+    function approveSetToken(ISetToken _setToken, bool _isAave) external {
+        LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, 1 ether, true, _isAave);
 
         _approveToken(IERC20(leveragedTokenData.collateralToken));
 
@@ -451,6 +476,11 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
     ) 
     internal 
     {
+        if(_decodedParams.isAave) {
+            // Deposit collateral token obtained from flashloan to get the respective aToken position required for issuance
+            _depositCollateralToken(_decodedParams.leveragedTokenData.collateralToken, _decodedParams.leveragedTokenData.collateralAmount);
+        }
+
         debtIssuanceModule.issue(_decodedParams.setToken, _decodedParams.setAmount, _decodedParams.originalSender);
         // Obtain necessary collateral tokens to repay flashloan 
         _executeSwapData(
@@ -492,16 +522,28 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
     internal 
     {
         debtIssuanceModule.redeem(_decodedParams.setToken, _decodedParams.setAmount, address(this));
+
+        if(_decodedParams.isAave) {
+            // Withdraw underlying collateral token from the aToken position returned by redeem step
+            _withdrawCollateralToken(
+                _decodedParams.leveragedTokenData.collateralToken,
+                _decodedParams.leveragedTokenData.collateralAmount - ROUNDING_ERROR_MARGIN
+            );
+        }
+
         // Swap Collateral for Debt Tokens
         _executeSwapData(
             _decodedParams.leveragedTokenData.collateralToken,
             _decodedParams.collateralAndDebtSwapData
         );
+
+        // TODO: Potentially generalize to allow swapping collateral tokens and debt tokens
         // Swap Debt tokens for Payment token
         _executeSwapData(
             _decodedParams.leveragedTokenData.debtToken,
             _decodedParams.paymentTokenSwapData
         );
+
         emit FlashRedeem(
             _decodedParams.originalSender,
             _decodedParams.setToken,
@@ -517,13 +559,15 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
     * @param _setToken              Address of the SetToken to be issued / redeemed
     * @param _setAmount             Amount of SetTokens to issue / redeem
     * @param _isIssuance            Boolean indicating if the SetToken is to be issued or redeemed
+     * @param _isAave                Boolean indicating wether given leveraged token is based on aave leverage module (or morpho)
     *
     * @return Struct containing the collateral / debt token addresses and amounts
     */
     function _getLeveragedTokenData(
         ISetToken _setToken,
         uint256 _setAmount,
-        bool _isIssuance
+        bool _isIssuance,
+        bool _isAave
     )
         internal 
         view
@@ -545,14 +589,14 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
 
         if(equityPositions[0] > 0){
             return LeveragedTokenData(
-                components[0],
+                _isAave ? IAToken(components[0]).UNDERLYING_ASSET_ADDRESS() : components[0],
                 equityPositions[0] + ROUNDING_ERROR_MARGIN,
                 components[1],
                 debtPositions[1]
             );
         } else {
             return LeveragedTokenData(
-                components[1],
+                _isAave ? IAToken(components[1]).UNDERLYING_ASSET_ADDRESS() : components[1],
                 equityPositions[1] + ROUNDING_ERROR_MARGIN,
                 components[0],
                 debtPositions[0]
@@ -581,6 +625,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
      * @param _maxAmountInputToken          Maximum amount of input token to pay
      * @param _swapDataDebtForCollateral    Data (token addresses and fee levels) to describe the swap path from Debt to collateral token
      * @param _swapDataInputToken           Data (token addresses and fee levels) to describe the swap path from input to collateral token
+     * @param _isAave                     Boolean indicating wether given token is based on aave or morpho leverage module
      */
     function _initiateIssuance(
         ISetToken _setToken,
@@ -588,18 +633,20 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
         address _inputToken,
         uint256 _maxAmountInputToken,
         SwapData memory _swapDataDebtForCollateral,
-        SwapData memory _swapDataInputToken
+        SwapData memory _swapDataInputToken,
+        bool _isAave
     )
         internal
         returns(uint256[] memory)
     {
-        morphoLeverageModule.sync(_setToken);
-        LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, true);
+        _syncLeverageModule(_isAave, _setToken);
+        LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, true, _isAave);
         uint256[] memory tokenBalances = _getTokenBalances(_inputToken, leveragedTokenData);
 
         bytes memory params = abi.encode(
             DecodedParams(
                 _setToken,
+                _isAave,
                 _setAmount,
                 msg.sender,
                 true,
@@ -625,6 +672,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
      * @param _minAmountOutputToken       Minimum amount of output token to receive
      * @param _swapDataCollateralForDebt  Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
      * @param _swapDataOutputToken        Data (token path and fee levels) describing the swap from Collateral Token to Output token
+     * @param _isAave                     Boolean indicating wether given leverage token is based on aave leverage module
      */
     function _initiateRedemption(
         ISetToken _setToken,
@@ -632,19 +680,22 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
         address  _outputToken,
         uint256 _minAmountOutputToken,
         SwapData memory _swapDataCollateralForDebt,
-        SwapData memory _swapDataOutputToken
+        SwapData memory _swapDataOutputToken,
+        bool _isAave
     )
         internal
         returns(uint256[] memory returnedAmounts)
     {
+        _syncLeverageModule(_isAave, _setToken);
+
         _setToken.safeTransferFrom(msg.sender, address(this), _setAmount);
-        morphoLeverageModule.sync(_setToken);
-        LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, false);
+        LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, _setAmount, false, _isAave);
         uint256[] memory tokenBalances = _getTokenBalances(_outputToken, leveragedTokenData);
 
         bytes memory params = abi.encode(
             DecodedParams(
                 _setToken,
+                _isAave,
                 _setAmount,
                 msg.sender,
                 false,
@@ -669,6 +720,19 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
             "INSUFFICIENT OUTPUT AMOUNT"
         );
     }
+
+    function _syncLeverageModule(
+        bool _isAave,
+        ISetToken _setToken
+    )
+    internal {
+        if(_isAave) {
+            aaveLeverageModule.sync(_setToken);
+        } else {
+            morphoLeverageModule.sync(_setToken);
+        }
+    }
+
 
 
     /**
@@ -756,6 +820,33 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
         morpho.flashLoan(token, amount, params);
         flashLoanBenefactor = address(0);
     }
+
+    /**
+     * Deposit collateral to aave to obtain collateralAToken for issuance
+     *
+     * @param _collateralToken              Address of collateral token
+     * @param _depositAmount                Amount to deposit
+     */
+    function _depositCollateralToken(
+        address _collateralToken,
+        uint256 _depositAmount
+    ) internal {
+        aavePool.deposit(_collateralToken, _depositAmount, address(this), 0);
+    }
+
+    /**
+     * Convert collateralAToken from set redemption to collateralToken by withdrawing underlying from Aave
+     *
+     * @param _collateralToken       Address of the collateralToken to withdraw from Aave lending pool
+     * @param _collateralAmount      Amount of collateralToken to withdraw
+     */
+    function _withdrawCollateralToken(
+        address _collateralToken,
+        uint256 _collateralAmount
+    ) internal {
+        aavePool.withdraw(_collateralToken, _collateralAmount, address(this));
+    }
+
 
     receive() external payable {}
 }

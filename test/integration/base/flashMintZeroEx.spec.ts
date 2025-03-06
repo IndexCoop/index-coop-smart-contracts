@@ -32,12 +32,15 @@ if (process.env.INTEGRATIONTEST) {
     const debtIssuanceModuleAddress = "0xa30E87311407dDcF1741901A8F359b6005252F22";
     const controllerAddress = "0x1246553a53Cd2897EB26beE87a0dB0Fb456F39d1";
     const morphoLeverageModuleAddress = "0x9534b6EC541aD182FBEE2B0B01D1e4404765b8d7";
+    const aaveLeverageModuleAddress = "0xC06a6E4d9D5FF9d64BD19fc243aD9B6E5a672699";
     const wstethWhale = "0x31b7538090C8584FED3a053FD183E202c26f9a3e";
     const morphoAddress = "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb";
     const zeroExRouterAddress = "0x0000000000001fF3684f28c67538d4D072C22734";
+    const aaveV3PoolAddress = "0xA238Dd80C259a72e81d7e4664a9801593F98d1c5";
     const forkBlockNumber = 27222056;
     const blockRange = 100;
     const chainId = 8453;
+    const isAave = false;
 
     setBlockNumber(forkBlockNumber, false);
 
@@ -61,12 +64,13 @@ if (process.env.INTEGRATIONTEST) {
           controllerAddress,
           debtIssuanceModuleAddress,
           morphoLeverageModuleAddress,
+          aaveLeverageModuleAddress,
           morphoAddress,
+          aaveV3PoolAddress,
           wethAddress,
           zeroExRouterAddress,
         );
 
-        await flashMintLeveraged.connect(owner.wallet).approveSetToken(wsteth15xAddress);
       });
 
       it("controller address is set correctly", async () => {
@@ -85,12 +89,13 @@ if (process.env.INTEGRATIONTEST) {
         let collateralTokenAddress: Address;
         let debtTokenAddress: Address;
         before(async () => {
-          await flashMintLeveraged.approveSetToken(setToken.address);
+          await flashMintLeveraged.approveSetToken(setToken.address, isAave);
 
           const leveragedTokenData = await flashMintLeveraged.callStatic.getLeveragedTokenData(
             wsteth15xAddress,
             ether(1),
             true,
+            isAave,
           );
 
           collateralTokenAddress = leveragedTokenData.collateralToken;
@@ -175,6 +180,7 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSetToken,
                       subjectSetAmount,
                       true,
+                      isAave,
                     );
 
                   // Round up to this number of wei;
@@ -231,6 +237,7 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSetAmount,
                       swapDataDebtToCollateral,
                       swapDataInputToken,
+                      isAave,
                       { value: subjectMaxAmountIn, gasLimit: 3_000_000 },
                     );
                   }
@@ -241,6 +248,7 @@ if (process.env.INTEGRATIONTEST) {
                     subjectMaxAmountIn,
                     swapDataDebtToCollateral,
                     swapDataInputToken,
+                    isAave,
                     { gasLimit: 3_000_000 },
                   );
                 }
@@ -309,6 +317,7 @@ if (process.env.INTEGRATIONTEST) {
                       subjectMinAmountOut,
                       swapDataCollateralToDebt,
                       swapDataOutputToken,
+                      isAave,
                     );
                   }
                   return flashMintLeveraged.redeemExactSetForERC20(
@@ -318,6 +327,7 @@ if (process.env.INTEGRATIONTEST) {
                     subjectMinAmountOut,
                     swapDataCollateralToDebt,
                     swapDataOutputToken,
+                    isAave,
                   );
                 }
 
@@ -358,6 +368,7 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSetToken,
                       subjectSetAmount,
                       true,
+                      isAave,
                     );
                   // Round up to this number of wei;
                   const roundingFactor = ethers.utils.parseEther("0.01");

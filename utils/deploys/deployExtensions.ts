@@ -427,7 +427,9 @@ export default class DeployExtensions {
     setControllerAddress: Address,
     basicIssuanceModuleAddress: Address,
     morphoLeveragedModuleAddress: Address,
+    aaveLeveragedModuleAddress: Address,
     morphoAddress: Address,
+    aaveV3PoolAddress: Address,
     wethAddress: Address,
     swapTarget: Address,
   ) {
@@ -436,22 +438,23 @@ export default class DeployExtensions {
       setControllerAddress,
       basicIssuanceModuleAddress,
       morphoLeveragedModuleAddress,
+      aaveLeveragedModuleAddress,
       morphoAddress,
-      swapTarget
+      aaveV3PoolAddress,
+      swapTarget,
     });
 
-    return await new FlashMintLeveragedZeroEx__factory(
-      this._deployerSigner,
-    ).deploy(
+    return await new FlashMintLeveragedZeroEx__factory(this._deployerSigner).deploy(
       setControllerAddress,
       basicIssuanceModuleAddress,
       morphoLeveragedModuleAddress,
+      aaveLeveragedModuleAddress,
       morphoAddress,
+      aaveV3PoolAddress,
       wethAddress,
-      swapTarget
+      swapTarget,
     );
   }
-
 
   public async deployFlashMintLeveragedMorphoV2(
     wethAddress: Address,
@@ -522,7 +525,6 @@ export default class DeployExtensions {
       morphoAddress,
     );
   }
-
 
   public async deployFlashMintLeveragedMorpho(
     wethAddress: Address,
