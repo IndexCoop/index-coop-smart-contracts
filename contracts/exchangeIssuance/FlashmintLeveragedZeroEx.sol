@@ -370,17 +370,6 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
     returns(uint256[] memory amountsReturned)
     {
         amountsReturned = new uint256[](balancesBefore.length);
-        uint256 collateralTokenBalance = IERC20(leveragedTokenData.collateralToken).balanceOf(address(this));
-        if(collateralTokenBalance > balancesBefore[0]) {
-            amountsReturned[0] = collateralTokenBalance - balancesBefore[0];
-            IERC20(leveragedTokenData.collateralToken).safeTransfer(msg.sender, amountsReturned[0]);
-        }
-
-        uint256 debtTokenBalance = IERC20(leveragedTokenData.debtToken).balanceOf(address(this));
-        if(debtTokenBalance > balancesBefore[1]) {
-            amountsReturned[1] = debtTokenBalance - balancesBefore[1];
-            IERC20(leveragedTokenData.debtToken).safeTransfer(msg.sender, amountsReturned[1]);
-        }
 
         if(balancesBefore.length > 2) {
             if(_paymentToken == ETH_ADDRESS) {
@@ -398,6 +387,29 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard {
                 }
             }
         }
+
+        uint256 collateralTokenBalance = IERC20(leveragedTokenData.collateralToken).balanceOf(address(this));
+        if(collateralTokenBalance > balancesBefore[0]) {
+            amountsReturned[0] = collateralTokenBalance - balancesBefore[0];
+            if(leveragedTokenData.collateralToken == address(weth) && _paymentToken == ETH_ADDRESS) {
+                weth.withdraw(amountsReturned[0]);
+                msg.sender.sendValue(amountsReturned[0]);
+            } else {
+                IERC20(leveragedTokenData.collateralToken).safeTransfer(msg.sender, amountsReturned[0]);
+            }
+        }
+
+        uint256 debtTokenBalance = IERC20(leveragedTokenData.debtToken).balanceOf(address(this));
+        if(debtTokenBalance > balancesBefore[1]) {
+            amountsReturned[1] = debtTokenBalance - balancesBefore[1];
+            if(leveragedTokenData.debtToken == address(weth) && _paymentToken == ETH_ADDRESS) {
+                weth.withdraw(amountsReturned[1]);
+                msg.sender.sendValue(amountsReturned[1]);
+            } else {
+                IERC20(leveragedTokenData.debtToken).safeTransfer(msg.sender, amountsReturned[1]);
+            }
+        }
+
     }
 
     /**

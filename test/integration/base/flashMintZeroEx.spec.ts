@@ -112,10 +112,7 @@ if (process.env.INTEGRATIONTEST) {
           ).to.equal(MAX_UINT_256);
         });
 
-        [
-          "collateralToken",
-          "ETH",
-        ].forEach(inputTokenName => {
+        ["collateralToken", "ETH"].forEach(inputTokenName => {
           describe(`When input/output token is ${inputTokenName}`, () => {
             let amountIn: BigNumber;
             let subjectSetAmount: BigNumber;
@@ -369,6 +366,33 @@ if (process.env.INTEGRATIONTEST) {
 
                   swapDataCollateralToDebt = zeroExResponse.transaction.data;
 
+                  // if (inputTokenName === "ETH") {
+                  //   const expectedReceivedAmount = BigNumber.from(zeroExResponse.buyAmount);
+                  //   console.log("expectedReceivedAmount", expectedReceivedAmount.toString());
+                  //   const expectedDebtAmountToSellToOutput = expectedReceivedAmount.sub(
+                  //     leveragedTokenData.debtAmount,
+                  //   );
+                  //   console.log(
+                  //     "expectedDebtAmountToSellToOutput",
+                  //     expectedDebtAmountToSellToOutput.toString(),
+                  //   );
+                  //   const roundedDebtAmountToSell = expectedDebtAmountToSellToOutput
+                  //     .div(roundingFactor)
+                  //     .add(1)
+                  //     .mul(roundingFactor);
+
+                  //   const zeroExResponseSellDebt = await fetchZeroExData(
+                  //     leveragedTokenData.debtToken,
+                  //     leveragedTokenData.collateralToken,
+                  //     roundedCollateralAmount,
+                  //     blockRange,
+                  //     flashMintLeveraged.address,
+                  //     true,
+                  //     forkBlockNumber,
+                  //     chainId,
+                  //   );
+                  // }
+
                   const tx = await subject();
                   // console.log("tx", tx);
                   const receipt = await tx.wait();
@@ -388,9 +412,9 @@ if (process.env.INTEGRATIONTEST) {
                       ? await owner.wallet.getBalance()
                       : await outputToken.balanceOf(owner.address);
                   let outputObtained = outputBalanceAfter.sub(outputBalanceBefore);
-                    if (inputTokenName === "ETH") {
-                        outputObtained = outputObtained.add(gasCosts);
-                    }
+                  if (inputTokenName === "ETH") {
+                    outputObtained = outputObtained.add(gasCosts);
+                  }
                   console.log("outputObtained", outputObtained.toString());
                   expect(outputObtained).to.be.gte(subjectMinAmountOut);
                 });
