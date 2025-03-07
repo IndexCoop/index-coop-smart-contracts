@@ -1,5 +1,5 @@
 /*
-    Copyright 2022 Index Cooperative
+    Copyright 2025 Index Cooperative
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -39,9 +39,9 @@ import {IPool} from "../interfaces/IPool.sol";
  * @author Index Coop
  *
  * Contract for issuing and redeeming a leveraged Set Token
- * Supports all tokens with one morpho collateral Position and one debt position
- * Both the collateral as well as the debt token have to be available for flashloan from morpho and be 
- * tradeable against each other on 0x
+ * Supports all standard (1 collateral / 1 debt token) leveraged tokens on either morpho or aave leveragemodule
+ * Both the collateral as well as the debt token have to be available for flashloan from morpho and be
+ * tradeable against each other via one of the whitelisted swap target contracts
  */
 contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
 
@@ -65,8 +65,6 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
         bytes callData;
     }
 
-
-
     struct DecodedParams {
         ISetToken setToken;
         bool isAave;
@@ -77,7 +75,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
         uint256 limitAmount;
         LeveragedTokenData leveragedTokenData;
         SwapData collateralAndDebtSwapData;
-        SwapData paymentTokenSwapData;    
+        SwapData paymentTokenSwapData;
     }
 
     struct TokenBalance {
@@ -87,9 +85,9 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
 
     /* ============ Constants ============= */
 
-    uint256 constant private MAX_UINT256 = type(uint256).max;
+    uint256 private constant MAX_UINT256 = type(uint256).max;
     uint256 public constant ROUNDING_ERROR_MARGIN = 2;
-    address  public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /* ============ State Variables ============ */
 
@@ -157,26 +155,30 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
 
     /* ============ External Functions ============ */
 
-    function setSwapTargetWhitelist(
-        address _swapTarget,
-        bool _isAllowed
-    )
-        external 
-        onlyOwner
-    {
+    /**
+     * Adds or removes a given swapTarget from the whitelist
+     * OWNER ONLY
+     *
+     * @param _swapTarget           Settlement contract to add/remove from whitelist
+     * @param _isAllowed            Boolean indicating wether given contract should be included in the whitelist
+     *
+     */
+    function setSwapTargetWhitelist(address _swapTarget, bool _isAllowed) external onlyOwner {
         swapTargetWhitelist[_swapTarget] = _isAllowed;
     }
 
-    function withdrawToken(
-        IERC20 token
-    )
-        external 
-        onlyOwner
-    {
-        if(address(token) == address(0)) {
+    /**
+     * Withdraws stranded tokens from the contracts balance
+     * OWNER ONLY
+     *
+     * @param _token                Token to be withdrawn from the contract balance
+     *
+     */
+    function withdrawToken(IERC20 _token) external onlyOwner {
+        if (address(_token) == address(0)) {
             msg.sender.sendValue(address(this).balance);
         } else {
-            token.safeTransfer(msg.sender, token.balanceOf(address(this)));
+            _token.safeTransfer(msg.sender, _token.balanceOf(address(this)));
         }
     }
 
