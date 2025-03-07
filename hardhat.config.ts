@@ -11,9 +11,7 @@ import "hardhat-contract-sizer";
 import "./tasks";
 import { forkingConfig } from "./utils/config";
 
-
 const INTEGRATIONTEST_TIMEOUT = 600000;
-
 
 const mochaConfig = {
   timeout: process.env.INTEGRATIONTEST ? INTEGRATIONTEST_TIMEOUT : 50000,
@@ -77,6 +75,9 @@ const config: HardhatUserConfig = {
       accounts: process.env.PRODUCTION_MAINNET_DEPLOY_PRIVATE_KEY
         ? [`0x${process.env.PRODUCTION_MAINNET_DEPLOY_PRIVATE_KEY}`]
         : undefined,
+    },
+    base: {
+      url: process.env.BASE_RPC_URL ?? "",
     },
   },
   mocha: mochaConfig,

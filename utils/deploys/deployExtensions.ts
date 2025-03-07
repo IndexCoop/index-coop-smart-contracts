@@ -52,6 +52,7 @@ import {
   DEXAdapterV4__factory,
   DEXAdapterV5__factory,
   DEXAdapterV5,
+  FlashMintLeveragedZeroEx__factory,
 } from "../../typechain";
 import { AirdropExtension__factory } from "../../typechain/factories/AirdropExtension__factory";
 import { AuctionRebalanceExtension__factory } from "../../typechain/factories/AuctionRebalanceExtension__factory";
@@ -422,6 +423,39 @@ export default class DeployExtensions {
     );
   }
 
+  public async deployFlashMintLeveragedZeroEx(
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+    morphoLeveragedModuleAddress: Address,
+    aaveLeveragedModuleAddress: Address,
+    morphoAddress: Address,
+    aaveV3PoolAddress: Address,
+    wethAddress: Address,
+    swapTarget: Address,
+  ) {
+    console.log("Deploying FlashMintLeveragedZeroEx", {
+      wethAddress,
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      morphoLeveragedModuleAddress,
+      aaveLeveragedModuleAddress,
+      morphoAddress,
+      aaveV3PoolAddress,
+      swapTarget,
+    });
+
+    return await new FlashMintLeveragedZeroEx__factory(this._deployerSigner).deploy(
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      morphoLeveragedModuleAddress,
+      aaveLeveragedModuleAddress,
+      morphoAddress,
+      aaveV3PoolAddress,
+      wethAddress,
+      swapTarget,
+    );
+  }
+
   public async deployFlashMintLeveragedMorphoV2(
     wethAddress: Address,
     quickRouterAddress: Address,
@@ -491,7 +525,6 @@ export default class DeployExtensions {
       morphoAddress,
     );
   }
-
 
   public async deployFlashMintLeveragedMorpho(
     wethAddress: Address,

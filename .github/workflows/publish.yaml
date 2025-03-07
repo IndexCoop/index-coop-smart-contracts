@@ -6,9 +6,13 @@ on:
   pull_request:
     branches: [master]
 
+env:
+  BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }}
+  ZERO_EX_API_KEY: ${{ secrets.ZERO_EX_API_KEY }}
+
 jobs:
 
-  build-and-test:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -22,10 +26,27 @@ jobs:
       - name: build
         run: yarn build
 
+  test-integration-base:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 20
+      - name: copy env
+        run: cp .env.default .env
+      - name: install
+        run: yarn
+      - name: chain
+        run: yarn chain:fork:base &
+      - name: test
+        run: yarn test:integration:base
+
+
   publish:
     runs-on: ubuntu-latest
     if: ${{ github.ref == 'refs/heads/master' }}
-    needs: [build-and-test]
+    needs: [build]
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v3
