@@ -548,10 +548,9 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
             _decodedParams.collateralAndDebtSwapData
         );
 
-        // TODO: Potentially generalize to allow swapping collateral tokens and debt tokens
-        // Swap Debt tokens for Payment token
+        // Swap Collateral tokens for Payment token
         _executeSwapData(
-            _decodedParams.leveragedTokenData.debtToken,
+            _decodedParams.leveragedTokenData.collateralToken,
             _decodedParams.paymentTokenSwapData
         );
 
