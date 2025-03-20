@@ -55,6 +55,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
 
     struct LeveragedTokenData {
         address collateralToken;
+        address collateralAToken;
         uint256 collateralAmount;
         address debtToken;
         uint256 debtAmount;
@@ -397,9 +398,17 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
     function approveSetToken(ISetToken _setToken, bool _isAave) external {
         LeveragedTokenData memory leveragedTokenData = _getLeveragedTokenData(_setToken, 1 ether, true, _isAave);
 
-        _approveToken(IERC20(leveragedTokenData.collateralToken));
 
-        _approveToken(IERC20(leveragedTokenData.debtToken));
+        if(_isAave){
+            _approveToken(IERC20(leveragedTokenData.collateralAToken));
+            _approveToken(IERC20(leveragedTokenData.debtToken));
+            _approveTokenToLendingPool(IERC20(leveragedTokenData.collateralToken));
+            _approveTokenToLendingPool(IERC20(leveragedTokenData.debtToken));
+        } else {
+            _approveToken(IERC20(leveragedTokenData.collateralToken));
+            _approveToken(IERC20(leveragedTokenData.debtToken));
+
+        }
     }
 
     /* ============ Internal Functions ============ */
@@ -592,6 +601,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
         if(equityPositions[0] > 0){
             return LeveragedTokenData(
                 _isAave ? IAToken(components[0]).UNDERLYING_ASSET_ADDRESS() : components[0],
+                _isAave ? components[0] : address(0),
                 equityPositions[0] + ROUNDING_ERROR_MARGIN,
                 components[1],
                 debtPositions[1]
@@ -599,6 +609,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
         } else {
             return LeveragedTokenData(
                 _isAave ? IAToken(components[1]).UNDERLYING_ASSET_ADDRESS() : components[1],
+                _isAave ? components[1] : address(0),
                 equityPositions[1] + ROUNDING_ERROR_MARGIN,
                 components[0],
                 debtPositions[0]
@@ -615,6 +626,23 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
      */
     function _approveToken(IERC20 _token) internal {
         _safeApprove(_token, address(debtIssuanceModule), MAX_UINT256);
+    }
+
+    /**
+     * Approves max amount of token to lending pool
+     *
+     * @param _token              Address of the token to approve
+     */
+    function _approveTokenToLendingPool(
+        IERC20 _token
+    )
+    internal
+    {
+        uint256 allowance = _token.allowance(address(this), address(aavePool));
+        if (allowance > 0) {
+            _token.approve(address(aavePool), 0);
+        }
+        _token.approve(address(aavePool), MAX_UINT256);
     }
 
     /**
