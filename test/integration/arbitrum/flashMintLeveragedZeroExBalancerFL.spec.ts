@@ -40,8 +40,9 @@ if (process.env.INTEGRATIONTEST) {
     const balancerVaultAddress = PRODUCTION_ADDRESSES.dexes.balancerv2.vault;
     const zeroExRouterAddress = "0x0000000000001fF3684f28c67538d4D072C22734";
     const aaveV3PoolAddress = PRODUCTION_ADDRESSES.lending.aaveV3.lendingPool;
-    const forkBlockNumber = 318923600;
-    const blockRange = 100;
+    const forkBlockNumber = 319012273;
+    const apiBlockNumber = 22116167;
+    const blockRange = 10000;
     const chainId = 42161;
     const isAave = true;
 
@@ -205,7 +206,7 @@ if (process.env.INTEGRATIONTEST) {
                     );
 
                   // Round up to this number of wei;
-                  const roundingFactor = leveragedTokenData.debtAmount.div(10000);
+                  const roundingFactor = 1000;
                   const roundedDebtAmount = leveragedTokenData.debtAmount
                     .div(roundingFactor)
                     .add(1)
@@ -217,7 +218,7 @@ if (process.env.INTEGRATIONTEST) {
                     blockRange,
                     flashMintLeveraged.address,
                     true,
-                    forkBlockNumber,
+                    apiBlockNumber,
                     chainId,
                   );
                   console.log("zeroExResponse", zeroExResponse);
@@ -236,7 +237,7 @@ if (process.env.INTEGRATIONTEST) {
                       blockRange,
                       flashMintLeveraged.address,
                       true,
-                      forkBlockNumber,
+                      apiBlockNumber,
                       chainId,
                     );
                     swapDataInputToken = {
@@ -395,7 +396,7 @@ if (process.env.INTEGRATIONTEST) {
                       isAave,
                     );
                   // Round up to this number of wei;
-                  const roundingFactor = leveragedTokenData.collateralAmount.div(10000);
+                  const roundingFactor = ethers.utils.parseEther("0.000001");
                   const roundedCollateralAmount = leveragedTokenData.collateralAmount
                     .div(roundingFactor)
                     .add(1)
@@ -407,7 +408,7 @@ if (process.env.INTEGRATIONTEST) {
                     blockRange,
                     flashMintLeveraged.address,
                     true,
-                    forkBlockNumber,
+                    apiBlockNumber,
                     chainId,
                   );
 
@@ -438,7 +439,7 @@ if (process.env.INTEGRATIONTEST) {
                   //     blockRange,
                   //     flashMintLeveraged.address,
                   //     true,
-                  //     forkBlockNumber,
+                  //     apiBlockNumber,
                   //     chainId,
                   //   );
                   // }

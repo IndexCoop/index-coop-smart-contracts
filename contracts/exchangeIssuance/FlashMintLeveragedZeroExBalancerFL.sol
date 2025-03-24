@@ -38,10 +38,8 @@ import {IPool} from "../interfaces/IPool.sol";
  * @title FlashMintLeveragedZeroEx
  * @author Index Coop
  *
- * Contract for issuing and redeeming a leveraged Set Token
- * Supports all standard (1 collateral / 1 debt token) leveraged tokens on either morpho or aave leveragemodule
- * Both the collateral as well as the debt token have to be available for flashloan from morpho and be
- * tradeable against each other via one of the whitelisted swap target contracts
+ * Contract for issuing and redeeming a leveraged Set Token using externally encoded calldata
+ * Saame as FlashMintLeveragedZeroEx but with balancer flashloan
  */
 contract FlashMintLeveragedZeroExBalancerFL is ReentrancyGuard, Ownable, IFlashLoanRecipient {
 
