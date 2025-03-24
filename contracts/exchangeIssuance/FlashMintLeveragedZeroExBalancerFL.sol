@@ -43,7 +43,7 @@ import {IPool} from "../interfaces/IPool.sol";
  * Both the collateral as well as the debt token have to be available for flashloan from morpho and be
  * tradeable against each other via one of the whitelisted swap target contracts
  */
-contract FlashMintLeveragedZeroExFL is ReentrancyGuard, Ownable, IFlashLoanRecipient {
+contract FlashMintLeveragedZeroExBalancerFL is ReentrancyGuard, Ownable, IFlashLoanRecipient {
 
     using Address for address payable;
     using SafeMath for uint256;

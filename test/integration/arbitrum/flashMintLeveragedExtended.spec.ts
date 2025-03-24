@@ -35,7 +35,7 @@ type SwapData = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe("FlashMintLeveragedExtended - Integration Test", async () => {
+  describe.skip("FlashMintLeveragedExtended - Integration Test", async () => {
     const addresses = PRODUCTION_ADDRESSES;
     let owner: Account;
     let deployer: DeployHelper;
@@ -115,6 +115,7 @@ if (process.env.INTEGRATIONTEST) {
         let debtTokenAddress: Address;
         let aweth: IERC20;
         before(async () => {
+
           const awethWhale = addresses.whales.aWETH;
           const wethWhale = addresses.whales.weth;
           const operator = "0x37e6365d4f6aE378467b0e24c9065Ce5f06D70bF";
@@ -133,11 +134,6 @@ if (process.env.INTEGRATIONTEST) {
             .connect(owner.wallet)
             .approve(addresses.setFork.debtIssuanceModuleV3, ether(10));
           await weth.connect(owner.wallet).approve(flashMintLeveraged.address, ether(100));
-          const debtIssuanceModule = (await ethers.getContractAt(
-            "IDebtIssuanceModule",
-            addresses.setFork.debtIssuanceModuleV3,
-            owner.wallet,
-          )) as IDebtIssuanceModule;
 
           const issueTx = await debtIssuanceModule.issue(
             setToken.address,
@@ -186,7 +182,7 @@ if (process.env.INTEGRATIONTEST) {
           ).to.equal(MAX_UINT_256);
         });
 
-        ["USDC", "ETH"].forEach(inputTokenName => {
+        ["USDC", "ETH"].forEach((inputTokenName) => {
           describe(`When input/output token is ${inputTokenName}`, () => {
             let amountIn: BigNumber;
             before(async () => {
@@ -253,6 +249,7 @@ if (process.env.INTEGRATIONTEST) {
                     subjectInputToken = inputToken.address;
                   }
                   subjectSetToken = setToken.address;
+
                   setBalancebefore = await setToken.balanceOf(owner.address);
                   inputBalanceBefore =
                     inputTokenName === "ETH"

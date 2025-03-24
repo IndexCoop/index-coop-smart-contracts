@@ -53,6 +53,7 @@ import {
   DEXAdapterV5__factory,
   DEXAdapterV5,
   FlashMintLeveragedZeroEx__factory,
+  FlashMintLeveragedZeroExBalancerFL__factory
 } from "../../typechain";
 import { AirdropExtension__factory } from "../../typechain/factories/AirdropExtension__factory";
 import { AuctionRebalanceExtension__factory } from "../../typechain/factories/AuctionRebalanceExtension__factory";
@@ -423,6 +424,38 @@ export default class DeployExtensions {
     );
   }
 
+  public async deployFlashMintLeveragedZeroExBalancerFL(
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+    morphoLeveragedModuleAddress: Address,
+    aaveLeveragedModuleAddress: Address,
+    morphoAddress: Address,
+    aaveV3PoolAddress: Address,
+    wethAddress: Address,
+    swapTarget: Address,
+  ) {
+    console.log("Deploying FlashMintLeveragedZeroExBalancerFL", {
+      wethAddress,
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      morphoLeveragedModuleAddress,
+      aaveLeveragedModuleAddress,
+      morphoAddress,
+      aaveV3PoolAddress,
+      swapTarget,
+    });
+
+    return await new FlashMintLeveragedZeroExBalancerFL__factory(this._deployerSigner).deploy(
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      morphoLeveragedModuleAddress,
+      aaveLeveragedModuleAddress,
+      morphoAddress,
+      aaveV3PoolAddress,
+      wethAddress,
+      swapTarget,
+    );
+  }
   public async deployFlashMintLeveragedZeroEx(
     setControllerAddress: Address,
     basicIssuanceModuleAddress: Address,
