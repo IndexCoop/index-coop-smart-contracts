@@ -539,8 +539,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
         if(_decodedParams.isAave) {
             // Withdraw underlying collateral token from the aToken position returned by redeem step
             _withdrawCollateralToken(
-                _decodedParams.leveragedTokenData.collateralToken,
-                _decodedParams.leveragedTokenData.collateralAmount - ROUNDING_ERROR_MARGIN
+                _decodedParams.leveragedTokenData.collateralToken
             );
         }
 
@@ -869,13 +868,13 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
      * Convert collateralAToken from set redemption to collateralToken by withdrawing underlying from Aave
      *
      * @param _collateralToken       Address of the collateralToken to withdraw from Aave lending pool
-     * @param _collateralAmount      Amount of collateralToken to withdraw
      */
     function _withdrawCollateralToken(
-        address _collateralToken,
-        uint256 _collateralAmount
+        address _collateralToken
     ) internal {
-        aavePool.withdraw(_collateralToken, _collateralAmount, address(this));
+        // Withdraw full aToken balance
+        aavePool.withdraw(_collateralToken, type(uint256).max, address(this));
+
     }
 
 
