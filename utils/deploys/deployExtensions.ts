@@ -53,7 +53,7 @@ import {
   DEXAdapterV5__factory,
   DEXAdapterV5,
   FlashMintLeveragedZeroEx__factory,
-  FlashMintLeveragedZeroExBalancerFL__factory
+  FlashMintLeveragedZeroExBalancerFL__factory,
 } from "../../typechain";
 import { AirdropExtension__factory } from "../../typechain/factories/AirdropExtension__factory";
 import { AuctionRebalanceExtension__factory } from "../../typechain/factories/AuctionRebalanceExtension__factory";
@@ -465,6 +465,7 @@ export default class DeployExtensions {
     aaveV3PoolAddress: Address,
     wethAddress: Address,
     swapTarget: Address,
+    roundingMargin: BigNumberish = 2,
   ) {
     console.log("Deploying FlashMintLeveragedZeroEx", {
       wethAddress,
@@ -486,6 +487,7 @@ export default class DeployExtensions {
       aaveV3PoolAddress,
       wethAddress,
       swapTarget,
+      roundingMargin,
     );
   }
 
