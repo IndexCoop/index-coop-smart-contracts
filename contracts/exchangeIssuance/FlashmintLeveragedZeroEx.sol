@@ -87,11 +87,11 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
     /* ============ Constants ============= */
 
     uint256 private constant MAX_UINT256 = type(uint256).max;
-    uint256 public constant ROUNDING_ERROR_MARGIN = 2;
     address public constant ETH_ADDRESS = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /* ============ State Variables ============ */
 
+    uint256 public immutable ROUNDING_ERROR_MARGIN;
     IController public immutable setController;
     IDebtIssuanceModule public immutable debtIssuanceModule;
     IMorphoLeverageModule public immutable morphoLeverageModule;
@@ -140,7 +140,8 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
         IMorpho _morpho,
         IPool _aavePool,
         IWETH _weth,
-        address _swapTarget
+        address _swapTarget,
+        uint256 _roundingErrorMargin
     )
         public
     {
@@ -152,6 +153,7 @@ contract FlashMintLeveragedZeroEx is ReentrancyGuard, Ownable {
         aavePool = _aavePool;
         weth = _weth;
         swapTargetWhitelist[_swapTarget] = true;
+        ROUNDING_ERROR_MARGIN = _roundingErrorMargin;
     }
 
     /* ============ External Functions ============ */
