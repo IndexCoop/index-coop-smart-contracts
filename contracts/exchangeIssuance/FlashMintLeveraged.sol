@@ -1,5 +1,5 @@
 /*
-    Copyright 2022 Index Cooperative
+    Copyright 2025 Index Cooperative
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -765,7 +765,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
     )
         internal
     {
-        IERC20(_collateralToken).transfer(_originalSender, _collateralRemaining);
+        IERC20(_collateralToken).safeTransfer(_originalSender, _collateralRemaining);
     }
 
     /**
@@ -803,7 +803,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
             _minAmountOutputToken,
             _swapData
         );
-        _outputToken.transfer(_originalSender, outputTokenAmount);
+        _outputToken.safeTransfer(_originalSender, outputTokenAmount);
         return outputTokenAmount;
     }
 
@@ -972,7 +972,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
             _transferShortfallFromSender(_collateralToken, _collateralTokenShortfall, _originalSender);
             return _collateralTokenShortfall;
         } else {
-            _inputToken.transferFrom(_originalSender, address(this), _maxAmountInputToken);
+            _inputToken.safeTransferFrom(_originalSender, address(this), _maxAmountInputToken);
             uint256 amountInputToken = _swapInputForCollateralToken(
                 _collateralToken,
                 _collateralTokenShortfall,
@@ -981,7 +981,7 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
                 _swapData
             );
             if(amountInputToken < _maxAmountInputToken){
-                _inputToken.transfer(_originalSender, _maxAmountInputToken.sub(amountInputToken));
+                _inputToken.safeTransfer(_originalSender, _maxAmountInputToken.sub(amountInputToken));
             }
             return amountInputToken;
         }
@@ -1212,9 +1212,9 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
     {
         uint256 allowance = _token.allowance(address(this), address(LENDING_POOL));
         if (allowance > 0) {
-            _token.approve(address(LENDING_POOL), 0);
+            _safeApprove(_token, address(LENDING_POOL), 0);
         }
-        _token.approve(address(LENDING_POOL), MAX_UINT256);
+        _safeApprove(_token, address(LENDING_POOL), MAX_UINT256);
     }
 
     /**

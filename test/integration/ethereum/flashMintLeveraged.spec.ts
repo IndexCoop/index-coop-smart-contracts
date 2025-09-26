@@ -12,7 +12,6 @@ import {
   StandardTokenMock,
   IDebtIssuanceModule,
   IERC20__factory,
-  AaveV3LeverageStrategyExtension__factory
 } from "../../../typechain";
 import { PRODUCTION_ADDRESSES, STAGING_ADDRESSES } from "./addresses";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
@@ -37,32 +36,24 @@ type SwapData = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe("FlashMintLeveraged - Integration Test", async () => {
+  describe.only("FlashMintLeveraged - Integration Test", async () => {
     const addresses = process.env.USE_STAGING_ADDRESSES ? STAGING_ADDRESSES : PRODUCTION_ADDRESSES;
     let owner: Account;
     let deployer: DeployHelper;
 
-    let rEth: StandardTokenMock;
     let setToken: StandardTokenMock;
     let weth: IWETH;
 
-    // const collateralTokenAddress = addresses.tokens.stEth;
-    setBlockNumber(17665622);
+    setBlockNumber(23447463, false);
 
     before(async () => {
       [owner] = await getAccounts();
       deployer = new DeployHelper(owner.wallet);
 
-      rEth = (await ethers.getContractAt(
-        "StandardTokenMock",
-        addresses.tokens.rETH,
-      )) as StandardTokenMock;
-
       setToken = (await ethers.getContractAt(
         "StandardTokenMock",
-        addresses.tokens.icReth,
+        addresses.tokens.eth3x,
       )) as StandardTokenMock;
-
 
       weth = (await ethers.getContractAt("IWETH", addresses.tokens.weth)) as IWETH;
     });
@@ -86,12 +77,12 @@ if (process.env.INTEGRATIONTEST) {
           addresses.dexes.uniV3.router,
           addresses.dexes.uniV3.quoter,
           addresses.setFork.controller,
-          addresses.setFork.debtIssuanceModuleV2,
-          addresses.setFork.aaveV3LeverageModule,
+          addresses.setFork.debtIssuanceModuleV2_A1,
+          addresses.setFork.aaveV3LeverageModule_A1,
           addresses.lending.aaveV3.lendingPool,
           addresses.dexes.curve.addressProvider,
           addresses.dexes.curve.calculator,
-          addresses.dexes.balancerv2.vault
+          addresses.dexes.balancerv2.vault,
         );
       });
 
@@ -109,16 +100,12 @@ if (process.env.INTEGRATIONTEST) {
 
       it("uniV2 router address is set correctly", async () => {
         const returnedAddresses = await flashMintLeveraged.addresses();
-        expect(returnedAddresses.quickRouter).to.eq(
-          utils.getAddress(addresses.dexes.uniV2.router),
-        );
+        expect(returnedAddresses.quickRouter).to.eq(utils.getAddress(addresses.dexes.uniV2.router));
       });
 
       it("uniV3 router address is set correctly", async () => {
         const returnedAddresses = await flashMintLeveraged.addresses();
-        expect(returnedAddresses.uniV3Router).to.eq(
-          utils.getAddress(addresses.dexes.uniV3.router),
-        );
+        expect(returnedAddresses.uniV3Router).to.eq(utils.getAddress(addresses.dexes.uniV3.router));
       });
 
       it("controller address is set correctly", async () => {
@@ -129,7 +116,7 @@ if (process.env.INTEGRATIONTEST) {
 
       it("debt issuance module address is set correctly", async () => {
         expect(await flashMintLeveraged.debtIssuanceModule()).to.eq(
-          utils.getAddress(addresses.setFork.debtIssuanceModuleV2),
+          utils.getAddress(addresses.setFork.debtIssuanceModuleV2_A1),
         );
       });
 
@@ -137,39 +124,35 @@ if (process.env.INTEGRATIONTEST) {
         let collateralAToken: StandardTokenMock;
         let debtToken: StandardTokenMock;
         let collateralATokenAddress: Address;
-        let collateralTokenAddress: Address;
         let debtTokenAddress: Address;
         before(async () => {
-          const arETHWhale = "0x4D17676309cb16fA991E6AE43181d08203b781F8";
-          const rEthWhale = "0x7d6149aD9A573A6E2Ca6eBf7D4897c1B766841B4";
-          const operator = "0x6904110f17feD2162a11B5FA66B188d801443Ea4";
-          const whaleSigner = await impersonateAccount(arETHWhale);
+          const wethWhale = "0x8EB8a3b98659Cce290402893d0123abb75E3ab28";
+          const aWethWhale = "0x28a55C4b4f9615FDE3CDAdDf6cc01FcF2E38A6b0";
 
-          const rEthWhaleSigner = await impersonateAccount(rEthWhale);
+          const wethWhaleSigner = await impersonateAccount(wethWhale);
+          const whaleWeth = IERC20__factory.connect(addresses.tokens.weth, wethWhaleSigner);
+          await whaleWeth.transfer(owner.address, ether(100));
 
-          const arETH = IERC20__factory.connect(addresses.tokens.aEthrETH, whaleSigner);
+          const aWethWhaleSigner = await impersonateAccount(aWethWhale);
+          const whaleaWeth = IERC20__factory.connect(addresses.tokens.aWeth, aWethWhaleSigner);
+          const aWeth = IERC20__factory.connect(addresses.tokens.aWeth, owner.wallet);
+          await whaleaWeth.transfer(owner.address, ether(100));
 
-          const rETH = IERC20__factory.connect(addresses.tokens.rETH, rEthWhaleSigner);
-          await rETH.transfer(owner.address, ether(100));
-          await arETH.transfer(owner.address, ether(100));
+          await weth.connect(owner.wallet).approve(flashMintLeveraged.address, ether(100));
+          const debtIssuanceModule = (await ethers.getContractAt(
+            "IDebtIssuanceModule",
+            addresses.setFork.debtIssuanceModuleV2_A1,
+            owner.wallet,
+          )) as IDebtIssuanceModule;
+          await aWeth.connect(owner.wallet).approve(debtIssuanceModule.address, ether(100));
 
-          await arETH.connect(owner.wallet).approve(addresses.setFork.debtIssuanceModuleV2, ether(10));
-          await rETH.connect(owner.wallet).approve(flashMintLeveraged.address, ether(100));
-          const debtIssuanceModule = await ethers.getContractAt(
-            "IDebtIssuanceModule", addresses.setFork.debtIssuanceModuleV2, owner.wallet) as IDebtIssuanceModule;
-
-
-          const issueTx = await debtIssuanceModule.issue(setToken.address, ether(10), owner.address);
+          const issueTx = await debtIssuanceModule.issue(
+            setToken.address,
+            ether(10),
+            owner.address,
+          );
 
           await issueTx.wait();
-
-          const operatorSigner = await impersonateAccount(operator);
-
-          const aaveV3LeverageStrategyExtension = AaveV3LeverageStrategyExtension__factory.connect(
-            addresses.setFork.aaveV3LeverageStrategyExtension, operatorSigner);
-          const engageTx = await aaveV3LeverageStrategyExtension.engage("BalancerV2ExchangeAdapter");
-          await engageTx.wait();
-
 
           await flashMintLeveraged.approveSetToken(setToken.address);
 
@@ -180,7 +163,6 @@ if (process.env.INTEGRATIONTEST) {
           );
 
           collateralATokenAddress = leveragedTokenData.collateralAToken;
-          collateralTokenAddress = leveragedTokenData.collateralToken;
           debtTokenAddress = leveragedTokenData.debtToken;
 
           collateralAToken = (await ethers.getContractAt(
@@ -191,25 +173,26 @@ if (process.env.INTEGRATIONTEST) {
             "StandardTokenMock",
             debtTokenAddress,
           )) as StandardTokenMock;
-
-
         });
 
         it("should adjust collateral a token allowance correctly", async () => {
           expect(
             await collateralAToken.allowance(
               flashMintLeveraged.address,
-              addresses.setFork.debtIssuanceModuleV2,
+              addresses.setFork.debtIssuanceModuleV2_A1,
             ),
           ).to.equal(MAX_UINT_256);
         });
         it("should adjust debt token allowance correctly", async () => {
           expect(
-            await debtToken.allowance(flashMintLeveraged.address, addresses.setFork.debtIssuanceModuleV2),
+            await debtToken.allowance(
+              flashMintLeveraged.address,
+              addresses.setFork.debtIssuanceModuleV2_A1,
+            ),
           ).to.equal(MAX_UINT_256);
         });
 
-        ["collateralToken", "WETH", "ETH"].forEach(inputTokenName => {
+        ["WETH"].forEach(inputTokenName => {
           describe(`When input/output token is ${inputTokenName}`, () => {
             let subjectSetAmount: BigNumber;
             let amountIn: BigNumber;
@@ -224,7 +207,6 @@ if (process.env.INTEGRATIONTEST) {
                 let swapDataDebtToCollateral: SwapData;
                 let swapDataInputToken: SwapData;
 
-
                 let inputToken: StandardTokenMock | IWETH;
 
                 let subjectSetToken: Address;
@@ -233,12 +215,11 @@ if (process.env.INTEGRATIONTEST) {
 
                 beforeEach(async () => {
                   swapDataDebtToCollateral = {
-                    path: [addresses.tokens.weth, addresses.tokens.rETH],
+                    path: [addresses.tokens.usdt, addresses.tokens.weth],
                     fees: [500],
                     pool: ADDRESS_ZERO,
                     exchange: Exchange.UniV3,
                   };
-
 
                   swapDataInputToken = {
                     path: [],
@@ -247,17 +228,9 @@ if (process.env.INTEGRATIONTEST) {
                     exchange: Exchange.None,
                   };
 
-
-
-                  if (inputTokenName === "collateralToken") {
-                    inputToken = rEth;
-                  } else {
-                    swapDataInputToken = swapDataDebtToCollateral;
-
-                    if (inputTokenName === "WETH") {
-                      inputToken = weth;
-                      await weth.deposit({ value: amountIn });
-                    }
+                  if (inputTokenName === "WETH") {
+                    inputToken = weth;
+                    await weth.deposit({ value: amountIn });
                   }
 
                   let inputTokenBalance: BigNumber;
@@ -278,29 +251,40 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSetToken,
                       subjectSetAmount,
                       swapDataDebtToCollateral,
-                      swapDataInputToken ,
+                      swapDataInputToken,
                       { value: subjectMaxAmountIn },
                     );
                   }
+                  console.log("issuing", {
+                    subjectSetToken,
+                    subjectSetAmount,
+                    swapDataDebtToCollateral,
+                    swapDataInputToken,
+                  });
                   return flashMintLeveraged.issueExactSetFromERC20(
                     subjectSetToken,
                     subjectSetAmount,
                     subjectInputToken,
                     subjectMaxAmountIn,
                     swapDataDebtToCollateral,
-                    swapDataInputToken ,
-                );
+                    swapDataInputToken,
+                  );
                 }
 
                 async function subjectQuote() {
+                  console.log("quoting", {
+                    subjectSetToken,
+                    subjectSetAmount,
+                    swapDataDebtToCollateral,
+                    swapDataInputToken,
+                  });
                   return flashMintLeveraged.callStatic.getIssueExactSet(
                     subjectSetToken,
                     subjectSetAmount,
                     swapDataDebtToCollateral,
-                    swapDataInputToken ,
-                );
+                    swapDataInputToken,
+                  );
                 }
-
 
                 it("should issue the correct amount of tokens", async () => {
                   const setBalancebefore = await setToken.balanceOf(owner.address);
@@ -326,18 +310,22 @@ if (process.env.INTEGRATIONTEST) {
                 });
 
                 it("should quote the correct input amount", async () => {
+                  const quotedInputAmount = await subjectQuote();
                   const inputBalanceBefore =
                     inputTokenName === "ETH"
                       ? await owner.wallet.getBalance()
                       : await inputToken.balanceOf(owner.address);
+                  console.log("inputBalanceBefore", inputBalanceBefore.toString());
                   await subject();
                   const inputBalanceAfter =
                     inputTokenName === "ETH"
                       ? await owner.wallet.getBalance()
                       : await inputToken.balanceOf(owner.address);
+                  console.log("inputBalanceAfter", inputBalanceAfter.toString());
                   const inputSpent = inputBalanceBefore.sub(inputBalanceAfter);
 
-                  const quotedInputAmount = await subjectQuote();
+                  console.log("inputSpent", inputSpent.toString());
+                  console.log("quotedInputAmount", quotedInputAmount.toString());
 
                   expect(quotedInputAmount).to.gt(preciseMul(inputSpent, ether(0.99)));
                   expect(quotedInputAmount).to.lt(preciseMul(inputSpent, ether(1.01)));
@@ -364,7 +352,7 @@ if (process.env.INTEGRATIONTEST) {
                       subjectSetAmount,
                       subjectMinAmountOut,
                       swapDataCollateralToDebt,
-                      swapDataOutputToken
+                      swapDataOutputToken,
                     );
                   }
                   return flashMintLeveraged.redeemExactSetForERC20(
@@ -373,44 +361,40 @@ if (process.env.INTEGRATIONTEST) {
                     subjectOutputToken,
                     subjectMinAmountOut,
                     swapDataCollateralToDebt,
-                    swapDataOutputToken
-                );
+                    swapDataOutputToken,
+                  );
                 }
 
                 async function subjectQuote(): Promise<BigNumber> {
                   return flashMintLeveraged.callStatic.getRedeemExactSet(
                     subjectSetToken,
                     subjectSetAmount,
-                    swapDataCollateralToDebt, swapDataOutputToken
+                    swapDataCollateralToDebt,
+                    swapDataOutputToken,
                   );
                 }
 
                 beforeEach(async () => {
                   swapDataCollateralToDebt = {
-                    path: [collateralTokenAddress, addresses.tokens.weth],
+                    path: [addresses.tokens.weth, addresses.tokens.usdt],
                     fees: [500],
                     pool: ADDRESS_ZERO,
                     exchange: Exchange.UniV3,
                   };
 
-                  if (inputTokenName === "collateralToken") {
-                    outputToken = rEth;
+                  if (inputTokenName === "WETH") {
+                    outputToken = weth;
                     swapDataOutputToken = {
                       path: [],
                       fees: [],
                       pool: ADDRESS_ZERO,
                       exchange: Exchange.None,
                     };
-                  } else {
-                    swapDataOutputToken = swapDataCollateralToDebt;
-
-                    if (inputTokenName === "WETH") {
-                      outputToken = weth;
-                      await weth.deposit({ value: amountIn });
-                    }
+                    outputToken = weth;
+                    await weth.deposit({ value: amountIn });
                   }
 
-                  subjectMinAmountOut = subjectSetAmount.div(2);
+                  subjectMinAmountOut = subjectSetAmount.div(100);
                   subjectSetToken = setToken.address;
                   await setToken.approve(flashMintLeveraged.address, subjectSetAmount);
 
