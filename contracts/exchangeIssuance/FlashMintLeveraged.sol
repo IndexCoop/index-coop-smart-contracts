@@ -1212,9 +1212,9 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
     {
         uint256 allowance = _token.allowance(address(this), address(LENDING_POOL));
         if (allowance > 0) {
-            _token.approve(address(LENDING_POOL), 0);
+            _safeApprove(_token, address(LENDING_POOL), 0);
         }
-        _token.approve(address(LENDING_POOL), MAX_UINT256);
+        _safeApprove(_token, address(LENDING_POOL), MAX_UINT256);
     }
 
     /**
