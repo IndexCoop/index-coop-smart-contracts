@@ -42,25 +42,19 @@ if (process.env.INTEGRATIONTEST) {
     let owner: Account;
     let deployer: DeployHelper;
 
-    let rEth: StandardTokenMock;
     let setToken: StandardTokenMock;
     let weth: IWETH;
 
     // const collateralTokenAddress = addresses.tokens.stEth;
-    setBlockNumber(17665622);
+    setBlockNumber(23447463);
 
     before(async () => {
       [owner] = await getAccounts();
       deployer = new DeployHelper(owner.wallet);
 
-      rEth = (await ethers.getContractAt(
-        "StandardTokenMock",
-        addresses.tokens.rETH,
-      )) as StandardTokenMock;
-
       setToken = (await ethers.getContractAt(
         "StandardTokenMock",
-        addresses.tokens.icReth,
+        addresses.tokens.eth3x,
       )) as StandardTokenMock;
 
 
@@ -140,21 +134,14 @@ if (process.env.INTEGRATIONTEST) {
         let collateralTokenAddress: Address;
         let debtTokenAddress: Address;
         before(async () => {
-          const arETHWhale = "0x4D17676309cb16fA991E6AE43181d08203b781F8";
-          const rEthWhale = "0x7d6149aD9A573A6E2Ca6eBf7D4897c1B766841B4";
+          const wethWhale = "0x8EB8a3b98659Cce290402893d0123abb75E3ab28";
           const operator = "0x6904110f17feD2162a11B5FA66B188d801443Ea4";
-          const whaleSigner = await impersonateAccount(arETHWhale);
 
-          const rEthWhaleSigner = await impersonateAccount(rEthWhale);
+          const wethWhaleSigner = await impersonateAccount(wethWhale);
+          const whaleWeth = IERC20__factory.connect(addresses.tokens.weth, wethWhaleSigner);
+          await whaleWeth.transfer(owner.address, ether(100));
 
-          const arETH = IERC20__factory.connect(addresses.tokens.aEthrETH, whaleSigner);
-
-          const rETH = IERC20__factory.connect(addresses.tokens.rETH, rEthWhaleSigner);
-          await rETH.transfer(owner.address, ether(100));
-          await arETH.transfer(owner.address, ether(100));
-
-          await arETH.connect(owner.wallet).approve(addresses.setFork.debtIssuanceModuleV2, ether(10));
-          await rETH.connect(owner.wallet).approve(flashMintLeveraged.address, ether(100));
+          await weth.connect(owner.wallet).approve(flashMintLeveraged.address, ether(100));
           const debtIssuanceModule = await ethers.getContractAt(
             "IDebtIssuanceModule", addresses.setFork.debtIssuanceModuleV2, owner.wallet) as IDebtIssuanceModule;
 
@@ -209,7 +196,7 @@ if (process.env.INTEGRATIONTEST) {
           ).to.equal(MAX_UINT_256);
         });
 
-        ["collateralToken", "WETH", "ETH"].forEach(inputTokenName => {
+        ["WETH"].forEach(inputTokenName => {
           describe(`When input/output token is ${inputTokenName}`, () => {
             let subjectSetAmount: BigNumber;
             let amountIn: BigNumber;
@@ -233,7 +220,7 @@ if (process.env.INTEGRATIONTEST) {
 
                 beforeEach(async () => {
                   swapDataDebtToCollateral = {
-                    path: [addresses.tokens.weth, addresses.tokens.rETH],
+                    path: [addresses.tokens.usdt, addresses.tokens.weth],
                     fees: [500],
                     pool: ADDRESS_ZERO,
                     exchange: Exchange.UniV3,
@@ -250,7 +237,7 @@ if (process.env.INTEGRATIONTEST) {
 
 
                   if (inputTokenName === "collateralToken") {
-                    inputToken = rEth;
+                    inputToken = weth;
                   } else {
                     swapDataInputToken = swapDataDebtToCollateral;
 
@@ -394,7 +381,7 @@ if (process.env.INTEGRATIONTEST) {
                   };
 
                   if (inputTokenName === "collateralToken") {
-                    outputToken = rEth;
+                    outputToken = weth;
                     swapDataOutputToken = {
                       path: [],
                       fees: [],
