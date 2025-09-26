@@ -462,7 +462,7 @@ library DEXAdapter {
             );
         }
         else {
-            _safeApprove(IERC20(_froom), _pool, _amountIn);
+            _safeApprove(IERC20(_from), _pool, _amountIn);
             amountOut = pool.exchange(
                 _i,
                 _j,
