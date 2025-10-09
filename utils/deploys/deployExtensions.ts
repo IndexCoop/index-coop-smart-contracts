@@ -52,6 +52,7 @@ import {
   DEXAdapterV4__factory,
   DEXAdapterV5__factory,
   DEXAdapterV5,
+  FlashMintLeveragedAaveFL__factory,
   FlashMintLeveragedZeroEx__factory,
   FlashMintLeveragedZeroExBalancerFL__factory,
 } from "../../typechain";
@@ -717,6 +718,49 @@ export default class DeployExtensions {
       aaveLeveragedModuleAddress,
       aaveAddressProviderAddress,
       BalancerV2VaultAddress,
+    );
+  }
+
+  public async deployFlashMintLeveragedAaveFL(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+    aaveLeveragedModuleAddress: Address,
+    aaveAddressProviderAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+  ) {
+    const dexAdapter = await this.deployDEXAdapter();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
+    );
+
+    return await new FlashMintLeveragedAaveFL__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      {
+        quickRouter: quickRouterAddress,
+        sushiRouter: sushiRouterAddress,
+        uniV3Router: uniV3RouterAddress,
+        uniV3Quoter: uniswapV3QuoterAddress,
+        curveAddressProvider: curveAddressProviderAddress,
+        curveCalculator: curveCalculatorAddress,
+        weth: wethAddress,
+      },
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      aaveLeveragedModuleAddress,
+      aaveAddressProviderAddress,
     );
   }
 
