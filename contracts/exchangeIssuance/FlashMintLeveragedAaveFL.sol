@@ -415,7 +415,6 @@ contract FlashMintLeveragedAaveFL is ReentrancyGuard, FlashLoanSimpleReceiverBas
             _performRedemption(asset, amount, premium, decodedParams);
         }
 
-        IERC20(asset).approve(address(POOL), amount + premium);
         return true;
     }
 
