@@ -19,6 +19,7 @@ import {
   ExchangeIssuance,
   ExchangeIssuanceV2,
   ExchangeIssuanceLeveraged,
+  ExchangeIssuanceIcEth,
   FlashMintNotional,
   FlashMintLeveragedForCompound,
   ExchangeIssuanceZeroEx,
@@ -64,6 +65,7 @@ import { DEXAdapterV3__factory } from "../../typechain/factories/DEXAdapterV3__f
 import { ExchangeIssuance__factory } from "../../typechain/factories/ExchangeIssuance__factory";
 import { ExchangeIssuanceV2__factory } from "../../typechain/factories/ExchangeIssuanceV2__factory";
 import { ExchangeIssuanceLeveraged__factory } from "../../typechain/factories/ExchangeIssuanceLeveraged__factory";
+import { ExchangeIssuanceIcEth__factory } from "../../typechain/factories/ExchangeIssuanceIcEth__factory";
 import { FlashMintHyETH__factory } from "../../typechain/factories/FlashMintHyETH__factory";
 import { FlashMintHyETHV2__factory } from "../../typechain/factories/FlashMintHyETHV2__factory";
 import { FlashMintHyETHV3__factory } from "../../typechain/factories/FlashMintHyETHV3__factory";
@@ -245,6 +247,48 @@ export default class DeployExtensions {
     return await new DEXAdapterV5__factory(this._deployerSigner).deploy();
   }
 
+  public async deployExchangeIssuanceIcEth(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    setControllerAddress: Address,
+    basicIssuanceModuleAddress: Address,
+    aaveLeveragedModuleAddress: Address,
+    aaveAddressProviderAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+  ): Promise<ExchangeIssuanceIcEth> {
+    const dexAdapter = await this.deployDEXAdapter();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
+    );
+
+    return await new ExchangeIssuanceIcEth__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      wethAddress,
+      quickRouterAddress,
+      sushiRouterAddress,
+      uniV3RouterAddress,
+      uniswapV3QuoterAddress,
+      setControllerAddress,
+      basicIssuanceModuleAddress,
+      aaveLeveragedModuleAddress,
+      aaveAddressProviderAddress,
+      // NOTE: contract expects curveAddressProvider first, then curveCalculator
+      curveAddressProviderAddress,
+      curveCalculatorAddress,
+    );
+  }
+
   public async deployExchangeIssuanceLeveraged(
     wethAddress: Address,
     quickRouterAddress: Address,
@@ -263,6 +307,8 @@ export default class DeployExtensions {
     const linkId = convertLibraryNameToLinkId(
       "contracts/exchangeIssuance/DEXAdapter.sol:DEXAdapter",
     );
+
+    console.log("Deploying ExchangeIssuanceLeveraged");
 
     return await new ExchangeIssuanceLeveraged__factory(
       // @ts-ignore

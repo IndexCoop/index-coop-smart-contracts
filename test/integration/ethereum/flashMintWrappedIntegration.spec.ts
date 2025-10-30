@@ -280,7 +280,7 @@ class TestHelper {
 }
 
 if (process.env.INTEGRATIONTEST) {
-  describe.only("FlashMintWrapped - Integration Test", async () => {
+  describe("FlashMintWrapped - Integration Test", async () => {
     let owner: Account;
     let deployer: DeployHelper;
     let setToken: StandardTokenMock;
