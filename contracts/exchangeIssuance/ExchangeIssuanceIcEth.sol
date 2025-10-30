@@ -1,5 +1,5 @@
 /*
-    Copyright 2022 Index Cooperative
+    Copyright 2025 Index Cooperative
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -199,7 +199,6 @@ contract ExchangeIssuanceIcEth is ReentrancyGuard, FlashLoanReceiverBaseV2{
      *
      * @param _setToken                     the set token to issue
      * @param _setAmount                    amount of set tokens
-     * @param _swapDataCollateralForDebt    swap data for the collateral to debt swap
      * @param _swapDataOutputToken          swap data for the collateral token to the output token
      *
      * @return                              amount of _outputToken that would be obtained from the redemption
@@ -207,7 +206,7 @@ contract ExchangeIssuanceIcEth is ReentrancyGuard, FlashLoanReceiverBaseV2{
     function getRedeemExactSet(
         ISetToken _setToken,
         uint256 _setAmount,
-        DEXAdapter.SwapData memory _swapDataCollateralForDebt,
+        DEXAdapter.SwapData memory /* _swapDataCollateralForDebt */,
         DEXAdapter.SwapData memory _swapDataOutputToken
     )
         external
@@ -220,14 +219,17 @@ contract ExchangeIssuanceIcEth is ReentrancyGuard, FlashLoanReceiverBaseV2{
         (components, equityPositions,) = debtIssuanceModule.getRequiredComponentRedemptionUnits(_setToken, _setAmount);
         address collateralToken;
         uint256 collateralAmount;
+        uint256 wethAmount;
         if (components[0] == addresses.weth) {
             collateralToken = IAToken(components[1]).UNDERLYING_ASSET_ADDRESS();
             collateralAmount = equityPositions[1] + ROUNDING_ERROR_MARGIN;
+            wethAmount = equityPositions[0];
         } else {
             collateralToken = IAToken(components[0]).UNDERLYING_ASSET_ADDRESS();
             collateralAmount = equityPositions[0] + ROUNDING_ERROR_MARGIN;
+            wethAmount = equityPositions[1];
         }
-        return DEXAdapter.getAmountOut(addresses, _swapDataOutputToken, collateralAmount);
+        return DEXAdapter.getAmountOut(addresses, _swapDataOutputToken, collateralAmount).add(wethAmount);
     }
 
     /**
@@ -236,14 +238,13 @@ contract ExchangeIssuanceIcEth is ReentrancyGuard, FlashLoanReceiverBaseV2{
      * @param _setToken                   Set token to redeem
      * @param _setAmount                  Amount to redeem
      * @param _minAmountOutputToken       Minimum amount of ETH to send to the user
-     * @param _swapDataCollateralForDebt  Data (token path and fee levels) describing the swap from Collateral Token to Debt Token
      * @param _swapDataOutputToken        Data (token path and fee levels) describing the swap from Collateral Token to Eth
      */
     function redeemExactSetForETH(
         ISetToken _setToken,
         uint256 _setAmount,
         uint256 _minAmountOutputToken,
-        DEXAdapter.SwapData memory _swapDataCollateralForDebt,
+        DEXAdapter.SwapData memory /* _swapDataCollateralForDebt */,
         DEXAdapter.SwapData memory _swapDataOutputToken
     )
         external
@@ -255,13 +256,10 @@ contract ExchangeIssuanceIcEth is ReentrancyGuard, FlashLoanReceiverBaseV2{
         uint256[] memory equityPositions;
         (components, equityPositions,) = debtIssuanceModule.getRequiredComponentRedemptionUnits(_setToken, _setAmount);
         address collateralToken;
-        uint256 collateralAmount;
         if (components[0] == addresses.weth) {
             collateralToken = IAToken(components[1]).UNDERLYING_ASSET_ADDRESS();
-            collateralAmount = equityPositions[1] + ROUNDING_ERROR_MARGIN;
         } else {
             collateralToken = IAToken(components[0]).UNDERLYING_ASSET_ADDRESS();
-            collateralAmount = equityPositions[0] + ROUNDING_ERROR_MARGIN;
         }
 
         _redeemSet(
@@ -272,22 +270,25 @@ contract ExchangeIssuanceIcEth is ReentrancyGuard, FlashLoanReceiverBaseV2{
 
         _withdrawCollateralToken(
             collateralToken,
-            collateralAmount - ROUNDING_ERROR_MARGIN
+            MAX_UINT256
         );
 
-        uint256 ethAmount = _swapCollateralForOutputToken(
+        _swapCollateralForOutputToken(
             collateralToken,
-            collateralAmount - ROUNDING_ERROR_MARGIN,
+            IERC20(collateralToken).balanceOf(address(this)),
             addresses.weth,
             _minAmountOutputToken,
-            _swapDataCollateralForDebt
+            _swapDataOutputToken
         );
-        if (ethAmount > 0) {
-            IWETH(addresses.weth).withdraw(ethAmount);
-            (payable(msg.sender)).sendValue(ethAmount);
-        }
-        emit ExchangeRedeem(msg.sender, _setToken, 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE, _setAmount, ethAmount);
-        require(ethAmount >= _minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
+
+        IWETH weth = IWETH(addresses.weth);
+        uint256 wethBalance = weth.balanceOf(address(this));
+        weth.withdraw(wethBalance);
+
+        uint256 ethBalance = address(this).balance;
+        (payable(msg.sender)).sendValue(ethBalance);
+        emit ExchangeRedeem(msg.sender, _setToken, 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE, _setAmount, ethBalance);
+        require(ethBalance >= _minAmountOutputToken, "ExchangeIssuance: INSUFFICIENT OUTPUT AMOUNT");
     }
 
     function executeOperation(
@@ -330,15 +331,12 @@ contract ExchangeIssuanceIcEth is ReentrancyGuard, FlashLoanReceiverBaseV2{
         (components, equityPositions,) = debtIssuanceModule.getRequiredComponentRedemptionUnits(_setToken, 1 ether);
         address collateralAToken;
         address collateralToken;
-        uint256 collateralAmount;
         if (components[0] == addresses.weth) {
             collateralAToken = components[1];
             collateralToken = IAToken(components[1]).UNDERLYING_ASSET_ADDRESS();
-            collateralAmount = equityPositions[1] + ROUNDING_ERROR_MARGIN;
         } else {
             collateralAToken = components[0];
             collateralToken = IAToken(components[0]).UNDERLYING_ASSET_ADDRESS();
-            collateralAmount = equityPositions[0] + ROUNDING_ERROR_MARGIN;
         }
 
         _approveToken(IERC20(collateralAToken));

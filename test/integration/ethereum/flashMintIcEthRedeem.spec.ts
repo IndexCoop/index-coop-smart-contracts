@@ -43,7 +43,7 @@ if (process.env.INTEGRATIONTEST) {
 
     let flashMint: ExchangeIssuanceIcEth;
 
-    const icEthHolder = "0x37e6365d4f6aE378467b0e24c9065Ce5f06D70bF"; // Index deployer
+    const icEthHolder = "0x4f865D78Ed3Df19c473b54C4c25Bd3958B868846";
 
     // Use a recent mainnet block where icETH is deleveraged with stETH aToken + WETH dust
     setBlockNumber(23673905, false);
@@ -118,6 +118,7 @@ if (process.env.INTEGRATIONTEST) {
       const holderAddress = await operator.getAddress();
       const startEth = await ethers.provider.getBalance(holderAddress);
       const icEthBal = await icEth.balanceOf(holderAddress);
+      console.log("icETH Balance:", ethers.utils.formatEther(icEthBal));
 
       expect(icEthBal.gt(0)).to.eq(true);
 
@@ -126,9 +127,9 @@ if (process.env.INTEGRATIONTEST) {
       // Approve FlashMint to transfer icETH
       await icEth.connect(operator).approve(flashMint.address, redeemAmount);
 
-      // SwapData for dust: WETH -> WETH (no-op) so we can unwrap to ETH
+      // SwapData for dust: no-op
       const dustSwapData: SwapData = {
-        path: [addresses.tokens.weth, addresses.tokens.weth],
+        path: [],
         fees: [],
         pool: ethers.constants.AddressZero,
         exchange: Exchange.None,
@@ -143,7 +144,7 @@ if (process.env.INTEGRATIONTEST) {
       };
 
       // Redeem for ETH (minAmountOutputToken set to 0 for flexibility in test env)
-      const tx = await flashMint.redeemExactSetForETH(
+      const tx = await flashMint.connect(operator).redeemExactSetForETH(
         addresses.tokens.icEth,
         redeemAmount,
         0,
@@ -157,11 +158,14 @@ if (process.env.INTEGRATIONTEST) {
       const endIcEth = await icEth.balanceOf(holderAddress);
 
       const endFlashMintWethBal = await weth.balanceOf(flashMint.address);
+      console.log("endFlashMintWethBal:", ethers.utils.formatEther(endFlashMintWethBal));
       expect(endFlashMintWethBal.eq(0)).to.eq(true);
 
       // icETH balance should decrease to near zero (allow minimal dust)
-      expect(endIcEth.lte(1)).to.eq(true);
-      expect(endEth.gt(startEth)).to.eq(true);
+      console.log("endIcEth:", ethers.utils.formatEther(endIcEth));
+      expect(endIcEth).to.eq(0);
+      // ETH balance should increase
+      expect(endEth.gt(startEth.add(ethers.utils.parseEther("10")))).to.eq(true);
     });
   });
 }
