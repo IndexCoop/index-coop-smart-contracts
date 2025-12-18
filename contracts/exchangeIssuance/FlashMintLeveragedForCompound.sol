@@ -576,8 +576,6 @@ contract FlashMintLeveragedForCompound is Exponential, ReentrancyGuard, FlashLoa
             (components, equityPositions, debtPositions) = debtIssuanceModule.getRequiredComponentRedemptionUnits(_setToken, _setAmount);
         }
         
-        require(equityPositions[0] == 0 || equityPositions[1] == 0, "FlashMint: TOO MANY EQUITY POSITIONS");
-        
         require(debtPositions[0] == 0 || debtPositions[1] == 0, "FlashMint: TOO MANY DEBT POSITIONS");
 
         if(equityPositions[0] > 0){

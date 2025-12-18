@@ -570,7 +570,6 @@ contract FlashMintLeveraged is ReentrancyGuard, IFlashLoanRecipient{
         }
 
         require(components.length == 2, "ExchangeIssuance: TOO MANY COMPONENTS");
-        require(equityPositions[0] == 0 || equityPositions[1] == 0, "ExchangeIssuance: TOO MANY EQUITY POSITIONS");
         require(debtPositions[0] == 0 || debtPositions[1] == 0, "ExchangeIssuance: TOO MANY DEBT POSITIONS");
 
         if(equityPositions[0] > 0){

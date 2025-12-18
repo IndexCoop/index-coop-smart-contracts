@@ -44,7 +44,8 @@ if (process.env.INTEGRATIONTEST) {
     let setToken: StandardTokenMock;
     let weth: IWETH;
 
-    setBlockNumber(23447463, false);
+    // Using a recent block to reproduce the "TOO MANY EQUITY POSITIONS" issue with ETH3x
+    setBlockNumber(24039350, false);
 
     before(async () => {
       [owner] = await getAccounts();
