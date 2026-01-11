@@ -20,688 +20,273 @@ pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IERC721Receiver } from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-import { SafeCast } from "@openzeppelin/contracts/utils/SafeCast.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
+import { ISwapRouter } from "../interfaces/external/ISwapRouter.sol";
 import { IBalancerVault } from "../interfaces/IBalancerVault.sol";
 import { IMorpho } from "../interfaces/IMorpho.sol";
-import { FlashLoanSimpleReceiverBase } from "../lib/FlashLoanSimpleReceiverBase.sol";
 import { IPoolAddressesProvider } from "../interfaces/IPoolAddressesProvider.sol";
-
 import { INonfungiblePositionManager } from "../interfaces/external/uniswap-v3/INonfungiblePositionManager.sol";
-import { IUniswapV3Pool } from "../interfaces/external/uniswap-v3/IUniswapV3Pool.sol";
 
-import { BaseExtension } from "../lib/BaseExtension.sol";
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
 import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { ITradeModule } from "../interfaces/ITradeModule.sol";
-import { PreciseUnitMath } from "../lib/PreciseUnitMath.sol";
+
+import { MigrationExtension } from "./MigrationExtension.sol";
 
 /**
  * @title IntermediateMigrationExtension
  * @author Index Coop
- * @notice Extension for migrating ETH2xFLI from holding ETH2X to holding an IntermediateToken (ETH2XFW).
- * This is a modified version of MigrationExtension that adds an extra layer of wrapping:
- * - Original: WETH → aWETH → ETH2X
- * - This version: WETH → aWETH → ETH2X → IntermediateToken
+ * @notice Extension for migrating ETH2xFLI from holding ETH2X to holding an IntermediateToken.
  *
- * The key differences from MigrationExtension:
- * 1. Adds `intermediateToken` state variable
- * 2. Liquidity pair is ETH2X/IntermediateToken (not WETH/ETH2X)
- * 3. Trade is ETH2X → IntermediateToken (not WETH → ETH2X)
- * 4. Additional issuance/redemption steps for IntermediateToken
+ * This extends MigrationExtension to handle an extra layer of wrapping:
+ * - Original MigrationExtension: WETH → aWETH → wrappedSetToken (simple)
+ * - This extension: WETH → aWETH → nestedSetToken (leveraged, e.g. ETH2X) → wrappedSetToken (IntermediateToken)
+ *
+ * Key differences from MigrationExtension:
+ * 1. The wrappedSetToken (IntermediateToken) contains a nestedSetToken (ETH2X)
+ * 2. The nestedSetToken is a leveraged token with aWETH equity and USDC debt
+ * 3. When issuing nestedSetToken, we receive USDC (debt component) which we sell for WETH
+ * 4. When redeeming nestedSetToken, we must buy USDC to pay back the debt
+ * 5. Pool is WETH/IntermediateToken (same pattern as original WETH/wrappedSetToken)
  */
-contract IntermediateMigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC721Receiver {
-    using PreciseUnitMath for uint256;
-    using SafeCast for int256;
-    using SafeERC20 for IERC20;
+contract IntermediateMigrationExtension is MigrationExtension {
     using SafeMath for uint256;
 
     /* ============ Structs ============ */
 
-    struct DecodedParams {
-        uint256 supplyLiquidityAmount0Desired;
-        uint256 supplyLiquidityAmount1Desired;
-        uint256 supplyLiquidityAmount0Min;
-        uint256 supplyLiquidityAmount1Min;
-        uint256 tokenId;
-        string exchangeName;
-        uint256 wrappedSetTokenTradeUnits;      // ETH2X units to trade (sendToken)
-        uint256 intermediateTokenTradeUnits;    // IntermediateToken units expected (receiveToken)
-        bytes exchangeData;
-        uint256 redeemLiquidityAmount0Min;
-        uint256 redeemLiquidityAmount1Min;
-        bool isWrappedSetToken0;                // True if ETH2X is token0 in the pool
+    /**
+     * @dev Struct to hold constructor arguments to avoid stack too deep errors.
+     */
+    struct ConstructorParams {
+        IBaseManager manager;
+        IERC20 underlyingToken;
+        IERC20 aaveToken;
+        IERC20 debtToken;
+        ISetToken wrappedSetToken;
+        ISetToken nestedSetToken;
+        ITradeModule tradeModule;
+        IDebtIssuanceModule issuanceModule;
+        IDebtIssuanceModule nestedSetTokenIssuanceModule;
+        INonfungiblePositionManager nonfungiblePositionManager;
+        IPoolAddressesProvider addressProvider;
+        IMorpho morpho;
+        IBalancerVault balancer;
+        ISwapRouter swapRouter;
     }
 
     /* ========== State Variables ========= */
 
-    ISetToken public immutable setToken;
-    IERC20 public immutable underlyingToken;       // WETH
-    IERC20 public immutable aaveToken;             // aWETH
-    ISetToken public immutable wrappedSetToken;    // ETH2X
-    ISetToken public immutable intermediateToken;  // IntermediateToken (ETH2XFW)
-    ITradeModule public immutable tradeModule;
-    IDebtIssuanceModule public immutable issuanceModule;
-    INonfungiblePositionManager public immutable nonfungiblePositionManager;
-    IMorpho public immutable morpho;
-    IBalancerVault public immutable balancer;
+    IERC20 public immutable debtToken;              // USDC (debt component of nestedSetToken)
+    ISetToken public immutable nestedSetToken;      // ETH2X (the leveraged token inside IntermediateToken)
+    IDebtIssuanceModule public immutable nestedSetTokenIssuanceModule;  // For issuing/redeeming nestedSetToken
+    ISwapRouter public immutable swapRouter;        // Uniswap V3 SwapRouter for USDC swaps
 
-    uint256[] public tokenIds; // UniV3 LP Token IDs
+    uint24 public constant SWAP_FEE = 500;          // 0.05% pool fee for USDC/WETH swaps
 
     /* ============ Constructor ============ */
 
     /**
-     * @notice Initializes the IntermediateMigrationExtension with immutable migration variables.
-     * @param _manager BaseManager contract for managing the SetToken's operations and permissions.
-     * @param _underlyingToken Address of the underlying token (WETH).
-     * @param _aaveToken Address of Aave's wrapped collateral asset (aWETH).
-     * @param _wrappedSetToken SetToken that consists of Aave's wrapped collateral (ETH2X).
-     * @param _intermediateToken SetToken that wraps ETH2X (IntermediateToken/ETH2XFW).
-     * @param _tradeModule TradeModule address for executing trades on behalf of the SetToken.
-     * @param _issuanceModule IssuanceModule address for managing issuance and redemption.
-     * @param _nonfungiblePositionManager Uniswap V3's NonFungiblePositionManager.
-     * @param _addressProvider Aave V3's Pool Address Provider.
-     * @param _morpho Morpho flash loan provider.
-     * @param _balancer Balancer vault for flash loans.
+     * @notice Initializes the IntermediateMigrationExtension with all required parameters.
+     * @param _params Struct containing all constructor parameters.
      */
-    constructor(
-        IBaseManager _manager,
-        IERC20 _underlyingToken,
-        IERC20 _aaveToken,
-        ISetToken _wrappedSetToken,
-        ISetToken _intermediateToken,
-        ITradeModule _tradeModule,
-        IDebtIssuanceModule _issuanceModule,
-        INonfungiblePositionManager _nonfungiblePositionManager,
-        IPoolAddressesProvider _addressProvider,
-        IMorpho _morpho,
-        IBalancerVault _balancer
-    )
+    constructor(ConstructorParams memory _params)
         public
-        BaseExtension(_manager)
-        FlashLoanSimpleReceiverBase(_addressProvider)
+        MigrationExtension(
+            _params.manager,
+            _params.underlyingToken,
+            _params.aaveToken,
+            _params.wrappedSetToken,
+            _params.tradeModule,
+            _params.issuanceModule,
+            _params.nonfungiblePositionManager,
+            _params.addressProvider,
+            _params.morpho,
+            _params.balancer
+        )
     {
-        manager = _manager;
-        setToken = manager.setToken();
-        underlyingToken = _underlyingToken;
-        aaveToken = _aaveToken;
-        wrappedSetToken = _wrappedSetToken;
-        intermediateToken = _intermediateToken;
-        tradeModule = _tradeModule;
-        issuanceModule = _issuanceModule;
-        nonfungiblePositionManager = _nonfungiblePositionManager;
-        morpho = _morpho;
-        balancer = _balancer;
+        debtToken = _params.debtToken;
+        nestedSetToken = _params.nestedSetToken;
+        nestedSetTokenIssuanceModule = _params.nestedSetTokenIssuanceModule;
+        swapRouter = _params.swapRouter;
     }
 
-    /* ========== External Functions ========== */
+    /* ========== Internal Functions (Overrides) ========== */
 
     /**
-     * @notice OPERATOR ONLY: Initializes the Set Token on the Trade Module.
+     * @dev Issues the required amount of IntermediateToken for the liquidity increase.
+     * This is more complex than the base implementation because we need to:
+     * 1. Calculate how much nestedSetToken (ETH2X) is needed for IntermediateToken
+     * 2. Calculate how much aWETH is needed for nestedSetToken
+     * 3. Supply WETH to Aave → get aWETH
+     * 4. Issue nestedSetToken (pay aWETH equity, receive USDC debt)
+     * 5. Issue IntermediateToken (pay nestedSetToken)
+     * 6. Sell USDC for WETH (helps repay flash loan)
+     *
+     * @param _wrappedSetTokenSupplyLiquidityAmount The amount of IntermediateToken to supply.
      */
-    function initialize() external onlyOperator {
-        bytes memory data = abi.encodeWithSelector(tradeModule.initialize.selector, setToken);
-        invokeManager(address(tradeModule), data);
-    }
-
-    /**
-     * @notice OPERATOR ONLY: Executes a trade on a supported DEX.
-     */
-    function trade(
-        string memory _exchangeName,
-        address _sendToken,
-        uint256 _sendQuantity,
-        address _receiveToken,
-        uint256 _minReceiveQuantity,
-        bytes memory _data
-    )
-        external
-        onlyOperator
-    {
-        _trade(
-            _exchangeName,
-            _sendToken,
-            _sendQuantity,
-            _receiveToken,
-            _minReceiveQuantity,
-            _data
-        );
-    }
-
-    /**
-     * @notice OPERATOR ONLY: Mints a new liquidity position in the Uniswap V3 pool.
-     * Pool is ETH2X/IntermediateToken.
-     */
-    function mintLiquidityPosition(
-        uint256 _amount0Desired,
-        uint256 _amount1Desired,
-        uint256 _amount0Min,
-        uint256 _amount1Min,
-        int24 _tickLower,
-        int24 _tickUpper,
-        uint24 _fee,
-        bool _isWrappedSetToken0
-    )
-        external
-        onlyOperator
-    {
-        _mintLiquidityPosition(
-            _amount0Desired,
-            _amount1Desired,
-            _amount0Min,
-            _amount1Min,
-            _tickLower,
-            _tickUpper,
-            _fee,
-            _isWrappedSetToken0
-        );
-    }
-
-    /**
-     * @notice OPERATOR ONLY: Increases liquidity position in the Uniswap V3 pool.
-     */
-    function increaseLiquidityPosition(
-        uint256 _amount0Desired,
-        uint256 _amount1Desired,
-        uint256 _amount0Min,
-        uint256 _amount1Min,
-        uint256 _tokenId,
-        bool _isWrappedSetToken0
-    )
-        external
-        onlyOperator
-        returns (uint128 liquidity)
-    {
-        liquidity = _increaseLiquidityPosition(
-            _amount0Desired,
-            _amount1Desired,
-            _amount0Min,
-            _amount1Min,
-            _tokenId,
-            _isWrappedSetToken0
-        );
-    }
-
-    /**
-     * @notice OPERATOR ONLY: Decreases and collects from a liquidity position.
-     */
-    function decreaseLiquidityPosition(
-        uint256 _tokenId,
-        uint128 _liquidity,
-        uint256 _amount0Min,
-        uint256 _amount1Min
-    )
-        external
-        onlyOperator
-    {
-        _decreaseLiquidityPosition(
-            _tokenId,
-            _liquidity,
-            _amount0Min,
-            _amount1Min
-        );
-    }
-
-    /**
-     * @notice OPERATOR ONLY: Migrates ETH2xFLI from holding ETH2X to holding IntermediateToken
-     * using Aave Flashloan.
-     */
-    function migrateAave(
-        DecodedParams memory _decodedParams,
-        uint256 _underlyingLoanAmount,
-        uint256 _maxSubsidy
-    )
-        external
-        onlyOperator
-        returns (uint256 underlyingOutputAmount)
-    {
-        // Subsidize the migration
-        if (_maxSubsidy > 0) {
-            underlyingToken.transferFrom(msg.sender, address(this), _maxSubsidy);
-        }
-
-        // Encode migration parameters for flash loan callback
-        bytes memory params = abi.encode(_decodedParams);
-
-        // Request flash loan for the underlying token
-        POOL.flashLoanSimple(
-            address(this),
-            address(underlyingToken),
-            _underlyingLoanAmount,
-            params,
-            0
-        );
-
-        // Return remaining underlying token to the operator
-        underlyingOutputAmount = _returnExcessUnderlying();
-    }
-
-    /**
-     * @notice OPERATOR ONLY: Migrates ETH2xFLI using Balancer Flashloan.
-     */
-    function migrateBalancer(
-        DecodedParams memory _decodedParams,
-        uint256 _underlyingLoanAmount,
-        uint256 _maxSubsidy
-    )
-        external
-        onlyOperator
-        returns (uint256 underlyingOutputAmount)
-    {
-        // Subsidize the migration
-        if (_maxSubsidy > 0) {
-            underlyingToken.transferFrom(msg.sender, address(this), _maxSubsidy);
-        }
-
-        // Encode migration parameters for flash loan callback
-        bytes memory params = abi.encode(_decodedParams);
-        address[] memory tokens = new address[](1);
-        tokens[0] = address(underlyingToken);
-        uint256[] memory amounts = new  uint256[](1);
-        amounts[0] = _underlyingLoanAmount;
-
-        // Request flash loan for the underlying token
-        balancer.flashLoan(address(this), tokens, amounts, params);
-
-        // Return remaining underlying token to the operator
-        underlyingOutputAmount = _returnExcessUnderlying();
-    }
-
-    /**
-     * @dev Callback function for Balancer flashloan
-    */
-    function receiveFlashLoan(
-        IERC20[] memory tokens,
-        uint256[] memory amounts,
-        uint256[] memory feeAmounts,
-        bytes memory params
-    ) external {
-        require(msg.sender == address(balancer));
-        // Decode parameters and migrate
-        DecodedParams memory decodedParams = abi.decode(params, (DecodedParams));
-        _migrate(decodedParams);
-
-        underlyingToken.transfer(address(balancer), amounts[0] + feeAmounts[0]);
-    }
-
-    /**
-     * @notice OPERATOR ONLY: Migrates ETH2xFLI using Morpho Flashloan.
-     */
-    function migrateMorpho(
-        DecodedParams memory _decodedParams,
-        uint256 _underlyingLoanAmount,
-        uint256 _maxSubsidy
-    )
-        external
-        onlyOperator
-        returns (uint256 underlyingOutputAmount)
-    {
-        // Subsidize the migration
-        if (_maxSubsidy > 0) {
-            underlyingToken.transferFrom(msg.sender, address(this), _maxSubsidy);
-        }
-
-        // Encode migration parameters for flash loan callback
-        bytes memory params = abi.encode(_decodedParams);
-
-        // Request flash loan for the underlying token
-        morpho.flashLoan(address(underlyingToken), _underlyingLoanAmount, params);
-
-        // Return remaining underlying token to the operator
-        underlyingOutputAmount = _returnExcessUnderlying();
-    }
-
-    /**
-     * @dev Callback function for Morpho Flashloan
-    */
-    function onMorphoFlashLoan(uint256 assets, bytes calldata params) external
-    {
-        require(msg.sender == address(morpho), "IntermediateMigrationExtension: invalid flashloan sender");
-
-        // Decode parameters and migrate
-        DecodedParams memory decodedParams = abi.decode(params, (DecodedParams));
-        _migrate(decodedParams);
-
-        underlyingToken.approve(address(morpho), assets);
-    }
-
-    /**
-     * @dev Callback function for Aave V3 flash loan.
-     */
-    function executeOperation(
-        address, // asset
-        uint256 amount,
-        uint256 premium,
-        address initiator,
-        bytes calldata params
-    )
-        external
-        override
-        returns (bool)
-    {
-        require(msg.sender == address(POOL), "IntermediateMigrationExtension: invalid flashloan sender");
-        require(initiator == address(this), "IntermediateMigrationExtension: invalid flashloan initiator");
-
-        // Decode parameters and migrate
-        DecodedParams memory decodedParams = abi.decode(params, (DecodedParams));
-        _migrate(decodedParams);
-
-        underlyingToken.approve(address(POOL), amount + premium);
-        return true;
-    }
-
-    /**
-     * @notice Receives ERC721 tokens, required for Uniswap V3 LP NFT handling.
-     */
-    function onERC721Received(
-        address, // operator
-        address, // from
-        uint256, // tokenId
-        bytes calldata // data
-    )
-        external
-        override
-        returns (bytes4)
-    {
-        return this.onERC721Received.selector;
-    }
-
-    /**
-     * @notice OPERATOR ONLY: Transfers any residual balances to the operator's address.
-     */
-    function sweepTokens(address _token) external onlyOperator {
-        IERC20 token = IERC20(_token);
-        uint256 balance = token.balanceOf(address(this));
-        require(balance > 0, "IntermediateMigrationExtension: no balance to sweep");
-        token.transfer(manager.operator(), balance);
-    }
-
-    /* ========== Internal Functions ========== */
-
-    /**
-     * @dev Conducts the actual migration steps:
-     * 1. Issue ETH2X and IntermediateToken
-     * 2. Add ETH2X/IntermediateToken liquidity
-     * 3. Trade ETH2xFLI's ETH2X → IntermediateToken
-     * 4. Remove liquidity
-     * 5. Redeem excess tokens back to WETH
-     */
-    function _migrate(DecodedParams memory decodedParams) internal {
-        uint256 intermediateTokenSupplyLiquidityAmount = decodedParams.isWrappedSetToken0
-            ? decodedParams.supplyLiquidityAmount1Desired
-            : decodedParams.supplyLiquidityAmount0Desired;
-
-        _issueRequiredTokens(intermediateTokenSupplyLiquidityAmount);
-
-        uint128 liquidity = _increaseLiquidityPosition(
-            decodedParams.supplyLiquidityAmount0Desired,
-            decodedParams.supplyLiquidityAmount1Desired,
-            decodedParams.supplyLiquidityAmount0Min,
-            decodedParams.supplyLiquidityAmount1Min,
-            decodedParams.tokenId,
-            decodedParams.isWrappedSetToken0
-        );
-
-        // Trade ETH2X → IntermediateToken (different from original which was WETH → ETH2X)
-        _trade(
-            decodedParams.exchangeName,
-            address(wrappedSetToken),           // sendToken: ETH2X
-            decodedParams.wrappedSetTokenTradeUnits,
-            address(intermediateToken),         // receiveToken: IntermediateToken
-            decodedParams.intermediateTokenTradeUnits,
-            decodedParams.exchangeData
-        );
-
-        _decreaseLiquidityPosition(
-            decodedParams.tokenId,
-            liquidity,
-            decodedParams.redeemLiquidityAmount0Min,
-            decodedParams.redeemLiquidityAmount1Min
-        );
-
-        _redeemExcessTokens();
-    }
-
-    /**
-     * @dev Internal function to execute trades.
-     */
-    function _trade(
-        string memory _exchangeName,
-        address _sendToken,
-        uint256 _sendQuantity,
-        address _receiveToken,
-        uint256 _minReceiveQuantity,
-        bytes memory _data
-    )
-        internal
-    {
-        bytes memory callData = abi.encodeWithSignature(
-            "trade(address,string,address,uint256,address,uint256,bytes)",
-            setToken,
-            _exchangeName,
-            _sendToken,
-            _sendQuantity,
-            _receiveToken,
-            _minReceiveQuantity,
-            _data
-        );
-        invokeManager(address(tradeModule), callData);
-    }
-
-    /**
-     * @dev Issues the required tokens for liquidity:
-     * 1. Supply WETH to Aave → get aWETH
-     * 2. Issue ETH2X using aWETH
-     * 3. Issue IntermediateToken using ETH2X
-     */
-    function _issueRequiredTokens(uint256 _intermediateTokenSupplyLiquidityAmount) internal {
-        uint256 intermediateTokenBalance = intermediateToken.balanceOf(address(this));
-        if (_intermediateTokenSupplyLiquidityAmount > intermediateTokenBalance) {
-            uint256 intermediateTokenIssueAmount = _intermediateTokenSupplyLiquidityAmount.sub(intermediateTokenBalance);
-
-            // First, we need ETH2X to issue IntermediateToken
-            // Get required ETH2X amount (IntermediateToken is 1:1 with ETH2X)
-            (address[] memory intermediateAssets, uint256[] memory intermediateUnits,) = issuanceModule.getRequiredComponentIssuanceUnits(
-                intermediateToken,
-                intermediateTokenIssueAmount
-            );
-            require(intermediateAssets.length == 1, "IntermediateMigrationExtension: invalid intermediate token composition");
-            require(intermediateAssets[0] == address(wrappedSetToken), "IntermediateMigrationExtension: intermediate token underlying mismatch");
-
-            uint256 wrappedSetTokenRequired = intermediateUnits[0];
-
-            // Now get required aWETH to issue ETH2X
-            uint256 wrappedSetTokenBalance = wrappedSetToken.balanceOf(address(this));
-            if (wrappedSetTokenRequired > wrappedSetTokenBalance) {
-                uint256 wrappedSetTokenIssueAmount = wrappedSetTokenRequired.sub(wrappedSetTokenBalance);
-
-                (address[] memory wrappedAssets, uint256[] memory wrappedUnits,) = issuanceModule.getRequiredComponentIssuanceUnits(
-                    wrappedSetToken,
-                    wrappedSetTokenIssueAmount
-                );
-                require(wrappedAssets.length == 1, "IntermediateMigrationExtension: invalid wrapped SetToken composition");
-                require(wrappedAssets[0] == address(aaveToken), "IntermediateMigrationExtension: wrapped SetToken underlying mismatch");
-
-                // Supply underlying for Aave wrapped token (WETH → aWETH)
-                underlyingToken.approve(address(POOL), wrappedUnits[0]);
-                POOL.supply(
-                    address(underlyingToken),
-                    wrappedUnits[0],
-                    address(this),
-                    0
-                );
-
-                // Issue ETH2X (wrappedSetToken)
-                aaveToken.approve(address(issuanceModule), wrappedSetTokenIssueAmount);
-                issuanceModule.issue(wrappedSetToken, wrappedSetTokenIssueAmount, address(this));
-            }
-
-            // Issue IntermediateToken using ETH2X
-            IERC20(address(wrappedSetToken)).approve(address(issuanceModule), intermediateTokenIssueAmount);
-            issuanceModule.issue(intermediateToken, intermediateTokenIssueAmount, address(this));
-        }
-    }
-
-    /**
-     * @dev Redeems excess tokens back to WETH:
-     * 1. Redeem IntermediateToken → ETH2X
-     * 2. Redeem ETH2X → aWETH
-     * 3. Withdraw aWETH → WETH
-     */
-    function _redeemExcessTokens() internal {
-        // First redeem IntermediateToken → ETH2X
-        uint256 intermediateTokenBalance = intermediateToken.balanceOf(address(this));
-        if (intermediateTokenBalance > 0) {
-            IERC20(address(intermediateToken)).approve(address(issuanceModule), intermediateTokenBalance);
-            issuanceModule.redeem(intermediateToken, intermediateTokenBalance, address(this));
-        }
-
-        // Then redeem ETH2X → aWETH
+    function _issueRequiredWrappedSetToken(uint256 _wrappedSetTokenSupplyLiquidityAmount) internal override {
         uint256 wrappedSetTokenBalance = wrappedSetToken.balanceOf(address(this));
-        if (wrappedSetTokenBalance > 0) {
-            IERC20(address(wrappedSetToken)).approve(address(issuanceModule), wrappedSetTokenBalance);
-            issuanceModule.redeem(wrappedSetToken, wrappedSetTokenBalance, address(this));
+        if (_wrappedSetTokenSupplyLiquidityAmount <= wrappedSetTokenBalance) return;
 
-            // Withdraw underlying from Aave (aWETH → WETH)
-            uint256 aaveBalance = aaveToken.balanceOf(address(this));
+        uint256 intermediateIssueAmount = _wrappedSetTokenSupplyLiquidityAmount.sub(wrappedSetTokenBalance);
+
+        // Get how much nestedSetToken (ETH2X) is needed for IntermediateToken
+        (address[] memory intComponents, uint256[] memory intUnits,) = issuanceModule.getRequiredComponentIssuanceUnits(
+            wrappedSetToken,  // IntermediateToken
+            intermediateIssueAmount
+        );
+        require(intComponents.length == 1, "IntermediateMigrationExtension: invalid intermediate token composition");
+        require(intComponents[0] == address(nestedSetToken), "IntermediateMigrationExtension: intermediate token underlying mismatch");
+        uint256 nestedSetTokenNeeded = intUnits[0];
+
+        // Get how much aWETH is needed for nestedSetToken (leveraged: equity + debt)
+        (address[] memory nestedComponents, uint256[] memory nestedEquityUnits,) = nestedSetTokenIssuanceModule.getRequiredComponentIssuanceUnits(
+            nestedSetToken,  // ETH2X
+            nestedSetTokenNeeded
+        );
+
+        // Find aWETH requirement (equity component)
+        uint256 aaveRequired = _findAaveRequirement(nestedComponents, nestedEquityUnits);
+        require(aaveRequired > 0, "IntermediateMigrationExtension: aWETH not found in nestedSetToken components");
+
+        // 1. WETH → aWETH via Aave
+        underlyingToken.approve(address(POOL), aaveRequired);
+        POOL.supply(address(underlyingToken), aaveRequired, address(this), 0);
+
+        // 2. Issue nestedSetToken (pay aWETH equity, receive USDC debt)
+        aaveToken.approve(address(nestedSetTokenIssuanceModule), aaveRequired);
+        nestedSetTokenIssuanceModule.issue(nestedSetToken, nestedSetTokenNeeded, address(this));
+
+        // 3. Issue IntermediateToken (pay nestedSetToken)
+        IERC20(address(nestedSetToken)).approve(address(issuanceModule), nestedSetTokenNeeded);
+        issuanceModule.issue(wrappedSetToken, intermediateIssueAmount, address(this));
+
+        // 4. Sell USDC for WETH (helps repay flash loan)
+        uint256 usdcBalance = debtToken.balanceOf(address(this));
+        if (usdcBalance > 0) {
+            _sellDebtTokenForUnderlying(usdcBalance);
+        }
+    }
+
+    /**
+     * @dev Redeems any excess IntermediateToken after liquidity decrease.
+     * This is more complex than the base implementation because we need to:
+     * 1. Redeem IntermediateToken → nestedSetToken
+     * 2. Buy USDC with WETH (to pay back debt)
+     * 3. Redeem nestedSetToken (pay USDC debt, receive aWETH equity)
+     * 4. Withdraw aWETH → WETH from Aave
+     */
+    function _redeemExcessWrappedSetToken() internal override {
+        uint256 wrappedSetTokenBalance = wrappedSetToken.balanceOf(address(this));
+        if (wrappedSetTokenBalance == 0) return;
+
+        // 1. Redeem IntermediateToken → nestedSetToken
+        IERC20(address(wrappedSetToken)).approve(address(issuanceModule), wrappedSetTokenBalance);
+        issuanceModule.redeem(wrappedSetToken, wrappedSetTokenBalance, address(this));
+
+        uint256 nestedSetTokenBalance = nestedSetToken.balanceOf(address(this));
+        if (nestedSetTokenBalance == 0) return;
+
+        // 2. Get USDC required to redeem nestedSetToken (the debt we need to pay back)
+        (address[] memory components,, uint256[] memory redemptionDebtUnits) = nestedSetTokenIssuanceModule.getRequiredComponentRedemptionUnits(
+            nestedSetToken,
+            nestedSetTokenBalance
+        );
+
+        // Find USDC debt requirement and buy it with WETH
+        uint256 usdcRequired = _findDebtRequirement(components, redemptionDebtUnits);
+        if (usdcRequired > 0) {
+            _buyDebtTokenWithUnderlying(usdcRequired);
+            debtToken.approve(address(nestedSetTokenIssuanceModule), usdcRequired);
+        }
+
+        // 3. Redeem nestedSetToken (pay USDC debt, receive aWETH equity)
+        IERC20(address(nestedSetToken)).approve(address(nestedSetTokenIssuanceModule), nestedSetTokenBalance);
+        nestedSetTokenIssuanceModule.redeem(nestedSetToken, nestedSetTokenBalance, address(this));
+
+        // 4. Withdraw aWETH → WETH from Aave
+        uint256 aaveBalance = aaveToken.balanceOf(address(this));
+        if (aaveBalance > 0) {
             aaveToken.approve(address(POOL), aaveBalance);
-            POOL.withdraw(
-                address(underlyingToken),
-                aaveBalance,
-                address(this)
-            );
+            POOL.withdraw(address(underlyingToken), aaveBalance, address(this));
         }
     }
 
     /**
-     * @dev Internal function to mint a new liquidity position.
-     * Pool is ETH2X/IntermediateToken.
+     * @dev Finds the aWETH requirement from component arrays.
      */
-    function _mintLiquidityPosition(
-        uint256 _amount0Desired,
-        uint256 _amount1Desired,
-        uint256 _amount0Min,
-        uint256 _amount1Min,
-        int24 _tickLower,
-        int24 _tickUpper,
-        uint24 _fee,
-        bool _isWrappedSetToken0
-    ) internal {
-        // Sort tokens and amounts
-        (
-            address token0,
-            address token1,
-            uint256 wrappedSetTokenAmount,
-            uint256 intermediateTokenAmount
-        ) = _isWrappedSetToken0
-            ? (address(wrappedSetToken), address(intermediateToken), _amount0Desired, _amount1Desired)
-            : (address(intermediateToken), address(wrappedSetToken), _amount1Desired, _amount0Desired);
-
-        // Approve tokens
-        if (wrappedSetTokenAmount > 0) {
-            IERC20(address(wrappedSetToken)).approve(address(nonfungiblePositionManager), wrappedSetTokenAmount);
+    function _findAaveRequirement(
+        address[] memory _components,
+        uint256[] memory _units
+    ) internal view returns (uint256) {
+        for (uint256 i = 0; i < _components.length; i++) {
+            if (_components[i] == address(aaveToken)) {
+                return _units[i];
+            }
         }
-        if (intermediateTokenAmount > 0) {
-            IERC20(address(intermediateToken)).approve(address(nonfungiblePositionManager), intermediateTokenAmount);
-        }
+        return 0;
+    }
 
-        // Mint liquidity position
-        INonfungiblePositionManager.MintParams memory mintParams = INonfungiblePositionManager.MintParams({
-            token0: token0,
-            token1: token1,
-            fee: _fee,
-            tickLower: _tickLower,
-            tickUpper: _tickUpper,
-            amount0Desired: _amount0Desired,
-            amount1Desired: _amount1Desired,
-            amount0Min: _amount0Min,
-            amount1Min: _amount1Min,
+    /**
+     * @dev Finds the USDC debt requirement from component arrays.
+     */
+    function _findDebtRequirement(
+        address[] memory _components,
+        uint256[] memory _debtUnits
+    ) internal view returns (uint256) {
+        for (uint256 i = 0; i < _components.length; i++) {
+            if (_components[i] == address(debtToken) && _debtUnits[i] > 0) {
+                return _debtUnits[i];
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * @dev Sells USDC (debt token) for WETH (underlying) using Uniswap V3.
+     * This is called after issuing nestedSetToken to convert the received USDC
+     * back to WETH, which helps repay the flash loan.
+     * @param _amount The amount of USDC to sell.
+     */
+    function _sellDebtTokenForUnderlying(uint256 _amount) internal {
+        debtToken.approve(address(swapRouter), _amount);
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+            tokenIn: address(debtToken),
+            tokenOut: address(underlyingToken),
+            fee: SWAP_FEE,
             recipient: address(this),
-            deadline: block.timestamp
+            deadline: block.timestamp,
+            amountIn: _amount,
+            amountOutMinimum: 0,  // In production, should add slippage protection
+            sqrtPriceLimitX96: 0
         });
-        (uint256 tokenId,,,) = nonfungiblePositionManager.mint(mintParams);
-        tokenIds.push(tokenId);
+        swapRouter.exactInputSingle(params);
     }
 
     /**
-     * @dev Internal function to increase liquidity.
-     * Pool is ETH2X/IntermediateToken.
+     * @dev Buys USDC (debt token) with WETH (underlying) using Uniswap V3.
+     * This is called before redeeming nestedSetToken because we need USDC
+     * to pay back the debt component.
+     * @param _amount The amount of USDC to buy.
      */
-    function _increaseLiquidityPosition(
-        uint256 _amount0Desired,
-        uint256 _amount1Desired,
-        uint256 _amount0Min,
-        uint256 _amount1Min,
-        uint256 _tokenId,
-        bool _isWrappedSetToken0
-    )
-        internal
-        returns (uint128 liquidity)
-    {
-        (uint256 wrappedSetTokenAmount, uint256 intermediateTokenAmount) = _isWrappedSetToken0
-            ? (_amount0Desired, _amount1Desired)
-            : (_amount1Desired, _amount0Desired);
+    function _buyDebtTokenWithUnderlying(uint256 _amount) internal {
+        // Use exactOutputSingle to get exactly the amount of USDC we need
+        // First, approve more WETH than needed (we'll get refund if less is used)
+        uint256 maxWethIn = _amount.mul(1e12).mul(105).div(100);  // USDC is 6 decimals, WETH is 18, add 5% buffer
+        underlyingToken.approve(address(swapRouter), maxWethIn);
 
-        // Approve tokens
-        if (wrappedSetTokenAmount > 0) {
-            IERC20(address(wrappedSetToken)).approve(address(nonfungiblePositionManager), wrappedSetTokenAmount);
-        }
-        if (intermediateTokenAmount > 0) {
-            IERC20(address(intermediateToken)).approve(address(nonfungiblePositionManager), intermediateTokenAmount);
-        }
-
-        // Increase liquidity
-        INonfungiblePositionManager.IncreaseLiquidityParams memory increaseParams = INonfungiblePositionManager.IncreaseLiquidityParams({
-            tokenId: _tokenId,
-            amount0Desired: _amount0Desired,
-            amount1Desired: _amount1Desired,
-            amount0Min: _amount0Min,
-            amount1Min: _amount1Min,
-            deadline: block.timestamp
-        });
-        (liquidity,,) = nonfungiblePositionManager.increaseLiquidity(increaseParams);
-    }
-
-    /**
-     * @dev Internal function to decrease liquidity and collect.
-     */
-    function _decreaseLiquidityPosition(
-        uint256 _tokenId,
-        uint128 _liquidity,
-        uint256 _amount0Min,
-        uint256 _amount1Min
-    ) internal {
-        // Decrease liquidity
-        INonfungiblePositionManager.DecreaseLiquidityParams memory decreaseParams = INonfungiblePositionManager.DecreaseLiquidityParams({
-            tokenId: _tokenId,
-            liquidity: _liquidity,
-            amount0Min: _amount0Min,
-            amount1Min: _amount1Min,
-            deadline: block.timestamp
-        });
-        nonfungiblePositionManager.decreaseLiquidity(decreaseParams);
-
-        // Collect liquidity and fees
-        INonfungiblePositionManager.CollectParams memory params = INonfungiblePositionManager.CollectParams({
-            tokenId: _tokenId,
+        ISwapRouter.ExactOutputSingleParams memory params = ISwapRouter.ExactOutputSingleParams({
+            tokenIn: address(underlyingToken),
+            tokenOut: address(debtToken),
+            fee: SWAP_FEE,
             recipient: address(this),
-            amount0Max: type(uint128).max,
-            amount1Max: type(uint128).max
+            deadline: block.timestamp,
+            amountOut: _amount,
+            amountInMaximum: maxWethIn,
+            sqrtPriceLimitX96: 0
         });
-        nonfungiblePositionManager.collect(params);
-    }
-
-    /**
-     * @dev Internal function to return any remaining WETH to the operator.
-     */
-    function _returnExcessUnderlying() internal returns (uint256 underlyingOutputAmount) {
-        underlyingOutputAmount = underlyingToken.balanceOf(address(this));
-        if (underlyingOutputAmount > 0) {
-            underlyingToken.transfer(msg.sender, underlyingOutputAmount);
-        }
+        swapRouter.exactOutputSingle(params);
     }
 }

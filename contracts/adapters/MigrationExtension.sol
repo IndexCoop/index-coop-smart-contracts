@@ -546,7 +546,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
      * @dev Issues the required amount of wrapped SetToken for the liquidity increase
      * @param _wrappedSetTokenSupplyLiquidityAmount The amount of wrapped SetToken to be supplied to the pool.
      */
-    function _issueRequiredWrappedSetToken(uint256 _wrappedSetTokenSupplyLiquidityAmount) internal {
+    function _issueRequiredWrappedSetToken(uint256 _wrappedSetTokenSupplyLiquidityAmount) internal virtual {
         uint256 wrappedSetTokenBalance = wrappedSetToken.balanceOf(address(this));
         if (_wrappedSetTokenSupplyLiquidityAmount > wrappedSetTokenBalance) {
             uint256 wrappedSetTokenIssueAmount = _wrappedSetTokenSupplyLiquidityAmount.sub(wrappedSetTokenBalance);
@@ -575,7 +575,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     /**
      * @dev Redeems any excess wrapped SetToken after liquidity decrease
      */
-    function _redeemExcessWrappedSetToken() internal {
+    function _redeemExcessWrappedSetToken() internal virtual {
         uint256 wrappedSetTokenBalance = wrappedSetToken.balanceOf(address(this));
         if (wrappedSetTokenBalance > 0) {
             // Redeem wrapped SetToken

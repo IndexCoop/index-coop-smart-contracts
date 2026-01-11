@@ -85,6 +85,8 @@ import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__f
 import { GovernanceExtension__factory } from "../../typechain/factories/GovernanceExtension__factory";
 import { FixedRebalanceExtension__factory } from "../../typechain/factories/FixedRebalanceExtension__factory";
 import { MigrationExtension__factory } from "../../typechain/factories/MigrationExtension__factory";
+import { IntermediateMigrationExtension__factory } from "../../typechain/factories/IntermediateMigrationExtension__factory";
+import { IntermediateMigrationExtension } from "../../typechain/IntermediateMigrationExtension";
 import { OptimisticAuctionRebalanceExtensionV1__factory } from "../../typechain/factories/OptimisticAuctionRebalanceExtensionV1__factory";
 import { StakeWiseReinvestmentExtension__factory } from "../../typechain/factories/StakeWiseReinvestmentExtension__factory";
 import { ReinvestmentExtensionV1__factory } from "../../typechain/factories/ReinvestmentExtensionV1__factory";
@@ -1261,6 +1263,40 @@ export default class DeployExtensions {
       morpho,
       balancer,
     );
+  }
+
+  public async deployIntermediateMigrationExtension(
+    manager: Address,
+    underlyingToken: Address,
+    aaveToken: Address,
+    debtToken: Address,
+    wrappedSetToken: Address,           // IntermediateToken
+    nestedSetToken: Address,            // ETH2X (inside IntermediateToken)
+    tradeModule: Address,
+    issuanceModule: Address,            // For IntermediateToken
+    nestedSetTokenIssuanceModule: Address,  // For ETH2X
+    nonfungiblePositionManager: Address,
+    addressProvider: Address,
+    morpho: Address,
+    balancer: Address,
+    swapRouter: Address,
+  ): Promise<IntermediateMigrationExtension> {
+    return await new IntermediateMigrationExtension__factory(this._deployerSigner).deploy({
+      manager,
+      underlyingToken,
+      aaveToken,
+      debtToken,
+      wrappedSetToken,
+      nestedSetToken,
+      tradeModule,
+      issuanceModule,
+      nestedSetTokenIssuanceModule,
+      nonfungiblePositionManager,
+      addressProvider,
+      morpho,
+      balancer,
+      swapRouter,
+    });
   }
 
   public async deployFlashMintWrappedExtension(
