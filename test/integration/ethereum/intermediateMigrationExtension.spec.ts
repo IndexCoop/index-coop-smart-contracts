@@ -377,10 +377,10 @@ if (process.env.INTEGRATIONTEST) {
           context("when IntermediateMigrationExtension is deployed and initialized", () => {
             before(async () => {
               // Deploy IntermediateMigrationExtension
-              // Note: The new contract has WETH/IntermediateToken pool (not ETH2X/IntermediateToken)
+              // Note: The contract uses ETH2X/IntermediateToken pool (single-hop trade)
               // Parameters:
               // - wrappedSetToken = IntermediateToken (what we're migrating TO)
-              // - nestedSetToken = ETH2X (inside IntermediateToken)
+              // - nestedSetToken = ETH2X (inside IntermediateToken, also one side of the pool)
               // - issuanceModule = for IntermediateToken
               // - nestedSetTokenIssuanceModule = for ETH2X
               intermediateMigrationExtension = await deployer.extensions.deployIntermediateMigrationExtension(
@@ -415,14 +415,16 @@ if (process.env.INTEGRATIONTEST) {
             context("when migration from ETH2X to IntermediateToken is executed", () => {
               let underlyingLoanAmount: BigNumber;
               let maxSubsidy: BigNumber;
+              let eth2xUnitBefore: BigNumber;  // Store ETH2X position before migration
 
               before(async () => {
                 // Calculate migration parameters
                 const setTokenTotalSupply = await eth2xfli.totalSupply();
                 const eth2xUnit = await eth2xfli.getDefaultPositionRealUnit(tokenAddresses.eth2x);
+                eth2xUnitBefore = eth2xUnit;  // Save for comparison after migration
                 const totalEth2xInFli = preciseMul(eth2xUnit, setTokenTotalSupply);
 
-                // Get ETH2X composition to calculate WETH needed
+                // Get ETH2X composition to calculate WETH needed for issuing tokens
                 const wrappedPositionUnits = await eth2x.getDefaultPositionRealUnit(aEthWeth.address);
                 const wethNeeded = preciseMul(totalEth2xInFli, wrappedPositionUnits);
                 underlyingLoanAmount = wethNeeded.mul(110).div(100); // 10% buffer
@@ -440,72 +442,143 @@ if (process.env.INTEGRATIONTEST) {
                 await weth.connect(wethWhale).transfer(await operator.getAddress(), maxSubsidy);
                 await weth.connect(operator).approve(intermediateMigrationExtension.address, maxSubsidy);
 
-                // Seed some ETH2X and IntermediateToken to the extension for initial liquidity
+                // Seed the ETH2X/IntermediateToken pool with initial liquidity (small amount for pool creation)
                 const eth2xDeployer = await impersonateAccount(keeperAddresses.eth2xDeployer);
-                const seedEth2x = ether(0.04); // Use 0.04 ETH2X for each (0.08 total)
+                const seedAmount = ether(0.01);
 
                 console.log("ETH2X deployer balance:", (await eth2x.balanceOf(await eth2xDeployer.getAddress())).toString());
 
-                // First, issue IntermediateTokens (which requires ETH2X)
-                await eth2x.connect(eth2xDeployer).approve(setForkDebtIssuanceModuleV2.address, seedEth2x);
+                // Send ETH2X to the extension for pool liquidity
+                await eth2x.connect(eth2xDeployer).transfer(intermediateMigrationExtension.address, seedAmount);
+
+                // Issue IntermediateTokens to the extension (requires ETH2X)
+                await eth2x.connect(eth2xDeployer).approve(setForkDebtIssuanceModuleV2.address, seedAmount);
                 await setForkDebtIssuanceModuleV2.connect(eth2xDeployer).issue(
                   intermediateToken.address,
-                  seedEth2x,
+                  seedAmount,
                   intermediateMigrationExtension.address,
                 );
 
-                // Then transfer ETH2X directly to the extension for pool liquidity
-                await eth2x.connect(eth2xDeployer).transfer(intermediateMigrationExtension.address, seedEth2x);
+                // Trade parameters:
+                // - underlyingTradeUnits: repurposed to mean ETH2X units to trade (single-hop now)
+                // - wrappedSetTokenTradeUnits: IntermediateToken units expected
+                const underlyingTradeUnits = eth2xUnit;  // ETH2X units to sell
+                // With concentrated liquidity at 1:1 tick, expect minimal slippage (just pool fee ~0.3%)
+                const wrappedSetTokenTradeUnits = preciseMul(eth2xUnit, ether(0.99)); // 1% slippage tolerance
 
-                // Calculate trade parameters
-                const wrappedSetTokenTradeUnits = eth2xUnit;
-                const intermediateTokenTradeUnits = preciseMul(eth2xUnit, ether(0.99)); // 1% slippage
-
-                // Setup exchange data for UniswapV3
+                // Setup exchange data for UniswapV3 with SINGLE-HOP path:
+                // ETH2X → IntermediateToken (direct)
                 const exchangeData = await uniswapV3ExchangeAdapter.generateDataParam(
                   [tokenAddresses.eth2x, intermediateToken.address],
-                  [BigNumber.from(3000)], // 0.3% fee tier
+                  [BigNumber.from(3000)], // 0.3% fee tier for ETH2X/IntermediateToken pool
                 );
 
-                // Calculate liquidity amounts based on flash loan amount
-                const eth2xMintableWithLoan = preciseMul(
-                  preciseDiv(ether(1), wrappedPositionUnits),
-                  underlyingLoanAmount,
-                );
-                const supplyAmount = eth2xMintableWithLoan.div(2);
+                // Calculate liquidity amounts for ETH2X/IntermediateToken pool
+                // The trade will swap totalEth2xInFli ETH2X for IntermediateToken.
+                //
+                // IMPORTANT: For Uniswap V3 at 1:1 price with full-range liquidity,
+                // we must provide EQUAL amounts of both tokens. If amounts are unequal,
+                // only the smaller amount is used from each side.
+                //
+                // We need enough IntermediateToken to absorb the trade (~totalEth2xInFli).
+                // So we provide equal amounts: eth2xSupplyAmount = intermediateTokenSupplyAmount = totalEth2xInFli * 1.01
+                //
+                // Total ETH2X needed from loan = eth2xSupplyAmount + eth2xToIssueIntermediateToken
+                //                              = totalEth2xInFli * 1.01 + totalEth2xInFli * 1.01
+                //                              = totalEth2xInFli * 2.02
+                const poolLiquidityAmount = totalEth2xInFli.mul(101).div(100);  // 1% buffer over trade size
+                const eth2xSupplyAmount = poolLiquidityAmount;
+                const intermediateTokenSupplyAmount = poolLiquidityAmount;
 
-                // Determine token ordering (lower address is token0)
-                const isWrappedSetToken0 =
+                // Recalculate the required flash loan amount
+                // Need ETH2X for pool + ETH2X to issue IntermediateToken (which is also poolLiquidityAmount)
+                const totalEth2xNeeded = eth2xSupplyAmount.add(intermediateTokenSupplyAmount);
+                const totalWethNeeded = preciseMul(totalEth2xNeeded, wrappedPositionUnits);
+                underlyingLoanAmount = totalWethNeeded.mul(110).div(100);  // 10% buffer for fees and slippage
+
+                console.log("poolLiquidityAmount:", poolLiquidityAmount.toString());
+                console.log("totalEth2xNeeded:", totalEth2xNeeded.toString());
+                console.log("Updated underlyingLoanAmount:", underlyingLoanAmount.toString());
+
+                // Determine token ordering for ETH2X/IntermediateToken pool
+                // isNestedToken0 means "is ETH2X token0?"
+                const isNestedToken0 =
                   tokenAddresses.eth2x.toLowerCase() < intermediateToken.address.toLowerCase();
 
-                console.log("isWrappedSetToken0:", isWrappedSetToken0);
-                console.log("ETH2X address:", tokenAddresses.eth2x);
-                console.log("IntermediateToken address:", intermediateToken.address);
-                console.log("supplyAmount:", supplyAmount.toString());
+                console.log("isNestedToken0 (ETH2X < IntermediateToken):", isNestedToken0);
 
-                // Full range position for 0.3% fee tier
-                const tickLower = -887220;
-                const tickUpper = 887220;
+                // Set FULL liquidity amounts for migration (will be issued during flash loan)
+                const supplyLiquidityAmount0Desired = isNestedToken0 ? eth2xSupplyAmount : intermediateTokenSupplyAmount;
+                const supplyLiquidityAmount1Desired = isNestedToken0 ? intermediateTokenSupplyAmount : eth2xSupplyAmount;
+
+                // Set SEED amounts for initial pool creation (using tokens we already have)
+                const seedAmount0 = isNestedToken0 ? seedAmount : seedAmount;
+                const seedAmount1 = isNestedToken0 ? seedAmount : seedAmount;
+
+                // CONCENTRATED liquidity at tick 0 (1:1 price)
+                // With all liquidity at one tick, trade executes at that price with minimal slippage
+                // Tick spacing for 0.3% fee tier is 60, so use tick 0 ± 60 for tightest range
+                const tickLower = -60;
+                const tickUpper = 60;
+
+                // First, CREATE the ETH2X/IntermediateToken pool (it doesn't exist yet)
+                const nonfungiblePositionManagerAbi = [
+                  "function createAndInitializePoolIfNecessary(address token0, address token1, uint24 fee, uint160 sqrtPriceX96) external payable returns (address pool)",
+                ];
+                const nonfungiblePositionManager = new ethers.Contract(
+                  contractAddresses.uniswapV3NonfungiblePositionManager,
+                  nonfungiblePositionManagerAbi,
+                  owner.wallet,
+                );
+
+                // Calculate initial sqrtPriceX96 for 1:1 price ratio (1 ETH2X ≈ 1 IntermediateToken)
+                // sqrtPriceX96 = sqrt(price) * 2^96 where price = token1/token0
+                // For 1:1 ratio: sqrt(1) * 2^96 = 2^96
+                const sqrtPriceX96 = BigNumber.from("79228162514264337593543950336"); // 2^96
+
+                const token0 = isNestedToken0 ? tokenAddresses.eth2x : intermediateToken.address;
+                const token1 = isNestedToken0 ? intermediateToken.address : tokenAddresses.eth2x;
+
+                console.log("Creating ETH2X/IntermediateToken pool...");
+                console.log("token0:", token0);
+                console.log("token1:", token1);
+                console.log("sqrtPriceX96:", sqrtPriceX96.toString());
+
+                await nonfungiblePositionManager.createAndInitializePoolIfNecessary(
+                  token0,
+                  token1,
+                  3000, // 0.3% fee tier
+                  sqrtPriceX96,
+                );
+
+                // Mint initial liquidity position with SEED amounts (the tokens we already have)
+                await intermediateMigrationExtension.mintLiquidityPosition(
+                  seedAmount0,
+                  seedAmount1,
+                  ZERO,
+                  ZERO,
+                  tickLower,
+                  tickUpper,
+                  3000, // 0.3% fee tier
+                  isNestedToken0,
+                );
+
+                const tokenId = await intermediateMigrationExtension.tokenIds(0);
 
                 const decodedParams = {
-                  supplyLiquidityAmount0Desired: supplyAmount,
-                  supplyLiquidityAmount1Desired: supplyAmount,
+                  supplyLiquidityAmount0Desired: supplyLiquidityAmount0Desired,
+                  supplyLiquidityAmount1Desired: supplyLiquidityAmount1Desired,
                   supplyLiquidityAmount0Min: ZERO,
                   supplyLiquidityAmount1Min: ZERO,
-                  tokenId: ZERO, // 0 means create new pool atomically
+                  tokenId: tokenId,
                   exchangeName: "UniswapV3ExchangeAdapter",
-                  wrappedSetTokenTradeUnits,
-                  intermediateTokenTradeUnits,
+                  underlyingTradeUnits,          // ETH2X units to trade
+                  wrappedSetTokenTradeUnits,     // IntermediateToken units expected
                   exchangeData,
                   redeemLiquidityAmount0Min: ZERO,
                   redeemLiquidityAmount1Min: ZERO,
-                  isWrappedSetToken0,
-                  tickLower,
-                  tickUpper,
-                  fee: 3000, // 0.3% fee tier
+                  isUnderlyingToken0: isNestedToken0,  // Repurposed: "is ETH2X token0?"
                 };
-
-                console.log("Calling migrateBalancer...");
 
                 // Execute the migration using Balancer flash loan
                 await intermediateMigrationExtension.migrateBalancer(
@@ -528,6 +601,31 @@ if (process.env.INTEGRATIONTEST) {
               it("IntermediateToken should still have ETH2X as its only component", async () => {
                 const components = await intermediateToken.getComponents();
                 expect(components).to.deep.equal([tokenAddresses.eth2x]);
+              });
+
+              it("should preserve implied ETH2X exposure (within slippage tolerance)", async () => {
+                // Get current IntermediateToken position in ETH2xFLI
+                const intermediateTokenUnit = await eth2xfli.getDefaultPositionRealUnit(intermediateToken.address);
+
+                // Get ETH2X per IntermediateToken (should be 1:1)
+                const eth2xPerIntermediate = await intermediateToken.getDefaultPositionRealUnit(tokenAddresses.eth2x);
+
+                // Calculate implied ETH2X position: IntermediateToken units * ETH2X per IntermediateToken
+                const impliedEth2xUnit = preciseMul(intermediateTokenUnit, eth2xPerIntermediate);
+
+                // Compare with position before migration
+                // With concentrated liquidity at 1:1 tick, expect minimal slippage (~1% for fees + rounding)
+                const slippageTolerance = ether(0.02); // 2% tolerance for fees and rounding
+                const minExpected = preciseMul(eth2xUnitBefore, ether(1).sub(slippageTolerance));
+
+                console.log("=== ETH2X Exposure Comparison ===");
+                console.log("ETH2X unit before migration:", eth2xUnitBefore.toString());
+                console.log("IntermediateToken unit after:", intermediateTokenUnit.toString());
+                console.log("ETH2X per IntermediateToken:", eth2xPerIntermediate.toString());
+                console.log("Implied ETH2X unit after:", impliedEth2xUnit.toString());
+                console.log("Min expected (with slippage):", minExpected.toString());
+
+                expect(impliedEth2xUnit).to.be.gte(minExpected);
               });
             });
           });

@@ -473,9 +473,9 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
      * @dev Conducts the actual migration steps utilizing the decoded parameters from the flash loan callback.
      * @param decodedParams The decoded set of parameters needed for migration.
      */
-    function _migrate(DecodedParams memory decodedParams) internal {
-        uint256 wrappedSetTokenSupplyLiquidityAmount = decodedParams.isUnderlyingToken0 
-            ? decodedParams.supplyLiquidityAmount1Desired 
+    function _migrate(DecodedParams memory decodedParams) internal virtual {
+        uint256 wrappedSetTokenSupplyLiquidityAmount = decodedParams.isUnderlyingToken0
+            ? decodedParams.supplyLiquidityAmount1Desired
             : decodedParams.supplyLiquidityAmount0Desired;
 
         _issueRequiredWrappedSetToken(wrappedSetTokenSupplyLiquidityAmount);
@@ -489,14 +489,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
             decodedParams.isUnderlyingToken0
         );
 
-        _trade(
-            decodedParams.exchangeName,
-            address(underlyingToken),
-            decodedParams.underlyingTradeUnits,
-            address(wrappedSetToken),
-            decodedParams.wrappedSetTokenTradeUnits,
-            decodedParams.exchangeData
-        );
+        _executeMigrationTrade(decodedParams);
 
         _decreaseLiquidityPosition(
             decodedParams.tokenId,
@@ -506,6 +499,22 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         );
 
         _redeemExcessWrappedSetToken();
+    }
+
+    /**
+     * @dev Executes the migration trade. Override this to change the trade direction.
+     * Default: trades underlyingToken → wrappedSetToken
+     * @param decodedParams The decoded parameters containing trade info.
+     */
+    function _executeMigrationTrade(DecodedParams memory decodedParams) internal virtual {
+        _trade(
+            decodedParams.exchangeName,
+            address(underlyingToken),
+            decodedParams.underlyingTradeUnits,
+            address(wrappedSetToken),
+            decodedParams.wrappedSetTokenTradeUnits,
+            decodedParams.exchangeData
+        );
     }
 
     /**
@@ -614,7 +623,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         int24 _tickUpper,
         uint24 _fee,
         bool _isUnderlyingToken0
-    ) internal {
+    ) internal virtual {
         // Sort tokens and amounts
         (
             address token0,
@@ -671,6 +680,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         bool _isUnderlyingToken0
     )
         internal
+        virtual
         returns (uint128 liquidity)
     {
         (uint256 underlyingAmount, uint256 wrappedSetTokenAmount) = _isUnderlyingToken0

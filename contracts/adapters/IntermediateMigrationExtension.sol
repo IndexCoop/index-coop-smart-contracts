@@ -49,7 +49,8 @@ import { MigrationExtension } from "./MigrationExtension.sol";
  * 2. The nestedSetToken is a leveraged token with aWETH equity and USDC debt
  * 3. When issuing nestedSetToken, we receive USDC (debt component) which we sell for WETH
  * 4. When redeeming nestedSetToken, we must buy USDC to pay back the debt
- * 5. Pool is WETH/IntermediateToken (same pattern as original WETH/wrappedSetToken)
+ * 5. Pool is ETH2X/IntermediateToken (single-hop trade) instead of WETH/wrappedSetToken
+ * 6. Liquidity management uses nestedSetToken (ETH2X) instead of underlyingToken (WETH)
  */
 contract IntermediateMigrationExtension is MigrationExtension {
     using SafeMath for uint256;
@@ -115,55 +116,138 @@ contract IntermediateMigrationExtension is MigrationExtension {
     /* ========== Internal Functions (Overrides) ========== */
 
     /**
-     * @dev Issues the required amount of IntermediateToken for the liquidity increase.
-     * This is more complex than the base implementation because we need to:
-     * 1. Calculate how much nestedSetToken (ETH2X) is needed for IntermediateToken
-     * 2. Calculate how much aWETH is needed for nestedSetToken
-     * 3. Supply WETH to Aave → get aWETH
-     * 4. Issue nestedSetToken (pay aWETH equity, receive USDC debt)
-     * 5. Issue IntermediateToken (pay nestedSetToken)
-     * 6. Sell USDC for WETH (helps repay flash loan)
+     * @dev Conducts the migration utilizing ETH2X/IntermediateToken pool.
+     * Overrides parent to handle the different pool structure where both tokens
+     * need to be issued rather than one coming from flash loan directly.
      *
-     * @param _wrappedSetTokenSupplyLiquidityAmount The amount of IntermediateToken to supply.
+     * Flow:
+     * 1. Flash loan WETH
+     * 2. Issue both ETH2X and IntermediateToken for pool liquidity
+     * 3. Add liquidity to ETH2X/IntermediateToken pool
+     * 4. Trade ETH2X → IntermediateToken (single-hop)
+     * 5. Remove liquidity
+     * 6. Redeem all tokens back to WETH
+     * 7. Repay flash loan
+     *
+     * @param decodedParams The decoded set of parameters needed for migration.
      */
-    function _issueRequiredWrappedSetToken(uint256 _wrappedSetTokenSupplyLiquidityAmount) internal override {
+    function _migrate(DecodedParams memory decodedParams) internal override {
+        // For ETH2X/IntermediateToken pool, isUnderlyingToken0 means "is ETH2X token0?"
+        bool isNestedToken0 = decodedParams.isUnderlyingToken0;
+
+        uint256 nestedSetTokenSupplyAmount = isNestedToken0
+            ? decodedParams.supplyLiquidityAmount0Desired
+            : decodedParams.supplyLiquidityAmount1Desired;
+        uint256 wrappedSetTokenSupplyAmount = isNestedToken0
+            ? decodedParams.supplyLiquidityAmount1Desired
+            : decodedParams.supplyLiquidityAmount0Desired;
+
+        // Issue both tokens needed for pool liquidity
+        _issueRequiredPoolTokens(nestedSetTokenSupplyAmount, wrappedSetTokenSupplyAmount);
+
+        // Increase liquidity (uses overridden method that handles nestedSetToken)
+        uint128 liquidity = _increaseLiquidityPosition(
+            decodedParams.supplyLiquidityAmount0Desired,
+            decodedParams.supplyLiquidityAmount1Desired,
+            decodedParams.supplyLiquidityAmount0Min,
+            decodedParams.supplyLiquidityAmount1Min,
+            decodedParams.tokenId,
+            isNestedToken0
+        );
+
+        // Execute trade (ETH2X → IntermediateToken)
+        _executeMigrationTrade(decodedParams);
+
+        // Decrease liquidity
+        _decreaseLiquidityPosition(
+            decodedParams.tokenId,
+            liquidity,
+            decodedParams.redeemLiquidityAmount0Min,
+            decodedParams.redeemLiquidityAmount1Min
+        );
+
+        // Redeem excess tokens back to WETH
+        _redeemExcessWrappedSetToken();
+    }
+
+    /**
+     * @dev Issues both nestedSetToken (ETH2X) and wrappedSetToken (IntermediateToken) for pool liquidity.
+     * For ETH2X/IntermediateToken pool, we need:
+     * 1. ETH2X for one side of the pool
+     * 2. IntermediateToken for the other side (which requires ETH2X to issue)
+     *
+     * Total ETH2X needed = eth2xForPool + eth2xForIntermediateToken
+     *
+     * @param _nestedSetTokenSupplyAmount The amount of ETH2X needed for pool liquidity.
+     * @param _wrappedSetTokenSupplyAmount The amount of IntermediateToken needed for pool liquidity.
+     */
+    function _issueRequiredPoolTokens(
+        uint256 _nestedSetTokenSupplyAmount,
+        uint256 _wrappedSetTokenSupplyAmount
+    ) internal {
+        // Calculate existing balances
+        uint256 nestedSetTokenBalance = nestedSetToken.balanceOf(address(this));
         uint256 wrappedSetTokenBalance = wrappedSetToken.balanceOf(address(this));
-        if (_wrappedSetTokenSupplyLiquidityAmount <= wrappedSetTokenBalance) return;
 
-        uint256 intermediateIssueAmount = _wrappedSetTokenSupplyLiquidityAmount.sub(wrappedSetTokenBalance);
+        // Calculate how much IntermediateToken we need to issue
+        uint256 intermediateIssueAmount = 0;
+        if (_wrappedSetTokenSupplyAmount > wrappedSetTokenBalance) {
+            intermediateIssueAmount = _wrappedSetTokenSupplyAmount.sub(wrappedSetTokenBalance);
+        }
 
-        // Get how much nestedSetToken (ETH2X) is needed for IntermediateToken
-        (address[] memory intComponents, uint256[] memory intUnits,) = issuanceModule.getRequiredComponentIssuanceUnits(
-            wrappedSetToken,  // IntermediateToken
-            intermediateIssueAmount
-        );
-        require(intComponents.length == 1, "IntermediateMigrationExtension: invalid intermediate token composition");
-        require(intComponents[0] == address(nestedSetToken), "IntermediateMigrationExtension: intermediate token underlying mismatch");
-        uint256 nestedSetTokenNeeded = intUnits[0];
+        // Calculate how much ETH2X is needed to issue IntermediateToken
+        uint256 nestedForIntermediate = 0;
+        if (intermediateIssueAmount > 0) {
+            (address[] memory intComponents, uint256[] memory intUnits,) = issuanceModule.getRequiredComponentIssuanceUnits(
+                wrappedSetToken,
+                intermediateIssueAmount
+            );
+            require(intComponents.length == 1, "IntermediateMigrationExtension: invalid intermediate token composition");
+            require(intComponents[0] == address(nestedSetToken), "IntermediateMigrationExtension: intermediate token underlying mismatch");
+            nestedForIntermediate = intUnits[0];
+        }
 
-        // Get how much aWETH is needed for nestedSetToken (leveraged: equity + debt)
-        (address[] memory nestedComponents, uint256[] memory nestedEquityUnits,) = nestedSetTokenIssuanceModule.getRequiredComponentIssuanceUnits(
-            nestedSetToken,  // ETH2X
-            nestedSetTokenNeeded
-        );
+        // Calculate additional ETH2X needed for pool (beyond what we have and what we'll consume for IntermediateToken)
+        uint256 nestedNeededAfterIntermediate = _nestedSetTokenSupplyAmount;
+        uint256 totalNestedToIssue = 0;
 
-        // Find aWETH requirement (equity component)
-        uint256 aaveRequired = _findAaveRequirement(nestedComponents, nestedEquityUnits);
-        require(aaveRequired > 0, "IntermediateMigrationExtension: aWETH not found in nestedSetToken components");
+        // We need: nestedForPool + nestedForIntermediate
+        // We have: nestedSetTokenBalance
+        // After issuing IntermediateToken, we'll have: nestedSetTokenBalance - nestedForIntermediate (if we had enough) or 0
+        // Actually, we need to issue ALL the nested tokens first, then use some for IntermediateToken
 
-        // 1. WETH → aWETH via Aave
-        underlyingToken.approve(address(POOL), aaveRequired);
-        POOL.supply(address(underlyingToken), aaveRequired, address(this), 0);
+        uint256 totalNestedNeeded = nestedForIntermediate.add(_nestedSetTokenSupplyAmount);
+        if (totalNestedNeeded > nestedSetTokenBalance) {
+            totalNestedToIssue = totalNestedNeeded.sub(nestedSetTokenBalance);
+        }
 
-        // 2. Issue nestedSetToken (pay aWETH equity, receive USDC debt)
-        aaveToken.approve(address(nestedSetTokenIssuanceModule), aaveRequired);
-        nestedSetTokenIssuanceModule.issue(nestedSetToken, nestedSetTokenNeeded, address(this));
+        // Issue nestedSetToken (ETH2X) if needed
+        if (totalNestedToIssue > 0) {
+            // Get how much aWETH is needed
+            (address[] memory nestedComponents, uint256[] memory nestedEquityUnits,) = nestedSetTokenIssuanceModule.getRequiredComponentIssuanceUnits(
+                nestedSetToken,
+                totalNestedToIssue
+            );
 
-        // 3. Issue IntermediateToken (pay nestedSetToken)
-        IERC20(address(nestedSetToken)).approve(address(issuanceModule), nestedSetTokenNeeded);
-        issuanceModule.issue(wrappedSetToken, intermediateIssueAmount, address(this));
+            uint256 aaveRequired = _findAaveRequirement(nestedComponents, nestedEquityUnits);
+            require(aaveRequired > 0, "IntermediateMigrationExtension: aWETH not found in nestedSetToken components");
 
-        // 4. Sell USDC for WETH (helps repay flash loan)
+            // WETH → aWETH via Aave
+            underlyingToken.approve(address(POOL), aaveRequired);
+            POOL.supply(address(underlyingToken), aaveRequired, address(this), 0);
+
+            // Issue nestedSetToken (pay aWETH equity, receive USDC debt)
+            aaveToken.approve(address(nestedSetTokenIssuanceModule), aaveRequired);
+            nestedSetTokenIssuanceModule.issue(nestedSetToken, totalNestedToIssue, address(this));
+        }
+
+        // Issue IntermediateToken if needed (consuming some of the ETH2X we just issued)
+        if (intermediateIssueAmount > 0) {
+            IERC20(address(nestedSetToken)).approve(address(issuanceModule), nestedForIntermediate);
+            issuanceModule.issue(wrappedSetToken, intermediateIssueAmount, address(this));
+        }
+
+        // Sell USDC for WETH (helps repay flash loan)
         uint256 usdcBalance = debtToken.balanceOf(address(this));
         if (usdcBalance > 0) {
             _sellDebtTokenForUnderlying(usdcBalance);
@@ -171,47 +255,188 @@ contract IntermediateMigrationExtension is MigrationExtension {
     }
 
     /**
-     * @dev Redeems any excess IntermediateToken after liquidity decrease.
-     * This is more complex than the base implementation because we need to:
-     * 1. Redeem IntermediateToken → nestedSetToken
-     * 2. Buy USDC with WETH (to pay back debt)
-     * 3. Redeem nestedSetToken (pay USDC debt, receive aWETH equity)
-     * 4. Withdraw aWETH → WETH from Aave
+     * @dev Not used in this extension. Pool tokens are issued via _issueRequiredPoolTokens.
+     * This override prevents the parent's implementation from being called.
+     */
+    function _issueRequiredWrappedSetToken(uint256) internal override {
+        // No-op: Pool token issuance is handled by _issueRequiredPoolTokens in _migrate override
+    }
+
+    /**
+     * @dev Redeems any excess pool tokens (ETH2X and IntermediateToken) after liquidity decrease.
+     * For ETH2X/IntermediateToken pool, after decreasing liquidity we may have both tokens.
+     *
+     * Steps:
+     * 1. Redeem IntermediateToken → ETH2X (if any)
+     * 2. Redeem all ETH2X → aWETH → WETH (requires buying USDC to pay debt)
      */
     function _redeemExcessWrappedSetToken() internal override {
+        // 1. Redeem any IntermediateToken → ETH2X
         uint256 wrappedSetTokenBalance = wrappedSetToken.balanceOf(address(this));
-        if (wrappedSetTokenBalance == 0) return;
-
-        // 1. Redeem IntermediateToken → nestedSetToken
-        IERC20(address(wrappedSetToken)).approve(address(issuanceModule), wrappedSetTokenBalance);
-        issuanceModule.redeem(wrappedSetToken, wrappedSetTokenBalance, address(this));
-
-        uint256 nestedSetTokenBalance = nestedSetToken.balanceOf(address(this));
-        if (nestedSetTokenBalance == 0) return;
-
-        // 2. Get USDC required to redeem nestedSetToken (the debt we need to pay back)
-        (address[] memory components,, uint256[] memory redemptionDebtUnits) = nestedSetTokenIssuanceModule.getRequiredComponentRedemptionUnits(
-            nestedSetToken,
-            nestedSetTokenBalance
-        );
-
-        // Find USDC debt requirement and buy it with WETH
-        uint256 usdcRequired = _findDebtRequirement(components, redemptionDebtUnits);
-        if (usdcRequired > 0) {
-            _buyDebtTokenWithUnderlying(usdcRequired);
-            debtToken.approve(address(nestedSetTokenIssuanceModule), usdcRequired);
+        if (wrappedSetTokenBalance > 0) {
+            IERC20(address(wrappedSetToken)).approve(address(issuanceModule), wrappedSetTokenBalance);
+            issuanceModule.redeem(wrappedSetToken, wrappedSetTokenBalance, address(this));
         }
 
-        // 3. Redeem nestedSetToken (pay USDC debt, receive aWETH equity)
-        IERC20(address(nestedSetToken)).approve(address(nestedSetTokenIssuanceModule), nestedSetTokenBalance);
-        nestedSetTokenIssuanceModule.redeem(nestedSetToken, nestedSetTokenBalance, address(this));
+        // 2. Redeem all ETH2X → aWETH → WETH
+        // Note: ETH2X balance includes both:
+        // - ETH2X received from redeeming IntermediateToken above
+        // - ETH2X received directly from decreasing pool liquidity
+        uint256 nestedSetTokenBalance = nestedSetToken.balanceOf(address(this));
+        if (nestedSetTokenBalance > 0) {
+            // Get USDC required to redeem nestedSetToken (the debt we need to pay back)
+            (address[] memory components,, uint256[] memory redemptionDebtUnits) = nestedSetTokenIssuanceModule.getRequiredComponentRedemptionUnits(
+                nestedSetToken,
+                nestedSetTokenBalance
+            );
 
-        // 4. Withdraw aWETH → WETH from Aave
+            // Find USDC debt requirement and buy it with WETH
+            uint256 usdcRequired = _findDebtRequirement(components, redemptionDebtUnits);
+            if (usdcRequired > 0) {
+                _buyDebtTokenWithUnderlying(usdcRequired);
+                debtToken.approve(address(nestedSetTokenIssuanceModule), usdcRequired);
+            }
+
+            // Redeem nestedSetToken (pay USDC debt, receive aWETH equity)
+            IERC20(address(nestedSetToken)).approve(address(nestedSetTokenIssuanceModule), nestedSetTokenBalance);
+            nestedSetTokenIssuanceModule.redeem(nestedSetToken, nestedSetTokenBalance, address(this));
+        }
+
+        // 3. Withdraw aWETH → WETH from Aave
         uint256 aaveBalance = aaveToken.balanceOf(address(this));
         if (aaveBalance > 0) {
             aaveToken.approve(address(POOL), aaveBalance);
             POOL.withdraw(address(underlyingToken), aaveBalance, address(this));
         }
+    }
+
+    /**
+     * @dev Executes the migration trade. Overrides parent to trade:
+     * nestedSetToken (ETH2X) → wrappedSetToken (IntermediateToken)
+     * instead of underlyingToken (WETH) → wrappedSetToken.
+     *
+     * The exchange data should specify a single-hop path: ETH2X → IntermediateToken
+     * using the ETH2X/IntermediateToken pool.
+     *
+     * Note: In this context, `underlyingTradeUnits` is repurposed to mean
+     * the amount of nestedSetToken to trade.
+     *
+     * @param decodedParams The decoded parameters containing trade info.
+     */
+    function _executeMigrationTrade(DecodedParams memory decodedParams) internal override {
+        _trade(
+            decodedParams.exchangeName,
+            address(nestedSetToken),           // ETH2X (instead of WETH)
+            decodedParams.underlyingTradeUnits,
+            address(wrappedSetToken),          // IntermediateToken
+            decodedParams.wrappedSetTokenTradeUnits,
+            decodedParams.exchangeData
+        );
+    }
+
+    /**
+     * @dev Internal function to mint a new liquidity position in the Uniswap V3 pool.
+     * Overrides parent to use nestedSetToken/wrappedSetToken pool instead of underlyingToken/wrappedSetToken.
+     * @param _amount0Desired The desired amount of token0 to be added as liquidity.
+     * @param _amount1Desired The desired amount of token1 to be added as liquidity.
+     * @param _amount0Min The minimum amount of token0 to be added as liquidity.
+     * @param _amount1Min The minimum amount of token1 to be added as liquidity.
+     * @param _tickLower The lower end of the desired tick range for the position.
+     * @param _tickUpper The upper end of the desired tick range for the position.
+     * @param _fee The fee tier of the Uniswap V3 pool in which to add liquidity.
+     * @param _isNestedToken0 True if the nestedSetToken is token0, false if it is token1.
+     */
+    function _mintLiquidityPosition(
+        uint256 _amount0Desired,
+        uint256 _amount1Desired,
+        uint256 _amount0Min,
+        uint256 _amount1Min,
+        int24 _tickLower,
+        int24 _tickUpper,
+        uint24 _fee,
+        bool _isNestedToken0
+    ) internal override {
+        // Sort tokens and amounts (nestedSetToken/wrappedSetToken instead of underlyingToken/wrappedSetToken)
+        (
+            address token0,
+            address token1,
+            uint256 nestedAmount,
+            uint256 wrappedSetTokenAmount
+        ) = _isNestedToken0
+            ? (address(nestedSetToken), address(wrappedSetToken), _amount0Desired, _amount1Desired)
+            : (address(wrappedSetToken), address(nestedSetToken), _amount1Desired, _amount0Desired);
+
+        // Approve tokens
+        if (nestedAmount > 0) {
+            IERC20(address(nestedSetToken)).approve(address(nonfungiblePositionManager), nestedAmount);
+        }
+        if (wrappedSetTokenAmount > 0) {
+            wrappedSetToken.approve(address(nonfungiblePositionManager), wrappedSetTokenAmount);
+        }
+
+        // Mint liquidity position
+        INonfungiblePositionManager.MintParams memory mintParams = INonfungiblePositionManager.MintParams({
+            token0: token0,
+            token1: token1,
+            fee: _fee,
+            tickLower: _tickLower,
+            tickUpper: _tickUpper,
+            amount0Desired: _amount0Desired,
+            amount1Desired: _amount1Desired,
+            amount0Min: _amount0Min,
+            amount1Min: _amount1Min,
+            recipient: address(this),
+            deadline: block.timestamp
+        });
+        (uint256 tokenId,,,) = nonfungiblePositionManager.mint(mintParams);
+        tokenIds.push(tokenId);
+    }
+
+    /**
+     * @dev Internal function to increase liquidity in a Uniswap V3 pool position.
+     * Overrides parent to use nestedSetToken instead of underlyingToken.
+     * @param _amount0Desired The desired amount of token0 to be added as liquidity.
+     * @param _amount1Desired The desired amount of token1 to be added as liquidity.
+     * @param _amount0Min The minimum amount of token0 to be added as liquidity.
+     * @param _amount1Min The minimum amount of token1 to be added as liquidity.
+     * @param _tokenId The ID of the UniV3 LP Token for which liquidity is being increased.
+     * @param _isNestedToken0 True if the nestedSetToken is token0, false if it is token1.
+     * @return liquidity The new liquidity amount as a result of the increase.
+     */
+    function _increaseLiquidityPosition(
+        uint256 _amount0Desired,
+        uint256 _amount1Desired,
+        uint256 _amount0Min,
+        uint256 _amount1Min,
+        uint256 _tokenId,
+        bool _isNestedToken0
+    )
+        internal
+        override
+        returns (uint128 liquidity)
+    {
+        (uint256 nestedAmount, uint256 wrappedSetTokenAmount) = _isNestedToken0
+            ? (_amount0Desired, _amount1Desired)
+            : (_amount1Desired, _amount0Desired);
+
+        // Approve tokens (nestedSetToken instead of underlyingToken)
+        if (nestedAmount > 0) {
+            IERC20(address(nestedSetToken)).approve(address(nonfungiblePositionManager), nestedAmount);
+        }
+        if (wrappedSetTokenAmount > 0) {
+            wrappedSetToken.approve(address(nonfungiblePositionManager), wrappedSetTokenAmount);
+        }
+
+        // Increase liquidity
+        INonfungiblePositionManager.IncreaseLiquidityParams memory increaseParams = INonfungiblePositionManager.IncreaseLiquidityParams({
+            tokenId: _tokenId,
+            amount0Desired: _amount0Desired,
+            amount1Desired: _amount1Desired,
+            amount0Min: _amount0Min,
+            amount1Min: _amount1Min,
+            deadline: block.timestamp
+        });
+        (liquidity,,) = nonfungiblePositionManager.increaseLiquidity(increaseParams);
     }
 
     /**
