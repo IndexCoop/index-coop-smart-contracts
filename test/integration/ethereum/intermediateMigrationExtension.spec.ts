@@ -20,6 +20,8 @@ import {
   DebtIssuanceModuleV2__factory,
   FlexibleLeverageStrategyExtension,
   FlexibleLeverageStrategyExtension__factory,
+  IBasicIssuanceModule,
+  IBasicIssuanceModule__factory,
   IERC20,
   IERC20__factory,
   IWETH,
@@ -38,9 +40,15 @@ const expect = getWaffleExpect();
 
 const contractAddresses = {
   addressProvider: "0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e",
-  // setFork uses a different DebtIssuanceModuleV2
+  // Index fork (setFork) - where ETH2X lives
   setForkDebtIssuanceModuleV2: "0xa0a98EB7Af028BE00d04e46e1316808A62a8fd59",
+  setForkController: "0xD2463675a099101E36D85278494268261a66603A",
   eth2xIssuanceModule: "0x04b59F9F09750C044D7CfbC177561E409085f0f3",
+  // Original Set Protocol - where ETH2xFLI lives (and where IntermediateToken will be deployed)
+  originalSetController: "0xa4c8d221d8BB851f83aadd0223a8900A6921A349",
+  originalSetTokenCreator: "0xeF72D3278dC3Eba6Dc2614965308d1435FFd748a",
+  originalBasicIssuanceModule: "0xd8EF3cACe8b4907117a45B0b125c68560532F94D",
+  // Other contracts
   flexibleLeverageStrategyExtension: "0x9bA41A2C5175d502eA52Ff9A666f8a4fc00C00A1",
   tradeModule: "0x90F765F63E7DC5aE97d6c576BF693FB6AF41C129",
   uniswapV3ExchangeAdapter: "0xcC327D928925584AB00Fe83646719dEAE15E0424",
@@ -49,8 +57,6 @@ const contractAddresses = {
   wrapModule: "0xbe4aEdE1694AFF7F1827229870f6cf3d9e7a999c",
   morpho: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
   balancer: "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
-  setTokenCreator: "0x2758BF6Af0EC63f1710d3d7890e1C263a247B75E",
-  setController: "0xD2463675a099101E36D85278494268261a66603A",
 };
 
 const tokenAddresses = {
@@ -79,8 +85,8 @@ if (process.env.INTEGRATIONTEST) {
     let tradeModule: TradeModule;
 
     let eth2x: SetToken;
-    let setForkDebtIssuanceModuleV2: DebtIssuanceModuleV2;
     let eth2xIssuanceModule: DebtIssuanceModuleV2;
+    let basicIssuanceModule: IBasicIssuanceModule;
 
     let weth: IWETH;
     let ceth: IERC20;
@@ -90,7 +96,7 @@ if (process.env.INTEGRATIONTEST) {
     let migrationExtension: MigrationExtension;
     let intermediateMigrationExtension: IntermediateMigrationExtension;
     let intermediateToken: SetToken;
-    let setTokenCreator: SetTokenCreator;
+    let originalSetTokenCreator: SetTokenCreator;
 
     setBlockNumber(19271340);
 
@@ -124,9 +130,14 @@ if (process.env.INTEGRATIONTEST) {
         owner.wallet,
       );
 
-      // Setup SetTokenCreator for creating IntermediateToken
-      setTokenCreator = SetTokenCreator__factory.connect(
-        contractAddresses.setTokenCreator,
+      // Setup original Set Protocol contracts for creating IntermediateToken
+      // (same controller as ETH2xFLI, different from Index fork where ETH2X lives)
+      originalSetTokenCreator = SetTokenCreator__factory.connect(
+        contractAddresses.originalSetTokenCreator,
+        owner.wallet,
+      );
+      basicIssuanceModule = IBasicIssuanceModule__factory.connect(
+        contractAddresses.originalBasicIssuanceModule,
         owner.wallet,
       );
 
@@ -322,8 +333,9 @@ if (process.env.INTEGRATIONTEST) {
 
         context("when IntermediateToken is deployed", () => {
           before(async () => {
-            // Get the controller owner to approve the owner
-            const controllerAddress = contractAddresses.setController;
+            // Get the original Set Protocol controller owner to approve the owner
+            // IntermediateToken is deployed on original Set Protocol (same as ETH2xFLI)
+            const controllerAddress = contractAddresses.originalSetController;
             const controller = await ethers.getContractAt("IController", controllerAddress);
             const controllerOwner = await controller.owner();
             const controllerOwnerSigner = await impersonateAccount(controllerOwner);
@@ -338,11 +350,11 @@ if (process.env.INTEGRATIONTEST) {
             await controller.connect(controllerOwnerSigner).addFactory(owner.address);
 
             // Create IntermediateToken (SetToken with ETH2X as only component)
-            // Note: Using setForkDebtIssuanceModuleV2 because the SetTokenCreator is from setFork controller
-            const tx = await setTokenCreator.connect(owner.wallet).create(
+            // Using original Set Protocol's SetTokenCreator and BasicIssuanceModule
+            const tx = await originalSetTokenCreator.connect(owner.wallet).create(
               [tokenAddresses.eth2x],
               [ether(1)], // 1:1 ratio - 1 ETH2X per IntermediateToken
-              [contractAddresses.setForkDebtIssuanceModuleV2],
+              [contractAddresses.originalBasicIssuanceModule],
               owner.address,
               "ETH2X Fee Wrapper",
               "ETH2XFW",
@@ -356,14 +368,11 @@ if (process.env.INTEGRATIONTEST) {
             const intermediateTokenAddress = setTokenCreatedEvent?.args?._setToken;
             intermediateToken = SetToken__factory.connect(intermediateTokenAddress, owner.wallet);
 
-            // Initialize DebtIssuanceModuleV2 on IntermediateToken
-            await setForkDebtIssuanceModuleV2.initialize(
+            // Initialize BasicIssuanceModule on IntermediateToken
+            // BasicIssuanceModule.initialize(setToken, preIssueHook)
+            await basicIssuanceModule.initialize(
               intermediateToken.address,
-              ether(0.01), // maxManagerFee
-              ether(0), // managerIssueFee
-              ether(0), // managerRedeemFee
-              owner.address, // feeRecipient
-              ethers.constants.AddressZero, // managerIssuanceHook
+              ethers.constants.AddressZero, // preIssueHook
             );
           });
 
@@ -391,13 +400,14 @@ if (process.env.INTEGRATIONTEST) {
                 intermediateToken.address,        // wrappedSetToken (IntermediateToken)
                 eth2x.address,                    // nestedSetToken (ETH2X)
                 tradeModule.address,              // tradeModule
-                contractAddresses.setForkDebtIssuanceModuleV2,  // issuanceModule (for IntermediateToken)
+                basicIssuanceModule.address,      // wrappedTokenIssuanceModule (BasicIssuanceModule for IntermediateToken)
                 contractAddresses.eth2xIssuanceModule,          // nestedSetTokenIssuanceModule (for ETH2X)
                 contractAddresses.uniswapV3NonfungiblePositionManager,
                 contractAddresses.addressProvider,
                 contractAddresses.morpho,
                 contractAddresses.balancer,
                 contractAddresses.uniswapV3SwapRouter,
+                true,                             // useBasicIssuance = true (BasicIssuanceModule)
               );
               intermediateMigrationExtension = intermediateMigrationExtension.connect(operator);
 
@@ -452,8 +462,9 @@ if (process.env.INTEGRATIONTEST) {
                 await eth2x.connect(eth2xDeployer).transfer(intermediateMigrationExtension.address, seedAmount);
 
                 // Issue IntermediateTokens to the extension (requires ETH2X)
-                await eth2x.connect(eth2xDeployer).approve(setForkDebtIssuanceModuleV2.address, seedAmount);
-                await setForkDebtIssuanceModuleV2.connect(eth2xDeployer).issue(
+                // Using BasicIssuanceModule since IntermediateToken is on original Set Protocol
+                await eth2x.connect(eth2xDeployer).approve(basicIssuanceModule.address, seedAmount);
+                await basicIssuanceModule.connect(eth2xDeployer).issue(
                   intermediateToken.address,
                   seedAmount,
                   intermediateMigrationExtension.address,

@@ -29,6 +29,7 @@ import { IPoolAddressesProvider } from "../interfaces/IPoolAddressesProvider.sol
 import { INonfungiblePositionManager } from "../interfaces/external/uniswap-v3/INonfungiblePositionManager.sol";
 
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
+import { IBasicIssuanceModule } from "../interfaces/IBasicIssuanceModule.sol";
 import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { ITradeModule } from "../interfaces/ITradeModule.sol";
@@ -68,21 +69,24 @@ contract IntermediateMigrationExtension is MigrationExtension {
         ISetToken wrappedSetToken;
         ISetToken nestedSetToken;
         ITradeModule tradeModule;
-        IDebtIssuanceModule issuanceModule;
-        IDebtIssuanceModule nestedSetTokenIssuanceModule;
+        address wrappedTokenIssuanceModule;               // Issuance module for IntermediateToken
+        IDebtIssuanceModule nestedSetTokenIssuanceModule; // For ETH2X (leveraged, has debt)
         INonfungiblePositionManager nonfungiblePositionManager;
         IPoolAddressesProvider addressProvider;
         IMorpho morpho;
         IBalancerVault balancer;
         ISwapRouter swapRouter;
+        bool useBasicIssuance;                            // true = BasicIssuanceModule, false = DebtIssuanceModule
     }
 
     /* ========== State Variables ========= */
 
     IERC20 public immutable debtToken;              // USDC (debt component of nestedSetToken)
     ISetToken public immutable nestedSetToken;      // ETH2X (the leveraged token inside IntermediateToken)
+    address public immutable wrappedTokenIssuanceModule;   // For issuing/redeeming IntermediateToken
     IDebtIssuanceModule public immutable nestedSetTokenIssuanceModule;  // For issuing/redeeming nestedSetToken
     ISwapRouter public immutable swapRouter;        // Uniswap V3 SwapRouter for USDC swaps
+    bool public immutable useBasicIssuance;         // true = BasicIssuanceModule, false = DebtIssuanceModule
 
     uint24 public constant SWAP_FEE = 500;          // 0.05% pool fee for USDC/WETH swaps
 
@@ -100,7 +104,8 @@ contract IntermediateMigrationExtension is MigrationExtension {
             _params.aaveToken,
             _params.wrappedSetToken,
             _params.tradeModule,
-            _params.issuanceModule,
+            // Pass placeholder - parent's issuanceModule is only used in methods we override
+            IDebtIssuanceModule(_params.wrappedTokenIssuanceModule),
             _params.nonfungiblePositionManager,
             _params.addressProvider,
             _params.morpho,
@@ -109,8 +114,10 @@ contract IntermediateMigrationExtension is MigrationExtension {
     {
         debtToken = _params.debtToken;
         nestedSetToken = _params.nestedSetToken;
+        wrappedTokenIssuanceModule = _params.wrappedTokenIssuanceModule;
         nestedSetTokenIssuanceModule = _params.nestedSetTokenIssuanceModule;
         swapRouter = _params.swapRouter;
+        useBasicIssuance = _params.useBasicIssuance;
     }
 
     /* ========== Internal Functions (Overrides) ========== */
@@ -198,10 +205,7 @@ contract IntermediateMigrationExtension is MigrationExtension {
         // Calculate how much ETH2X is needed to issue IntermediateToken
         uint256 nestedForIntermediate = 0;
         if (intermediateIssueAmount > 0) {
-            (address[] memory intComponents, uint256[] memory intUnits,) = issuanceModule.getRequiredComponentIssuanceUnits(
-                wrappedSetToken,
-                intermediateIssueAmount
-            );
+            (address[] memory intComponents, uint256[] memory intUnits) = _getWrappedTokenRequiredUnits(intermediateIssueAmount);
             require(intComponents.length == 1, "IntermediateMigrationExtension: invalid intermediate token composition");
             require(intComponents[0] == address(nestedSetToken), "IntermediateMigrationExtension: intermediate token underlying mismatch");
             nestedForIntermediate = intUnits[0];
@@ -243,8 +247,8 @@ contract IntermediateMigrationExtension is MigrationExtension {
 
         // Issue IntermediateToken if needed (consuming some of the ETH2X we just issued)
         if (intermediateIssueAmount > 0) {
-            IERC20(address(nestedSetToken)).approve(address(issuanceModule), nestedForIntermediate);
-            issuanceModule.issue(wrappedSetToken, intermediateIssueAmount, address(this));
+            IERC20(address(nestedSetToken)).approve(wrappedTokenIssuanceModule, nestedForIntermediate);
+            _issueWrappedToken(intermediateIssueAmount);
         }
 
         // Sell USDC for WETH (helps repay flash loan)
@@ -274,8 +278,8 @@ contract IntermediateMigrationExtension is MigrationExtension {
         // 1. Redeem any IntermediateToken → ETH2X
         uint256 wrappedSetTokenBalance = wrappedSetToken.balanceOf(address(this));
         if (wrappedSetTokenBalance > 0) {
-            IERC20(address(wrappedSetToken)).approve(address(issuanceModule), wrappedSetTokenBalance);
-            issuanceModule.redeem(wrappedSetToken, wrappedSetTokenBalance, address(this));
+            IERC20(address(wrappedSetToken)).approve(wrappedTokenIssuanceModule, wrappedSetTokenBalance);
+            _redeemWrappedToken(wrappedSetTokenBalance);
         }
 
         // 2. Redeem all ETH2X → aWETH → WETH
@@ -513,5 +517,73 @@ contract IntermediateMigrationExtension is MigrationExtension {
             sqrtPriceLimitX96: 0
         });
         swapRouter.exactOutputSingle(params);
+    }
+
+    /**
+     * @dev Gets the required component units for issuing wrappedSetToken.
+     * Handles both BasicIssuanceModule and DebtIssuanceModule interfaces.
+     * @param _amount The amount of wrappedSetToken to issue.
+     * @return components The component addresses.
+     * @return units The required units of each component.
+     */
+    function _getWrappedTokenRequiredUnits(uint256 _amount)
+        internal
+        view
+        returns (address[] memory components, uint256[] memory units)
+    {
+        if (useBasicIssuance) {
+            // BasicIssuanceModule.getRequiredComponentUnitsForIssue returns (address[], uint256[])
+            (components, units) = IBasicIssuanceModule(wrappedTokenIssuanceModule).getRequiredComponentUnitsForIssue(
+                ISetToken(address(wrappedSetToken)),
+                _amount
+            );
+        } else {
+            // DebtIssuanceModule.getRequiredComponentIssuanceUnits returns (address[], uint256[], uint256[])
+            // We only need the first two return values (equity units, ignore debt units)
+            (components, units,) = IDebtIssuanceModule(wrappedTokenIssuanceModule).getRequiredComponentIssuanceUnits(
+                ISetToken(address(wrappedSetToken)),
+                _amount
+            );
+        }
+    }
+
+    /**
+     * @dev Issues wrappedSetToken using the configured issuance module.
+     * @param _amount The amount of wrappedSetToken to issue.
+     */
+    function _issueWrappedToken(uint256 _amount) internal {
+        if (useBasicIssuance) {
+            IBasicIssuanceModule(wrappedTokenIssuanceModule).issue(
+                ISetToken(address(wrappedSetToken)),
+                _amount,
+                address(this)
+            );
+        } else {
+            IDebtIssuanceModule(wrappedTokenIssuanceModule).issue(
+                ISetToken(address(wrappedSetToken)),
+                _amount,
+                address(this)
+            );
+        }
+    }
+
+    /**
+     * @dev Redeems wrappedSetToken using the configured issuance module.
+     * @param _amount The amount of wrappedSetToken to redeem.
+     */
+    function _redeemWrappedToken(uint256 _amount) internal {
+        if (useBasicIssuance) {
+            IBasicIssuanceModule(wrappedTokenIssuanceModule).redeem(
+                ISetToken(address(wrappedSetToken)),
+                _amount,
+                address(this)
+            );
+        } else {
+            IDebtIssuanceModule(wrappedTokenIssuanceModule).redeem(
+                ISetToken(address(wrappedSetToken)),
+                _amount,
+                address(this)
+            );
+        }
     }
 }

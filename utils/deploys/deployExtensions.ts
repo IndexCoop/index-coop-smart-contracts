@@ -1273,13 +1273,14 @@ export default class DeployExtensions {
     wrappedSetToken: Address,           // IntermediateToken
     nestedSetToken: Address,            // ETH2X (inside IntermediateToken)
     tradeModule: Address,
-    issuanceModule: Address,            // For IntermediateToken
-    nestedSetTokenIssuanceModule: Address,  // For ETH2X
+    wrappedTokenIssuanceModule: Address,    // Issuance module for IntermediateToken
+    nestedSetTokenIssuanceModule: Address,  // DebtIssuanceModule for ETH2X (leveraged)
     nonfungiblePositionManager: Address,
     addressProvider: Address,
     morpho: Address,
     balancer: Address,
     swapRouter: Address,
+    useBasicIssuance: boolean,              // true = BasicIssuanceModule, false = DebtIssuanceModule
   ): Promise<IntermediateMigrationExtension> {
     return await new IntermediateMigrationExtension__factory(this._deployerSigner).deploy({
       manager,
@@ -1289,13 +1290,14 @@ export default class DeployExtensions {
       wrappedSetToken,
       nestedSetToken,
       tradeModule,
-      issuanceModule,
+      wrappedTokenIssuanceModule,
       nestedSetTokenIssuanceModule,
       nonfungiblePositionManager,
       addressProvider,
       morpho,
       balancer,
       swapRouter,
+      useBasicIssuance,
     });
   }
 
