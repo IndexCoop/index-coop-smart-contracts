@@ -270,7 +270,7 @@ if (process.env.INTEGRATIONTEST) {
       const [, borrowShares, collateral] = await morpho.position(marketId, setToken.address);
       const collateralTokenBalance = await wsteth.balanceOf(setToken.address);
       const collateralTotalBalance = collateralTokenBalance.add(collateral);
-      const [, , totalBorrowAssets, totalBorrowShares, ,] = await morpho.market(marketId);
+      const [, , totalBorrowAssets, totalBorrowShares, , ] = await morpho.market(marketId);
       const borrowAssets = sharesToAssetsUp(borrowShares, totalBorrowAssets, totalBorrowShares);
       return { collateralTotalBalance, borrowAssets };
     }

@@ -211,8 +211,7 @@ contract IntermediateMigrationExtension is MigrationExtension {
             nestedForIntermediate = intUnits[0];
         }
 
-        // Calculate additional ETH2X needed for pool (beyond what we have and what we'll consume for IntermediateToken)
-        uint256 nestedNeededAfterIntermediate = _nestedSetTokenSupplyAmount;
+        // Calculate total nested tokens needed for pool and IntermediateToken
         uint256 totalNestedToIssue = 0;
 
         // We need: nestedForPool + nestedForIntermediate

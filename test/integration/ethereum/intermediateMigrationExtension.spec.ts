@@ -54,11 +54,18 @@ const contractAddresses = {
 };
 
 const tokenAddresses = {
+  // ETH tokens
   aEthWeth: "0x4d5F47FA6A74757f35C14fD3a6Ef8E3C9BC514E8",
   eth2x: "0x65c4C0517025Ec0843C9146aF266A2C5a2D148A2",
   eth2xfli: "0xAa6E8127831c9DE45ae56bB1b0d4D4Da6e5665BD",
-  usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
   weth: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+  // BTC tokens
+  aEthWbtc: "0x5Ee5bf7ae06D1Be5997A1A72006FE6C607eC6DE8",
+  btc2x: "0xD2AC55cA3Bbd2Dd1e9936eC640dCb4b745fDe759",
+  btc2xfli: "0x0B498ff89709d3838a063f1dFA463091F9801c2b",
+  wbtc: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+  // Common
+  usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
 };
 
 // At block 24219075, ETH2xFLI's manager is a Gnosis Safe (not a BaseManager)
@@ -705,6 +712,356 @@ if (process.env.INTEGRATIONTEST) {
                 });
               });
             });
+      });
+    });
+  });
+
+  describe("IntermediateMigrationExtension - BTC2xFLI Integration Test", async () => {
+    let owner: Account;
+    let operator: Signer;
+    let deployer: DeployHelper;
+
+    let btc2xfli: SetToken;
+    let baseManager: BaseManagerV2;
+    let tradeModule: TradeModule;
+
+    let btc2x: SetToken;
+    let basicIssuanceModule: IBasicIssuanceModule;
+
+    let wbtc: IERC20;
+    let usdc: IERC20;
+    let aEthWbtc: IERC20;
+
+    let intermediateMigrationExtension: IntermediateMigrationExtension;
+    let intermediateToken: SetToken;
+    let originalSetTokenCreator: SetTokenCreator;
+
+    let originalManager: Signer;
+
+    // BTC2xFLI manager at block 24219075 (same Safe manages both ETH2xFLI and BTC2xFLI)
+    const btc2xfliManager = "0x6904110f17feD2162a11B5FA66B188d801443Ea4";
+
+    setBlockNumber(24219075);
+
+    before(async () => {
+      [owner] = await getAccounts();
+      deployer = new DeployHelper(owner.wallet);
+
+      // Setup collateral tokens
+      wbtc = IERC20__factory.connect(tokenAddresses.wbtc, owner.wallet);
+      usdc = IERC20__factory.connect(tokenAddresses.usdc, owner.wallet);
+      aEthWbtc = IERC20__factory.connect(tokenAddresses.aEthWbtc, owner.wallet);
+
+      // Setup BTC2x-FLI contracts
+      btc2xfli = SetToken__factory.connect(tokenAddresses.btc2xfli, owner.wallet);
+      tradeModule = TradeModule__factory.connect(contractAddresses.tradeModule, owner.wallet);
+
+      // Impersonate the manager (Gnosis Safe)
+      originalManager = await impersonateAccount(btc2xfliManager);
+
+      // Fund the Safe with ETH for gas
+      await owner.wallet.sendTransaction({
+        to: btc2xfliManager,
+        value: ether(10),
+      });
+
+      // Deploy a new BaseManager with the Safe as operator
+      baseManager = await deployer.manager.deployBaseManagerV2(
+        btc2xfli.address,
+        btc2xfliManager,
+        btc2xfliManager,
+      );
+
+      // Transfer manager from Safe to BaseManager
+      await btc2xfli.connect(originalManager).setManager(baseManager.address);
+
+      // Authorize the BaseManager initialization
+      await baseManager.connect(originalManager).authorizeInitialization();
+
+      operator = originalManager;
+      baseManager = baseManager.connect(operator);
+
+      // Setup BTC2X contracts
+      btc2x = SetToken__factory.connect(tokenAddresses.btc2x, owner.wallet);
+
+      // Setup original Set Protocol contracts
+      originalSetTokenCreator = SetTokenCreator__factory.connect(
+        contractAddresses.originalSetTokenCreator,
+        owner.wallet,
+      );
+      basicIssuanceModule = IBasicIssuanceModule__factory.connect(
+        contractAddresses.originalBasicIssuanceModule,
+        owner.wallet,
+      );
+    });
+
+    addSnapshotBeforeRestoreAfterEach();
+
+    it("should have BTC2X as the primary component", async () => {
+      const components = await btc2xfli.getComponents();
+      console.log("BTC2xFLI components:", components);
+      expect(components).to.include(tokenAddresses.btc2x);
+
+      const btc2xUnit = await btc2xfli.getDefaultPositionRealUnit(tokenAddresses.btc2x);
+      console.log("BTC2X unit in BTC2xFLI:", ethers.utils.formatEther(btc2xUnit));
+      expect(btc2xUnit).to.be.gt(ZERO);
+    });
+
+    context("when IntermediateToken is deployed for BTC2X", () => {
+      before(async () => {
+        // Create IntermediateToken that wraps BTC2X 1:1
+        // Use owner.address as temporary manager so we can initialize modules
+        const tx = await originalSetTokenCreator.create(
+          [tokenAddresses.btc2x],
+          [ether(1)],
+          [contractAddresses.originalBasicIssuanceModule, contractAddresses.originalStreamingFeeModule],
+          owner.address,  // Temporary manager
+          "BTC2X Fee Wrapper",
+          "BTC2XFW",
+        );
+        const receipt = await tx.wait();
+        const event = receipt.events?.find((e: any) => e.event === "SetTokenCreated");
+        const intermediateTokenAddress = event?.args?._setToken;
+        intermediateToken = SetToken__factory.connect(intermediateTokenAddress, owner.wallet);
+
+        // Initialize BasicIssuanceModule on IntermediateToken (owner is manager)
+        await basicIssuanceModule.initialize(intermediateToken.address, ethers.constants.AddressZero);
+
+        // Transfer manager to BaseManager
+        await intermediateToken.setManager(baseManager.address);
+      });
+
+      it("should have IntermediateToken deployed with BTC2X as component", async () => {
+        const components = await intermediateToken.getComponents();
+        expect(components).to.deep.equal([tokenAddresses.btc2x]);
+      });
+
+      context("when IntermediateMigrationExtension is deployed for BTC2xFLI", () => {
+        before(async () => {
+          // Deploy IntermediateMigrationExtension for BTC2xFLI
+          // BTC2X uses the same issuance module as ETH2X (0x04b59F9F09750C044D7CfbC177561E409085f0f3)
+          intermediateMigrationExtension = await deployer.extensions.deployIntermediateMigrationExtension(
+            baseManager.address,
+            wbtc.address,
+            aEthWbtc.address,
+            usdc.address,
+            intermediateToken.address,
+            btc2x.address,
+            tradeModule.address,
+            basicIssuanceModule.address,
+            contractAddresses.eth2xIssuanceModule,  // Same module for both ETH2X and BTC2X
+            contractAddresses.uniswapV3NonfungiblePositionManager,
+            contractAddresses.addressProvider,
+            contractAddresses.morpho,
+            contractAddresses.balancer,
+            contractAddresses.uniswapV3SwapRouter,
+            true,
+          );
+          intermediateMigrationExtension = intermediateMigrationExtension.connect(operator);
+
+          // Add extension to BaseManager
+          await baseManager.addExtension(intermediateMigrationExtension.address);
+        });
+
+        it("should have IntermediateMigrationExtension as an extension", async () => {
+          expect(await baseManager.isExtension(intermediateMigrationExtension.address)).to.be.true;
+        });
+
+        context("when migration from BTC2X to IntermediateToken is executed", () => {
+          let underlyingLoanAmount: BigNumber;
+          let maxSubsidy: BigNumber;
+          let btc2xUnitBefore: BigNumber;
+
+          before(async () => {
+            // Calculate migration parameters
+            const setTokenTotalSupply = await btc2xfli.totalSupply();
+            const btc2xUnit = await btc2xfli.getDefaultPositionRealUnit(tokenAddresses.btc2x);
+            btc2xUnitBefore = btc2xUnit;
+            const totalBtc2xInFli = preciseMul(btc2xUnit, setTokenTotalSupply);
+
+            // Get BTC2X composition to calculate WBTC needed
+            const wrappedPositionUnits = await btc2x.getDefaultPositionRealUnit(aEthWbtc.address);
+            const wbtcNeeded = preciseMul(totalBtc2xInFli, wrappedPositionUnits);
+            underlyingLoanAmount = wbtcNeeded.mul(110).div(100);
+
+            // Small subsidy to cover rounding losses (in WBTC - 8 decimals)
+            maxSubsidy = BigNumber.from(10000000); // 0.1 WBTC
+
+            console.log("=== BTC2xFLI Migration Parameters ===");
+            console.log("Total BTC2X in FLI:", totalBtc2xInFli.toString());
+            console.log("wrappedPositionUnits (aWBTC per BTC2X):", wrappedPositionUnits.toString());
+
+            // Fund operator with WBTC for subsidy
+            const operatorAddress = await operator.getAddress();
+
+            // Use Curve tricrypto pool as WBTC source
+            const wbtcWhale = "0xD51a44d3FaE010294C616388b506AcdA1bfAAE46";
+            const wbtcWhaleSigner = await impersonateAccount(wbtcWhale);
+            await owner.wallet.sendTransaction({ to: wbtcWhale, value: ether(1) });
+
+            // Seed the pool
+            const seedAmount = ether(0.001); // Small seed
+
+            // Issue BTC2X for seeding
+            const aavePoolAbi = [
+              "function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external",
+            ];
+            const aavePool = new ethers.Contract(
+              "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
+              aavePoolAbi,
+              owner.wallet,
+            );
+            const btc2xIssuanceModule = await ethers.getContractAt(
+              "IDebtIssuanceModule",
+              contractAddresses.eth2xIssuanceModule,  // BTC2X uses same issuance module as ETH2X
+              owner.wallet,
+            );
+
+            // Calculate WBTC needed for seeding (2x seedAmount in BTC2X needs aWBTC)
+            const aWbtcPerBtc2x = await btc2x.getDefaultPositionRealUnit(aEthWbtc.address);
+            const wbtcNeededForSeed = seedAmount.mul(2).mul(aWbtcPerBtc2x).mul(110).div(100).div(ether(1));
+            const totalWbtcForSetup = wbtcNeededForSeed.add(maxSubsidy);
+
+            // Get WBTC from whale and setup subsidy
+            await wbtc.connect(wbtcWhaleSigner).transfer(owner.address, totalWbtcForSetup);
+            await wbtc.transfer(operatorAddress, maxSubsidy);
+            await wbtc.connect(operator).approve(intermediateMigrationExtension.address, maxSubsidy);
+
+            // WBTC -> aWBTC via Aave
+            await wbtc.approve(aavePool.address, wbtcNeededForSeed);
+            await aavePool.supply(wbtc.address, wbtcNeededForSeed, owner.address, 0);
+
+            // Issue BTC2X
+            const btc2xIssueAmount = seedAmount.mul(2);
+            await aEthWbtc.approve(btc2xIssuanceModule.address, await aEthWbtc.balanceOf(owner.address));
+            await btc2xIssuanceModule.issue(btc2x.address, btc2xIssueAmount, owner.address);
+
+            // Transfer to extension and issue IntermediateToken
+            await btc2x.transfer(intermediateMigrationExtension.address, seedAmount);
+            await btc2x.approve(basicIssuanceModule.address, seedAmount);
+            await basicIssuanceModule.issue(intermediateToken.address, seedAmount, intermediateMigrationExtension.address);
+
+            // Create pool and mint liquidity position
+            const poolLiquidityAmount = totalBtc2xInFli.mul(101).div(100);
+            const btc2xSupplyAmount = poolLiquidityAmount;
+            const intermediateTokenSupplyAmount = poolLiquidityAmount;
+
+            const totalBtc2xNeeded = btc2xSupplyAmount.add(intermediateTokenSupplyAmount);
+            // preciseMul returns the WBTC amount in 8-decimal format (WBTC's native decimals)
+            const totalWbtcNeeded = preciseMul(totalBtc2xNeeded, wrappedPositionUnits);
+            underlyingLoanAmount = totalWbtcNeeded.mul(120).div(100);
+
+            const isNestedToken0 = tokenAddresses.btc2x.toLowerCase() < intermediateToken.address.toLowerCase();
+
+            // Create pool
+            const nonfungiblePositionManagerAbi = [
+              "function createAndInitializePoolIfNecessary(address token0, address token1, uint24 fee, uint160 sqrtPriceX96) external payable returns (address pool)",
+            ];
+            const nonfungiblePositionManager = new ethers.Contract(
+              contractAddresses.uniswapV3NonfungiblePositionManager,
+              nonfungiblePositionManagerAbi,
+              owner.wallet,
+            );
+
+            const sqrtPriceX96 = BigNumber.from("79228162514264337593543950336"); // 1:1 price
+            const token0 = isNestedToken0 ? tokenAddresses.btc2x : intermediateToken.address;
+            const token1 = isNestedToken0 ? intermediateToken.address : tokenAddresses.btc2x;
+
+            console.log("Creating BTC2X/IntermediateToken pool...");
+            await nonfungiblePositionManager.createAndInitializePoolIfNecessary(token0, token1, 3000, sqrtPriceX96);
+
+            // Mint seed liquidity
+            const tickLower = -60;
+            const tickUpper = 60;
+            await intermediateMigrationExtension.mintLiquidityPosition(
+              seedAmount,
+              seedAmount,
+              ZERO,
+              ZERO,
+              tickLower,
+              tickUpper,
+              3000,
+              isNestedToken0,
+            );
+
+            const tokenId = await intermediateMigrationExtension.tokenIds(0);
+            console.log("Seed liquidity position created, tokenId:", tokenId.toString());
+
+            // Calculate trade parameters
+            const underlyingTradeUnits = btc2xUnit;
+            const wrappedSetTokenTradeUnits = preciseMul(btc2xUnit, ether(0.99)); // 1% slippage
+
+            const exchangeData = ethers.utils.solidityPack(
+              ["address", "uint24", "address"],
+              [tokenAddresses.btc2x, 3000, intermediateToken.address],
+            );
+
+            const supplyLiquidityAmount0Desired = isNestedToken0 ? btc2xSupplyAmount : intermediateTokenSupplyAmount;
+            const supplyLiquidityAmount1Desired = isNestedToken0 ? intermediateTokenSupplyAmount : btc2xSupplyAmount;
+
+            const decodedParams = {
+              supplyLiquidityAmount0Desired,
+              supplyLiquidityAmount1Desired,
+              supplyLiquidityAmount0Min: ZERO,
+              supplyLiquidityAmount1Min: ZERO,
+              tokenId,
+              exchangeName: "UniswapV3ExchangeAdapter",
+              underlyingTradeUnits,
+              wrappedSetTokenTradeUnits,
+              exchangeData,
+              redeemLiquidityAmount0Min: ZERO,
+              redeemLiquidityAmount1Min: ZERO,
+              isUnderlyingToken0: isNestedToken0,
+            };
+
+            // Check flash loan sources
+            const morphoWbtcBalance = await wbtc.balanceOf(contractAddresses.morpho);
+            console.log("Morpho WBTC balance:", morphoWbtcBalance.toString());
+            console.log("Flash loan amount needed:", underlyingLoanAmount.toString());
+
+            // Execute migration
+            if (morphoWbtcBalance.gte(underlyingLoanAmount)) {
+              console.log("Using Morpho flash loan...");
+              await intermediateMigrationExtension.migrateMorpho(decodedParams, underlyingLoanAmount, maxSubsidy);
+            } else {
+              console.log("Morpho has insufficient WBTC, checking Balancer...");
+              const balancerWbtcBalance = await wbtc.balanceOf(contractAddresses.balancer);
+              if (balancerWbtcBalance.gte(underlyingLoanAmount)) {
+                await intermediateMigrationExtension.migrateBalancer(decodedParams, underlyingLoanAmount, maxSubsidy);
+              } else {
+                throw new Error("Insufficient flash loan liquidity");
+              }
+            }
+
+            console.log("=== BTC2xFLI Migration Complete ===");
+          });
+
+          it("should have IntermediateToken as a component and BTC2X removed", async () => {
+            const components = await btc2xfli.getComponents();
+            expect(components).to.include(intermediateToken.address);
+            expect(components).to.not.include(tokenAddresses.btc2x);
+          });
+
+          it("should have positive IntermediateToken position", async () => {
+            const unit = await btc2xfli.getDefaultPositionRealUnit(intermediateToken.address);
+            expect(unit).to.be.gt(ZERO);
+          });
+
+          it("should preserve implied BTC2X exposure (within slippage tolerance)", async () => {
+            const intermediateTokenUnit = await btc2xfli.getDefaultPositionRealUnit(intermediateToken.address);
+            const btc2xPerIntermediate = await intermediateToken.getDefaultPositionRealUnit(tokenAddresses.btc2x);
+            const impliedBtc2xUnit = preciseMul(intermediateTokenUnit, btc2xPerIntermediate);
+
+            const slippageTolerance = ether(0.02);
+            const minExpected = preciseMul(btc2xUnitBefore, ether(1).sub(slippageTolerance));
+
+            console.log("=== BTC2X Exposure Comparison ===");
+            console.log("BTC2X unit before:", btc2xUnitBefore.toString());
+            console.log("Implied BTC2X unit after:", impliedBtc2xUnit.toString());
+
+            expect(impliedBtc2xUnit).to.be.gte(minExpected);
+          });
+        });
       });
     });
   });
