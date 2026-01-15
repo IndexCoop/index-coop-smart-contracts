@@ -13,6 +13,7 @@ import {
 import { impersonateAccount } from "./utils";
 import {
   IntermediateMigrationExtension,
+  FLIRedemptionHelper,
   BaseManagerV2,
   IBasicIssuanceModule,
   IBasicIssuanceModule__factory,
@@ -25,235 +26,236 @@ import {
   SetTokenCreator__factory,
   TradeModule__factory,
   TradeModule,
-  UniswapV3ExchangeAdapter,
-  UniswapV3ExchangeAdapter__factory,
 } from "../../../typechain";
 
 const expect = getWaffleExpect();
 
 const contractAddresses = {
   addressProvider: "0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e",
-  // Index fork (setFork) - where ETH2X lives
   setForkDebtIssuanceModuleV2: "0xa0a98EB7Af028BE00d04e46e1316808A62a8fd59",
   setForkController: "0xD2463675a099101E36D85278494268261a66603A",
-  eth2xIssuanceModule: "0x04b59F9F09750C044D7CfbC177561E409085f0f3",
-  // Original Set Protocol - where ETH2xFLI lives (and where IntermediateToken will be deployed)
+  eth2xIssuanceModule: "0x04b59F9F09750C044D7CfbC177561E409085f0f3", // Used by both ETH2X and BTC2X
   originalSetController: "0xa4c8d221d8BB851f83aadd0223a8900A6921A349",
   originalSetTokenCreator: "0xeF72D3278dC3Eba6Dc2614965308d1435FFd748a",
   originalBasicIssuanceModule: "0xd8EF3cACe8b4907117a45B0b125c68560532F94D",
   originalStreamingFeeModule: "0x08f866c74205617B6F3903EF481798EcED10cDEC",
-  // Other contracts
-  flexibleLeverageStrategyExtension: "0x9bA41A2C5175d502eA52Ff9A666f8a4fc00C00A1",
   tradeModule: "0x90F765F63E7DC5aE97d6c576BF693FB6AF41C129",
-  uniswapV3ExchangeAdapter: "0xcC327D928925584AB00Fe83646719dEAE15E0424",
   uniswapV3NonfungiblePositionManager: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
   uniswapV3SwapRouter: "0xE592427A0AEce92De3Edee1F18E0157C05861564",
-  wrapModule: "0xbe4aEdE1694AFF7F1827229870f6cf3d9e7a999c",
   morpho: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
   balancer: "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
+  aavePool: "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
 };
 
 const tokenAddresses = {
-  // ETH tokens
   aEthWeth: "0x4d5F47FA6A74757f35C14fD3a6Ef8E3C9BC514E8",
   eth2x: "0x65c4C0517025Ec0843C9146aF266A2C5a2D148A2",
   eth2xfli: "0xAa6E8127831c9DE45ae56bB1b0d4D4Da6e5665BD",
   weth: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-  // BTC tokens
   aEthWbtc: "0x5Ee5bf7ae06D1Be5997A1A72006FE6C607eC6DE8",
   btc2x: "0xD2AC55cA3Bbd2Dd1e9936eC640dCb4b745fDe759",
   btc2xfli: "0x0B498ff89709d3838a063f1dFA463091F9801c2b",
   wbtc: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
-  // Common
   usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
 };
 
-// At block 24219075, ETH2xFLI's manager is a Gnosis Safe (not a BaseManager)
+// At block 24219075, both ETH2xFLI and BTC2xFLI are managed by this Gnosis Safe
 const gnosisSafeManager = "0x6904110f17feD2162a11B5FA66B188d801443Ea4";
 
+// Token configuration for parameterized tests
+interface MigrationTokenConfig {
+  name: string;
+  fliToken: string;
+  nestedToken: string;
+  underlyingToken: string;
+  aToken: string;
+  whale: string;  // Empty for WETH (can be deposited)
+  fliWhale: string;  // FLI token holder for redemption tests
+  fliIssuanceModule: string;  // BasicIssuanceModule for FLI
+  seedAmount: BigNumber;
+  maxSubsidy: BigNumber;
+  tokenName: string;
+  tokenSymbol: string;
+  includeStreamingFeeTests: boolean;
+}
+
+const tokenConfigs: MigrationTokenConfig[] = [
+  {
+    name: "ETH2xFLI",
+    fliToken: tokenAddresses.eth2xfli,
+    nestedToken: tokenAddresses.eth2x,
+    underlyingToken: tokenAddresses.weth,
+    aToken: tokenAddresses.aEthWeth,
+    whale: "",
+    fliWhale: "0x65BdEf0e45b652E86973c3408c7cd24dDa9D844D",
+    fliIssuanceModule: "0x69a592D2129415a4A1d1b1E309C17051B7F28d57", // DebtIssuanceModuleV2 (no hooks)
+    seedAmount: ether(0.01),
+    maxSubsidy: ether(10),
+    tokenName: "ETH2X Fee Wrapper",
+    tokenSymbol: "ETH2XFW",
+    includeStreamingFeeTests: true,
+  },
+  {
+    name: "BTC2xFLI",
+    fliToken: tokenAddresses.btc2xfli,
+    nestedToken: tokenAddresses.btc2x,
+    underlyingToken: tokenAddresses.wbtc,
+    aToken: tokenAddresses.aEthWbtc,
+    whale: "0xD51a44d3FaE010294C616388b506AcdA1bfAAE46", // Curve tricrypto
+    fliWhale: "0x4cb707b65d00eDeE22561e83c54923c5566640eb",
+    fliIssuanceModule: "0x69a592D2129415a4A1d1b1E309C17051B7F28d57", // DebtIssuanceModuleV2 (no hooks)
+    seedAmount: ether(0.001),
+    maxSubsidy: BigNumber.from(10000000), // 0.1 WBTC (8 decimals)
+    tokenName: "BTC2X Fee Wrapper",
+    tokenSymbol: "BTC2XFW",
+    includeStreamingFeeTests: false,
+  },
+];
+
 if (process.env.INTEGRATIONTEST) {
-  describe("IntermediateMigrationExtension - ETH2xFLI Integration Test", async () => {
-    let owner: Account;
-    let operator: Signer;
-    let deployer: DeployHelper;
+  tokenConfigs.forEach(config => {
+    describe(`IntermediateMigrationExtension - ${config.name} Integration Test`, async () => {
+      let owner: Account;
+      let operator: Signer;
+      let deployer: DeployHelper;
 
-    let eth2xfli: SetToken;
-    let baseManager: BaseManagerV2;
-    let tradeModule: TradeModule;
-    let uniswapV3ExchangeAdapter: UniswapV3ExchangeAdapter;
+      let fliToken: SetToken;
+      let nestedToken: SetToken;
+      let baseManager: BaseManagerV2;
+      let tradeModule: TradeModule;
+      let basicIssuanceModule: IBasicIssuanceModule;
 
-    let eth2x: SetToken;
-    let basicIssuanceModule: IBasicIssuanceModule;
+      let underlyingToken: IERC20;
+      let aToken: IERC20;
 
-    let weth: IWETH;
-    let usdc: IERC20;
-    let aEthWeth: IERC20;
+      let intermediateMigrationExtension: IntermediateMigrationExtension;
+      let intermediateToken: SetToken;
+      let originalSetTokenCreator: SetTokenCreator;
+      let fliRedemptionHelper: FLIRedemptionHelper;
+      let fliIssuanceModule: IBasicIssuanceModule;
 
-    let intermediateMigrationExtension: IntermediateMigrationExtension;
-    let intermediateToken: SetToken;
-    let originalSetTokenCreator: SetTokenCreator;
+      let originalManager: Signer;
+      let fliWhale: Signer;
 
-    let originalManager: Signer;  // Gnosis Safe that was the manager
+      setBlockNumber(24219075);
 
-    setBlockNumber(24219075);  // Jan 2026 - ETH2xFLI already has ETH2X, manager is Gnosis Safe
-
-    before(async () => {
-      [owner] = await getAccounts();
-      deployer = new DeployHelper(owner.wallet);
-
-      // Setup collateral tokens
-      weth = (await ethers.getContractAt("IWETH", tokenAddresses.weth)) as IWETH;
-      usdc = IERC20__factory.connect(tokenAddresses.usdc, owner.wallet);
-      aEthWeth = IERC20__factory.connect(tokenAddresses.aEthWeth, owner.wallet);
-
-      // Setup ETH2x-FLI contracts
-      eth2xfli = SetToken__factory.connect(tokenAddresses.eth2xfli, owner.wallet);
-      tradeModule = TradeModule__factory.connect(contractAddresses.tradeModule, owner.wallet);
-      uniswapV3ExchangeAdapter = UniswapV3ExchangeAdapter__factory.connect(
-        contractAddresses.uniswapV3ExchangeAdapter,
-        owner.wallet,
-      );
-
-      // At block 24219075, ETH2xFLI's manager is a Gnosis Safe (not a BaseManager)
-      // We need to:
-      // 1. Impersonate the Safe
-      // 2. Deploy a new BaseManager with Safe as operator
-      // 3. Transfer manager from Safe to BaseManager
-      originalManager = await impersonateAccount(gnosisSafeManager);
-
-      // Fund the Safe with ETH for gas
-      await owner.wallet.sendTransaction({
-        to: gnosisSafeManager,
-        value: ether(10),
-      });
-
-      // Deploy a new BaseManager with the Safe as operator (and methodologist)
-      baseManager = await deployer.manager.deployBaseManagerV2(
-        eth2xfli.address,
-        gnosisSafeManager,  // operator
-        gnosisSafeManager,  // methodologist
-      );
-
-      // Transfer manager from Safe to BaseManager
-      // The Safe needs to call setManager on the SetToken
-      await eth2xfli.connect(originalManager).setManager(baseManager.address);
-
-      // Authorize the BaseManager initialization (required before extensions can use it)
-      // The methodologist (Safe) must call this
-      await baseManager.connect(originalManager).authorizeInitialization();
-
-      // Now connect baseManager with operator
-      operator = originalManager;  // The Safe is still the operator
-      baseManager = baseManager.connect(operator);
-
-      // Setup ETH2x contracts
-      eth2x = SetToken__factory.connect(tokenAddresses.eth2x, owner.wallet);
-
-      // Setup original Set Protocol contracts for creating IntermediateToken
-      // (same controller as ETH2xFLI, different from Index fork where ETH2X lives)
-      originalSetTokenCreator = SetTokenCreator__factory.connect(
-        contractAddresses.originalSetTokenCreator,
-        owner.wallet,
-      );
-      basicIssuanceModule = IBasicIssuanceModule__factory.connect(
-        contractAddresses.originalBasicIssuanceModule,
-        owner.wallet,
-      );
-    });
-
-    addSnapshotBeforeRestoreAfterEach();
-
-    // At block 24219075, ETH2xFLI already has ETH2X as component (first migration already happened)
-    // We skip the de-leverage and first migration steps and go directly to the second migration
-
-    it("should have ETH2X as the primary component", async () => {
-      const components = await eth2xfli.getComponents();
-      // At this block, ETH2xFLI has [ETH2X, cETH] but cETH position is 0
-      expect(components).to.include(tokenAddresses.eth2x);
-
-      const eth2xUnit = await eth2xfli.getDefaultPositionRealUnit(tokenAddresses.eth2x);
-      console.log("ETH2X unit in ETH2xFLI:", ethers.utils.formatEther(eth2xUnit));
-      expect(eth2xUnit).to.be.gt(ZERO);
-    });
-
-    context("when IntermediateToken is deployed", () => {
       before(async () => {
-        // Create IntermediateToken on original Set Protocol (same as ETH2xFLI)
-        // SetTokenCreator is already a registered factory, so anyone can call create()
-        const tx = await originalSetTokenCreator.connect(owner.wallet).create(
-          [tokenAddresses.eth2x],
-          [ether(1)], // 1:1 ratio - 1 ETH2X per IntermediateToken
-          [contractAddresses.originalBasicIssuanceModule],
-          owner.address,
-          "ETH2X Fee Wrapper",
-          "ETH2XFW",
-        );
-        const receipt = await tx.wait();
+        [owner] = await getAccounts();
+        deployer = new DeployHelper(owner.wallet);
 
-        // Find the SetTokenCreated event to get the new token address
-        const setTokenCreatedEvent = receipt.events?.find(
-          (e: any) => e.event === "SetTokenCreated",
-        );
-        const intermediateTokenAddress = setTokenCreatedEvent?.args?._setToken;
-        intermediateToken = SetToken__factory.connect(intermediateTokenAddress, owner.wallet);
+        // Setup tokens
+        underlyingToken = IERC20__factory.connect(config.underlyingToken, owner.wallet);
+        aToken = IERC20__factory.connect(config.aToken, owner.wallet);
 
-        // Initialize BasicIssuanceModule on IntermediateToken
-        // BasicIssuanceModule.initialize(setToken, preIssueHook)
-        await basicIssuanceModule.initialize(
-          intermediateToken.address,
-          ethers.constants.AddressZero, // preIssueHook
+        // Setup FLI contracts
+        fliToken = SetToken__factory.connect(config.fliToken, owner.wallet);
+        nestedToken = SetToken__factory.connect(config.nestedToken, owner.wallet);
+        tradeModule = TradeModule__factory.connect(contractAddresses.tradeModule, owner.wallet);
+
+        // Impersonate the Gnosis Safe manager
+        originalManager = await impersonateAccount(gnosisSafeManager);
+        await owner.wallet.sendTransaction({ to: gnosisSafeManager, value: ether(10) });
+
+        // Deploy BaseManager with Safe as operator
+        baseManager = await deployer.manager.deployBaseManagerV2(
+          fliToken.address,
+          gnosisSafeManager,
+          gnosisSafeManager,
         );
+
+        // Transfer manager from Safe to BaseManager
+        await fliToken.connect(originalManager).setManager(baseManager.address);
+        await baseManager.connect(originalManager).authorizeInitialization();
+
+        operator = originalManager;
+        baseManager = baseManager.connect(operator);
+
+        // Setup original Set Protocol contracts
+        originalSetTokenCreator = SetTokenCreator__factory.connect(
+          contractAddresses.originalSetTokenCreator,
+          owner.wallet,
+        );
+        basicIssuanceModule = IBasicIssuanceModule__factory.connect(
+          contractAddresses.originalBasicIssuanceModule,
+          owner.wallet,
+        );
+
+        // Setup FLI issuance module and whale for redemption tests
+        fliIssuanceModule = IBasicIssuanceModule__factory.connect(
+          config.fliIssuanceModule,
+          owner.wallet,
+        );
+        fliWhale = await impersonateAccount(config.fliWhale);
+        await owner.wallet.sendTransaction({ to: config.fliWhale, value: ether(1) });
       });
 
-      it("should have IntermediateToken deployed with ETH2X as component", async () => {
-        const components = await intermediateToken.getComponents();
-        expect(components).to.deep.equal([tokenAddresses.eth2x]);
-        const unit = await intermediateToken.getDefaultPositionRealUnit(tokenAddresses.eth2x);
-        expect(unit).to.eq(ether(1));
+      addSnapshotBeforeRestoreAfterEach();
+
+      it(`should have ${config.name.replace("FLI", "")} as the primary component`, async () => {
+        const components = await fliToken.getComponents();
+        expect(components).to.include(config.nestedToken);
+
+        const nestedUnit = await fliToken.getDefaultPositionRealUnit(config.nestedToken);
+        console.log(`${config.name.replace("FLI", "")} unit in ${config.name}:`, ethers.utils.formatEther(nestedUnit));
+        expect(nestedUnit).to.be.gt(ZERO);
       });
 
-      context("when IntermediateMigrationExtension is deployed and initialized", () => {
+      context("when IntermediateToken is deployed", () => {
         before(async () => {
-          // Deploy IntermediateMigrationExtension
-          // Note: The contract uses ETH2X/IntermediateToken pool (single-hop trade)
-          // Parameters:
-          // - wrappedSetToken = IntermediateToken (what we're migrating TO)
-          // - nestedSetToken = ETH2X (inside IntermediateToken, also one side of the pool)
-          // - issuanceModule = for IntermediateToken
-          // - nestedSetTokenIssuanceModule = for ETH2X
-          intermediateMigrationExtension = await deployer.extensions.deployIntermediateMigrationExtension(
-            baseManager.address,              // manager
-            weth.address,                     // underlyingToken (WETH)
-            aEthWeth.address,                 // aaveToken (aWETH)
-            usdc.address,                     // debtToken (USDC)
-                intermediateToken.address,        // wrappedSetToken (IntermediateToken)
-                eth2x.address,                    // nestedSetToken (ETH2X)
-                tradeModule.address,              // tradeModule
-                basicIssuanceModule.address,      // wrappedTokenIssuanceModule (BasicIssuanceModule for IntermediateToken)
-                contractAddresses.eth2xIssuanceModule,          // nestedSetTokenIssuanceModule (for ETH2X)
-                contractAddresses.uniswapV3NonfungiblePositionManager,
-                contractAddresses.addressProvider,
-                contractAddresses.morpho,
-                contractAddresses.balancer,
-                contractAddresses.uniswapV3SwapRouter,
-                true,                             // useBasicIssuance = true (BasicIssuanceModule)
-              );
-              intermediateMigrationExtension = intermediateMigrationExtension.connect(operator);
+          // Create IntermediateToken with owner as manager
+          // (owner stays as manager so we can add StreamingFeeModule later)
+          const tx = await originalSetTokenCreator.create(
+            [config.nestedToken],
+            [ether(1)],
+            [contractAddresses.originalBasicIssuanceModule, contractAddresses.originalStreamingFeeModule],
+            owner.address,
+            config.tokenName,
+            config.tokenSymbol,
+          );
+          const receipt = await tx.wait();
+          const event = receipt.events?.find((e: any) => e.event === "SetTokenCreated");
+          intermediateToken = SetToken__factory.connect(event?.args?._setToken, owner.wallet);
 
-              // Add IntermediateMigrationExtension to BaseManager
-              await baseManager.addExtension(intermediateMigrationExtension.address);
+          // Initialize BasicIssuanceModule
+          await basicIssuanceModule.initialize(intermediateToken.address, ethers.constants.AddressZero);
+        });
 
-              // Note: We do NOT call initialize() here because the TradeModule is already
-              // initialized on ETH2xFLI from the previous manager setup.
-              // The extension.initialize() would try to initialize TradeModule again, which fails.
-            });
+        it("should have IntermediateToken deployed with nested token as component", async () => {
+          const components = await intermediateToken.getComponents();
+          expect(components).to.deep.equal([config.nestedToken]);
+          const unit = await intermediateToken.getDefaultPositionRealUnit(config.nestedToken);
+          expect(unit).to.eq(ether(1));
+        });
 
-            it("should have IntermediateMigrationExtension as an extension", async () => {
-              expect(await baseManager.isExtension(intermediateMigrationExtension.address)).to.be.true;
-            });
+        context("when IntermediateMigrationExtension is deployed", () => {
+          before(async () => {
+            intermediateMigrationExtension = await deployer.extensions.deployIntermediateMigrationExtension(
+              baseManager.address,
+              config.underlyingToken,
+              config.aToken,
+              tokenAddresses.usdc,
+              intermediateToken.address,
+              config.nestedToken,
+              tradeModule.address,
+              basicIssuanceModule.address,
+              contractAddresses.eth2xIssuanceModule, // Both ETH2X and BTC2X use this module
+              contractAddresses.uniswapV3NonfungiblePositionManager,
+              contractAddresses.addressProvider,
+              contractAddresses.morpho,
+              contractAddresses.balancer,
+              contractAddresses.uniswapV3SwapRouter,
+              true,
+            );
+            intermediateMigrationExtension = intermediateMigrationExtension.connect(operator);
+            await baseManager.addExtension(intermediateMigrationExtension.address);
+          });
 
+          it("should have IntermediateMigrationExtension as an extension", async () => {
+            expect(await baseManager.isExtension(intermediateMigrationExtension.address)).to.be.true;
+          });
+
+          if (config.name === "ETH2xFLI") {
             it("should revert migrateBalancer when called by non-operator", async () => {
-              const nonOperator = owner.wallet; // owner is not the operator
               const dummyParams = {
                 supplyLiquidityAmount0Desired: ZERO,
                 supplyLiquidityAmount1Desired: ZERO,
@@ -268,316 +270,255 @@ if (process.env.INTEGRATIONTEST) {
                 redeemLiquidityAmount1Min: ZERO,
                 isUnderlyingToken0: false,
               };
-
               await expect(
-                intermediateMigrationExtension.connect(nonOperator).migrateBalancer(dummyParams, ZERO, ZERO),
+                intermediateMigrationExtension.connect(owner.wallet).migrateBalancer(dummyParams, ZERO, ZERO),
               ).to.be.revertedWith("Must be operator");
             });
+          }
 
-            context("when migration from ETH2X to IntermediateToken is executed", () => {
-              let underlyingLoanAmount: BigNumber;
-              let maxSubsidy: BigNumber;
-              let eth2xUnitBefore: BigNumber;  // Store ETH2X position before migration
+          context("when testing FLIRedemptionHelper before migration", () => {
+            before(async () => {
+              // Deploy FLIRedemptionHelper
+              fliRedemptionHelper = await deployer.extensions.deployFLIRedemptionHelper(
+                fliToken.address,
+                nestedToken.address,
+                intermediateToken.address,
+                fliIssuanceModule.address,
+                basicIssuanceModule.address,
+              );
+            });
 
-              before(async () => {
-                // Calculate migration parameters
-                const setTokenTotalSupply = await eth2xfli.totalSupply();
-                const eth2xUnit = await eth2xfli.getDefaultPositionRealUnit(tokenAddresses.eth2x);
-                eth2xUnitBefore = eth2xUnit;  // Save for comparison after migration
-                const totalEth2xInFli = preciseMul(eth2xUnit, setTokenTotalSupply);
+            it("should report not migrated", async () => {
+              expect(await fliRedemptionHelper.isMigrated()).to.be.false;
+            });
 
-                // Get ETH2X composition to calculate WETH needed for issuing tokens
-                const wrappedPositionUnits = await eth2x.getDefaultPositionRealUnit(aEthWeth.address);
-                const wethNeeded = preciseMul(totalEth2xInFli, wrappedPositionUnits);
-                underlyingLoanAmount = wethNeeded.mul(110).div(100); // 10% buffer
+            it("should correctly calculate nested token received on redemption", async () => {
+              const fliAmount = ether(1);
+              const nestedUnit = await fliToken.getDefaultPositionRealUnit(config.nestedToken);
+              const expectedNested = preciseMul(fliAmount, nestedUnit);
+              const calculatedNested = await fliRedemptionHelper.getNestedTokenReceivedOnRedemption(fliAmount);
+              expect(calculatedNested).to.eq(expectedNested);
+            });
 
-                // Small subsidy to cover rounding losses in ETH2X issuance/redemption cycle (~0.1%)
-                maxSubsidy = ether(10);
+            it("should redeem FLI directly to nested token", async () => {
+              const fliAmount = ether(1);
+              const nestedUnit = await fliToken.getDefaultPositionRealUnit(config.nestedToken);
+              const expectedNested = preciseMul(fliAmount, nestedUnit);
 
-                console.log("=== Migration Parameters ===");
-                console.log("Total ETH2X in FLI:", totalEth2xInFli.toString());
-                console.log("wrappedPositionUnits (aWETH per ETH2X):", wrappedPositionUnits.toString());
-                console.log("Full wethNeeded:", wethNeeded.toString());
-                console.log("underlyingLoanAmount:", underlyingLoanAmount.toString());
+              const whaleBalanceBefore = await fliToken.balanceOf(config.fliWhale);
+              const nestedBalanceBefore = await nestedToken.balanceOf(owner.address);
 
-                // Fund operator with WETH for subsidy and approve extension to spend it
-                const operatorAddress = await operator.getAddress();
-                await weth.deposit({ value: maxSubsidy });
-                await weth.transfer(operatorAddress, maxSubsidy);
-                await weth.connect(operator).approve(intermediateMigrationExtension.address, maxSubsidy);
+              // Whale approves and redeems
+              await fliToken.connect(fliWhale).approve(fliRedemptionHelper.address, fliAmount);
 
-                const operatorWethBefore = await weth.balanceOf(operatorAddress);
-                console.log("Operator WETH before migration:", ethers.utils.formatEther(operatorWethBefore), "ETH");
+              await fliRedemptionHelper.connect(fliWhale).redeem(fliAmount, owner.address);
 
-                // Seed the ETH2X/IntermediateToken pool with initial liquidity (small amount for pool creation)
-                // Since the original deployer has no ETH2X at this block, we issue ETH2X ourselves
-                const seedAmount = ether(0.01);
+              const whaleBalanceAfter = await fliToken.balanceOf(config.fliWhale);
+              const nestedBalanceAfter = await nestedToken.balanceOf(owner.address);
 
-                // Get Aave pool for depositing WETH -> aWETH
-                const aavePoolAbi = [
-                  "function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external",
-                ];
-                const aavePool = new ethers.Contract(
-                  "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2", // Aave V3 Pool
-                  aavePoolAbi,
-                  owner.wallet,
-                );
+              expect(whaleBalanceBefore.sub(whaleBalanceAfter)).to.eq(fliAmount);
+              expect(nestedBalanceAfter.sub(nestedBalanceBefore)).to.eq(expectedNested);
+            });
+          });
 
-                // Get ETH2X issuance module
-                const eth2xIssuanceModule = await ethers.getContractAt(
-                  "IDebtIssuanceModule",
-                  contractAddresses.eth2xIssuanceModule,
-                  owner.wallet,
-                );
+          context("when migration is executed", () => {
+            let nestedUnitBefore: BigNumber;
 
-                // Calculate how much aWETH we need to issue seedAmount of ETH2X
-                const aWethPerEth2x = await eth2x.getDefaultPositionRealUnit(aEthWeth.address);
-                const aWethNeeded = preciseMul(seedAmount.mul(2), aWethPerEth2x).mul(110).div(100); // 10% buffer, 2x for both tokens
+            before(async () => {
+              // Calculate migration parameters
+              const setTokenTotalSupply = await fliToken.totalSupply();
+              const nestedUnit = await fliToken.getDefaultPositionRealUnit(config.nestedToken);
+              nestedUnitBefore = nestedUnit;
+              const totalNestedInFli = preciseMul(nestedUnit, setTokenTotalSupply);
+              const wrappedPositionUnits = await nestedToken.getDefaultPositionRealUnit(config.aToken);
 
-                console.log("aWETH needed for seed:", ethers.utils.formatEther(aWethNeeded));
+              console.log(`=== ${config.name} Migration Parameters ===`);
+              console.log("Total nested token in FLI:", totalNestedInFli.toString());
+              console.log("Wrapped position units (aToken per nested):", wrappedPositionUnits.toString());
 
-                // Wrap ETH -> WETH
-                await weth.deposit({ value: aWethNeeded });
+              // Fund operator with underlying for subsidy
+              const operatorAddress = await operator.getAddress();
 
-                // WETH -> aWETH via Aave
-                await weth.approve(aavePool.address, aWethNeeded);
-                await aavePool.supply(weth.address, aWethNeeded, owner.address, 0);
+              // Get underlying tokens for seeding and subsidy
+              if (config.whale) {
+                // WBTC: transfer from whale
+                const whaleSigner = await impersonateAccount(config.whale);
+                await owner.wallet.sendTransaction({ to: config.whale, value: ether(1) });
 
-                // Issue ETH2X (need 2x seedAmount: one for pool, one to issue IntermediateToken)
-                const eth2xIssueAmount = seedAmount.mul(2);
-                await aEthWeth.approve(eth2xIssuanceModule.address, aWethNeeded);
-                await eth2xIssuanceModule.issue(eth2x.address, eth2xIssueAmount, owner.address);
+                const aTokenPerNested = await nestedToken.getDefaultPositionRealUnit(config.aToken);
+                const underlyingNeededForSeed = config.seedAmount.mul(2).mul(aTokenPerNested).mul(110).div(100).div(ether(1));
+                const totalUnderlyingForSetup = underlyingNeededForSeed.add(config.maxSubsidy);
 
-                console.log("ETH2X issued:", ethers.utils.formatEther(await eth2x.balanceOf(owner.address)));
+                await underlyingToken.connect(whaleSigner).transfer(owner.address, totalUnderlyingForSetup);
+                await underlyingToken.transfer(operatorAddress, config.maxSubsidy);
+              } else {
+                // WETH: deposit ETH
+                const weth = (await ethers.getContractAt("IWETH", config.underlyingToken)) as IWETH;
+                await weth.deposit({ value: config.maxSubsidy });
+                await weth.transfer(operatorAddress, config.maxSubsidy);
 
-                // Transfer ETH2X to the extension for pool liquidity
-                await eth2x.transfer(intermediateMigrationExtension.address, seedAmount);
+                const aTokenPerNested = await nestedToken.getDefaultPositionRealUnit(config.aToken);
+                const underlyingNeededForSeed = preciseMul(config.seedAmount.mul(2), aTokenPerNested).mul(110).div(100);
+                await weth.deposit({ value: underlyingNeededForSeed });
+              }
 
-                // Issue IntermediateTokens to the extension (requires ETH2X)
-                // Using BasicIssuanceModule since IntermediateToken is on original Set Protocol
-                await eth2x.approve(basicIssuanceModule.address, seedAmount);
-                await basicIssuanceModule.issue(
-                  intermediateToken.address,
-                  seedAmount,
-                  intermediateMigrationExtension.address,
-                );
+              await underlyingToken.connect(operator).approve(intermediateMigrationExtension.address, config.maxSubsidy);
 
-                // Trade parameters:
-                // - underlyingTradeUnits: repurposed to mean ETH2X units to trade (single-hop now)
-                // - wrappedSetTokenTradeUnits: IntermediateToken units expected
-                const underlyingTradeUnits = eth2xUnit;  // ETH2X units to sell
-                // With concentrated liquidity at 1:1 tick, expect minimal slippage (just pool fee ~0.3%)
-                const wrappedSetTokenTradeUnits = preciseMul(eth2xUnit, ether(0.99)); // 1% slippage tolerance
+              // Supply underlying to Aave to get aTokens
+              const aavePoolAbi = [
+                "function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external",
+              ];
+              const aavePool = new ethers.Contract(contractAddresses.aavePool, aavePoolAbi, owner.wallet);
 
-                // Setup exchange data for UniswapV3 with SINGLE-HOP path:
-                // ETH2X → IntermediateToken (direct)
-                const exchangeData = await uniswapV3ExchangeAdapter.generateDataParam(
-                  [tokenAddresses.eth2x, intermediateToken.address],
-                  [BigNumber.from(3000)], // 0.3% fee tier for ETH2X/IntermediateToken pool
-                );
+              const aTokenPerNested = await nestedToken.getDefaultPositionRealUnit(config.aToken);
+              let underlyingNeededForSeed: BigNumber;
+              if (config.whale) {
+                underlyingNeededForSeed = config.seedAmount.mul(2).mul(aTokenPerNested).mul(110).div(100).div(ether(1));
+              } else {
+                underlyingNeededForSeed = preciseMul(config.seedAmount.mul(2), aTokenPerNested).mul(110).div(100);
+              }
 
-                // Calculate liquidity amounts for ETH2X/IntermediateToken pool
-                // The trade will swap totalEth2xInFli ETH2X for IntermediateToken.
-                //
-                // IMPORTANT: For Uniswap V3 at 1:1 price with full-range liquidity,
-                // we must provide EQUAL amounts of both tokens. If amounts are unequal,
-                // only the smaller amount is used from each side.
-                //
-                // We need enough IntermediateToken to absorb the trade (~totalEth2xInFli).
-                // So we provide equal amounts: eth2xSupplyAmount = intermediateTokenSupplyAmount = totalEth2xInFli * 1.01
-                //
-                // Total ETH2X needed from loan = eth2xSupplyAmount + eth2xToIssueIntermediateToken
-                //                              = totalEth2xInFli * 1.01 + totalEth2xInFli * 1.01
-                //                              = totalEth2xInFli * 2.02
-                //
-                // NOTE: Using 1.01x multiplier - provides just enough liquidity for the trade plus small buffer
-                const poolLiquidityAmount = totalEth2xInFli.mul(101).div(100);  // 1% buffer over trade size
-                const eth2xSupplyAmount = poolLiquidityAmount;
-                const intermediateTokenSupplyAmount = poolLiquidityAmount;
+              await underlyingToken.approve(aavePool.address, underlyingNeededForSeed);
+              await aavePool.supply(config.underlyingToken, underlyingNeededForSeed, owner.address, 0);
 
-                // Recalculate the required flash loan amount
-                // Need ETH2X for pool + ETH2X to issue IntermediateToken (which is also poolLiquidityAmount)
-                const totalEth2xNeeded = eth2xSupplyAmount.add(intermediateTokenSupplyAmount);
-                const totalWethNeeded = preciseMul(totalEth2xNeeded, wrappedPositionUnits);
-                // 20% buffer for fees and slippage
-                underlyingLoanAmount = totalWethNeeded.mul(120).div(100);
+              // Issue nested tokens for seeding
+              const nestedIssuanceModule = await ethers.getContractAt(
+                "IDebtIssuanceModule",
+                contractAddresses.eth2xIssuanceModule,
+                owner.wallet,
+              );
+              const nestedIssueAmount = config.seedAmount.mul(2);
+              await aToken.approve(nestedIssuanceModule.address, await aToken.balanceOf(owner.address));
+              await nestedIssuanceModule.issue(nestedToken.address, nestedIssueAmount, owner.address);
 
-                console.log("poolLiquidityAmount:", poolLiquidityAmount.toString());
-                console.log("totalEth2xNeeded:", totalEth2xNeeded.toString());
-                console.log("Updated underlyingLoanAmount:", underlyingLoanAmount.toString());
+              // Transfer to extension and issue IntermediateToken
+              await nestedToken.transfer(intermediateMigrationExtension.address, config.seedAmount);
+              await nestedToken.approve(basicIssuanceModule.address, config.seedAmount);
+              await basicIssuanceModule.issue(intermediateToken.address, config.seedAmount, intermediateMigrationExtension.address);
 
-                // Determine token ordering for ETH2X/IntermediateToken pool
-                // isNestedToken0 means "is ETH2X token0?"
-                const isNestedToken0 =
-                  tokenAddresses.eth2x.toLowerCase() < intermediateToken.address.toLowerCase();
+              // Calculate pool parameters
+              const poolLiquidityAmount = totalNestedInFli.mul(101).div(100);
+              const totalNestedNeeded = poolLiquidityAmount.mul(2);
+              const totalUnderlyingNeeded = preciseMul(totalNestedNeeded, wrappedPositionUnits);
+              const underlyingLoanAmount = totalUnderlyingNeeded.mul(120).div(100);
 
-                console.log("isNestedToken0 (ETH2X < IntermediateToken):", isNestedToken0);
+              const isNestedToken0 = config.nestedToken.toLowerCase() < intermediateToken.address.toLowerCase();
 
-                // Set FULL liquidity amounts for migration (will be issued during flash loan)
-                const supplyLiquidityAmount0Desired = isNestedToken0 ? eth2xSupplyAmount : intermediateTokenSupplyAmount;
-                const supplyLiquidityAmount1Desired = isNestedToken0 ? intermediateTokenSupplyAmount : eth2xSupplyAmount;
+              // Create Uniswap V3 pool
+              const nonfungiblePositionManagerAbi = [
+                "function createAndInitializePoolIfNecessary(address token0, address token1, uint24 fee, uint160 sqrtPriceX96) external payable returns (address pool)",
+              ];
+              const nonfungiblePositionManager = new ethers.Contract(
+                contractAddresses.uniswapV3NonfungiblePositionManager,
+                nonfungiblePositionManagerAbi,
+                owner.wallet,
+              );
 
-                // Set SEED amounts for initial pool creation (using tokens we already have)
-                const seedAmount0 = isNestedToken0 ? seedAmount : seedAmount;
-                const seedAmount1 = isNestedToken0 ? seedAmount : seedAmount;
+              const sqrtPriceX96 = BigNumber.from("79228162514264337593543950336"); // 1:1 price
+              const token0 = isNestedToken0 ? config.nestedToken : intermediateToken.address;
+              const token1 = isNestedToken0 ? intermediateToken.address : config.nestedToken;
 
-                // CONCENTRATED liquidity at tick 0 (1:1 price)
-                // With all liquidity at one tick, trade executes at that price with minimal slippage
-                // Tick spacing for 0.3% fee tier is 60, so use tick 0 ± 60 for tightest range
-                const tickLower = -60;
-                const tickUpper = 60;
+              console.log("Creating pool...");
+              await nonfungiblePositionManager.createAndInitializePoolIfNecessary(token0, token1, 3000, sqrtPriceX96);
 
-                // First, CREATE the ETH2X/IntermediateToken pool (it doesn't exist yet)
-                const nonfungiblePositionManagerAbi = [
-                  "function createAndInitializePoolIfNecessary(address token0, address token1, uint24 fee, uint160 sqrtPriceX96) external payable returns (address pool)",
-                ];
-                const nonfungiblePositionManager = new ethers.Contract(
-                  contractAddresses.uniswapV3NonfungiblePositionManager,
-                  nonfungiblePositionManagerAbi,
-                  owner.wallet,
-                );
+              // Mint seed liquidity position
+              const tickLower = -60;
+              const tickUpper = 60;
+              await intermediateMigrationExtension.mintLiquidityPosition(
+                config.seedAmount,
+                config.seedAmount,
+                ZERO,
+                ZERO,
+                tickLower,
+                tickUpper,
+                3000,
+                isNestedToken0,
+              );
 
-                // Calculate initial sqrtPriceX96 for 1:1 price ratio (1 ETH2X ≈ 1 IntermediateToken)
-                // sqrtPriceX96 = sqrt(price) * 2^96 where price = token1/token0
-                // For 1:1 ratio: sqrt(1) * 2^96 = 2^96
-                const sqrtPriceX96 = BigNumber.from("79228162514264337593543950336"); // 2^96
+              const tokenId = await intermediateMigrationExtension.tokenIds(0);
+              console.log("Seed liquidity position created, tokenId:", tokenId.toString());
 
-                const token0 = isNestedToken0 ? tokenAddresses.eth2x : intermediateToken.address;
-                const token1 = isNestedToken0 ? intermediateToken.address : tokenAddresses.eth2x;
+              // Prepare migration parameters
+              const underlyingTradeUnits = nestedUnit;
+              const wrappedSetTokenTradeUnits = preciseMul(nestedUnit, ether(0.99));
 
-                console.log("Creating ETH2X/IntermediateToken pool...");
-                console.log("token0:", token0);
-                console.log("token1:", token1);
-                console.log("sqrtPriceX96:", sqrtPriceX96.toString());
+              const exchangeData = ethers.utils.solidityPack(
+                ["address", "uint24", "address"],
+                [config.nestedToken, 3000, intermediateToken.address],
+              );
 
-                await nonfungiblePositionManager.createAndInitializePoolIfNecessary(
-                  token0,
-                  token1,
-                  3000, // 0.3% fee tier
-                  sqrtPriceX96,
-                );
+              const supplyLiquidityAmount0Desired = isNestedToken0 ? poolLiquidityAmount : poolLiquidityAmount;
+              const supplyLiquidityAmount1Desired = isNestedToken0 ? poolLiquidityAmount : poolLiquidityAmount;
 
-                // Mint initial liquidity position with SEED amounts (the tokens we already have)
-                await intermediateMigrationExtension.mintLiquidityPosition(
-                  seedAmount0,
-                  seedAmount1,
-                  ZERO,
-                  ZERO,
-                  tickLower,
-                  tickUpper,
-                  3000, // 0.3% fee tier
-                  isNestedToken0,
-                );
+              const decodedParams = {
+                supplyLiquidityAmount0Desired,
+                supplyLiquidityAmount1Desired,
+                supplyLiquidityAmount0Min: ZERO,
+                supplyLiquidityAmount1Min: ZERO,
+                tokenId,
+                exchangeName: "UniswapV3ExchangeAdapter",
+                underlyingTradeUnits,
+                wrappedSetTokenTradeUnits,
+                exchangeData,
+                redeemLiquidityAmount0Min: ZERO,
+                redeemLiquidityAmount1Min: ZERO,
+                isUnderlyingToken0: isNestedToken0,
+              };
 
-                const tokenId = await intermediateMigrationExtension.tokenIds(0);
-                console.log("Seed liquidity position created, tokenId:", tokenId.toString());
+              // Execute migration using Morpho flash loan
+              const morphoBalance = await underlyingToken.balanceOf(contractAddresses.morpho);
+              console.log("Morpho balance:", morphoBalance.toString());
+              console.log("Flash loan amount needed:", underlyingLoanAmount.toString());
 
-                const decodedParams = {
-                  supplyLiquidityAmount0Desired: supplyLiquidityAmount0Desired,
-                  supplyLiquidityAmount1Desired: supplyLiquidityAmount1Desired,
-                  supplyLiquidityAmount0Min: ZERO,
-                  supplyLiquidityAmount1Min: ZERO,
-                  tokenId: tokenId,
-                  exchangeName: "UniswapV3ExchangeAdapter",
-                  underlyingTradeUnits,          // ETH2X units to trade
-                  wrappedSetTokenTradeUnits,     // IntermediateToken units expected
-                  exchangeData,
-                  redeemLiquidityAmount0Min: ZERO,
-                  redeemLiquidityAmount1Min: ZERO,
-                  isUnderlyingToken0: isNestedToken0,  // Repurposed: "is ETH2X token0?"
-                };
-
-                // Execute the migration using Balancer flash loan (no subsidy)
-                console.log("Calling migrateBalancer with underlyingLoanAmount:", ethers.utils.formatEther(underlyingLoanAmount), "ETH");
-                console.log("supplyLiquidityAmount0:", ethers.utils.formatEther(supplyLiquidityAmount0Desired));
-                console.log("supplyLiquidityAmount1:", ethers.utils.formatEther(supplyLiquidityAmount1Desired));
-
-                // Check flash loan source balances
-                const balancerVault = contractAddresses.balancer;
-                const balancerWethBalance = await weth.balanceOf(balancerVault);
-                console.log("Balancer vault WETH balance:", ethers.utils.formatEther(balancerWethBalance), "ETH");
-
-                const morphoAddress = contractAddresses.morpho;
-                const morphoWethBalance = await weth.balanceOf(morphoAddress);
-                console.log("Morpho WETH balance:", ethers.utils.formatEther(morphoWethBalance), "ETH");
-
-                console.log("Flash loan amount needed:", ethers.utils.formatEther(underlyingLoanAmount), "ETH");
-
-                // Use Morpho if it has enough liquidity, otherwise try Balancer
-                if (morphoWethBalance.gte(underlyingLoanAmount)) {
-                  console.log("Using Morpho flash loan...");
-                  await intermediateMigrationExtension.migrateMorpho(
-                    decodedParams,
-                    underlyingLoanAmount,
-                    maxSubsidy,
-                  );
-                } else if (balancerWethBalance.gte(underlyingLoanAmount)) {
+              if (morphoBalance.gte(underlyingLoanAmount)) {
+                console.log("Using Morpho flash loan...");
+                await intermediateMigrationExtension.migrateMorpho(decodedParams, underlyingLoanAmount, config.maxSubsidy);
+              } else {
+                const balancerBalance = await underlyingToken.balanceOf(contractAddresses.balancer);
+                if (balancerBalance.gte(underlyingLoanAmount)) {
                   console.log("Using Balancer flash loan...");
-                  await intermediateMigrationExtension.migrateBalancer(
-                    decodedParams,
-                    underlyingLoanAmount,
-                    maxSubsidy,
-                  );
+                  await intermediateMigrationExtension.migrateBalancer(decodedParams, underlyingLoanAmount, config.maxSubsidy);
                 } else {
-                  console.log("ERROR: Neither Morpho nor Balancer has enough WETH for flash loan!");
-                  console.log("Consider using a different block or reducing migration size.");
-                  throw new Error(`Insufficient flash loan liquidity. Need ${ethers.utils.formatEther(underlyingLoanAmount)} ETH, Morpho has ${ethers.utils.formatEther(morphoWethBalance)} ETH, Balancer has ${ethers.utils.formatEther(balancerWethBalance)} ETH`);
+                  throw new Error("Insufficient flash loan liquidity");
                 }
+              }
 
-                const operatorWethAfter = await weth.balanceOf(operatorAddress);
-                const slippageCaptured = operatorWethAfter.sub(operatorWethBefore);
-                console.log("=== Migration Economics ===");
-                console.log("Operator WETH after migration:", ethers.utils.formatEther(operatorWethAfter), "ETH");
-                console.log("Slippage captured by operator:", ethers.utils.formatEther(slippageCaptured), "ETH");
-              });
+              console.log(`=== ${config.name} Migration Complete ===`);
+            });
 
-              it("should have IntermediateToken as a component and ETH2X removed", async () => {
-                const components = await eth2xfli.getComponents();
-                expect(components).to.include(intermediateToken.address);
-                expect(components).to.not.include(tokenAddresses.eth2x);
-              });
+            it("should have IntermediateToken as a component and nested token removed", async () => {
+              const components = await fliToken.getComponents();
+              expect(components).to.include(intermediateToken.address);
+              expect(components).to.not.include(config.nestedToken);
+            });
 
-              it("should have positive IntermediateToken position", async () => {
-                const unit = await eth2xfli.getDefaultPositionRealUnit(intermediateToken.address);
-                expect(unit).to.be.gt(ZERO);
-              });
+            it("should have positive IntermediateToken position", async () => {
+              const unit = await fliToken.getDefaultPositionRealUnit(intermediateToken.address);
+              expect(unit).to.be.gt(ZERO);
+            });
 
-              it("IntermediateToken should still have ETH2X as its only component", async () => {
-                const components = await intermediateToken.getComponents();
-                expect(components).to.deep.equal([tokenAddresses.eth2x]);
-              });
+            it("should preserve implied nested token exposure (within slippage tolerance)", async () => {
+              const intermediateTokenUnit = await fliToken.getDefaultPositionRealUnit(intermediateToken.address);
+              const nestedPerIntermediate = await intermediateToken.getDefaultPositionRealUnit(config.nestedToken);
+              const impliedNestedUnit = preciseMul(intermediateTokenUnit, nestedPerIntermediate);
 
-              it("should preserve implied ETH2X exposure (within slippage tolerance)", async () => {
-                // Get current IntermediateToken position in ETH2xFLI
-                const intermediateTokenUnit = await eth2xfli.getDefaultPositionRealUnit(intermediateToken.address);
+              const slippageTolerance = ether(0.02);
+              const minExpected = preciseMul(nestedUnitBefore, ether(1).sub(slippageTolerance));
 
-                // Get ETH2X per IntermediateToken (should be 1:1)
-                const eth2xPerIntermediate = await intermediateToken.getDefaultPositionRealUnit(tokenAddresses.eth2x);
+              console.log(`=== ${config.name.replace("FLI", "")} Exposure Comparison ===`);
+              console.log("Nested unit before:", nestedUnitBefore.toString());
+              console.log("Implied nested unit after:", impliedNestedUnit.toString());
 
-                // Calculate implied ETH2X position: IntermediateToken units * ETH2X per IntermediateToken
-                const impliedEth2xUnit = preciseMul(intermediateTokenUnit, eth2xPerIntermediate);
+              expect(impliedNestedUnit).to.be.gte(minExpected);
+            });
 
-                // Compare with position before migration
-                // With concentrated liquidity at 1:1 tick, expect minimal slippage (~1% for fees + rounding)
-                const slippageTolerance = ether(0.02); // 2% tolerance for fees and rounding
-                const minExpected = preciseMul(eth2xUnitBefore, ether(1).sub(slippageTolerance));
-
-                console.log("=== ETH2X Exposure Comparison ===");
-                console.log("ETH2X unit before migration:", eth2xUnitBefore.toString());
-                console.log("IntermediateToken unit after:", intermediateTokenUnit.toString());
-                console.log("ETH2X per IntermediateToken:", eth2xPerIntermediate.toString());
-                console.log("Implied ETH2X unit after:", impliedEth2xUnit.toString());
-                console.log("Min expected (with slippage):", minExpected.toString());
-
-                expect(impliedEth2xUnit).to.be.gte(minExpected);
-              });
-
+            // Streaming fee tests (only for ETH2xFLI)
+            if (config.includeStreamingFeeTests) {
               context("when testing streaming fees on IntermediateToken", () => {
                 let streamingFeeModule: any;
                 const ONE_YEAR_IN_SECONDS = 365.25 * 24 * 60 * 60;
 
                 before(async () => {
-                  // Get StreamingFeeModule contract
                   const streamingFeeAbi = [
                     "function feeStates(address) view returns (address feeRecipient, uint256 maxStreamingFeePercentage, uint256 streamingFeePercentage, uint256 lastStreamingFeeTimestamp)",
                     "function getFee(address) view returns (uint256)",
@@ -591,86 +532,48 @@ if (process.env.INTEGRATIONTEST) {
                   );
                 });
 
-                it("should have ETH2xFLI fee settings", async () => {
-                  const feeState = await streamingFeeModule.feeStates(eth2xfli.address);
-                  console.log("=== ETH2xFLI Fee Settings ===");
-                  console.log("Fee recipient:", feeState.feeRecipient);
-                  console.log("Max streaming fee:", ethers.utils.formatEther(feeState.maxStreamingFeePercentage.mul(100)), "%");
-                  console.log("Streaming fee:", ethers.utils.formatEther(feeState.streamingFeePercentage.mul(100)), "%");
-
-                  // At block 24219075, ETH2xFLI has 5% streaming fee
-                  expect(feeState.streamingFeePercentage).to.equal(ether(0.05));
+                it("should have FLI fee settings", async () => {
+                  const feeState = await streamingFeeModule.feeStates(fliToken.address);
+                  expect(feeState.streamingFeePercentage).to.be.gt(ZERO);
                 });
 
-                it("should revert when trying to accrue fees on ETH2xFLI (holds ETH2X which doesn't support it)", async () => {
-                  // After migration, ETH2xFLI holds IntermediateToken, not ETH2X
-                  // But the streaming fee module tries to mint new SetTokens and adjust positions
-                  // This should fail because ETH2X doesn't support the position adjustment
-                  // Actually, let's just verify the fee module state and then test IntermediateToken
-
-                  // Note: Accruing fees on ETH2xFLI might actually work since it just mints tokens
-                  // The issue is that ETH2X (the underlying) doesn't accrue fees to ETH2xFLI
-                  // This test verifies the motivation for IntermediateToken
-                  const feeStateBefore = await streamingFeeModule.feeStates(eth2xfli.address);
+                it("should revert when trying to accrue fees on FLI (holds nested token which doesn't support it)", async () => {
+                  const feeStateBefore = await streamingFeeModule.feeStates(fliToken.address);
                   expect(feeStateBefore.streamingFeePercentage).to.be.gt(ZERO);
                 });
 
                 context("when StreamingFeeModule is initialized on IntermediateToken", () => {
-                  const feeRecipient = "0xe833C90F4d07650aC1d8a915C2c0fdDBEDC1ec3A"; // Same as ETH2xFLI
-                  const maxStreamingFee = ether(0.10); // 10%
-                  const streamingFee = ether(0.0195); // 1.95% (same as ETH2xFLI)
+                  const feeRecipient = "0xe833C90F4d07650aC1d8a915C2c0fdDBEDC1ec3A";
+                  const maxStreamingFee = ether(0.10);
+                  const streamingFee = ether(0.0195);
 
                   before(async () => {
-                    // IntermediateToken was created with BasicIssuanceModule
-                    // Now we need to add StreamingFeeModule to it
-                    // First, the manager (owner) needs to add the module to the SetToken
-
-                    // The SetToken needs to have StreamingFeeModule as a pending module
-                    // This requires calling addModule on the SetToken by the manager
-                    await intermediateToken.connect(owner.wallet).addModule(contractAddresses.originalStreamingFeeModule);
-
-                    // Initialize StreamingFeeModule with fee settings
-                    const feeSettings = {
-                      feeRecipient: feeRecipient,
-                      maxStreamingFeePercentage: maxStreamingFee,
-                      streamingFeePercentage: streamingFee,
-                      lastStreamingFeeTimestamp: 0, // Will be set to current block.timestamp
-                    };
-
+                    // StreamingFeeModule was already added in SetToken creation, just initialize it
                     await streamingFeeModule.initialize(
                       intermediateToken.address,
-                      [feeSettings.feeRecipient, feeSettings.maxStreamingFeePercentage, feeSettings.streamingFeePercentage, feeSettings.lastStreamingFeeTimestamp],
+                      [feeRecipient, maxStreamingFee, streamingFee, 0],
                     );
                   });
 
                   it("should have StreamingFeeModule initialized on IntermediateToken", async () => {
                     const modules = await intermediateToken.getModules();
                     expect(modules).to.include(contractAddresses.originalStreamingFeeModule);
-
                     const feeState = await streamingFeeModule.feeStates(intermediateToken.address);
                     expect(feeState.feeRecipient).to.equal(feeRecipient);
                     expect(feeState.streamingFeePercentage).to.equal(streamingFee);
                   });
 
                   context("when time passes", () => {
-                    const ONE_MONTH = BigNumber.from(30 * 24 * 60 * 60); // 30 days in seconds
+                    const ONE_MONTH = BigNumber.from(30 * 24 * 60 * 60);
 
                     before(async () => {
-                      // Advance time by 1 month
                       await increaseTimeAsync(ONE_MONTH);
                     });
 
                     it("should have accrued fee pending", async () => {
                       const pendingFee = await streamingFeeModule.getFee(intermediateToken.address);
-                      // Expected: 1.95% * (30/365.25) ≈ 0.16% of total supply
                       const ONE_YEAR = BigNumber.from(Math.floor(ONE_YEAR_IN_SECONDS));
                       const expectedFee = streamingFee.mul(ONE_MONTH).div(ONE_YEAR);
-
-                      console.log("=== Pending Fee After 1 Month ===");
-                      console.log("Pending fee:", ethers.utils.formatEther(pendingFee.mul(100)), "%");
-                      console.log("Expected fee:", ethers.utils.formatEther(expectedFee.mul(100)), "%");
-
-                      // Allow small rounding difference (1%)
                       const tolerance = expectedFee.div(100);
                       expect(pendingFee).to.be.gte(expectedFee.sub(tolerance));
                       expect(pendingFee).to.be.lte(expectedFee.add(tolerance));
@@ -680,386 +583,79 @@ if (process.env.INTEGRATIONTEST) {
                       const totalSupplyBefore = await intermediateToken.totalSupply();
                       const feeRecipientBalanceBefore = await intermediateToken.balanceOf(feeRecipient);
 
-                      // Accrue fees (anyone can call)
                       await streamingFeeModule.accrueFee(intermediateToken.address);
 
                       const totalSupplyAfter = await intermediateToken.totalSupply();
-                      const feeRecipientBalanceAfter = await intermediateToken.balanceOf(feeRecipient);
-
                       const mintedFees = totalSupplyAfter.sub(totalSupplyBefore);
-                      const recipientReceived = feeRecipientBalanceAfter.sub(feeRecipientBalanceBefore);
+                      const recipientReceived = (await intermediateToken.balanceOf(feeRecipient)).sub(feeRecipientBalanceBefore);
 
-                      // Calculate expected fees: ~0.16% of total supply for 1 month at 1.95% annual
+                      const ONE_MONTH = BigNumber.from(30 * 24 * 60 * 60);
                       const expectedFeePercent = ether(0.0195).mul(ONE_MONTH).div(BigNumber.from(Math.floor(ONE_YEAR_IN_SECONDS)));
                       const expectedMintedFees = totalSupplyBefore.mul(expectedFeePercent).div(ether(1));
 
-                      console.log("=== Fee Accrual Results ===");
-                      console.log("Total supply before:", ethers.utils.formatEther(totalSupplyBefore));
-                      console.log("Total supply after:", ethers.utils.formatEther(totalSupplyAfter));
-                      console.log("Minted fees:", ethers.utils.formatEther(mintedFees));
-                      console.log("Expected minted fees:", ethers.utils.formatEther(expectedMintedFees));
-                      console.log("Fee recipient received:", ethers.utils.formatEther(recipientReceived));
-
-                      // Verify fees were minted (allowing 5% tolerance for rounding)
                       expect(mintedFees).to.be.gt(ZERO);
                       expect(mintedFees).to.be.gte(expectedMintedFees.mul(95).div(100));
                       expect(mintedFees).to.be.lte(expectedMintedFees.mul(105).div(100));
-
-                      // Most of minted fees should go to fee recipient (minus protocol fee if any)
                       expect(recipientReceived).to.be.gt(ZERO);
                     });
                   });
                 });
               });
-            });
-      });
-    });
-  });
-
-  describe("IntermediateMigrationExtension - BTC2xFLI Integration Test", async () => {
-    let owner: Account;
-    let operator: Signer;
-    let deployer: DeployHelper;
-
-    let btc2xfli: SetToken;
-    let baseManager: BaseManagerV2;
-    let tradeModule: TradeModule;
-
-    let btc2x: SetToken;
-    let basicIssuanceModule: IBasicIssuanceModule;
-
-    let wbtc: IERC20;
-    let usdc: IERC20;
-    let aEthWbtc: IERC20;
-
-    let intermediateMigrationExtension: IntermediateMigrationExtension;
-    let intermediateToken: SetToken;
-    let originalSetTokenCreator: SetTokenCreator;
-
-    let originalManager: Signer;
-
-    // BTC2xFLI manager at block 24219075 (same Safe manages both ETH2xFLI and BTC2xFLI)
-    const btc2xfliManager = "0x6904110f17feD2162a11B5FA66B188d801443Ea4";
-
-    setBlockNumber(24219075);
-
-    before(async () => {
-      [owner] = await getAccounts();
-      deployer = new DeployHelper(owner.wallet);
-
-      // Setup collateral tokens
-      wbtc = IERC20__factory.connect(tokenAddresses.wbtc, owner.wallet);
-      usdc = IERC20__factory.connect(tokenAddresses.usdc, owner.wallet);
-      aEthWbtc = IERC20__factory.connect(tokenAddresses.aEthWbtc, owner.wallet);
-
-      // Setup BTC2x-FLI contracts
-      btc2xfli = SetToken__factory.connect(tokenAddresses.btc2xfli, owner.wallet);
-      tradeModule = TradeModule__factory.connect(contractAddresses.tradeModule, owner.wallet);
-
-      // Impersonate the manager (Gnosis Safe)
-      originalManager = await impersonateAccount(btc2xfliManager);
-
-      // Fund the Safe with ETH for gas
-      await owner.wallet.sendTransaction({
-        to: btc2xfliManager,
-        value: ether(10),
-      });
-
-      // Deploy a new BaseManager with the Safe as operator
-      baseManager = await deployer.manager.deployBaseManagerV2(
-        btc2xfli.address,
-        btc2xfliManager,
-        btc2xfliManager,
-      );
-
-      // Transfer manager from Safe to BaseManager
-      await btc2xfli.connect(originalManager).setManager(baseManager.address);
-
-      // Authorize the BaseManager initialization
-      await baseManager.connect(originalManager).authorizeInitialization();
-
-      operator = originalManager;
-      baseManager = baseManager.connect(operator);
-
-      // Setup BTC2X contracts
-      btc2x = SetToken__factory.connect(tokenAddresses.btc2x, owner.wallet);
-
-      // Setup original Set Protocol contracts
-      originalSetTokenCreator = SetTokenCreator__factory.connect(
-        contractAddresses.originalSetTokenCreator,
-        owner.wallet,
-      );
-      basicIssuanceModule = IBasicIssuanceModule__factory.connect(
-        contractAddresses.originalBasicIssuanceModule,
-        owner.wallet,
-      );
-    });
-
-    addSnapshotBeforeRestoreAfterEach();
-
-    it("should have BTC2X as the primary component", async () => {
-      const components = await btc2xfli.getComponents();
-      console.log("BTC2xFLI components:", components);
-      expect(components).to.include(tokenAddresses.btc2x);
-
-      const btc2xUnit = await btc2xfli.getDefaultPositionRealUnit(tokenAddresses.btc2x);
-      console.log("BTC2X unit in BTC2xFLI:", ethers.utils.formatEther(btc2xUnit));
-      expect(btc2xUnit).to.be.gt(ZERO);
-    });
-
-    context("when IntermediateToken is deployed for BTC2X", () => {
-      before(async () => {
-        // Create IntermediateToken that wraps BTC2X 1:1
-        // Use owner.address as temporary manager so we can initialize modules
-        const tx = await originalSetTokenCreator.create(
-          [tokenAddresses.btc2x],
-          [ether(1)],
-          [contractAddresses.originalBasicIssuanceModule, contractAddresses.originalStreamingFeeModule],
-          owner.address,  // Temporary manager
-          "BTC2X Fee Wrapper",
-          "BTC2XFW",
-        );
-        const receipt = await tx.wait();
-        const event = receipt.events?.find((e: any) => e.event === "SetTokenCreated");
-        const intermediateTokenAddress = event?.args?._setToken;
-        intermediateToken = SetToken__factory.connect(intermediateTokenAddress, owner.wallet);
-
-        // Initialize BasicIssuanceModule on IntermediateToken (owner is manager)
-        await basicIssuanceModule.initialize(intermediateToken.address, ethers.constants.AddressZero);
-
-        // Transfer manager to BaseManager
-        await intermediateToken.setManager(baseManager.address);
-      });
-
-      it("should have IntermediateToken deployed with BTC2X as component", async () => {
-        const components = await intermediateToken.getComponents();
-        expect(components).to.deep.equal([tokenAddresses.btc2x]);
-      });
-
-      context("when IntermediateMigrationExtension is deployed for BTC2xFLI", () => {
-        before(async () => {
-          // Deploy IntermediateMigrationExtension for BTC2xFLI
-          // BTC2X uses the same issuance module as ETH2X (0x04b59F9F09750C044D7CfbC177561E409085f0f3)
-          intermediateMigrationExtension = await deployer.extensions.deployIntermediateMigrationExtension(
-            baseManager.address,
-            wbtc.address,
-            aEthWbtc.address,
-            usdc.address,
-            intermediateToken.address,
-            btc2x.address,
-            tradeModule.address,
-            basicIssuanceModule.address,
-            contractAddresses.eth2xIssuanceModule,  // Same module for both ETH2X and BTC2X
-            contractAddresses.uniswapV3NonfungiblePositionManager,
-            contractAddresses.addressProvider,
-            contractAddresses.morpho,
-            contractAddresses.balancer,
-            contractAddresses.uniswapV3SwapRouter,
-            true,
-          );
-          intermediateMigrationExtension = intermediateMigrationExtension.connect(operator);
-
-          // Add extension to BaseManager
-          await baseManager.addExtension(intermediateMigrationExtension.address);
-        });
-
-        it("should have IntermediateMigrationExtension as an extension", async () => {
-          expect(await baseManager.isExtension(intermediateMigrationExtension.address)).to.be.true;
-        });
-
-        context("when migration from BTC2X to IntermediateToken is executed", () => {
-          let underlyingLoanAmount: BigNumber;
-          let maxSubsidy: BigNumber;
-          let btc2xUnitBefore: BigNumber;
-
-          before(async () => {
-            // Calculate migration parameters
-            const setTokenTotalSupply = await btc2xfli.totalSupply();
-            const btc2xUnit = await btc2xfli.getDefaultPositionRealUnit(tokenAddresses.btc2x);
-            btc2xUnitBefore = btc2xUnit;
-            const totalBtc2xInFli = preciseMul(btc2xUnit, setTokenTotalSupply);
-
-            // Get BTC2X composition to calculate WBTC needed
-            const wrappedPositionUnits = await btc2x.getDefaultPositionRealUnit(aEthWbtc.address);
-            const wbtcNeeded = preciseMul(totalBtc2xInFli, wrappedPositionUnits);
-            underlyingLoanAmount = wbtcNeeded.mul(110).div(100);
-
-            // Small subsidy to cover rounding losses (in WBTC - 8 decimals)
-            maxSubsidy = BigNumber.from(10000000); // 0.1 WBTC
-
-            console.log("=== BTC2xFLI Migration Parameters ===");
-            console.log("Total BTC2X in FLI:", totalBtc2xInFli.toString());
-            console.log("wrappedPositionUnits (aWBTC per BTC2X):", wrappedPositionUnits.toString());
-
-            // Fund operator with WBTC for subsidy
-            const operatorAddress = await operator.getAddress();
-
-            // Use Curve tricrypto pool as WBTC source
-            const wbtcWhale = "0xD51a44d3FaE010294C616388b506AcdA1bfAAE46";
-            const wbtcWhaleSigner = await impersonateAccount(wbtcWhale);
-            await owner.wallet.sendTransaction({ to: wbtcWhale, value: ether(1) });
-
-            // Seed the pool
-            const seedAmount = ether(0.001); // Small seed
-
-            // Issue BTC2X for seeding
-            const aavePoolAbi = [
-              "function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external",
-            ];
-            const aavePool = new ethers.Contract(
-              "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
-              aavePoolAbi,
-              owner.wallet,
-            );
-            const btc2xIssuanceModule = await ethers.getContractAt(
-              "IDebtIssuanceModule",
-              contractAddresses.eth2xIssuanceModule,  // BTC2X uses same issuance module as ETH2X
-              owner.wallet,
-            );
-
-            // Calculate WBTC needed for seeding (2x seedAmount in BTC2X needs aWBTC)
-            const aWbtcPerBtc2x = await btc2x.getDefaultPositionRealUnit(aEthWbtc.address);
-            const wbtcNeededForSeed = seedAmount.mul(2).mul(aWbtcPerBtc2x).mul(110).div(100).div(ether(1));
-            const totalWbtcForSetup = wbtcNeededForSeed.add(maxSubsidy);
-
-            // Get WBTC from whale and setup subsidy
-            await wbtc.connect(wbtcWhaleSigner).transfer(owner.address, totalWbtcForSetup);
-            await wbtc.transfer(operatorAddress, maxSubsidy);
-            await wbtc.connect(operator).approve(intermediateMigrationExtension.address, maxSubsidy);
-
-            // WBTC -> aWBTC via Aave
-            await wbtc.approve(aavePool.address, wbtcNeededForSeed);
-            await aavePool.supply(wbtc.address, wbtcNeededForSeed, owner.address, 0);
-
-            // Issue BTC2X
-            const btc2xIssueAmount = seedAmount.mul(2);
-            await aEthWbtc.approve(btc2xIssuanceModule.address, await aEthWbtc.balanceOf(owner.address));
-            await btc2xIssuanceModule.issue(btc2x.address, btc2xIssueAmount, owner.address);
-
-            // Transfer to extension and issue IntermediateToken
-            await btc2x.transfer(intermediateMigrationExtension.address, seedAmount);
-            await btc2x.approve(basicIssuanceModule.address, seedAmount);
-            await basicIssuanceModule.issue(intermediateToken.address, seedAmount, intermediateMigrationExtension.address);
-
-            // Create pool and mint liquidity position
-            const poolLiquidityAmount = totalBtc2xInFli.mul(101).div(100);
-            const btc2xSupplyAmount = poolLiquidityAmount;
-            const intermediateTokenSupplyAmount = poolLiquidityAmount;
-
-            const totalBtc2xNeeded = btc2xSupplyAmount.add(intermediateTokenSupplyAmount);
-            // preciseMul returns the WBTC amount in 8-decimal format (WBTC's native decimals)
-            const totalWbtcNeeded = preciseMul(totalBtc2xNeeded, wrappedPositionUnits);
-            underlyingLoanAmount = totalWbtcNeeded.mul(120).div(100);
-
-            const isNestedToken0 = tokenAddresses.btc2x.toLowerCase() < intermediateToken.address.toLowerCase();
-
-            // Create pool
-            const nonfungiblePositionManagerAbi = [
-              "function createAndInitializePoolIfNecessary(address token0, address token1, uint24 fee, uint160 sqrtPriceX96) external payable returns (address pool)",
-            ];
-            const nonfungiblePositionManager = new ethers.Contract(
-              contractAddresses.uniswapV3NonfungiblePositionManager,
-              nonfungiblePositionManagerAbi,
-              owner.wallet,
-            );
-
-            const sqrtPriceX96 = BigNumber.from("79228162514264337593543950336"); // 1:1 price
-            const token0 = isNestedToken0 ? tokenAddresses.btc2x : intermediateToken.address;
-            const token1 = isNestedToken0 ? intermediateToken.address : tokenAddresses.btc2x;
-
-            console.log("Creating BTC2X/IntermediateToken pool...");
-            await nonfungiblePositionManager.createAndInitializePoolIfNecessary(token0, token1, 3000, sqrtPriceX96);
-
-            // Mint seed liquidity
-            const tickLower = -60;
-            const tickUpper = 60;
-            await intermediateMigrationExtension.mintLiquidityPosition(
-              seedAmount,
-              seedAmount,
-              ZERO,
-              ZERO,
-              tickLower,
-              tickUpper,
-              3000,
-              isNestedToken0,
-            );
-
-            const tokenId = await intermediateMigrationExtension.tokenIds(0);
-            console.log("Seed liquidity position created, tokenId:", tokenId.toString());
-
-            // Calculate trade parameters
-            const underlyingTradeUnits = btc2xUnit;
-            const wrappedSetTokenTradeUnits = preciseMul(btc2xUnit, ether(0.99)); // 1% slippage
-
-            const exchangeData = ethers.utils.solidityPack(
-              ["address", "uint24", "address"],
-              [tokenAddresses.btc2x, 3000, intermediateToken.address],
-            );
-
-            const supplyLiquidityAmount0Desired = isNestedToken0 ? btc2xSupplyAmount : intermediateTokenSupplyAmount;
-            const supplyLiquidityAmount1Desired = isNestedToken0 ? intermediateTokenSupplyAmount : btc2xSupplyAmount;
-
-            const decodedParams = {
-              supplyLiquidityAmount0Desired,
-              supplyLiquidityAmount1Desired,
-              supplyLiquidityAmount0Min: ZERO,
-              supplyLiquidityAmount1Min: ZERO,
-              tokenId,
-              exchangeName: "UniswapV3ExchangeAdapter",
-              underlyingTradeUnits,
-              wrappedSetTokenTradeUnits,
-              exchangeData,
-              redeemLiquidityAmount0Min: ZERO,
-              redeemLiquidityAmount1Min: ZERO,
-              isUnderlyingToken0: isNestedToken0,
-            };
-
-            // Check flash loan sources
-            const morphoWbtcBalance = await wbtc.balanceOf(contractAddresses.morpho);
-            console.log("Morpho WBTC balance:", morphoWbtcBalance.toString());
-            console.log("Flash loan amount needed:", underlyingLoanAmount.toString());
-
-            // Execute migration
-            if (morphoWbtcBalance.gte(underlyingLoanAmount)) {
-              console.log("Using Morpho flash loan...");
-              await intermediateMigrationExtension.migrateMorpho(decodedParams, underlyingLoanAmount, maxSubsidy);
-            } else {
-              console.log("Morpho has insufficient WBTC, checking Balancer...");
-              const balancerWbtcBalance = await wbtc.balanceOf(contractAddresses.balancer);
-              if (balancerWbtcBalance.gte(underlyingLoanAmount)) {
-                await intermediateMigrationExtension.migrateBalancer(decodedParams, underlyingLoanAmount, maxSubsidy);
-              } else {
-                throw new Error("Insufficient flash loan liquidity");
-              }
             }
 
-            console.log("=== BTC2xFLI Migration Complete ===");
-          });
+            if (config.name === "ETH2xFLI") {
+              it("IntermediateToken should still have nested token as its only component", async () => {
+                const components = await intermediateToken.getComponents();
+                expect(components).to.deep.equal([config.nestedToken]);
+              });
+            }
 
-          it("should have IntermediateToken as a component and BTC2X removed", async () => {
-            const components = await btc2xfli.getComponents();
-            expect(components).to.include(intermediateToken.address);
-            expect(components).to.not.include(tokenAddresses.btc2x);
-          });
+            context("when testing FLIRedemptionHelper after migration", () => {
+              before(async () => {
+                // Deploy FLIRedemptionHelper (or reuse if already deployed)
+                if (!fliRedemptionHelper) {
+                  fliRedemptionHelper = await deployer.extensions.deployFLIRedemptionHelper(
+                    fliToken.address,
+                    nestedToken.address,
+                    intermediateToken.address,
+                    fliIssuanceModule.address,
+                    basicIssuanceModule.address,
+                  );
+                }
+              });
 
-          it("should have positive IntermediateToken position", async () => {
-            const unit = await btc2xfli.getDefaultPositionRealUnit(intermediateToken.address);
-            expect(unit).to.be.gt(ZERO);
-          });
+              it("should report migrated", async () => {
+                expect(await fliRedemptionHelper.isMigrated()).to.be.true;
+              });
 
-          it("should preserve implied BTC2X exposure (within slippage tolerance)", async () => {
-            const intermediateTokenUnit = await btc2xfli.getDefaultPositionRealUnit(intermediateToken.address);
-            const btc2xPerIntermediate = await intermediateToken.getDefaultPositionRealUnit(tokenAddresses.btc2x);
-            const impliedBtc2xUnit = preciseMul(intermediateTokenUnit, btc2xPerIntermediate);
+              it("should correctly calculate nested token received on redemption after migration", async () => {
+                const fliAmount = ether(1);
+                const intermediateUnit = await fliToken.getDefaultPositionRealUnit(intermediateToken.address);
+                // IntermediateToken wraps nested token 1:1
+                const expectedNested = preciseMul(fliAmount, intermediateUnit);
+                const calculatedNested = await fliRedemptionHelper.getNestedTokenReceivedOnRedemption(fliAmount);
+                expect(calculatedNested).to.eq(expectedNested);
+              });
 
-            const slippageTolerance = ether(0.02);
-            const minExpected = preciseMul(btc2xUnitBefore, ether(1).sub(slippageTolerance));
+              it("should redeem FLI through IntermediateToken to nested token", async () => {
+                const fliAmount = ether(0.1); // Smaller amount since whale may have less after other tests
+                const intermediateUnit = await fliToken.getDefaultPositionRealUnit(intermediateToken.address);
+                const expectedNested = preciseMul(fliAmount, intermediateUnit);
 
-            console.log("=== BTC2X Exposure Comparison ===");
-            console.log("BTC2X unit before:", btc2xUnitBefore.toString());
-            console.log("Implied BTC2X unit after:", impliedBtc2xUnit.toString());
+                const whaleBalanceBefore = await fliToken.balanceOf(config.fliWhale);
+                const nestedBalanceBefore = await nestedToken.balanceOf(owner.address);
 
-            expect(impliedBtc2xUnit).to.be.gte(minExpected);
+                // Whale approves and redeems
+                await fliToken.connect(fliWhale).approve(fliRedemptionHelper.address, fliAmount);
+                await fliRedemptionHelper.connect(fliWhale).redeem(fliAmount, owner.address);
+
+                const whaleBalanceAfter = await fliToken.balanceOf(config.fliWhale);
+                const nestedBalanceAfter = await nestedToken.balanceOf(owner.address);
+
+                expect(whaleBalanceBefore.sub(whaleBalanceAfter)).to.eq(fliAmount);
+                expect(nestedBalanceAfter.sub(nestedBalanceBefore)).to.eq(expectedNested);
+              });
+            });
           });
         });
       });

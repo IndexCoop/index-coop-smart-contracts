@@ -87,6 +87,8 @@ import { FixedRebalanceExtension__factory } from "../../typechain/factories/Fixe
 import { MigrationExtension__factory } from "../../typechain/factories/MigrationExtension__factory";
 import { IntermediateMigrationExtension__factory } from "../../typechain/factories/IntermediateMigrationExtension__factory";
 import { IntermediateMigrationExtension } from "../../typechain/IntermediateMigrationExtension";
+import { FLIRedemptionHelper__factory } from "../../typechain/factories/FLIRedemptionHelper__factory";
+import { FLIRedemptionHelper } from "../../typechain/FLIRedemptionHelper";
 import { OptimisticAuctionRebalanceExtensionV1__factory } from "../../typechain/factories/OptimisticAuctionRebalanceExtensionV1__factory";
 import { StakeWiseReinvestmentExtension__factory } from "../../typechain/factories/StakeWiseReinvestmentExtension__factory";
 import { ReinvestmentExtensionV1__factory } from "../../typechain/factories/ReinvestmentExtensionV1__factory";
@@ -1403,6 +1405,22 @@ export default class DeployExtensions {
       initialRewardTokens,
       initialExchangeSettings,
       initialWrapPairs,
+    );
+  }
+
+  public async deployFLIRedemptionHelper(
+    fliToken: Address,
+    nestedToken: Address,
+    intermediateToken: Address,
+    fliIssuanceModule: Address,
+    intermediateIssuanceModule: Address,
+  ): Promise<FLIRedemptionHelper> {
+    return await new FLIRedemptionHelper__factory(this._deployerSigner).deploy(
+      fliToken,
+      nestedToken,
+      intermediateToken,
+      fliIssuanceModule,
+      intermediateIssuanceModule,
     );
   }
 }
