@@ -1,5 +1,6 @@
 export { AaveLeverageStrategyExtension } from "../../typechain/AaveLeverageStrategyExtension";
 export { MigrationExtension } from "../../typechain/MigrationExtension";
+export { IntermediateMigrationExtension } from "../../typechain/IntermediateMigrationExtension";
 export { AirdropExtension } from "../../typechain/AirdropExtension";
 export { AuctionRebalanceExtension } from "../../typechain/AuctionRebalanceExtension";
 export { AirdropIssuanceHook } from "../../typechain/AirdropIssuanceHook";

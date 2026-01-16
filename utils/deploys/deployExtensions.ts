@@ -85,6 +85,10 @@ import { GIMExtension__factory } from "../../typechain/factories/GIMExtension__f
 import { GovernanceExtension__factory } from "../../typechain/factories/GovernanceExtension__factory";
 import { FixedRebalanceExtension__factory } from "../../typechain/factories/FixedRebalanceExtension__factory";
 import { MigrationExtension__factory } from "../../typechain/factories/MigrationExtension__factory";
+import { IntermediateMigrationExtension__factory } from "../../typechain/factories/IntermediateMigrationExtension__factory";
+import { IntermediateMigrationExtension } from "../../typechain/IntermediateMigrationExtension";
+import { FLIRedemptionHelper__factory } from "../../typechain/factories/FLIRedemptionHelper__factory";
+import { FLIRedemptionHelper } from "../../typechain/FLIRedemptionHelper";
 import { OptimisticAuctionRebalanceExtensionV1__factory } from "../../typechain/factories/OptimisticAuctionRebalanceExtensionV1__factory";
 import { StakeWiseReinvestmentExtension__factory } from "../../typechain/factories/StakeWiseReinvestmentExtension__factory";
 import { ReinvestmentExtensionV1__factory } from "../../typechain/factories/ReinvestmentExtensionV1__factory";
@@ -1263,6 +1267,40 @@ export default class DeployExtensions {
     );
   }
 
+  public async deployIntermediateMigrationExtension(
+    manager: Address,
+    underlyingToken: Address,
+    aaveToken: Address,
+    debtToken: Address,
+    wrappedSetToken: Address,           // IntermediateToken
+    nestedSetToken: Address,            // ETH2X (inside IntermediateToken)
+    tradeModule: Address,
+    wrappedTokenIssuanceModule: Address,    // Issuance module for IntermediateToken
+    nestedSetTokenIssuanceModule: Address,  // DebtIssuanceModule for ETH2X (leveraged)
+    nonfungiblePositionManager: Address,
+    aavePool: Address,
+    morpho: Address,
+    swapRouter: Address,
+    useBasicIssuance: boolean,              // true = BasicIssuanceModule, false = DebtIssuanceModule
+  ): Promise<IntermediateMigrationExtension> {
+    return await new IntermediateMigrationExtension__factory(this._deployerSigner).deploy({
+      manager,
+      underlyingToken,
+      aaveToken,
+      debtToken,
+      wrappedSetToken,
+      nestedSetToken,
+      tradeModule,
+      wrappedTokenIssuanceModule,
+      nestedSetTokenIssuanceModule,
+      nonfungiblePositionManager,
+      aavePool,
+      morpho,
+      swapRouter,
+      useBasicIssuance,
+    });
+  }
+
   public async deployFlashMintWrappedExtension(
     wethAddress: Address,
     quickRouterAddress: Address,
@@ -1365,6 +1403,22 @@ export default class DeployExtensions {
       initialRewardTokens,
       initialExchangeSettings,
       initialWrapPairs,
+    );
+  }
+
+  public async deployFLIRedemptionHelper(
+    fliToken: Address,
+    nestedToken: Address,
+    intermediateToken: Address,
+    fliIssuanceModule: Address,
+    intermediateIssuanceModule: Address,
+  ): Promise<FLIRedemptionHelper> {
+    return await new FLIRedemptionHelper__factory(this._deployerSigner).deploy(
+      fliToken,
+      nestedToken,
+      intermediateToken,
+      fliIssuanceModule,
+      intermediateIssuanceModule,
     );
   }
 }
