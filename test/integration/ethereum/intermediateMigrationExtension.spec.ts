@@ -73,7 +73,6 @@ interface MigrationTokenConfig {
   fliWhale: string;  // FLI token holder for redemption tests
   fliIssuanceModule: string;  // BasicIssuanceModule for FLI
   seedAmount: BigNumber;
-  maxSubsidy: BigNumber;
   tokenName: string;
   tokenSymbol: string;
   includeStreamingFeeTests: boolean;
@@ -90,7 +89,6 @@ const tokenConfigs: MigrationTokenConfig[] = [
     fliWhale: "0x65BdEf0e45b652E86973c3408c7cd24dDa9D844D",
     fliIssuanceModule: "0x69a592D2129415a4A1d1b1E309C17051B7F28d57", // DebtIssuanceModuleV2 (no hooks)
     seedAmount: ether(0.01),
-    maxSubsidy: ether(10),
     tokenName: "ETH2X Fee Wrapper",
     tokenSymbol: "ETH2XFW",
     includeStreamingFeeTests: true,
@@ -105,7 +103,6 @@ const tokenConfigs: MigrationTokenConfig[] = [
     fliWhale: "0x4cb707b65d00eDeE22561e83c54923c5566640eb",
     fliIssuanceModule: "0x69a592D2129415a4A1d1b1E309C17051B7F28d57", // DebtIssuanceModuleV2 (no hooks)
     seedAmount: ether(0.001),
-    maxSubsidy: BigNumber.from(10000000), // 0.1 WBTC (8 decimals)
     tokenName: "BTC2X Fee Wrapper",
     tokenSymbol: "BTC2XFW",
     includeStreamingFeeTests: false,
@@ -336,47 +333,29 @@ if (process.env.INTEGRATIONTEST) {
               console.log("Total nested token in FLI:", totalNestedInFli.toString());
               console.log("Wrapped position units (aToken per nested):", wrappedPositionUnits.toString());
 
-              // Fund operator with underlying for subsidy
-              const operatorAddress = await operator.getAddress();
+              // Get underlying tokens for seeding
+              const aTokenPerNested = await nestedToken.getDefaultPositionRealUnit(config.aToken);
+              let underlyingNeededForSeed: BigNumber;
 
-              // Get underlying tokens for seeding and subsidy
               if (config.whale) {
                 // WBTC: transfer from whale
                 const whaleSigner = await impersonateAccount(config.whale);
                 await owner.wallet.sendTransaction({ to: config.whale, value: ether(1) });
 
-                const aTokenPerNested = await nestedToken.getDefaultPositionRealUnit(config.aToken);
-                const underlyingNeededForSeed = config.seedAmount.mul(2).mul(aTokenPerNested).mul(110).div(100).div(ether(1));
-                const totalUnderlyingForSetup = underlyingNeededForSeed.add(config.maxSubsidy);
-
-                await underlyingToken.connect(whaleSigner).transfer(owner.address, totalUnderlyingForSetup);
-                await underlyingToken.transfer(operatorAddress, config.maxSubsidy);
+                underlyingNeededForSeed = config.seedAmount.mul(2).mul(aTokenPerNested).mul(110).div(100).div(ether(1));
+                await underlyingToken.connect(whaleSigner).transfer(owner.address, underlyingNeededForSeed);
               } else {
                 // WETH: deposit ETH
                 const weth = (await ethers.getContractAt("IWETH", config.underlyingToken)) as IWETH;
-                await weth.deposit({ value: config.maxSubsidy });
-                await weth.transfer(operatorAddress, config.maxSubsidy);
-
-                const aTokenPerNested = await nestedToken.getDefaultPositionRealUnit(config.aToken);
-                const underlyingNeededForSeed = preciseMul(config.seedAmount.mul(2), aTokenPerNested).mul(110).div(100);
+                underlyingNeededForSeed = preciseMul(config.seedAmount.mul(2), aTokenPerNested).mul(110).div(100);
                 await weth.deposit({ value: underlyingNeededForSeed });
               }
-
-              await underlyingToken.connect(operator).approve(intermediateMigrationExtension.address, config.maxSubsidy);
 
               // Supply underlying to Aave to get aTokens
               const aavePoolAbi = [
                 "function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external",
               ];
               const aavePool = new ethers.Contract(contractAddresses.aavePool, aavePoolAbi, owner.wallet);
-
-              const aTokenPerNested = await nestedToken.getDefaultPositionRealUnit(config.aToken);
-              let underlyingNeededForSeed: BigNumber;
-              if (config.whale) {
-                underlyingNeededForSeed = config.seedAmount.mul(2).mul(aTokenPerNested).mul(110).div(100).div(ether(1));
-              } else {
-                underlyingNeededForSeed = preciseMul(config.seedAmount.mul(2), aTokenPerNested).mul(110).div(100);
-              }
 
               await underlyingToken.approve(aavePool.address, underlyingNeededForSeed);
               await aavePool.supply(config.underlyingToken, underlyingNeededForSeed, owner.address, 0);
@@ -418,12 +397,16 @@ if (process.env.INTEGRATIONTEST) {
               const token0 = isNestedToken0 ? config.nestedToken : intermediateToken.address;
               const token1 = isNestedToken0 ? intermediateToken.address : config.nestedToken;
 
-              console.log("Creating pool...");
-              await nonfungiblePositionManager.createAndInitializePoolIfNecessary(token0, token1, 3000, sqrtPriceX96);
+              // Use 1% fee tier (10000) to capture swap fees during migration
+              // This makes the migration profitable since we're the sole LP
+              const poolFee = 10000;
+              console.log("Creating pool with 1% fee tier...");
+              await nonfungiblePositionManager.createAndInitializePoolIfNecessary(token0, token1, poolFee, sqrtPriceX96);
 
               // Mint seed liquidity position
-              const tickLower = -60;
-              const tickUpper = 60;
+              // For 1% fee tier, tick spacing is 200, so ticks must be multiples of 200
+              const tickLower = -200;
+              const tickUpper = 200;
               await intermediateMigrationExtension.mintLiquidityPosition(
                 config.seedAmount,
                 config.seedAmount,
@@ -431,7 +414,7 @@ if (process.env.INTEGRATIONTEST) {
                 ZERO,
                 tickLower,
                 tickUpper,
-                3000,
+                poolFee,
                 isNestedToken0,
               );
 
@@ -439,12 +422,13 @@ if (process.env.INTEGRATIONTEST) {
               console.log("Seed liquidity position created, tokenId:", tokenId.toString());
 
               // Prepare migration parameters
+              // With 1% fee tier, account for the fee in slippage tolerance
               const underlyingTradeUnits = nestedUnit;
-              const wrappedSetTokenTradeUnits = preciseMul(nestedUnit, ether(0.99));
+              const wrappedSetTokenTradeUnits = preciseMul(nestedUnit, ether(0.98)); // 2% tolerance for 1% fee + buffer
 
               const exchangeData = ethers.utils.solidityPack(
                 ["address", "uint24", "address"],
-                [config.nestedToken, 3000, intermediateToken.address],
+                [config.nestedToken, poolFee, intermediateToken.address],
               );
 
               const supplyLiquidityAmount0Desired = isNestedToken0 ? poolLiquidityAmount : poolLiquidityAmount;
@@ -470,20 +454,28 @@ if (process.env.INTEGRATIONTEST) {
               console.log("Morpho balance:", morphoBalance.toString());
               console.log("Flash loan amount needed:", underlyingLoanAmount.toString());
 
+              let underlyingReturned: BigNumber;
               if (morphoBalance.gte(underlyingLoanAmount)) {
                 console.log("Using Morpho flash loan...");
-                await intermediateMigrationExtension.migrateMorpho(decodedParams, underlyingLoanAmount, config.maxSubsidy);
+                underlyingReturned = await intermediateMigrationExtension.callStatic.migrateMorpho(decodedParams, underlyingLoanAmount, ZERO);
+                await intermediateMigrationExtension.migrateMorpho(decodedParams, underlyingLoanAmount, ZERO);
               } else {
                 const balancerBalance = await underlyingToken.balanceOf(contractAddresses.balancer);
                 if (balancerBalance.gte(underlyingLoanAmount)) {
                   console.log("Using Balancer flash loan...");
-                  await intermediateMigrationExtension.migrateBalancer(decodedParams, underlyingLoanAmount, config.maxSubsidy);
+                  underlyingReturned = await intermediateMigrationExtension.callStatic.migrateBalancer(decodedParams, underlyingLoanAmount, ZERO);
+                  await intermediateMigrationExtension.migrateBalancer(decodedParams, underlyingLoanAmount, ZERO);
                 } else {
                   throw new Error("Insufficient flash loan liquidity");
                 }
               }
 
               console.log(`=== ${config.name} Migration Complete ===`);
+              const isEth = config.name.includes("ETH");
+              const formatAmount = (amount: BigNumber) => isEth
+                ? ethers.utils.formatEther(amount)
+                : ethers.utils.formatUnits(amount, 8);
+              console.log(`Profit returned to operator: ${formatAmount(underlyingReturned)} ${isEth ? "ETH" : "WBTC"}`);
             });
 
             it("should have IntermediateToken as a component and nested token removed", async () => {
