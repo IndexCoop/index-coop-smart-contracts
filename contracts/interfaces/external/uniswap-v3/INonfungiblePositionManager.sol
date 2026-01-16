@@ -141,4 +141,18 @@ interface INonfungiblePositionManager {
     /// must be collected first.
     /// @param tokenId The ID of the token that is being burned
     function burn(uint256 tokenId) external payable;
+
+    /// @notice Creates a new pool if it does not exist, then initializes if not initialized
+    /// @dev This method can be bundled with others via IMulticall for the first action (e.g. mint) performed against a pool
+    /// @param token0 The contract address of token0 of the pool
+    /// @param token1 The contract address of token1 of the pool
+    /// @param fee The fee amount of the v3 pool for the specified token pair
+    /// @param sqrtPriceX96 The initial square root price of the pool as a Q64.96 value
+    /// @return pool Returns the pool address based on the pair of tokens and fee, will return the newly created pool address if necessary
+    function createAndInitializePoolIfNecessary(
+        address token0,
+        address token1,
+        uint24 fee,
+        uint160 sqrtPriceX96
+    ) external payable returns (address pool);
 }

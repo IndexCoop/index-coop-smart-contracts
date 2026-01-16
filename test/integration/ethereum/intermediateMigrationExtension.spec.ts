@@ -19,7 +19,6 @@ import {
   IBasicIssuanceModule__factory,
   IERC20,
   IERC20__factory,
-  IWETH,
   SetToken,
   SetToken__factory,
   SetTokenCreator,
@@ -123,7 +122,6 @@ if (process.env.INTEGRATIONTEST) {
       let basicIssuanceModule: IBasicIssuanceModule;
 
       let underlyingToken: IERC20;
-      let aToken: IERC20;
 
       let intermediateMigrationExtension: IntermediateMigrationExtension;
       let intermediateToken: SetToken;
@@ -142,7 +140,6 @@ if (process.env.INTEGRATIONTEST) {
 
         // Setup tokens
         underlyingToken = IERC20__factory.connect(config.underlyingToken, owner.wallet);
-        aToken = IERC20__factory.connect(config.aToken, owner.wallet);
 
         // Setup FLI contracts
         fliToken = SetToken__factory.connect(config.fliToken, owner.wallet);
@@ -329,51 +326,9 @@ if (process.env.INTEGRATIONTEST) {
               const totalNestedInFli = preciseMul(nestedUnit, setTokenTotalSupply);
               const wrappedPositionUnits = await nestedToken.getDefaultPositionRealUnit(config.aToken);
 
-              console.log(`=== ${config.name} Migration Parameters ===`);
+              console.log(`=== ${config.name} Atomic Migration Parameters ===`);
               console.log("Total nested token in FLI:", totalNestedInFli.toString());
               console.log("Wrapped position units (aToken per nested):", wrappedPositionUnits.toString());
-
-              // Get underlying tokens for seeding
-              const aTokenPerNested = await nestedToken.getDefaultPositionRealUnit(config.aToken);
-              let underlyingNeededForSeed: BigNumber;
-
-              if (config.whale) {
-                // WBTC: transfer from whale
-                const whaleSigner = await impersonateAccount(config.whale);
-                await owner.wallet.sendTransaction({ to: config.whale, value: ether(1) });
-
-                underlyingNeededForSeed = config.seedAmount.mul(2).mul(aTokenPerNested).mul(110).div(100).div(ether(1));
-                await underlyingToken.connect(whaleSigner).transfer(owner.address, underlyingNeededForSeed);
-              } else {
-                // WETH: deposit ETH
-                const weth = (await ethers.getContractAt("IWETH", config.underlyingToken)) as IWETH;
-                underlyingNeededForSeed = preciseMul(config.seedAmount.mul(2), aTokenPerNested).mul(110).div(100);
-                await weth.deposit({ value: underlyingNeededForSeed });
-              }
-
-              // Supply underlying to Aave to get aTokens
-              const aavePoolAbi = [
-                "function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external",
-              ];
-              const aavePool = new ethers.Contract(contractAddresses.aavePool, aavePoolAbi, owner.wallet);
-
-              await underlyingToken.approve(aavePool.address, underlyingNeededForSeed);
-              await aavePool.supply(config.underlyingToken, underlyingNeededForSeed, owner.address, 0);
-
-              // Issue nested tokens for seeding
-              const nestedIssuanceModule = await ethers.getContractAt(
-                "IDebtIssuanceModule",
-                contractAddresses.eth2xIssuanceModule,
-                owner.wallet,
-              );
-              const nestedIssueAmount = config.seedAmount.mul(2);
-              await aToken.approve(nestedIssuanceModule.address, await aToken.balanceOf(owner.address));
-              await nestedIssuanceModule.issue(nestedToken.address, nestedIssueAmount, owner.address);
-
-              // Transfer to extension and issue IntermediateToken
-              await nestedToken.transfer(intermediateMigrationExtension.address, config.seedAmount);
-              await nestedToken.approve(basicIssuanceModule.address, config.seedAmount);
-              await basicIssuanceModule.issue(intermediateToken.address, config.seedAmount, intermediateMigrationExtension.address);
 
               // Calculate pool parameters
               const poolLiquidityAmount = totalNestedInFli.mul(101).div(100);
@@ -383,43 +338,11 @@ if (process.env.INTEGRATIONTEST) {
 
               const isNestedToken0 = config.nestedToken.toLowerCase() < intermediateToken.address.toLowerCase();
 
-              // Create Uniswap V3 pool
-              const nonfungiblePositionManagerAbi = [
-                "function createAndInitializePoolIfNecessary(address token0, address token1, uint24 fee, uint160 sqrtPriceX96) external payable returns (address pool)",
-              ];
-              const nonfungiblePositionManager = new ethers.Contract(
-                contractAddresses.uniswapV3NonfungiblePositionManager,
-                nonfungiblePositionManagerAbi,
-                owner.wallet,
-              );
-
+              // Pool parameters
               const sqrtPriceX96 = BigNumber.from("79228162514264337593543950336"); // 1:1 price
-              const token0 = isNestedToken0 ? config.nestedToken : intermediateToken.address;
-              const token1 = isNestedToken0 ? intermediateToken.address : config.nestedToken;
-
-              // Use 1% fee tier (10000) to capture swap fees during migration
-              // This makes the migration profitable since we're the sole LP
-              const poolFee = 10000;
-              console.log("Creating pool with 1% fee tier...");
-              await nonfungiblePositionManager.createAndInitializePoolIfNecessary(token0, token1, poolFee, sqrtPriceX96);
-
-              // Mint seed liquidity position
-              // For 1% fee tier, tick spacing is 200, so ticks must be multiples of 200
+              const poolFee = 10000; // 1% fee tier
               const tickLower = -200;
               const tickUpper = 200;
-              await intermediateMigrationExtension.mintLiquidityPosition(
-                config.seedAmount,
-                config.seedAmount,
-                ZERO,
-                ZERO,
-                tickLower,
-                tickUpper,
-                poolFee,
-                isNestedToken0,
-              );
-
-              const tokenId = await intermediateMigrationExtension.tokenIds(0);
-              console.log("Seed liquidity position created, tokenId:", tokenId.toString());
 
               // Prepare migration parameters
               // With 1% fee tier, account for the fee in slippage tolerance
@@ -431,15 +354,12 @@ if (process.env.INTEGRATIONTEST) {
                 [config.nestedToken, poolFee, intermediateToken.address],
               );
 
-              const supplyLiquidityAmount0Desired = isNestedToken0 ? poolLiquidityAmount : poolLiquidityAmount;
-              const supplyLiquidityAmount1Desired = isNestedToken0 ? poolLiquidityAmount : poolLiquidityAmount;
-
-              const decodedParams = {
-                supplyLiquidityAmount0Desired,
-                supplyLiquidityAmount1Desired,
+              // Build atomic migration params (no tokenId needed, no external pool setup)
+              const atomicParams = {
+                supplyLiquidityAmount0Desired: poolLiquidityAmount,
+                supplyLiquidityAmount1Desired: poolLiquidityAmount,
                 supplyLiquidityAmount0Min: ZERO,
                 supplyLiquidityAmount1Min: ZERO,
-                tokenId,
                 exchangeName: "UniswapV3ExchangeAdapter",
                 underlyingTradeUnits,
                 wrappedSetTokenTradeUnits,
@@ -447,30 +367,33 @@ if (process.env.INTEGRATIONTEST) {
                 redeemLiquidityAmount0Min: ZERO,
                 redeemLiquidityAmount1Min: ZERO,
                 isUnderlyingToken0: isNestedToken0,
+                // Pool creation parameters
+                tickLower,
+                tickUpper,
+                poolFee,
+                sqrtPriceX96,
               };
 
-              // Execute migration using Morpho flash loan
+              // Execute atomic migration using Morpho flash loan
+              // No external pool creation or seed liquidity needed!
               const morphoBalance = await underlyingToken.balanceOf(contractAddresses.morpho);
               console.log("Morpho balance:", morphoBalance.toString());
               console.log("Flash loan amount needed:", underlyingLoanAmount.toString());
+              console.log("Using atomic migration with Morpho flash loan...");
 
-              let underlyingReturned: BigNumber;
-              if (morphoBalance.gte(underlyingLoanAmount)) {
-                console.log("Using Morpho flash loan...");
-                underlyingReturned = await intermediateMigrationExtension.callStatic.migrateMorpho(decodedParams, underlyingLoanAmount, ZERO);
-                await intermediateMigrationExtension.migrateMorpho(decodedParams, underlyingLoanAmount, ZERO);
-              } else {
-                const balancerBalance = await underlyingToken.balanceOf(contractAddresses.balancer);
-                if (balancerBalance.gte(underlyingLoanAmount)) {
-                  console.log("Using Balancer flash loan...");
-                  underlyingReturned = await intermediateMigrationExtension.callStatic.migrateBalancer(decodedParams, underlyingLoanAmount, ZERO);
-                  await intermediateMigrationExtension.migrateBalancer(decodedParams, underlyingLoanAmount, ZERO);
-                } else {
-                  throw new Error("Insufficient flash loan liquidity");
-                }
-              }
+              // Execute atomic migration - creates pool, mints LP, trades, removes liquidity in one tx
+              const tx = await intermediateMigrationExtension.migrateAtomicMorpho(
+                atomicParams,
+                underlyingLoanAmount,
+                ZERO,
+                { gasLimit: 15000000 },
+              );
+              await tx.wait();
 
-              console.log(`=== ${config.name} Migration Complete ===`);
+              // Calculate profit returned to operator
+              const underlyingReturned = await underlyingToken.balanceOf(gnosisSafeManager);
+
+              console.log(`=== ${config.name} Atomic Migration Complete ===`);
               const isEth = config.name.includes("ETH");
               const formatAmount = (amount: BigNumber) => isEth
                 ? ethers.utils.formatEther(amount)

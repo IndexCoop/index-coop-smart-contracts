@@ -43,6 +43,12 @@ const config: HardhatUserConfig = {
         settings: { optimizer: { enabled: true, runs: 200 } },
       },
     ],
+    overrides: {
+      "contracts/adapters/IntermediateMigrationExtension.sol": {
+        version: "0.6.10",
+        settings: { optimizer: { enabled: true, runs: 1 } },
+      },
+    },
   },
   namedAccounts: {
     deployer: 0,

@@ -264,7 +264,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     }
 
     /**
-     * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken 
+     * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken
      * that consists solely of Aave's wrapped collateral asset
      * using Aave Flashloan
      * @param _decodedParams The decoded migration parameters.
@@ -281,7 +281,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         onlyOperator
         returns (uint256 underlyingOutputAmount)
     {
-        // Subsidize the migration
+        // Subsidize the migration if needed
         if (_maxSubsidy > 0) {
             underlyingToken.transferFrom(msg.sender, address(this), _maxSubsidy);
         }
@@ -303,7 +303,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     }
 
     /**
-     * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken 
+     * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken
      * that consists solely of Aave's wrapped collateral asset
      * using Balancer Flashloan
      * @param _decodedParams The decoded migration parameters.
@@ -320,7 +320,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         onlyOperator
         returns (uint256 underlyingOutputAmount)
     {
-        // Subsidize the migration
+        // Subsidize the migration if needed
         if (_maxSubsidy > 0) {
             underlyingToken.transferFrom(msg.sender, address(this), _maxSubsidy);
         }
@@ -358,7 +358,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
 
 
     /**
-     * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken 
+     * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken
      * that consists solely of Aave's wrapped collateral asset
      * using Morpho Flashloan
      * @param _decodedParams The decoded migration parameters.
@@ -375,7 +375,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         onlyOperator
         returns (uint256 underlyingOutputAmount)
     {
-        // Subsidize the migration
+        // Subsidize the migration if needed
         if (_maxSubsidy > 0) {
             underlyingToken.transferFrom(msg.sender, address(this), _maxSubsidy);
         }
@@ -393,7 +393,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     /**
      * @dev Callback function for Morpho Flashloan
     */
-    function onMorphoFlashLoan(uint256 assets, bytes calldata params) external 
+    function onMorphoFlashLoan(uint256 assets, bytes calldata params) external virtual
     {
         require(msg.sender == address(morpho), "MigrationExtension: invalid flashloan sender");
 

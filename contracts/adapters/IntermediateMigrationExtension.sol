@@ -59,6 +59,29 @@ contract IntermediateMigrationExtension is MigrationExtension {
     /* ============ Structs ============ */
 
     /**
+     * @dev Parameters for atomic migration that creates pool and mints LP position in one transaction.
+     * Unlike DecodedParams, this doesn't have tokenId since we always mint a new position.
+     */
+    struct AtomicMigrationParams {
+        uint256 supplyLiquidityAmount0Desired;
+        uint256 supplyLiquidityAmount1Desired;
+        uint256 supplyLiquidityAmount0Min;
+        uint256 supplyLiquidityAmount1Min;
+        string exchangeName;
+        uint256 underlyingTradeUnits;
+        uint256 wrappedSetTokenTradeUnits;
+        bytes exchangeData;
+        uint256 redeemLiquidityAmount0Min;
+        uint256 redeemLiquidityAmount1Min;
+        bool isUnderlyingToken0;
+        // Pool creation parameters
+        int24 tickLower;
+        int24 tickUpper;
+        uint24 poolFee;
+        uint160 sqrtPriceX96;
+    }
+
+    /**
      * @dev Struct to hold constructor arguments to avoid stack too deep errors.
      */
     struct ConstructorParams {
@@ -120,60 +143,122 @@ contract IntermediateMigrationExtension is MigrationExtension {
         useBasicIssuance = _params.useBasicIssuance;
     }
 
-    /* ========== Internal Functions (Overrides) ========== */
+    /* ========== External Functions ========== */
 
     /**
-     * @dev Conducts the migration utilizing ETH2X/IntermediateToken pool.
-     * Overrides parent to handle the different pool structure where both tokens
-     * need to be issued rather than one coming from flash loan directly.
+     * @notice OPERATOR ONLY: Executes atomic migration using Morpho flash loan.
+     * Creates pool, mints LP position, trades, removes liquidity - all in one transaction.
+     * @param _params Parameters for atomic migration including pool creation params.
+     * @param _underlyingLoanAmount Amount of underlying to flash loan.
+     * @param _maxSubsidy Maximum subsidy from operator (can be 0 for profitable migrations).
+     * @return underlyingOutputAmount Amount of underlying returned to operator.
+     */
+    function migrateAtomicMorpho(
+        AtomicMigrationParams memory _params,
+        uint256 _underlyingLoanAmount,
+        uint256 _maxSubsidy
+    ) external onlyOperator returns (uint256 underlyingOutputAmount) {
+        // Take subsidy if provided
+        if (_maxSubsidy > 0) {
+            underlyingToken.transferFrom(msg.sender, address(this), _maxSubsidy);
+        }
+
+        // Trigger Morpho flash loan with encoded params
+        morpho.flashLoan(address(underlyingToken), _underlyingLoanAmount, abi.encode(_params));
+
+        // Return remaining underlying to operator
+        underlyingOutputAmount = underlyingToken.balanceOf(address(this));
+        underlyingToken.transfer(msg.sender, underlyingOutputAmount);
+    }
+
+    /**
+     * @notice Callback for Morpho flash loan. Executes atomic migration.
+     * @param _assets Amount of assets borrowed.
+     * @param _data Encoded AtomicMigrationParams.
+     */
+    function onMorphoFlashLoan(uint256 _assets, bytes calldata _data) external override {
+        require(msg.sender == address(morpho), "Invalid caller");
+
+        AtomicMigrationParams memory params = abi.decode(_data, (AtomicMigrationParams));
+        _migrateAtomic(params);
+
+        // Approve Morpho to pull repayment
+        underlyingToken.approve(address(morpho), _assets);
+    }
+
+    /* ========== Internal Functions ========== */
+
+    /**
+     * @dev Conducts atomic migration - creates pool, mints LP position, trades, removes liquidity.
+     * This is the single-transaction version that doesn't require external pool setup.
      *
      * Flow:
-     * 1. Flash loan WETH
-     * 2. Issue both ETH2X and IntermediateToken for pool liquidity
-     * 3. Add liquidity to ETH2X/IntermediateToken pool
-     * 4. Trade ETH2X → IntermediateToken (single-hop)
+     * 1. Create and initialize Uniswap V3 pool
+     * 2. Issue ETH2X and IntermediateToken for pool liquidity
+     * 3. Mint new LP position (instead of increasing existing one)
+     * 4. Trade ETH2X → IntermediateToken
      * 5. Remove liquidity
      * 6. Redeem all tokens back to WETH
-     * 7. Repay flash loan
      *
-     * @param decodedParams The decoded set of parameters needed for migration.
+     * @param params The atomic migration parameters including pool creation params.
      */
-    function _migrate(DecodedParams memory decodedParams) internal override {
-        // For ETH2X/IntermediateToken pool, isUnderlyingToken0 means "is ETH2X token0?"
-        bool isNestedToken0 = decodedParams.isUnderlyingToken0;
+    function _migrateAtomic(AtomicMigrationParams memory params) internal {
+        bool isNestedToken0 = params.isUnderlyingToken0;
 
+        // Step 1: Create and initialize the pool
+        address token0 = isNestedToken0 ? address(nestedSetToken) : address(wrappedSetToken);
+        address token1 = isNestedToken0 ? address(wrappedSetToken) : address(nestedSetToken);
+        nonfungiblePositionManager.createAndInitializePoolIfNecessary(
+            token0,
+            token1,
+            params.poolFee,
+            params.sqrtPriceX96
+        );
+
+        // Step 2: Issue tokens for pool liquidity
         uint256 nestedSetTokenSupplyAmount = isNestedToken0
-            ? decodedParams.supplyLiquidityAmount0Desired
-            : decodedParams.supplyLiquidityAmount1Desired;
+            ? params.supplyLiquidityAmount0Desired
+            : params.supplyLiquidityAmount1Desired;
         uint256 wrappedSetTokenSupplyAmount = isNestedToken0
-            ? decodedParams.supplyLiquidityAmount1Desired
-            : decodedParams.supplyLiquidityAmount0Desired;
-
-        // Issue both tokens needed for pool liquidity
+            ? params.supplyLiquidityAmount1Desired
+            : params.supplyLiquidityAmount0Desired;
         _issueRequiredPoolTokens(nestedSetTokenSupplyAmount, wrappedSetTokenSupplyAmount);
 
-        // Increase liquidity (uses overridden method that handles nestedSetToken)
-        uint128 liquidity = _increaseLiquidityPosition(
-            decodedParams.supplyLiquidityAmount0Desired,
-            decodedParams.supplyLiquidityAmount1Desired,
-            decodedParams.supplyLiquidityAmount0Min,
-            decodedParams.supplyLiquidityAmount1Min,
-            decodedParams.tokenId,
+        // Step 3: Mint new LP position
+        _mintLiquidityPosition(
+            params.supplyLiquidityAmount0Desired,
+            params.supplyLiquidityAmount1Desired,
+            params.supplyLiquidityAmount0Min,
+            params.supplyLiquidityAmount1Min,
+            params.tickLower,
+            params.tickUpper,
+            params.poolFee,
             isNestedToken0
         );
+        uint256 tokenId = tokenIds[tokenIds.length - 1];
 
-        // Execute trade (ETH2X → IntermediateToken)
-        _executeMigrationTrade(decodedParams);
+        // Get liquidity from newly minted position
+        (,,,,,,, uint128 liquidity,,,,) = nonfungiblePositionManager.positions(tokenId);
 
-        // Decrease liquidity
-        _decreaseLiquidityPosition(
-            decodedParams.tokenId,
-            liquidity,
-            decodedParams.redeemLiquidityAmount0Min,
-            decodedParams.redeemLiquidityAmount1Min
+        // Step 4: Execute trade (ETH2X → IntermediateToken)
+        _trade(
+            params.exchangeName,
+            address(nestedSetToken),
+            params.underlyingTradeUnits,
+            address(wrappedSetToken),
+            params.wrappedSetTokenTradeUnits,
+            params.exchangeData
         );
 
-        // Redeem excess tokens back to WETH
+        // Step 5: Decrease liquidity
+        _decreaseLiquidityPosition(
+            tokenId,
+            liquidity,
+            params.redeemLiquidityAmount0Min,
+            params.redeemLiquidityAmount1Min
+        );
+
+        // Step 6: Redeem excess tokens back to WETH
         _redeemExcessWrappedSetToken();
     }
 
@@ -206,8 +291,8 @@ contract IntermediateMigrationExtension is MigrationExtension {
         uint256 nestedForIntermediate = 0;
         if (intermediateIssueAmount > 0) {
             (address[] memory intComponents, uint256[] memory intUnits) = _getWrappedTokenRequiredUnits(intermediateIssueAmount);
-            require(intComponents.length == 1, "IntermediateMigrationExtension: invalid intermediate token composition");
-            require(intComponents[0] == address(nestedSetToken), "IntermediateMigrationExtension: intermediate token underlying mismatch");
+            require(intComponents.length == 1, "Invalid intermediate composition");
+            require(intComponents[0] == address(nestedSetToken), "Intermediate underlying mismatch");
             nestedForIntermediate = intUnits[0];
         }
 
@@ -233,7 +318,7 @@ contract IntermediateMigrationExtension is MigrationExtension {
             );
 
             uint256 aaveRequired = _findAaveRequirement(nestedComponents, nestedEquityUnits);
-            require(aaveRequired > 0, "IntermediateMigrationExtension: aWETH not found in nestedSetToken components");
+            require(aaveRequired > 0, "aWETH not found");
 
             // WETH → aWETH via Aave
             underlyingToken.approve(address(POOL), aaveRequired);
@@ -257,13 +342,11 @@ contract IntermediateMigrationExtension is MigrationExtension {
         }
     }
 
-    /**
-     * @dev Not used in this extension. Pool tokens are issued via _issueRequiredPoolTokens.
-     * This override prevents the parent's implementation from being called.
-     */
-    function _issueRequiredWrappedSetToken(uint256) internal override {
-        // No-op: Pool token issuance is handled by _issueRequiredPoolTokens in _migrate override
-    }
+    // Override with no-op to reduce contract size (parent's implementations not needed)
+    function _issueRequiredWrappedSetToken(uint256) internal override {}
+    function _migrate(DecodedParams memory) internal override {}
+    function _executeMigrationTrade(DecodedParams memory) internal override {}
+    function _increaseLiquidityPosition(uint256,uint256,uint256,uint256,uint256,bool) internal override returns (uint128) {}
 
     /**
      * @dev Redeems any excess pool tokens (ETH2X and IntermediateToken) after liquidity decrease.
@@ -311,30 +394,6 @@ contract IntermediateMigrationExtension is MigrationExtension {
             aaveToken.approve(address(POOL), aaveBalance);
             POOL.withdraw(address(underlyingToken), aaveBalance, address(this));
         }
-    }
-
-    /**
-     * @dev Executes the migration trade. Overrides parent to trade:
-     * nestedSetToken (ETH2X) → wrappedSetToken (IntermediateToken)
-     * instead of underlyingToken (WETH) → wrappedSetToken.
-     *
-     * The exchange data should specify a single-hop path: ETH2X → IntermediateToken
-     * using the ETH2X/IntermediateToken pool.
-     *
-     * Note: In this context, `underlyingTradeUnits` is repurposed to mean
-     * the amount of nestedSetToken to trade.
-     *
-     * @param decodedParams The decoded parameters containing trade info.
-     */
-    function _executeMigrationTrade(DecodedParams memory decodedParams) internal override {
-        _trade(
-            decodedParams.exchangeName,
-            address(nestedSetToken),           // ETH2X (instead of WETH)
-            decodedParams.underlyingTradeUnits,
-            address(wrappedSetToken),          // IntermediateToken
-            decodedParams.wrappedSetTokenTradeUnits,
-            decodedParams.exchangeData
-        );
     }
 
     /**
@@ -393,53 +452,6 @@ contract IntermediateMigrationExtension is MigrationExtension {
         });
         (uint256 tokenId,,,) = nonfungiblePositionManager.mint(mintParams);
         tokenIds.push(tokenId);
-    }
-
-    /**
-     * @dev Internal function to increase liquidity in a Uniswap V3 pool position.
-     * Overrides parent to use nestedSetToken instead of underlyingToken.
-     * @param _amount0Desired The desired amount of token0 to be added as liquidity.
-     * @param _amount1Desired The desired amount of token1 to be added as liquidity.
-     * @param _amount0Min The minimum amount of token0 to be added as liquidity.
-     * @param _amount1Min The minimum amount of token1 to be added as liquidity.
-     * @param _tokenId The ID of the UniV3 LP Token for which liquidity is being increased.
-     * @param _isNestedToken0 True if the nestedSetToken is token0, false if it is token1.
-     * @return liquidity The new liquidity amount as a result of the increase.
-     */
-    function _increaseLiquidityPosition(
-        uint256 _amount0Desired,
-        uint256 _amount1Desired,
-        uint256 _amount0Min,
-        uint256 _amount1Min,
-        uint256 _tokenId,
-        bool _isNestedToken0
-    )
-        internal
-        override
-        returns (uint128 liquidity)
-    {
-        (uint256 nestedAmount, uint256 wrappedSetTokenAmount) = _isNestedToken0
-            ? (_amount0Desired, _amount1Desired)
-            : (_amount1Desired, _amount0Desired);
-
-        // Approve tokens (nestedSetToken instead of underlyingToken)
-        if (nestedAmount > 0) {
-            IERC20(address(nestedSetToken)).approve(address(nonfungiblePositionManager), nestedAmount);
-        }
-        if (wrappedSetTokenAmount > 0) {
-            wrappedSetToken.approve(address(nonfungiblePositionManager), wrappedSetTokenAmount);
-        }
-
-        // Increase liquidity
-        INonfungiblePositionManager.IncreaseLiquidityParams memory increaseParams = INonfungiblePositionManager.IncreaseLiquidityParams({
-            tokenId: _tokenId,
-            amount0Desired: _amount0Desired,
-            amount1Desired: _amount1Desired,
-            amount0Min: _amount0Min,
-            amount1Min: _amount1Min,
-            deadline: block.timestamp
-        });
-        (liquidity,,) = nonfungiblePositionManager.increaseLiquidity(increaseParams);
     }
 
     /**
