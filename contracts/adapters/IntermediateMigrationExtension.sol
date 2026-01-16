@@ -20,12 +20,11 @@ pragma solidity 0.6.10;
 pragma experimental ABIEncoderV2;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC721Receiver } from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 
 import { ISwapRouter } from "../interfaces/external/ISwapRouter.sol";
-import { IBalancerVault } from "../interfaces/IBalancerVault.sol";
 import { IMorpho } from "../interfaces/IMorpho.sol";
-import { IPoolAddressesProvider } from "../interfaces/IPoolAddressesProvider.sol";
 import { INonfungiblePositionManager } from "../interfaces/external/uniswap-v3/INonfungiblePositionManager.sol";
 
 import { IBaseManager } from "../interfaces/IBaseManager.sol";
@@ -34,7 +33,9 @@ import { IDebtIssuanceModule } from "../interfaces/IDebtIssuanceModule.sol";
 import { ISetToken } from "../interfaces/ISetToken.sol";
 import { ITradeModule } from "../interfaces/ITradeModule.sol";
 
-import { MigrationExtension } from "./MigrationExtension.sol";
+import { IPool } from "../interfaces/IPool.sol";
+
+import { BaseExtension } from "../lib/BaseExtension.sol";
 
 /**
  * @title IntermediateMigrationExtension
@@ -53,7 +54,7 @@ import { MigrationExtension } from "./MigrationExtension.sol";
  * 5. Pool is ETH2X/IntermediateToken (single-hop trade) instead of WETH/wrappedSetToken
  * 6. Liquidity management uses nestedSetToken (ETH2X) instead of underlyingToken (WETH)
  */
-contract IntermediateMigrationExtension is MigrationExtension {
+contract IntermediateMigrationExtension is BaseExtension, IERC721Receiver {
     using SafeMath for uint256;
 
     /* ============ Structs ============ */
@@ -95,15 +96,27 @@ contract IntermediateMigrationExtension is MigrationExtension {
         address wrappedTokenIssuanceModule;               // Issuance module for IntermediateToken
         IDebtIssuanceModule nestedSetTokenIssuanceModule; // For ETH2X (leveraged, has debt)
         INonfungiblePositionManager nonfungiblePositionManager;
-        IPoolAddressesProvider addressProvider;
+        IPool aavePool;
         IMorpho morpho;
-        IBalancerVault balancer;
         ISwapRouter swapRouter;
         bool useBasicIssuance;                            // true = BasicIssuanceModule, false = DebtIssuanceModule
     }
 
     /* ========== State Variables ========= */
 
+    // From parent (previously inherited)
+    ISetToken public immutable setToken;
+    IERC20 public immutable underlyingToken;
+    IERC20 public immutable aaveToken;
+    ISetToken public immutable wrappedSetToken;
+    ITradeModule public immutable tradeModule;
+    INonfungiblePositionManager public immutable nonfungiblePositionManager;
+    IMorpho public immutable morpho;
+    IPool public immutable POOL;                    // Aave V3 Pool for aWETH supply/withdraw
+
+    uint256[] public tokenIds;                      // UniV3 LP Token IDs
+
+    // Child-specific
     IERC20 public immutable debtToken;              // USDC (debt component of nestedSetToken)
     ISetToken public immutable nestedSetToken;      // ETH2X (the leveraged token inside IntermediateToken)
     address public immutable wrappedTokenIssuanceModule;   // For issuing/redeeming IntermediateToken
@@ -121,20 +134,19 @@ contract IntermediateMigrationExtension is MigrationExtension {
      */
     constructor(ConstructorParams memory _params)
         public
-        MigrationExtension(
-            _params.manager,
-            _params.underlyingToken,
-            _params.aaveToken,
-            _params.wrappedSetToken,
-            _params.tradeModule,
-            // Pass placeholder - parent's issuanceModule is only used in methods we override
-            IDebtIssuanceModule(_params.wrappedTokenIssuanceModule),
-            _params.nonfungiblePositionManager,
-            _params.addressProvider,
-            _params.morpho,
-            _params.balancer
-        )
+        BaseExtension(_params.manager)
     {
+        // From parent (previously inherited)
+        setToken = _params.manager.setToken();
+        underlyingToken = _params.underlyingToken;
+        aaveToken = _params.aaveToken;
+        wrappedSetToken = _params.wrappedSetToken;
+        tradeModule = _params.tradeModule;
+        nonfungiblePositionManager = _params.nonfungiblePositionManager;
+        morpho = _params.morpho;
+        POOL = _params.aavePool;
+
+        // Child-specific
         debtToken = _params.debtToken;
         nestedSetToken = _params.nestedSetToken;
         wrappedTokenIssuanceModule = _params.wrappedTokenIssuanceModule;
@@ -176,7 +188,7 @@ contract IntermediateMigrationExtension is MigrationExtension {
      * @param _assets Amount of assets borrowed.
      * @param _data Encoded AtomicMigrationParams.
      */
-    function onMorphoFlashLoan(uint256 _assets, bytes calldata _data) external override {
+    function onMorphoFlashLoan(uint256 _assets, bytes calldata _data) external {
         require(msg.sender == address(morpho), "Invalid caller");
 
         AtomicMigrationParams memory params = abi.decode(_data, (AtomicMigrationParams));
@@ -184,6 +196,38 @@ contract IntermediateMigrationExtension is MigrationExtension {
 
         // Approve Morpho to pull repayment
         underlyingToken.approve(address(morpho), _assets);
+    }
+
+    /**
+     * @notice OPERATOR ONLY: Initializes the Set Token on the Trade Module.
+     */
+    function initialize() external onlyOperator {
+        bytes memory data = abi.encodeWithSelector(tradeModule.initialize.selector, setToken);
+        invokeManager(address(tradeModule), data);
+    }
+
+    /**
+     * @notice OPERATOR ONLY: Transfers any residual balances to the operator's address.
+     * @param _token The address of the token to be swept.
+     */
+    function sweepTokens(address _token) external onlyOperator {
+        IERC20 token = IERC20(_token);
+        uint256 balance = token.balanceOf(address(this));
+        require(balance > 0, "No balance to sweep");
+        token.transfer(manager.operator(), balance);
+    }
+
+    /**
+     * @notice Receives ERC721 tokens, required for Uniswap V3 LP NFT handling.
+     * @return The selector of the `onERC721Received` function.
+     */
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) external override returns (bytes4) {
+        return this.onERC721Received.selector;
     }
 
     /* ========== Internal Functions ========== */
@@ -342,12 +386,6 @@ contract IntermediateMigrationExtension is MigrationExtension {
         }
     }
 
-    // Override with no-op to reduce contract size (parent's implementations not needed)
-    function _issueRequiredWrappedSetToken(uint256) internal override {}
-    function _migrate(DecodedParams memory) internal override {}
-    function _executeMigrationTrade(DecodedParams memory) internal override {}
-    function _increaseLiquidityPosition(uint256,uint256,uint256,uint256,uint256,bool) internal override returns (uint128) {}
-
     /**
      * @dev Redeems any excess pool tokens (ETH2X and IntermediateToken) after liquidity decrease.
      * For ETH2X/IntermediateToken pool, after decreasing liquidity we may have both tokens.
@@ -356,7 +394,7 @@ contract IntermediateMigrationExtension is MigrationExtension {
      * 1. Redeem IntermediateToken → ETH2X (if any)
      * 2. Redeem all ETH2X → aWETH → WETH (requires buying USDC to pay debt)
      */
-    function _redeemExcessWrappedSetToken() internal override {
+    function _redeemExcessWrappedSetToken() internal {
         // 1. Redeem any IntermediateToken → ETH2X
         uint256 wrappedSetTokenBalance = wrappedSetToken.balanceOf(address(this));
         if (wrappedSetTokenBalance > 0) {
@@ -417,7 +455,7 @@ contract IntermediateMigrationExtension is MigrationExtension {
         int24 _tickUpper,
         uint24 _fee,
         bool _isNestedToken0
-    ) internal override {
+    ) internal {
         // Sort tokens and amounts (nestedSetToken/wrappedSetToken instead of underlyingToken/wrappedSetToken)
         (
             address token0,
@@ -596,5 +634,68 @@ contract IntermediateMigrationExtension is MigrationExtension {
                 address(this)
             );
         }
+    }
+
+    /**
+     * @dev Internal function to execute trades via the TradeModule.
+     * @param _exchangeName The human-readable name of the exchange in the integrations registry.
+     * @param _sendToken The address of the token being sent to the exchange.
+     * @param _sendQuantity The amount of the token (in SetToken units) being sent to the exchange.
+     * @param _receiveToken The address of the token being received from the exchange.
+     * @param _minReceiveQuantity The minimum amount of the receive token (in SetToken units) expected from the exchange.
+     * @param _data Arbitrary data used to construct the trade call data.
+     */
+    function _trade(
+        string memory _exchangeName,
+        address _sendToken,
+        uint256 _sendQuantity,
+        address _receiveToken,
+        uint256 _minReceiveQuantity,
+        bytes memory _data
+    ) internal {
+        bytes memory callData = abi.encodeWithSignature(
+            "trade(address,string,address,uint256,address,uint256,bytes)",
+            setToken,
+            _exchangeName,
+            _sendToken,
+            _sendQuantity,
+            _receiveToken,
+            _minReceiveQuantity,
+            _data
+        );
+        invokeManager(address(tradeModule), callData);
+    }
+
+    /**
+     * @dev Internal function to decrease liquidity and collect fees for a Uniswap V3 position.
+     * @param _tokenId The ID of the UniV3 LP Token for which liquidity is being decreased.
+     * @param _liquidity The amount by which liquidity will be decreased.
+     * @param _amount0Min The minimum amount of token0 that should be accounted for the burned liquidity.
+     * @param _amount1Min The minimum amount of token1 that should be accounted for the burned liquidity.
+     */
+    function _decreaseLiquidityPosition(
+        uint256 _tokenId,
+        uint128 _liquidity,
+        uint256 _amount0Min,
+        uint256 _amount1Min
+    ) internal {
+        // Decrease liquidity
+        INonfungiblePositionManager.DecreaseLiquidityParams memory decreaseParams = INonfungiblePositionManager.DecreaseLiquidityParams({
+            tokenId: _tokenId,
+            liquidity: _liquidity,
+            amount0Min: _amount0Min,
+            amount1Min: _amount1Min,
+            deadline: block.timestamp
+        });
+        nonfungiblePositionManager.decreaseLiquidity(decreaseParams);
+
+        // Collect liquidity and fees
+        INonfungiblePositionManager.CollectParams memory params = INonfungiblePositionManager.CollectParams({
+            tokenId: _tokenId,
+            recipient: address(this),
+            amount0Max: type(uint128).max,
+            amount1Max: type(uint128).max
+        });
+        nonfungiblePositionManager.collect(params);
     }
 }

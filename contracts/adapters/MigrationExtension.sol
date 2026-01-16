@@ -264,7 +264,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     }
 
     /**
-     * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken
+     * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken 
      * that consists solely of Aave's wrapped collateral asset
      * using Aave Flashloan
      * @param _decodedParams The decoded migration parameters.
@@ -281,7 +281,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         onlyOperator
         returns (uint256 underlyingOutputAmount)
     {
-        // Subsidize the migration if needed
+        // Subsidize the migration
         if (_maxSubsidy > 0) {
             underlyingToken.transferFrom(msg.sender, address(this), _maxSubsidy);
         }
@@ -303,7 +303,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     }
 
     /**
-     * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken
+     * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken 
      * that consists solely of Aave's wrapped collateral asset
      * using Balancer Flashloan
      * @param _decodedParams The decoded migration parameters.
@@ -320,7 +320,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         onlyOperator
         returns (uint256 underlyingOutputAmount)
     {
-        // Subsidize the migration if needed
+        // Subsidize the migration
         if (_maxSubsidy > 0) {
             underlyingToken.transferFrom(msg.sender, address(this), _maxSubsidy);
         }
@@ -358,7 +358,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
 
 
     /**
-     * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken
+     * @notice OPERATOR ONLY: Migrates a SetToken's position from an unwrapped collateral asset to another SetToken 
      * that consists solely of Aave's wrapped collateral asset
      * using Morpho Flashloan
      * @param _decodedParams The decoded migration parameters.
@@ -375,7 +375,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         onlyOperator
         returns (uint256 underlyingOutputAmount)
     {
-        // Subsidize the migration if needed
+        // Subsidize the migration
         if (_maxSubsidy > 0) {
             underlyingToken.transferFrom(msg.sender, address(this), _maxSubsidy);
         }
@@ -393,7 +393,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     /**
      * @dev Callback function for Morpho Flashloan
     */
-    function onMorphoFlashLoan(uint256 assets, bytes calldata params) external virtual
+    function onMorphoFlashLoan(uint256 assets, bytes calldata params) external 
     {
         require(msg.sender == address(morpho), "MigrationExtension: invalid flashloan sender");
 
@@ -473,9 +473,9 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
      * @dev Conducts the actual migration steps utilizing the decoded parameters from the flash loan callback.
      * @param decodedParams The decoded set of parameters needed for migration.
      */
-    function _migrate(DecodedParams memory decodedParams) internal virtual {
-        uint256 wrappedSetTokenSupplyLiquidityAmount = decodedParams.isUnderlyingToken0
-            ? decodedParams.supplyLiquidityAmount1Desired
+    function _migrate(DecodedParams memory decodedParams) internal {
+        uint256 wrappedSetTokenSupplyLiquidityAmount = decodedParams.isUnderlyingToken0 
+            ? decodedParams.supplyLiquidityAmount1Desired 
             : decodedParams.supplyLiquidityAmount0Desired;
 
         _issueRequiredWrappedSetToken(wrappedSetTokenSupplyLiquidityAmount);
@@ -489,7 +489,14 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
             decodedParams.isUnderlyingToken0
         );
 
-        _executeMigrationTrade(decodedParams);
+        _trade(
+            decodedParams.exchangeName,
+            address(underlyingToken),
+            decodedParams.underlyingTradeUnits,
+            address(wrappedSetToken),
+            decodedParams.wrappedSetTokenTradeUnits,
+            decodedParams.exchangeData
+        );
 
         _decreaseLiquidityPosition(
             decodedParams.tokenId,
@@ -499,22 +506,6 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         );
 
         _redeemExcessWrappedSetToken();
-    }
-
-    /**
-     * @dev Executes the migration trade. Override this to change the trade direction.
-     * Default: trades underlyingToken → wrappedSetToken
-     * @param decodedParams The decoded parameters containing trade info.
-     */
-    function _executeMigrationTrade(DecodedParams memory decodedParams) internal virtual {
-        _trade(
-            decodedParams.exchangeName,
-            address(underlyingToken),
-            decodedParams.underlyingTradeUnits,
-            address(wrappedSetToken),
-            decodedParams.wrappedSetTokenTradeUnits,
-            decodedParams.exchangeData
-        );
     }
 
     /**
@@ -555,7 +546,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
      * @dev Issues the required amount of wrapped SetToken for the liquidity increase
      * @param _wrappedSetTokenSupplyLiquidityAmount The amount of wrapped SetToken to be supplied to the pool.
      */
-    function _issueRequiredWrappedSetToken(uint256 _wrappedSetTokenSupplyLiquidityAmount) internal virtual {
+    function _issueRequiredWrappedSetToken(uint256 _wrappedSetTokenSupplyLiquidityAmount) internal {
         uint256 wrappedSetTokenBalance = wrappedSetToken.balanceOf(address(this));
         if (_wrappedSetTokenSupplyLiquidityAmount > wrappedSetTokenBalance) {
             uint256 wrappedSetTokenIssueAmount = _wrappedSetTokenSupplyLiquidityAmount.sub(wrappedSetTokenBalance);
@@ -584,7 +575,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
     /**
      * @dev Redeems any excess wrapped SetToken after liquidity decrease
      */
-    function _redeemExcessWrappedSetToken() internal virtual {
+    function _redeemExcessWrappedSetToken() internal {
         uint256 wrappedSetTokenBalance = wrappedSetToken.balanceOf(address(this));
         if (wrappedSetTokenBalance > 0) {
             // Redeem wrapped SetToken
@@ -623,7 +614,7 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         int24 _tickUpper,
         uint24 _fee,
         bool _isUnderlyingToken0
-    ) internal virtual {
+    ) internal {
         // Sort tokens and amounts
         (
             address token0,
@@ -680,7 +671,6 @@ contract MigrationExtension is BaseExtension, FlashLoanSimpleReceiverBase, IERC7
         bool _isUnderlyingToken0
     )
         internal
-        virtual
         returns (uint128 liquidity)
     {
         (uint256 underlyingAmount, uint256 wrappedSetTokenAmount) = _isUnderlyingToken0

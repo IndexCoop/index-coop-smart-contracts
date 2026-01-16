@@ -1278,9 +1278,8 @@ export default class DeployExtensions {
     wrappedTokenIssuanceModule: Address,    // Issuance module for IntermediateToken
     nestedSetTokenIssuanceModule: Address,  // DebtIssuanceModule for ETH2X (leveraged)
     nonfungiblePositionManager: Address,
-    addressProvider: Address,
+    aavePool: Address,
     morpho: Address,
-    balancer: Address,
     swapRouter: Address,
     useBasicIssuance: boolean,              // true = BasicIssuanceModule, false = DebtIssuanceModule
   ): Promise<IntermediateMigrationExtension> {
@@ -1295,9 +1294,8 @@ export default class DeployExtensions {
       wrappedTokenIssuanceModule,
       nestedSetTokenIssuanceModule,
       nonfungiblePositionManager,
-      addressProvider,
+      aavePool,
       morpho,
-      balancer,
       swapRouter,
       useBasicIssuance,
     });

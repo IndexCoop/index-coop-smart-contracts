@@ -30,7 +30,7 @@ import {
 const expect = getWaffleExpect();
 
 const contractAddresses = {
-  addressProvider: "0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e",
+  // addressProvider removed - using aavePool directly
   setForkDebtIssuanceModuleV2: "0xa0a98EB7Af028BE00d04e46e1316808A62a8fd59",
   setForkController: "0xD2463675a099101E36D85278494268261a66603A",
   eth2xIssuanceModule: "0x04b59F9F09750C044D7CfbC177561E409085f0f3", // Used by both ETH2X and BTC2X
@@ -42,7 +42,6 @@ const contractAddresses = {
   uniswapV3NonfungiblePositionManager: "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
   uniswapV3SwapRouter: "0xE592427A0AEce92De3Edee1F18E0157C05861564",
   morpho: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb",
-  balancer: "0xBA12222222228d8Ba445958a75a0704d566BF2C8",
   aavePool: "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
 };
 
@@ -234,9 +233,8 @@ if (process.env.INTEGRATIONTEST) {
               basicIssuanceModule.address,
               contractAddresses.eth2xIssuanceModule, // Both ETH2X and BTC2X use this module
               contractAddresses.uniswapV3NonfungiblePositionManager,
-              contractAddresses.addressProvider,
+              contractAddresses.aavePool,
               contractAddresses.morpho,
-              contractAddresses.balancer,
               contractAddresses.uniswapV3SwapRouter,
               true,
             );
@@ -247,28 +245,6 @@ if (process.env.INTEGRATIONTEST) {
           it("should have IntermediateMigrationExtension as an extension", async () => {
             expect(await baseManager.isExtension(intermediateMigrationExtension.address)).to.be.true;
           });
-
-          if (config.name === "ETH2xFLI") {
-            it("should revert migrateBalancer when called by non-operator", async () => {
-              const dummyParams = {
-                supplyLiquidityAmount0Desired: ZERO,
-                supplyLiquidityAmount1Desired: ZERO,
-                supplyLiquidityAmount0Min: ZERO,
-                supplyLiquidityAmount1Min: ZERO,
-                tokenId: ZERO,
-                exchangeName: "UniswapV3ExchangeAdapter",
-                underlyingTradeUnits: ZERO,
-                wrappedSetTokenTradeUnits: ZERO,
-                exchangeData: "0x",
-                redeemLiquidityAmount0Min: ZERO,
-                redeemLiquidityAmount1Min: ZERO,
-                isUnderlyingToken0: false,
-              };
-              await expect(
-                intermediateMigrationExtension.connect(owner.wallet).migrateBalancer(dummyParams, ZERO, ZERO),
-              ).to.be.revertedWith("Must be operator");
-            });
-          }
 
           context("when testing FLIRedemptionHelper before migration", () => {
             before(async () => {
