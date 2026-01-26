@@ -1282,6 +1282,7 @@ export default class DeployExtensions {
     morpho: Address,
     swapRouter: Address,
     useBasicIssuance: boolean,              // true = BasicIssuanceModule, false = DebtIssuanceModule
+    aaveSupplyBuffer: number = 2,           // Extra units to supply to Aave to handle rounding
   ): Promise<IntermediateMigrationExtension> {
     return await new IntermediateMigrationExtension__factory(this._deployerSigner).deploy({
       manager,
@@ -1298,6 +1299,7 @@ export default class DeployExtensions {
       morpho,
       swapRouter,
       useBasicIssuance,
+      aaveSupplyBuffer,
     });
   }
 

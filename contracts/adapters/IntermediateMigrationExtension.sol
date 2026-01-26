@@ -100,6 +100,7 @@ contract IntermediateMigrationExtension is BaseExtension, IERC721Receiver {
         IMorpho morpho;
         ISwapRouter swapRouter;
         bool useBasicIssuance;                            // true = BasicIssuanceModule, false = DebtIssuanceModule
+        uint256 aaveSupplyBuffer;                         // Extra units to supply to Aave to handle rounding (e.g., 2 for WBTC)
     }
 
     /* ========== State Variables ========= */
@@ -123,6 +124,7 @@ contract IntermediateMigrationExtension is BaseExtension, IERC721Receiver {
     IDebtIssuanceModule public immutable nestedSetTokenIssuanceModule;  // For issuing/redeeming nestedSetToken
     ISwapRouter public immutable swapRouter;        // Uniswap V3 SwapRouter for USDC swaps
     bool public immutable useBasicIssuance;         // true = BasicIssuanceModule, false = DebtIssuanceModule
+    uint256 public immutable aaveSupplyBuffer;      // Extra units to supply to Aave to handle rounding
 
     uint24 public constant SWAP_FEE = 500;          // 0.05% pool fee for USDC/WETH swaps
 
@@ -153,6 +155,7 @@ contract IntermediateMigrationExtension is BaseExtension, IERC721Receiver {
         nestedSetTokenIssuanceModule = _params.nestedSetTokenIssuanceModule;
         swapRouter = _params.swapRouter;
         useBasicIssuance = _params.useBasicIssuance;
+        aaveSupplyBuffer = _params.aaveSupplyBuffer;
     }
 
     /* ========== External Functions ========== */
@@ -364,9 +367,13 @@ contract IntermediateMigrationExtension is BaseExtension, IERC721Receiver {
             uint256 aaveRequired = _findAaveRequirement(nestedComponents, nestedEquityUnits);
             require(aaveRequired > 0, "aWETH not found");
 
+            // Add buffer for Aave rounding (especially important for low-decimal tokens like WBTC)
+            // Aave rounds down when minting aTokens, so supply extra units based on constructor config
+            uint256 aaveSupplyAmount = aaveRequired.add(aaveSupplyBuffer);
+
             // WETH → aWETH via Aave
-            underlyingToken.approve(address(POOL), aaveRequired);
-            POOL.supply(address(underlyingToken), aaveRequired, address(this), 0);
+            underlyingToken.approve(address(POOL), aaveSupplyAmount);
+            POOL.supply(address(underlyingToken), aaveSupplyAmount, address(this), 0);
 
             // Issue nestedSetToken (pay aWETH equity, receive USDC debt)
             aaveToken.approve(address(nestedSetTokenIssuanceModule), aaveRequired);

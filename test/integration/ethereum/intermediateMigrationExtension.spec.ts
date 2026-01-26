@@ -131,7 +131,7 @@ if (process.env.INTEGRATIONTEST) {
       let originalManager: Signer;
       let fliWhale: Signer;
 
-      setBlockNumber(24219075);
+      setBlockNumber(24310000);
 
       before(async () => {
         [owner] = await getAccounts();
@@ -316,14 +316,13 @@ if (process.env.INTEGRATIONTEST) {
 
               // Pool parameters
               const sqrtPriceX96 = BigNumber.from("79228162514264337593543950336"); // 1:1 price
-              const poolFee = 10000; // 1% fee tier
+              const poolFee = 500; // 0.05% fee tier (tick spacing = 10)
               const tickLower = -200;
               const tickUpper = 200;
 
               // Prepare migration parameters
-              // With 1% fee tier, account for the fee in slippage tolerance
               const underlyingTradeUnits = nestedUnit;
-              const wrappedSetTokenTradeUnits = preciseMul(nestedUnit, ether(0.98)); // 2% tolerance for 1% fee + buffer
+              const wrappedSetTokenTradeUnits = preciseMul(nestedUnit, ether(0.98)); // 2% tolerance
 
               const exchangeData = ethers.utils.solidityPack(
                 ["address", "uint24", "address"],
