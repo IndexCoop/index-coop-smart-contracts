@@ -308,17 +308,63 @@ if (process.env.INTEGRATIONTEST) {
 
               // Calculate pool parameters
               const poolLiquidityAmount = totalNestedInFli.mul(101).div(100);
-              const totalNestedNeeded = poolLiquidityAmount.mul(2);
+              const totalNestedNeeded = poolLiquidityAmount; // Single-sided: only need wrapped side
               const totalUnderlyingNeeded = preciseMul(totalNestedNeeded, wrappedPositionUnits);
               const underlyingLoanAmount = totalUnderlyingNeeded.mul(120).div(100);
 
               const isNestedToken0 = config.nestedToken.toLowerCase() < intermediateToken.address.toLowerCase();
 
               // Pool parameters
-              const sqrtPriceX96 = BigNumber.from("79228162514264337593543950336"); // 1:1 price
               const poolFee = 500; // 0.05% fee tier (tick spacing = 10)
-              const tickLower = -200;
-              const tickUpper = 200;
+
+              // Single-sided liquidity with operator premium.
+              // Premium shifts the LP tick range to give the operator a better exchange rate,
+              // covering the issuance/redemption fee gap without requiring a cash subsidy.
+              // Must be a multiple of 10 (tick spacing for 500 fee tier).
+              // 80 ticks is the minimum that covers the ~0.18% fee gap; 70 ticks is insufficient.
+              // Results in ~0.43% holder loss (vs 0.83% two-sided) with ~0.35 WETH operator profit.
+              const premiumTicks = 80;
+              let tickLower: number;
+              let tickUpper: number;
+              if (isNestedToken0) {
+                // ETH: nested=token0. FLI sells token0, price drops.
+                // Lower tickUpper → LP releases fewer IntermediateTokens per ETH2X.
+                tickLower = -200;
+                tickUpper = 200 - premiumTicks; // 180
+              } else {
+                // BTC: nested=token1. FLI sells token1, price rises.
+                // Raise tickLower → LP releases fewer IntermediateTokens per BTC2X.
+                tickLower = -200 + premiumTicks; // -180
+                tickUpper = 200;
+              }
+
+              // Set initial price outside tick range so LP is 100% wrapped token
+              const Q96 = BigNumber.from(2).pow(96);
+              let sqrtPriceX96: BigNumber;
+              let amount0Desired: BigNumber;
+              let amount1Desired: BigNumber;
+
+              if (isNestedToken0) {
+                // Need tick > tickUpper so position is 100% token1
+                const outOfRangeTick = tickUpper + 10;
+                const price = Math.pow(1.0001, outOfRangeTick);
+                const sqrtRatioScaled = BigNumber.from(Math.round(Math.sqrt(price) * 1e15).toString());
+                const scale = BigNumber.from("1000000000000000");
+                sqrtPriceX96 = Q96.mul(sqrtRatioScaled).div(scale);
+                amount0Desired = BigNumber.from(0);
+                amount1Desired = poolLiquidityAmount;
+              } else {
+                // Need tick < tickLower so position is 100% token0
+                const outOfRangeTick = tickLower - 10;
+                const price = Math.pow(1.0001, outOfRangeTick);
+                const sqrtRatioScaled = BigNumber.from(Math.round(Math.sqrt(price) * 1e15).toString());
+                const scale = BigNumber.from("1000000000000000");
+                sqrtPriceX96 = Q96.mul(sqrtRatioScaled).div(scale);
+                amount0Desired = poolLiquidityAmount;
+                amount1Desired = BigNumber.from(0);
+              }
+
+              console.log(`Single-sided LP, premium: ${premiumTicks} ticks, range: [${tickLower}, ${tickUpper}], sqrtPriceX96:`, sqrtPriceX96.toString());
 
               // Prepare migration parameters
               const underlyingTradeUnits = nestedUnit;
@@ -331,8 +377,8 @@ if (process.env.INTEGRATIONTEST) {
 
               // Build atomic migration params (no tokenId needed, no external pool setup)
               const atomicParams = {
-                supplyLiquidityAmount0Desired: poolLiquidityAmount,
-                supplyLiquidityAmount1Desired: poolLiquidityAmount,
+                supplyLiquidityAmount0Desired: amount0Desired,
+                supplyLiquidityAmount1Desired: amount1Desired,
                 supplyLiquidityAmount0Min: ZERO,
                 supplyLiquidityAmount1Min: ZERO,
                 exchangeName: "UniswapV3ExchangeAdapter",
@@ -349,18 +395,17 @@ if (process.env.INTEGRATIONTEST) {
                 sqrtPriceX96,
               };
 
-              // Execute atomic migration using Morpho flash loan
-              // No external pool creation or seed liquidity needed!
+              // Execute atomic migration using Morpho flash loan (premium covers fee gap, no subsidy needed)
               const morphoBalance = await underlyingToken.balanceOf(contractAddresses.morpho);
               console.log("Morpho balance:", morphoBalance.toString());
               console.log("Flash loan amount needed:", underlyingLoanAmount.toString());
               console.log("Using atomic migration with Morpho flash loan...");
 
-              // Execute atomic migration - creates pool, mints LP, trades, removes liquidity in one tx
               const tx = await intermediateMigrationExtension.migrateAtomicMorpho(
                 atomicParams,
                 underlyingLoanAmount,
                 ZERO,
+                wrappedSetTokenTradeUnits,  // MEV protection: min position (98% of nestedUnit)
                 { gasLimit: 15000000 },
               );
               await tx.wait();
@@ -373,7 +418,7 @@ if (process.env.INTEGRATIONTEST) {
               const formatAmount = (amount: BigNumber) => isEth
                 ? ethers.utils.formatEther(amount)
                 : ethers.utils.formatUnits(amount, 8);
-              console.log(`Profit returned to operator: ${formatAmount(underlyingReturned)} ${isEth ? "ETH" : "WBTC"}`);
+              console.log(`Profit returned to operator: ${formatAmount(underlyingReturned)} ${isEth ? "WETH" : "WBTC"}`);
             });
 
             it("should have IntermediateToken as a component and nested token removed", async () => {

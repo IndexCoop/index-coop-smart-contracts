@@ -49,8 +49,8 @@ import { BaseExtension } from "../lib/BaseExtension.sol";
  * Key differences from MigrationExtension:
  * 1. The wrappedSetToken (IntermediateToken) contains a nestedSetToken (ETH2X)
  * 2. The nestedSetToken is a leveraged token with aWETH equity and USDC debt
- * 3. When issuing nestedSetToken, we receive USDC (debt component) which we sell for WETH
- * 4. When redeeming nestedSetToken, we must buy USDC to pay back the debt
+ * 3. When issuing nestedSetToken, we receive USDC (debt component) which we hold
+ * 4. When redeeming nestedSetToken, we use the held USDC and only buy the shortfall
  * 5. Pool is ETH2X/IntermediateToken (single-hop trade) instead of WETH/wrappedSetToken
  * 6. Liquidity management uses nestedSetToken (ETH2X) instead of underlyingToken (WETH)
  */
@@ -171,7 +171,8 @@ contract IntermediateMigrationExtension is BaseExtension, IERC721Receiver {
     function migrateAtomicMorpho(
         AtomicMigrationParams memory _params,
         uint256 _underlyingLoanAmount,
-        uint256 _maxSubsidy
+        uint256 _maxSubsidy,
+        int256 _minSetTokenPosition
     ) external onlyOperator returns (uint256 underlyingOutputAmount) {
         // Take subsidy if provided
         if (_maxSubsidy > 0) {
@@ -180,6 +181,12 @@ contract IntermediateMigrationExtension is BaseExtension, IERC721Receiver {
 
         // Trigger Morpho flash loan with encoded params
         morpho.flashLoan(address(underlyingToken), _underlyingLoanAmount, abi.encode(_params));
+
+        // MEV protection: verify minimum position after migration
+        require(
+            setToken.getDefaultPositionRealUnit(address(wrappedSetToken)) >= _minSetTokenPosition,
+            "Position below minimum"
+        );
 
         // Return remaining underlying to operator
         underlyingOutputAmount = underlyingToken.balanceOf(address(this));
@@ -386,11 +393,8 @@ contract IntermediateMigrationExtension is BaseExtension, IERC721Receiver {
             _issueWrappedToken(intermediateIssueAmount);
         }
 
-        // Sell USDC for WETH (helps repay flash loan)
-        uint256 usdcBalance = debtToken.balanceOf(address(this));
-        if (usdcBalance > 0) {
-            _sellDebtTokenForUnderlying(usdcBalance);
-        }
+        // USDC received from issuance (debt component) is held for use during redemption
+        // instead of round-tripping through Uniswap (sell USDC→WETH then buy USDC←WETH).
     }
 
     /**
@@ -421,10 +425,13 @@ contract IntermediateMigrationExtension is BaseExtension, IERC721Receiver {
                 nestedSetTokenBalance
             );
 
-            // Find USDC debt requirement and buy it with WETH
+            // Find USDC debt requirement; use held USDC first, only buy the shortfall
             uint256 usdcRequired = _findDebtRequirement(components, redemptionDebtUnits);
             if (usdcRequired > 0) {
-                _buyDebtTokenWithUnderlying(usdcRequired);
+                uint256 usdcHeld = debtToken.balanceOf(address(this));
+                if (usdcRequired > usdcHeld) {
+                    _buyDebtTokenWithUnderlying(usdcRequired.sub(usdcHeld));
+                }
                 debtToken.approve(address(nestedSetTokenIssuanceModule), usdcRequired);
             }
 
@@ -438,6 +445,12 @@ contract IntermediateMigrationExtension is BaseExtension, IERC721Receiver {
         if (aaveBalance > 0) {
             aaveToken.approve(address(POOL), aaveBalance);
             POOL.withdraw(address(underlyingToken), aaveBalance, address(this));
+        }
+
+        // 4. Sell any remaining USDC → WETH (small residual if issuance produced more than redemption needed)
+        uint256 remainingUsdc = debtToken.balanceOf(address(this));
+        if (remainingUsdc > 0) {
+            _sellDebtTokenForUnderlying(remainingUsdc);
         }
     }
 
