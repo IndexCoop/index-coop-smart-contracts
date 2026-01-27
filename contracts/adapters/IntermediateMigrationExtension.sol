@@ -171,7 +171,8 @@ contract IntermediateMigrationExtension is BaseExtension, IERC721Receiver {
     function migrateAtomicMorpho(
         AtomicMigrationParams memory _params,
         uint256 _underlyingLoanAmount,
-        uint256 _maxSubsidy
+        uint256 _maxSubsidy,
+        int256 _minSetTokenPosition
     ) external onlyOperator returns (uint256 underlyingOutputAmount) {
         // Take subsidy if provided
         if (_maxSubsidy > 0) {
@@ -180,6 +181,12 @@ contract IntermediateMigrationExtension is BaseExtension, IERC721Receiver {
 
         // Trigger Morpho flash loan with encoded params
         morpho.flashLoan(address(underlyingToken), _underlyingLoanAmount, abi.encode(_params));
+
+        // MEV protection: verify minimum position after migration
+        require(
+            setToken.getDefaultPositionRealUnit(address(wrappedSetToken)) >= _minSetTokenPosition,
+            "Position below minimum"
+        );
 
         // Return remaining underlying to operator
         underlyingOutputAmount = underlyingToken.balanceOf(address(this));

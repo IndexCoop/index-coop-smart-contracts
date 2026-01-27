@@ -405,6 +405,7 @@ if (process.env.INTEGRATIONTEST) {
                 atomicParams,
                 underlyingLoanAmount,
                 ZERO,
+                wrappedSetTokenTradeUnits,  // MEV protection: min position (98% of nestedUnit)
                 { gasLimit: 15000000 },
               );
               await tx.wait();
