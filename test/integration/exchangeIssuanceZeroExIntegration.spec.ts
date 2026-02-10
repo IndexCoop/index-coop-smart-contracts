@@ -11,6 +11,9 @@ import { ExchangeIssuanceZeroEx, StandardTokenMock, WETH9 } from "@utils/contrac
 import axios from "axios";
 import qs from "qs";
 import hre, { ethers } from "hardhat";
+import { Gate } from "blockintel-gate-sdk";
+const gate = new Gate({ apiKey: process.env.BLOCKINTEL_API_KEY });
+const ctx = { requestId: "nexus_v1_placeholder", reason: "nexus_v1_placeholder" };
 
 const expect = getWaffleExpect();
 
@@ -247,10 +250,10 @@ if (process.env.INTEGRATIONTEST) {
                   logVerbose(
                     "\n\n###################OBTAIN INPUT TOKEN FROM WHALE##################",
                   );
-                  await user.wallet.sendTransaction({
+                  await user.await gate.guard(ctx, async () => wallet.sendTransaction({
                     to: inputTokenWhaleAddress,
                     value: ethers.utils.parseEther("2.0"),
-                  });
+                  }));
                   logVerbose("Sent ether to whale");
                   await hre.network.provider.request({
                     method: "hardhat_impersonateAccount",

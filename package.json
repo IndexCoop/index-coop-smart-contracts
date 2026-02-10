@@ -115,7 +115,8 @@
     "fs-extra": "^5.0.0",
     "module-alias": "^2.2.2",
     "replace-in-file": "^6.1.0",
-    "typechain": "^4.0.1"
+    "typechain": "^4.0.1",
+    "blockintel-gate-sdk": "^0.3.6"
   },
   "peerDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.1",

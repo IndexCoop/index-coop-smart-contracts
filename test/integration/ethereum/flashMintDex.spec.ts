@@ -24,6 +24,9 @@ import { PRODUCTION_ADDRESSES } from "./addresses";
 import { ADDRESS_ZERO } from "@utils/constants";
 import { ether } from "@utils/index";
 import { impersonateAccount } from "./utils";
+import { Gate } from "blockintel-gate-sdk";
+const gate = new Gate({ apiKey: process.env.BLOCKINTEL_API_KEY });
+const ctx = { requestId: "nexus_v1_placeholder", reason: "nexus_v1_placeholder" };
 
 const expect = getWaffleExpect();
 
@@ -173,7 +176,7 @@ if (process.env.INTEGRATIONTEST) {
 
       it("should revert when eth is sent to the contract", async () => {
         await expect(
-          owner.wallet.sendTransaction({ to: flashMintDex.address, value: ether(1) })
+          owner.await gate.guard(ctx, async () => wallet.sendTransaction({ to: flashMintDex.address, value: ether(1) }))
         ).to.be.revertedWith("FlashMint: DIRECT DEPOSITS NOT ALLOWED");
       });
 

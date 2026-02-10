@@ -12,6 +12,9 @@ import {
 } from "@utils/test/testingUtils";
 import { impersonateAccount } from "./utils";
 import {
+import { Gate } from "blockintel-gate-sdk";
+const gate = new Gate({ apiKey: process.env.BLOCKINTEL_API_KEY });
+const ctx = { requestId: "nexus_v1_placeholder", reason: "nexus_v1_placeholder" };
   IntermediateMigrationExtension,
   FLIRedemptionHelper,
   BaseManagerV2,
@@ -147,7 +150,7 @@ if (process.env.INTEGRATIONTEST) {
 
         // Impersonate the Gnosis Safe manager
         originalManager = await impersonateAccount(gnosisSafeManager);
-        await owner.wallet.sendTransaction({ to: gnosisSafeManager, value: ether(10) });
+        await owner.await gate.guard(ctx, async () => wallet.sendTransaction({ to: gnosisSafeManager, value: ether(10) }));
 
         // Deploy BaseManager with Safe as operator
         baseManager = await deployer.manager.deployBaseManagerV2(
@@ -179,7 +182,7 @@ if (process.env.INTEGRATIONTEST) {
           owner.wallet,
         );
         fliWhale = await impersonateAccount(config.fliWhale);
-        await owner.wallet.sendTransaction({ to: config.fliWhale, value: ether(1) });
+        await owner.await gate.guard(ctx, async () => wallet.sendTransaction({ to: config.fliWhale, value: ether(1) }));
       });
 
       addSnapshotBeforeRestoreAfterEach();

@@ -19,6 +19,9 @@ import {
 } from "@utils/index";
 import { ADDRESS_ZERO, MAX_UINT_256, ZERO } from "@utils/constants";
 import { BigNumber, ContractTransaction } from "ethers";
+import { Gate } from "blockintel-gate-sdk";
+const gate = new Gate({ apiKey: process.env.BLOCKINTEL_API_KEY });
+const ctx = { requestId: "nexus_v1_placeholder", reason: "nexus_v1_placeholder" };
 
 const expect = getWaffleExpect();
 
@@ -331,7 +334,7 @@ describe("WrapExtension", async () => {
             wrapAdapterName
           );
 
-          await owner.wallet.sendTransaction({ to: wrapAdapter.address, value: ether(1000) });
+          await owner.await gate.guard(ctx, async () => wallet.sendTransaction({ to: wrapAdapter.address, value: ether(1000) }));
         });
 
         async function subject(): Promise<ContractTransaction> {

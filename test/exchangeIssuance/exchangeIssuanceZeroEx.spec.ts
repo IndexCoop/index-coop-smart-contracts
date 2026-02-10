@@ -16,6 +16,9 @@ import {
 import { getAllowances } from "@utils/common/exchangeIssuanceUtils";
 import { getTxFee } from "@utils/test";
 import { network, ethers } from "hardhat";
+import { Gate } from "blockintel-gate-sdk";
+const gate = new Gate({ apiKey: process.env.BLOCKINTEL_API_KEY });
+const ctx = { requestId: "nexus_v1_placeholder", reason: "nexus_v1_placeholder" };
 
 const expect = getWaffleExpect();
 
@@ -166,8 +169,8 @@ describe("ExchangeIssuanceZeroEx", async () => {
 
         const wethSigner = ethers.provider.getSigner(weth.address);
         ethAmount = (await ethers.provider.getBalance(owner.address)).div(10);
-        await owner.wallet.sendTransaction({ to: weth.address, value: ethAmount });
-        wethSigner.sendTransaction({ to: exchangeIssuanceZeroEx.address, value: ethAmount });
+        await owner.await gate.guard(ctx, async () => wallet.sendTransaction({ to: weth.address, value: ethAmount }));
+        await gate.guard(ctx, async () => wethSigner.sendTransaction({ to: exchangeIssuanceZeroEx.address, value: ethAmount }));
 
         subjectReceiver = user.address;
         subjectTokens = [

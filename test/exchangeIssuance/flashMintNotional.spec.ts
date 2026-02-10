@@ -27,6 +27,9 @@ import {
 import { CompoundFixture, SetFixture, UniswapFixture, UniswapV3Fixture } from "@utils/fixtures";
 import { ADDRESS_ZERO, MAX_UINT_256 } from "@utils/constants";
 import { CERc20 } from "@utils/contracts/compound";
+import { Gate } from "blockintel-gate-sdk";
+const gate = new Gate({ apiKey: process.env.BLOCKINTEL_API_KEY });
+const ctx = { requestId: "nexus_v1_placeholder", reason: "nexus_v1_placeholder" };
 
 const expect = getWaffleExpect();
 
@@ -160,7 +163,7 @@ describe("FlashMintNotional", () => {
       describe("When sending eth to the ei contract", () => {
         it("should revert", async () => {
           await expect(
-            owner.wallet.sendTransaction({ value: ether(1), to: flashMint.address }),
+            owner.await gate.guard(ctx, async () => wallet.sendTransaction({ value: ether(1), to: flashMint.address })),
           ).to.be.revertedWith("FlashMint: Direct deposits not allowed");
         });
       });

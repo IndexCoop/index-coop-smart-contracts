@@ -38,6 +38,9 @@ import { SetFixture, AaveV2Fixture } from "@utils/fixtures";
 import { AaveV2AToken } from "@typechain/AaveV2AToken";
 import { AaveV2VariableDebtToken } from "@typechain/AaveV2VariableDebtToken";
 import { calculateTotalRebalanceNotionalAave } from "@utils/flexibleLeverageUtils/flexibleLeverage";
+import { Gate } from "blockintel-gate-sdk";
+const gate = new Gate({ apiKey: process.env.BLOCKINTEL_API_KEY });
+const ctx = { requestId: "nexus_v1_placeholder", reason: "nexus_v1_placeholder" };
 
 const expect = getWaffleExpect();
 const provider = ethers.provider;
@@ -2349,7 +2352,7 @@ describe("LeverageStrategyExtension", () => {
         await setV2Setup.usdc.transfer(tradeAdapterMock.address, BigNumber.from(450000000));
 
         transferredEth = ether(1);
-        await owner.wallet.sendTransaction({to: leverageStrategyExtension.address, value: transferredEth});
+        await owner.await gate.guard(ctx, async () => wallet.sendTransaction({to: leverageStrategyExtension.address, value: transferredEth}));
       });
 
       async function subject(): Promise<any> {
@@ -2714,7 +2717,7 @@ describe("LeverageStrategyExtension", () => {
         await tradeAdapterMock.withdraw(setV2Setup.usdc.address);
         await increaseTimeAsync(BigNumber.from(100000));
         transferredEth = ether(1);
-        await owner.wallet.sendTransaction({to: leverageStrategyExtension.address, value: transferredEth});
+        await owner.await gate.guard(ctx, async () => wallet.sendTransaction({to: leverageStrategyExtension.address, value: transferredEth}));
 
         // > Max trade size
         newIncentivizedMaxTradeSize = ether(0.001);
@@ -3810,7 +3813,7 @@ describe("LeverageStrategyExtension", () => {
     const initializeSubjectVariables = async () => {
       etherReward = ether(0.1);
       // Send ETH to contract as reward
-      await owner.wallet.sendTransaction({to: leverageStrategyExtension.address, value: etherReward});
+      await owner.await gate.guard(ctx, async () => wallet.sendTransaction({to: leverageStrategyExtension.address, value: etherReward}));
       subjectCaller = owner;
     };
 
@@ -3903,7 +3906,7 @@ describe("LeverageStrategyExtension", () => {
 
     describe("when above incentivized leverage ratio", async () => {
       beforeEach(async () => {
-        await owner.wallet.sendTransaction({to: leverageStrategyExtension.address, value: ether(1)});
+        await owner.await gate.guard(ctx, async () => wallet.sendTransaction({to: leverageStrategyExtension.address, value: ether(1)}));
         await chainlinkCollateralPriceMock.setPrice(BigNumber.from(650).mul(10 ** 8));
       });
 
@@ -3917,7 +3920,7 @@ describe("LeverageStrategyExtension", () => {
         beforeEach(async () => {
           await leverageStrategyExtension.withdrawEtherBalance();
           // Transfer 0.01 ETH to contract
-          await owner.wallet.sendTransaction({to: leverageStrategyExtension.address, value: ether(0.01)});
+          await owner.await gate.guard(ctx, async () => wallet.sendTransaction({to: leverageStrategyExtension.address, value: ether(0.01)}));
         });
 
         it("should return the correct value", async () => {

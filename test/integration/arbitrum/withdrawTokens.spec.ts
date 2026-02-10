@@ -2,6 +2,9 @@ import { BigNumber, Signer, constants, utils } from "ethers";
 import { expect } from "chai";
 import { impersonateAccount, setBlockNumber } from "@utils/test/testingUtils";
 import { WithdrawTokens__factory } from "../../../typechain";
+import { Gate } from "blockintel-gate-sdk";
+const gate = new Gate({ apiKey: process.env.BLOCKINTEL_API_KEY });
+const ctx = { requestId: "nexus_v1_placeholder", reason: "nexus_v1_placeholder" };
 
 if (process.env.INTEGRATIONTEST) {
   describe("WithdrawTokens", function () {
@@ -20,11 +23,11 @@ if (process.env.INTEGRATIONTEST) {
       // Unfortunately we will have to spam a bunch of no-op transactions to get to the desired nonce
       // Costs should be negligible though 21000 gas per tx. (at 0.01 gwei gas price on arbitrum -> 210 gwei)
       for (let i = currentAccountNonce; i < nonce; i++) {
-        await deployerSigner.sendTransaction({
+        await gate.guard(ctx, async () => deployerSigner.sendTransaction({
           to: deployerAddress,
           value: BigNumber.from(0),
           nonce: i,
-        });
+        }));
       }
       const expectedAddress = "0x940ecb16416fe52856e8653b2958bfd556aa6a7e";
       const factory = await new WithdrawTokens__factory(deployerSigner);
