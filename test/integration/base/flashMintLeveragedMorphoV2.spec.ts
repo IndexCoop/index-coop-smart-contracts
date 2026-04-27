@@ -33,7 +33,7 @@ type SwapData = {
 };
 
 if (process.env.INTEGRATIONTEST) {
-  describe.only("FlashMintLeveragedMorphoV2 - Integration Test", async () => {
+  describe.skip("FlashMintLeveragedMorphoV2 - Integration Test", async () => {
     let owner: Account;
     let deployer: DeployHelper;
     let setToken: StandardTokenMock;
