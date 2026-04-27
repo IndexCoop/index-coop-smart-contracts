@@ -76,6 +76,7 @@ import { FlashMintWrapped } from "../../typechain/FlashMintWrapped";
 import { FlashMintWrapped__factory } from "../../typechain/factories/FlashMintWrapped__factory";
 import { ExchangeIssuanceZeroEx__factory } from "../../typechain/factories/ExchangeIssuanceZeroEx__factory";
 import { FlashMintDex__factory } from "../../typechain/factories/FlashMintDex__factory";
+import { FlashMintDexV5__factory } from "../../typechain/factories/FlashMintDexV5__factory";
 import { FlashMintNAV__factory } from "../../typechain/factories/FlashMintNAV__factory";
 import { FlashMintPerp__factory } from "../../typechain/factories/FlashMintPerp__factory";
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
@@ -1035,6 +1036,51 @@ export default class DeployExtensions {
       curveAddressProvider: curveAddressProviderAddress,
       curveCalculator: curveCalculatorAddress,
       balV2Vault: balV2VaultAddress,
+      weth: wethAddress,
+    });
+  }
+
+  public async deployFlashMintDexV5(
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+    balV2VaultAddress: Address,
+    aerodromeRouterAddress: Address,
+    aerodromeFactoryAddress: Address,
+    aerodromeSlipstreamRouterAddress: Address,
+    aerodromeSlipstreamQuoterAddress: Address,
+    setControllerAddress: Address,
+    indexControllerAddress: Address,
+  ) {
+    const dexAdapter = await this.deployDEXAdapterV5();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapterV5.sol:DEXAdapterV5",
+    );
+
+    return await new FlashMintDexV5__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(setControllerAddress, indexControllerAddress, {
+      quickRouter: quickRouterAddress,
+      sushiRouter: sushiRouterAddress,
+      uniV3Router: uniV3RouterAddress,
+      uniV3Quoter: uniswapV3QuoterAddress,
+      curveAddressProvider: curveAddressProviderAddress,
+      curveCalculator: curveCalculatorAddress,
+      balV2Vault: balV2VaultAddress,
+      aerodromeRouter: aerodromeRouterAddress,
+      aerodromeFactory: aerodromeFactoryAddress,
+      aerodromeSlipstreamRouter: aerodromeSlipstreamRouterAddress,
+      aerodromeSlipstreamQuoter: aerodromeSlipstreamQuoterAddress,
       weth: wethAddress,
     });
   }
