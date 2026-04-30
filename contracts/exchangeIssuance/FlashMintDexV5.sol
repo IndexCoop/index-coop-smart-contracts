@@ -471,6 +471,17 @@ contract FlashMintDexV5 is Ownable, ReentrancyGuard {
         );
         require(components.length == _issueParams.componentSwapData.length, "FlashMint: INVALID NUMBER OF COMPONENTS IN SWAP DATA");
 
+        // DebtIssuanceModuleV3 derives equityUnits from current SetToken balances in its
+        // external getRequiredComponentIssuanceUnits view (via _getTotalIssuanceUnitsFromBalances),
+        // but the internal issue() flow pulls equity based on stored position units (via
+        // _getTotalIssuanceUnits + preciseMulCeil). When the SetToken's component balance has
+        // been rounded relative to its stored default position, the position-based number can
+        // exceed the balance-based one by up to 1 wei per (1e18) unit of setAmount per component.
+        // Pad the swap target by `amountSetToken / 1e18 + 1` per component so the swap output
+        // covers what the issuance module actually pulls; any leftover stays in the contract
+        // and is recoverable via withdrawTokens.
+        uint256 issueDeficitBuffer = _issueParams.amountSetToken.div(PreciseUnitMath.preciseUnit()).add(1);
+
         totalWethSpent = 0;
         for (uint256 i = 0; i < components.length; i++) {
             if (!_issueParams.isDebtIssuance) {
@@ -479,7 +490,8 @@ contract FlashMintDexV5 is Ownable, ReentrancyGuard {
                     "FlashMint: EXTERNAL POSITION MODULES NOT SUPPORTED"
                 );
             }
-            uint256 wethSold = dexAdapter.swapTokensForExactTokens(componentUnits[i], type(uint256).max, _issueParams.componentSwapData[i]);
+            uint256 swapTarget = componentUnits[i].add(issueDeficitBuffer);
+            uint256 wethSold = dexAdapter.swapTokensForExactTokens(swapTarget, type(uint256).max, _issueParams.componentSwapData[i]);
             totalWethSpent = totalWethSpent.add(wethSold);
         }
     }
@@ -504,14 +516,19 @@ contract FlashMintDexV5 is Ownable, ReentrancyGuard {
 
         require(components.length == _issueParams.componentSwapData.length, "FlashMint: INVALID NUMBER OF COMPONENTS IN SWAP DATA");
 
+        // Same balance-vs-position rounding deficit buffer used by _buyComponentsWithWeth — keep
+        // the quote and the actual swap path in lock-step so callers don't underprovision input.
+        uint256 issueDeficitBuffer = _issueParams.amountSetToken.div(PreciseUnitMath.preciseUnit()).add(1);
+
         totalWethCosts = 0;
         for (uint256 i = 0; i < components.length; i++) {
+            uint256 swapTarget = componentUnits[i].add(issueDeficitBuffer);
             if (components[i] == address(WETH)) {
-                totalWethCosts += componentUnits[i];
+                totalWethCosts += swapTarget;
             } else {
                 totalWethCosts += dexAdapter.getAmountIn(
                     _issueParams.componentSwapData[i],
-                    componentUnits[i],
+                    swapTarget,
                     type(uint256).max
                 );
             }
