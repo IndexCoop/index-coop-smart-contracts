@@ -65,9 +65,14 @@ const aerodromeSlipstreamQuoterAddress = "0x254cF9E1E6e233aa1AC962CB9B05b2cfeAaE
 // Delevered Morpho leverage tokens (post-disengage on Base)
 const uSOL = "0x9B8Df6E244526ab5F6e6400d331DB28C8fdDdb55";
 const uSUI = "0xb0505e5a99abd03d94a1169e638B78EDfEd26ea4";
+const uXRP = "0x2615a94df961278DcbC41Fb0a54fEc5f10a693aE";
 const uSOL2x = "0x0A0Fbd86d2dEB53D7C65fecF8622c2Fa0DCdc9c6";
 const uSUI2x = "0x2F67e4bE7fBF53dB88881324AAc99e9D85208d40";
 const uSOL3x = "0x16c469F88979e19A53ea522f0c77aFAD9A043571";
+const uXRP2x = "0x32BB8FF692A2F14C05Fe7a5ae78271741bD392fC";
+// uXRP2x's largest holder — used as a SetToken whale for redemption tests, but
+// here we only need to verify that the issue path no longer reverts.
+// (Whale doesn't matter for the new spec; we issue from scratch via WETH.)
 
 // WETH whale on Base — Aerodrome SlipStream uSOL/WETH pool, ~50 WETH
 const wethWhale = "0x0225Ba893D5f8Ecd6d2022f9dEC59b34F61098A1";
@@ -388,6 +393,77 @@ if (process.env.INTEGRATIONTEST) {
         await flashMintDexV5.issueExactSetFromERC20(
           {
             setToken: uSOL2x,
+            amountSetToken: setAmount,
+            componentSwapData,
+            issuanceModule: debtIssuanceModuleAddress,
+            isDebtIssuance: true,
+          },
+          {
+            token: wethAddress,
+            limitAmt: maxWeth,
+            swapDataTokenToWeth: noopSwap,
+            swapDataWethToToken: noopSwap,
+          },
+          0,
+        );
+        const setAfter = await setToken.balanceOf(owner.address);
+        expect(setAfter.sub(setBefore)).to.eq(setAmount);
+      });
+    });
+
+    // Regression for the larger Morpho-position drift on uXRP2x. The stored
+    // external-position unit on uXRP2x lags actual Morpho collateral by
+    // ~7500 wei per set (vs ≤1 wei/set for uSOL/uSUI products), so the
+    // position-vs-balance buffer alone (`setAmount/1e18 + 1`) cannot cover the
+    // gap at any non-trivial setAmount. The fix is _syncExternalPositions: an
+    // upfront sync of every attached external-position module rewrites the
+    // SetToken's stored unit to match live Morpho state, after which the V3
+    // external view and the internal pull agree exactly.
+    describe("regression: uXRP2x issuance refreshed via _syncExternalPositions", () => {
+      // Whale has ~0.011 uXRP2x; pick a setAmount well under that since fundWeth
+      // does not strictly cap us, but staying conservative here matches the SDK
+      // e2e test scenarios and would cleanly revert with the un-patched
+      // contract (deficit of ~7500 wei × any setAmount > 0 ≫ buffer of 1
+      // wei/set).
+      const setAmount = ether(0.005);
+      let setToken: IERC20;
+
+      const componentSwapData: SwapData[] = [
+        {
+          path: [wethAddress, uXRP],
+          fees: [],
+          tickSpacing: [slipstreamTickSpacing],
+          pool: ADDRESS_ZERO,
+          poolIds: [],
+          exchange: Exchange.AerodromeSlipstream,
+        },
+      ];
+
+      before(async () => {
+        setToken = (await ethers.getContractAt("IERC20", uXRP2x)) as IERC20;
+        await flashMintDexV5.approveSetToken(uXRP2x, debtIssuanceModuleAddress);
+      });
+
+      it("issues uXRP2x from WETH after sync (would revert pre-fix)", async () => {
+        const wethEstimate = await flashMintDexV5.callStatic.getIssueExactSet(
+          {
+            setToken: uXRP2x,
+            amountSetToken: setAmount,
+            componentSwapData,
+            issuanceModule: debtIssuanceModuleAddress,
+            isDebtIssuance: true,
+          },
+          noopSwap,
+        );
+        const maxWeth = wethEstimate.mul(110).div(100);
+
+        await fundWeth(owner.address, maxWeth);
+        await weth.approve(flashMintDexV5.address, maxWeth);
+
+        const setBefore = await setToken.balanceOf(owner.address);
+        await flashMintDexV5.issueExactSetFromERC20(
+          {
+            setToken: uXRP2x,
             amountSetToken: setAmount,
             componentSwapData,
             issuanceModule: debtIssuanceModuleAddress,
