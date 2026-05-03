@@ -450,6 +450,13 @@ contract FlashMintDexV5 is Ownable, ReentrancyGuard {
     */
     function _issueExactSetFromWeth(IssueRedeemParams memory _issueParams) internal returns (uint256 totalWethSpent)
     {
+        // Refresh any external-position units (e.g. Morpho/Aave leverage modules)
+        // before reading the SetToken's required components. Without this, the
+        // V3 issuance module's external view returns the SetToken's stored unit
+        // — which can lag the live protocol state — while the actual issue()
+        // pull syncs first and reads a fresher value, and the contract runs
+        // short. See _syncExternalPositions for the full rationale.
+        _syncExternalPositions(_issueParams.setToken);
         totalWethSpent = _buyComponentsWithWeth(_issueParams);
         IBasicIssuanceModule(_issueParams.issuanceModule).issue(_issueParams.setToken, _issueParams.amountSetToken, msg.sender);
     }
@@ -536,13 +543,54 @@ contract FlashMintDexV5 is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @dev Best-effort `sync(setToken)` against every external position module
+     * attached to any of the SetToken's components.
+     *
+     * Why: DebtIssuanceModuleV3.getRequiredComponentIssuanceUnits returns a
+     * balance-derived per-share equity unit, which for components held as
+     * external positions (e.g. Morpho/Aave leverage modules) reads the
+     * SetToken's *stored* external-position unit. That stored value only
+     * advances when the leverage module's _sync writes to it. The V3 internal
+     * issue()/redeem() flow runs the module's pre-hook (which calls sync)
+     * before reading the unit, so the pull sees a freshly-synced value.
+     * Without an upfront sync from this contract, the FlashMint's read sees
+     * a stale unit and the actual pull demands more — `ERC20InsufficientBalance`.
+     *
+     * We iterate the SetToken's components × external position modules and
+     * low-level-call `sync(address)` on each. Modules that don't implement the
+     * function (or revert for any reason) are silently skipped — this is a
+     * best-effort refresh, not a precondition.
+     */
+    function _syncExternalPositions(ISetToken _setToken) internal {
+        address[] memory components = _setToken.getComponents();
+        for (uint256 i = 0; i < components.length; i++) {
+            address[] memory modules = _setToken.getExternalPositionModules(components[i]);
+            for (uint256 j = 0; j < modules.length; j++) {
+                // Best-effort: ignore success/return data. ABI for sync(address)
+                // matches MorphoLeverageModule, AaveLeverageModule, etc. Modules
+                // without it just no-op via the EVM's empty-fallback / return-true.
+                // solhint-disable-next-line avoid-low-level-calls
+                (bool success, ) = modules[j].call(abi.encodeWithSignature("sync(address)", address(_setToken)));
+                success;
+            }
+        }
+    }
+
+    /**
      * Transfers given amount of set token from the sender and redeems it for underlying components.
      * Obtained component tokens are sent to this contract.
+     *
+     * Mirror the issuance side: refresh external-position units before redeem so the V3
+     * redemption view (used downstream by _sellComponentsForWeth) returns the same per-share
+     * unit the SetToken's redeem() will actually transfer to this contract. Without it,
+     * _sellComponentsForWeth would sell the stale-view amount and leave any drift portion
+     * as dust on this contract instead of forwarding it as additional output to the user.
      *
      * @param _setToken     Address of the SetToken to be redeemed
      * @param _amount       Amount of SetToken to be redeemed
      */
     function _redeem(ISetToken _setToken, uint256 _amount, address _issuanceModule) internal returns (uint256) {
+        _syncExternalPositions(_setToken);
         _setToken.safeTransferFrom(msg.sender, address(this), _amount);
         IBasicIssuanceModule(_issuanceModule).redeem(_setToken, _amount, address(this));
     }
