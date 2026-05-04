@@ -411,6 +411,125 @@ if (process.env.INTEGRATIONTEST) {
       });
     });
 
+    // Regression: when the SDK passes `noopSwap` for a non-zero-amount
+    // component on the redeem side (e.g. to leave the USDC dust component as
+    // residue rather than route a tiny ~11_000 wei swap through Uniswap V3),
+    // the contract must treat it as "no WETH produced" — not "input amount
+    // produced as WETH".
+    //
+    // Bug being reproduced: `DEXAdapterV5.swapExactTokensForTokens` short-
+    // circuits an empty path by returning `_amountIn` unchanged
+    // (DEXAdapterV5.sol:114-116). Pre-fix, `_sellComponentsForWeth` sums those
+    // returns into `totalWethReceived` as if every per-component call produced
+    // WETH — so a noop swap of 11_000 wei USDC inflates the total by 11_000
+    // wei. `_swapWethForPaymentToken` then tries to bridge the inflated total
+    // and reverts with `STF` (UniV3 TransferHelper) or
+    // `SafeERC20: low-level call failed` because the contract's actual WETH
+    // balance is short by exactly the dust amount.
+    //
+    // Post-fix expectation (balance-based WETH accounting in
+    // `_sellComponentsForWeth`): noop calls add 0 to the WETH delta, the
+    // bridge swap is sized against real balance, and the redeem succeeds with
+    // USDC dust left behind in the contract.
+    describe("regression: redeem-side noopSwap on dust component must not inflate WETH accounting", () => {
+      const setAmount = ether(1);
+      let setToken: IERC20;
+
+      // uSOL3x component order is [uSOL, USDC]. Issue uses real swaps for
+      // both components (the contract needs USDC to deposit into Morpho).
+      const componentSwapDataIssue: SwapData[] = [
+        {
+          path: [wethAddress, uSOL],
+          fees: [],
+          tickSpacing: [slipstreamTickSpacing],
+          pool: ADDRESS_ZERO,
+          poolIds: [],
+          exchange: Exchange.AerodromeSlipstream,
+        },
+        {
+          path: [wethAddress, usdcAddress],
+          fees: [500],
+          tickSpacing: [],
+          pool: ADDRESS_ZERO,
+          poolIds: [],
+          exchange: Exchange.UniV3,
+        },
+      ];
+
+      // Redeem swaps the collateral for real but passes `noopSwap` for USDC.
+      const componentSwapDataRedeem: SwapData[] = [
+        {
+          path: [uSOL, wethAddress],
+          fees: [],
+          tickSpacing: [slipstreamTickSpacing],
+          pool: ADDRESS_ZERO,
+          poolIds: [],
+          exchange: Exchange.AerodromeSlipstream,
+        },
+        noopSwap,
+      ];
+
+      before(async () => {
+        setToken = (await ethers.getContractAt("IERC20", uSOL3x)) as IERC20;
+        await flashMintDexV5.approveSetToken(uSOL3x, debtIssuanceModuleAddress);
+      });
+
+      it("redeems uSOL3x to WETH with noopSwap on USDC dust (would revert pre-fix)", async () => {
+        // Issue 1 uSOL3x via the working path.
+        const wethEstimate = await flashMintDexV5.callStatic.getIssueExactSet(
+          {
+            setToken: uSOL3x,
+            amountSetToken: setAmount,
+            componentSwapData: componentSwapDataIssue,
+            issuanceModule: debtIssuanceModuleAddress,
+            isDebtIssuance: true,
+          },
+          noopSwap,
+        );
+        const maxWeth = wethEstimate.mul(105).div(100);
+        await fundWeth(owner.address, maxWeth);
+        await weth.approve(flashMintDexV5.address, maxWeth);
+        await flashMintDexV5.issueExactSetFromERC20(
+          {
+            setToken: uSOL3x,
+            amountSetToken: setAmount,
+            componentSwapData: componentSwapDataIssue,
+            issuanceModule: debtIssuanceModuleAddress,
+            isDebtIssuance: true,
+          },
+          {
+            token: wethAddress,
+            limitAmt: maxWeth,
+            swapDataTokenToWeth: noopSwap,
+            swapDataWethToToken: noopSwap,
+          },
+          0,
+        );
+
+        // Redeem with noopSwap on the USDC component. Pre-fix: reverts because
+        // the bridge swap is sized against the inflated `totalWethReceived`.
+        await setToken.connect(owner.wallet).approve(flashMintDexV5.address, setAmount);
+        const wethBefore = await weth.balanceOf(owner.address);
+        await flashMintDexV5.redeemExactSetForERC20(
+          {
+            setToken: uSOL3x,
+            amountSetToken: setAmount,
+            componentSwapData: componentSwapDataRedeem,
+            issuanceModule: debtIssuanceModuleAddress,
+            isDebtIssuance: true,
+          },
+          {
+            token: wethAddress,
+            limitAmt: 1,
+            swapDataTokenToWeth: noopSwap,
+            swapDataWethToToken: noopSwap,
+          },
+        );
+        const wethAfter = await weth.balanceOf(owner.address);
+        expect(wethAfter).to.be.gt(wethBefore);
+      });
+    });
+
     // Regression for the larger Morpho-position drift on uXRP2x. The stored
     // external-position unit on uXRP2x lags actual Morpho collateral by
     // ~7500 wei per set (vs ≤1 wei/set for uSOL/uSUI products), so the

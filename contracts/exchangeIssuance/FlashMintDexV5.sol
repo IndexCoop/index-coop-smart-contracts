@@ -596,7 +596,41 @@ contract FlashMintDexV5 is Ownable, ReentrancyGuard {
     }
 
     /**
-     * Sells redeemed components for WETH.
+     * Sells redeemed components for WETH using balance-based accounting.
+     *
+     * Three classes of bug were observed when this function trusted the per-component
+     * `swapExactTokensForTokens` return value as the WETH produced and the issuance
+     * module's view-derived `componentUnits[i]` as the swap input:
+     *
+     *   (A) Caller passes `noopSwap` (Exchange.None / empty path) for a non-zero
+     *       component to leave it as residue. `DEXAdapterV5.swapExactTokensForTokens`
+     *       short-circuits an empty path by returning `_amountIn` unchanged
+     *       (see DEXAdapterV5.sol around the `path.length == 0` branch). The summed
+     *       `_amountIn` is in the input token's units, not WETH, so `totalWethReceived`
+     *       is over-stated by exactly that amount. The downstream WETH→output bridge
+     *       then over-quotes the contract's actual WETH balance and reverts with
+     *       `STF` (UniV3 TransferHelper) or `SafeERC20: low-level call failed`.
+     *
+     *   (B) Pre/post-sync drift on a dust component. Even after `_syncExternalPositions`,
+     *       `DebtIssuanceModuleV3.redeem(...)` re-runs sync and the `tokenTransferBuffer`
+     *       clamp can flip the pull direction by ±1 wei vs the value the SDK observed
+     *       via `getRequiredComponentRedemptionUnits` at quote time. The contract ends
+     *       up holding `componentUnits[i] - 1` of the component but tries to swap
+     *       `componentUnits[i]` → `ERC20: transfer amount exceeds balance` at the swap
+     *       call's transferFrom.
+     *
+     *   (C) The issuance module reports 0 wei for a dust component. Calling
+     *       `swapExactTokensForTokens(0, ...)` on UniV3 / Aerodrome reverts inside the
+     *       quoter / router because they reject 0-amount calls.
+     *
+     * Fix:
+     *   - Read the contract's WETH balance before and after the loop; take the delta.
+     *     A noop swap leaves WETH unchanged → contributes 0 to the total instead of
+     *     spurious `_amountIn`. (Closes A.)
+     *   - Swap `min(componentUnits[i], actualBalance)` so the swap call never asks for
+     *     more of the component than the contract actually holds. (Closes B.)
+     *   - Skip components whose effective swap amount is 0 — there is nothing to swap
+     *     and the underlying router would reject the 0-amount call anyway. (Closes C.)
      *
      * @param _redeemParams     Struct containing addresses, amounts, and swap data for issuance
      *
@@ -614,7 +648,7 @@ contract FlashMintDexV5 is Ownable, ReentrancyGuard {
         );
         require(components.length == _redeemParams.componentSwapData.length, "FlashMint: INVALID NUMBER OF COMPONENTS IN SWAP DATA");
 
-        totalWethReceived = 0;
+        uint256 wethBefore = IERC20(WETH).balanceOf(address(this));
         for (uint256 i = 0; i < components.length; i++) {
             if (!_redeemParams.isDebtIssuance) {
                 require(
@@ -622,9 +656,14 @@ contract FlashMintDexV5 is Ownable, ReentrancyGuard {
                     "FlashMint: EXTERNAL POSITION MODULES NOT SUPPORTED"
                 );
             }
-            uint256 wethBought = dexAdapter.swapExactTokensForTokens(componentUnits[i], 0, _redeemParams.componentSwapData[i]);
-            totalWethReceived = totalWethReceived.add(wethBought);
+            uint256 actualBalance = IERC20(components[i]).balanceOf(address(this));
+            uint256 amountToSwap = componentUnits[i] < actualBalance ? componentUnits[i] : actualBalance;
+            if (amountToSwap == 0) {
+                continue;
+            }
+            dexAdapter.swapExactTokensForTokens(amountToSwap, 0, _redeemParams.componentSwapData[i]);
         }
+        totalWethReceived = IERC20(WETH).balanceOf(address(this)).sub(wethBefore);
     }
 
     /**
