@@ -77,6 +77,7 @@ import { FlashMintWrapped__factory } from "../../typechain/factories/FlashMintWr
 import { ExchangeIssuanceZeroEx__factory } from "../../typechain/factories/ExchangeIssuanceZeroEx__factory";
 import { FlashMintDex__factory } from "../../typechain/factories/FlashMintDex__factory";
 import { FlashMintDexV5__factory } from "../../typechain/factories/FlashMintDexV5__factory";
+import { AaveV3DeleveredRedeemer__factory } from "../../typechain/factories/AaveV3DeleveredRedeemer__factory";
 import { FlashMintNAV__factory } from "../../typechain/factories/FlashMintNAV__factory";
 import { FlashMintPerp__factory } from "../../typechain/factories/FlashMintPerp__factory";
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
@@ -1083,6 +1084,16 @@ export default class DeployExtensions {
       aerodromeSlipstreamQuoter: aerodromeSlipstreamQuoterAddress,
       weth: wethAddress,
     });
+  }
+
+  public async deployAaveV3DeleveredRedeemer(
+    poolAddress: Address,
+    issuanceModuleAddress: Address,
+  ) {
+    return await new AaveV3DeleveredRedeemer__factory(
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(poolAddress, issuanceModuleAddress);
   }
 
   public async deployFlashMintNAV(
