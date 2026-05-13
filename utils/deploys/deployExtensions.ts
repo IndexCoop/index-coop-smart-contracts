@@ -77,7 +77,7 @@ import { FlashMintWrapped__factory } from "../../typechain/factories/FlashMintWr
 import { ExchangeIssuanceZeroEx__factory } from "../../typechain/factories/ExchangeIssuanceZeroEx__factory";
 import { FlashMintDex__factory } from "../../typechain/factories/FlashMintDex__factory";
 import { FlashMintDexV5__factory } from "../../typechain/factories/FlashMintDexV5__factory";
-import { AaveV3DeleveredRedeemer__factory } from "../../typechain/factories/AaveV3DeleveredRedeemer__factory";
+import { FlashMintAaveDelevered__factory } from "../../typechain/factories/FlashMintAaveDelevered__factory";
 import { FlashMintNAV__factory } from "../../typechain/factories/FlashMintNAV__factory";
 import { FlashMintPerp__factory } from "../../typechain/factories/FlashMintPerp__factory";
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
@@ -1086,9 +1086,10 @@ export default class DeployExtensions {
     });
   }
 
-  public async deployAaveV3DeleveredRedeemer(
-    poolAddress: Address,
-    issuanceModuleAddress: Address,
+  public async deployFlashMintAaveDelevered(
+    setControllerAddress: Address,
+    aaveV3PoolAddress: Address,
+    debtIssuanceModuleAddress: Address,
     wethAddress: Address,
     quickRouterAddress: Address,
     sushiRouterAddress: Address,
@@ -1104,7 +1105,7 @@ export default class DeployExtensions {
       "contracts/exchangeIssuance/DEXAdapterV3.sol:DEXAdapterV3",
     );
 
-    return await new AaveV3DeleveredRedeemer__factory(
+    return await new FlashMintAaveDelevered__factory(
       // @ts-ignore
       {
         [linkId]: dexAdapter.address,
@@ -1112,8 +1113,9 @@ export default class DeployExtensions {
       // @ts-ignore
       this._deployerSigner,
     ).deploy(
-      poolAddress,
-      issuanceModuleAddress,
+      setControllerAddress,
+      aaveV3PoolAddress,
+      debtIssuanceModuleAddress,
       {
         quickRouter: quickRouterAddress,
         sushiRouter: sushiRouterAddress,
