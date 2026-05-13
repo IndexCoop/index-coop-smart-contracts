@@ -77,6 +77,7 @@ import { FlashMintWrapped__factory } from "../../typechain/factories/FlashMintWr
 import { ExchangeIssuanceZeroEx__factory } from "../../typechain/factories/ExchangeIssuanceZeroEx__factory";
 import { FlashMintDex__factory } from "../../typechain/factories/FlashMintDex__factory";
 import { FlashMintDexV5__factory } from "../../typechain/factories/FlashMintDexV5__factory";
+import { FlashMintAaveDelevered__factory } from "../../typechain/factories/FlashMintAaveDelevered__factory";
 import { FlashMintNAV__factory } from "../../typechain/factories/FlashMintNAV__factory";
 import { FlashMintPerp__factory } from "../../typechain/factories/FlashMintPerp__factory";
 import { FeeSplitExtension__factory } from "../../typechain/factories/FeeSplitExtension__factory";
@@ -1083,6 +1084,49 @@ export default class DeployExtensions {
       aerodromeSlipstreamQuoter: aerodromeSlipstreamQuoterAddress,
       weth: wethAddress,
     });
+  }
+
+  public async deployFlashMintAaveDelevered(
+    setControllerAddress: Address,
+    aaveV3PoolAddress: Address,
+    debtIssuanceModuleAddress: Address,
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+    balV2VaultAddress: Address,
+  ) {
+    const dexAdapter = await this.deployDEXAdapterV3();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapterV3.sol:DEXAdapterV3",
+    );
+
+    return await new FlashMintAaveDelevered__factory(
+      // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
+      this._deployerSigner,
+    ).deploy(
+      setControllerAddress,
+      aaveV3PoolAddress,
+      debtIssuanceModuleAddress,
+      {
+        quickRouter: quickRouterAddress,
+        sushiRouter: sushiRouterAddress,
+        uniV3Router: uniV3RouterAddress,
+        uniV3Quoter: uniswapV3QuoterAddress,
+        curveAddressProvider: curveAddressProviderAddress,
+        curveCalculator: curveCalculatorAddress,
+        balV2Vault: balV2VaultAddress,
+        weth: wethAddress,
+      },
+    );
   }
 
   public async deployFlashMintNAV(

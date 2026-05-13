@@ -17,6 +17,9 @@ export const PRODUCTION_ADDRESSES = {
     aave2x: "0x9ba1d6C651624977435bc6E2c98D4c7407112e15",
     aWBTC: "0x078f358208685046a11C85e8ad32895DED33A249",
     usdt: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+    aLink: "0x191c10Aa4AF7C30e871E70C95dB0E4eb77237530",
+    link: "0xf97f4df75117a78c1A5a0DBb814Af92458539FB4",
+    link2x: "0xaF0408C1Cc4b41cf878143423015937032878913",
   },
   whales: {
     wbtc: "0x7bcefd1bc97a1af01c5ede3a3199aa11a77b6b45",
@@ -25,6 +28,10 @@ export const PRODUCTION_ADDRESSES = {
     aWETH: "0xb7fb2b774eb5e2dad9c060fb367acbdc7fa7099b",
     USDC: "0xB38e8c17e38363aF6EbdCb3dAE12e0243582891D",
     aUSDC: "0xa0894a415c4f246ce95bae718849579c099cc1d2",
+    // Aave V3 Arbitrum Collector — holds aArbAAVE (~99), aArbLINK (~3.3), and
+    // USDT (~730) in sufficient quantities for the AAVE2x / LINK2x redeem
+    // integration tests. Single source for all three.
+    aaveV3ArbCollector: "0x053D55f9B5AF8694c503EB288a1B7E552f590710",
   },
   dexes: {
     uniV3: {
