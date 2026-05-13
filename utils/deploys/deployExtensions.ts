@@ -1089,11 +1089,42 @@ export default class DeployExtensions {
   public async deployAaveV3DeleveredRedeemer(
     poolAddress: Address,
     issuanceModuleAddress: Address,
+    wethAddress: Address,
+    quickRouterAddress: Address,
+    sushiRouterAddress: Address,
+    uniV3RouterAddress: Address,
+    uniswapV3QuoterAddress: Address,
+    curveCalculatorAddress: Address,
+    curveAddressProviderAddress: Address,
+    balV2VaultAddress: Address,
   ) {
+    const dexAdapter = await this.deployDEXAdapterV3();
+
+    const linkId = convertLibraryNameToLinkId(
+      "contracts/exchangeIssuance/DEXAdapterV3.sol:DEXAdapterV3",
+    );
+
     return await new AaveV3DeleveredRedeemer__factory(
       // @ts-ignore
+      {
+        [linkId]: dexAdapter.address,
+      },
+      // @ts-ignore
       this._deployerSigner,
-    ).deploy(poolAddress, issuanceModuleAddress);
+    ).deploy(
+      poolAddress,
+      issuanceModuleAddress,
+      {
+        quickRouter: quickRouterAddress,
+        sushiRouter: sushiRouterAddress,
+        uniV3Router: uniV3RouterAddress,
+        uniV3Quoter: uniswapV3QuoterAddress,
+        curveAddressProvider: curveAddressProviderAddress,
+        curveCalculator: curveCalculatorAddress,
+        balV2Vault: balV2VaultAddress,
+        weth: wethAddress,
+      },
+    );
   }
 
   public async deployFlashMintNAV(
